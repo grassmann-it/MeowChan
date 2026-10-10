@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using oChan.Desktop;
 using oChan.Desktop.Localization;
@@ -69,7 +70,7 @@ internal static class PresentationChecks
         await SwitchModeAsync(window, "Advanced");
         Require(input.Text == draft && ReferenceEquals(grid.SelectedItem, retained),
             "The presentation roundtrip discarded a pending URL batch or selection.");
-        await CheckSmallWindowAsync(window, retained, 760, 520, "small");
+        await CheckSmallWindowAsync(window, retained, 760, 500, "small");
         await SwitchModeAsync(window, "Barebones");
         await CheckSmallWindowAsync(window, retained, 640, 480, "barebones-minimum");
         await SwitchModeAsync(window, "Advanced");
@@ -83,6 +84,8 @@ internal static class PresentationChecks
     {
         double originalWidth = window.Width;
         double originalHeight = window.Height;
+        WindowState originalState = window.WindowState;
+        Size originalBounds = window.Bounds.Size;
         TextBox input = window.FindControl<TextBox>("UrlInput")!;
         Button add = window.FindControl<Button>("AddUrlButton")!;
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
@@ -91,9 +94,14 @@ internal static class PresentationChecks
         string? draft = input.Text;
         try
         {
+            // On a scaled desktop the window manager may maximize the initial window.
+            // Manual size requests only take effect after leaving that native state.
+            window.WindowState = WindowState.Normal;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             window.Width = width;
             window.Height = height;
-            await WaitForLayoutAsync(window, () => window.Bounds.Width <= width + 1 && window.Bounds.Height <= height + 1
+            await WaitForLayoutAsync(window, () => window.WindowState == WindowState.Normal
+                && Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1
                 && InViewport(window, input) && InViewport(window, add));
             Require(!inspector.IsVisible, "A small window reserved table space for the initially closed inspector.");
 
@@ -138,7 +146,9 @@ internal static class PresentationChecks
         catch
         {
             window.UpdateLayout();
-            Console.WriteLine("SMOKE " + scenario + " layout failure: window=" + window.Bounds + "; scale=" + window.RenderScaling);
+            Console.WriteLine("SMOKE " + scenario + " layout failure: window=" + window.Bounds + "; state=" + window.WindowState
+                + "; original state=" + originalState + "; requested=" + window.Width + "×" + window.Height
+                + "; scale=" + window.RenderScaling);
             foreach (string name in new[] { "WorkspaceHeader", "WorkspaceBody", "UrlInput", "AddUrlButton", "AdmissionResultsPanel",
                 "AdmissionResultsScroll", "DownloadsPanel", "DownloadsTabs", "ThreadsDataGrid", "WorkspaceInspector", "InspectorCloseButton" })
             {
@@ -158,10 +168,13 @@ internal static class PresentationChecks
             if (resultExpander != null)
                 resultExpander.IsExpanded = false;
             input.Text = draft;
+            window.WindowState = WindowState.Normal;
             window.Width = originalWidth;
             window.Height = originalHeight;
-            await WaitForLayoutAsync(window, () => Math.Abs(window.Bounds.Width - originalWidth) <= 1
-                && Math.Abs(window.Bounds.Height - originalHeight) <= 1);
+            window.WindowState = originalState;
+            await WaitForLayoutAsync(window, () => window.WindowState == originalState
+                && Math.Abs(window.Bounds.Width - originalBounds.Width) <= 1
+                && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1);
         }
     }
 

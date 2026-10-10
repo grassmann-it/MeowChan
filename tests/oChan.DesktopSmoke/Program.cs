@@ -137,6 +137,7 @@ internal static class Program
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
             Console.WriteLine("SMOKE render scaling: actual=" + window.RenderScaling.ToString("0.###", CultureInfo.InvariantCulture)
                 + "; requested=" + (Environment.GetEnvironmentVariable("AVALONIA_GLOBAL_SCALE_FACTOR") ?? "unset") + ";");
+            await CheckDesktopFitAsync(window);
             if (_lockedProfileMode)
             {
                 if (window is not StartupErrorWindow)
@@ -303,6 +304,37 @@ internal static class Program
 
     private static bool VisibleText(Window window, string text) => window.GetVisualDescendants()
         .OfType<TextBlock>().Any(block => block.IsEffectivelyVisible && block.Text == text);
+
+    private static async Task CheckDesktopFitAsync(Window window)
+    {
+        try
+        {
+            // Native window managers can clamp the requested startup size after Show.
+            // Check physical pixels rather than comparing DIP bounds to screen pixels.
+            await WaitUntilAsync(() =>
+            {
+                Screen? screen = window.Screens.ScreenFromWindow(window);
+                if (screen == null || window.Bounds.Width <= 0 || window.Bounds.Height <= 0)
+                    return false;
+                double scale = window.RenderScaling;
+                bool clientFits = window.Bounds.Width * scale <= screen.WorkingArea.Width + 1
+                    && window.Bounds.Height * scale <= screen.WorkingArea.Height + 1;
+                bool frameFits = window.FrameSize is not Size frame
+                    || (frame.Width * scale <= screen.WorkingArea.Width + 1
+                        && frame.Height * scale <= screen.WorkingArea.Height + 1);
+                return clientFits && frameFits;
+            });
+        }
+        finally
+        {
+            Screen? screen = window.Screens.ScreenFromWindow(window);
+            Console.WriteLine("SMOKE desktop geometry: working-area=" + screen?.WorkingArea
+                + "; window-position=" + window.Position + "; window-bounds=" + window.Bounds
+                + "; frame-size=" + window.FrameSize + "; scale=" + window.RenderScaling
+                + "; state=" + window.WindowState + ";");
+        }
+        Console.WriteLine("SMOKE desktop fit: client dimensions and reported native frame fit the working area (1 physical pixel rounding tolerance); screenshots exclude native decorations.");
+    }
 
     internal static void CaptureWindow(Window window, string fileName)
     {

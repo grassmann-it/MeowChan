@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -102,8 +103,15 @@ def main() -> int:
             if previous.get(image) != image.stat().st_mtime_ns:
                 shutil.copy2(image, destination / image.name)
         passed = exit_code == 0 and "SMOKE PASS:" in log_text
-        results.append({"mode": mode, "exit_code": exit_code, "timed_out": timed_out, "passed": passed})
+        observed_scalings = sorted({float(value) for value in re.findall(
+            r"^SMOKE render scaling: actual=([0-9]+(?:\.[0-9]+)?);", log_text, re.MULTILINE)})
+        actual_scaling = observed_scalings[0] if len(observed_scalings) == 1 else None
+        results.append({"mode": mode, "exit_code": exit_code, "timed_out": timed_out, "passed": passed,
+                        "actual_render_scaling": actual_scaling, "observed_render_scalings": observed_scalings})
         failed = failed or not passed
+    common_scaling = results[0]["actual_render_scaling"] if results else None
+    if any(result["actual_render_scaling"] != common_scaling for result in results):
+        common_scaling = None
     (output / "results.json").write_text(json.dumps({
         "kind": "source-built Avalonia harness; not published apphost",
         "platform": sys.platform,
@@ -113,7 +121,7 @@ def main() -> int:
         "requested_scale_factor": environment.get("AVALONIA_GLOBAL_SCALE_FACTOR"),
         "scale_factor_source": "--scale" if args.scale is not None else "inherited environment"
             if "AVALONIA_GLOBAL_SCALE_FACTOR" in environment else "platform default",
-        "actual_render_scaling": None,
+        "actual_render_scaling": common_scaling,
         "results": results
     }, indent=2) + "\n", encoding="utf-8")
     return 1 if failed else 0

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.VisualTree;
@@ -133,9 +134,27 @@ internal static class GridChecks
             menu.Close();
         }
 
-        Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 30), window)
-            ?? throw new InvalidOperationException("The grid is not attached to the window.");
-        RightPress(window, blank, KeyModifiers.None);
+        Point? blank = null;
+        // The last row can reach the old fixed offset on a scaled, shorter desktop.
+        // Require a real empty grid target before exercising stale-selection clearing.
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            for (double y = grid.Bounds.Height - 2; y >= grid.Bounds.Height / 2; y -= 2)
+            {
+                Point? candidate = grid.TranslatePoint(new Point(20, y), window);
+                Visual? hit = candidate.HasValue ? window.InputHitTest(candidate.Value) as Visual : null;
+                DataGrid? hitGrid = hit as DataGrid ?? hit?.FindAncestorOfType<DataGrid>();
+                if (!ReferenceEquals(hitGrid, grid) || hit is DataGridRow || hit?.FindAncestorOfType<DataGridRow>() != null
+                    || hit is ScrollBar || hit?.FindAncestorOfType<ScrollBar>() != null
+                    || hit is DataGridColumnHeader || hit?.FindAncestorOfType<DataGridColumnHeader>() != null)
+                    continue;
+                blank = candidate;
+                return true;
+            }
+            return false;
+        });
+        RightPress(window, blank!.Value, KeyModifiers.None);
         if (grid.SelectedItem != null)
             throw new InvalidOperationException("Right click on blank space retained a stale action target.");
     }

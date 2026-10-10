@@ -24,6 +24,7 @@ namespace oChan
         private bool _minimizeToTray;
         private bool _isBusy;
         private bool _isClosed;
+        private bool _errorRevealPending;
         private string? _errorMessage;
         private SettingsChoice? _selectedTheme;
         private SettingsChoice? _selectedWorkspaceMode;
@@ -158,20 +159,38 @@ namespace oChan
                     return;
                 SetField(ref _errorMessage, value, nameof(ErrorMessage));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasError)));
-                if (HasError && !_isClosed && IsVisible)
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        if (!_isClosed && IsVisible && SettingsError.IsAttachedToVisualTree())
-                        {
-                            SettingsError.BringIntoView();
-                        }
-                    }, DispatcherPriority.Loaded);
-                }
+                RevealErrorAfterLayout();
             }
         }
 
         public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+        private void OnSettingsScrollChanged(object? sender, ScrollChangedEventArgs e)
+        {
+            // Native window limits can change the viewport after the initial layout.
+            // Ignore offset-only changes so users can still scroll away from an error.
+            if (ReferenceEquals(e.Source, SettingsScrollViewer) &&
+                (e.ViewportDelta.X != 0 || e.ViewportDelta.Y != 0 || e.ExtentDelta.X != 0 || e.ExtentDelta.Y != 0))
+            {
+                RevealErrorAfterLayout();
+            }
+        }
+
+        private void RevealErrorAfterLayout()
+        {
+            if (_isClosed || !IsVisible || !HasError || _errorRevealPending)
+                return;
+
+            _errorRevealPending = true;
+            Dispatcher.UIThread.Post(() =>
+            {
+                _errorRevealPending = false;
+                if (!_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
+                {
+                    SettingsError.BringIntoView();
+                }
+            }, DispatcherPriority.Loaded);
+        }
 
         protected override void OnClosing(WindowClosingEventArgs e)
         {
@@ -186,6 +205,7 @@ namespace oChan
         {
             _isClosed = true;
             Texts.Changed -= OnLanguageChanged;
+            SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
             base.OnClosed(e);
         }
 

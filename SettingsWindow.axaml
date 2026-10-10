@@ -15,7 +15,7 @@
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap"/>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
             <StackPanel Margin="28,0,28,20" Spacing="16">
                 <StackPanel Spacing="16" IsEnabled="{Binding !IsBusy}">
                     <Border Classes="panel" Padding="20" CornerRadius="10"

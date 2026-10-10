@@ -120,7 +120,7 @@ public partial class MainWindow
                 else if (_appliedWorkspaceMode == "Barebones")
                 {
                     MinWidth = 760;
-                    MinHeight = 520;
+                    MinHeight = 500;
                     Width = Math.Max(MinWidth, _normalWorkspaceWidth);
                     Height = Math.Max(MinHeight, _normalWorkspaceHeight);
                     WindowState = _normalWorkspaceState;

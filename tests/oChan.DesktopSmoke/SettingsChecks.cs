@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -54,7 +55,7 @@ internal static class SettingsChecks
             Require(timer.Maximum == 4294967, "Settings allowed a timer above the runtime limit.");
             window.RecheckTimer = 120;
             SetAppearance(window);
-            Button save = FindButton(window, "Save & Close");
+            Button save = await WaitForButtonAsync(window, "Save & Close");
             Click(save);
             Require(window.IsBusy && !save.IsEffectivelyEnabled && applies == 1, "Pending settings apply did not disable the form.");
             Click(save);
@@ -176,7 +177,7 @@ internal static class SettingsChecks
         {
             await WaitUntilAsync(() => window.IsVisible);
             window.RecheckTimer = 120;
-            Button save = FindButton(window, "Save & Close");
+            Button save = await WaitForButtonAsync(window, "Save & Close");
             Click(save);
             await WaitUntilAsync(() => !window.IsBusy && window.HasError);
             Require(window.IsVisible && config.RecheckTimer == 60, "Direct save failure closed the dialog or changed live settings.");
@@ -298,12 +299,30 @@ internal static class SettingsChecks
     {
         TextBlock error = window.FindControl<TextBlock>("SettingsError")!;
         ScrollViewer scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First();
-        await WaitUntilAsync(() =>
+        try
         {
-            Point? point = error.TranslatePoint(new Point(0, 0), scroll);
-            return error.IsVisible && error.Bounds.Height > 0 && point.HasValue &&
-                point.Value.Y >= -1 && point.Value.Y + error.Bounds.Height <= scroll.Bounds.Height + 1;
-        });
+            await WaitUntilAsync(() =>
+            {
+                Point? point = error.TranslatePoint(new Point(0, 0), scroll);
+                return error.IsVisible && error.Bounds.Height > 0 && point.HasValue &&
+                    point.Value.Y >= -1 && point.Value.Y + error.Bounds.Height <= scroll.Bounds.Height + 1;
+            });
+        }
+        catch
+        {
+            window.UpdateLayout();
+            Console.WriteLine("SMOKE settings error layout failure: window=" + window.Bounds
+                + "; state=" + window.WindowState + "; scale=" + window.RenderScaling);
+            Console.WriteLine("SMOKE settings error: text=" + error.Text + "; bounds=" + error.Bounds
+                + "; window-origin=" + error.TranslatePoint(new Point(0, 0), window)
+                + "; scroll-origin=" + error.TranslatePoint(new Point(0, 0), scroll)
+                + "; visible=" + error.IsEffectivelyVisible + "; desired=" + error.DesiredSize);
+            Console.WriteLine("SMOKE settings scroll: bounds=" + scroll.Bounds
+                + "; window-origin=" + scroll.TranslatePoint(new Point(0, 0), window)
+                + "; offset=" + scroll.Offset + "; extent=" + scroll.Extent + "; viewport=" + scroll.Viewport);
+            Program.CaptureWindow(window, "smoke-settings-error-failure.png");
+            throw;
+        }
     }
 
     private static Button FindButton(Window window, string content) => window.FindControl<Button>(content switch
@@ -313,6 +332,21 @@ internal static class SettingsChecks
         "Cancel" => "CancelSettingsButton",
         _ => throw new ArgumentOutOfRangeException(nameof(content))
     }) ?? throw new InvalidOperationException("The settings action is missing: " + content);
+
+    private static async Task<Button> WaitForButtonAsync(Window window, string content)
+    {
+        Button button = FindButton(window, content);
+        await WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            if (!button.IsEffectivelyVisible || !button.IsEffectivelyEnabled || button.Bounds.Width <= 0 || button.Bounds.Height <= 0)
+                return false;
+            Point? position = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window);
+            Visual? hit = position.HasValue ? window.InputHitTest(position.Value) as Visual : null;
+            return ReferenceEquals(hit, button) || ReferenceEquals(hit?.FindAncestorOfType<Button>(), button);
+        });
+        return button;
+    }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
