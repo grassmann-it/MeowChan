@@ -51,13 +51,13 @@ internal static class SettingsChecks
         try
         {
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
-            NumericUpDown timer = window.FindControl<NumericUpDown>("RecheckTimerInput")!;
+            NumericUpDown timer = window.Editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
             Require(timer.Maximum == 4294967, "Settings allowed a timer above the runtime limit.");
-            window.RecheckTimer = 120;
+            window.Editor.RecheckTimer = 120;
             SetAppearance(window);
             Button save = await WaitForButtonAsync(window, "Save & Close");
             Click(save);
-            Require(window.IsBusy && !save.IsEffectivelyEnabled && applies == 1, "Pending settings apply did not disable the form.");
+            Require(window.Editor.IsBusy && !save.IsEffectivelyEnabled && applies == 1, "Pending settings apply did not disable the form.");
             Click(save);
             Require(applies == 1, "A duplicate save entered the pending callback twice.");
             Func<WindowCloseReason, bool> requestClose = window.PlatformImpl?.Closing
@@ -65,7 +65,7 @@ internal static class SettingsChecks
             Require(requestClose(WindowCloseReason.WindowClosing), "Native close was allowed during a pending settings apply.");
             Require(window.IsVisible && !dialog.IsCompleted, "Pending settings dialog closed before apply completed.");
             pending.SetException(new IOException("Synthetic settings apply failure."));
-            await WaitUntilAsync(() => !window.IsBusy && window.HasError);
+            await WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError);
             Require(window.IsVisible && !dialog.IsCompleted, "Apply failure closed the settings dialog.");
             Require(config.RecheckTimer == 60, "Apply failure changed the live configuration.");
             Require(config.Theme == "Dark" && config.WorkspaceMode == "Simple" && config.Language == "en" && !config.CompactDensity,
@@ -75,31 +75,31 @@ internal static class SettingsChecks
 
             Action[] invalidEdits =
             {
-                () => window.RecheckTimer = null,
-                () => window.RecheckTimer = 60.5m,
-                () => window.MaxParallelDownloads = 1.5m,
-                () => window.BandwidthLimiterMB = 0,
-                () => window.BandwidthLimiterMB = 8796093022208m
+                () => window.Editor.RecheckTimer = null,
+                () => window.Editor.RecheckTimer = 60.5m,
+                () => window.Editor.MaxParallelDownloads = 1.5m,
+                () => window.Editor.BandwidthLimiterMB = 0,
+                () => window.Editor.BandwidthLimiterMB = 8796093022208m
             };
             foreach (Action edit in invalidEdits)
             {
-                window.RecheckTimer = 120;
-                window.MaxParallelDownloads = 3;
-                window.BandwidthLimiterMB = 2;
+                window.Editor.RecheckTimer = 120;
+                window.Editor.MaxParallelDownloads = 3;
+                window.Editor.BandwidthLimiterMB = 2;
                 edit();
                 Click(save);
-                await WaitUntilAsync(() => !window.IsBusy);
-                Require(window.HasError && applies == 1, "An invalid setting entered the commit callback.");
+                await WaitUntilAsync(() => !window.Editor.IsBusy);
+                Require(window.Editor.HasError && applies == 1, "An invalid setting entered the commit callback.");
                 Require(config.RecheckTimer == 60 && config.MaxParallelDownloads == 5, "An invalid setting changed the live configuration.");
             }
 
-            window.RecheckTimer = 120;
-            window.MaxParallelDownloads = 3;
-            window.BandwidthLimiterMB = 2;
+            window.Editor.RecheckTimer = 120;
+            window.Editor.MaxParallelDownloads = 3;
+            window.Editor.BandwidthLimiterMB = 2;
             applyResult = Task.CompletedTask;
             Click(save);
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
-            Require(applies == 2 && !window.IsVisible && !window.IsBusy, "Successful settings retry did not close exactly once.");
+            Require(applies == 2 && !window.IsVisible && !window.Editor.IsBusy, "Successful settings retry did not close exactly once.");
             Require(config.RecheckTimer == 120 && config.MaxParallelDownloads == 3, "Successful settings apply did not update the live configuration.");
             Require(Config.LoadConfig(profile).RecheckTimer == 120, "Successful settings apply did not commit the isolated profile.");
             Config saved = Config.LoadConfig(profile);
@@ -112,7 +112,7 @@ internal static class SettingsChecks
             pending.TrySetCanceled();
             if (window.IsVisible)
             {
-                await WaitUntilAsync(() => !window.IsBusy);
+                await WaitUntilAsync(() => !window.Editor.IsBusy);
                 window.Close();
             }
         }
@@ -136,8 +136,8 @@ internal static class SettingsChecks
             SetAppearance(window);
             string originalTitle = window.Title ?? string.Empty;
             Texts.SetLanguage("de");
-            await WaitUntilAsync(() => window.Title != originalTitle && window.SelectedLanguage?.Code == "de");
-            Require(window.SelectedTheme?.Value == "Light" && window.SelectedWorkspaceMode?.Value == "Barebones" && window.CompactDensity,
+            await WaitUntilAsync(() => window.Title != originalTitle && window.Editor.SelectedLanguage?.Code == "de");
+            Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Barebones" && window.Editor.CompactDensity,
                 "Changing language while settings were open discarded pending appearance edits.");
             Click(FindButton(window, "Cancel"));
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
@@ -157,12 +157,12 @@ internal static class SettingsChecks
 
     private static void SetAppearance(SettingsWindow window)
     {
-        window.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.ThemeChoices.Single(choice => choice.Value == "Light");
-        window.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
-        window.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.LanguageChoices.Single(choice => choice.Code == "de");
-        window.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
-        Require(window.SelectedTheme?.Value == "Light" && window.SelectedWorkspaceMode?.Value == "Barebones"
-            && window.SelectedLanguage?.Code == "de" && window.CompactDensity,
+        window.Editor.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.Editor.ThemeChoices.Single(choice => choice.Value == "Light");
+        window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
+        window.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.Editor.LanguageChoices.Single(choice => choice.Code == "de");
+        window.Editor.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
+        Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Barebones"
+            && window.Editor.SelectedLanguage?.Code == "de" && window.Editor.CompactDensity,
             "Appearance controls did not update the detached settings edit.");
     }
 
@@ -176,10 +176,10 @@ internal static class SettingsChecks
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
-            window.RecheckTimer = 120;
+            window.Editor.RecheckTimer = 120;
             Button save = await WaitForButtonAsync(window, "Save & Close");
             Click(save);
-            await WaitUntilAsync(() => !window.IsBusy && window.HasError);
+            await WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError);
             Require(window.IsVisible && config.RecheckTimer == 60, "Direct save failure closed the dialog or changed live settings.");
             Require(Directory.Exists(Path.Combine(profile, "settings.json")), "Direct save failure replaced an unreadable settings path.");
             await AssertErrorInViewportAsync(window);
@@ -206,20 +206,20 @@ internal static class SettingsChecks
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
-            window.RecheckTimer = 120;
+            window.Editor.RecheckTimer = 120;
             Click(FindButton(window, "Save & Close"));
-            Require(window.IsBusy, "Owner-close fixture did not enter pending settings apply.");
+            Require(window.Editor.IsBusy, "Owner-close fixture did not enter pending settings apply.");
             parent.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
             Require(!parent.IsVisible && !window.IsVisible, "A busy settings dialog blocked its owner from closing.");
             pending.SetException(new IOException("Apply finished after its owner closed."));
-            await WaitUntilAsync(() => !window.IsBusy);
+            await WaitUntilAsync(() => !window.Editor.IsBusy);
             Require(config.RecheckTimer == 60, "An apply failure after owner close changed live settings.");
         }
         finally
         {
             pending.TrySetCanceled();
-            await WaitUntilAsync(() => !window.IsBusy);
+            await WaitUntilAsync(() => !window.Editor.IsBusy);
             if (window.IsVisible)
                 window.Close();
             if (parent.IsVisible)
@@ -238,9 +238,9 @@ internal static class SettingsChecks
         SettingsWindow window = new SettingsWindow(config);
         Task dialog = window.ShowDialog(owner);
         bool wrongThread = false;
-        window.PropertyChanged += (object? sender, PropertyChangedEventArgs args) =>
+        window.Editor.PropertyChanged += (object? sender, PropertyChangedEventArgs args) =>
         {
-            if (args.PropertyName == nameof(SettingsWindow.DownloadPath) && !Dispatcher.UIThread.CheckAccess())
+            if (args.PropertyName == nameof(SettingsEditor.DownloadPath) && !Dispatcher.UIThread.CheckAccess())
                 wrongThread = true;
         };
         TaskCompletionSource<IReadOnlyList<IStorageFolder>> pending = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -250,22 +250,22 @@ internal static class SettingsChecks
             Button browse = FindButton(window, "Browse");
             provider.CanPickFolder = false;
             Click(browse);
-            Require(window.HasError && !window.IsBusy && provider.PickerCalls == 0, "Unavailable picker was not handled without starting a dialog.");
+            Require(window.Editor.HasError && !window.Editor.IsBusy && provider.PickerCalls == 0, "Unavailable picker was not handled without starting a dialog.");
             await AssertErrorInViewportAsync(window);
 
             provider.CanPickFolder = true;
             provider.Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(Array.Empty<IStorageFolder>());
             Click(browse);
-            Require(!window.IsBusy && !window.HasError && window.DownloadPath == originalPath, "Cancelling the folder picker changed settings or reported an error.");
+            Require(!window.Editor.IsBusy && !window.Editor.HasError && window.Editor.DownloadPath == originalPath, "Cancelling the folder picker changed settings or reported an error.");
 
             provider.Result = Task.FromException<IReadOnlyList<IStorageFolder>>(new IOException("Synthetic folder picker failure."));
             Click(browse);
-            Require(window.HasError && !window.IsBusy && window.DownloadPath == originalPath, "Folder picker failure was not shown without changing the path.");
+            Require(window.Editor.HasError && !window.Editor.IsBusy && window.Editor.DownloadPath == originalPath, "Folder picker failure was not shown without changing the path.");
             await AssertErrorInViewportAsync(window);
 
             provider.Result = pending.Task;
             Click(browse);
-            Require(window.IsBusy && !browse.IsEffectivelyEnabled, "Pending folder picker did not disable the form.");
+            Require(window.Editor.IsBusy && !browse.IsEffectivelyEnabled, "Pending folder picker did not disable the form.");
             int calls = provider.PickerCalls;
             Click(browse);
             Require(provider.PickerCalls == calls, "Pending folder picker was opened twice.");
@@ -273,14 +273,14 @@ internal static class SettingsChecks
             string selectedPath = Path.Combine(profile, "selected");
             FixtureStorageFolder selected = new FixtureStorageFolder(new Uri(selectedPath));
             await Task.Run(() => pending.SetResult(new IStorageFolder[] { selected }));
-            await WaitUntilAsync(() => !window.IsBusy);
-            Require(window.DownloadPath == selectedPath && !window.HasError && selected.Disposed, "Local picker result was not applied and disposed.");
+            await WaitUntilAsync(() => !window.Editor.IsBusy);
+            Require(window.Editor.DownloadPath == selectedPath && !window.Editor.HasError && selected.Disposed, "Local picker result was not applied and disposed.");
             Require(!wrongThread && config.DownloadPath == originalPath, "Folder picker changed live configuration or raised bindings off the UI thread.");
 
             FixtureStorageFolder remote = new FixtureStorageFolder(new Uri("content://fixture/nonlocal"));
             provider.Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(new IStorageFolder[] { remote });
             Click(browse);
-            Require(window.HasError && window.DownloadPath == selectedPath && remote.Disposed, "Nonlocal folder was accepted or not disposed.");
+            Require(window.Editor.HasError && window.Editor.DownloadPath == selectedPath && remote.Disposed, "Nonlocal folder was accepted or not disposed.");
             window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }
@@ -289,7 +289,7 @@ internal static class SettingsChecks
             pending.TrySetCanceled();
             if (window.IsVisible)
             {
-                await WaitUntilAsync(() => !window.IsBusy);
+                await WaitUntilAsync(() => !window.Editor.IsBusy);
                 window.Close();
             }
         }
@@ -297,7 +297,7 @@ internal static class SettingsChecks
 
     private static async Task AssertErrorInViewportAsync(SettingsWindow window)
     {
-        TextBlock error = window.FindControl<TextBlock>("SettingsError")!;
+        TextBlock error = window.Editor.FindControl<TextBlock>("SettingsError")!;
         ScrollViewer scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First();
         try
         {
@@ -325,7 +325,7 @@ internal static class SettingsChecks
         }
     }
 
-    private static Button FindButton(Window window, string content) => window.FindControl<Button>(content switch
+    private static Button FindButton(SettingsWindow window, string content) => window.Editor.FindControl<Button>(content switch
     {
         "Save & Close" => "SaveSettingsButton",
         "Browse" => "BrowseButton",
@@ -333,7 +333,7 @@ internal static class SettingsChecks
         _ => throw new ArgumentOutOfRangeException(nameof(content))
     }) ?? throw new InvalidOperationException("The settings action is missing: " + content);
 
-    private static async Task<Button> WaitForButtonAsync(Window window, string content)
+    private static async Task<Button> WaitForButtonAsync(SettingsWindow window, string content)
     {
         Button button = FindButton(window, content);
         await WaitUntilAsync(() =>

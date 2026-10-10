@@ -270,8 +270,8 @@ internal static class PresentationChecks
         window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<SettingsWindow>().Any(item => item.IsVisible));
         SettingsWindow settings = window.OwnedWindows.OfType<SettingsWindow>().Single(item => item.IsVisible);
-        settings.FindControl<ComboBox>("LanguageInput")!.SelectedItem = settings.LanguageChoices.Single(choice => choice.Code == code);
-        Click(settings.FindControl<Button>("SaveSettingsButton")!);
+        settings.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = settings.Editor.LanguageChoices.Single(choice => choice.Code == code);
+        Click(settings.Editor.FindControl<Button>("SaveSettingsButton")!);
         await Program.WaitUntilAsync(() => !settings.IsVisible && Config.LoadConfig().Language == code
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
     }
