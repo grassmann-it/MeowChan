@@ -39,6 +39,23 @@ The visual scene uses six passive snapshot rows at the mock's 1440×920 size and
 
 These results do not reproduce or establish the cause of the reported native desktop freeze. Xvfb has no native tray host, GPU rendering, host accessibility or desktop portals, and does not prove native Windows/macOS or extracted-package behavior.
 
+### Refreshed local style candidate — source `203d7ed`
+
+All five desktop archives and `libochan.0.9.0.nupkg` were rebuilt from source commit `203d7ed392edb5d99427a3f7b5d24c1dc448e1c5`. This includes the `1884ff5` style checkpoint, the retained pages, cat icon, Avalonia 12 and updated documentation/screenshots. All five publishes completed without warnings/errors. Complete extracted file hashes match their source trees; required documents, all three screenshots, native libraries and Unix executable permissions were checked. macOS bundle metadata and icons passed structural checks.
+
+The library passed its consumer in a fresh package cache with an exact package-hash match and no desktop dependencies. Packages and `SHA256SUMS` are in `artifacts/ap13-style-candidate-203d7ed/packages`; source/runtime graphs, logs, SDK details and results are in its `evidence` directory. Portable solution/smoke dependency graphs were restored in locked mode afterward. These local artifacts have not been published. No extracted GUI apphost was launched for this checkpoint; full native workflows, Gatekeeper behavior and user visual acceptance remain open.
+
+| Artifact | SHA256 |
+| --- | --- |
+| `oChan-0.9.0-linux-x64.tar.gz` | `5af813235367b84d2ca07a255cd039652a7954f442bdf196e56cc8d3c02fb2fd` |
+| `oChan-0.9.0-win-x64.zip` | `bd4a56f6ffa05e09a7e69994996081677bc95377409d250a0760c425e2f8d449` |
+| `oChan-0.9.0-linux-arm64.tar.gz` | `729db44b87c86bca8eda4a381f43dd84dc6242da3efde0c13d27aeb64b3727b3` |
+| `oChan-0.9.0-osx-x64.tar.gz` | `4a4470f4e880edcc931c346d1242d46446ddbc4cdece16713409ddc32a6a7958` |
+| `oChan-0.9.0-osx-arm64.tar.gz` | `4d4e5e53dea0007bb0f2c1f1a2ecaaf5bf6f55a9291fe31d6b8fb8be19d03ec7` |
+| `libochan.0.9.0.nupkg` | `340877a15c06ef7ad6d9aa69f388b66e41db4fdf7d6f70fbf38efa21bfbed54a` |
+
+The older package/apphost evidence below identifies different archives and does not establish native execution of these refreshed candidates. A later evidence-only documentation commit records these hashes; it does not change their source commit.
+
 ## Upstream requirements checked on 2026-10-10
 
 The official [.NET 10 supported OS matrix](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md), updated 2026-09-28 when checked, lists:
@@ -56,7 +73,7 @@ The current Linux desktop uses X11, including XWayland on a Wayland desktop. A w
 | Runtime identifier | Archive | Intended native validation baseline | Evidence still required |
 | --- | --- | --- | --- |
 | `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
-| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current Manjaro source-built checks and actual package startup/exit are recorded below. |
+| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current isolated source-built checks and historical package startup/exit are recorded below. |
 | `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
 | `osx-x64` | `.tar.gz` | macOS 15 x64 | Native Intel Mac package and desktop run. |
 | `osx-arm64` | `.tar.gz` | macOS 15 Arm64 | Final 0.9.0 source-built and extracted `.app` workflows plus Gatekeeper behavior; the passing Arm64 harness below used the earlier UI. |
