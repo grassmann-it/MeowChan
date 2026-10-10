@@ -69,7 +69,7 @@ public partial class MainWindow
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_settingsPageSelected || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
+        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
         OnDetailsToggleClick(sender, e);
         WorkspaceControl<DataGrid>(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
             ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
@@ -134,6 +134,8 @@ public partial class MainWindow
             }
 
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
+            WorkspaceControl<Button>("DiagnosticsNavigationButton").IsVisible = advanced;
+            WorkspaceControl<Button>("ToolsNavigationButton").IsVisible = !advanced;
             WorkspaceControl<TextBlock>("WorkspaceSubtitle").IsVisible = !barebones;
             WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = !barebones;
             WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
@@ -172,6 +174,8 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>()) LocalizeWorkspaceControl(control);
+        if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
+            foreach (MenuItem item in tools.Items.OfType<MenuItem>()) LocalizeWorkspaceControl(item);
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
@@ -391,7 +395,7 @@ public partial class MainWindow
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e)
     {
-        if (NavigateWorkspace(false)) WorkspaceControl<TextBox>("UrlInput").Focus();
+        if (NavigateWorkspace(WorkspacePage.Downloads)) WorkspaceControl<TextBox>("UrlInput").Focus();
     }
     private void OnSettingsNavigationClick(object? sender, RoutedEventArgs e) => OnSettingsMenuItemClick(sender, e);
 

@@ -19,6 +19,7 @@
                 </StackPanel>
                 <Menu Grid.Column="3" VerticalAlignment="Center">
                     <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
+                        <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                         <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                         <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
                         <Separator />
@@ -321,6 +322,7 @@
             </Grid>
         </Grid>
         <ContentControl x:Name="SettingsPageHost" IsVisible="False" />
+        <ContentControl x:Name="DiagnosticsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
@@ -336,6 +338,19 @@
                         <Path Data="M 9,1 L 9,12 M 5,8 L 9,12 L 13,8 M 2,13 L 2,17 L 16,17 L 16,13" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
                         <TextBlock Tag="nav.downloads" Classes="localized" Text="Downloads" />
                     </StackPanel>
+                </Button>
+                <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Path Data="M 1,10 L 4,10 L 7,3 L 10,16 L 13,10 L 17,10" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
+                        <TextBlock Tag="nav.diagnostics" Classes="localized" Text="Diagnostics" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="Tools">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
+                        </MenuFlyout>
+                    </Button.Flyout>
                 </Button>
                 <Button x:Name="SettingsNavigationButton" Classes="nav" Click="OnSettingsNavigationClick">
                     <StackPanel Orientation="Horizontal" Spacing="9">

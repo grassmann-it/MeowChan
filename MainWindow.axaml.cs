@@ -153,12 +153,18 @@ public partial class MainWindow : Window
         this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = navigationReady;
+        bool diagnosticsReady = !_isClosing && !_applyingPreferences && !(_settingsEditor?.IsBusy ?? false)
+            && (_restoreCompleted || _session.State == DesktopSessionState.RecoveryFailed);
+        this.FindControl<Button>("DiagnosticsNavigationButton")!.IsEnabled = diagnosticsReady;
+        this.FindControl<Button>("ToolsNavigationButton")!.IsEnabled = diagnosticsReady;
+        this.FindControl<MenuItem>("DiagnosticsMenuItem")!.IsEnabled = diagnosticsReady;
         if (_clipboardMenuItem != null)
         {
             _clipboardMenuItem.IsEnabled = navigationReady && !_importing;
         }
         this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = navigationReady;
         this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = navigationReady;
+        RefreshDiagnosticPage();
         RefreshWorkspace();
     }
 
@@ -208,6 +214,7 @@ public partial class MainWindow : Window
         }
         RefreshWorkspace();
 
+        RefreshDiagnosticPage(view);
         HashSet<string> currentWarnings = new HashSet<string>(StringComparer.Ordinal);
         foreach (string warning in view.Warnings)
         {
@@ -378,7 +385,7 @@ public partial class MainWindow : Window
         if (e.KeyModifiers == pasteModifier && e.Key == Key.L)
         {
             e.Handled = true;
-            if (NavigateWorkspace(false)) urlInput.Focus();
+            if (NavigateWorkspace(WorkspacePage.Downloads)) urlInput.Focus();
             return;
         }
         if (e.KeyModifiers == pasteModifier && e.Key == Key.V && e.Source is not TextBox &&
@@ -396,7 +403,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        NavigateWorkspace(false);
+        NavigateWorkspace(WorkspacePage.Downloads);
         _importing = true;
         UpdateInteractionState();
         try
@@ -770,7 +777,7 @@ public partial class MainWindow : Window
     private void OnThreadDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
     private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
 
-    private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(true);
+    private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(WorkspacePage.Settings);
 
     private async Task ApplySettingsAsync(Config candidate)
     {
