@@ -22,6 +22,44 @@ Commit `d355152` isolates Linux runs in Xvfb/Openbox with a private DBus session
 
 Native Windows/macOS, Linux Arm64 and full extracted-package workflows remain open. The earlier archives listed below predate the icon, pages, framework and style changes. Cross-publish alone cannot replace their native acceptance.
 
+### Bounded live-provider check — 2026-10-10
+
+Source checkpoint `c7ef581` was additionally exercised against actual public
+4chan and 8kun endpoints through the built-in adapters, production HTTP policy,
+registry, download queue, media store and archive runtime. No synthetic response
+handler supplied the content. The check used two workers, an eight-reservation
+pending limit, JPG/PNG selection and a 200,000-byte metadata size limit in isolated
+profiles. Public catalog/thread metadata was inspected first to select small
+threads; only two original media files were downloaded in total.
+
+| Source and live thread | Captured posts | Verified files / bytes | Recheck | Fresh-process restore |
+| --- | --- | --- | --- | --- |
+| 4chan `/g/110029602` | 2 | 1 / 28,512 | Actual conditional HTTP 304 | 1 saved medium, zero media HTTP requests |
+| 8kun `/tech/1087224` | 3 | 1 / 96,313 | Actual HTTP 200 | 1 saved medium, zero media HTTP requests |
+
+The first media responses were HTTP 200 from `i.4cdn.org` and
+`nerv.8kun.top`. The stored files were verified through the independent manifest
+reader. Manual checks completed, pause rejected a manual request, local archive
+search found each thread, and both real captures exported with their saved medium
+and zero attachment omissions. New providers/queues/stores/sessions reused the
+files; an additional, separately launched .NET process restored both sessions and
+again issued no media requests.
+
+Local request/status evidence and results are retained under
+`artifacts/live-provider-check-20261010/`, including `4chan-result.json`,
+`8kun-result.json`, `fresh-process-restore.json` and `results.json`. At the user's
+request the two verified watches and their captured posts were merged into the
+normal desktop profile, preserving its previous watch and settings. The media
+remain in their assigned live-test folders; a normal `dotnet run` exposes them in
+Downloads and Archive. Backups of the previous profile files are retained with the
+evidence. The personal desktop was not opened or automated.
+
+This is a small live-source smoke check, not a 32-worker stress or long-running
+source test. These particular captures contain no parsed quote anchors, so live
+quote/backlink navigation is not established by this run; its existing acceptance
+uses controlled GUI/catalog fixtures. Native release-package acceptance and real
+NAS-disconnection behavior remain separate.
+
 ### Isolated style checkpoint — `1884ff5`
 
 The final style source passed the Release solution build without warnings/errors and all **457 .NET tests** (367 core, 90 desktop). The smoke build, 22 macOS-packaging fixtures and nine window-free runner fixtures also passed. Linux GUI checks used Xvfb/Openbox, software rendering, a private non-activating DBus session and temporary profile/download directories; no personal desktop windows or tray stress were started.
