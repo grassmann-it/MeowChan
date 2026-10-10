@@ -410,7 +410,7 @@ public abstract class BaseThread : IThread
         foreach (DownloadItem item in selected)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            queue.TryEnqueue(item);
+            await queue.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
         }
         OnPropertyChanged();
     }

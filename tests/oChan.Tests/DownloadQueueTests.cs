@@ -396,6 +396,170 @@ public sealed class DownloadQueueTests
         }
     }
 
+    [Fact]
+    public async Task FullCapacityWaitsWithoutAcceptingOrDroppingMediaAndCancellationOnlyEndsTheWait()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 1);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 1), directory, "active.bin", "active")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 2), directory, "pending.bin", "pending")));
+            DownloadItem blocked = CreateItem(board, Thread(board, 3), directory, "blocked.bin", "blocked");
+            Assert.False(queue.TryEnqueue(blocked));
+            Assert.Throws<InvalidOperationException>(() => queue.EnqueueDownload(blocked));
+            using CancellationTokenSource cancelled = new CancellationTokenSource();
+            Task<bool> cancelledWait = queue.EnqueueAsync(blocked, cancelled.Token);
+            Assert.False(cancelledWait.IsCompleted);
+            Assert.Equal((1, 1, 1), queue.GetCapacitySnapshot());
+            cancelled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelledWait);
+            Assert.Equal((1, 1, 0), queue.GetCapacitySnapshot());
+            Task<bool> admitted = queue.EnqueueAsync(blocked);
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.True(await admitted.WaitAsync(TestWait.Timeout));
+            Assert.Equal((1, 1, 0), queue.GetCapacitySnapshot());
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(Payload, await File.ReadAllBytesAsync(blocked.DestinationPath));
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task StopAndWatchCancellationWakeAdmissionsEvenWhenNoJobForThatWatchWasAdmitted()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 1);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 1), directory, "active.bin", "active")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 2), directory, "pending.bin", "pending")));
+            IThread cancelled = Thread(board, 3);
+            Task<bool> first = queue.EnqueueAsync(CreateItem(board, cancelled, directory, "cancelled.bin", "cancelled"));
+            Task<bool> second = queue.EnqueueAsync(CreateItem(board, Thread(board, 4), directory, "stopped.bin", "stopped"));
+            await queue.CancelDownloadsForThreadAsync(cancelled);
+            Assert.False(await first.WaitAsync(TestWait.Timeout));
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+            Assert.False(await second.WaitAsync(TestWait.Timeout));
+            Assert.Equal((0, 0, 0), queue.GetCapacitySnapshot());
+            Assert.Equal(1, handler.RequestCount);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task ManualAndBoardWorkAlternateAndSeparateBoardWatchesReceiveTurns()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 4);
+        IThread firstBoard = Thread(board, 1);
+        IThread secondBoard = Thread(board, 2);
+        IThread manual = Thread(board, 3);
+        queue.SetThreadPriority(firstBoard, DownloadPriority.BoardDiscovery);
+        queue.SetThreadPriority(secondBoard, DownloadPriority.BoardDiscovery);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, firstBoard, directory, "start.bin", "start")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, firstBoard, directory, "board-a.bin", "board-a")));
+            Assert.True(queue.TryEnqueue(CreateItem(board, secondBoard, directory, "board-b.bin", "board-b")));
+            Assert.True(queue.TryEnqueue(CreateItem(board, manual, directory, "manual-a.bin", "manual-a")));
+            Assert.True(queue.TryEnqueue(CreateItem(board, manual, directory, "manual-b.bin", "manual-b")));
+            for (int index = 0; index < 4; index++)
+            {
+                handler.Release(1);
+                await handler.WaitForStartsAsync(1);
+            }
+            handler.Release(1);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(new[] { "start.bin", "manual-a.bin", "board-b.bin", "manual-b.bin", "board-a.bin" },
+                handler.StartedUris.Select(uri => Path.GetFileName(uri.AbsolutePath)));
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task ManualAdmissionGetsATurnAheadOfAnExistingBoardBacklogWithoutStarvingIt()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 1);
+        IThread automatic = Thread(board, 1);
+        IThread manual = Thread(board, 2);
+        queue.SetThreadPriority(automatic, DownloadPriority.BoardDiscovery);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, automatic, directory, "active.bin", "active")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, automatic, directory, "pending.bin", "pending")));
+            Task<bool> boardWait = queue.EnqueueAsync(CreateItem(board, automatic, directory, "board.bin", "board"));
+            Task<bool> manualWait = queue.EnqueueAsync(CreateItem(board, manual, directory, "manual.bin", "manual"));
+            Assert.False(boardWait.IsCompleted);
+            Assert.False(manualWait.IsCompleted);
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.True(await manualWait.WaitAsync(TestWait.Timeout));
+            Assert.False(boardWait.IsCompleted);
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.True(await boardWait.WaitAsync(TestWait.Timeout));
+            Assert.Equal("manual.bin", Path.GetFileName(handler.StartedUris.Last().AbsolutePath));
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.True(automatic.IsMediaDownloaded("board"));
+            Assert.True(manual.IsMediaDownloaded("manual"));
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task ThirtyTwoProducersRespectWorkerAndPendingBudgetsAndEveryJobCompletes()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(32, UnthrottledBandwidth, maxPendingDownloads: 8);
+        try
+        {
+            Task[] producers = Enumerable.Range(1, 32).Select(async id =>
+            {
+                IThread thread = Thread(board, id);
+                queue.SetThreadPriority(thread, id % 2 == 0 ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery);
+                for (int media = 0; media < 10; media++)
+                {
+                    Assert.True(await queue.EnqueueAsync(CreateItem(board, thread, directory,
+                        $"{id}/{media}.bin", $"{id}-{media}")));
+                    (int active, int pending, _) = queue.GetCapacitySnapshot();
+                    Assert.InRange(active, 0, 32);
+                    Assert.InRange(pending, 0, 8);
+                }
+            }).ToArray();
+            await handler.WaitForStartsAsync(32);
+            Assert.Equal(32, handler.ActiveRequests);
+            Assert.Equal(8, queue.GetCapacitySnapshot().Pending);
+            Assert.True(queue.GetCapacitySnapshot().WaitingAdmission > 0);
+            handler.Release(320);
+            await Task.WhenAll(producers).WaitAsync(TestWait.Timeout);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(320, handler.RequestCount);
+            Assert.Equal(32, handler.MaximumActiveRequests);
+            Assert.Equal(320, Directory.GetFiles(directory.Path, "*.bin", SearchOption.AllDirectories).Length);
+            Assert.Equal((0, 0, 0), queue.GetCapacitySnapshot());
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
     private static IThread Thread(StubImageBoard board, int id)
         => board.GetThread(new Uri($"https://stub.test/g/thread/{id}"));
 
@@ -417,6 +581,7 @@ public sealed class DownloadQueueTests
         private int _maximumActiveRequests;
         private int _cancellationCount;
 
+        public System.Collections.Concurrent.ConcurrentQueue<Uri> StartedUris { get; } = new();
         public int RequestCount => Volatile.Read(ref _requestCount);
         public int ActiveRequests => Volatile.Read(ref _activeRequests);
         public int MaximumActiveRequests => Volatile.Read(ref _maximumActiveRequests);
@@ -452,6 +617,7 @@ public sealed class DownloadQueueTests
             }
             while (Interlocked.CompareExchange(ref _maximumActiveRequests, active, observed) != observed);
             Interlocked.Increment(ref _requestCount);
+            StartedUris.Enqueue(request.RequestUri!);
             _starts.Writer.TryWrite(true);
 
             try

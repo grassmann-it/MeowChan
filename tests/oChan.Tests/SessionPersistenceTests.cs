@@ -1003,6 +1003,10 @@ public sealed class SessionPersistenceTests
         await TestWait.UntilAsync(() => registry.Threads.Count == 1 && discovered.Sum(thread => thread.Starts) == 1);
         Assert.Equal(new[] { ThreadUrl }, store.Current.ThreadUrls);
         Assert.Equal(directory.Path, store.Current.DownloadDirectories[ThreadUrl]);
+        Assert.Equal(new[] { ThreadUrl }, store.Current.DiscoveredThreadUrls);
+        AdmissionResult explicitAdd = await registry.AddAsync(ThreadUrl);
+        Assert.Equal(AdmissionStatus.AlreadyPresent, explicitAdd.Status);
+        Assert.Empty(store.Current.DiscoveredThreadUrls);
     }
 
     [Fact]
@@ -1424,6 +1428,7 @@ public sealed class SessionPersistenceTests
             {
                 SchemaVersion = snapshot.SchemaVersion,
                 ThreadUrls = snapshot.ThreadUrls.ToArray(),
+                DiscoveredThreadUrls = snapshot.DiscoveredThreadUrls.ToArray(),
                 BoardUrls = snapshot.BoardUrls.ToArray(),
                 SuppressedThreadUrls = snapshot.SuppressedThreadUrls.ToArray(),
                 DownloadDirectories = new Dictionary<string, string>(snapshot.DownloadDirectories, StringComparer.Ordinal)

@@ -1,6 +1,6 @@
 # Download pipeline
 
-Normal consumers admit URLs through `Registry`. Providers discover media descriptors, and the session's shared `DownloadQueue` schedules the work. The queue limits active media globally across watched boards and threads.
+Normal consumers admit URLs through `Registry`. Providers discover media descriptors, and the session's shared `DownloadQueue` schedules the work. The queue limits active media globally across watched boards and threads, plus at most 256 pending media reservations by default (constructor option `maxPendingDownloads`). Active revision successors reserve pending capacity too. Providers await capacity with cancellation instead of discarding media. Manual and board-discovered work alternate when both are available, with least-recently-served watch scheduling inside each class. These limits do not bound the number of metadata watches or their retained snapshots.
 
 A job is reserved by source, board, thread, media ID and absolute destination. Different destinations are distinct jobs; duplicate descriptors for the same target do not create concurrent writes. A stopped watch cannot enqueue late work into its old lifetime.
 
@@ -16,7 +16,10 @@ A missing medium does not remove its parent thread. The public `ThreadSnapshot` 
 
 | API | Meaning |
 | --- | --- |
-| `TryEnqueue(DownloadItem)` | Reserves a job if its lifetime/identity can be admitted. Acceptance is not completion. |
+| `TryEnqueue(DownloadItem)` | Attempts immediate admission; false also includes full capacity. Acceptance is not completion. |
+| `EnqueueAsync(DownloadItem, CancellationToken)` | Waits for fair capacity admission. False means duplicate or closed ownership; cancellation ends the admission wait. |
+| `GetCapacitySnapshot()` | Active jobs, pending reservations including successors, and callers waiting for admission. |
+| `SetThreadPriority(IThread, DownloadPriority)` | Manual or board-discovery scheduling class; neither bypasses HTTP rate policy. |
 | `WaitForIdleAsync()` | Waits until currently admitted media work has finished or been cancelled. Source monitoring can later add work. |
 | `CancelDownloadsForThreadAsync(IThread)` | Cancels and awaits media belonging to that watch instance. |
 | `StopAllAsync()` | Cancels and awaits the queue. Use session `StopAsync` to stop source polling as well. |
@@ -40,7 +43,7 @@ DownloadItem item = new DownloadItem(
     expectedSize: expectedSize,
     expectedMd5: base64Md5,
     originalFileName: originalName);
-bool admitted = queue.TryEnqueue(item);
+bool admitted = await queue.EnqueueAsync(item, cancellationToken);
 ```
 
 The variables come from the provider's parsed response; the MD5 value is the provider's Base64 encoding, not hexadecimal. Keep source/board/thread/media identifiers stable, validate paths through the storage layout, and propagate cancellation while producing descriptors. Never mark a file complete merely because enqueue returned `true`.

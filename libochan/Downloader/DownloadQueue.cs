@@ -12,6 +12,8 @@ using oChan.Notifications;
 using oChan.Storage;
 using Serilog;
 
+public enum DownloadPriority { Manual, BoardDiscovery }
+
 /// <summary>
 /// Owns the session's media jobs and shared worker limit. Thread owners explicitly
 /// cancel their jobs when their watch ends; the queue does not subscribe to events.
@@ -19,7 +21,16 @@ using Serilog;
 public class DownloadQueue
 {
     private readonly object _stateLock = new object();
-    private readonly Queue<QueuedDownload> _pendingDownloads = new Queue<QueuedDownload>();
+    private readonly LinkedList<QueuedDownload> _pendingDownloads = new LinkedList<QueuedDownload>();
+    private readonly ConditionalWeakTable<IThread, PriorityState> _priorities = new ConditionalWeakTable<IThread, PriorityState>();
+    private readonly LinkedList<AdmissionWaiter> _manualWaiters = new LinkedList<AdmissionWaiter>();
+    private readonly LinkedList<AdmissionWaiter> _boardWaiters = new LinkedList<AdmissionWaiter>();
+    private TaskCompletionSource _capacityChanged = CreateCompletionSource();
+    private readonly int _maxPendingDownloads;
+    private int _reservedSuccessors;
+    private bool _preferManualAdmission = true;
+    private bool _preferManualDispatch = true;
+    private long _dispatchSequence;
     private readonly Dictionary<JobIdentity, QueuedDownload> _jobs = new Dictionary<JobIdentity, QueuedDownload>();
     private readonly Dictionary<ThreadIdentity, ThreadState> _threads = new Dictionary<ThreadIdentity, ThreadState>();
     private readonly ConditionalWeakTable<IThread, object> _cancelledThreads = new ConditionalWeakTable<IThread, object>();
@@ -90,7 +101,8 @@ public class DownloadQueue
     }
 
     public DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, MediaStore? mediaStore = null,
-        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null)
+        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null,
+        int maxPendingDownloads = 256)
     {
         if (maxParallelDownloads <= 0)
         {
@@ -102,6 +114,8 @@ public class DownloadQueue
             throw new ArgumentOutOfRangeException(nameof(maxBandwidthBytesPerSecond), "Max bandwidth must be greater than zero.");
         }
 
+        if (maxPendingDownloads <= 0) throw new ArgumentOutOfRangeException(nameof(maxPendingDownloads));
+        _maxPendingDownloads = maxPendingDownloads;
         _bodyIdleTimeout = bodyIdleTimeout ?? TimeSpan.FromSeconds(30);
         if (_bodyIdleTimeout <= TimeSpan.Zero || _bodyIdleTimeout.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(bodyIdleTimeout));
@@ -153,26 +167,100 @@ public class DownloadQueue
 
     public void EnqueueDownload(DownloadItem item)
     {
-        TryEnqueue(item);
+        PreparedDownload prepared = Prepare(item);
+        TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: false);
+        if (full) throw new InvalidOperationException("Download capacity is full; use EnqueueAsync to wait without losing work.");
+    }
+
+    public int MaxPendingDownloads => _maxPendingDownloads;
+
+    /// <summary>Changes scheduling priority without changing HTTP policy or job identity.</summary>
+    public void SetThreadPriority(IThread thread, DownloadPriority priority)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        if (!Enum.IsDefined(priority)) throw new ArgumentOutOfRangeException(nameof(priority));
+        lock (_stateLock) { _priorities.GetValue(thread, static _ => new PriorityState()).Priority = priority; }
+    }
+
+    /// <summary>Pending includes reserved successors of active media revisions, never exceeding the configured cap.</summary>
+    public (int Active, int Pending, int WaitingAdmission) GetCapacitySnapshot()
+    {
+        lock (_stateLock) return (_activeDownloads, _pendingDownloads.Count + _reservedSuccessors,
+            _manualWaiters.Count + _boardWaiters.Count);
     }
 
     /// <summary>
     /// Atomically reserves a job. Returns false for a duplicate, a stopped queue,
-    /// a cancelled instance or a still-active older instance of the same thread.
+    /// a cancelled instance, unavailable capacity or a still-active older instance of the same thread.
+    /// Use EnqueueAsync to wait for capacity instead of retrying or discarding work.
     /// Completed reservations are released and can be submitted again.
     /// </summary>
     public bool TryEnqueue(DownloadItem item)
     {
+        PreparedDownload prepared = Prepare(item);
+        return TryEnqueuePrepared(item, prepared, out _, fromWaiter: false);
+    }
+
+    /// <summary>
+    /// Waits for fair admission when capacity is full. False means duplicate or closed ownership,
+    /// not a discarded job due to backpressure. Caller cancellation ends only this admission wait.
+    /// </summary>
+    public async Task<bool> EnqueueAsync(DownloadItem item, CancellationToken cancellationToken = default)
+    {
+        PreparedDownload prepared = Prepare(item);
+        AdmissionWaiter waiter;
+        LinkedList<AdmissionWaiter> waiters;
+        LinkedListNode<AdmissionWaiter> node;
+        lock (_stateLock)
+        {
+            waiter = new AdmissionWaiter(item.Thread, GetPriorityLocked(item.Thread));
+            waiters = waiter.Priority == DownloadPriority.Manual ? _manualWaiters : _boardWaiters;
+            node = waiters.AddLast(waiter);
+            PulseCapacityLocked();
+        }
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Task changed;
+                lock (_stateLock)
+                {
+                    if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
+                    if (ReferenceEquals(NextWaiterLocked(), waiter))
+                    {
+                        bool accepted = TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: true);
+                        if (!full)
+                        {
+                            _preferManualAdmission = waiter.Priority != DownloadPriority.Manual;
+                            return accepted;
+                        }
+                    }
+                    changed = _capacityChanged.Task;
+                }
+                await changed.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            lock (_stateLock) { waiters.Remove(node); PulseCapacityLocked(); }
+        }
+    }
+
+    private static PreparedDownload Prepare(DownloadItem item)
+    {
         ArgumentNullException.ThrowIfNull(item);
-        // Provider properties and path resolution run outside the state lock.
         ThreadIdentity threadIdentity = GetThreadIdentity(item.Thread);
         string destinationPath = Path.GetFullPath(item.DestinationPath);
-        if (OperatingSystem.IsWindows())
-        {
-            destinationPath = destinationPath.ToUpperInvariant();
-        }
+        if (OperatingSystem.IsWindows()) destinationPath = destinationPath.ToUpperInvariant();
+        return new PreparedDownload(threadIdentity, new JobIdentity(threadIdentity, item.MediaIdentifier, destinationPath));
+    }
 
-        JobIdentity jobIdentity = new JobIdentity(threadIdentity, item.MediaIdentifier, destinationPath);
+    private bool TryEnqueuePrepared(DownloadItem item, PreparedDownload prepared, out bool full, bool fromWaiter)
+    {
+        full = false;
+        ThreadIdentity threadIdentity = prepared.Thread;
+        JobIdentity jobIdentity = prepared.Job;
         string url = item.DownloadUri.ToString();
         List<QueuedDownload> ready;
         lock (_stateLock)
@@ -189,36 +277,51 @@ public class DownloadQueue
                 // Keep the active bytes owned by their original worker. The latest observed revision
                 // runs after it even if this was the source's final poll. At most one successor exists.
                 if (existing.IsActive)
-                    existing.Replacement = SameRetrieval(existing.Item, item) ? null : item;
+                {
+                    bool needsSuccessor = !SameRetrieval(existing.Item, item);
+                    if (needsSuccessor && existing.Replacement == null)
+                    {
+                        if (_pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads)
+                        { full = true; return false; }
+                        _reservedSuccessors++;
+                    }
+                    else if (!needsSuccessor && existing.Replacement != null)
+                    { _reservedSuccessors--; PulseCapacityLocked(); }
+                    existing.Replacement = needsSuccessor ? item : null;
+                }
                 else existing.Item = item;
                 ready = new List<QueuedDownload>();
             }
             else
             {
 
-            if (_threads.TryGetValue(threadIdentity, out ThreadState? threadState))
-            {
-                if (!ReferenceEquals(threadState.Thread, item.Thread))
+                if ((!fromWaiter && (_manualWaiters.Count + _boardWaiters.Count > 0))
+                    || (_activeDownloads >= _maxParallelDownloads && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
+                { full = true; return false; }
+
+                if (_threads.TryGetValue(threadIdentity, out ThreadState? threadState))
                 {
-                    return false;
+                    if (!ReferenceEquals(threadState.Thread, item.Thread))
+                    {
+                        return false;
+                    }
                 }
-            }
-            else
-            {
-                threadState = new ThreadState(threadIdentity, item.Thread);
-                _threads.Add(threadIdentity, threadState);
-            }
+                else
+                {
+                    threadState = new ThreadState(threadIdentity, item.Thread);
+                    _threads.Add(threadIdentity, threadState);
+                }
 
-            if (_jobs.Count == 0)
-            {
-                _idleCompletion = CreateCompletionSource();
-            }
+                if (_jobs.Count == 0)
+                {
+                    _idleCompletion = CreateCompletionSource();
+                }
 
-            QueuedDownload job = new QueuedDownload(jobIdentity, url, item, threadState);
-            _jobs.Add(jobIdentity, job);
-            _pendingDownloads.Enqueue(job);
-            threadState.OutstandingJobs++;
-            ready = ReserveWorkersLocked();
+                QueuedDownload job = new QueuedDownload(jobIdentity, url, item, threadState);
+                _jobs.Add(jobIdentity, job);
+                _pendingDownloads.AddLast(job);
+                threadState.OutstandingJobs++;
+                ready = ReserveWorkersLocked();
             }
         }
 
@@ -260,6 +363,7 @@ public class DownloadQueue
             _cancelledThreads.GetValue(thread, static (IThread _) => new object());
             if (!_threads.TryGetValue(identity, out threadState) || !ReferenceEquals(threadState.Thread, thread))
             {
+                PulseCapacityLocked();
                 return Task.CompletedTask;
             }
 
@@ -309,8 +413,10 @@ public class DownloadQueue
                 threadState.CancellationLeases++;
             }
 
-            while (_pendingDownloads.TryDequeue(out QueuedDownload? job))
+            while (_pendingDownloads.First is LinkedListNode<QueuedDownload> node)
             {
+                QueuedDownload job = node.Value;
+                _pendingDownloads.RemoveFirst();
                 _jobs.Remove(job.Identity);
                 job.ThreadState.OutstandingJobs--;
             }
@@ -321,6 +427,7 @@ public class DownloadQueue
             }
 
             SignalIdleIfNeededLocked(cleanup);
+            PulseCapacityLocked();
         }
 
         RunCleanup(cleanup);
@@ -352,17 +459,44 @@ public class DownloadQueue
         _bandwidthLimiter.UpdateMaxBytesPerSecond(newMaxBytesPerSecond);
     }
 
+    private DownloadPriority GetPriorityLocked(IThread thread) =>
+        _priorities.TryGetValue(thread, out PriorityState? state) ? state.Priority : DownloadPriority.Manual;
+
+    private AdmissionWaiter? NextWaiterLocked() => _preferManualAdmission
+        ? _manualWaiters.First?.Value ?? _boardWaiters.First?.Value
+        : _boardWaiters.First?.Value ?? _manualWaiters.First?.Value;
+
+    private void PulseCapacityLocked()
+    {
+        TaskCompletionSource previous = _capacityChanged;
+        _capacityChanged = CreateCompletionSource();
+        previous.TrySetResult();
+    }
+
     private List<QueuedDownload> ReserveWorkersLocked()
     {
         List<QueuedDownload> ready = new List<QueuedDownload>();
-        while (!_stopping && _activeDownloads < _maxParallelDownloads &&
-               _pendingDownloads.TryDequeue(out QueuedDownload? job))
+        while (!_stopping && _activeDownloads < _maxParallelDownloads && _pendingDownloads.Count > 0)
         {
+            DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
+            LinkedListNode<QueuedDownload>? chosen = null;
+            for (LinkedListNode<QueuedDownload>? node = _pendingDownloads.First; node != null; node = node.Next)
+            {
+                bool matches = GetPriorityLocked(node.Value.Item.Thread) == preferred;
+                bool chosenMatches = chosen != null && GetPriorityLocked(chosen.Value.Item.Thread) == preferred;
+                if (chosen == null || (matches && !chosenMatches)
+                    || (matches == chosenMatches && node.Value.ThreadState.LastDispatch < chosen.Value.ThreadState.LastDispatch))
+                    chosen = node;
+            }
+            QueuedDownload job = chosen!.Value;
+            _pendingDownloads.Remove(chosen);
+            _preferManualDispatch = GetPriorityLocked(job.Item.Thread) != DownloadPriority.Manual;
+            job.ThreadState.LastDispatch = ++_dispatchSequence;
             job.IsActive = true;
             _activeDownloads++;
             ready.Add(job);
         }
-
+        PulseCapacityLocked();
         return ready;
     }
 
@@ -407,12 +541,13 @@ public class DownloadQueue
                 _activeDownloads--;
                 _jobs.Remove(job.Identity);
                 job.ThreadState.OutstandingJobs--;
+                if (job.Replacement != null) _reservedSuccessors--;
                 if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
                     && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
                 {
                     QueuedDownload successor = new QueuedDownload(job.Identity, replacement.DownloadUri.ToString(), replacement, job.ThreadState);
                     _jobs.Add(job.Identity, successor);
-                    _pendingDownloads.Enqueue(successor);
+                    _pendingDownloads.AddLast(successor);
                     job.ThreadState.OutstandingJobs++;
                 }
                 RetireThreadIfIdleLocked(job.ThreadState, cleanup);
@@ -428,20 +563,20 @@ public class DownloadQueue
 
     private void RemovePendingJobsLocked(ThreadState threadState)
     {
-        int pendingCount = _pendingDownloads.Count;
-        for (int index = 0; index < pendingCount; index++)
+        LinkedListNode<QueuedDownload>? node = _pendingDownloads.First;
+        while (node != null)
         {
-            QueuedDownload job = _pendingDownloads.Dequeue();
+            LinkedListNode<QueuedDownload>? next = node.Next;
+            QueuedDownload job = node.Value;
             if (ReferenceEquals(job.ThreadState, threadState))
             {
+                _pendingDownloads.Remove(node);
                 _jobs.Remove(job.Identity);
                 threadState.OutstandingJobs--;
             }
-            else
-            {
-                _pendingDownloads.Enqueue(job);
-            }
+            node = next;
         }
+        PulseCapacityLocked();
     }
 
     private async Task CancelThreadStateAsync(ThreadState threadState)
@@ -556,6 +691,10 @@ public class DownloadQueue
         return completion;
     }
 
+    private sealed class PriorityState { public DownloadPriority Priority { get; set; } }
+    private sealed record AdmissionWaiter(IThread Thread, DownloadPriority Priority);
+    private readonly record struct PreparedDownload(ThreadIdentity Thread, JobIdentity Job);
+
     private readonly record struct ThreadIdentity(string Source, string Board, string ThreadId);
     private readonly record struct JobIdentity(ThreadIdentity Thread, string MediaId, string DestinationPath);
 
@@ -583,6 +722,7 @@ public class DownloadQueue
         public CancellationTokenSource Cancellation { get; } = new CancellationTokenSource();
         public CancellationToken Token { get; }
         public TaskCompletionSource Completion { get; } = CreateCompletionSource();
+        public long LastDispatch { get; set; }
         public int OutstandingJobs { get; set; }
         public int CancellationLeases { get; set; }
         public bool IsRetired { get; set; }

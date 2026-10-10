@@ -170,7 +170,21 @@ public sealed class Registry : IAsyncDisposable
                 if (current != null)
                 {
                     if (current.Stopping) oldLifetime = current.Stopped.Task;
-                    else result = new AdmissionResult(AdmissionStatus.AlreadyPresent, current.Thread, current.Board);
+                    else
+                    {
+                        if (current.Thread != null)
+                        {
+                            SessionSnapshot next = CopySnapshot(_session);
+                            next.DiscoveredThreadUrls = next.DiscoveredThreadUrls.Where(value => value != resource.Url).ToArray();
+                            if (next.DiscoveredThreadUrls.Length != _session.DiscoveredThreadUrls.Length)
+                            {
+                                await SaveSessionAsync(next).ConfigureAwait(false);
+                                _session = next;
+                            }
+                            _queue.SetThreadPriority(current.Thread, DownloadPriority.Manual);
+                        }
+                        result = new AdmissionResult(AdmissionStatus.AlreadyPresent, current.Thread, current.Board);
+                    }
                 }
                 else
                 {
@@ -234,9 +248,12 @@ public sealed class Registry : IAsyncDisposable
                 string inherited = roots.TryGetValue(boardUrl, out string? boardRoot) ? boardRoot : _outputDirectory;
                 roots.TryAdd(resource.Url, inherited);
             }
+            HashSet<string> discovered = loaded.Snapshot.DiscoveredThreadUrls
+                .Select(url => canonicalUrls.TryGetValue(url, out string? canonical) ? canonical : url)
+                .Where(threads.Contains).ToHashSet(StringComparer.Ordinal);
             SessionSnapshot normalized = new SessionSnapshot
             {
-                ThreadUrls = threads.ToArray(), BoardUrls = boards.ToArray(),
+                ThreadUrls = threads.ToArray(), BoardUrls = boards.ToArray(), DiscoveredThreadUrls = discovered.ToArray(),
                 SuppressedThreadUrls = suppressedUrls.ToArray(), DownloadDirectories = roots
             };
             bool missingAssignments = resources.Values.Any(resource =>
@@ -253,7 +270,7 @@ public sealed class Registry : IAsyncDisposable
             foreach (Resource resource in resources.Values)
             {
                 if (resource.Thread != null && _suppressed.Contains(resource.Key)) continue;
-                try { added.Add(await AdmitAsync(resource, roots[resource.Url], persist: false).ConfigureAwait(false)); }
+                try { added.Add(await AdmitAsync(resource, roots[resource.Url], persist: false, discovered: discovered.Contains(resource.Url)).ConfigureAwait(false)); }
                 catch (Exception exception) { warnings.Add($"Could not start restored watch '{resource.Url}': {exception.Message}. Its saved entry was retained."); }
             }
         }
@@ -311,13 +328,13 @@ public sealed class Registry : IAsyncDisposable
     }
 
     // Caller holds the gate. Durable intent precedes activation and public success.
-    private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist)
+    private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist, bool discovered = false)
     {
         SessionSnapshot previous = _session;
         bool previouslySuppressed = _suppressed.Contains(resource.Key);
         if (persist)
         {
-            SessionSnapshot next = AdmissionSnapshot(resource, outputRoot);
+            SessionSnapshot next = AdmissionSnapshot(resource, outputRoot, discovered);
             await SaveSessionAsync(next).ConfigureAwait(false);
             _session = next;
             _hasMutations = true;
@@ -342,6 +359,7 @@ public sealed class Registry : IAsyncDisposable
                 });
                 watch.StateHandler = (_, _) => SignalChanged();
                 resource.Thread.PropertyChanged += watch.StateHandler;
+                _queue.SetThreadPriority(resource.Thread, discovered ? DownloadPriority.BoardDiscovery : DownloadPriority.Manual);
                 resource.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
             }
             else
@@ -403,7 +421,7 @@ public sealed class Registry : IAsyncDisposable
             }
             if (_suppressed.Contains(threadKey)) return;
             Resource resource = new Resource(threadKey, thread.ThreadUri.AbsoluteUri, thread, null);
-            result = await AdmitAsync(resource, parent.OutputRoot, persist: true).ConfigureAwait(false);
+            result = await AdmitAsync(resource, parent.OutputRoot, persist: true, discovered: true).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -480,12 +498,13 @@ public sealed class Registry : IAsyncDisposable
         return Task.WhenAll(cancelled, stopped);
     }
 
-    private SessionSnapshot AdmissionSnapshot(Resource resource, string root)
+    private SessionSnapshot AdmissionSnapshot(Resource resource, string root, bool discovered)
     {
         SessionSnapshot next = CopySnapshot(_session);
         if (resource.Thread != null)
         {
             next.ThreadUrls = next.ThreadUrls.Append(resource.Url).Distinct(StringComparer.Ordinal).ToArray();
+            if (discovered) next.DiscoveredThreadUrls = next.DiscoveredThreadUrls.Append(resource.Url).Distinct(StringComparer.Ordinal).ToArray();
             next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != resource.Url).ToArray();
         }
         else next.BoardUrls = next.BoardUrls.Append(resource.Url).Distinct(StringComparer.Ordinal).ToArray();
@@ -499,6 +518,7 @@ public sealed class Registry : IAsyncDisposable
         if (thread)
         {
             next.ThreadUrls = next.ThreadUrls.Where(value => value != url).ToArray();
+            next.DiscoveredThreadUrls = next.DiscoveredThreadUrls.Where(value => value != url).ToArray();
             next.SuppressedThreadUrls = next.SuppressedThreadUrls.Append(url).Distinct(StringComparer.Ordinal).ToArray();
         }
         else next.BoardUrls = next.BoardUrls.Where(value => value != url).ToArray();
@@ -519,6 +539,7 @@ public sealed class Registry : IAsyncDisposable
     {
         SchemaVersion = snapshot.SchemaVersion,
         ThreadUrls = snapshot.ThreadUrls.ToArray(), BoardUrls = snapshot.BoardUrls.ToArray(),
+        DiscoveredThreadUrls = snapshot.DiscoveredThreadUrls.ToArray(),
         SuppressedThreadUrls = snapshot.SuppressedThreadUrls.ToArray(),
         DownloadDirectories = new Dictionary<string, string>(snapshot.DownloadDirectories, StringComparer.Ordinal)
     };

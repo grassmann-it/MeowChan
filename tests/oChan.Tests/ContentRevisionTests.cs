@@ -90,7 +90,7 @@ public sealed class ContentRevisionTests
         RevisionTransport transport = new RevisionTransport();
         using StubImageBoard provider = new StubImageBoard(transport);
         ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/123")) { TotalMediaCount = 1 };
-        DownloadQueue queue = new DownloadQueue(1, 1L << 30);
+        DownloadQueue queue = new DownloadQueue(1, 1L << 30, maxPendingDownloads: 1);
         try
         {
             DownloadItem first = Item(provider, thread, directory.Path, 0);
@@ -99,6 +99,9 @@ public sealed class ContentRevisionTests
             Assert.True(queue.TryEnqueue(Item(provider, thread, directory.Path, 1)));
             Assert.False(queue.TryEnqueue(Item(provider, thread, directory.Path, 1)));
             Assert.Equal(new DownloadCounts(1, 1), Counts(queue, thread));
+            Assert.Equal(1, queue.GetCapacitySnapshot().Pending);
+            Assert.False(queue.TryEnqueue(new DownloadItem(new Uri("https://stub.test/media/other.bin"),
+                Path.Combine(directory.Path, "other.bin"), provider, thread, "other")));
             Assert.True(queue.TryEnqueue(Item(provider, thread, directory.Path, 2)));
             Assert.Equal(new DownloadCounts(1, 1), Counts(queue, thread));
             if (revert)

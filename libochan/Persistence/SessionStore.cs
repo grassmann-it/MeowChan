@@ -15,6 +15,8 @@ public sealed class SessionSnapshot
     // properties. The store takes defensive copies at its public boundary.
     public int SchemaVersion { get; set; } = 1;
     public string[] ThreadUrls { get; set; } = Array.Empty<string>();
+    /// <summary>Optional scheduling origin; legacy watches default to manual priority.</summary>
+    public string[] DiscoveredThreadUrls { get; set; } = Array.Empty<string>();
     public string[] BoardUrls { get; set; } = Array.Empty<string>();
     public string[] SuppressedThreadUrls { get; set; } = Array.Empty<string>();
 
@@ -110,10 +112,13 @@ public sealed class SessionStore : ISessionStore
         ArgumentNullException.ThrowIfNull(snapshot);
         if (snapshot.SchemaVersion != 1)
             throw new InvalidDataException($"Unsupported session schema version: {snapshot.SchemaVersion}.");
-        if (snapshot.ThreadUrls == null || snapshot.BoardUrls == null || snapshot.SuppressedThreadUrls == null || snapshot.DownloadDirectories == null)
+        if (snapshot.ThreadUrls == null || snapshot.BoardUrls == null || snapshot.SuppressedThreadUrls == null || snapshot.DownloadDirectories == null || snapshot.DiscoveredThreadUrls == null)
             throw new InvalidDataException("Session URL collections and download directories must not be null.");
 
         string[] threads = CopyUrls(snapshot.ThreadUrls, nameof(snapshot.ThreadUrls));
+        string[] discovered = CopyUrls(snapshot.DiscoveredThreadUrls, nameof(snapshot.DiscoveredThreadUrls));
+        if (discovered.Except(threads, StringComparer.Ordinal).Any())
+            throw new InvalidDataException("Discovered threads must belong to the saved thread list.");
         string[] boards = CopyUrls(snapshot.BoardUrls, nameof(snapshot.BoardUrls));
         string[] suppressed = CopyUrls(snapshot.SuppressedThreadUrls, nameof(snapshot.SuppressedThreadUrls));
         Dictionary<string, string> directories = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -129,6 +134,7 @@ public sealed class SessionStore : ISessionStore
         {
             SchemaVersion = snapshot.SchemaVersion,
             ThreadUrls = threads,
+            DiscoveredThreadUrls = discovered,
             BoardUrls = boards,
             SuppressedThreadUrls = suppressed,
             DownloadDirectories = directories

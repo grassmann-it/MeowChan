@@ -78,6 +78,21 @@ public sealed class SessionStoreTests
         Assert.Equal(directory.Path, loaded.Snapshot.DownloadDirectories[ThreadUrl]);
     }
 
+    [Fact]
+    public async Task DiscoveryOriginRoundTripsAndMustReferToAnExistingWatch()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        SessionStore store = new SessionStore(directory.Path, lease);
+        SessionSnapshot snapshot = FullSnapshot(directory.Path);
+        snapshot.DiscoveredThreadUrls = [ThreadUrl];
+        await store.SaveAsync(snapshot);
+        Assert.Equal(new[] { ThreadUrl }, (await store.LoadAsync()).Snapshot.DiscoveredThreadUrls);
+        snapshot.DiscoveredThreadUrls = [SuppressedUrl];
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.SaveAsync(snapshot));
+        Assert.Equal(new[] { ThreadUrl }, (await store.LoadAsync()).Snapshot.DiscoveredThreadUrls);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -99,6 +114,7 @@ public sealed class SessionStoreTests
         Assert.Equal(new[] { BoardUrl }, loaded.Snapshot.BoardUrls);
         Assert.Empty(loaded.Snapshot.SuppressedThreadUrls);
         Assert.Empty(loaded.Snapshot.DownloadDirectories);
+        Assert.Empty(loaded.Snapshot.DiscoveredThreadUrls);
         Assert.Equal(original, File.ReadAllText(SessionPath(directory)));
     }
 
