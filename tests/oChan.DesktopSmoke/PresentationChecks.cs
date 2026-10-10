@@ -18,6 +18,9 @@ internal static class PresentationChecks
         TextBox input = window.FindControl<TextBox>("UrlInput")!;
         Button add = window.FindControl<Button>("AddUrlButton")!;
         Config initial = Config.LoadConfig();
+        Require(modes.Items.OfType<ComboBoxItem>().Select(item => item.Tag as string)
+            .SequenceEqual(new[] { "Barebones", "Simple", "Advanced" }),
+            "The view choices were not ordered Barebones, Simple, Advanced.");
         Require(initial.WorkspaceMode == "Simple" && Mode(modes) == "Simple", "A new profile did not open in Simple view.");
         Require(initial.Theme == "Dark" && initial.Language == "en", "A new profile did not use the English dark presentation.");
         Require(window.FindControl<Button>("ThemeToggleButton")!.Content as string == "Light",

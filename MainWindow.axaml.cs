@@ -47,6 +47,8 @@ public partial class MainWindow : Window
     private NativeMenuItem? _trayOpenItem;
     private NativeMenuItem? _trayFolderItem;
     private NativeMenuItem? _trayExitItem;
+    private IPlatformSettings? _trayPlatformSettings;
+    private readonly Dictionary<string, Bitmap> _trayMenuIcons = new Dictionary<string, Bitmap>();
     private readonly List<AdmissionFeedback> _admissionResults = new List<AdmissionFeedback>();
 
     private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error);
@@ -423,6 +425,7 @@ public partial class MainWindow : Window
 
     private void ConfigureTrayIcon(TrayIcon trayIcon)
     {
+        _trayPlatformSettings = Application.Current?.PlatformSettings;
         using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan.png"));
         trayIcon.Icon = new WindowIcon(iconStream);
         trayIcon.ToolTipText = "oChan - Image Downloader";
@@ -460,6 +463,8 @@ public partial class MainWindow : Window
             }
         };
         trayIcon.IsVisible = true;
+        if (_trayPlatformSettings != null)
+            _trayPlatformSettings.ColorValuesChanged += OnTrayColorValuesChanged;
     }
 
     private void RestoreWindow()
@@ -490,6 +495,9 @@ public partial class MainWindow : Window
 
     private void DisposeTrayIcon()
     {
+        if (_trayPlatformSettings != null)
+            _trayPlatformSettings.ColorValuesChanged -= OnTrayColorValuesChanged;
+        _trayPlatformSettings = null;
         TrayIcon? trayIcon = _trayIcon;
         _trayIcon = null;
         _clipboardMenuItem = null;
@@ -505,16 +513,46 @@ public partial class MainWindow : Window
         {
             Log.Warning(exception, "Could not dispose the tray icon.");
         }
+        foreach (Bitmap icon in _trayMenuIcons.Values)
+            icon.Dispose();
+        _trayMenuIcons.Clear();
     }
 
-    private static NativeMenuItem CreateTrayMenuItem(string header, string icon)
+    private NativeMenuItem CreateTrayMenuItem(string header, string icon)
     {
-        using Stream iconStream = AssetLoader.Open(new Uri($"avares://oChan/Assets/icons/{icon}.png"));
         return new NativeMenuItem
         {
             Header = header,
-            Icon = new Bitmap(iconStream)
+            Icon = GetTrayMenuIcon(icon)
         };
+    }
+
+    private Bitmap GetTrayMenuIcon(string name)
+    {
+        // Windows uses an Avalonia popup; Linux/macOS menus follow the desktop theme.
+        bool dark = OperatingSystem.IsWindows() ? _config.Theme != "Light"
+            : _trayPlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark;
+        string asset = (dark ? "light/" : string.Empty) + name;
+        if (_trayMenuIcons.TryGetValue(asset, out Bitmap? cached))
+            return cached;
+        using Stream stream = AssetLoader.Open(new Uri($"avares://oChan/Assets/icons/{asset}.png"));
+        Bitmap bitmap = new Bitmap(stream);
+        _trayMenuIcons.Add(asset, bitmap);
+        return bitmap;
+    }
+
+    private void OnTrayColorValuesChanged(object? sender, PlatformColorValues values)
+    {
+        Dispatcher.UIThread.Post(RefreshTrayMenuIcons);
+    }
+
+    private void RefreshTrayMenuIcons()
+    {
+        if (_isClosing || _trayIcon == null) return;
+        if (_trayOpenItem != null) _trayOpenItem.Icon = GetTrayMenuIcon("list");
+        if (_trayFolderItem != null) _trayFolderItem.Icon = GetTrayMenuIcon("folder");
+        if (_clipboardMenuItem != null) _clipboardMenuItem.Icon = GetTrayMenuIcon("clipboard");
+        if (_trayExitItem != null) _trayExitItem.Icon = GetTrayMenuIcon("power");
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
@@ -744,6 +782,7 @@ public partial class MainWindow : Window
         if (_isClosing) return;
         if (Application.Current != null)
             Application.Current.RequestedThemeVariant = _config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+        if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
     }

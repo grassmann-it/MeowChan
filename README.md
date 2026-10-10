@@ -6,7 +6,7 @@ Version **0.9.0** is in preparation with a new desktop interface on top of the d
 
 ## What's new in 0.9.0
 
-- A redesigned Avalonia interface with Simple, Advanced and Barebones views of the same running session.
+- A redesigned Avalonia interface with Barebones, Simple (default) and Advanced views of the same running session.
 - Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
@@ -20,13 +20,15 @@ The first start uses **Simple**, **Dark**, **English** and normal density. Switc
 
 | View | Presentation |
 | --- | --- |
-| **Simple** | The default: source, board, title, status and media progress. Thread IDs appear beneath titles. |
-| **Advanced** | Adds separate sortable columns for thread ID, queued media and active media downloads. |
-| **Barebones** | A smaller window with dense rows, a separate thread-ID column and fewer decorative elements. |
+| **Barebones** | A smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
+| **Simple** | The default: combined source/board, title with inline thread ID, and status with media progress. |
+| **Advanced** | Adds separate sortable columns for thread ID, status, queued media and active media downloads. |
 
 Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.
 
-![Simple view with a running download and thread details](docs/screenshots/v0.9.0-simple.png)
+The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
+
+![Simple view with a running download](docs/screenshots/v0.9.0-simple.png)
 
 ![Compact Barebones view of the same running download](docs/screenshots/v0.9.0-barebones.png)
 

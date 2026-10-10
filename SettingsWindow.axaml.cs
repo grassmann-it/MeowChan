@@ -236,9 +236,9 @@ namespace oChan
             };
             WorkspaceChoices = new SettingsChoice[]
             {
+                new SettingsChoice("Barebones", Texts.T("mode.barebones")),
                 new SettingsChoice("Simple", Texts.T("mode.simple")),
-                new SettingsChoice("Advanced", Texts.T("mode.advanced")),
-                new SettingsChoice("Barebones", Texts.T("mode.barebones"))
+                new SettingsChoice("Advanced", Texts.T("mode.advanced"))
             };
             List<LanguageInfo> languages = new List<LanguageInfo>(Texts.Languages);
             if (!languages.Any(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase)))

@@ -28,9 +28,9 @@ internal static class GridChecks
         {
             tabs.SelectedIndex = 0;
             await WaitForRowsAsync(threadGrid, two, ten);
-            foreach (string header in new[] { "Thread ID", "Progress", "Queued", "Active" })
+            foreach (string property in new[] { nameof(ThreadRow.SourceBoard), nameof(ThreadRow.ThreadNumber), nameof(ThreadRow.Completion), nameof(ThreadRow.Queued), nameof(ThreadRow.Active) })
             {
-                DataGridColumn column = threadGrid.Columns.Single(column => (string?)column.Header == header);
+                DataGridColumn column = threadGrid.Columns.Single(column => column.SortMemberPath == property);
                 threadGrid.CollectionView.SortDescriptions.Clear();
                 column.Sort(ListSortDirection.Ascending);
                 await Program.WaitUntilAsync(() => ReferenceEquals(threadGrid.CollectionView.Cast<ThreadRow>().First(), two));
@@ -38,11 +38,11 @@ internal static class GridChecks
                 await Program.WaitUntilAsync(() => ReferenceEquals(threadGrid.CollectionView.Cast<ThreadRow>().First(), ten));
             }
 
-            Console.WriteLine("SMOKE numeric thread ID, progress, queued and active sorting distinguishes 2 from 10.");
+            Console.WriteLine("SMOKE source/board sorting distinguishes boards within one provider; numeric thread ID, progress, queued and active sorting distinguishes 2 from 10.");
             await WaitForRowsAsync(threadGrid, two, ten);
             await CheckContextSelectionAsync(window, threadGrid, two, ten);
             await WaitForRowsAsync(threadGrid, two, ten);
-            DataGridColumn activeColumn = threadGrid.Columns.Single(column => (string?)column.Header == "Active");
+            DataGridColumn activeColumn = threadGrid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Active));
             DataGridCell activeCell = FindRow(threadGrid, ten).GetVisualDescendants().OfType<DataGridCell>()
                 .Single(cell => ReferenceEquals(DataGridColumn.GetColumnContainingElement(cell), activeColumn));
             Point? activeEnd = activeCell.TranslatePoint(new Point(activeCell.Bounds.Width, 0), threadGrid);
@@ -73,7 +73,7 @@ internal static class GridChecks
     private static ThreadRow CreateRow(string id, int value)
     {
         return new ThreadRow(SnapshotFixtures.Thread(value, id, "Grid fixture " + id,
-            completed: value, queued: value, active: value));
+            completed: value, queued: value, active: value, board: value == 2 ? "g" : "wg"));
     }
 
     private static Task WaitForRowsAsync(DataGrid grid, object first, object second) => Program.WaitUntilAsync(() =>

@@ -92,6 +92,8 @@ internal static class ClipboardChecks
         clipboard.Read = () => throw new InvalidOperationException("Explicit Add unexpectedly read the clipboard.");
         input.Text = explicitUrl;
         Click(add);
+        Expander reportExpander = (Expander)window.FindControl<Border>("AdmissionResultsPanel")!.Child!;
+        reportExpander.IsExpanded = true;
         await WaitUntilAsync(() => add.IsEnabled && ReportLines(window).Length == 1);
         if (clipboard.ReadCount != 0 || input.Text != explicitUrl)
             throw new InvalidOperationException("Explicit Add read the clipboard or discarded a rejected URL.");
@@ -148,6 +150,7 @@ internal static class ClipboardChecks
             throw new InvalidOperationException("Clipboard failure did not leave the empty session usable.");
         CloseNotifications(window);
         clipboard.Read = () => Task.FromResult<IAsyncDataTransfer?>(null);
+        reportExpander.IsExpanded = false;
 
         Console.WriteLine("SMOKE isolated clipboard: explicit/batch Add bypassed clipboard; every valid-shaped and invalid token got an ordered result; empty Add imported once; overlapping Add ignored; empty/error feedback restored controls.");
     }

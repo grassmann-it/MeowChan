@@ -4,9 +4,9 @@
         x:Class="oChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
         Title="oChan" Icon="avares://oChan/Assets/ochan.png">
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
         <Border Classes="shell-bar" BorderThickness="0,0,0,1">
-            <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="24,10" ColumnSpacing="16">
+            <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                     <TextBlock Text="oChan" Classes="brand" />
                     <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
@@ -14,11 +14,7 @@
                 <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ComboBox x:Name="WorkspaceModeComboBox" MinWidth="130" VerticalAlignment="Center">
-                        <ComboBoxItem x:Name="SimpleModeItem" Tag="Simple" Content="Simple" />
-                        <ComboBoxItem x:Name="AdvancedModeItem" Tag="Advanced" Content="Advanced" />
-                        <ComboBoxItem x:Name="BarebonesModeItem" Tag="Barebones" Content="Barebones" />
-                    </ComboBox>
+
                     <Button x:Name="ThemeToggleButton" Classes="subtle" Content="Light" />
                 </StackPanel>
                 <Menu Grid.Column="3" VerticalAlignment="Center">
@@ -31,37 +27,34 @@
                 </Menu>
             </Grid>
         </Border>
-        <Grid x:Name="WorkspaceBody" Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*" Margin="24,22,24,18" RowSpacing="16">
+        <Grid x:Name="WorkspaceBody" Grid.Row="1" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
             <Grid x:Name="WorkspaceHeading" ColumnDefinitions="*,Auto" ColumnSpacing="16">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
                 <TextBlock Grid.Column="1" Tag="shell.supported" Classes="localized muted" Text="4chan · 8kun" VerticalAlignment="Center" />
             </Grid>
-            <StackPanel Grid.Row="1" Spacing="7">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <TextBox x:Name="UrlInput" Watermark="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="Wrap"
-                             MinHeight="42" MaxHeight="96" VerticalContentAlignment="Center" />
-                    <Button x:Name="AddUrlButton" Grid.Column="1" Classes="primary localized" Tag="action.add" Content="Add"
-                            MinWidth="90" MinHeight="42" VerticalAlignment="Stretch" Click="OnAddUrl" />
-                </Grid>
-                <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized muted" FontSize="12" TextWrapping="Wrap" />
-            </StackPanel>
-            <Border x:Name="AdmissionResultsPanel" Grid.Row="2" Classes="raised" Padding="12" IsVisible="False">
-                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
-                    <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
-                    <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="150" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,8,0,0" /></ScrollViewer>
-                </Expander>
+            <Border x:Name="WorkspaceIntakeCard" Grid.Row="1" Classes="panel" CornerRadius="6" Padding="12,10">
+                <StackPanel Spacing="7">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="UrlInput" Watermark="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
+                                 MinHeight="36" MaxHeight="72" VerticalContentAlignment="Center" />
+                        <Button x:Name="AddUrlButton" Grid.Column="1" Classes="primary localized" Tag="action.add" Content="Add"
+                                MinWidth="100" MinHeight="36" VerticalAlignment="Stretch" Click="OnAddUrl" />
+                    </Grid>
+                    <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized muted" FontSize="13" TextWrapping="Wrap" />
+                    <Border x:Name="AdmissionResultsPanel" IsVisible="False">
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
+                            <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
+                            <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />
+                            </ScrollViewer>
+                        </Expander>
+                    </Border>
+                </StackPanel>
             </Border>
-            <Grid x:Name="WorkspaceContentGrid" Grid.Row="3" ColumnDefinitions="*,8,320" RowDefinitions="*,0">
+            <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
                 <Border x:Name="DownloadsPanel" Classes="panel" CornerRadius="8" ClipToBounds="True">
-                    <Grid RowDefinitions="Auto,*">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="14,10">
-                            <TextBlock x:Name="WorkspaceCounts" Classes="muted" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
-                                <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
-                            </StackPanel>
-                        </Grid>
-                        <TabControl x:Name="DownloadsTabs" Grid.Row="1" SelectionChanged="OnWorkspaceTabChanged">
+                    <Grid>
+                        <TabControl x:Name="DownloadsTabs" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
                             <TabItem x:Name="ThreadsTab" Header="Threads">
                                 <Grid>
 <DataGrid x:Name="ThreadsDataGrid"
@@ -73,21 +66,18 @@
                               DoubleTapped="OnThreadDoubleTapped"
                               CanUserResizeColumns="True" SelectionChanged="OnWorkspaceSelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="Source" Width="85" SortMemberPath="HostName">
+                            <DataGridTemplateColumn Header="Source / board" Width="130" SortMemberPath="SourceBoard">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding HostName}" />
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding HostName}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding BoardLabel}" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Board" Width="80" SortMemberPath="BoardName">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding BoardName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+
 
                             <!-- Thread ID Column -->
                             <DataGridTemplateColumn Header="Thread ID" Width="105" SortMemberPath="ThreadNumber">
@@ -99,19 +89,19 @@
                             </DataGridTemplateColumn>
 
                             <!-- Title Column -->
-                            <DataGridTemplateColumn Header="Title" Width="*" MinWidth="120" SortMemberPath="Title">
+                            <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                                            <TextBlock Text="{Binding ThreadId, StringFormat='# {0}'}" Classes="muted" FontSize="11" />
-                                        </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding ThreadId, StringFormat='#{0}'}" Classes="muted inline-thread-id" FontSize="12" />
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
                             <!-- Status Column -->
-                            <DataGridTemplateColumn Header="Status" Width="185" SortMemberPath="Status">
+                            <DataGridTemplateColumn Header="Status" Width="160" SortMemberPath="Status">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Status}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding StatusDetails}" />
@@ -120,12 +110,19 @@
                             </DataGridTemplateColumn>
 
                             <!-- Progress Column -->
-                            <DataGridTemplateColumn Header="Progress" Width="140" SortMemberPath="Completion">
+                            <DataGridTemplateColumn Header="Media / transfer" Width="300" SortMemberPath="Completion">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <StackPanel VerticalAlignment="Center" Spacing="5">
-                                            <TextBlock Text="{Binding Progress}" FontSize="12" />
-                                            <ProgressBar Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="3" />
+                                        <StackPanel VerticalAlignment="Center" Spacing="3" ToolTip.Tip="{Binding StatusDetails}">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <TextBlock Text="{Binding Status}" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" ToolTip.Tip="{Binding Progress}">
+                                                    <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
+                                                    <TextBlock Text="/" Classes="muted mono" FontSize="12" />
+                                                    <TextBlock Text="{Binding KnownMedia}" Classes="mono" FontSize="12" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -137,7 +134,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Active" Width="80" SortMemberPath="Active">
+                            <DataGridTemplateColumn Header="Active" Width="95" SortMemberPath="Active">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Active}" />
@@ -153,19 +150,25 @@
  <Separator />
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenThreadDirectoryClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/folder.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" Click="OnOpenThreadInBrowserClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/external-link.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem x:Name="ThreadCopyUrlMenuItem" Tag="action.copyUrl" Classes="localized" Header="Copy URL" />
  <Separator />
  <MenuItem Tag="action.remove" Classes="localized" Header="Remove" Click="OnRemoveThreadMenuItemClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/delete.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
@@ -218,19 +221,25 @@
  <Separator />
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenBoardDirectoryClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/folder.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" Click="OnOpenBoardInBrowserClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/external-link.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem x:Name="BoardCopyUrlMenuItem" Tag="action.copyUrl" Classes="localized" Header="Copy URL" />
  <Separator />
  <MenuItem Tag="action.remove" Classes="localized" Header="Remove" Click="OnRemoveBoardMenuItemClick">
                                     <MenuItem.Icon>
-                                        <Image Source="avares://oChan/Assets/icons/delete.png" Width="16" Height="16"/>
+                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
+                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
+                                        </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
@@ -242,31 +251,43 @@
                                 </Grid>
                             </TabItem>
                         </TabControl>
+                        <StackPanel x:Name="WorkspaceListActions" Orientation="Horizontal" Spacing="6"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,1,8,0">
+                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
+                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
+                        </StackPanel>
                     </Grid>
                 </Border>
-                <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
+                <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
                               ResizeDirection="Columns" Background="Transparent" />
                 <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="panel" CornerRadius="8" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Margin="18,12,10,10" ColumnDefinitions="*,Auto">
+                        <Grid Margin="16,10,10,8" ColumnDefinitions="*,Auto">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
                             <Button x:Name="InspectorCloseButton" Grid.Column="1" Content="×" Classes="subtle" MinWidth="30" Padding="8,2" Click="OnDetailsToggleClick" />
                         </Grid>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="18,4,18,18" Spacing="15">
+                            <StackPanel Margin="16,2,16,16" Spacing="12">
                                 <TextBlock x:Name="InspectorEmptyState" Tag="detail.empty" Classes="localized muted" TextWrapping="Wrap" />
-                                <StackPanel x:Name="InspectorSelection" Spacing="15" IsVisible="False">
+                                <StackPanel x:Name="InspectorSelection" Spacing="12" IsVisible="False">
                                     <StackPanel Spacing="5">
                                         <TextBlock x:Name="InspectorKind" Classes="muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <SelectableTextBlock x:Name="InspectorTitle" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
                                         <SelectableTextBlock x:Name="InspectorSource" Classes="muted" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Border Classes="raised" Padding="10"><SelectableTextBlock x:Name="InspectorStatus" TextWrapping="Wrap" /></Border>
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <TextBlock Tag="detail.status" Classes="localized muted" />
+                                        <SelectableTextBlock x:Name="InspectorStatus" Grid.Column="1" TextWrapping="Wrap" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Margin="0,0,6,6" Click="OnInspectorOpenFolderClick" />
+                                        <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Margin="0,0,6,6" Click="OnInspectorOpenBrowserClick" />
+                                        <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" Margin="0,0,6,6" />
+                                    </WrapPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Spacing="6">
                                         <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorProgress" FontSize="16" FontWeight="Medium" />
-                                        <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="4" MinHeight="4" />
-                                        <TextBlock Tag="detail.knownHint" Classes="localized muted" TextWrapping="Wrap" FontSize="12" />
+                                        <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" />
+                                        <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" Margin="0,6,0,0" />
                                     </StackPanel>
                                     <StackPanel Spacing="5">
@@ -277,12 +298,8 @@
                                         <TextBlock Tag="detail.directory" Classes="localized muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="12" />
                                     </StackPanel>
-                                    <WrapPanel Orientation="Horizontal">
-                                        <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Margin="0,0,6,6" Click="OnInspectorOpenFolderClick" />
-                                        <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Margin="0,0,6,6" Click="OnInspectorOpenBrowserClick" />
-                                        <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" Margin="0,0,6,6" />
-                                    </WrapPanel>
-                                    <StackPanel Spacing="5">
+
+                                    <StackPanel x:Name="InspectorErrorSection" Spacing="5">
                                         <TextBlock Tag="detail.error" Classes="localized muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorError" TextWrapping="Wrap" FontSize="12" />
                                     </StackPanel>
@@ -299,11 +316,15 @@
                 </Border>
             </Grid>
         </Grid>
-        <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="24,7">
-            <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+        <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+                <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="WorkspaceCounts" Grid.Column="1" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </Grid>
         </Border>
-        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,8">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                 <Button x:Name="DownloadsNavigationButton" Classes="nav selected" Click="OnDownloadsNavigationClick">
                     <StackPanel Orientation="Horizontal" Spacing="9">
                         <Path Data="M 9,1 L 9,12 M 5,8 L 9,12 L 13,8 M 2,13 L 2,17 L 16,17 L 16,13" Width="17" Height="17" Stroke="{DynamicResource Workspace.Accent}" StrokeThickness="1.5" Stretch="Uniform" />
@@ -323,6 +344,12 @@
                     </StackPanel>
                 </Button>
             </StackPanel>
+            <ComboBox x:Name="WorkspaceModeComboBox" Grid.Column="1" Classes="footer-mode" Width="140" VerticalAlignment="Center">
+                <ComboBoxItem x:Name="BarebonesModeItem" Tag="Barebones" Content="Barebones" />
+                <ComboBoxItem x:Name="SimpleModeItem" Tag="Simple" Content="Simple" />
+                <ComboBoxItem x:Name="AdvancedModeItem" Tag="Advanced" Content="Advanced" />
+            </ComboBox>
+            </Grid>
         </Border>
     </Grid>
 </Window>

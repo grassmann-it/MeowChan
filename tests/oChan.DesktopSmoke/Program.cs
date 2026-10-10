@@ -187,6 +187,7 @@ internal static class Program
                 return;
             }
 
+            await ComparisonCaptures.RunAsync(mainWindow);
             await ClipboardChecks.RunAsync(mainWindow);
             await PresentationChecks.RunPreferencesAsync(mainWindow);
 

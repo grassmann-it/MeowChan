@@ -20,8 +20,8 @@ public partial class MainWindow
     private bool _workspaceInitialized;
     private bool _updatingWorkspacePreferences;
     private bool _updatingWorkspaceLayout;
-    private bool _workspaceInspectorVisible = true;
-    private bool _normalWorkspaceInspectorVisible = true;
+    private bool _workspaceInspectorVisible;
+    private bool _normalWorkspaceInspectorVisible;
     private bool _workspaceNarrowInspectorVisible;
     private bool _normalWorkspaceNarrowInspectorVisible;
     private bool _workspaceNarrowLayout;
@@ -96,11 +96,13 @@ public partial class MainWindow
             string mode = _config.WorkspaceMode;
             bool barebones = mode == "Barebones";
             bool advanced = mode == "Advanced";
+            bool modeChanged = _appliedWorkspaceMode != mode;
+            Classes.Set("workspace-advanced", advanced);
             ComboBox modeChoice = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
             modeChoice.SelectedItem = modeChoice.Items.OfType<ComboBoxItem>()
                 .First(item => string.Equals(item.Tag as string, mode, StringComparison.Ordinal));
 
-            if (_appliedWorkspaceMode != mode)
+            if (modeChanged)
             {
                 if (barebones)
                 {
@@ -131,14 +133,12 @@ public partial class MainWindow
             }
 
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
-            WorkspaceControl<Border>("WorkspaceNavigation").IsVisible = !barebones;
             WorkspaceControl<TextBlock>("WorkspaceSubtitle").IsVisible = !barebones;
             WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = !barebones;
-            WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !barebones;
-            WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 6) : new Thickness(24, 10);
+            WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
             Grid body = WorkspaceControl<Grid>("WorkspaceBody");
-            body.Margin = barebones ? new Thickness(12) : new Thickness(24, 22, 24, 18);
-            body.RowSpacing = barebones ? 8 : 16;
+            body.Margin = barebones ? new Thickness(12) : new Thickness(20);
+            body.RowSpacing = barebones ? 8 : 10;
 
             DataGrid threads = WorkspaceControl<DataGrid>("ThreadsDataGrid");
             foreach (DataGridColumn column in threads.Columns)
@@ -146,12 +146,15 @@ public partial class MainWindow
                 // Simple keeps task truth visible; Advanced adds independently sortable technical columns.
                 column.IsVisible = column.SortMemberPath switch
                 {
-                    nameof(ThreadRow.ThreadNumber) => advanced || barebones,
-                    nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
+                    nameof(ThreadRow.SourceBoard) => !barebones,
+                    nameof(ThreadRow.ThreadNumber) or nameof(ThreadRow.Status)
+                        or nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
                     _ => true
                 };
+                if (modeChanged && column.SortMemberPath == nameof(ThreadRow.Completion))
+                    column.Width = new DataGridLength(advanced ? 140 : 300);
             }
-            double rowHeight = barebones ? 34 : _config.CompactDensity ? 38 : 52;
+            double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
             threads.RowHeight = rowHeight;
             WorkspaceControl<DataGrid>("BoardsDataGrid").RowHeight = rowHeight;
             LocalizeWorkspace();
@@ -177,12 +180,13 @@ public partial class MainWindow
             {
                 string? key = column.SortMemberPath switch
                 {
+                    nameof(ThreadRow.SourceBoard) => "column.sourceBoard",
                     nameof(ThreadRow.HostName) => "column.source",
                     nameof(ThreadRow.BoardName) or nameof(BoardRow.NiceName) => "column.board",
                     nameof(ThreadRow.ThreadNumber) => "column.threadId",
-                    nameof(ThreadRow.Title) => "column.title",
+                    nameof(ThreadRow.Title) => "column.threadTitle",
                     nameof(ThreadRow.Status) => "column.status",
-                    nameof(ThreadRow.Completion) => "column.progress",
+                    nameof(ThreadRow.Completion) => "column.mediaTransfer",
                     nameof(ThreadRow.Queued) => "column.queued",
                     nameof(ThreadRow.Active) => "column.active",
                     _ => null
@@ -201,6 +205,7 @@ public partial class MainWindow
         ToolTip.SetTip(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceControl<MenuItem>("WorkspaceMenuItem"), Texts.T("nav.settings"));
+        ToolTip.SetTip(WorkspaceControl<ProgressBar>("InspectorProgressBar"), Texts.T("detail.knownHint"));
     }
 
     private static void LocalizeWorkspaceControl(Control control)
@@ -307,6 +312,7 @@ public partial class MainWindow
         SelectableTextBlock errors = WorkspaceControl<SelectableTextBlock>("InspectorError");
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
         errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));
+        WorkspaceControl<StackPanel>("InspectorErrorSection").IsVisible = !string.IsNullOrWhiteSpace(error);
         WorkspaceControl<TextBlock>("InspectorRemoveHint").Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
         foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;
@@ -328,17 +334,20 @@ public partial class MainWindow
             bool barebones = _config.WorkspaceMode == "Barebones";
             bool reducedChrome = barebones || shortWindow;
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !reducedChrome;
-            WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome;
-            WorkspaceControl<Border>("WorkspaceNavigation").IsVisible = !reducedChrome;
-            WorkspaceControl<Grid>("WorkspaceBody").RowSpacing = reducedChrome ? 8 : 16;
+            WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
+            // The same mode selector remains available at the right edge of the footer
+            // even when a small window omits the larger navigation buttons.
+            WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = !reducedChrome;
+            WorkspaceControl<Grid>("WorkspaceRoot").RowDefinitions[3].Height = new GridLength(reducedChrome ? 40 : 52);
+            WorkspaceControl<Grid>("WorkspaceBody").RowSpacing = reducedChrome ? 8 : 10;
             WorkspaceControl<Grid>("WorkspaceBody").Margin = barebones ? new Thickness(12)
-                : shortWindow ? new Thickness(16, 12) : new Thickness(24, 22, 24, 18);
+                : shortWindow ? new Thickness(16, 12) : new Thickness(20);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
-            WorkspaceControl<TextBox>("UrlInput").MaxHeight = compactIntake ? 48 : 96;
-            WorkspaceControl<Border>("AdmissionResultsPanel").Padding = new Thickness(compactIntake ? 8 : 12);
-            WorkspaceControl<StackPanel>("AdmissionResultRows").Margin = new Thickness(0, compactIntake ? 4 : 8, 0, 0);
-            WorkspaceControl<ScrollViewer>("AdmissionResultsScroll").MaxHeight = compactIntake ? 40 : 150;
+            WorkspaceControl<TextBox>("UrlInput").MaxHeight = compactIntake ? 40 : 72;
+            WorkspaceControl<Border>("WorkspaceIntakeCard").Padding = compactIntake ? new Thickness(8) : new Thickness(12, 10);
+            WorkspaceControl<StackPanel>("AdmissionResultRows").Margin = new Thickness(0, compactIntake ? 4 : 6, 0, 0);
+            WorkspaceControl<ScrollViewer>("AdmissionResultsScroll").MaxHeight = compactIntake ? 40 : 140;
             if (!_workspaceNarrowLayout && content.ColumnDefinitions[2].ActualWidth > 0)
                 _workspaceInspectorWidth = Math.Clamp(content.ColumnDefinitions[2].ActualWidth, 260, 520);
             _workspaceNarrowLayout = narrow;
@@ -351,7 +360,7 @@ public partial class MainWindow
             Grid.SetColumnSpan(inspector, narrow ? 3 : 1);
             inspector.HorizontalAlignment = narrow ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
             inspector.Width = narrow ? 320 : double.NaN;
-            content.ColumnDefinitions[1].Width = new GridLength(visible && !narrow ? 8 : 0);
+            content.ColumnDefinitions[1].Width = new GridLength(visible && !narrow ? 6 : 0);
             content.ColumnDefinitions[2].Width = new GridLength(visible && !narrow ? _workspaceInspectorWidth : 0);
             content.RowDefinitions[1].Height = new GridLength(0);
             WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(visible ? "action.hideDetails" : "action.showDetails");

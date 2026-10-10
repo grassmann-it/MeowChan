@@ -8,6 +8,10 @@ This record separates upstream platform support, candidate oChan packages, and c
 
 Current acceptance must cover the integrated download/restore flow, all three views, Dark/Light, English/German, keyboard focus, small windows and native rendering at the intended display scales. The [release-notes draft](releases/v0.9.0.md) records user-visible behavior and remaining boundaries.
 
+The subsequent compact-layout/menu-contrast correction passed a Release build without warnings or errors and 90 desktop tests. Final source-built Linux checks passed 5/5 scenarios at measured 100% and 150%, and 4/5 at 200%: `artifacts/ap13-layout-final-scale-{100,150,200}` (14/15 runs, 72 captures). All presentation checks passed, including six passive comparison rows, source/board and numeric sorting, minimum window sizes, and separately rendered Dark/Light context menus with asserted icon colors. The earlier `ap13-layout-correction-v3-scale-*` runs passed 15/15, but do not supersede the later failure.
+
+**Open Linux tray lifecycle defect:** The final 200% download-session check aborted during rapid restored-window shutdown, after download and media restoration had succeeded. The stack ends in `OrgKdeStatusNotifierItemHandler.EmitNewTitle` / `DBusTrayIconImpl.CreateTrayIcon`. Avalonia 11.3.22 can continue asynchronous DBus tray creation after disposal removes its handler; [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980), included in 12.1.4, addresses this race. A reviewed framework upgrade/backport or an explicitly chosen Linux tray fallback is required before closing this gate; delays or rerunning until green do not fix it. The framework has not been changed in this layout correction. Native Windows/macOS tray appearance remains unverified. The packages listed below predate both this correction and the selected cat icon; they must be rebuilt before final release acceptance.
+
 ## Upstream requirements checked on 2026-10-10
 
 The official [.NET 10 supported OS matrix](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md), updated 2026-09-28 when checked, lists:

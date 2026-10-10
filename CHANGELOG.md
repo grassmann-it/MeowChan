@@ -8,6 +8,7 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
 - **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
+- **Compact workspace.** The footer selector lists Barebones, Simple and Advanced. Grouped table cells and initially closed details give downloads more space; import results expand within the intake panel. Menu icons adapt to their theme.
 - **Appearance and language preferences.** Dark/Light themes, normal/compact density and built-in English/German are saved in the profile. Optional data-only JSON language packs load at startup, with English fallback and visible warnings for invalid or missing packs.
 - **Batch URL admission.** Add or Enter accepts comma- and newline-separated thread/board URLs through the existing provider registry. Each entry receives a result, including duplicates and failures; valid later entries still run. Failed lists remain editable, and edits made during an import are preserved.
 - **Details for threads and boards.** A side panel, or an overlay in narrow windows, shows the selected URL, actual assigned folder, status and current errors. Thread details also show saved/known media and queued/active media counts. Folder, browser, copy and remove actions remain accessible.

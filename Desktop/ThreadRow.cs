@@ -22,6 +22,8 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public ThreadSourceState SourceState => Snapshot.SourceState;
     public string HostName { get; private set; } = string.Empty;
     public string BoardName { get; private set; } = string.Empty;
+    public string BoardLabel => "/" + Snapshot.Id.Board + "/";
+    public string SourceBoard => HostName + " " + BoardLabel;
     public string ThreadId { get; private set; } = string.Empty;
     public long? ThreadNumber { get; private set; }
     public string Title { get; private set; } = string.Empty;
