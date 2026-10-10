@@ -10,7 +10,34 @@ Current acceptance must cover the integrated download/restore flow, all three vi
 
 The subsequent compact-layout/menu-contrast correction passed a Release build without warnings or errors and 90 desktop tests. Final source-built Linux checks passed 5/5 scenarios at measured 100% and 150%, and 4/5 at 200%: `artifacts/ap13-layout-final-scale-{100,150,200}` (14/15 runs, 72 captures). All presentation checks passed, including six passive comparison rows, source/board and numeric sorting, minimum window sizes, and separately rendered Dark/Light context menus with asserted icon colors. The earlier `ap13-layout-correction-v3-scale-*` runs passed 15/15, but do not supersede the later failure.
 
-**Open Linux tray lifecycle defect:** The final 200% download-session check aborted during rapid restored-window shutdown, after download and media restoration had succeeded. The stack ends in `OrgKdeStatusNotifierItemHandler.EmitNewTitle` / `DBusTrayIconImpl.CreateTrayIcon`. Avalonia 11.3.22 can continue asynchronous DBus tray creation after disposal removes its handler; [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980), included in 12.1.4, addresses this race. A reviewed framework upgrade/backport or an explicitly chosen Linux tray fallback is required before closing this gate; delays or rerunning until green do not fix it. The framework has not been changed in this layout correction. Native Windows/macOS tray appearance remains unverified. The packages listed below predate both this correction and the selected cat icon; they must be rebuilt before final release acceptance.
+**Linux tray lifecycle correction:** The 14/15 layout checkpoint above is historical. Avalonia 11.3.22 could continue asynchronous DBus tray creation after disposal removed its handler. Commit `53162b9` upgrades to Avalonia 12.1.4, which includes [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980), with Actipro 26.2.0, DataGrid 12.1.2 and the transitive Tmds.DBus.Protocol 0.94.1. Icons now attach to the application's collection as required by Avalonia 12, and each window removes its entry on shutdown. The previous direct DBus pin is removed; locks and licensing notices are refreshed.
+
+**Current pages and local source evidence:** `0bbbfd5` extracts the shared settings editor, and `ae1b3f9` adds retained Downloads/Settings pages in one shell. Save/Cancel remain on Settings; footer actions preserve unrelated draft fields. The final source in `53162b9` passed 457 .NET tests and the 22 macOS-packaging fixtures. All six native Linux scenarios passed at measured 100%, 150% and 200%: **18/18**, retained in `artifacts/ap13-pages-final-scale-{100,150,200}`. The new tray-lifecycle scenario checks 16 rapid native windows per scale, confirms actual native tray attachment, checks collection cleanup and reacquires each profile lease. Normal mode also covers invalid draft navigation, footer failures, accepted save/picker shutdown, language refresh and small Settings pages; the download scenario completes media while Settings is visible and retains both page states.
+
+The local host logged unavailable AT-SPI/global-menu services as warnings; native accessibility/global-menu integration is not established by that evidence. The Xvfb attempt at that checkpoint was unavailable because the tools were not installed. They have since been provided as verified, locally extracted Manjaro packages; the new isolated evidence is recorded separately below.
+
+**Workstation freeze and test isolation:** After the framework checkpoint, the user reported a desktop freeze during subsequent style checks. The last native run (`artifacts/ap13-styles-final-scale-100`) passed only 2/6 scenarios, with window-size/minimization timeouts. Its relationship to the freeze is unproven. Do not infer resolution from the earlier 18/18 pass or use the active personal desktop for automatic GUI suites.
+
+Commit `d355152` isolates Linux runs in Xvfb/Openbox with a private DBus session that cannot activate host services, private XDG directories and cleared inherited desktop endpoints. Standard scenarios stop at the first failure; stress requires a separate explicit invocation. Windows/macOS and Linux native-session runs require explicit opt-in on a disposable test desktop. Nine window-free runner fixtures verify the selection, fail-fast, timeout, process cleanup and evidence behavior. Isolation is process/display ownership, not a security sandbox; the [harness instructions](../tests/oChan.DesktopSmoke/README.md) explain the limits.
+
+Native Windows/macOS, Linux Arm64 and full extracted-package workflows remain open. The earlier archives listed below predate the icon, pages, framework and style changes. Cross-publish alone cannot replace their native acceptance.
+
+### Isolated style checkpoint — `1884ff5`
+
+The final style source passed the Release solution build without warnings/errors and all **457 .NET tests** (367 core, 90 desktop). The smoke build, 22 macOS-packaging fixtures and nine window-free runner fixtures also passed. Linux GUI checks used Xvfb/Openbox, software rendering, a private non-activating DBus session and temporary profile/download directories; no personal desktop windows or tray stress were started.
+
+| Scope | Observed scale | Result | Evidence directory |
+| --- | --- | --- | --- |
+| Visual comparison plus five standard scenarios | 1.0 | 6/6 passed | `artifacts/ap13-styles-isolated-final-100` |
+| Normal presentation/settings after harness synchronization fixes | 1.0 | Passed | `artifacts/ap13-styles-isolated-final-100-normal-v2` |
+| Normal presentation/settings | 1.5 | Passed | `artifacts/ap13-styles-isolated-final-150-v3` |
+| Normal presentation/settings | 2.0 | Passed | `artifacts/ap13-styles-isolated-final-200` |
+
+The first 150% run retained a stale pre-resize restore target; the next reached a right-click check that used stale row coordinates after sorting. Both failed runs are retained in `artifacts/ap13-styles-isolated-final-150` and `-150-v2`. The harness now waits for the measured native size before saving its restore target and for the actual hit-tested row before sending a click. No timeout extension or product-behavior workaround was used. Normal mode was then verified at all three scales.
+
+The visual scene uses six passive snapshot rows at the mock's 1440×920 size and 880×680 for compact Barebones. Downloads/Settings, empty/disabled states, Advanced details, Dark/Light and keyboard focus were inspected; primary-action label contrast measured 7.55:1 and 6.46:1. Small EN/DE pages retain reachable actions. The README screenshots come from this isolated run. Visual user acceptance is still open.
+
+These results do not reproduce or establish the cause of the reported native desktop freeze. Xvfb has no native tray host, GPU rendering, host accessibility or desktop portals, and does not prove native Windows/macOS or extracted-package behavior.
 
 ## Upstream requirements checked on 2026-10-10
 
@@ -20,9 +47,9 @@ The official [.NET 10 supported OS matrix](https://github.com/dotnet/core/blob/m
 - Ubuntu 22.04, 24.04 and 26.04 on x64/Arm64, among other listed distributions. The portable x64/Arm64 glibc baseline is 2.27; this is a runtime compatibility floor, not a guarantee for every distribution or native graphics dependency.
 - Maintained Windows 11 releases/editions and the specifically listed Windows 10 LTSC/Enterprise/IoT variants. It does not promise general support for every Windows 10 installation. The [Microsoft installation guidance](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions) explains the edition/lifecycle restriction.
 
-The current Avalonia documentation also covers Avalonia 12, including a 12.1 Wayland package, and must not be used as though all of it describes the project's Avalonia 11 packages. The [official documentation snapshot from the Avalonia 11 era](https://github.com/AvaloniaUI/avalonia-docs/blob/4640a690ff98762519cd16ab369a0e8016aa3c59/docs/overview/supported-platforms.md) lists Windows 8.1/10/11, macOS 10.14–15, Debian 9+, Ubuntu 16.04+ and Fedora 30+. Those older operating-system allowances do not override .NET 10's stricter supported-platform matrix. The snapshot is historical upstream evidence, not a versioned warranty for every Avalonia 11 patch.
+The desktop now uses Avalonia 12.1.4. Consult the [current Avalonia supported-platform guidance](https://docs.avaloniaui.net/docs/overview/supported-platforms) together with .NET 10's stricter OS matrix above. Avalonia 12 offers a separate Wayland backend, but this application does not enable or package it. Historical Avalonia 11 OS allowances do not describe the current dependency graph or override .NET's lifecycle requirements.
 
-The current Linux desktop uses X11, including XWayland on a Wayland desktop. A working graphical session and native graphics/font libraries are required even in a self-contained package. Ubuntu requires the X11/font dependencies used by Avalonia, including `libx11-6`, `libice6`, `libsm6` and `libfontconfig1`. A `linux-x64` or `linux-arm64` package targets glibc; it is not a `linux-musl-*` Alpine package.
+The current Linux desktop uses X11, including XWayland on a Wayland desktop. A working graphical session and native graphics/font libraries are required even in a self-contained package. Ubuntu requires the X11/font dependencies used by Avalonia, including `libx11-6`, `libice6`, `libsm6`, `libfontconfig1` and `libdbus-1-3`. A `linux-x64` or `linux-arm64` package targets glibc; it is not a `linux-musl-*` Alpine package.
 
 ## Candidate package matrix
 
@@ -49,16 +76,16 @@ Packaging a `.app` can be prepared without credentials. Signing/notarization and
 | Check | Evidence provided | Remaining boundary |
 | --- | --- | --- |
 | Offline tests | Deterministic production behavior against local fixtures, including failures and cancellation. | No public provider availability or native UI proof. |
-| Native source-built desktop harness | Avalonia startup/bindings/shutdown and selected profile/tray error paths on that runner. | The harness is a separate executable, even when it references the same application assembly. It does not execute the published `oChan` apphost. |
+| Source-built desktop harness | Avalonia startup/bindings/shutdown and selected profile/tray error paths on that runner. | The harness is a separate executable, even when it references the same application assembly. It does not execute the published `oChan` apphost. |
 | Publish and archive round-trip | Target output can be created; full files, notices and Unix executable bits survive archiving/extraction. | No proof that the extracted app starts or downloads correctly. |
 | Native extracted app run | Actual apphost, native dependencies, resources and normal app entrypoint run on the recorded OS/CPU. | Other OS/CPU combinations remain untested. |
 | Local NuGet package consumer | A fresh restore can consume the candidate library with no project reference or desktop dependency. | No public NuGet publication is performed. |
 
-CI runs the graphical harness on Windows/macOS runners and uses Xvfb with a private session bus on Linux. A runner without a working display must report the check as failed or unavailable; it must not silently count it as passed. A tray-absence simulation tests the application fallback contract and does not establish every desktop's tray behavior.
+CI runs the graphical harness with explicit native opt-in on disposable Windows/macOS runners and uses Xvfb/Openbox with a private session bus on Linux. Standard checks and tray stress run in separate steps. A runner without a working display must report the check as failed or unavailable; it must not silently count it as passed. A tray-absence simulation tests the application fallback contract and does not establish every desktop's tray behavior.
 
 ## Recorded validation
 
-### Local 0.9.0 source and desktop checks — 2026-10-10
+### Earlier 0.9.0 source and native desktop checks — 2026-10-10
 
 The integrated 0.9.0 source working tree passed 457 .NET tests: 367 core and 90 desktop tests. All 22 Python macOS-packaging fixture tests also passed. These were local source checks using the repository's pinned SDK 10.0.111 on Manjaro Linux x86_64 (kernel 6.18.49-1-MANJARO). The packaging fixtures check packaging code against controlled inputs; they do not establish that a 0.9.0 release archive was built or launched.
 
@@ -76,7 +103,7 @@ The download-session scenario uses the real FourChan provider, registry, shared 
 
 The integrated UI and final layout/harness fixes are recorded in commits `2e03d95` and `afa873c`. These checks used the 0.9.0 version metadata being prepared alongside the fixes; final restore/build/test logs are retained locally in `artifacts/ap13-v090-accepted-checks`. They do not identify a final release archive. No public imageboard HTTP requests were made. Clipboard and file-picker checks use controlled services; native clipboard/file-picker integration and every desktop's tray host remain outside this evidence. Window captures demonstrate application rendering at the measured scale, not complete desktop screenshots or validation of all monitor arrangements. Full workflows in the extracted packages, including Windows, macOS and Linux Arm64, still require their own native evidence.
 
-### Local 0.9.0 packages and Linux apphost — 2026-10-10
+### Earlier 0.9.0 packages and Linux apphost — 2026-10-10
 
 All five desktop packages were produced from source commit `2deaf1bcd15e730b1413b5899952a104cb6f4347`, archived and extracted successfully. All five publish logs were free of warning and error lines. Required documents, language-pack instructions, screenshots and native dependencies were present; applicable Unix executable permissions survived extraction. The macOS outputs use the unsigned app-bundle structure described above. These checks used SDK 10.0.111 and .NET host 10.0.11 on the Linux development machine.
 

@@ -160,7 +160,7 @@ jobs:
           $archive = "packages/oChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           Compress-Archive -Path "publish-output/${{ matrix.runtime }}/*" -DestinationPath $archive
           Expand-Archive -Path $archive -DestinationPath extracted
-          foreach ($name in @('oChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'docs/screenshots/v0.9.0-simple.png', 'docs/screenshots/v0.9.0-barebones.png', 'samples/LibOChan.Consumer/README.md')) {
+          foreach ($name in @('oChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'docs/screenshots/v0.9.0-simple.png', 'docs/screenshots/v0.9.0-barebones.png', 'docs/screenshots/v0.9.0-settings.png', 'samples/LibOChan.Consumer/README.md')) {
             if (-not (Test-Path -LiteralPath "extracted/$name" -PathType Leaf)) { throw "Archive is missing $name" }
           }
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
@@ -185,6 +185,7 @@ jobs:
           test -f extracted/docs/releases/v0.9.0.md
           test -f extracted/docs/screenshots/v0.9.0-simple.png
           test -f extracted/docs/screenshots/v0.9.0-barebones.png
+          test -f extracted/docs/screenshots/v0.9.0-settings.png
           test -f extracted/samples/LibOChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/oChan
@@ -212,6 +213,7 @@ jobs:
           test -f extracted/oChan.app/Contents/MacOS/docs/releases/v0.9.0.md
           test -f extracted/oChan.app/Contents/MacOS/docs/screenshots/v0.9.0-simple.png
           test -f extracted/oChan.app/Contents/MacOS/docs/screenshots/v0.9.0-barebones.png
+          test -f extracted/oChan.app/Contents/MacOS/docs/screenshots/v0.9.0-settings.png
           test -f extracted/oChan.app/Contents/MacOS/samples/LibOChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/oChan.app/Contents/MacOS/oChan

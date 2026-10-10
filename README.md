@@ -7,6 +7,7 @@ Version **0.9.0** is in preparation with a new desktop interface on top of the d
 ## What's new in 0.9.0
 
 - A redesigned Avalonia interface with Barebones, Simple (default) and Advanced views of the same running session.
+- Downloads and Settings pages in a shared workspace; drafts and running downloads survive navigation.
 - Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
@@ -26,13 +27,15 @@ The first start uses **Simple**, **Dark**, **English** and normal density. Switc
 
 Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.
 
-The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
+Use the bottom navigation to switch between Downloads and Settings. About remains in the application menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
 
-![Simple view with a running download](docs/screenshots/v0.9.0-simple.png)
+![Simple view with representative download states](docs/screenshots/v0.9.0-simple.png)
 
-![Compact Barebones view of the same running download](docs/screenshots/v0.9.0-barebones.png)
+![Compact Barebones view of the same example session](docs/screenshots/v0.9.0-barebones.png)
 
-These screenshots show the productive UI in the native Linux test harness at 100% scaling. The download uses controlled offline HTTP responses; the thread title, URL and media are test fixtures.
+![Settings in the shared workspace](docs/screenshots/v0.9.0-settings.png)
+
+These screenshots show the productive UI at 100% scaling in the isolated Linux harness (Xvfb/Openbox, software rendering). Titles, URLs and states are passive test fixtures; no watches or network requests are started for these comparison scenes.
 
 ## Build and run
 
@@ -50,7 +53,7 @@ Desktop builds target Windows, macOS and Linux. Self-contained archives include 
 
 Enter one or more thread or board URLs and select **Add**, or press **Enter** in the URL field. Separate URLs with commas or newlines; **Shift+Enter** inserts a newline. A board watch discovers its threads automatically. Each entry receives a result, and invalid or failed entries do not prevent later entries from being processed. If any entry fails, the complete input list remains available for correction. Successful input is cleared only if it has not been edited during the import.
 
-Selecting **Add** with an empty field reads the clipboard once. Explicit input uses only the entered text. **Ctrl+L** (**Cmd+L** on macOS) focuses the URL field. **Ctrl+V/Cmd+V** outside a text field in the main window imports the clipboard; inside text fields it pastes normally. The tray also offers clipboard import. These are user-triggered actions, with no automatic clipboard monitoring.
+Selecting **Add** with an empty field reads the clipboard once. Explicit input uses only the entered text. **Ctrl+L** (**Cmd+L** on macOS) returns to Downloads and focuses the retained URL field. **Ctrl+V/Cmd+V** outside a text field in the main window imports the clipboard; inside text fields it pastes normally. The tray also offers clipboard import. These are user-triggered actions, with no automatic clipboard monitoring.
 
 Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
 
@@ -70,7 +73,7 @@ Completed media is verified and recorded in a manifest. Files are published atom
 
 Settings control the output path, polling interval, global parallel downloads and bandwidth. Existing watches retain their assigned destinations when the output root changes. Threads added directly use the current root; threads discovered from an existing board keep that board's assigned root.
 
-Settings also control theme, language, view, compact density and minimizing to the tray. **Save & Close** validates and saves changes; **Cancel** discards pending edits. Theme and view changes made directly in the main window save immediately. Existing settings files receive defaults for the new appearance preferences while retaining their download and session settings.
+Settings also control theme, language, view, compact density and minimizing to the tray. **Save** validates and saves changes while staying on Settings; **Cancel** reloads the confirmed values without leaving the page. Navigation preserves pending edits, including invalid number text. Theme and view changes made in the footer save immediately and update only that field in a pending Settings draft. Existing settings files receive defaults for the new appearance preferences while retaining their download and session settings.
 
 When **Restore session on startup** is enabled, confirmed changes to watched URLs are saved as they happen. The application restores them at startup. Settings/session failures are shown rather than silently replacing saved state. Only one running application can own a profile.
 
@@ -98,7 +101,9 @@ dotnet build tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release
 python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --output artifacts/desktop-smoke
 ```
 
-The graphical harness requires a working desktop on Windows/macOS. On Linux, its default runner uses Xvfb and a private session bus; `--native-display` uses an existing graphical session. It covers normal presentation/settings, profile conflicts, absent/failing tray behavior and a download/restore session backed by local HTTP fixtures. Offline tests and the harness make no public imageboard requests. Running the harness does not replace starting a freshly extracted release archive. See the [platform validation record](docs/platform-support.md) for evidence and remaining native checks.
+On Linux, the runner requires Xvfb, Openbox and a private session bus; missing tools fail without falling back to your desktop. Windows/macOS require a dedicated test desktop and `--allow-native-desktop`. Standard scenarios run serially and stop at the first failure. Rapid tray/window stress is a separate opt-in; do not run it on a personal workstation. See the [harness instructions](tests/oChan.DesktopSmoke/README.md) for prerequisites and targeted visual checks.
+
+The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for evidence and remaining native checks.
 
 ## License
 

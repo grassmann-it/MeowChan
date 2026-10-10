@@ -8,17 +8,19 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
 - **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
-- **Compact workspace.** The footer selector lists Barebones, Simple and Advanced. Grouped table cells and initially closed details give downloads more space; import results expand within the intake panel. Menu icons adapt to their theme.
+- **Downloads and Settings pages.** Both remain in the same shell, with navigation at the bottom. Switching pages retains URL input, selection, details, invalid settings drafts and running downloads. Save and Cancel stay on Settings; About remains in the application menu.
+- **Compact workspace.** The footer selector lists Barebones, Simple and Advanced. Grouped table cells and initially closed details give downloads more space; import results expand within the intake panel. Menu icons adapt to their theme. Shared button states, readable primary labels, keyboard focus and aligned Settings actions follow the same Dark/Light styling.
 - **Appearance and language preferences.** Dark/Light themes, normal/compact density and built-in English/German are saved in the profile. Optional data-only JSON language packs load at startup, with English fallback and visible warnings for invalid or missing packs.
 - **Batch URL admission.** Add or Enter accepts comma- and newline-separated thread/board URLs through the existing provider registry. Each entry receives a result, including duplicates and failures; valid later entries still run. Failed lists remain editable, and edits made during an import are preserved.
 - **Details for threads and boards.** A side panel, or an overlay in narrow windows, shows the selected URL, actual assigned folder, status and current errors. Thread details also show saved/known media and queued/active media counts. Folder, browser, copy and remove actions remain accessible.
 - **Reusable URL copying.** Copy a single URL or all watched thread and board URLs as a newline-separated list. Empty Add, the tray action and the main-window paste shortcut import the clipboard once when explicitly invoked.
-- **Updated desktop dialogs.** Settings, About and startup errors use the new appearance and localization while retaining existing download settings, save/cancel behavior and profile/tray recovery paths.
+- **Updated desktop dialogs.** About and startup errors use the new appearance and localization while retaining profile/tray recovery paths.
+- **Linux tray lifecycle fix.** Avalonia 12.1.4 includes the upstream correction for asynchronous registration continuing after tray disposal. Matching Actipro/DataGrid packages, native graphics dependencies, package locks and notices are updated.
 
 ### Upgrade and behavior notes
 
-- Existing profiles, watched URLs and assigned download paths remain usable. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save & Close**.
-- **Double-click opens details**, replacing the previous folder-opening shortcut. Open folder remains a separate action. Escape closes details; Ctrl+L/Cmd+L focuses URL input, and Shift+Enter inserts a newline.
+- Existing profiles, watched URLs and assigned download paths remain usable. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save**. Cancel reloads confirmed settings; neither action leaves the page.
+- **Double-click opens details**, replacing the previous folder-opening shortcut. Open folder remains a separate action. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
 - Progress is **saved / known media**, not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
 - View/theme/language/density preferences persist. Window geometry, column layout and details-panel width do not persist across restarts.
 - .NET 10 and the existing platform targets are retained. This UI update introduces no new public `libochan` API requirement.
