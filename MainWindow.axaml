@@ -19,6 +19,8 @@
                 </StackPanel>
                 <Menu Grid.Column="3" VerticalAlignment="Center">
                     <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
+                        <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                        <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                         <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                         <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                         <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
@@ -152,6 +154,7 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
  <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnOpenWorkspaceDetailsClick" />
+ <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnEditSelectionRules" />
  <Separator />
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenThreadDirectoryClick">
                                     <MenuItem.Icon>
@@ -223,6 +226,7 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
  <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnOpenWorkspaceDetailsClick" />
+ <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnEditSelectionRules" />
  <Separator />
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenBoardDirectoryClick">
                                     <MenuItem.Icon>
@@ -323,6 +327,8 @@
         </Grid>
         <ContentControl x:Name="SettingsPageHost" IsVisible="False" />
         <ContentControl x:Name="DiagnosticsPageHost" IsVisible="False" />
+        <ContentControl x:Name="RulesPageHost" IsVisible="False" />
+        <ContentControl x:Name="ArchivePageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
@@ -339,6 +345,8 @@
                         <TextBlock Tag="nav.downloads" Classes="localized" Text="Downloads" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
+                <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">
                     <StackPanel Orientation="Horizontal" Spacing="9">
                         <Path Data="M 1,10 L 4,10 L 7,3 L 10,16 L 13,10 L 17,10" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
@@ -348,6 +356,8 @@
                 <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="Tools">
                     <Button.Flyout>
                         <MenuFlyout>
+                            <MenuItem Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                            <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
                         </MenuFlyout>
                     </Button.Flyout>

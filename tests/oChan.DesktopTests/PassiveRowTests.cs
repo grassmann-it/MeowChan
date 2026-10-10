@@ -62,6 +62,25 @@ public sealed class PassiveRowTests
         Assert.Null(typeof(BoardRow).GetProperty("Source"));
     }
 
+    [Fact]
+    public void ExcludedMediaDoNotDiluteSelectedProgressOrPretendToBeSaved()
+    {
+        ThreadSnapshot snapshot = Thread("123", "Filtered") with
+        {
+            KnownMedia = 5, CompletedMedia = 2,
+            Content = new oChan.Archive.ThreadContentStatus(true, null, null, null, 3)
+        };
+        using ThreadRow row = new ThreadRow(new DesktopThreadEntry(1, snapshot, "4chan", "g"));
+        Assert.Equal(5, row.KnownMedia);
+        Assert.Equal(2, row.CompletedMedia);
+        Assert.Equal(100, row.Completion);
+        Assert.Equal(2, row.Snapshot.SelectedMedia);
+        row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { CompletedMedia = 0,
+            Content = snapshot.Content with { ExcludedMedia = 5 } }, "4chan", "g"));
+        Assert.Equal(0, row.Completion);
+        Assert.Equal(0, row.CompletedMedia);
+    }
+
     private static ThreadSnapshot Thread(string id, string title) => new ThreadSnapshot(
         new ResourceId("4chan", "g", id), "https://boards.4chan.org/g/thread/" + id, title,
         "/assigned/4chan/g/" + id, ThreadActivity.Pending, ThreadSourceState.Active, null, 0, 0,

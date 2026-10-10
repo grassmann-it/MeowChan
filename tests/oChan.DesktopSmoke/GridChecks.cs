@@ -21,7 +21,7 @@ internal static class GridChecks
         window.UrlList.Add(two);
         window.BoardsList.Add(first);
         window.BoardsList.Add(second);
-        TabControl tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
+        TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
         DataGrid threadGrid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         DataGrid boardGrid = window.FindControl<DataGrid>("BoardsDataGrid")!;
         try

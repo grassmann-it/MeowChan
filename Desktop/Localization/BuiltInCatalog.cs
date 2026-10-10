@@ -196,7 +196,7 @@ internal static class BuiltInCatalog
     };
 
     public static IReadOnlyDictionary<string, string> English { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
     public static IReadOnlyDictionary<string, string> German { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
 }

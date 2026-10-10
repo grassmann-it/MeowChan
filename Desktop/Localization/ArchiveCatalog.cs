@@ -1,0 +1,47 @@
+namespace oChan.Desktop.Localization;
+
+internal static class ArchiveCatalog
+{
+    internal static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("nav.archive", "Archive", "Archiv"),
+        ("archive.subtitle", "Captured posts and saved media, available without the original thread.", "Erfasste Posts und gespeicherte Medien, auch ohne den ursprünglichen Thread."),
+        ("archive.refresh", "Refresh", "Aktualisieren"),
+        ("archive.empty", "No archived threads yet. New watches capture posts automatically.", "Noch keine archivierten Threads. Neue Beobachtungen erfassen Posts automatisch."),
+        ("archive.select", "Select an archived thread.", "Einen archivierten Thread auswählen."),
+        ("archive.previous", "Previous", "Zurück"),
+        ("archive.next", "Next", "Weiter"),
+        ("archive.back", "Thread list", "Threadliste"),
+        ("archive.page", "{0}–{1} of {2}", "{0}–{1} von {2}"),
+        ("archive.posts", "Posts", "Posts"),
+        ("archive.media", "Saved media", "Gespeicherte Medien"),
+        ("archive.postsCount", "{0} captured posts", "{0} erfasste Posts"),
+        ("archive.mediaOnly", "Media only · no posts captured", "Nur Medien · keine Posts erfasst"),
+        ("archive.captured", "Last capture: {0} · {1} posts", "Letzte Erfassung: {0} · {1} Posts"),
+        ("archive.sourceActive", "Source last seen active", "Quelle zuletzt aktiv"),
+        ("archive.sourceArchived", "Archived at source", "An der Quelle archiviert"),
+        ("archive.sourceMissing", "No longer found at source", "An der Quelle nicht mehr gefunden"),
+        ("archive.captureOn", "Capture posts", "Posts erfassen"),
+        ("archive.captureOff", "Stop post capture", "Posterfassung stoppen"),
+        ("archive.captureHint", "Changing capture keeps existing content. A removed watch must be added again to capture future posts.", "Umstellen behält vorhandene Inhalte. Für neue Posts muss ein entfernter Thread wieder beobachtet werden."),
+        ("archive.partial", "Only observed posts are available. Missing posts on the source do not erase earlier captures.", "Verfügbar sind nur beobachtete Posts. Fehlende Posts an der Quelle löschen frühere Erfassungen nicht."),
+        ("archive.noPosts", "No post text was captured for this thread. Saved media is on the media tab.", "Für diesen Thread wurde kein Posttext erfasst. Gespeicherte Dateien stehen unter Medien."),
+        ("archive.noMedia", "No manifest-published media found. The media drive may be disconnected.", "Keine im Manifest gespeicherten Medien gefunden. Das Medienlaufwerk ist eventuell nicht verbunden."),
+        ("archive.mediaHint", "All retained file versions. Reading verifies the saved bytes; the last saved version may differ from the latest source attachment.", "Alle erhaltenen Dateistände. Lesen prüft die gespeicherten Bytes; der letzte Dateistand kann vom aktuellen Quellenanhang abweichen."),
+        ("archive.preview", "Preview", "Vorschau"),
+        ("archive.name", "File", "Datei"),
+        ("archive.size", "Size", "Größe"),
+        ("archive.version", "Version (SHA-256)", "Stand (SHA-256)"),
+        ("archive.previewUnavailable", "This file type has no built-in preview. Its local path is shown below.", "Für diesen Dateityp gibt es keine integrierte Vorschau. Der lokale Pfad steht unten."),
+        ("archive.invalidImage", "The saved file could not be decoded as an image.", "Die gespeicherte Datei konnte nicht als Bild gelesen werden."),
+        ("archive.tooLarge", "This image is too large for the built-in preview.", "Dieses Bild ist zu groß für die integrierte Vorschau."),
+        ("archive.deletedAttachment", "Attachment removed at source", "Anhang an der Quelle entfernt"),
+        ("archive.deletedPost", "Removed at source", "An der Quelle entfernt"),
+        ("archive.notSaved", "No saved version of this attachment is available.", "Für diesen Anhang ist kein gespeicherter Dateistand verfügbar."),
+        ("archive.differentVersion", "Saved versions exist, but none matches the captured attachment checksum.", "Dateistände sind gespeichert, aber keiner passt zur Prüfsumme des erfassten Anhangs."),
+        ("archive.displayLimit", "Display shortened; the full text is retained in the archive.", "Anzeige gekürzt; der vollständige Text bleibt im Archiv erhalten."),
+        ("archive.loading", "Loading archive…", "Archiv wird geladen…"),
+        ("archive.loadingMedia", "Loading saved media… Posts are ready to read.", "Gespeicherte Medien werden geladen … Posts sind bereits lesbar."),
+        ("progress.excluded", "{0} excluded", "{0} ausgelassen")
+    };
+}

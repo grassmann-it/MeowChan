@@ -10,6 +10,8 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using oChan.Boards.FourChan;
+using oChan.Archive;
+using oChan.Desktop.Localization;
 using oChan.Desktop;
 using oChan.Interfaces;
 using oChan.Persistence;
@@ -155,6 +157,7 @@ internal static class DownloadSessionChecks
                 && (restored.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Advanced",
                 "The second native window did not restore presentation preferences.");
             Program.CaptureWindow(restored, "smoke-download-restored.png");
+            await ArchivePageChecks.RunAsync(restored, recovered.WatchId, new ResourceId("4chan", "g", "123"));
             await CloseNormallyAsync(restored);
             using (ProfileLease lease = ProfileLease.Acquire(profile))
                 Console.WriteLine("SMOKE download session: restart restored the real watch/media without another media request; second native close released the profile lease.");
@@ -198,7 +201,7 @@ internal static class DownloadSessionChecks
 internal sealed class DownloadSessionTransport : HttpMessageHandler
 {
     internal const string Title = "Offline native download fixture";
-    internal static readonly byte[] Payload = Encoding.UTF8.GetBytes("Synthetic media for the native oChan download and restore smoke.");
+    internal static readonly byte[] Payload = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAIAAAAUMWhjAAAAJElEQVR4nGMwmraFpohh1IJRC0YtGLVg1IJRC0YtGLVgaFgAACLJdD2wiEkfAAAAAElFTkSuQmCC");
     private readonly TaskCompletionSource _mediaAllowed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _mediaRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _mediaRequests;
@@ -224,7 +227,7 @@ internal sealed class DownloadSessionTransport : HttpMessageHandler
         {
             return Json(JsonSerializer.Serialize(new
             {
-                posts = new[] { new { no = 123, sub = Title, tim = 777, filename = "fixture", ext = ".png",
+                posts = new[] { new { no = 123, sub = Title, com = "Offline &amp; readable<br>&gt;&gt;124", time = 1700000000, tim = 777, filename = "fixture", ext = ".png",
                     fsize = Payload.Length, md5 = Convert.ToBase64String(MD5.HashData(Payload)) } }
             }));
         }

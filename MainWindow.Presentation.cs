@@ -134,8 +134,7 @@ public partial class MainWindow
             }
 
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
-            WorkspaceControl<Button>("DiagnosticsNavigationButton").IsVisible = advanced;
-            WorkspaceControl<Button>("ToolsNavigationButton").IsVisible = !advanced;
+            UpdatePageNavigation();
             WorkspaceControl<TextBlock>("WorkspaceSubtitle").IsVisible = !barebones;
             WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = !barebones;
             WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
@@ -340,7 +339,8 @@ public partial class MainWindow
             bool reducedChrome = barebones || shortWindow;
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !reducedChrome;
             WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
-            // Both pages and the mode selector remain reachable in compact windows.
+            UpdatePageNavigation();
+            // All pages and the mode selector remain reachable in compact windows.
             WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = true;
             WorkspaceControl<Border>("WorkspaceNavigation").Padding = new Thickness(12, reducedChrome ? 2 : 5);
             WorkspaceControl<Grid>("WorkspaceRoot").RowDefinitions[3].Height = new GridLength(reducedChrome ? 40 : 52);

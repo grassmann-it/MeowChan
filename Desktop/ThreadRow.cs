@@ -91,8 +91,10 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             ThreadSourceState.NotFound => Texts.T("status.unavailable", activity),
             _ => activity
         };
-        Completion = snapshot.KnownMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.KnownMedia;
-        Progress = Texts.T("progress.media", snapshot.CompletedMedia, snapshot.KnownMedia, Completion);
+        Completion = snapshot.SelectedMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.SelectedMedia;
+        Progress = Texts.T("progress.media", snapshot.CompletedMedia, snapshot.SelectedMedia, Completion);
+        if (snapshot.Content?.ExcludedMedia > 0)
+            Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;
         Active = snapshot.Downloads.Active;
         string[] mediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().Take(5).ToArray();
@@ -101,6 +103,10 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         {
             ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? failure.Message : failure.Message + Environment.NewLine + ErrorDetails;
         }
+        if (snapshot.Content?.CaptureFailure is FailureInfo captureFailure)
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.archive") + ": " + captureFailure.Message;
+        if (snapshot.Content?.SelectionFailure is FailureInfo selectionFailure)
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + selectionFailure.Message;
 
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }

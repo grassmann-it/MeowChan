@@ -10,6 +10,9 @@ using oChan.Downloader;
 using oChan.Interfaces;
 using oChan.Persistence;
 using Serilog;
+using oChan.Archive;
+using oChan.Boards.Base;
+using oChan.Rules;
 
 namespace oChan.Desktop;
 
@@ -38,6 +41,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
     private readonly SemaphoreSlim _commands = new SemaphoreSlim(1, 1);
     private readonly ProfileLease _profileLease;
     private readonly Registry _registry;
+    private readonly ThreadContentRuntime _content;
     private readonly ILogger _logger;
     private readonly Dictionary<IThread, WatchIdentity> _threads = new Dictionary<IThread, WatchIdentity>(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<IBoard, WatchIdentity> _boards = new Dictionary<IBoard, WatchIdentity>(ReferenceEqualityComparer.Instance);
@@ -68,6 +72,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         try
         {
             Config = global::oChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
             IImageBoard[] sources = providers?.ToArray() ?? new IImageBoard[]
             {
@@ -76,7 +81,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
-                TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger);
+                TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content);
             _registry.StateChanged += OnRegistryChanged;
         }
         catch
@@ -108,6 +113,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
     {
         try
         {
+            await _content.InitializeAsync().ConfigureAwait(false);
             if (Config.SaveUrlsOnExit) await _registry.RestoreAsync().ConfigureAwait(false);
             lock (_lifecycle)
             {
@@ -174,7 +180,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             }
             threads = threadEntries.ToArray();
             boards = boardEntries.ToArray();
-            warnings = view.Warnings;
+            warnings = _content.LoadWarning is string warning ? view.Warnings.Append(warning).ToArray() : view.Warnings;
         }
         lock (_lifecycle)
         {
@@ -270,6 +276,41 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         SignalChanged();
     }
 
+    internal MediaRuleSet MediaRules => _content.Rules.Current;
+    internal EffectiveMediaRule ResolveRules(MediaRuleScope scope) => _content.Rules.Resolve(scope);
+    internal Task<ArchiveReader> OpenArchiveReaderAsync(CancellationToken cancellationToken = default) =>
+        _content.OpenReaderAsync(cancellationToken);
+
+    internal async Task<MediaRuleSet> SaveRulesAsync(IEnumerable<MediaRule> rules, string expectedRevision)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            MediaRuleSet result = await _content.Rules.SaveAsync(rules, expectedRevision).ConfigureAwait(false);
+            SignalChanged();
+            return result;
+        }
+        finally { _commands.Release(); }
+    }
+
+    internal async Task SetCaptureEnabledAsync(ResourceId id, bool enabled)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            BaseThread? active;
+            lock (_projection)
+                active = _threadHandles.Values.OfType<BaseThread>().FirstOrDefault(thread => thread.SupportsContent
+                    && thread.Board.ImageBoard.Name == id.Source && thread.Board.BoardCode == id.Board && thread.ThreadId == id.Thread);
+            if (active != null) await active.SetCaptureEnabledAsync(enabled).ConfigureAwait(false);
+            else await _content.Catalog.SetCaptureEnabledAsync(id, enabled).ConfigureAwait(false);
+            SignalChanged();
+        }
+        finally { _commands.Release(); }
+    }
+
     private void EnsureReady()
     {
         lock (_lifecycle)
@@ -306,6 +347,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             {
                 await _registry.StopAsync().ConfigureAwait(false);
                 await _registry.DisposeAsync().ConfigureAwait(false);
+                await _content.DisposeAsync().ConfigureAwait(false);
                 _registry.StateChanged -= OnRegistryChanged;
                 lock (_lifecycle) { _state = DesktopSessionState.Stopped; }
             }

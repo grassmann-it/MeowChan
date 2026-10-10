@@ -276,7 +276,7 @@ internal static class Program
             Console.WriteLine("SMOKE terminal source state remained visible after media status changed.");
             CaptureWindow(window, "smoke-mainwindow.png");
 
-            TabControl tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
+            TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
             tabs.SelectedIndex = 1;
             await WaitUntilAsync(() => VisibleText(window, boardRow.NiceName));
             boardRow.UpdateSnapshot(board with
@@ -301,6 +301,7 @@ internal static class Program
             await GridChecks.RunAsync(mainWindow);
             await SettingsPageChecks.RunAsync(mainWindow);
             await DiagnosticsChecks.RunAsync(mainWindow);
+            await RulesPageChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);
             Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");
             foreach (Window ownedWindow in mainWindow.OwnedWindows)

@@ -146,14 +146,20 @@ public partial class MainWindow : Window
     private void UpdateInteractionState()
     {
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
-        bool navigationReady = ready && !(_settingsEditor?.IsBusy ?? false);
+        bool navigationReady = ready && !WorkspaceCommandBusy;
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
+        if (_rulesPage != null) _rulesPage.IsAvailable = ready;
+        if (_archivePage != null) _archivePage.IsAvailable = ready;
         this.FindControl<Button>("AddUrlButton")!.IsEnabled = ready && !_importing;
         this.FindControl<TextBox>("UrlInput")!.IsEnabled = ready;
         this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = navigationReady;
-        bool diagnosticsReady = !_isClosing && !_applyingPreferences && !(_settingsEditor?.IsBusy ?? false)
+        this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
+        this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
+        bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.State == DesktopSessionState.RecoveryFailed);
         this.FindControl<Button>("DiagnosticsNavigationButton")!.IsEnabled = diagnosticsReady;
         this.FindControl<Button>("ToolsNavigationButton")!.IsEnabled = diagnosticsReady;
@@ -398,7 +404,7 @@ public partial class MainWindow : Window
 
     private async Task ImportClipboardAsync()
     {
-        if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false))
+        if (!_restoreCompleted || _importing || WorkspaceCommandBusy)
         {
             return;
         }
@@ -813,7 +819,7 @@ public partial class MainWindow : Window
         this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectionChanged += async (sender, e) =>
         {
             if (_updatingWorkspacePreferences) return;
-            if (!_restoreCompleted || _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false))
+            if (!_restoreCompleted || WorkspaceCommandBusy)
             {
                 ApplyWorkspacePreferences();
                 return;
@@ -827,7 +833,7 @@ public partial class MainWindow : Window
         };
         this.FindControl<Button>("ThemeToggleButton")!.Click += async (sender, e) =>
         {
-            if (!_restoreCompleted || _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false)) return;
+            if (!_restoreCompleted || WorkspaceCommandBusy) return;
             Config candidate = _config.Clone();
             candidate.Theme = _config.Theme == "Dark" ? "Light" : "Dark";
             await SaveAppearanceAsync(candidate);

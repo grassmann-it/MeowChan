@@ -26,6 +26,12 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
             ThreadSnapshot snapshot = thread.Snapshot;
             DiagnosticTarget target = new DiagnosticTarget(DiagnosticTargetKind.Thread, thread.WatchId);
             AddResource(entries, target, snapshot.Url, snapshot.Title, snapshot.RequestProgress, snapshot.LastCheckFailure);
+            if (snapshot.Content?.CaptureFailure is FailureInfo capture)
+                entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:capture", Texts.T("nav.archive"), snapshot.Title,
+                    capture.Message, snapshot.Url + Environment.NewLine + FormatFailure(capture), target));
+            if (snapshot.Content?.SelectionFailure is FailureInfo selection)
+                entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:selection", Texts.T("nav.rules"), snapshot.Title,
+                    selection.Message, snapshot.Url + Environment.NewLine + FormatFailure(selection), target));
             foreach (KeyValuePair<string, FailureInfo> failure in snapshot.MediaFailures.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
                 string details = snapshot.Url + Environment.NewLine + failure.Key + Environment.NewLine + FormatFailure(failure.Value);
