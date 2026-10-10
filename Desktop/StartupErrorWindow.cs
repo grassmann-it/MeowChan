@@ -3,9 +3,11 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using oChan.Desktop.Localization;
 using System;
+using System.IO;
 
 namespace oChan.Desktop;
 
@@ -18,6 +20,8 @@ public sealed class StartupErrorWindow : Window
 
     public StartupErrorWindow(string message)
     {
+        using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan.png"));
+        Icon = new WindowIcon(iconStream);
         Width = 560;
         Height = 360;
         MinWidth = 340;

@@ -165,7 +165,7 @@ internal static class BuiltInCatalog
         ("about.description", "oChan is an imageboard media downloader for 4chan and 8kun.", "oChan lädt Medien aus Imageboards herunter und unterstützt 4chan und 8kun."),
         ("about.author", "Written by Tomka (tfgrass), formerly known as themirage.", "Entwickelt von Tomka (tfgrass), früher bekannt als themirage."),
         ("about.history", "Special thanks to Issung for forking YChan and keeping it alive as GChan.", "Besonderer Dank an Issung für den Fork von YChan und dessen Weiterentwicklung als GChan."),
-        ("about.icons", "Icons by Feather Icons.", "Icons von Feather Icons."),
+        ("about.icons", "Interface symbols by Feather Icons.", "Bedienungssymbole von Feather Icons."),
         ("about.license", "oChan is licensed under the Artistic License 2.0. Dependency licenses and attributions are included in THIRD-PARTY-NOTICES.md alongside the application.", "oChan steht unter der Artistic License 2.0. Lizenzen und Hinweise zu Abhängigkeiten stehen in THIRD-PARTY-NOTICES.md neben der Anwendung."),
         ("about.project", "Project on GitHub", "Projekt auf GitHub"),
         ("about.authorLink", "Tomka on GitHub", "Tomka auf GitHub"),

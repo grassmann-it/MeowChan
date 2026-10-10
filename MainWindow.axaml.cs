@@ -423,7 +423,7 @@ public partial class MainWindow : Window
 
     private void ConfigureTrayIcon(TrayIcon trayIcon)
     {
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan-white.png"));
+        using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan.png"));
         trayIcon.Icon = new WindowIcon(iconStream);
         trayIcon.ToolTipText = "oChan - Image Downloader";
         NativeMenu menu = new NativeMenu();

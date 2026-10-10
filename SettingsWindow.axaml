@@ -5,6 +5,7 @@
         x:Class="oChan.SettingsWindow"
         x:DataType="local:SettingsWindow"
         Title="{Binding SettingsTitle}"
+        Icon="avares://oChan/Assets/ochan.png"
         Background="{DynamicResource Workspace.Background}"
         Foreground="{DynamicResource Workspace.Text}"
         Width="660" Height="760" MinWidth="480" MinHeight="480"

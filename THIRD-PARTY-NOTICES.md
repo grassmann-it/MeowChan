@@ -48,10 +48,10 @@ versioned NuGet archives, rather than a general assumption about Actipro product
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
   that font license.
-- `Assets/ochan.png`, `Assets/ochan-white.png` and `Assets/ochan.ico`: project
-  branding assets. No third-party author/license statement was present in their
-  available image metadata; this notice does not invent third-party provenance
-  for them.
+- `Assets/ochan.png` and `Assets/ochan.ico`: cat-head branding selected by the
+  project maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
+  photograph supplied by the maintainer. The PNG, Windows ICO and packaged
+  macOS ICNS use the same selected photographic cutout.
 
 ## Resolved package inventory
 
