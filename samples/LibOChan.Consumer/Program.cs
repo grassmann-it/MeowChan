@@ -43,6 +43,7 @@ internal static class Program
     {
         string profile = Path.Combine(directory, "profile");
         ResourceId id = new ResourceId("demo", "demo", "1");
+        const string capturedBody = "Package-only offline post<a href=\"#1\">&gt;&gt;1</a>";
         string mediaDirectory = StorageLayout.GetThreadDirectory(directory, id.Source, id.Board, id.Thread!);
         using (ProfileLease lease = ProfileLease.Acquire(profile))
         {
@@ -54,16 +55,23 @@ internal static class Program
                 "https://demo.invalid/demo/thread/1", "Offline package archive", ThreadSourceState.Archived,
                 DateTimeOffset.UtcNow, mediaDirectory, new[]
                 {
-                    new CapturedPost("1", 0, PostFieldPresence.Html, Html: "Package-only offline post")
+                    new CapturedPost("1", 0, PostFieldPresence.Html, Html: capturedBody)
                 }));
         }
         // The reader outlives the writer and profile lease, with no provider or UI dependency.
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
         ArchivedThreadView saved = await reader.ReadThreadAsync(id)
             ?? throw new InvalidOperationException("The packaged catalog lost its thread.");
-        if (saved.PostCount != 1 || saved.GetPosts(0, 1).Single().Html != "Package-only offline post"
+        if (saved.PostCount != 1 || saved.GetPosts(0, 1).Single().Html != capturedBody
             || saved.Summary.SourceState != ThreadSourceState.Archived)
             throw new InvalidOperationException("The packaged independent reader did not recover the catalog.");
+        ArchiveThreadPage matches = await reader.SearchThreadsAsync(new ArchiveThreadQuery("PACKAGE-ONLY", Source: "demo", Board: "demo", HasPosts: true));
+        ArchivePostId postId = new ArchivePostId(id, "1");
+        ArchiveQuote quote = (await reader.GetQuotesAsync(postId)).Items.Single();
+        ArchiveQuoteResolution resolution = await reader.ResolveQuoteAsync(quote);
+        if (matches.TotalCount != 1 || matches.Items.Single().Id != id || resolution.State != ArchiveQuoteState.Captured
+            || resolution.PostIndex != 0 || (await reader.GetBacklinksAsync(postId)).TotalCount != 1)
+            throw new InvalidOperationException("The packaged indexed search/quote APIs did not resolve retained local content.");
     }
 
     private static async Task RunSessionAsync(HttpClient transport, DemoHandler handler, string directory, int run)

@@ -75,6 +75,7 @@ internal static class ArchivePageChecks
             && window.FindControl<Button>("ThemeToggleButton")!.IsEnabled);
         Program.CaptureWindow(window, "smoke-archive-dark-compact.png");
         await CheckSlowMediaAsync(window, id);
+        await ArchiveNavigationChecks.RunAsync(window);
         Console.WriteLine("SMOKE archive: real post capture, restart, watch removal, plain offline reader, verified image preview, independent media loading and compact EN/DE pages passed.");
     }
 

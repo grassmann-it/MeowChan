@@ -43,11 +43,20 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 using SqliteTransaction transaction = connection.BeginTransaction();
                 ArchiveSql.CreateContentSchema(connection, transaction);
                 CreateDecisionSchema(connection, transaction);
+                ArchiveSql.CreateSearchSchema(connection, transaction);
                 using SqliteCommand schema = ArchiveSql.Command(connection, transaction,
                     $"PRAGMA application_id={ArchiveSql.ApplicationId}; PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
+            }
+            if (version == 1 && application == ArchiveSql.ApplicationId)
+            {
+                ArchiveSql.ValidateSchema(connection);
+                using SqliteTransaction migration = connection.BeginTransaction();
+                ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                migration.Commit();
             }
             ArchiveSql.ValidateSchema(connection);
             return new ArchiveCatalog(path, lease);
@@ -111,6 +120,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         CapturedThreadSnapshot captured = ArchiveValidation.CopySnapshot(snapshot);
         return WriteAsync((connection, transaction) =>
         {
+            ArchiveThreadSummary? before = ArchiveSql.ReadSummary(connection, transaction, captured.Id);
+            bool urlChanged = before != null && before.Url != captured.Url;
             Register(connection, transaction, new ArchiveThreadRegistration(captured.Id, captured.Url,
                 captured.Title, captured.MediaDirectory, true, captured.SourceState), captured.CapturedAt, observedContent: true);
             ArchivedThreadView current = ArchiveSql.ReadThread(connection, transaction, captured.Id)!;
@@ -121,6 +132,17 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 CapturedPost merged = prior.TryGetValue(next.PostId, out CapturedPost? previous)
                     ? ArchiveCaptureMerge.MergePost(previous, next) : next;
                 WritePost(connection, transaction, captured.Id, merged);
+                if (previous == null || previous.Html != merged.Html || urlChanged)
+                    ArchiveSql.WriteQuotes(connection, transaction, current.Summary, merged);
+            }
+            if (urlChanged)
+            {
+                HashSet<string> observed = new HashSet<string>(captured.Posts.Select(post => post.PostId), StringComparer.Ordinal);
+                foreach (CapturedPost retained in current.Posts.Where(post => !observed.Contains(post.PostId)))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ArchiveSql.WriteQuotes(connection, transaction, current.Summary, retained);
+                }
             }
             using SqliteCommand update = ArchiveSql.Command(connection, transaction,
                 "UPDATE archive_threads SET last_captured_at=$captured, revision=revision+1 WHERE source=$source AND board=$board AND thread=$thread");
@@ -165,16 +187,18 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         ArchiveThreadRegistration registration, DateTimeOffset firstSeenAt, bool observedContent = false)
     {
         using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
-            INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision)
-            VALUES($source,$board,$thread,$url,$title,$directory,$state,$capture,$first,0)
+            INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision,search_text)
+            VALUES($source,$board,$thread,$url,$title,$directory,$state,$capture,$first,0,$search)
             ON CONFLICT(source,board,thread) DO UPDATE SET url=excluded.url,
                 title=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.title ELSE archive_threads.title END,
+                search_text=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.search_text ELSE archive_threads.search_text END,
                 media_directory=excluded.media_directory,
                 source_state=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.source_state ELSE archive_threads.source_state END
             """);
         ArchiveSql.AddId(command, registration.Id);
         command.Parameters.AddWithValue("$url", registration.Url);
         command.Parameters.AddWithValue("$title", registration.Title);
+        command.Parameters.AddWithValue("$search", registration.Id.Source + "\n" + registration.Id.Board + "\n" + registration.Id.Thread + "\n" + ArchiveText.PlainText(registration.Title));
         command.Parameters.AddWithValue("$directory", registration.MediaDirectory);
         command.Parameters.AddWithValue("$state", (int)registration.SourceState);
         command.Parameters.AddWithValue("$capture", registration.CaptureEnabled ? 1 : 0);
@@ -193,10 +217,10 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     private static void WritePost(SqliteConnection connection, SqliteTransaction transaction, ResourceId id, CapturedPost post)
     {
         using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
-            INSERT INTO archive_posts(source,board,thread,post,ordinal,fields,posted_at,subject,author,html,is_deleted)
-            VALUES($source,$board,$thread,$post,$ordinal,$fields,$posted,$subject,$author,$html,$deleted)
+            INSERT INTO archive_posts(source,board,thread,post,ordinal,fields,posted_at,subject,author,html,is_deleted,search_text)
+            VALUES($source,$board,$thread,$post,$ordinal,$fields,$posted,$subject,$author,$html,$deleted,$search)
             ON CONFLICT(source,board,thread,post) DO UPDATE SET ordinal=excluded.ordinal,fields=excluded.fields,
-                posted_at=excluded.posted_at,subject=excluded.subject,author=excluded.author,html=excluded.html,is_deleted=excluded.is_deleted
+                posted_at=excluded.posted_at,subject=excluded.subject,author=excluded.author,html=excluded.html,is_deleted=excluded.is_deleted,search_text=excluded.search_text
             """);
         ArchiveSql.AddId(command, id);
         command.Parameters.AddWithValue("$post", post.PostId);
@@ -206,6 +230,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         command.Parameters.AddWithValue("$subject", (object?)post.Subject ?? DBNull.Value);
         command.Parameters.AddWithValue("$author", (object?)post.Author ?? DBNull.Value);
         command.Parameters.AddWithValue("$html", (object?)post.Html ?? DBNull.Value);
+        command.Parameters.AddWithValue("$search", post.PostId + "\n" + ArchiveText.PlainText(post.Subject) + "\n" + ArchiveText.PlainText(post.Author) + "\n" + ArchiveText.PlainText(post.Html));
         command.Parameters.AddWithValue("$deleted", post.IsDeleted ? 1 : 0);
         command.ExecuteNonQuery();
         using SqliteCommand clear = ArchiveSql.Command(connection, transaction,

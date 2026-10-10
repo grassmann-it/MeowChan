@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
-using System.Text.RegularExpressions;
 using oChan.Archive;
 using oChan.Desktop.Localization;
 using oChan.Storage;
@@ -23,7 +21,16 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
 }
 
 internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,
-    IReadOnlyList<ArchiveAttachmentRow> Attachments);
+    IReadOnlyList<ArchiveAttachmentRow> Attachments)
+{
+    public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
+    public string BacklinksLabel => Texts.T("archive.backlinks", Id);
+}
+internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false)
+{
+    public string Label => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
+        + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
+}
 
 internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset)
 {
@@ -35,17 +42,5 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
 
 internal static class ArchivePresentation
 {
-    private static readonly Regex ActiveElements = new Regex(@"<(?:script|style)\b[^>]*>[\s\S]*?</(?:script|style)\s*>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(200));
-    private static readonly Regex Breaks = new Regex(@"<br\b[^>]*>|</(?:p|div|blockquote)\s*>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(200));
-    private static readonly Regex Tags = new Regex(@"<[^>]*>", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(200));
-
-    internal static string PlainText(string? html)
-    {
-        if (string.IsNullOrEmpty(html)) return string.Empty;
-        // HTML remains stored source data. The reader neither executes it nor asks a browser to render it.
-        string text = WebUtility.HtmlDecode(Tags.Replace(Breaks.Replace(ActiveElements.Replace(html, string.Empty), "\n"), string.Empty));
-        return text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
-    }
+    internal static string PlainText(string? html) => ArchiveText.PlainText(html);
 }

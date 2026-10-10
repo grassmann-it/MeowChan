@@ -78,6 +78,7 @@ public partial class ArchivePage : UserControl
     private async Task LoadListAsync()
     {
         if (_ended || !_available || _openReader == null) return;
+        CancelReferences();
         int request = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -92,7 +93,12 @@ public partial class ArchivePage : UserControl
         try
         {
             await using ArchiveReader reader = await _openReader(cancellationToken);
-            ArchiveThreadPage result = await reader.ListThreadsAsync(_listOffset, PageSize, cancellationToken);
+            ArchiveThreadPage result = await reader.SearchThreadsAsync(_query, _listOffset, PageSize, cancellationToken);
+            if (result.TotalCount <= _listOffset && _listOffset > 0)
+            {
+                _listOffset = 0;
+                result = await reader.SearchThreadsAsync(_query, _listOffset, PageSize, cancellationToken);
+            }
             if (_ended || request != _contentRequest) return;
             _listTotal = result.TotalCount;
             _updatingList = true;
@@ -114,18 +120,20 @@ public partial class ArchivePage : UserControl
             if (ReferenceEquals(_contentCancellation, loading)) _contentCancellation = null;
             if (!_ended && request == _contentRequest) { _busy = false; UpdateActions(); }
         }
-        if (selected != null && !_ended && request == _contentRequest) await LoadThreadAsync(selected, resetPage: false);
+        if (_showReader && selected != null && !_ended && request == _contentRequest) await LoadThreadAsync(selected, resetPage: false);
     }
 
     private async void OnThreadSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (_updatingList || _ended || !_available || Control<ListBox>("ArchiveThreads").SelectedItem is not ArchiveThreadRow row) return;
+        _history.Clear();
         await LoadThreadAsync(row.Summary.Id, resetPage: true);
     }
 
     internal async Task LoadThreadAsync(ResourceId id, bool resetPage = true)
     {
         if (_ended || !_available || _openReader == null) return;
+        CancelReferences();
         int request = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -255,7 +263,9 @@ public partial class ArchivePage : UserControl
                     + (post.PostedAt.HasValue ? " · " + post.PostedAt.Value.ToLocalTime().ToString("g", Texts.Culture) : string.Empty)
                     + (post.IsDeleted ? " · " + Texts.T("archive.deletedPost") : string.Empty);
                 return new ArchivePostRow(post.PostId, header, post.Subject ?? string.Empty, text,
-                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray()));
+                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray()))
+                { Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
+                    .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
             }).ToArray();
             Control<ListBox>("ArchivePosts").ItemsSource = posts;
         }
@@ -281,6 +291,8 @@ public partial class ArchivePage : UserControl
     private void UpdateActions()
     {
         bool ready = _available && !_busy && !_ended;
+        Control<Button>("SearchArchiveButton").IsEnabled = ready;
+        Control<Button>("ArchiveHistoryBack").IsVisible = _history.Count > 0;
         Control<Button>("RefreshArchiveButton").IsEnabled = ready;
         Control<Button>("PreviousThreadsButton").IsEnabled = ready && _listOffset > 0;
         Control<Button>("NextThreadsButton").IsEnabled = ready && _listOffset + PageSize < _listTotal;
@@ -301,6 +313,7 @@ public partial class ArchivePage : UserControl
         if (_ended || _busy || !_available || _thread == null || _setCapture == null) return;
         ResourceId id = _thread.Summary.Id;
         bool enabled = !_thread.Summary.CaptureEnabled;
+        CancelReferences();
         int request = ++_contentRequest;
         _busy = true;
         UpdateActions();
@@ -433,6 +446,8 @@ public partial class ArchivePage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button) button.Content = Texts.T(key);
         }
+        LocalizeSearch();
+        Control<TabItem>("ArchiveReferencesTab").Header = Texts.T("archive.references");
         Control<TabItem>("ArchivePostsTab").Header = Texts.T("archive.posts");
         Control<TabItem>("ArchiveMediaTab").Header = Texts.T("archive.media");
         DataGrid media = Control<DataGrid>("ArchiveMediaGrid");
@@ -453,6 +468,7 @@ public partial class ArchivePage : UserControl
         _ended = true;
         ++_contentRequest;
         CancelMediaLoad();
+        CancelReferences();
         _lifetime.Cancel();
         Texts.Changed -= OnLanguageChanged;
         ClosePreview();

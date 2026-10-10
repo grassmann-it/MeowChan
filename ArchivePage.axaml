@@ -9,8 +9,22 @@
             <Button x:Name="RefreshArchiveButton" Grid.Column="1" VerticalAlignment="Top" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
         </Grid>
         <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,*" ColumnSpacing="12">
-            <Grid x:Name="ArchiveListPane" RowDefinitions="*,Auto" RowSpacing="8">
-                <Border Classes="panel">
+            <Grid x:Name="ArchiveListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                <StackPanel Spacing="6">
+                    <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
+                    <Expander x:Name="ArchiveFilters" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="5">
+                            <TextBox x:Name="ArchiveSourceFilter" />
+                            <TextBox x:Name="ArchiveBoardFilter" />
+                            <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                        </StackPanel>
+                    </Expander>
+                    <Button x:Name="SearchArchiveButton" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
+                </StackPanel>
+                <Border Grid.Row="1" Classes="panel">
                     <Grid>
                         <ListBox x:Name="ArchiveThreads" SelectionChanged="OnThreadSelected">
                             <ListBox.ItemTemplate>
@@ -26,7 +40,7 @@
                         <TextBlock x:Name="ArchiveEmpty" Tag="archive.empty" Classes="muted localized" TextWrapping="Wrap" Margin="12" />
                     </Grid>
                 </Border>
-                <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                     <Button x:Name="PreviousThreadsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousThreads" />
                     <TextBlock x:Name="ArchiveThreadPage" Grid.Column="1" Classes="muted" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center" />
                     <Button x:Name="NextThreadsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextThreads" />
@@ -39,6 +53,7 @@
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
+                    <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" HorizontalAlignment="Left" IsVisible="False" />
                     <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
                 <Border Grid.Row="1" Classes="panel">
@@ -55,6 +70,14 @@
                                                         <TextBlock Text="{Binding Header}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                                         <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+                                                        <ItemsControl ItemsSource="{Binding Quotes}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                    <Button Content="{Binding Label}" Click="OnQuoteClick" Margin="0,2" HorizontalAlignment="Left" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <Button Content="{Binding BacklinksLabel}" Click="OnBacklinksClick" HorizontalAlignment="Left" />
                                                         <ItemsControl ItemsSource="{Binding Attachments}">
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
@@ -89,6 +112,21 @@
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />
                                     </Grid>
                                     <Button x:Name="PreviewArchiveMediaButton" Grid.Row="2" Tag="archive.preview" Classes="localized" HorizontalAlignment="Right" Click="OnPreviewClick" />
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="ArchiveReferencesTab">
+                                <Grid RowDefinitions="Auto,*,Auto" Margin="8" RowSpacing="8">
+                                    <TextBlock x:Name="ArchiveReferencesTitle" TextWrapping="Wrap" Classes="muted" />
+                                    <ListBox x:Name="ArchiveReferences" Grid.Row="1">
+                                        <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                            <Button Content="{Binding Label}" Click="OnQuoteClick" HorizontalAlignment="Stretch" Margin="0,3" />
+                                        </DataTemplate></ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
+                                        <Button x:Name="PreviousReferences" Tag="archive.previous" Classes="localized" Click="OnPreviousReferences" />
+                                        <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <Button x:Name="NextReferences" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextReferences" />
+                                    </Grid>
                                 </Grid>
                             </TabItem>
                         </TabControl>

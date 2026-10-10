@@ -17,5 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="../../libochan/libochan.csproj" />
     <Using Include="Xunit" />
+    <EmbeddedResource Include="Fixtures/archive-schema-1.sql" />
   </ItemGroup>
 </Project>

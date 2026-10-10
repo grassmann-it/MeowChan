@@ -61,6 +61,12 @@ public sealed class ArchivedThreadView
         ArchiveValidation.ValidatePage(offset, limit);
         return Array.AsReadOnly(_posts.Skip(offset).Take(limit).ToArray());
     }
+    /// <summary>Zero-based index in this immutable read, or -1 when the post was not captured.</summary>
+    public int FindPostIndex(string postId)
+    {
+        ArgumentNullException.ThrowIfNull(postId);
+        return Array.FindIndex(_posts, post => post.PostId == postId);
+    }
     internal IReadOnlyList<CapturedPost> Posts => _posts;
 }
 

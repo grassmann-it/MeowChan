@@ -141,6 +141,47 @@ foreach (ArchiveThreadSummary summary in threads.Items)
 
 Each list page includes rows and count from one read transaction. `ReadThreadAsync` materializes one complete, immutable thread view; `GetPosts` pages that retained view in memory. Subsequent writes cannot change its pages. A later list/read is a new observation, not a continuation of one archive-wide snapshot. Page limits are 1–500. Captured HTML is source data: a consuming UI must render it as text or sanitize it before displaying active markup.
 
+### Search and quotes
+
+```csharp
+ArchiveThreadPage matches = await reader.SearchThreadsAsync(new ArchiveThreadQuery(
+    Text: "search phrase", Source: "4chan", Board: "g", HasPosts: true), limit: 50);
+ArchivePostId postId = new ArchivePostId(new ResourceId("4chan", "g", "123"), "124");
+ArchiveQuotePage quotes = await reader.GetQuotesAsync(postId, limit: 50);
+foreach (ArchiveQuote quote in quotes.Items)
+{
+    ArchiveQuoteResolution target = await reader.ResolveQuoteAsync(quote);
+    Console.WriteLine($"{quote.Label}: {target.State} at index {target.PostIndex}");
+}
+ArchiveQuotePage backlinks = await reader.GetBacklinksAsync(postId, limit: 50);
+```
+
+Search treats input as a literal case-insensitive substring, not a query language.
+It covers source/board/thread identities, titles, post identities, subjects, authors
+and readable post text. Source/board filters are exact stored identities; source
+state, capture preference, posts/media-only and sort order are separate filters.
+Text is limited to 512 characters. Counts and rows share one read transaction,
+and page limits remain 1–500. Search never opens media directories.
+
+Archive schema 2 indexes decoded inert text with bundled SQLite FTS5/trigram.
+One/two-character terms use a cancellable scan so short terms do not become false
+empty results. Opening `ArchiveCatalog` with its writer lease transactionally
+migrates schema 1 and backfills search/quote indexes, retaining posts, preferences,
+media decisions and directories. A failed migration rolls back. Independent
+`ArchiveReader` also reads schema 1 without modifying it: legacy search/backlink
+queries use local scans. Use `ArchiveCatalog` for writes so merge semantics and
+derived indexes stay consistent; raw SQL edits are not the public writer API.
+
+Quotes recognize actual source anchor attributes, same-thread fragments and the
+supported 4chan/8kun thread paths/host aliases. `Captured`, `MissingPost`,
+`MissingThread`, `External` and `Unresolved` are distinct; a guessed identity alone
+does not prove that content is captured. `PostIndex` addresses `resolution.View`, the same immutable read, including a
+target beyond the first reader page. Later captures cannot shift those pages. Backlinks span
+retained local threads/boards and are paginated. Disappeared posts retain their
+last observed references; an observed HTML change replaces that post's old
+references transactionally. Resolution never fetches a remote target.
+`ArchiveText.PlainText` provides the same inert readable text used by indexing.
+
 Post attachments describe what the provider reported. To read actually saved bytes, obtain the thread's `MediaDirectories` and open each with `MediaAssetReader.OpenAsync`. This yields an immutable manifest view, including retained previous media versions, without scanning unrecorded files into the archive. `MediaManifestStatus` distinguishes missing, available and corrupt manifests; unsupported versions and I/O errors throw. Media paths may be temporarily unavailable even while local posts remain readable. Here `threadDirectory` is one of those recorded directories:
 
 ```csharp

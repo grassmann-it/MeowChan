@@ -8,9 +8,9 @@ using oChan.Interfaces;
 
 namespace oChan.Archive;
 
-internal static class ArchiveSql
+internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 1;
+    internal const int SchemaVersion = 2;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -23,6 +23,7 @@ internal static class ArchiveSql
         try
         {
             connection.Open();
+            RegisterSearchFunctions(connection);
             // The local catalog uses SQLite's rollback journal, so passive readers never need
             // to create WAL shared-memory files. All SQLite calls execute on a worker thread.
             using SqliteCommand pragma = connection.CreateCommand();
@@ -43,7 +44,7 @@ internal static class ArchiveSql
 
     internal static void ValidateSchema(SqliteConnection connection)
     {
-        if (GetPragma(connection, "user_version") != SchemaVersion || GetPragma(connection, "application_id") != ApplicationId)
+        if (GetPragma(connection, "user_version") is not (1 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         using SqliteCommand journal = connection.CreateCommand();
         journal.CommandText = "PRAGMA journal_mode";
@@ -59,6 +60,20 @@ internal static class ArchiveSql
             """;
         using SqliteDataReader reader = columns.ExecuteReader();
         while (reader.NextResult()) { }
+        reader.Close();
+        if (GetPragma(connection, "user_version") == SchemaVersion)
+        {
+            using SqliteCommand indexed = connection.CreateCommand();
+            indexed.CommandText = """
+                SELECT search_text FROM archive_threads LIMIT 0;
+                SELECT search_text FROM archive_posts LIMIT 0;
+                SELECT rowid,search_text FROM archive_thread_search LIMIT 0;
+                SELECT rowid,search_text FROM archive_post_search LIMIT 0;
+                SELECT source,board,thread,post,position,target_source,target_board,target_thread,target_post,label,url,is_external FROM archive_quotes LIMIT 0;
+                """;
+            using SqliteDataReader indexReader = indexed.ExecuteReader();
+            while (indexReader.NextResult()) { }
+        }
     }
 
     internal static void CreateContentSchema(SqliteConnection connection, SqliteTransaction transaction)
@@ -69,12 +84,12 @@ internal static class ArchiveSql
                 url TEXT NOT NULL, title TEXT NOT NULL, media_directory TEXT NOT NULL,
                 source_state INTEGER NOT NULL CHECK(source_state BETWEEN 0 AND 2),
                 capture_enabled INTEGER NOT NULL CHECK(capture_enabled IN (0,1)),
-                first_seen_at TEXT NOT NULL, last_captured_at TEXT, revision INTEGER NOT NULL,
+                first_seen_at TEXT NOT NULL, last_captured_at TEXT, revision INTEGER NOT NULL, search_text TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY(source,board,thread));
             CREATE TABLE archive_posts (
                 source TEXT NOT NULL, board TEXT NOT NULL, thread TEXT NOT NULL, post TEXT NOT NULL,
                 ordinal INTEGER NOT NULL CHECK(ordinal>=0), fields INTEGER NOT NULL,
-                posted_at TEXT, subject TEXT, author TEXT, html TEXT,
+                posted_at TEXT, subject TEXT, author TEXT, html TEXT, search_text TEXT NOT NULL DEFAULT '',
                 is_deleted INTEGER NOT NULL CHECK(is_deleted IN (0,1)),
                 PRIMARY KEY(source,board,thread,post),
                 FOREIGN KEY(source,board,thread) REFERENCES archive_threads(source,board,thread));

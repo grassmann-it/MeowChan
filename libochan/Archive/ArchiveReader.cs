@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -39,6 +40,16 @@ public sealed class ArchiveReader : IAsyncDisposable
         return ReadAsync((connection, transaction) => ArchiveSql.ReadPage(connection, transaction, offset, limit), cancellationToken);
     }
 
+    /// <summary>Filters the local catalog in one read transaction; never opens media directories.</summary>
+    public Task<ArchiveThreadPage> SearchThreadsAsync(ArchiveThreadQuery query, int offset = 0, int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        query.Validate();
+        ArchiveValidation.ValidatePage(offset, limit);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, query, offset, limit, cancellationToken), cancellationToken);
+    }
+
     /// <summary>Captures posts and attachment metadata in one transaction; its pages never change afterward.</summary>
     public Task<ArchivedThreadView?> ReadThreadAsync(ResourceId id, CancellationToken cancellationToken = default)
     {
@@ -52,6 +63,50 @@ public sealed class ArchiveReader : IAsyncDisposable
         return ReadAsync((connection, transaction) => ArchiveSql.ReadMediaDirectories(connection, transaction, id), cancellationToken);
     }
 
+    public Task<ArchiveQuotePage> GetQuotesAsync(ArchivePostId post, int offset = 0, int limit = 100,
+        CancellationToken cancellationToken = default) => QuotePageAsync(post, false, offset, limit, cancellationToken);
+
+    public Task<ArchiveQuotePage> GetBacklinksAsync(ArchivePostId post, int offset = 0, int limit = 100,
+        CancellationToken cancellationToken = default) => QuotePageAsync(post, true, offset, limit, cancellationToken);
+
+    private Task<ArchiveQuotePage> QuotePageAsync(ArchivePostId post, bool backlinks, int offset, int limit, CancellationToken cancellationToken)
+    {
+        ValidatePostId(post);
+        ArchiveValidation.ValidatePage(offset, limit);
+        return ReadAsync((connection, transaction) => ArchiveSql.ReadQuotes(connection, transaction, post, backlinks, offset, limit, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Resolves a quote against captured local posts only. Missing/external targets never trigger HTTP.</summary>
+    public Task<ArchiveQuoteResolution> ResolveQuoteAsync(ArchiveQuote quote, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(quote);
+        ValidatePostId(quote.Origin);
+        if (quote.Target == null)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ArchiveQuoteResolution(quote,
+                quote.IsExternal ? ArchiveQuoteState.External : ArchiveQuoteState.Unresolved));
+        }
+        ValidatePostId(quote.Target);
+        return ReadAsync((connection, transaction) =>
+        {
+            ArchivedThreadView? view = ArchiveSql.ReadThread(connection, transaction, quote.Target.Thread);
+            if (view == null) return new ArchiveQuoteResolution(quote, ArchiveQuoteState.MissingThread);
+            int index = view.FindPostIndex(quote.Target.PostId);
+            return index < 0 ? new ArchiveQuoteResolution(quote, ArchiveQuoteState.MissingPost, view.Summary) { View = view }
+                : new ArchiveQuoteResolution(quote, ArchiveQuoteState.Captured, view.Summary, view.Posts[index], index) { View = view };
+        }, cancellationToken);
+    }
+
+    private static void ValidatePostId(ArchivePostId post)
+    {
+        ArgumentNullException.ThrowIfNull(post);
+        ArchiveValidation.ValidateId(post.Thread);
+        if (string.IsNullOrWhiteSpace(post.PostId) || post.PostId.Length > 256 || post.PostId.Any(char.IsControl))
+            throw new ArgumentException("A post identity must be nonempty and contain no control characters.", nameof(post));
+    }
+
     private Task<T> ReadAsync<T>(Func<SqliteConnection, SqliteTransaction, T> read, CancellationToken cancellationToken)
         => Task.Run(() =>
         {
@@ -60,7 +115,9 @@ public sealed class ArchiveReader : IAsyncDisposable
             using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
             ArchiveSql.ValidateSchema(connection);
             using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-            T value = read(connection, transaction);
+            T value;
+            try { value = read(connection, transaction); }
+            catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();
             return value;
