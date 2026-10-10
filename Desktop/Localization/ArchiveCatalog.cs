@@ -4,6 +4,8 @@ internal static class ArchiveCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("archive.loadingThumbnail", "Loading image…", "Bild wird geladen …"),
+        ("archive.inlineUnsupported", "Saved attachment · click for details", "Gespeicherter Anhang · für Details anklicken"),
         ("archive.search", "Search", "Suchen"),
         ("archive.searchHint", "Search local posts and titles…", "Lokale Posts und Titel suchen …"),
         ("archive.filters", "Filters and sorting", "Filter und Sortierung"),

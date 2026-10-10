@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using oChan.Archive;
 using oChan.Desktop.Localization;
 using oChan.Storage;
@@ -17,12 +20,15 @@ internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary)
 
 internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
 {
+    public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
+    public Action? OpenPreview { get; init; }
     public string Label => Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment");
 }
 
 internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,
     IReadOnlyList<ArchiveAttachmentRow> Attachments)
 {
+    public bool HasAttachments => Attachments.Count > 0;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
     public string BacklinksLabel => Texts.T("archive.backlinks", Id);
 }

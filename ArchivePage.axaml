@@ -66,28 +66,35 @@
                             <TabItem x:Name="ArchivePostsTab" Header="Posts">
                                 <Grid RowDefinitions="*,Auto" RowSpacing="8">
                                     <Grid>
-                                        <ListBox x:Name="ArchivePosts">
+                                        <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
+                                            </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
                                                         <TextBlock Text="{Binding Header}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
-                                                        <ItemsControl ItemsSource="{Binding Quotes}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                    <Button Content="{Binding Label}" Click="OnQuoteClick" Margin="0,2" HorizontalAlignment="Left" />
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                        <Button Content="{Binding BacklinksLabel}" Click="OnBacklinksClick" HorizontalAlignment="Left" />
-                                                        <ItemsControl ItemsSource="{Binding Attachments}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
-                                                                    <Button Content="{Binding Label}" Click="OnAttachmentClick" Margin="0,3" MaxWidth="420" HorizontalAlignment="Left" />
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" RowSpacing="8" SizeChanged="OnPostLayoutChanged">
+                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" MaxWidth="268" HorizontalAlignment="Left">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
+                                                                        <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <StackPanel Grid.Column="1" Spacing="6">
+                                                                <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+                                                                <ItemsControl ItemsSource="{Binding Quotes}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                            <Button Content="{Binding Label}" Click="OnQuoteClick" Margin="0,2" HorizontalAlignment="Left" />
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <Button Content="{Binding BacklinksLabel}" Click="OnBacklinksClick" HorizontalAlignment="Left" />
+                                                            </StackPanel>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>

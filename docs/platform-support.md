@@ -60,6 +60,10 @@ quote/backlink navigation is not established by this run; its existing acceptanc
 uses controlled GUI/catalog fixtures. Native release-package acceptance and real
 NAS-disconnection behavior remain separate.
 
+### Inline archive images — 2026-10-10
+
+Archived posts now show viewport-loaded, bounded local thumbnails with at most two concurrent verification/decoding operations. Matching uses captured media identity, variant, size and MD5 when supplied; the manifest reader verifies the selected file's SHA-256 before decoding. The Debug smoke build and Release desktop build passed without warnings/errors; all 103 desktop tests passed. Isolated Linux download-session GUI runs at measured 100% and 200% passed, including inline-image loading and click-to-preview, compact Barebones/Simple/Advanced views in English/German, delayed media discovery and disposal on detachment. Evidence is retained in `artifacts/archive-inline-accepted-{100,200}`. These checks use controlled downloaded-image fixtures; they do not establish native Windows/macOS behavior, real NAS disconnection or a sustained live-source load.
+
 ### Isolated style checkpoint — `1884ff5`
 
 The final style source passed the Release solution build without warnings/errors and all **457 .NET tests** (367 core, 90 desktop). The smoke build, 22 macOS-packaging fixtures and nine window-free runner fixtures also passed. Linux GUI checks used Xvfb/Openbox, software rendering, a private non-activating DBus session and temporary profile/download directories; no personal desktop windows or tray stress were started.

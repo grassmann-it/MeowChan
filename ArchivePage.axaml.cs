@@ -27,6 +27,9 @@ public partial class ArchivePage : UserControl
     private readonly Action<string>? _openFolder;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+    private readonly SemaphoreSlim _thumbnailGate = new SemaphoreSlim(2, 2);
+    private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
+    private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _mediaGate = new SemaphoreSlim(1, 1);
     private CancellationTokenSource? _contentCancellation;
     private CancellationTokenSource? _mediaCancellation;
@@ -226,13 +229,15 @@ public partial class ArchivePage : UserControl
         finally
         {
             if (ReferenceEquals(_mediaCancellation, loading)) _mediaCancellation = null;
-            if (!_ended && request == _mediaRequest) { _mediaLoading = false; RenderMedia(); }
+            if (!_ended && request == _mediaRequest) { _mediaLoading = false; _mediaReady.TrySetResult(_assets); RenderMedia(); }
         }
     }
 
     private void CancelMediaLoad()
     {
         ++_mediaRequest;
+        _mediaReady.TrySetCanceled();
+        _mediaReady = NewMediaReady();
         _mediaCancellation?.Cancel();
         _mediaLoading = false;
     }
@@ -263,7 +268,7 @@ public partial class ArchivePage : UserControl
                     + (post.PostedAt.HasValue ? " · " + post.PostedAt.Value.ToLocalTime().ToString("g", Texts.Culture) : string.Empty)
                     + (post.IsDeleted ? " · " + Texts.T("archive.deletedPost") : string.Empty);
                 return new ArchivePostRow(post.PostId, header, post.Subject ?? string.Empty, text,
-                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray()))
+                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(attachment, _mediaReady.Task)).ToArray()))
                 { Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                     .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
             }).ToArray();
@@ -324,24 +329,69 @@ public partial class ArchivePage : UserControl
         if (!_ended && request == _contentRequest && _selectedThread == id) await LoadThreadAsync(id, resetPage: false);
     }
 
-    private void OnAttachmentClick(object? sender, RoutedEventArgs e)
+    private ArchiveAttachmentRow CreateAttachmentRow(CapturedAttachment attachment,
+        Task<IReadOnlyList<ArchiveAssetRow>> ready)
     {
-        if (_ended || _busy || !_available || sender is not Button { DataContext: ArchiveAttachmentRow row }) return;
-        ArchiveAssetRow[] matches = _assets.Where(asset => asset.Asset.MediaIdentifier == row.Attachment.MediaId
-            && asset.Asset.Variant == row.Attachment.Variant).ToArray();
-        if (matches.Length == 0) { Message(Texts.T(_mediaLoading ? "archive.loadingMedia" : "archive.notSaved")); return; }
-        ArchiveAssetRow? match = matches.LastOrDefault(asset =>
-            (row.Attachment.ExpectedMd5 == null || row.Attachment.ExpectedMd5 == asset.Asset.Md5)
-            && (row.Attachment.ExpectedSize == null || row.Attachment.ExpectedSize == asset.Asset.Length));
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 1;
-        Control<DataGrid>("ArchiveMediaGrid").SelectedItem = match ?? matches[0];
-        Message(match == null ? Texts.T("archive.differentVersion") : string.Empty);
-        UpdateActions();
+        return new ArchiveAttachmentRow(attachment)
+        {
+            LoadThumbnail = async cancellationToken =>
+            {
+                using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
+                ArchiveAssetRow? match = FindMatchingAsset(attachment, assets);
+                if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
+                    asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
+                    ? "archive.differentVersion" : "archive.notSaved"));
+                return await Task.Run(async () =>
+                {
+                    await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
+                    try { return await DecodeThumbnailAsync(match, loading.Token).ConfigureAwait(false); }
+                    finally { _thumbnailGate.Release(); }
+                }, loading.Token);
+            },
+            OpenPreview = async () =>
+            {
+                if (_ended || _busy || !_available || !ready.IsCompletedSuccessfully) return;
+                ArchiveAssetRow? match = FindMatchingAsset(attachment, ready.Result);
+                if (match != null) await ShowPreviewAsync(match);
+                else Message(Texts.T("archive.notSaved"));
+            }
+        };
+    }
+
+    internal static ArchiveAssetRow? FindMatchingAsset(CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)
+        => assets.LastOrDefault(asset => attachment.MediaId != null
+            && asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant
+            && (attachment.ExpectedMd5 == null || attachment.ExpectedMd5 == asset.Asset.Md5)
+            && (attachment.ExpectedSize == null || attachment.ExpectedSize == asset.Asset.Length));
+
+    private static async Task<Bitmap?> DecodeThumbnailAsync(ArchiveAssetRow row, CancellationToken cancellationToken)
+    {
+        string extension = System.IO.Path.GetExtension(row.Asset.Path).ToLowerInvariant();
+        if (extension is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")) return null;
+        if (row.Asset.Length > 64L * 1024 * 1024) throw new InvalidDataException(Texts.T("archive.tooLarge"));
+        await using Stream stream = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+        using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
+        if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
+        if (codec.Info.Width <= 0 || codec.Info.Height <= 0 || (long)codec.Info.Width * codec.Info.Height > 40_000_000
+            || (long)codec.Info.Height > 180L * codec.Info.Width)
+            throw new InvalidDataException(Texts.T("archive.tooLarge"));
+        int width = Math.Min(codec.Info.Width, Math.Min(240, Math.Max(1, (int)(180L * codec.Info.Width / codec.Info.Height))));
+        stream.Position = 0;
+        cancellationToken.ThrowIfCancellationRequested();
+        Bitmap bitmap = Bitmap.DecodeToWidth(stream, width);
+        if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
+        return bitmap;
     }
 
     private async void OnPreviewClick(object? sender, RoutedEventArgs e)
     {
         if (_ended || _busy || !_available || Control<DataGrid>("ArchiveMediaGrid").SelectedItem is not ArchiveAssetRow row) return;
+        await ShowPreviewAsync(row);
+    }
+
+    private async Task ShowPreviewAsync(ArchiveAssetRow row)
+    {
         ClosePreview();
         int request = _previewRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -404,6 +454,15 @@ public partial class ArchivePage : UserControl
     private void OnNextPosts(object? sender, RoutedEventArgs e) { if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return; _postOffset += PageSize; RenderThread(); }
     private void OnBackClick(object? sender, RoutedEventArgs e) { _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e) => UpdateActions();
+    private void OnPostLayoutChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (sender is not Grid grid || grid.Children.Count < 2) return;
+        bool beside = grid.Bounds.Width >= 600;
+        grid.ColumnDefinitions = new ColumnDefinitions(beside ? "Auto,*" : "*");
+        grid.RowDefinitions = new RowDefinitions(beside ? "Auto" : "Auto,Auto");
+        Grid.SetColumn(grid.Children[1], beside ? 1 : 0);
+        Grid.SetRow(grid.Children[1], beside ? 0 : 1);
+    }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateLayoutMode();
     private void UpdateLayoutMode()
     {

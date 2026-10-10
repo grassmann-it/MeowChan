@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using oChan.Archive;
 using oChan.Desktop;
 using oChan.Desktop.Localization;
@@ -29,8 +30,18 @@ internal static class ArchivePageChecks
         await page.MediaLoadTask;
         DataGrid media = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
         Require(media.ItemsSource.Cast<ArchiveAssetRow>().Count() == 1, "The independent archive did not discover the saved manifest.");
+        await Program.WaitUntilAsync(() => page.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+            .Any(view => view.Thumbnail.Source is Bitmap));
+        ArchiveAttachmentView inline = page.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
+        Require(inline.Thumbnail.Bounds.Width <= 240 && inline.Thumbnail.Bounds.Height <= 180,
+            "An inline image exceeded its bounded thumbnail dimensions.");
         await FlushAsync();
         Program.CaptureWindow(window, "smoke-archive-restored-posts.png");
+        Click(inline.PreviewButton);
+        await Program.WaitUntilAsync(() => page.FindControl<Image>("ArchivePreviewImage")!.Source is Bitmap);
+        Require(page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 0,
+            "Clicking an inline image changed away from the post reader.");
+        Click(page.FindControl<Button>("ClosePreviewButton")!);
 
         page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
         media.SelectedItem = media.ItemsSource.Cast<ArchiveAssetRow>().Single();
@@ -66,6 +77,8 @@ internal static class ArchivePageChecks
                         && Fits(window, window.FindControl<Button>("SettingsNavigationButton")!)
                         && Fits(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!);
                 });
+                await Program.WaitUntilAsync(() => page.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                    .Any(view => view.Thumbnail.Source is Bitmap));
                 Program.CaptureWindow(window, $"smoke-archive-{mode.ToLowerInvariant()}-{language}-minimum.png");
             }
         }
@@ -101,16 +114,22 @@ internal static class ArchivePageChecks
                 "A delayed media directory blocked local posts or left local navigation busy.");
             await FlushAsync();
             Program.CaptureWindow(window, "smoke-archive-slow-media.png");
+            Require(!fixture.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .Any(view => view.Thumbnail.Source is Bitmap), "The delayed media fixture displayed stale media.");
             gate.SetResult();
             await fixture.MediaLoadTask.WaitAsync(TimeSpan.FromSeconds(10));
             Require(fixture.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource.Cast<ArchiveAssetRow>().Count() == 1,
                 "The delayed media snapshot did not populate after the local reader.");
+            await Program.WaitUntilAsync(() => fixture.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .Any(view => view.Thumbnail.Source is Bitmap));
         }
         finally
         {
+            ArchiveAttachmentView[] detached = fixture.GetVisualDescendants().OfType<ArchiveAttachmentView>().ToArray();
             fixture.EndLifetime();
             gate.TrySetResult();
             host.Content = retained;
+            Require(detached.All(view => view.Thumbnail.Source == null), "Detached posts retained image buffers.");
         }
     }
 
