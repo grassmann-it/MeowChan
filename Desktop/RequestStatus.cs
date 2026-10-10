@@ -1,5 +1,5 @@
 using System;
-using System.Globalization;
+using oChan.Desktop.Localization;
 using oChan.Http;
 
 namespace oChan.Desktop;
@@ -10,11 +10,11 @@ internal static class RequestStatus
     {
         return progress switch
         {
-            { Phase: RequestPolicyPhase.WaitingForAdmission } => "Waiting for request slot",
+            { Phase: RequestPolicyPhase.WaitingForAdmission } => Texts.T("request.waiting"),
             { Phase: RequestPolicyPhase.Cooldown, Delay: TimeSpan delay } =>
-                "Request cooldown (" + Math.Ceiling(delay.TotalSeconds).ToString("0", CultureInfo.CurrentCulture) + " s)",
-            { Phase: RequestPolicyPhase.Cooldown } => "Request cooldown",
-            { Phase: RequestPolicyPhase.Sending } => "Checking",
+                Texts.T("request.cooldownSeconds", Math.Ceiling(delay.TotalSeconds)),
+            { Phase: RequestPolicyPhase.Cooldown } => Texts.T("request.cooldown"),
+            { Phase: RequestPolicyPhase.Sending } => Texts.T("request.checking"),
             _ => null
         };
     }

@@ -14,13 +14,15 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
+    protected virtual MainWindow CreateMainWindow() => new MainWindow();
+
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             try
             {
-                desktop.MainWindow = new MainWindow();
+                desktop.MainWindow = CreateMainWindow();
             }
             catch (Exception exception)
             {

@@ -4,23 +4,18 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.VisualTree;
-using oChan.Boards.FourChan;
 using oChan.Desktop;
-using oChan.Downloader;
-using oChan.Interfaces;
 
 namespace oChan.DesktopSmoke;
 
 internal static class GridChecks
 {
-    public static async Task RunAsync(MainWindow window, IImageBoard provider)
+    public static async Task RunAsync(MainWindow window)
     {
-        FourChanBoard firstBoard = new FourChanBoard(provider, new Uri("https://boards.4chan.org/g/"));
-        FourChanBoard secondBoard = new FourChanBoard(provider, new Uri("https://boards.4chan.org/po/"));
-        using ThreadRow two = CreateRow(firstBoard, "2", 2);
-        using ThreadRow ten = CreateRow(firstBoard, "10", 10);
-        using BoardRow first = new BoardRow(firstBoard);
-        using BoardRow second = new BoardRow(secondBoard);
+        using ThreadRow two = CreateRow("2", 2);
+        using ThreadRow ten = CreateRow("10", 10);
+        using BoardRow first = new BoardRow(SnapshotFixtures.Board(102));
+        using BoardRow second = new BoardRow(SnapshotFixtures.Board(103, "po"));
         window.UrlList.Add(ten);
         window.UrlList.Add(two);
         window.BoardsList.Add(first);
@@ -58,6 +53,7 @@ internal static class GridChecks
             tabs.SelectedIndex = 1;
             await WaitForRowsAsync(boardGrid, first, second);
             await CheckContextSelectionAsync(window, boardGrid, first, second);
+            await ClipboardChecks.CheckCopyAsync(window, two, second);
             Console.WriteLine("SMOKE thread and board context menus select the pointed row and clear stale selection on blank space.");
         }
         finally
@@ -73,26 +69,50 @@ internal static class GridChecks
         }
     }
 
-    private static ThreadRow CreateRow(IBoard board, string id, int value)
+    private static ThreadRow CreateRow(string id, int value)
     {
-        FourChanThread thread = new FourChanThread(board, new Uri("https://boards.4chan.org/g/thread/" + id))
-        {
-            Title = "Grid fixture " + id,
-            TotalMediaCount = 100,
-            DownloadedMedia = new HashSet<string>(Enumerable.Range(1, value).Select(number => number.ToString()))
-        };
-        ThreadRow row = new ThreadRow(thread);
-        row.UpdateSnapshot(thread.GetSnapshot(new DownloadCounts(value, value)));
-        return row;
+        return new ThreadRow(SnapshotFixtures.Thread(value, id, "Grid fixture " + id,
+            completed: value, queued: value, active: value));
     }
 
     private static Task WaitForRowsAsync(DataGrid grid, object first, object second) => Program.WaitUntilAsync(() =>
         VisibleRows(grid, first).Count() == 1 && VisibleRows(grid, second).Count() == 1);
 
     private static IEnumerable<DataGridRow> VisibleRows(DataGrid grid, object item) => grid.GetVisualDescendants()
-        .OfType<DataGridRow>().Where(row => row.IsVisible && row.Bounds.Height > 0 && ReferenceEquals(row.DataContext, item));
+        .OfType<DataGridRow>().Where(row => row.IsEffectivelyVisible && row.Bounds.Height > 0 && ReferenceEquals(row.DataContext, item));
 
     private static DataGridRow FindRow(DataGrid grid, object item) => VisibleRows(grid, item).Single();
+
+    internal static async Task OpenContextForAsync(MainWindow window, DataGrid grid, object item)
+    {
+        Point? position = null;
+        // A tab becomes effectively visible before its retained rows have necessarily
+        // finished layout. Wait for the actual input target, not just the visibility flag.
+        await Program.WaitUntilAsync(() =>
+        {
+            DataGridRow? row = VisibleRows(grid, item).SingleOrDefault();
+            position = row?.TranslatePoint(new Point(20, row.Bounds.Height / 2), window);
+            if (!position.HasValue)
+                return false;
+            Visual? hit = window.InputHitTest(position.Value) as Visual;
+            DataGridRow? hitRow = hit as DataGridRow ?? hit?.FindAncestorOfType<DataGridRow>();
+            return ReferenceEquals(hitRow?.DataContext, item) && ReferenceEquals(hitRow?.FindAncestorOfType<DataGrid>(), grid);
+        });
+        RightPress(window, position!.Value, KeyModifiers.None);
+        if (!ReferenceEquals(grid.SelectedItem, item))
+            throw new InvalidOperationException("Opening the copy menu selected a different row in " + grid.Name
+                + "; selected=" + Describe(grid.SelectedItem) + "; expected=" + Describe(item) + "; point=" + position);
+        ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
+        menu.Open(grid);
+        await Program.WaitUntilAsync(() => menu.IsOpen);
+    }
+
+    private static string Describe(object? item) => item switch
+    {
+        ThreadRow thread => thread.Url,
+        BoardRow board => board.Url,
+        _ => item?.GetType().Name ?? "null"
+    };
 
     private static async Task CheckContextSelectionAsync(MainWindow window, DataGrid grid, object first, object second)
     {

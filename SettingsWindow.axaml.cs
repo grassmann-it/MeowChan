@@ -6,7 +6,9 @@ using Avalonia.VisualTree;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
+using oChan.Desktop.Localization;
 
 namespace oChan
 {
@@ -23,6 +25,14 @@ namespace oChan
         private bool _isBusy;
         private bool _isClosed;
         private string? _errorMessage;
+        private SettingsChoice? _selectedTheme;
+        private SettingsChoice? _selectedWorkspaceMode;
+        private LanguageInfo? _selectedLanguage;
+        private bool _compactDensity;
+
+        public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<LanguageInfo> LanguageChoices { get; private set; } = Array.Empty<LanguageInfo>();
 
         public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -43,7 +53,58 @@ namespace oChan
             SaveUrlsOnExit = config.SaveUrlsOnExit;
             MinimizeToTray = config.MinimizeToTray;
             BandwidthLimiterMB = config.BandwidthLimiter / (1024m * 1024m);
+            CompactDensity = config.CompactDensity;
+            RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
+            Texts.Changed += OnLanguageChanged;
+        }
+
+        public string SettingsTitle => Texts.T("settings.title");
+        public string SettingsSubtitle => Texts.T("settings.subtitle");
+        public string DownloadsTitle => Texts.T("settings.downloads");
+        public string InterfaceTitle => Texts.T("settings.interface");
+        public string BehaviorTitle => Texts.T("settings.behavior");
+        public string DownloadPathLabel => Texts.T("settings.downloadPath");
+        public string BrowseLabel => Texts.T("settings.browse");
+        public string PathHint => Texts.T("settings.pathHint");
+        public string RecheckLabel => Texts.T("settings.recheckSeconds");
+        public string BandwidthLabel => Texts.T("settings.bandwidth");
+        public string ParallelLabel => Texts.T("settings.parallelDownloads");
+        public string RestoreSessionLabel => Texts.T("settings.restoreSession");
+        public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
+        public string ThemeLabel => Texts.T("settings.theme");
+        public string LanguageLabel => Texts.T("settings.language");
+        public string LanguagePacksHint => Texts.T("settings.languagePacks");
+        public string WorkspaceModeLabel => Texts.T("settings.viewMode");
+        public string DensityLabel => Texts.T("settings.density");
+        public string CompactLabel => Texts.T("density.compact");
+        public string ModeHint => Texts.T("settings.modeHint");
+        public string SaveLabel => Texts.T("settings.saveClose");
+        public string CancelLabel => Texts.T("settings.cancel");
+        public string SupportedSources => Texts.T("settings.supportedSources");
+
+        public SettingsChoice? SelectedTheme
+        {
+            get => _selectedTheme;
+            set => SetField(ref _selectedTheme, value, nameof(SelectedTheme));
+        }
+
+        public SettingsChoice? SelectedWorkspaceMode
+        {
+            get => _selectedWorkspaceMode;
+            set => SetField(ref _selectedWorkspaceMode, value, nameof(SelectedWorkspaceMode));
+        }
+
+        public LanguageInfo? SelectedLanguage
+        {
+            get => _selectedLanguage;
+            set => SetField(ref _selectedLanguage, value, nameof(SelectedLanguage));
+        }
+
+        public bool CompactDensity
+        {
+            get => _compactDensity;
+            set => SetField(ref _compactDensity, value, nameof(CompactDensity));
         }
 
         public string DownloadPath
@@ -93,6 +154,8 @@ namespace oChan
             get => _errorMessage;
             private set
             {
+                if (_isClosed)
+                    return;
                 SetField(ref _errorMessage, value, nameof(ErrorMessage));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasError)));
                 if (HasError && !_isClosed && IsVisible)
@@ -122,7 +185,57 @@ namespace oChan
         protected override void OnClosed(EventArgs e)
         {
             _isClosed = true;
+            Texts.Changed -= OnLanguageChanged;
             base.OnClosed(e);
+        }
+
+        private void OnLanguageChanged(object? sender, EventArgs e)
+        {
+            void Refresh()
+            {
+                if (_isClosed)
+                    return;
+                RefreshChoices(SelectedTheme?.Value ?? _config.Theme,
+                    SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
+                    SelectedLanguage?.Code ?? _config.Language);
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+            }
+
+            if (Dispatcher.UIThread.CheckAccess())
+                Refresh();
+            else
+                Dispatcher.UIThread.Post(Refresh);
+        }
+
+        private void RefreshChoices(string theme, string mode, string language)
+        {
+            ThemeChoices = new SettingsChoice[]
+            {
+                new SettingsChoice("Dark", Texts.T("theme.dark")),
+                new SettingsChoice("Light", Texts.T("theme.light"))
+            };
+            WorkspaceChoices = new SettingsChoice[]
+            {
+                new SettingsChoice("Simple", Texts.T("mode.simple")),
+                new SettingsChoice("Advanced", Texts.T("mode.advanced")),
+                new SettingsChoice("Barebones", Texts.T("mode.barebones"))
+            };
+            List<LanguageInfo> languages = new List<LanguageInfo>(Texts.Languages);
+            if (!languages.Any(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase)))
+                languages.Add(new LanguageInfo(language, Texts.T("settings.unavailableLanguage", language)));
+            LanguageChoices = languages;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThemeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
+            SelectedTheme = ThemeChoices.First(item => item.Value == theme);
+            SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
+            SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void OnCancelButtonClick(object? sender, RoutedEventArgs e)
+        {
+            if (!IsBusy)
+                Close();
         }
 
         private async void OnBrowseButtonClick(object? sender, RoutedEventArgs e)
@@ -138,24 +251,24 @@ namespace oChan
             {
                 if (!StorageProvider.CanPickFolder)
                 {
-                    ErrorMessage = "Folder selection is unavailable. Enter a download path instead.";
+                    ErrorMessage = Texts.T("settings.pickerUnavailable");
                     return;
                 }
 
                 IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    Title = "Select Download Folder",
+                    Title = Texts.T("settings.pickerTitle"),
                     AllowMultiple = false
                 });
 
                 try
                 {
-                    if (folders.Count > 0)
+                    if (!_isClosed && folders.Count > 0)
                     {
                         string? selectedPath = folders[0].TryGetLocalPath();
                         if (string.IsNullOrWhiteSpace(selectedPath))
                         {
-                            ErrorMessage = "Choose a folder on the local file system.";
+                            ErrorMessage = Texts.T("settings.pickerLocalOnly");
                         }
                         else
                         {
@@ -173,7 +286,7 @@ namespace oChan
             }
             catch (Exception exception)
             {
-                ErrorMessage = $"Could not open the folder picker: {exception.Message}";
+                ErrorMessage = Texts.T("settings.pickerFailed", exception.Message);
             }
             finally
             {
@@ -196,18 +309,22 @@ namespace oChan
                     DataValidationErrors.GetHasErrors(BandwidthInput) ||
                     DataValidationErrors.GetHasErrors(ParallelDownloadsInput))
                 {
-                    throw new ArgumentException("Check the highlighted settings for invalid numbers.");
+                    throw new ArgumentException(Texts.T("settings.invalidNumbers"));
                 }
 
                 Config candidate = _config.Clone();
                 candidate.DownloadPath = DownloadPath;
-                candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, "Recheck timer");
-                candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, "Parallel downloads");
+                candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
+                candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
                 candidate.MinimizeToTray = MinimizeToTray;
+                candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
+                candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
+                candidate.Language = SelectedLanguage?.Code ?? _config.Language;
+                candidate.CompactDensity = CompactDensity;
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
-                    throw new ArgumentException("Bandwidth limit must be greater than zero.");
+                    throw new ArgumentException(Texts.T("settings.bandwidthPositive"));
                 }
 
                 candidate.BandwidthLimiter = checked((long)(BandwidthLimiterMB.Value * 1024m * 1024m));
@@ -223,11 +340,12 @@ namespace oChan
 
                 _config.CopyFrom(candidate);
                 IsBusy = false;
-                Close();
+                if (!_isClosed)
+                    Close();
             }
             catch (Exception exception)
             {
-                ErrorMessage = $"Could not save and apply settings: {exception.Message}";
+                ErrorMessage = Texts.T("settings.saveFailed", exception.Message);
             }
             finally
             {
@@ -239,7 +357,7 @@ namespace oChan
         {
             if (!value.HasValue || value.Value <= 0 || value.Value > int.MaxValue || decimal.Truncate(value.Value) != value.Value)
             {
-                throw new ArgumentException($"{label} must be a positive whole number.");
+                throw new ArgumentException(Texts.T("settings.positiveInteger", label));
             }
 
             return decimal.ToInt32(value.Value);
@@ -250,8 +368,11 @@ namespace oChan
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
                 field = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+                if (!_isClosed)
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
             }
         }
     }
+
+    public sealed record SettingsChoice(string Value, string Label);
 }

@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using oChan.Models;
 using oChan.Persistence;
 using Serilog;
@@ -12,6 +14,9 @@ namespace oChan
     {
         private string? _profileDirectory;
         private string _relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
+        private string _theme = "Dark";
+        private string _language = "en";
+        private string _workspaceMode = "Simple";
 
         public int SchemaVersion { get; set; } = 1;
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
@@ -20,6 +25,35 @@ namespace oChan
         public bool MinimizeToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         public int MaxParallelDownloads { get; set; } = 5;
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string Theme
+        {
+            get => _theme;
+            set => _theme = string.Equals(value?.Trim(), "Light", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark";
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string Language
+        {
+            get => _language;
+            set => _language = NormalizeLanguage(value);
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string WorkspaceMode
+        {
+            get => _workspaceMode;
+            set
+            {
+                string? mode = value?.Trim();
+                _workspaceMode = string.Equals(mode, "Advanced", StringComparison.OrdinalIgnoreCase) ? "Advanced"
+                    : string.Equals(mode, "Barebones", StringComparison.OrdinalIgnoreCase) ? "Barebones" : "Simple";
+            }
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool CompactDensity { get; set; }
 
         [JsonIgnore]
         public string? LoadWarning { get; private set; }
@@ -112,6 +146,10 @@ namespace oChan
                 MinimizeToTray = MinimizeToTray,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
+                Theme = Theme,
+                Language = Language,
+                WorkspaceMode = WorkspaceMode,
+                CompactDensity = CompactDensity,
                 LoadWarning = LoadWarning,
                 _profileDirectory = _profileDirectory,
                 _relativePathBaseDirectory = _relativePathBaseDirectory
@@ -132,6 +170,10 @@ namespace oChan
             MinimizeToTray = source.MinimizeToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
+            Theme = source.Theme;
+            Language = source.Language;
+            WorkspaceMode = source.WorkspaceMode;
+            CompactDensity = source.CompactDensity;
             LoadWarning = source.LoadWarning;
         }
 
@@ -181,6 +223,22 @@ namespace oChan
             return Path.GetFullPath(profileDirectory);
         }
 
+        private static string NormalizeLanguage(string? value)
+        {
+            string code = value?.Trim() ?? string.Empty;
+            if (code.Length > 35 || !Regex.IsMatch(code, "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$", RegexOptions.CultureInvariant))
+                return "en";
+
+            try
+            {
+                return CultureInfo.GetCultureInfo(code).Name;
+            }
+            catch (CultureNotFoundException)
+            {
+                return "en";
+            }
+        }
+
         private static LoadStatus TryRead(string filePath, string relativePathBaseDirectory, out Config? config, out string? error)
         {
             config = null;
@@ -224,6 +282,39 @@ namespace oChan
         }
 
         private enum LoadStatus { Missing, Valid, Invalid }
+    }
+
+    // Invalid presentation preferences must not discard valid download/session settings.
+    internal sealed class DesktopPreferenceStringConverter : JsonConverter<string>
+    {
+        public DesktopPreferenceStringConverter() { }
+        public override bool HandleNull => true;
+
+        public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+                return reader.GetString() ?? string.Empty;
+            reader.Skip();
+            return string.Empty;
+        }
+
+        public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
+    }
+
+    internal sealed class DesktopPreferenceBooleanConverter : JsonConverter<bool>
+    {
+        public DesktopPreferenceBooleanConverter() { }
+        public override bool HandleNull => true;
+
+        public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType is JsonTokenType.True or JsonTokenType.False)
+                return reader.GetBoolean();
+            reader.Skip();
+            return false;
+        }
+
+        public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options) => writer.WriteBooleanValue(value);
     }
 
     [JsonSerializable(typeof(Config))]

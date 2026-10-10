@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using System.Net.Http;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -10,7 +10,6 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using oChan;
-using oChan.Boards.FourChan;
 using oChan.Desktop;
 using oChan.Downloader;
 using oChan.Http;
@@ -28,13 +27,14 @@ internal static class Program
     private static bool _lockedProfileMode;
     private static bool _noTrayMode;
     private static bool _trayFailureMode;
+    private static bool _downloadSessionMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session")))
         {
-            Console.Error.WriteLine("Usage: oChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure]");
+            Console.Error.WriteLine("Usage: oChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session]");
             return 2;
         }
 
@@ -44,6 +44,7 @@ internal static class Program
         _lockedProfileMode = args.Contains("--locked-profile", StringComparer.Ordinal);
         _noTrayMode = args.Contains("--no-tray", StringComparer.Ordinal);
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
+        _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
         bool xvfbEnvironment = OperatingSystem.IsLinux()
             && Environment.GetEnvironmentVariable("OCHAN_DESKTOP_SMOKE_XVFB") == "1";
         SmokeLogSink sink = new SmokeLogSink();
@@ -62,7 +63,7 @@ internal static class Program
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
-            AppBuilder appBuilder = AppBuilder.Configure<App>()
+            AppBuilder appBuilder = (_downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>() : AppBuilder.Configure<App>())
                 .UsePlatformDetect()
                 .WithInterFont();
             if (xvfbEnvironment)
@@ -86,7 +87,8 @@ internal static class Program
                     }
                 })
                 .AfterSetup(builder => Dispatcher.UIThread.Post(async () => await RunAsync(), DispatcherPriority.Background))
-                .StartWithClassicDesktopLifetime(Array.Empty<string>(), ShutdownMode.OnMainWindowClose);
+                .StartWithClassicDesktopLifetime(Array.Empty<string>(),
+                    _downloadSessionMode ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
 
             if (exitCode != 0 || !_checksPassed || !_closed || _failure != null || !sink.Errors.IsEmpty)
             {
@@ -103,12 +105,15 @@ internal static class Program
             string scenario = _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
+                : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
         }
         finally
         {
+            if (Application.Current is DownloadSessionSmokeApp fixtureApp)
+                fixtureApp.DisposeFixture();
             Log.CloseAndFlush();
             Directory.Delete(profile, recursive: true);
         }
@@ -130,6 +135,8 @@ internal static class Program
                 Console.WriteLine("SMOKE MainWindow.Closed observed.");
             };
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
+            Console.WriteLine("SMOKE render scaling: actual=" + window.RenderScaling.ToString("0.###", CultureInfo.InvariantCulture)
+                + "; requested=" + (Environment.GetEnvironmentVariable("AVALONIA_GLOBAL_SCALE_FACTOR") ?? "unset") + ";");
             if (_lockedProfileMode)
             {
                 if (window is not StartupErrorWindow)
@@ -148,6 +155,13 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (_downloadSessionMode)
+            {
+                await DownloadSessionChecks.RunAsync(mainWindow, desktop);
+                _checksPassed = true;
+                desktop.Shutdown();
+                return;
+            }
             if (_noTrayMode || _trayFailureMode)
             {
                 Func<WindowCloseReason, bool> requestClose = mainWindow.PlatformImpl?.Closing
@@ -162,8 +176,10 @@ internal static class Program
                 await WaitUntilAsync(() => mainWindow.IsVisible && mainWindow.WindowState == WindowState.Normal);
                 MenuItem exit = mainWindow.FindControl<MenuItem>("ExitMenuItem")
                     ?? throw new InvalidOperationException("The window Exit menu item is missing.");
-                if (!exit.IsVisible || !exit.IsEnabled)
-                    throw new InvalidOperationException("The window Exit menu item is not reachable.");
+                MenuItem applicationMenu = mainWindow.FindControl<MenuItem>("WorkspaceMenuItem")
+                    ?? throw new InvalidOperationException("The application menu is missing.");
+                applicationMenu.IsSubMenuOpen = true;
+                await WaitUntilAsync(() => exit.IsEffectivelyVisible && exit.IsEffectivelyEnabled);
                 CaptureWindow(mainWindow, _noTrayMode ? "smoke-no-tray.png" : "smoke-tray-failure.png");
                 _checksPassed = true;
                 exit.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -171,53 +187,69 @@ internal static class Program
             }
 
             await ClipboardChecks.RunAsync(mainWindow);
+            await PresentationChecks.RunPreferencesAsync(mainWindow);
 
-            // Provider construction is passive; any attempted fixture request fails locally.
-            using HttpClient client = new HttpClient(new RejectRequests());
-            FourChanImageBoard provider = new FourChanImageBoard(client);
-            SmokeBoard board = new SmokeBoard(provider, new Uri("https://boards.4chan.org/g/"));
-            SmokeThread thread = new SmokeThread(board,
-                new Uri("https://boards.4chan.org/g/thread/123"));
-            thread.Title = "Desktop smoke initial title";
+            DesktopThreadEntry thread = SnapshotFixtures.Thread(123, "123", "Desktop smoke initial title");
+            DesktopBoardEntry board = SnapshotFixtures.Board(124);
             using ThreadRow threadRow = new ThreadRow(thread);
-            using BoardRow boardRow = new BoardRow(thread.Board);
+            using BoardRow boardRow = new BoardRow(board);
             mainWindow.UrlList.Add(threadRow);
             mainWindow.BoardsList.Add(boardRow);
-            await WaitUntilAsync(() => VisibleText(window, thread.Title));
+            await WaitUntilAsync(() => VisibleText(window, thread.Snapshot.Title));
             Console.WriteLine("SMOKE thread title binding rendered.");
 
+            bool wrongThread = false;
+            threadRow.PropertyChanged += (sender, args) => wrongThread |= !Dispatcher.UIThread.CheckAccess();
             await Task.Run(() =>
             {
                 for (int index = 0; index < 1000; index++)
-                    thread.Title = "Desktop smoke burst " + index;
-                thread.Title = "Desktop smoke updated title";
+                {
+                    DesktopThreadEntry update = thread with { Snapshot = thread.Snapshot with { Title = "Desktop smoke burst " + index } };
+                    Dispatcher.UIThread.Post(() => threadRow.UpdateSnapshot(update));
+                }
+                DesktopThreadEntry final = thread with { Snapshot = thread.Snapshot with { Title = "Desktop smoke updated title" } };
+                Dispatcher.UIThread.Post(() => threadRow.UpdateSnapshot(final));
             });
             await WaitUntilAsync(() => VisibleText(window, "Desktop smoke updated title"));
-            Console.WriteLine("SMOKE worker-thread update burst retained its final value through dispatcher projection.");
-            await Task.Run(() =>
+            if (wrongThread)
+                throw new InvalidOperationException("A passive row notified bindings outside the desktop dispatcher.");
+            Console.WriteLine("SMOKE dispatcher-projected snapshot burst retained its final value.");
+            thread = thread with
             {
-                thread.Activity = ThreadActivity.Downloading;
-                thread.ReportRequest(new RequestPolicyProgress(RequestPolicyPhase.WaitingForAdmission, null, 0));
-            });
+                Snapshot = thread.Snapshot with
+                {
+                    Title = "Desktop smoke updated title",
+                    Activity = ThreadActivity.Downloading,
+                    RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.WaitingForAdmission, null, 0)
+                }
+            };
+            threadRow.UpdateSnapshot(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading · Waiting for request slot"));
-            await Task.Run(() => thread.ReportRequest(new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(30), 1)));
+            thread = thread with { Snapshot = thread.Snapshot with { RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(30), 1) } };
+            threadRow.UpdateSnapshot(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading · Request cooldown (30 s)"));
-            await Task.Run(() => thread.ReportRequest(null));
+            thread = thread with { Snapshot = thread.Snapshot with { RequestProgress = null } };
+            threadRow.UpdateSnapshot(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading"));
-            threadRow.UpdateSnapshot(thread.GetSnapshot(new DownloadCounts(3, 2)) with
+            threadRow.UpdateSnapshot(thread with
             {
-                Activity = ThreadActivity.Finished,
-                LastCheckFailure = new FailureInfo(FailureKind.Timeout, "Smoke retained check failure")
+                Snapshot = thread.Snapshot with
+                {
+                    Downloads = new DownloadCounts(3, 2),
+                    Activity = ThreadActivity.Finished,
+                    LastCheckFailure = new FailureInfo(FailureKind.Timeout, "Smoke retained check failure")
+                }
             });
             if (threadRow.Status != "Check failed · Finished" || threadRow.Queued != 3 || threadRow.Active != 2
                 || threadRow.ErrorDetails != "Smoke retained check failure")
                 throw new InvalidOperationException("Typed queue counts or retained check failures were not projected.");
             Console.WriteLine("SMOKE request waiting/backoff rendered; typed queue counts and retained check failure projected.");
-            await Task.Run(() =>
+            await PresentationChecks.CheckDetailsAsync(mainWindow, threadRow);
+            thread = thread with
             {
-                thread.MarkArchived();
-                thread.Activity = ThreadActivity.Finished;
-            });
+                Snapshot = thread.Snapshot with { SourceState = ThreadSourceState.Archived, Activity = ThreadActivity.Finished }
+            };
+            threadRow.UpdateSnapshot(thread);
             await WaitUntilAsync(() => VisibleText(window, "Archived · Finished"));
             Console.WriteLine("SMOKE terminal source state remained visible after media status changed.");
             CaptureWindow(window, "smoke-mainwindow.png");
@@ -225,22 +257,26 @@ internal static class Program
             TabControl tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
             tabs.SelectedIndex = 1;
             await WaitUntilAsync(() => VisibleText(window, boardRow.NiceName));
-            await Task.Run(() => board.ReportRequest(new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(12), 1)));
+            boardRow.UpdateSnapshot(board with
+            {
+                Snapshot = board.Snapshot with { RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(12), 1) }
+            });
             await WaitUntilAsync(() => VisibleText(window, "Request cooldown (12 s)"));
-            await Task.Run(() => board.ReportRequest(null));
+            await PresentationChecks.CheckBoardDetailsAsync(mainWindow, boardRow);
+            boardRow.UpdateSnapshot(board);
             await WaitUntilAsync(() => VisibleText(window, "Monitoring"));
             Console.WriteLine("SMOKE board binding and request cooldown rendered.");
 
             string finalTitle = threadRow.Title;
             threadRow.Dispose();
-            await Task.Run(() => thread.Title = "Disposed row must not update");
+            threadRow.UpdateSnapshot(thread with { Snapshot = thread.Snapshot with { Title = "Disposed row must not update" } });
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             if (threadRow.Title != finalTitle)
                 throw new InvalidOperationException("A disposed row still accepted updates.");
 
             mainWindow.UrlList.Remove(threadRow);
             mainWindow.BoardsList.Remove(boardRow);
-            await GridChecks.RunAsync(mainWindow, provider);
+            await GridChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);
             Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");
             foreach (Window ownedWindow in mainWindow.OwnedWindows)
@@ -256,7 +292,9 @@ internal static class Program
         {
             _failure = exception;
             Console.Error.WriteLine("SMOKE check failed: " + exception);
-            if (window is MainWindow mainWindow && mainWindow.FindControl<MenuItem>("ExitMenuItem") is MenuItem exit)
+            if (_downloadSessionMode && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime fixtureDesktop)
+                fixtureDesktop.Shutdown(1);
+            else if (window is MainWindow mainWindow && mainWindow.FindControl<MenuItem>("ExitMenuItem") is MenuItem exit)
                 exit.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             else if (window != null) window.Close();
             else if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown(1);
@@ -264,13 +302,16 @@ internal static class Program
     }
 
     private static bool VisibleText(Window window, string text) => window.GetVisualDescendants()
-        .OfType<TextBlock>().Any(block => block.IsVisible && block.Text == text);
+        .OfType<TextBlock>().Any(block => block.IsEffectivelyVisible && block.Text == text);
 
     internal static void CaptureWindow(Window window, string fileName)
     {
+        window.UpdateLayout();
         string screenshotPath = Path.Combine(AppContext.BaseDirectory, fileName);
+        double scale = window.RenderScaling;
         using RenderTargetBitmap screenshot = new RenderTargetBitmap(
-            new PixelSize((int)Math.Ceiling(window.Bounds.Width), (int)Math.Ceiling(window.Bounds.Height)));
+            new PixelSize((int)Math.Ceiling(window.Bounds.Width * scale), (int)Math.Ceiling(window.Bounds.Height * scale)),
+            new Vector(96 * scale, 96 * scale));
         screenshot.Render(window);
         screenshot.Save(screenshotPath);
         Console.WriteLine("SMOKE window render: " + screenshotPath);
@@ -284,12 +325,6 @@ internal static class Program
             if (DateTime.UtcNow >= deadline) throw new TimeoutException("Desktop state did not become ready within five seconds.");
             await Task.Delay(50);
         }
-    }
-
-    private sealed class RejectRequests : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => throw new InvalidOperationException("Smoke fixture attempted a network request: " + request.RequestUri);
     }
 
     // Replace only tray creation; windows, rendering and the desktop lifetime stay native.
@@ -314,20 +349,6 @@ internal static class Program
                 throw new InvalidOperationException("Smoke tray creation failure.");
             return null;
         }
-    }
-
-    private sealed class SmokeThread : FourChanThread
-    {
-        public SmokeThread(IBoard board, Uri threadUri) : base(board, threadUri) { }
-
-        public void MarkArchived() => MarkPollingTerminal(ThreadSourceState.Archived);
-        public void ReportRequest(RequestPolicyProgress? progress) => SetRequestProgress(progress);
-    }
-
-    private sealed class SmokeBoard : FourChanBoard
-    {
-        public SmokeBoard(IImageBoard provider, Uri boardUri) : base(provider, boardUri) { }
-        public void ReportRequest(RequestPolicyProgress? progress) => SetRequestProgress(progress);
     }
 
     private sealed class SmokeLogSink : ILogSink

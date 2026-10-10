@@ -341,4 +341,93 @@ public sealed class ConfigTests
     }
 
     private static string SettingsPath(TempDirectory directory) => Path.Combine(directory.Path, "settings.json");
+
+    [Fact]
+    public void LegacySettingsReceivePresentationDefaultsWithoutRecoveryOrSchemaChange()
+    {
+        using TempDirectory directory = new TempDirectory();
+        const string original = "{\"RecheckTimer\":120,\"MaxParallelDownloads\":7}";
+        File.WriteAllText(SettingsPath(directory), original);
+
+        Config config = Config.LoadConfig(directory.Path);
+
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(1, config.SchemaVersion);
+        Assert.Equal(120, config.RecheckTimer);
+        Assert.Equal(7, config.MaxParallelDownloads);
+        Assert.Equal("Dark", config.Theme);
+        Assert.Equal("en", config.Language);
+        Assert.Equal("Simple", config.WorkspaceMode);
+        Assert.False(config.CompactDensity);
+        Assert.Equal(original, File.ReadAllText(SettingsPath(directory)));
+    }
+
+    [Fact]
+    public void PresentationPreferencesCloneCopyAndRoundTripThroughTheBoundProfile()
+    {
+        using TempDirectory directory = new TempDirectory();
+        Config original = Config.LoadConfig(directory.Path);
+        Config candidate = original.Clone();
+        candidate.Theme = "Light";
+        candidate.Language = "de";
+        candidate.WorkspaceMode = "Barebones";
+        candidate.CompactDensity = true;
+        candidate.SaveConfig();
+
+        Assert.Equal("Dark", original.Theme);
+        Assert.Equal("en", original.Language);
+        Assert.Equal("Simple", original.WorkspaceMode);
+        Assert.False(original.CompactDensity);
+
+        original.CopyFrom(candidate);
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Null(loaded.LoadWarning);
+        Assert.Equal("Light", loaded.Theme);
+        Assert.Equal("de", loaded.Language);
+        Assert.Equal("Barebones", loaded.WorkspaceMode);
+        Assert.True(loaded.CompactDensity);
+        Assert.Equal(loaded.Theme, original.Theme);
+        Assert.Equal(loaded.Language, original.Language);
+        Assert.Equal(loaded.WorkspaceMode, original.WorkspaceMode);
+        Assert.Equal(loaded.CompactDensity, original.CompactDensity);
+    }
+
+    [Theory]
+    [InlineData("{\"Theme\":\"future-theme\",\"Language\":\"../bad\",\"WorkspaceMode\":\"future-mode\"}")]
+    [InlineData("{\"Theme\":null,\"Language\":null,\"WorkspaceMode\":null,\"CompactDensity\":null}")]
+    [InlineData("{\"Theme\":42,\"Language\":false,\"WorkspaceMode\":{},\"CompactDensity\":\"true\"}")]
+    [InlineData("{\"Theme\":[],\"Language\":{},\"WorkspaceMode\":[],\"CompactDensity\":[true]}")]
+    public void UnknownOrMalformedPresentationPreferencesKeepValidDownloadSettings(string preferences)
+    {
+        using TempDirectory directory = new TempDirectory();
+        string json = "{\"RecheckTimer\":120,\"MaxParallelDownloads\":7," + preferences[1..];
+        File.WriteAllText(SettingsPath(directory), json);
+
+        Config config = Config.LoadConfig(directory.Path);
+
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(120, config.RecheckTimer);
+        Assert.Equal(7, config.MaxParallelDownloads);
+        Assert.Equal("Dark", config.Theme);
+        Assert.Equal("en", config.Language);
+        Assert.Equal("Simple", config.WorkspaceMode);
+        Assert.False(config.CompactDensity);
+        Assert.Equal(json, File.ReadAllText(SettingsPath(directory)));
+    }
+
+    [Theory]
+    [InlineData(" light ", " advanced ", " DE-de ", "Light", "Advanced", "de-DE")]
+    [InlineData("DARK", "bareBONES", "en-US", "Dark", "Barebones", "en-US")]
+    [InlineData("system", "unknown", "not_a_language", "Dark", "Simple", "en")]
+    public void PresentationPreferenceValuesNormalizeConservatively(string theme, string mode, string language,
+        string expectedTheme, string expectedMode, string expectedLanguage)
+    {
+        Config config = new Config { Theme = theme, WorkspaceMode = mode, Language = language };
+
+        config.Validate();
+
+        Assert.Equal(expectedTheme, config.Theme);
+        Assert.Equal(expectedMode, config.WorkspaceMode);
+        Assert.Equal(expectedLanguage, config.Language);
+    }
 }

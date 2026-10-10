@@ -29,6 +29,35 @@ public sealed class AddInputTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MixedListPassesInvalidEntriesAndDuplicatesInOrder(bool useClipboard)
+    {
+        const string thread = "https://boards.4chan.org/g/thread/123";
+        const string alias = "https://boards.4channel.org/g/thread/123";
+        const string board = "https://8kun.top/test/";
+        string input = $"  {thread}, \r\ninvalid URL\r {alias}\n{board}, {thread}, ,\t\n";
+        int clipboardReads = 0;
+        List<string> admitted = new List<string>();
+
+        await AddInput.SubmitAsync(
+            useClipboard ? string.Empty : input,
+            () =>
+            {
+                clipboardReads++;
+                return Task.FromResult<string?>(input);
+            },
+            entry =>
+            {
+                admitted.Add(entry);
+                return Task.CompletedTask;
+            });
+
+        Assert.Equal(useClipboard ? 1 : 0, clipboardReads);
+        Assert.Equal(new[] { thread, "invalid URL", alias, board, thread }, admitted);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" \t\r\n")]
@@ -81,18 +110,26 @@ public sealed class AddInputTests
         Assert.Equal(0, admissions);
     }
 
-    [Fact]
-    public async Task ClipboardImportAwaitsEachAdmissionBeforeStartingTheNext()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAwaitsEachAdmissionBeforeStartingTheNext(bool useClipboard)
     {
         const string first = "https://clipboard.test/g/thread/123";
         const string second = "https://clipboard.test/g/thread/456";
+        string entries = $" {first},\r\ninvalid URL\r{second}\n";
         TaskCompletionSource firstAdmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         List<string> admitted = new List<string>();
+        int clipboardReads = 0;
 
         Task submission = AddInput.SubmitAsync(
-            string.Empty,
-            () => Task.FromResult<string?>($" {first} \r\ninvalid URL\r{second}\n"),
+            useClipboard ? string.Empty : entries,
+            () =>
+            {
+                clipboardReads++;
+                return Task.FromResult<string?>(entries);
+            },
             url =>
             {
                 admitted.Add(url);
@@ -115,6 +152,33 @@ public sealed class AddInputTests
         }
 
         await submission.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(new[] { first, second }, admitted);
+        Assert.Equal(useClipboard ? 1 : 0, clipboardReads);
+        Assert.Equal(new[] { first, "invalid URL", second }, admitted);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SeparatorOnlyInputDoesNotAdmitAnEmptyEntry(bool useClipboard)
+    {
+        const string separators = " , \r\n,\r,\n\t ";
+        int clipboardReads = 0;
+        int admissions = 0;
+
+        await AddInput.SubmitAsync(
+            useClipboard ? string.Empty : separators,
+            () =>
+            {
+                clipboardReads++;
+                return Task.FromResult<string?>(separators);
+            },
+            _ =>
+            {
+                admissions++;
+                return Task.CompletedTask;
+            });
+
+        Assert.Equal(useClipboard ? 1 : 0, clipboardReads);
+        Assert.Equal(0, admissions);
     }
 }

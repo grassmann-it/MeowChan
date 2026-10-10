@@ -1,47 +1,113 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="https://github.com/avaloniaui/Markup/development-tools"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:oChan"
-        mc:Ignorable="d"
+        xmlns:localization="clr-namespace:oChan.Desktop.Localization"
         x:Class="oChan.SettingsWindow"
         x:DataType="local:SettingsWindow"
-        Title="Settings"
-        Width="470"
-        Height="460"
-        MinWidth="430"
-        MinHeight="420">
-    <ScrollViewer>
-        <StackPanel Margin="20" Spacing="12">
-            <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
-            <StackPanel Spacing="12" IsEnabled="{Binding !IsBusy}">
-                <TextBlock Text="Download path:"/>
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Text="{Binding DownloadPath, Mode=TwoWay}"/>
-                    <Button Grid.Column="1" Content="Browse" Margin="10,0,0,0" Click="OnBrowseButtonClick"/>
-                </Grid>
-                <TextBlock Text="Path changes apply to newly added threads." FontSize="12" TextWrapping="Wrap"/>
-
-                <Grid ColumnDefinitions="*,110">
-                    <TextBlock Text="Recheck timer (seconds):" VerticalAlignment="Center"/>
-                    <NumericUpDown x:Name="RecheckTimerInput" Grid.Column="1" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1"/>
-                </Grid>
-
-                <Grid ColumnDefinitions="*,110">
-                    <TextBlock Text="Bandwidth limit (MiB/s):" VerticalAlignment="Center"/>
-                    <NumericUpDown x:Name="BandwidthInput" Grid.Column="1" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1"/>
-                </Grid>
-
-                <Grid ColumnDefinitions="*,110">
-                    <TextBlock Text="Parallel downloads:" VerticalAlignment="Center"/>
-                    <NumericUpDown x:Name="ParallelDownloadsInput" Grid.Column="1" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1"/>
-                </Grid>
-
-                <CheckBox Content="Restore session on startup" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}"/>
-                <CheckBox Content="Minimize to tray" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"/>
-                <Button Content="Save &amp; Close" HorizontalAlignment="Center" Click="OnCloseButtonClick"/>
-            </StackPanel>
-            <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" TextWrapping="Wrap" Foreground="Crimson"/>
+        Title="{Binding SettingsTitle}"
+        Background="{DynamicResource Workspace.Background}"
+        Foreground="{DynamicResource Workspace.Text}"
+        Width="660" Height="760" MinWidth="480" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Margin="28,24,28,20" Spacing="6">
+            <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" FontSize="26" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap"/>
         </StackPanel>
-    </ScrollViewer>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="28,0,28,20" Spacing="16">
+                <StackPanel Spacing="16" IsEnabled="{Binding !IsBusy}">
+                    <Border Classes="panel" Padding="20" CornerRadius="10"
+                            Background="{DynamicResource Workspace.Panel}"
+                            BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="1">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding DownloadsTitle}" Classes="section-title" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding DownloadPathLabel}"/>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox x:Name="DownloadPathInput" Text="{Binding DownloadPath, Mode=TwoWay}"/>
+                                    <Button x:Name="BrowseButton" Grid.Column="1" Content="{Binding BrowseLabel}" Margin="8,0,0,0" Click="OnBrowseButtonClick"/>
+                                </Grid>
+                                <TextBlock Text="{Binding PathHint}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,150">
+                                <TextBlock Text="{Binding RecheckLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <NumericUpDown x:Name="RecheckTimerInput" Grid.Column="1" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,150">
+                                <TextBlock Text="{Binding BandwidthLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <NumericUpDown x:Name="BandwidthInput" Grid.Column="1" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,150">
+                                <TextBlock Text="{Binding ParallelLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <NumericUpDown x:Name="ParallelDownloadsInput" Grid.Column="1" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="panel" Padding="20" CornerRadius="10"
+                            Background="{DynamicResource Workspace.Panel}"
+                            BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="1">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding InterfaceTitle}" Classes="section-title" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="*,190">
+                                <TextBlock Text="{Binding ThemeLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <ComboBox x:Name="ThemeInput" Grid.Column="1" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding ThemeChoices}" SelectedItem="{Binding SelectedTheme, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,190">
+                                <TextBlock Text="{Binding LanguageLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <ComboBox x:Name="LanguageInput" Grid.Column="1" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding LanguageChoices}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="localization:LanguageInfo"><TextBlock Text="{Binding NativeName}" TextWrapping="Wrap"/></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock Text="{Binding LanguagePacksHint}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+                            <Grid ColumnDefinitions="*,190">
+                                <TextBlock Text="{Binding WorkspaceModeLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <ComboBox x:Name="WorkspaceModeInput" Grid.Column="1" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding WorkspaceChoices}" SelectedItem="{Binding SelectedWorkspaceMode, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock Text="{Binding ModeHint}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+                            <Grid ColumnDefinitions="*,190">
+                                <TextBlock Text="{Binding DensityLabel}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,14,0"/>
+                                <CheckBox x:Name="CompactDensityInput" Grid.Column="1" Content="{Binding CompactLabel}" IsChecked="{Binding CompactDensity, Mode=TwoWay}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="panel" Padding="20" CornerRadius="10"
+                            Background="{DynamicResource Workspace.Panel}"
+                            BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding BehaviorTitle}" Classes="section-title" FontWeight="SemiBold"/>
+                            <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}"/>
+                            <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding SupportedSources}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+                </StackPanel>
+                <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Padding="28,16" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource Workspace.Border}" Background="{DynamicResource Workspace.Panel}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" IsEnabled="{Binding !IsBusy}">
+                <Button x:Name="CancelSettingsButton" Content="{Binding CancelLabel}" Click="OnCancelButtonClick" IsCancel="True"/>
+                <Button x:Name="SaveSettingsButton" Content="{Binding SaveLabel}" Classes="primary" Click="OnCloseButtonClick"/>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>

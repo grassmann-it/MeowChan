@@ -2,9 +2,10 @@
 """Run the source-built Avalonia harness, retaining precise per-mode evidence.
 
 This does not execute the published oChan apphost and is not an artifact smoke.
-Linux uses a private DBus session and Xvfb with software rendering and an explicit
-no-tray fixture. Native Windows/macOS require a GUI session; a missing graphical
-session fails the check, so it cannot silently count as pass.
+Linux defaults to a private DBus session and Xvfb with software rendering and an
+explicit no-tray fixture. --native-display uses the existing Linux GUI session.
+Native Windows/macOS require a GUI session; a missing graphical session fails the
+check, so it cannot silently count as pass.
 """
 from __future__ import annotations
 
@@ -24,18 +25,32 @@ def main() -> int:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--native-display", action="store_true",
+                        help="Use the existing Linux graphical session instead of Xvfb/private DBus.")
+    parser.add_argument("--scale", choices=("1", "1.5", "2"),
+                        help="Request an Avalonia scale factor; this does not verify actual RenderScaling.")
     args = parser.parse_args()
+    linux = sys.platform.startswith("linux")
+    environment = os.environ.copy()
+    if args.native_display:
+        if not linux:
+            parser.error("--native-display is only needed and supported on Linux.")
+        if not any(environment.get(name, "").strip() for name in ("DISPLAY", "WAYLAND_DISPLAY")):
+            parser.error("--native-display requires DISPLAY or WAYLAND_DISPLAY in the existing session.")
+    if args.scale is not None:
+        environment["AVALONIA_GLOBAL_SCALE_FACTOR"] = args.scale
     assembly = Path(args.assembly).resolve(strict=True)
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    linux_xvfb = sys.platform.startswith("linux")
-    environment = os.environ.copy()
+    linux_xvfb = linux and not args.native_display
     if linux_xvfb:
         for executable in ("xvfb-run", "dbus-run-session"):
             if shutil.which(executable) is None:
                 raise RuntimeError(f"{executable} is required for the Linux graphical smoke.")
         environment["OCHAN_DESKTOP_SMOKE_XVFB"] = "1"
-    modes = ("normal", "locked-profile", "no-tray", "tray-failure")
+    else:
+        environment.pop("OCHAN_DESKTOP_SMOKE_XVFB", None)
+    modes = ("normal", "locked-profile", "no-tray", "tray-failure", "download-session")
     results: list[dict[str, object]] = []
     failed = False
     for mode in modes:
@@ -93,7 +108,12 @@ def main() -> int:
         "kind": "source-built Avalonia harness; not published apphost",
         "platform": sys.platform,
         "environment": "Xvfb, private DBus session, software rendering, no native tray host"
-            if linux_xvfb else "native graphical session",
+            if linux_xvfb else "existing Linux graphical session; native renderer/tray setup, scenario fixtures apply"
+            if linux else "native graphical session",
+        "requested_scale_factor": environment.get("AVALONIA_GLOBAL_SCALE_FACTOR"),
+        "scale_factor_source": "--scale" if args.scale is not None else "inherited environment"
+            if "AVALONIA_GLOBAL_SCALE_FACTOR" in environment else "platform default",
+        "actual_render_scaling": None,
         "results": results
     }, indent=2) + "\n", encoding="utf-8")
     return 1 if failed else 0

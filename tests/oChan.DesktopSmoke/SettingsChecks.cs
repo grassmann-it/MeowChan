@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using oChan.Desktop.Localization;
 
 namespace oChan.DesktopSmoke;
 
@@ -20,7 +21,8 @@ internal static class SettingsChecks
             await CheckOwnerCloseWhileBusyAsync(owner, Path.Combine(profile, "owner-close"));
             await CheckDirectSaveAsync(owner, Path.Combine(profile, "direct-save"));
             await CheckPickerAsync(owner, Path.Combine(profile, "picker"));
-            Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, isolated save and folder-picker outcomes passed.");
+            await CheckCancelPreferencesAsync(owner, Path.Combine(profile, "cancel-preferences"));
+            Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
         finally
         {
@@ -51,6 +53,7 @@ internal static class SettingsChecks
             NumericUpDown timer = window.FindControl<NumericUpDown>("RecheckTimerInput")!;
             Require(timer.Maximum == 4294967, "Settings allowed a timer above the runtime limit.");
             window.RecheckTimer = 120;
+            SetAppearance(window);
             Button save = FindButton(window, "Save & Close");
             Click(save);
             Require(window.IsBusy && !save.IsEffectivelyEnabled && applies == 1, "Pending settings apply did not disable the form.");
@@ -64,6 +67,8 @@ internal static class SettingsChecks
             await WaitUntilAsync(() => !window.IsBusy && window.HasError);
             Require(window.IsVisible && !dialog.IsCompleted, "Apply failure closed the settings dialog.");
             Require(config.RecheckTimer == 60, "Apply failure changed the live configuration.");
+            Require(config.Theme == "Dark" && config.WorkspaceMode == "Simple" && config.Language == "en" && !config.CompactDensity,
+                "Apply failure changed live appearance preferences.");
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original, "The dialog saved settings before its apply callback committed.");
             await AssertErrorInViewportAsync(window);
 
@@ -96,6 +101,10 @@ internal static class SettingsChecks
             Require(applies == 2 && !window.IsVisible && !window.IsBusy, "Successful settings retry did not close exactly once.");
             Require(config.RecheckTimer == 120 && config.MaxParallelDownloads == 3, "Successful settings apply did not update the live configuration.");
             Require(Config.LoadConfig(profile).RecheckTimer == 120, "Successful settings apply did not commit the isolated profile.");
+            Config saved = Config.LoadConfig(profile);
+            Require(config.Theme == "Light" && config.WorkspaceMode == "Barebones" && config.Language == "de" && config.CompactDensity
+                && saved.Theme == "Light" && saved.WorkspaceMode == "Barebones" && saved.Language == "de" && saved.CompactDensity,
+                "Successful settings apply did not persist all appearance preferences.");
         }
         finally
         {
@@ -106,6 +115,54 @@ internal static class SettingsChecks
                 window.Close();
             }
         }
+    }
+
+    private static async Task CheckCancelPreferencesAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        config.SaveConfig();
+        string original = File.ReadAllText(Path.Combine(profile, "settings.json"));
+        int applies = 0;
+        SettingsWindow window = new SettingsWindow(config, candidate =>
+        {
+            applies++;
+            return Task.CompletedTask;
+        });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            SetAppearance(window);
+            string originalTitle = window.Title ?? string.Empty;
+            Texts.SetLanguage("de");
+            await WaitUntilAsync(() => window.Title != originalTitle && window.SelectedLanguage?.Code == "de");
+            Require(window.SelectedTheme?.Value == "Light" && window.SelectedWorkspaceMode?.Value == "Barebones" && window.CompactDensity,
+                "Changing language while settings were open discarded pending appearance edits.");
+            Click(FindButton(window, "Cancel"));
+            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+            Require(applies == 0 && config.Theme == "Dark" && config.WorkspaceMode == "Simple"
+                && config.Language == "en" && !config.CompactDensity,
+                "Cancelling appearance edits changed live settings or invoked apply.");
+            Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original,
+                "Cancelling appearance edits changed persisted settings.");
+        }
+        finally
+        {
+            Texts.SetLanguage("en");
+            if (window.IsVisible)
+                window.Close();
+        }
+    }
+
+    private static void SetAppearance(SettingsWindow window)
+    {
+        window.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.ThemeChoices.Single(choice => choice.Value == "Light");
+        window.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
+        window.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.LanguageChoices.Single(choice => choice.Code == "de");
+        window.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
+        Require(window.SelectedTheme?.Value == "Light" && window.SelectedWorkspaceMode?.Value == "Barebones"
+            && window.SelectedLanguage?.Code == "de" && window.CompactDensity,
+            "Appearance controls did not update the detached settings edit.");
     }
 
     private static async Task CheckDirectSaveAsync(MainWindow owner, string profile)
@@ -249,8 +306,13 @@ internal static class SettingsChecks
         });
     }
 
-    private static Button FindButton(Window window, string content) => window.GetVisualDescendants()
-        .OfType<Button>().Single(button => button.Content as string == content);
+    private static Button FindButton(Window window, string content) => window.FindControl<Button>(content switch
+    {
+        "Save & Close" => "SaveSettingsButton",
+        "Browse" => "BrowseButton",
+        "Cancel" => "CancelSettingsButton",
+        _ => throw new ArgumentOutOfRangeException(nameof(content))
+    }) ?? throw new InvalidOperationException("The settings action is missing: " + content);
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 

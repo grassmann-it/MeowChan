@@ -6,28 +6,23 @@ namespace oChan.Desktop;
 /// <summary>Resolves one Add action without reading the clipboard for explicit input.</summary>
 public static class AddInput
 {
+    /// <summary>
+    /// Admits comma- or line-separated entries in order, including invalid entries and duplicates.
+    /// The admission callback owns validation and per-entry error reporting; it must handle an
+    /// entry's failure if the remaining entries should still be processed.
+    /// </summary>
     public static async Task SubmitAsync(string? input, Func<Task<string?>> readClipboardAsync, Func<string, Task> admitAsync)
     {
-        if (!string.IsNullOrWhiteSpace(input))
-        {
-            await admitAsync(input.Trim());
-            return;
-        }
-
-        string? clipboardText = await readClipboardAsync();
-        if (string.IsNullOrWhiteSpace(clipboardText))
+        string? entries = string.IsNullOrWhiteSpace(input) ? await readClipboardAsync() : input;
+        if (string.IsNullOrWhiteSpace(entries))
         {
             return;
         }
 
-        string[] lines = clipboardText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-        foreach (string line in lines)
+        string[] tokens = entries.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        foreach (string token in tokens)
         {
-            string url = line.Trim();
-            if (Uri.IsWellFormedUriString(url, UriKind.Absolute))
-            {
-                await admitAsync(url);
-            }
+            await admitAsync(token);
         }
     }
 }

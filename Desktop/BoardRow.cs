@@ -1,16 +1,18 @@
 using System;
 using System.ComponentModel;
-using oChan.Interfaces;
+using oChan.Desktop.Localization;
 
 namespace oChan.Desktop;
 
-/// <summary>Projects board metadata without exposing worker-thread notifications to bindings.</summary>
+/// <summary>Passive board binding state. Its owner applies snapshots on the desktop dispatcher.</summary>
 public sealed class BoardRow : INotifyPropertyChanged, IDisposable
 {
-    private readonly CoalescedUiUpdate _refresh;
     private bool _disposed;
 
-    public IBoard Source { get; }
+    public long WatchId { get; }
+    public BoardSnapshot Snapshot { get; private set; }
+    public string Url => Snapshot.Url;
+    public string BoardCode => Snapshot.Id.Board;
     public string HostName { get; private set; } = string.Empty;
     public string NiceName { get; private set; } = string.Empty;
     public string Status { get; private set; } = string.Empty;
@@ -19,32 +21,32 @@ public sealed class BoardRow : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public BoardRow(IBoard source)
+    public BoardRow(DesktopBoardEntry entry)
     {
-        Source = source;
-        _refresh = new CoalescedUiUpdate(Refresh);
-        Source.PropertyChanged += OnSourceChanged;
-
-        Refresh();
+        ArgumentNullException.ThrowIfNull(entry);
+        WatchId = entry.WatchId;
+        Snapshot = entry.Snapshot;
+        UpdateSnapshot(entry);
     }
 
-    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e) => _refresh.Request();
-
-    private void Refresh() => UpdateSnapshot(Source.GetSnapshot(DownloadDirectory));
-
-    public void UpdateSnapshot(BoardSnapshot snapshot)
+    public void UpdateSnapshot(DesktopBoardEntry entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
         if (_disposed)
         {
             return;
         }
 
-        HostName = Source.ImageBoard.NiceName;
-        NiceName = Source.NiceName;
+        if (entry.WatchId != WatchId)
+            throw new ArgumentException("A row cannot be rebound to another watch lifetime.", nameof(entry));
+        BoardSnapshot snapshot = entry.Snapshot;
+        Snapshot = snapshot;
+        HostName = entry.HostName;
+        NiceName = entry.BoardName;
         DownloadDirectory = snapshot.DownloadDirectory;
         string? request = RequestStatus.Format(snapshot.RequestProgress);
-        Status = snapshot.LastCheckFailure == null ? request ?? "Monitoring"
-            : request == null ? "Error" : "Error · " + request;
+        Status = snapshot.LastCheckFailure == null ? request ?? Texts.T("status.monitoring")
+            : request == null ? Texts.T("status.error") : Texts.T("status.error") + " · " + request;
         ErrorDetails = snapshot.LastCheckFailure?.Message ?? string.Empty;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
@@ -52,7 +54,5 @@ public sealed class BoardRow : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        _refresh.Dispose();
-        Source.PropertyChanged -= OnSourceChanged;
     }
 }

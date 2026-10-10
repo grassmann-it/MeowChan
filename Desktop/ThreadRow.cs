@@ -2,19 +2,24 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using oChan.Downloader;
+using oChan.Desktop.Localization;
 using oChan.Interfaces;
 
 namespace oChan.Desktop;
 
-/// <summary>Projects a thread's changing state onto the desktop dispatcher.</summary>
+/// <summary>Passive binding state. Its owner applies snapshots on the desktop dispatcher.</summary>
 public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 {
-    private readonly CoalescedUiUpdate _refresh;
-    private DownloadCounts _downloads;
     private bool _disposed;
 
-    public IThread Source { get; }
+    public long WatchId { get; }
+    public ThreadSnapshot Snapshot { get; private set; }
+    public string Url => Snapshot.Url;
+    public string DownloadDirectory => Snapshot.DownloadDirectory;
+    public int KnownMedia => Snapshot.KnownMedia;
+    public int CompletedMedia => Snapshot.CompletedMedia;
+    public ThreadActivity Activity => Snapshot.Activity;
+    public ThreadSourceState SourceState => Snapshot.SourceState;
     public string HostName { get; private set; } = string.Empty;
     public string BoardName { get; private set; } = string.Empty;
     public string ThreadId { get; private set; } = string.Empty;
@@ -30,43 +35,42 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ThreadRow(IThread source)
+    public ThreadRow(DesktopThreadEntry entry)
     {
-        Source = source;
-        _refresh = new CoalescedUiUpdate(Refresh);
-        Source.PropertyChanged += OnSourceChanged;
-        Source.Board.PropertyChanged += OnSourceChanged;
-
-        Refresh();
+        ArgumentNullException.ThrowIfNull(entry);
+        WatchId = entry.WatchId;
+        Snapshot = entry.Snapshot;
+        UpdateSnapshot(entry);
     }
 
-    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e) => _refresh.Request();
-
-    private void Refresh() => UpdateSnapshot(Source.GetSnapshot(_downloads));
-
-    public void UpdateSnapshot(ThreadSnapshot snapshot)
+    public void UpdateSnapshot(DesktopThreadEntry entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
         if (_disposed)
         {
             return;
         }
 
-        HostName = Source.Board.ImageBoard.NiceName;
-        BoardName = Source.Board.NiceName;
-        ThreadId = Source.ThreadId;
+        if (entry.WatchId != WatchId)
+            throw new ArgumentException("A row cannot be rebound to another watch lifetime.", nameof(entry));
+        ThreadSnapshot snapshot = entry.Snapshot;
+        Snapshot = snapshot;
+        HostName = entry.HostName;
+        BoardName = entry.BoardName;
+        ThreadId = snapshot.Id.Thread ?? string.Empty;
         ThreadNumber = long.TryParse(ThreadId, NumberStyles.None, CultureInfo.InvariantCulture, out long number) ? number : null;
         Title = snapshot.Title;
         string activity = snapshot.Activity switch
         {
-            ThreadActivity.Pending => "Pending",
-            ThreadActivity.Checking => "Checking",
-            ThreadActivity.Downloading => "Downloading",
-            ThreadActivity.Finished => "Finished",
-            ThreadActivity.NoMedia => "No media",
-            ThreadActivity.Error => "Error",
-            ThreadActivity.NotFound => "Not found",
-            ThreadActivity.Stopped => "Stopped",
-            _ => "Unknown"
+            ThreadActivity.Pending => Texts.T("status.pending"),
+            ThreadActivity.Checking => Texts.T("status.checking"),
+            ThreadActivity.Downloading => Texts.T("status.downloading"),
+            ThreadActivity.Finished => Texts.T("status.finished"),
+            ThreadActivity.NoMedia => Texts.T("status.noMedia"),
+            ThreadActivity.Error => Texts.T("status.error"),
+            ThreadActivity.NotFound => Texts.T("status.notFound"),
+            ThreadActivity.Stopped => Texts.T("status.stopped"),
+            _ => Texts.T("status.unknown")
         };
         string? request = RequestStatus.Format(snapshot.RequestProgress);
         if (request != null && request != activity)
@@ -76,20 +80,19 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 
         if (snapshot.LastCheckFailure != null)
         {
-            activity = "Check failed · " + activity;
+            activity = Texts.T("status.checkFailed", activity);
         }
 
         Status = snapshot.SourceState switch
         {
-            ThreadSourceState.Archived => "Archived · " + activity,
-            ThreadSourceState.NotFound => "No longer available · " + activity,
+            ThreadSourceState.Archived => Texts.T("status.archived", activity),
+            ThreadSourceState.NotFound => Texts.T("status.unavailable", activity),
             _ => activity
         };
         Completion = snapshot.KnownMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.KnownMedia;
-        Progress = $"{snapshot.CompletedMedia} / {snapshot.KnownMedia} ({Completion:0.##}%)";
-        _downloads = snapshot.Downloads;
-        Queued = _downloads.Queued;
-        Active = _downloads.Active;
+        Progress = Texts.T("progress.media", snapshot.CompletedMedia, snapshot.KnownMedia, Completion);
+        Queued = snapshot.Downloads.Queued;
+        Active = snapshot.Downloads.Active;
         string[] mediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().Take(5).ToArray();
         ErrorDetails = string.Join(Environment.NewLine, mediaErrors);
         if (snapshot.LastCheckFailure is FailureInfo failure)
@@ -103,8 +106,5 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        _refresh.Dispose();
-        Source.PropertyChanged -= OnSourceChanged;
-        Source.Board.PropertyChanged -= OnSourceChanged;
     }
 }

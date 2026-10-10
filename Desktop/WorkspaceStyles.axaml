@@ -1,0 +1,74 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="Workspace.Background">#121416</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Panel">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Raised">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Border">#343B44</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Text">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Muted">#ABB4BF</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Accent">#79B1FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Error">#F49B9B</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Success">#83D4AC</SolidColorBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="Workspace.Background">#F3F5F7</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Panel">#FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Raised">#E8EDF3</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Border">#B8C1CD</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Text">#18212C</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Muted">#46556A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Accent">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.AccentSurface">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Success">#176342</SolidColorBrush>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="TextBlock, SelectableTextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
+    <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="TextBlock.error, SelectableTextBlock.error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
+    <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="21" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="25" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Border.panel, Border.raised, Border.shell-bar">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="5" /></Style>
+    <Style Selector="Button">
+        <Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="12,8" />
+        <Setter Property="CornerRadius" Value="5" /><Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Panel}" />
+        <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
+    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="20,12" /></Style>
+    <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="36" /></Style>
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderThickness" Value="0" /><Setter Property="RowHeight" Value="56" /><Setter Property="FontSize" Value="13" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Workspace.Border}" />
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="10,10" />
+    </Style>
+    <Style Selector="DataGridCell"><Setter Property="Padding" Value="10,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
+    <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+</Styles>

@@ -1,6 +1,6 @@
 # oChan.DesktopTests
 
-These xUnit tests reference the actual desktop assembly to exercise its configuration recovery/save behavior and Add-input routing. They do not open a window, access the real clipboard or read the user's profile; settings files live in isolated temporary directories.
+These xUnit tests reference the actual desktop assembly to exercise configuration recovery/save behavior, batch Add routing, localization and passive row projections. Session-host tests cover profile ownership, restore failures, stale remove commands, settings transactions and verified media reuse after restart. They use isolated temporary profiles and controlled HTTP transports; they do not open a window, access the real clipboard or read the user's profile.
 
 ```sh
 dotnet test tests/oChan.DesktopTests/oChan.DesktopTests.csproj -c Release
