@@ -50,6 +50,8 @@ jobs:
         run: dotnet test oChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Check package layout fixtures
         run: python -m unittest discover -s tests -p test_macos_packaging.py -v
+      - name: Check GUI runner isolation and cleanup fixtures
+        run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
       - name: Restore graphical harness with reviewed dependencies
         run: dotnet restore tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact graphical harness dependency graph
@@ -61,9 +63,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes xvfb dbus-daemon libx11-6 libice6 libsm6 libfontconfig1
+          sudo apt-get install --yes xvfb xauth openbox x11-utils dbus-daemon libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
       - name: Exercise native graphical startup and fallback paths
-        run: python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --output artifacts/desktop-smoke
+        run: python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --allow-native-desktop --output artifacts/desktop-smoke
+      - name: Exercise tray lifecycle separately on the disposable runner
+        run: python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --allow-native-desktop --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Upload regression and graphical evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -72,6 +76,7 @@ jobs:
           path: |
             test-results/**
             artifacts/desktop-smoke/**
+            artifacts/desktop-tray-stress/**
             artifacts/build-evidence/**
           if-no-files-found: warn
           retention-days: 14

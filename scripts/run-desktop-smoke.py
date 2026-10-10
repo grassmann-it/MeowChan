@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Run the source-built Avalonia harness, retaining precise per-mode evidence.
+"""Source-built GUI checks. Linux uses an isolated display; stress is opt-in.
 
-This does not execute the published oChan apphost and is not an artifact smoke.
-Linux defaults to a private DBus session and Xvfb with software rendering and an
-explicit no-tray fixture. --native-display uses the existing Linux GUI session.
-Native Windows/macOS require a GUI session; a missing graphical session fails the
-check, so it cannot silently count as pass.
+These checks do not execute published apphosts. Never fall back to a user's
+DISPLAY when the virtual-display tools are missing.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -19,113 +17,232 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
+from xml.sax.saxutils import escape
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
+STANDARD_MODES = ("normal", "locked-profile", "no-tray", "tray-failure", "download-session")
+STRESS_MODE = "tray-lifecycle"
+ISOLATED_TOOLS = ("dbus-run-session", "xvfb-run", "Xvfb", "xauth", "openbox", "xprop")
+SESSION_VARIABLES = ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
+                     "DBUS_STARTER_ADDRESS", "DBUS_STARTER_BUS_TYPE", "SESSION_MANAGER", "AT_SPI_BUS_ADDRESS",
+                     "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_ID", "DESKTOP_SESSION", "KDE_FULL_SESSION")
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, STRESS_MODE),
+                        help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
-                        help="Use the existing Linux graphical session instead of Xvfb/private DBus.")
-    parser.add_argument("--scale", choices=("1", "1.5", "2"),
-                        help="Request an Avalonia scale factor; this does not verify actual RenderScaling.")
-    args = parser.parse_args()
-    linux = sys.platform.startswith("linux")
-    environment = os.environ.copy()
+                        help="Use a dedicated Linux desktop for one explicitly selected scenario.")
+    parser.add_argument("--allow-native-desktop", action="store_true",
+                        help="Explicitly opt into native windows on a disposable desktop/CI (required outside Xvfb).")
+    parser.add_argument("--scale", choices=("1", "1.5", "2"))
+    args = parser.parse_args(argv)
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("--timeout must be finite and positive")
+    args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
+    if STRESS_MODE in args.modes and len(args.modes) != 1:
+        parser.error("tray-lifecycle must run separately with --mode tray-lifecycle")
     if args.native_display:
-        if not linux:
-            parser.error("--native-display is only needed and supported on Linux.")
-        if not any(environment.get(name, "").strip() for name in ("DISPLAY", "WAYLAND_DISPLAY")):
-            parser.error("--native-display requires DISPLAY or WAYLAND_DISPLAY in the existing session.")
+        if not sys.platform.startswith("linux"):
+            parser.error("--native-display is only supported on Linux")
+        if not args.mode or len(args.modes) != 1:
+            parser.error("--native-display requires exactly one explicitly selected --mode")
+        if not os.environ.get("DISPLAY", "").strip():
+            parser.error("--native-display requires an X11/XWayland DISPLAY in a dedicated session")
+    if (not sys.platform.startswith("linux") or args.native_display) and not args.allow_native_desktop:
+        parser.error("Native GUI checks require --allow-native-desktop on a disposable test desktop/CI")
+    return args
+
+
+def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -> dict[str, str]:
+    environment = base.copy()
+    if isolated:
+        for name in SESSION_VARIABLES:
+            environment.pop(name, None)
+        # Profiles alone do not isolate the window manager, bus, or desktop services.
+        for name, child in (("XDG_RUNTIME_DIR", "runtime"), ("XDG_CONFIG_HOME", "config"),
+                            ("XDG_CACHE_HOME", "cache"), ("XDG_DATA_HOME", "data")):
+            location = directory / child
+            location.mkdir(mode=0o700)
+            environment[name] = str(location)
+        environment["OCHAN_DESKTOP_SMOKE_XVFB"] = "1"
+        environment["XDG_SESSION_TYPE"] = "x11"
+        # No service directories: the test bus must not auto-start desktop portals,
+        # accessibility daemons or user-systemd services from the host installation.
+        (directory / "bus.conf").write_text(
+            '<busconfig><type>session</type><listen>unix:tmpdir='
+            + escape(environment["XDG_RUNTIME_DIR"]) + '</listen><auth>EXTERNAL</auth>'
+            '<policy context="default"><allow send_destination="*" eavesdrop="true"/>'
+            '<allow eavesdrop="true"/><allow own="*"/></policy></busconfig>', encoding="utf-8")
+    else:
+        environment.pop("OCHAN_DESKTOP_SMOKE_XVFB", None)
+    return environment
+
+
+def stop_owned_processes(process: subprocess.Popen) -> None:
+    """Only touch the process/tree or POSIX group created by this invocation."""
+    if os.name == "nt":
+        if process.poll() is None:
+            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                process.poll()  # Reap the leader; its children may still need cleanup.
+                try:
+                    os.killpg(process.pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+        except ProcessLookupError:
+            pass
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    process.wait(timeout=10)
+
+
+def sample_timeout(process: subprocess.Popen, destination: Path) -> None:
+    if sys.platform != "darwin":
+        return
+    with (destination / "timeout-sample.log").open("w", encoding="utf-8") as log:
+        try:
+            sample = shutil.which("sample")
+            if sample:
+                subprocess.run([sample, str(process.pid), "3", "1", "-file", str(destination / "timeout-sample.txt")],
+                               timeout=8, check=False, stdout=log, stderr=subprocess.STDOUT)
+            else:
+                log.write("macOS sample tool is unavailable.\n")
+        except (OSError, subprocess.TimeoutExpired) as exception:
+            log.write(f"Could not collect timeout sample: {exception}\n")
+
+
+def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
+             isolated: bool, timeout: float) -> dict[str, object]:
+    destination.mkdir()
+    command = ["dotnet", str(assembly)]
+    if mode != "normal":
+        command.append("--" + mode)
+    previous = {image: image.stat().st_mtime_ns for image in assembly.parent.glob("smoke-*.png")}
+    timed_out = False
+    interrupted = False
+    error = None
+    exit_code = 1
+    with tempfile.TemporaryDirectory(prefix="ochan-smoke-cwd-") as working_directory:
+        child_environment = prepare_environment(environment, isolated, Path(working_directory))
+        if isolated:
+            manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()
+            command = ["dbus-run-session", "--config-file=" + str(Path(working_directory) / "bus.conf"),
+                       "--", "xvfb-run", "--auto-servernum",
+                       "--server-args=-screen 0 3200x2000x24 -nolisten tcp",
+                       sys.executable, str(manager), "--", *command]
+        with (destination / "output.log").open("w", encoding="utf-8") as log:
+            process = None
+            try:
+                process = subprocess.Popen(command, cwd=working_directory, env=child_environment, stdout=log,
+                                           stderr=subprocess.STDOUT, start_new_session=os.name != "nt")
+                try:
+                    exit_code = process.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    sample_timeout(process, destination)
+                    exit_code = 124
+            except (KeyboardInterrupt, InterruptedError):
+                interrupted = True
+                exit_code = 130
+                error = "Runner interrupted"
+            except OSError as exception:
+                error = str(exception)
+            finally:
+                if process is not None:
+                    try:
+                        stop_owned_processes(process)
+                    except (OSError, subprocess.TimeoutExpired) as exception:
+                        error = f"Process cleanup failed: {exception}"
+    log_text = (destination / "output.log").read_text(encoding="utf-8", errors="replace")
+    for image in assembly.parent.glob("smoke-*.png"):
+        if previous.get(image) != image.stat().st_mtime_ns:
+            shutil.copy2(image, destination / image.name)
+    scales = sorted({float(value) for value in re.findall(
+        r"^SMOKE render scaling: actual=([0-9]+(?:\.[0-9]+)?);", log_text, re.MULTILINE)})
+    requested_scale = environment.get("AVALONIA_GLOBAL_SCALE_FACTOR")
+    if requested_scale is not None:
+        try:
+            expected_scale = float(requested_scale)
+        except ValueError:
+            expected_scale = math.nan
+        if not math.isfinite(expected_scale) or scales != [expected_scale]:
+            error = error or f"Requested scale {requested_scale}; observed {scales}"
+    passed = exit_code == 0 and "SMOKE PASS:" in log_text and error is None
+    print(f"Desktop harness {mode}: {'passed' if passed else 'FAILED'} (exit {exit_code}); {destination / 'output.log'}", flush=True)
+    if not passed:
+        if error:
+            print(error, flush=True)
+        print("\n".join(log_text.splitlines()[-20:]), flush=True)
+    return {"mode": mode, "status": "passed" if passed else "failed", "exit_code": exit_code,
+            "timed_out": timed_out, "interrupted": interrupted, "error": error, "passed": passed,
+            "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    isolated = sys.platform.startswith("linux") and not args.native_display
+    environment = os.environ.copy()
     if args.scale is not None:
         environment["AVALONIA_GLOBAL_SCALE_FACTOR"] = args.scale
     assembly = Path(args.assembly).resolve(strict=True)
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    linux_xvfb = linux and not args.native_display
-    if linux_xvfb:
-        for executable in ("xvfb-run", "dbus-run-session"):
-            if shutil.which(executable) is None:
-                raise RuntimeError(f"{executable} is required for the Linux graphical smoke.")
-        environment["OCHAN_DESKTOP_SMOKE_XVFB"] = "1"
-    else:
-        environment.pop("OCHAN_DESKTOP_SMOKE_XVFB", None)
-    modes = ("normal", "locked-profile", "no-tray", "tray-failure", "download-session", "tray-lifecycle")
+    # Avoid overwriting an earlier failed run, or mixing stale screenshots into new evidence.
+    if (output / "results.json").exists() or any((output / mode).exists() for mode in args.modes):
+        raise ValueError("Choose a fresh --output directory; existing evidence is preserved")
+    missing = [name for name in ISOLATED_TOOLS if shutil.which(name) is None] if isolated else []
     results: list[dict[str, object]] = []
     failed = False
-    for mode in modes:
-        destination = output / mode
-        destination.mkdir(exist_ok=True)
-        command = ["dotnet", str(assembly)]
-        if mode != "normal":
-            command.append("--" + mode)
-        if linux_xvfb:
-            command = ["dbus-run-session", "--", "xvfb-run", "--auto-servernum",
-                       "--server-args=-screen 0 1280x1024x24", *command]
-        previous = {image: image.stat().st_mtime_ns for image in assembly.parent.glob("smoke-*.png")}
-        timed_out = False
-        with tempfile.TemporaryDirectory(prefix="ochan-smoke-cwd-") as working_directory:
-            with (destination / "output.log").open("w", encoding="utf-8") as log:
-                process = subprocess.Popen(command, cwd=working_directory, env=environment, stdout=log,
-                                           stderr=subprocess.STDOUT, start_new_session=os.name != "nt")
-                try:
-                    exit_code = process.wait(timeout=args.timeout)
-                except subprocess.TimeoutExpired:
-                    timed_out = True
-                    if sys.platform == "darwin":
-                        with (destination / "timeout-sample.log").open("w", encoding="utf-8") as diagnostic_log:
-                            try:
-                                sample = shutil.which("sample")
-                                if sample is None:
-                                    diagnostic_log.write("macOS sample tool is unavailable.\n")
-                                else:
-                                    diagnostic = subprocess.run(
-                                        [sample, str(process.pid), "3", "1", "-file", str(destination / "timeout-sample.txt")],
-                                        timeout=8, check=False, stdout=diagnostic_log, stderr=subprocess.STDOUT)
-                                    diagnostic_log.write(f"sample exit code: {diagnostic.returncode}\n")
-                            except (OSError, subprocess.TimeoutExpired) as exception:
-                                diagnostic_log.write(f"Could not collect timeout sample: {exception}\n")
-                    if os.name == "nt":
-                        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    else:
-                        try:
-                            os.killpg(process.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                    process.wait(timeout=10)
-                    exit_code = 124
-        log_text = (destination / "output.log").read_text(encoding="utf-8", errors="replace")
-        print(f"--- Desktop harness {mode}: exit {exit_code} ---", flush=True)
-        print(log_text, flush=True)
-        for image in assembly.parent.glob("smoke-*.png"):
-            if previous.get(image) != image.stat().st_mtime_ns:
-                shutil.copy2(image, destination / image.name)
-        passed = exit_code == 0 and "SMOKE PASS:" in log_text
-        observed_scalings = sorted({float(value) for value in re.findall(
-            r"^SMOKE render scaling: actual=([0-9]+(?:\.[0-9]+)?);", log_text, re.MULTILINE)})
-        actual_scaling = observed_scalings[0] if len(observed_scalings) == 1 else None
-        results.append({"mode": mode, "exit_code": exit_code, "timed_out": timed_out, "passed": passed,
-                        "actual_render_scaling": actual_scaling, "observed_render_scalings": observed_scalings})
-        failed = failed or not passed
-    common_scaling = results[0]["actual_render_scaling"] if results else None
-    if any(result["actual_render_scaling"] != common_scaling for result in results):
-        common_scaling = None
+    for mode in args.modes:
+        if missing or failed:
+            reason = "Isolated display tools unavailable: " + ", ".join(missing) if missing else "Stopped after previous failure"
+            results.append({"mode": mode, "status": "unavailable" if missing else "skipped", "passed": False,
+                            "exit_code": None, "reason": reason, "actual_render_scaling": None})
+            print(f"Desktop harness {mode}: {reason}", flush=True)
+            failed = True
+            continue
+        result = run_mode(mode, assembly, output / mode, environment, isolated, args.timeout)
+        results.append(result)
+        failed = not result["passed"]
+    common_scale = results[0]["actual_render_scaling"]
+    if any(result["actual_render_scaling"] != common_scale for result in results):
+        common_scale = None
     (output / "results.json").write_text(json.dumps({
         "kind": "source-built Avalonia harness; not published apphost",
         "platform": sys.platform,
-        "environment": "Xvfb, private DBus session, software rendering, no native tray host"
-            if linux_xvfb else "existing Linux graphical session; native renderer/tray setup, scenario fixtures apply"
-            if linux else "native graphical session",
+        "environment": "isolated Xvfb (3200x2000), Openbox, private DBus/runtime, software rendering, no native tray host"
+            if isolated else "explicit native graphical session; desktop isolation is not verified by this runner",
+        "native_desktop_opt_in": args.allow_native_desktop and not isolated,
+        "selected_modes": args.modes,
         "requested_scale_factor": environment.get("AVALONIA_GLOBAL_SCALE_FACTOR"),
         "scale_factor_source": "--scale" if args.scale is not None else "inherited environment"
             if "AVALONIA_GLOBAL_SCALE_FACTOR" in environment else "platform default",
-        "actual_render_scaling": common_scaling,
+        "actual_render_scaling": common_scale,
+        "passed": not failed,
         "results": results
     }, indent=2) + "\n", encoding="utf-8")
     return 1 if failed else 0
 
 
+def interrupted(signum: int, frame: object) -> None:
+    raise InterruptedError(f"Received signal {signum}")
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, interrupted)
     raise SystemExit(main())

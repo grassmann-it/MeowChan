@@ -1,25 +1,60 @@
 # Desktop smoke harness
 
-Run against a working graphical desktop, for example on Linux:
+Linux GUI checks run in a private Xvfb display, Openbox window manager and DBus
+session. Install `xvfb`, `xauth`, `openbox`, `x11-utils`, `dbus-daemon` and
+`libdbus-1-3` on Ubuntu. A missing tool fails the run without starting a process;
+there is no fallback to your desktop. Existing display, Wayland, authentication,
+DBus and accessibility endpoints are removed from the child environment, and
+runtime/config/cache/data directories are private to that scenario. The private bus
+has no service directories, so it cannot auto-start host portals/accessibility or
+user-systemd services. Missing session/accessibility services may be logged as
+warnings; these integrations are outside this environment's acceptance.
 
 ```sh
 dotnet build tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release
-DISPLAY=:1 timeout 30s dotnet run --project tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release --no-build
-DISPLAY=:1 timeout 30s dotnet run --project tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release --no-build -- --locked-profile
-DISPLAY=:1 timeout 30s dotnet run --project tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release --no-build -- --no-tray
-DISPLAY=:1 timeout 30s dotnet run --project tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release --no-build -- --tray-failure
-DISPLAY=:1 timeout 30s dotnet run --project tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release --no-build -- --download-session
+python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --mode normal --output artifacts/desktop-normal
 ```
 
-For the Linux CI environment, install `xvfb` and `dbus-daemon`, then run all five modes with retained logs, screenshots and exit codes:
+Omit `--mode` to select the five standard scenarios, or repeat it for a targeted
+serial sequence. The runner stops at the first failure and records later scenarios
+as skipped. Every run requires a fresh output directory to retain earlier failures
+and avoid mixing screenshots. `--timeout` bounds each subprocess; cleanup targets
+only the POSIX process group created by that run (including lingering descendants),
+or the live Windows process tree. Interrupts also clean up the current process.
+Cleanup failures fail the run and preserve skip/error evidence. This is process
+group ownership, not a security sandbox: independently detached descendants and
+Windows children surviving an already exited parent need stronger OS containment.
+These guarantees have window-free fixtures in `tests/test_desktop_smoke_runner.py`.
+
+The 16-window tray stress case requires a separate explicit invocation:
 
 ```sh
-python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --output artifacts/desktop-smoke
+python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --mode tray-lifecycle --output artifacts/desktop-tray-stress
 ```
 
-On an existing graphical Linux session, add `--native-display` to use its display without Xvfb. Add `--scale 1`, `--scale 1.5` or `--scale 2` to request a display scale. The harness logs the actual native window `RenderScaling` separately from the requested environment value. Startup client dimensions and the native frame, when reported, must fit the screen's physical working-area dimensions with at most one pixel of rounding tolerance. This checks size, not window placement or occlusion. Window captures flush pending layout and use actual rendering density, but exclude native decorations; a requested scale alone does not prove that the platform applied it. Scaled runs need a large enough physical display: the default 1280-pixel-wide Xvfb display cannot fit the 760-DIP regular minimum at 200 percent.
+Use that stress case only on a disposable test desktop/CI. CI invokes it as a
+separate step after the standard checks. Linux's no-tray Xvfb fixture cannot prove
+native DBus registration behavior; that needs a disposable desktop with a tray host.
+On Linux, `--native-display` requires exactly one explicitly selected `--mode` and
+also requires `--allow-native-desktop` and is intended for such a dedicated
+desktop. Do not run native suites or stress tests
+on an active personal workstation. Windows/macOS use the runner's native graphical
+session and require both a dedicated test desktop and `--allow-native-desktop`.
+That flag is an explicit opt-in, not proof of isolation; evidence says so. The CI
+workflow supplies it on disposable runners. Linux still uses Xvfb unless
+`--native-display` is explicitly selected.
 
-The runner creates a private `dbus-run-session` and an Xvfb server for each Linux process. It sets the harness-only `OCHAN_DESKTOP_SMOKE_XVFB=1` environment option, which selects X11 software rendering before Avalonia initializes and installs the tray fixture because Xvfb provides no StatusNotifierWatcher. Normal mode still exercises all normal GUI checks; `--tray-failure` still simulates a tray creation exception. This environment is recorded in the logs and `results.json`. It does not validate GPU rendering or a native tray host. Direct desktop runs retain normal renderer and tray setup; Windows/macOS are unchanged. Avalonia errors and binding warnings continue to fail every run.
+Add `--scale 1`, `--scale 1.5` or `--scale 2` for display-scale checks. The isolated
+screen is 3200×2000 physical pixels, large enough for the regular minimum at 200%.
+The harness records actual window `RenderScaling`, client/frame size and working
+area; a missing or different measurement fails any run with an explicit scale request.
+Captures flush layout and use the observed density, excluding native decorations.
+
+`OCHAN_DESKTOP_SMOKE_XVFB=1` selects X11 software rendering and installs the
+no-tray fixture before Avalonia initializes. Openbox readiness is checked before
+the harness starts. This environment is recorded in logs and `results.json`; it
+does not validate GPU rendering or the user's window manager. Avalonia errors and
+binding warnings still fail the checks. The real application has no test flags.
 
 The harness creates and removes its own temporary `OCHAN_PROFILE`, including an isolated download path. It does not load the user's session. Harness flags belong only to this executable; the real-download case uses the desktop host construction boundary to inject an offline transport.
 
@@ -37,9 +72,13 @@ The `--download-session` case uses the real session host, provider parsing, queu
 
 The `--no-tray` and `--tray-failure` cases keep native windows and rendering, but replace tray creation with a null result or an exception. With `MinimizeToTray` enabled, they invoke the native user-close callback and verify that the window remains minimized with taskbar access. They restore the window and use its visible Exit menu item to finish shutdown. Unknown or combined arguments fail with exit code 2. Only this non-packable harness opts into Avalonia's unstable windowing-platform service API; production code uses public tray APIs.
 
-Avalonia 11.3 does not expose reliable tray-host availability. The application keeps taskbar access until a real tray activation has demonstrated an available route back to a hidden window. A later loss of that host is not observable through the public API. Tray setup failures therefore do not prevent startup. During Linux shutdown, the application detaches the DBus menu and flushes pending dispatcher layout updates before disposing the icon; this avoids a reproduced DBus menu callback accessing its disposed exporter. Windows and macOS dispose the native tray directly. Assigning `Menu=null` on Avalonia 11.3.22's macOS tray exporter instead replaces the managed menu while retaining a native menu tied to the old instance, which throws `ArgumentException: The menu being updated does not match` and interrupts shutdown. CI shutdown logs confirmed that failure; the DBus workaround therefore applies only to Linux.
+Avalonia 12 tray icons create their native implementation when attached to the application's `TrayIcons` collection. Each window owns its entry and removes/disposes it at shutdown. The `--tray-lifecycle` mode creates and closes 16 additional native windows as soon as restoration permits, checks the collection and reacquires the isolated profile lease after every close. It logs whether native tray attachment was actually exercised; the Xvfb no-tray fixture does not establish DBus registration behavior. There are no sleeps to let registration settle and no exception suppression. The other modes, including real download/restore, still run in separate processes.
 
-Run each mode as a separate process and check its exit code, not only the `SMOKE PASS` line. The independent Linux shutdown failure in [upstream issue 19523](https://github.com/AvaloniaUI/Avalonia/issues/19523) involved a DBus observer synchronously calling a stopped dispatcher. The desktop pins `Tmds.DBus.Protocol` to `0.92.0`, whose exception callback uses asynchronous `Post` while retaining the API required by Avalonia 11.3.22. The isolated dependency probe passed five normal shutdown runs and all three additional modes on 2026-10-10; this is separate from the tray menu lifecycle correction above.
+Avalonia 12.1.4 includes [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980) for late DBus tray registration after disposal. Its FreeDesktop dependency selects Tmds.DBus.Protocol 0.94.1 through the reviewed locks; the former direct 0.92.0 pin is removed. Source checks now distinguish the native collection from the no-tray fallback. These tests supplement the upstream state guards; a stress pass alone does not prove every asynchronous interleaving.
+
+The application keeps taskbar access until a real tray activation demonstrates a route back to a hidden window. A later host loss is not reliably observable through the public API. Tray setup failures do not prevent startup. The Linux-only menu detach/dispatcher drain is retained for existing menu callbacks; it does not fix late registration by itself and is not applied to macOS.
+
+Settings are tested as retained pages in the real shell: invalid text survives navigation/language refresh, footer commits synchronize only their affected field, failures preserve the draft, Save/Cancel stay on the page, and a pending commit/picker gates navigation. Accepted saves drain during app shutdown, late results do not update the ended editor, returned picker folders are disposed, and leases are released. Small EN/DE pages are captured with reachable actions. The compatibility dialog exercises the same editor; it is no longer the product's Settings navigation.
 
 The harness enables application Debug logs to retain shutdown phases and caught exceptions, and records closing events, the return from normal `Close()`, and remaining owned-window state after the settings checks. On a macOS process timeout, the runner attempts a three-second native `sample` with an eight-second diagnostic limit before terminating the process. The sample is retained beside the mode log; the run still fails with exit code 124. These diagnostics do not replace the required `Closed` event, successful process exit, or profile-lease reacquisition.
 
