@@ -35,6 +35,8 @@ jobs:
           mkdir -p artifacts/build-evidence
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
+      - name: Check default development restore and build
+        run: dotnet build oChan.csproj -warnaserror:NU1900
       - name: Restore dependencies and require audit availability
         run: dotnet restore oChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact restored Release graphs
