@@ -14,6 +14,7 @@ using oChan.Interfaces;
 using oChan.Http;
 using oChan.Storage;
 using oChan.Notifications;
+using oChan.Archive;
 using Serilog;
 
 /// <summary>
@@ -40,6 +41,10 @@ public abstract class BaseThread : IThread
     private readonly CoalescedEvent<PropertyChangedEventHandler> _propertyChanges;
     private readonly SingleOwnerCallback<Action<IThread>> _removal = new SingleOwnerCallback<Action<IThread>>();
     private int _totalMediaCount;
+    private ThreadContentContext? _content;
+    private bool _contentCandidatesRestored;
+    /// <summary>Providers opt in when their poll path supplies captured posts and uses durable selection.</summary>
+    public virtual bool SupportsContent => false;
 
     protected BaseThread()
     {
@@ -67,7 +72,7 @@ public abstract class BaseThread : IThread
             return new ThreadSnapshot(new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId),
                 Url, _title, DownloadDirectory, _activity, _sourceState, _requestProgress,
                 _totalMediaCount, _downloadedMedia.Count,
-                new ReadOnlyDictionary<string, FailureInfo>(failures), _lastCheckFailure, downloads);
+                new ReadOnlyDictionary<string, FailureInfo>(failures), _lastCheckFailure, downloads) { Content = _content?.Snapshot };
         }
     }
 
@@ -278,7 +283,7 @@ public abstract class BaseThread : IThread
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested && SourceState == ThreadSourceState.Active)
+            while (!cancellationToken.IsCancellationRequested && (SourceState == ThreadSourceState.Active || (_content?.NeedsRetry ?? false)))
             {
                 try
                 {
@@ -296,7 +301,7 @@ public abstract class BaseThread : IThread
                     Logger.Error(exception, "Error checking thread {ThreadId}", ThreadId);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                if (SourceState != ThreadSourceState.Active) return;
+                if (SourceState != ThreadSourceState.Active && !(_content?.NeedsRetry ?? false)) return;
                 TimeSpan interval;
                 lock (_monitoringLock) { interval = _monitoringInterval; }
                 TimeSpan minimumInterval = MinimumRecheckInterval;
@@ -348,6 +353,68 @@ public abstract class BaseThread : IThread
         return checkThreadAsync(queue, cancellationToken);
     }
 
+    internal void AttachContent(ThreadContentContext content)
+    {
+        lock (_monitoringLock)
+        {
+            if (_monitoringTask != null) throw new InvalidOperationException("Attach content services before starting monitoring.");
+            _content = content;
+            _contentCandidatesRestored = false;
+        }
+    }
+
+    /// <summary>Explicitly opts a current watch in/out; previously captured content remains available.</summary>
+    public async Task SetCaptureEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        if (_content == null) throw new NotSupportedException("This watch has no content services.");
+        await _content.SetCaptureEnabledAsync(enabled, cancellationToken).ConfigureAwait(false);
+        OnPropertyChanged();
+    }
+
+    protected async Task RestoreContentCandidatesAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken)
+    {
+        if (_content == null || _contentCandidatesRestored) return;
+        IReadOnlyList<DownloadItem> restored = await _content.RestoreCandidatesAsync(this, cancellationToken).ConfigureAwait(false);
+        foreach (DownloadItem item in restored) media.TryAdd(item.MediaIdentifier, item);
+        _contentCandidatesRestored = true;
+    }
+
+    protected async Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
+    {
+        if (_content == null) return;
+        await _content.CaptureAsync(observed, cancellationToken).ConfigureAwait(false);
+        OnPropertyChanged();
+    }
+
+    protected async Task CaptureSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
+    {
+        if (_content == null) return;
+        await _content.RecordSourceStateAsync(state, cancellationToken).ConfigureAwait(false);
+        OnPropertyChanged();
+    }
+
+    protected async Task EnqueueKnownMediaAsync(DownloadQueue queue, IReadOnlyDictionary<string, DownloadItem> media,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        HashSet<string> known = new HashSet<string>(media.Keys, StringComparer.Ordinal);
+        known.UnionWith(DownloadedMedia);
+        TotalMediaCount = known.Count;
+        IReadOnlyList<DownloadItem>? selected = _content == null ? media.Values.ToArray()
+            : await _content.SelectAsync(this, media.Values, cancellationToken).ConfigureAwait(false);
+        if (selected == null) { Activity = ThreadActivity.Error; OnPropertyChanged(); return; }
+        int selectedCount = TotalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0);
+        Activity = MediaFailures.Count > 0 ? ThreadActivity.Error : TotalMediaCount == 0
+            ? SourceState == ThreadSourceState.NotFound ? ThreadActivity.NotFound : ThreadActivity.NoMedia
+            : selectedCount == 0 || DownloadedMediaCount >= selectedCount ? ThreadActivity.Finished : ThreadActivity.Downloading;
+        foreach (DownloadItem item in selected)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            queue.TryEnqueue(item);
+        }
+        OnPropertyChanged();
+    }
+
     public bool IsMediaDownloaded(string mediaIdentifier)
     {
         lock (_stateLock) { return _downloadedMedia.Contains(mediaIdentifier); }
@@ -375,7 +442,7 @@ public abstract class BaseThread : IThread
             if (!mediaChanged && !failuresChanged) return;
             ThreadActivity nextStatus = _activity;
             if (_mediaFailures.Count > 0) nextStatus = ThreadActivity.Error;
-            else if (_downloadedMedia.Count == _totalMediaCount) nextStatus = ThreadActivity.Finished;
+            else if (_downloadedMedia.Count >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0)) nextStatus = ThreadActivity.Finished;
             else if (failuresChanged && _activity == ThreadActivity.Error) nextStatus = ThreadActivity.Downloading;
             statusChanged = _activity != nextStatus;
             _activity = nextStatus;

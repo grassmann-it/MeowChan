@@ -13,6 +13,8 @@ using oChan.Interfaces;
 using oChan.Persistence;
 using oChan.Storage;
 using oChan.Notifications;
+using oChan.Archive;
+using oChan.Boards.Base;
 using Serilog;
 
 public enum AdmissionStatus { Added, AlreadyPresent, Invalid, Unsupported }
@@ -42,6 +44,7 @@ public sealed class Registry : IAsyncDisposable
     private readonly Queue<string> _warnings = new Queue<string>();
     private readonly DownloadQueue _queue;
     private readonly ISessionStore? _sessionStore;
+    private readonly ThreadContentRuntime? _contentRuntime;
     private string _outputDirectory;
     private TimeSpan _threadInterval;
     private TimeSpan _boardInterval;
@@ -110,8 +113,10 @@ public sealed class Registry : IAsyncDisposable
     }
 
     public Registry(IEnumerable<IImageBoard> providers, DownloadQueue queue, string outputDirectory,
-        TimeSpan threadInterval, int boardIntervalSeconds, ISessionStore? sessionStore = null, bool persistSession = true, ILogger? logger = null)
+        TimeSpan threadInterval, int boardIntervalSeconds, ISessionStore? sessionStore = null, bool persistSession = true, ILogger? logger = null,
+        ThreadContentRuntime? contentRuntime = null)
     {
+        _contentRuntime = contentRuntime;
         ArgumentNullException.ThrowIfNull(providers);
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
@@ -324,6 +329,8 @@ public sealed class Registry : IAsyncDisposable
         {
             if (resource.Thread != null)
             {
+                if (_contentRuntime != null && resource.Thread is BaseThread { SupportsContent: true } contentThread)
+                    await _contentRuntime.BindAsync(contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
                 watch.OwnerRegistration = resource.Thread.RegisterRemovalSink(removed =>
                 {
                     if (Interlocked.Exchange(ref watch.RemovalRequested, 1) == 0)

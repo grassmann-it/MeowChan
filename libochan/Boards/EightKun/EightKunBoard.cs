@@ -62,7 +62,7 @@ public class EightKunBoard : BaseBoard
             if (names.TryGetValue(BoardCode, out string? name)) Name = WebUtility.HtmlDecode(name);
             _metadataLoaded = true;
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or IOException or OperationCanceledException or TimeoutException)
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or IOException or OperationCanceledException or TimeoutException)
         {
             cancellationToken.ThrowIfCancellationRequested();
             // A display name is optional; failed metadata must not block thread downloads.

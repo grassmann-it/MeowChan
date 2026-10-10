@@ -18,7 +18,11 @@ public enum MediaManifestStatus { Missing, Available, Corrupt }
 /// </summary>
 public sealed record MediaAssetReference(string AssetId, string MediaIdentifier, string Variant,
     string RequestedFileName, string Path, long Length, string Sha256, string SourceUrl,
-    string? OriginalFileName, bool IsCurrent);
+    string? OriginalFileName, bool IsCurrent)
+{
+    /// <summary>The checksum of the published bytes; permits matching a captured provider attachment.</summary>
+    public string Md5 { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// An immutable manifest view independent of providers, watches and the profile writer.
@@ -149,7 +153,7 @@ public sealed partial class MediaStore
                 && currentId == pair.Key;
             assets.Add(new MediaAssetReference(pair.Key, entry.MediaIdentifier, "original", asset.RequestedFileName,
                 Path.Combine(directory, entry.FileName), entry.Length, entry.Sha256.ToLowerInvariant(),
-                entry.SourceUrl, entry.OriginalFileName, current));
+                entry.SourceUrl, entry.OriginalFileName, current) { Md5 = entry.Md5 });
         }
         return new MediaAssetSnapshot(directory, MediaManifestStatus.Available, read.SourceVersion,
             read.Generation, assets);

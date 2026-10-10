@@ -12,6 +12,7 @@ using oChan.Downloader;
 using oChan.Interfaces;
 using oChan.Http;
 using oChan.Storage;
+using oChan.Archive;
 
 namespace oChan.Boards.FourChan;
 
@@ -22,6 +23,7 @@ public class FourChanThread : BaseThread
     private DateTimeOffset? _lastModified;
     private bool _hasSnapshot;
 
+    public override bool SupportsContent => true;
     public override IBoard Board { get; }
     public override string ThreadId { get; }
     public override string NiceName => $"{Title} ({ThreadId})";
@@ -56,9 +58,11 @@ public class FourChanThread : BaseThread
     {
         cancellationToken.ThrowIfCancellationRequested();
         await base.checkThreadAsync(queue, cancellationToken);
+        await RestoreContentCandidatesAsync(_knownMedia, cancellationToken);
+        await CaptureContentAsync(null, cancellationToken);
         if (SourceState != ThreadSourceState.Active)
         {
-            EnqueueKnownMedia(queue, cancellationToken);
+            await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
             return;
         }
         if (Board is FourChanBoard board) await board.EnsureMetadataAsync(cancellationToken);
@@ -75,13 +79,14 @@ public class FourChanThread : BaseThread
             if (response.StatusCode == HttpStatusCode.NotModified)
             {
                 if (!_hasSnapshot) throw new InvalidDataException("A thread returned 304 before a successful snapshot was available.");
-                EnqueueKnownMedia(queue, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
                 return;
             }
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                EnqueueKnownMedia(queue, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
                 MarkPollingTerminal(ThreadSourceState.NotFound);
+                await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
                 if (TotalMediaCount == 0 && MediaFailures.Count == 0) Activity = ThreadActivity.NotFound;
                 return;
             }
@@ -96,33 +101,33 @@ public class FourChanThread : BaseThread
             Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {ThreadId}" : subject;
 
             Dictionary<string, DownloadItem> media = new Dictionary<string, DownloadItem>(StringComparer.Ordinal);
+            List<CapturedPost> capturedPosts = new List<CapturedPost>();
+            int ordinal = 0;
             foreach (JToken post in posts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (post.Value<int?>("filedeleted") == 1 || post["tim"] == null || post["ext"] == null || post["filename"] == null)
-                    continue;
-                long timestamp = post.Value<long>("tim");
-                string? extension = post.Value<string>("ext");
-                if (timestamp <= 0 || string.IsNullOrWhiteSpace(extension)) continue;
-                string mediaId = timestamp.ToString(CultureInfo.InvariantCulture);
-                string filename = post.Value<string>("filename") ?? "unknown";
-                string originalFileName = filename + extension;
-                Uri uri = new Uri($"https://i.4cdn.org/{Board.BoardCode}/{mediaId}{extension}");
-                string destination = StorageLayout.GetMediaPath(OutputDirectory, Board.ImageBoard.Name,
-                    Board.BoardCode, ThreadId, mediaId, extension);
-                string? legacyPath = GetLegacyPath(originalFileName);
-                media.TryAdd(mediaId, new DownloadItem(uri, destination, Board.ImageBoard, this, mediaId,
-                    expectedSize: post.Value<long?>("fsize"),
-                    expectedMd5: post.Value<string>("md5"),
-                    originalFileName: originalFileName,
-                    legacyPath: legacyPath));
+                List<CapturedAttachment> attachments = new List<CapturedAttachment>();
+                DownloadItem? item = ParseMedia(post);
+                if (item != null)
+                {
+                    media.TryAdd(item.MediaIdentifier, item);
+                    attachments.Add(ProviderPostCapture.Attachment(item, 0));
+                }
+                else if (post.Value<int?>("filedeleted") == 1)
+                    attachments.Add(new CapturedAttachment(0, null, IsDeleted: true));
+                CapturedPost? captured = ProviderPostCapture.Parse(post, ordinal++, ThreadId, attachments.AsReadOnly());
+                if (captured != null) capturedPosts.Add(captured);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
             foreach (KeyValuePair<string, DownloadItem> item in media) _knownMedia[item.Key] = item.Value;
+            await CaptureContentAsync(new CapturedThreadSnapshot(
+                new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url, Title,
+                posts.Count > 0 && posts[0].Value<int?>("archived") == 1 ? ThreadSourceState.Archived : SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
+                capturedPosts.AsReadOnly()), cancellationToken);
             _lastModified = response.Content.Headers.LastModified;
             _hasSnapshot = true;
-            EnqueueKnownMedia(queue, cancellationToken);
+            await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
             if (posts.Count > 0 && posts[0].Value<int?>("archived") == 1)
                 MarkPollingTerminal(ThreadSourceState.Archived);
         }
@@ -132,22 +137,20 @@ public class FourChanThread : BaseThread
         }
     }
 
-    private void EnqueueKnownMedia(DownloadQueue queue, CancellationToken cancellationToken)
+    private DownloadItem? ParseMedia(JToken post)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        HashSet<string> knownIds = new HashSet<string>(_knownMedia.Keys, StringComparer.Ordinal);
-        knownIds.UnionWith(DownloadedMedia);
-        TotalMediaCount = knownIds.Count;
-        Activity = MediaFailures.Count > 0 ? ThreadActivity.Error : TotalMediaCount == 0
-            ? SourceState == ThreadSourceState.NotFound ? ThreadActivity.NotFound : ThreadActivity.NoMedia
-            : ThreadActivity.Downloading;
-        foreach (DownloadItem item in _knownMedia.Values)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            queue.TryEnqueue(item);
-        }
-        cancellationToken.ThrowIfCancellationRequested();
-        if (MediaFailures.Count == 0 && TotalMediaCount > 0 && DownloadedMediaCount >= TotalMediaCount) Activity = ThreadActivity.Finished;
+        if (post.Value<int?>("filedeleted") == 1 || post["tim"] == null || post["ext"] == null || post["filename"] == null)
+            return null;
+        long timestamp = post.Value<long>("tim");
+        string? extension = post.Value<string>("ext");
+        if (timestamp <= 0 || string.IsNullOrWhiteSpace(extension)) return null;
+        string mediaId = timestamp.ToString(CultureInfo.InvariantCulture);
+        string originalFileName = (post.Value<string>("filename") ?? "unknown") + extension;
+        Uri uri = new Uri($"https://i.4cdn.org/{Board.BoardCode}/{mediaId}{extension}");
+        string destination = StorageLayout.GetMediaPath(OutputDirectory, Board.ImageBoard.Name,
+            Board.BoardCode, ThreadId, mediaId, extension);
+        return new DownloadItem(uri, destination, Board.ImageBoard, this, mediaId,
+            post.Value<long?>("fsize"), post.Value<string>("md5"), originalFileName, GetLegacyPath(originalFileName));
     }
 
     private string? GetLegacyPath(string originalFileName)

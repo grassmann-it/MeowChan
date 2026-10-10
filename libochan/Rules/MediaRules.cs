@@ -9,7 +9,7 @@ public enum MediaRuleScopeKind { Global, Source, Board, Thread }
 public enum MediaTypeSelectionMode { Inherit, All, Selected }
 public enum MediaSizeLimitMode { Inherit, Unlimited, Limited }
 public enum MediaSelectionOutcome { Selected, Excluded }
-public enum MediaSelectionReason { Allowed, AllowedUnknownSize, TypeExcluded, SizeExceeded }
+public enum MediaSelectionReason { Allowed, AllowedUnknownSize, TypeExcluded, SizeExceeded, PreviouslySaved }
 
 /// <summary>Stable provider identities, independent of URLs and translated display names.</summary>
 public sealed record MediaRuleScope

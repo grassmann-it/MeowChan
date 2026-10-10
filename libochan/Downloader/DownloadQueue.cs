@@ -80,6 +80,8 @@ public class DownloadQueue
                     counts[thread] = job.IsActive
                         ? previous with { Active = previous.Active + 1 }
                         : previous with { Queued = previous.Queued + 1 };
+                    if (job.Replacement != null)
+                        counts[thread] = counts[thread] with { Queued = counts[thread].Queued + 1 };
                 }
             }
         }
@@ -122,7 +124,8 @@ public class DownloadQueue
         {
             foreach (QueuedDownload job in _jobs.Values)
             {
-                if (string.Equals(job.Url, url, StringComparison.Ordinal))
+                if (string.Equals(job.Url, url, StringComparison.Ordinal)
+                    || string.Equals(job.Replacement?.DownloadUri.ToString(), url, StringComparison.Ordinal))
                 {
                     return true;
                 }
@@ -174,10 +177,24 @@ public class DownloadQueue
         List<QueuedDownload> ready;
         lock (_stateLock)
         {
-            if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _) || _jobs.ContainsKey(jobIdentity))
+            if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _))
             {
                 return false;
             }
+
+            if (_jobs.TryGetValue(jobIdentity, out QueuedDownload? existing))
+            {
+                if (!ReferenceEquals(existing.Item.Thread, item.Thread)) return false;
+                if (SameRetrieval(existing.Replacement ?? existing.Item, item)) return false;
+                // Keep the active bytes owned by their original worker. The latest observed revision
+                // runs after it even if this was the source's final poll. At most one successor exists.
+                if (existing.IsActive)
+                    existing.Replacement = SameRetrieval(existing.Item, item) ? null : item;
+                else existing.Item = item;
+                ready = new List<QueuedDownload>();
+            }
+            else
+            {
 
             if (_threads.TryGetValue(threadIdentity, out ThreadState? threadState))
             {
@@ -202,6 +219,7 @@ public class DownloadQueue
             _pendingDownloads.Enqueue(job);
             threadState.OutstandingJobs++;
             ready = ReserveWorkersLocked();
+            }
         }
 
         StartWorkers(ready);
@@ -389,6 +407,14 @@ public class DownloadQueue
                 _activeDownloads--;
                 _jobs.Remove(job.Identity);
                 job.ThreadState.OutstandingJobs--;
+                if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
+                    && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
+                {
+                    QueuedDownload successor = new QueuedDownload(job.Identity, replacement.DownloadUri.ToString(), replacement, job.ThreadState);
+                    _jobs.Add(job.Identity, successor);
+                    _pendingDownloads.Enqueue(successor);
+                    job.ThreadState.OutstandingJobs++;
+                }
                 RetireThreadIfIdleLocked(job.ThreadState, cleanup);
                 SignalIdleIfNeededLocked(cleanup);
                 ready = ReserveWorkersLocked();
@@ -514,6 +540,10 @@ public class DownloadQueue
         return new ThreadIdentity(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
     }
 
+    private static bool SameRetrieval(DownloadItem first, DownloadItem second) =>
+        first.ExpectedSize == second.ExpectedSize
+        && string.Equals(first.ExpectedMd5, second.ExpectedMd5, StringComparison.Ordinal);
+
     private static TaskCompletionSource CreateCompletionSource()
     {
         return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -532,15 +562,15 @@ public class DownloadQueue
     private sealed class QueuedDownload
     {
         public JobIdentity Identity { get; }
-        public string Url { get; }
-        public DownloadItem Item { get; }
+        public string Url => Item.DownloadUri.ToString();
+        public DownloadItem Item { get; set; }
+        public DownloadItem? Replacement { get; set; }
         public ThreadState ThreadState { get; }
         public bool IsActive { get; set; }
 
         public QueuedDownload(JobIdentity identity, string url, DownloadItem item, ThreadState threadState)
         {
             Identity = identity;
-            Url = url;
             Item = item;
             ThreadState = threadState;
         }

@@ -11,6 +11,7 @@ using oChan.Downloader;
 using oChan.Interfaces;
 using oChan.Http;
 using oChan.Storage;
+using oChan.Archive;
 
 namespace oChan.Boards.EightKun;
 
@@ -21,6 +22,7 @@ public class EightKunThread : BaseThread
     private DateTimeOffset? _lastModified;
     private bool _hasSnapshot;
 
+    public override bool SupportsContent => true;
     public override IBoard Board { get; }
     public override string ThreadId { get; }
     public override string NiceName => $"{Title} ({ThreadId})";
@@ -54,9 +56,11 @@ public class EightKunThread : BaseThread
     {
         cancellationToken.ThrowIfCancellationRequested();
         await base.checkThreadAsync(queue, cancellationToken);
+        await RestoreContentCandidatesAsync(_knownMedia, cancellationToken);
+        await CaptureContentAsync(null, cancellationToken);
         if (SourceState != ThreadSourceState.Active)
         {
-            EnqueueKnownMedia(queue, cancellationToken);
+            await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
             return;
         }
         if (Board is EightKunBoard board) await board.EnsureMetadataAsync(cancellationToken);
@@ -73,13 +77,14 @@ public class EightKunThread : BaseThread
             if (response.StatusCode == HttpStatusCode.NotModified)
             {
                 if (!_hasSnapshot) throw new InvalidDataException("A thread returned 304 before a successful snapshot was available.");
-                EnqueueKnownMedia(queue, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
                 return;
             }
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                EnqueueKnownMedia(queue, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
                 MarkPollingTerminal(ThreadSourceState.NotFound);
+                await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
                 if (TotalMediaCount == 0 && MediaFailures.Count == 0) Activity = ThreadActivity.NotFound;
                 return;
             }
@@ -94,25 +99,35 @@ public class EightKunThread : BaseThread
             Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {ThreadId}" : subject;
 
             Dictionary<string, DownloadItem> media = new Dictionary<string, DownloadItem>(StringComparer.Ordinal);
+            List<CapturedPost> capturedPosts = new List<CapturedPost>();
+            int ordinal = 0;
             foreach (JToken post in posts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                AddMedia(post, media);
+                List<CapturedAttachment> attachments = new List<CapturedAttachment>();
+                CaptureMedia(post, 0, media, attachments);
                 if (post["extra_files"] is JArray extraFiles)
                 {
+                    int position = 1;
                     foreach (JToken extraFile in extraFiles)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        AddMedia(extraFile, media);
+                        CaptureMedia(extraFile, position++, media, attachments);
                     }
                 }
+                CapturedPost? captured = ProviderPostCapture.Parse(post, ordinal++, ThreadId, attachments.AsReadOnly());
+                if (captured != null) capturedPosts.Add(captured);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
             foreach (KeyValuePair<string, DownloadItem> item in media) _knownMedia[item.Key] = item.Value;
+            await CaptureContentAsync(new CapturedThreadSnapshot(
+                new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url, Title,
+                SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
+                capturedPosts.AsReadOnly()), cancellationToken);
             _lastModified = response.Content.Headers.LastModified;
             _hasSnapshot = true;
-            EnqueueKnownMedia(queue, cancellationToken);
+            await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
         }
         finally
         {
@@ -120,41 +135,35 @@ public class EightKunThread : BaseThread
         }
     }
 
-    private void EnqueueKnownMedia(DownloadQueue queue, CancellationToken cancellationToken)
+    private void CaptureMedia(JToken file, int position, Dictionary<string, DownloadItem> media, List<CapturedAttachment> attachments)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        HashSet<string> knownIds = new HashSet<string>(_knownMedia.Keys, StringComparer.Ordinal);
-        knownIds.UnionWith(DownloadedMedia);
-        TotalMediaCount = knownIds.Count;
-        Activity = MediaFailures.Count > 0 ? ThreadActivity.Error : TotalMediaCount == 0
-            ? SourceState == ThreadSourceState.NotFound ? ThreadActivity.NotFound : ThreadActivity.NoMedia
-            : ThreadActivity.Downloading;
-        foreach (DownloadItem item in _knownMedia.Values)
+        DownloadItem? item = ParseMedia(file);
+        if (item != null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            queue.TryEnqueue(item);
+            media.TryAdd(item.MediaIdentifier, item);
+            attachments.Add(ProviderPostCapture.Attachment(item, position));
         }
-        cancellationToken.ThrowIfCancellationRequested();
-        if (MediaFailures.Count == 0 && TotalMediaCount > 0 && DownloadedMediaCount >= TotalMediaCount) Activity = ThreadActivity.Finished;
+        else if (file.Value<int?>("filedeleted") == 1)
+            attachments.Add(new CapturedAttachment(position, null, IsDeleted: true));
     }
 
-    private void AddMedia(JToken file, Dictionary<string, DownloadItem> media)
+    private DownloadItem? ParseMedia(JToken file)
     {
-        if (file.Value<int?>("filedeleted") == 1) return;
+        if (file.Value<int?>("filedeleted") == 1) return null;
         string? mediaId = file.Value<string>("tim");
         string? extension = file.Value<string>("ext");
-        if (string.IsNullOrWhiteSpace(mediaId) || string.IsNullOrWhiteSpace(extension)) return;
+        if (string.IsNullOrWhiteSpace(mediaId) || string.IsNullOrWhiteSpace(extension)) return null;
         Uri uri = new Uri($"https://nerv.8kun.top/file_store/{mediaId}{extension}");
         string? filename = file.Value<string>("filename");
         string originalFileName = (string.IsNullOrWhiteSpace(filename) ? mediaId : filename) + extension;
         string destination = StorageLayout.GetMediaPath(OutputDirectory, Board.ImageBoard.Name,
             Board.BoardCode, ThreadId, mediaId, extension);
         string? legacyPath = GetLegacyPath(mediaId + extension);
-        media.TryAdd(mediaId, new DownloadItem(uri, destination, Board.ImageBoard, this, mediaId,
+        return new DownloadItem(uri, destination, Board.ImageBoard, this, mediaId,
             expectedSize: file.Value<long?>("fsize"),
             expectedMd5: file.Value<string>("md5"),
             originalFileName: originalFileName,
-            legacyPath: legacyPath));
+            legacyPath: legacyPath);
     }
 
     private string? GetLegacyPath(string originalFileName)

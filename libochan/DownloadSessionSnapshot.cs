@@ -38,7 +38,12 @@ public sealed record FailureInfo(FailureKind Kind, string Message, HttpStatusCod
 public sealed record ThreadSnapshot(ResourceId Id, string Url, string Title, string DownloadDirectory,
     ThreadActivity Activity, ThreadSourceState SourceState, RequestPolicyProgress? RequestProgress,
     int KnownMedia, int CompletedMedia, IReadOnlyDictionary<string, FailureInfo> MediaFailures,
-    FailureInfo? LastCheckFailure, DownloadCounts Downloads);
+    FailureInfo? LastCheckFailure, DownloadCounts Downloads)
+{
+    /// <summary>Null for legacy providers without capture/selection support.</summary>
+    public Archive.ThreadContentStatus? Content { get; init; }
+    public int SelectedMedia => Math.Max(0, KnownMedia - (Content?.ExcludedMedia ?? 0));
+}
 
 public sealed record BoardSnapshot(ResourceId Id, string Url, string Name, string DownloadDirectory,
     RequestPolicyProgress? RequestProgress, FailureInfo? LastCheckFailure);
