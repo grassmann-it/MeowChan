@@ -85,6 +85,11 @@ internal static class PresentationChecks
 
     private static async Task CheckSmallWindowAsync(MainWindow window, ThreadRow selected, double width, double height, string scenario)
     {
+        // Mode changes request native resizes asynchronously. Capture the restore
+        // size only after that request has reached the window manager.
+        await WaitForLayoutAsync(window, () => window.WindowState != WindowState.Normal
+            || (Math.Abs(window.Bounds.Width - window.Width) <= 1
+                && Math.Abs(window.Bounds.Height - window.Height) <= 1));
         double originalWidth = window.Width;
         double originalHeight = window.Height;
         WindowState originalState = window.WindowState;

@@ -3,7 +3,7 @@
         xmlns:local="clr-namespace:oChan" xmlns:desktop="clr-namespace:oChan.Desktop"
         x:Class="oChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
-        Title="oChan" Icon="avares://oChan/Assets/ochan.png">
+        Title="oChan" Icon="avares://oChan/Assets/ochan.png" TextOptions.TextRenderingMode="Antialias">
     <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
         <Border Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
@@ -33,7 +33,7 @@
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
                 <TextBlock Grid.Column="1" Tag="shell.supported" Classes="localized muted" Text="4chan · 8kun" VerticalAlignment="Center" />
             </Grid>
-            <Border x:Name="WorkspaceIntakeCard" Grid.Row="1" Classes="panel" CornerRadius="6" Padding="12,10">
+            <Border x:Name="WorkspaceIntakeCard" Grid.Row="1" Classes="panel" Padding="12,10">
                 <StackPanel Spacing="7">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox x:Name="UrlInput" PlaceholderText="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
@@ -53,9 +53,12 @@
                 </StackPanel>
             </Border>
             <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
-                <Border x:Name="DownloadsPanel" Classes="panel" CornerRadius="8" ClipToBounds="True">
+                <Border x:Name="DownloadsPanel" Classes="panel" ClipToBounds="True">
                     <Grid>
                         <TabControl x:Name="DownloadsTabs" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
+                            <TabControl.Styles>
+                                <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="12" /></Style>
+                            </TabControl.Styles>
                             <TabItem x:Name="ThreadsTab" Header="Threads">
                                 <Grid>
 <DataGrid x:Name="ThreadsDataGrid"
@@ -253,7 +256,7 @@
                             </TabItem>
                         </TabControl>
                         <StackPanel x:Name="WorkspaceListActions" Orientation="Horizontal" Spacing="6"
-                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,1,8,0">
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,4,8,0">
                             <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
                             <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
                         </StackPanel>
@@ -261,7 +264,7 @@
                 </Border>
                 <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
                               ResizeDirection="Columns" Background="Transparent" />
-                <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="panel" CornerRadius="8" MinWidth="260">
+                <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="panel" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
                         <Grid Margin="16,10,10,8" ColumnDefinitions="*,Auto">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />

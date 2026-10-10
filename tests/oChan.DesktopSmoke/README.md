@@ -26,6 +26,13 @@ group ownership, not a security sandbox: independently detached descendants and
 Windows children surviving an already exited parent need stronger OS containment.
 These guarantees have window-free fixtures in `tests/test_desktop_smoke_runner.py`.
 
+Use `--mode visual` for a targeted style comparison in one retained main window.
+It captures empty/populated Downloads, Settings and keyboard focus in Dark/Light,
+plus compact Barebones and Advanced details. The 1440×920 regular and 880×680
+compact frames match the mock references. Passive rows make no provider requests;
+the check also verifies rendered primary-action text contrast and retained drafts.
+This optional scenario does not run the standard modal or tray-lifecycle tests.
+
 The 16-window tray stress case requires a separate explicit invocation:
 
 ```sh

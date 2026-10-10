@@ -86,11 +86,24 @@ internal static class GridChecks
 
     internal static async Task OpenContextForAsync(MainWindow window, DataGrid grid, object item)
     {
+        Point position = await WaitForRowTargetAsync(window, grid, item);
+        RightPress(window, position, KeyModifiers.None);
+        if (!ReferenceEquals(grid.SelectedItem, item))
+            throw new InvalidOperationException("Opening the copy menu selected a different row in " + grid.Name
+                + "; selected=" + Describe(grid.SelectedItem) + "; expected=" + Describe(item) + "; point=" + position);
+        ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
+        menu.Open(grid);
+        await Program.WaitUntilAsync(() => menu.IsOpen);
+    }
+
+    private static async Task<Point> WaitForRowTargetAsync(MainWindow window, DataGrid grid, object item)
+    {
         Point? position = null;
-        // A tab becomes effectively visible before its retained rows have necessarily
-        // finished layout. Wait for the actual input target, not just the visibility flag.
+        // Tab switches, sorting and selection can all leave an old row position
+        // briefly visible. Wait for the actual target after the latest change.
         await Program.WaitUntilAsync(() =>
         {
+            window.UpdateLayout();
             DataGridRow? row = VisibleRows(grid, item).SingleOrDefault();
             position = row?.TranslatePoint(new Point(20, row.Bounds.Height / 2), window);
             if (!position.HasValue)
@@ -99,13 +112,7 @@ internal static class GridChecks
             DataGridRow? hitRow = hit as DataGridRow ?? hit?.FindAncestorOfType<DataGridRow>();
             return ReferenceEquals(hitRow?.DataContext, item) && ReferenceEquals(hitRow?.FindAncestorOfType<DataGrid>(), grid);
         });
-        RightPress(window, position!.Value, KeyModifiers.None);
-        if (!ReferenceEquals(grid.SelectedItem, item))
-            throw new InvalidOperationException("Opening the copy menu selected a different row in " + grid.Name
-                + "; selected=" + Describe(grid.SelectedItem) + "; expected=" + Describe(item) + "; point=" + position);
-        ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
-        menu.Open(grid);
-        await Program.WaitUntilAsync(() => menu.IsOpen);
+        return position!.Value;
     }
 
     private static string Describe(object? item) => item switch
@@ -117,16 +124,16 @@ internal static class GridChecks
 
     private static async Task CheckContextSelectionAsync(MainWindow window, DataGrid grid, object first, object second)
     {
-        DataGridRow target = FindRow(grid, second);
-        Point position = target.TranslatePoint(new Point(20, target.Bounds.Height / 2), window)
-            ?? throw new InvalidOperationException("The context target is not attached to the window.");
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The grid context menu is missing.");
         foreach (KeyModifiers modifiers in new[] { KeyModifiers.None, KeyModifiers.Control })
         {
             grid.SelectedItem = first;
+            Point position = await WaitForRowTargetAsync(window, grid, second);
             RightPress(window, position, modifiers);
             if (!ReferenceEquals(grid.SelectedItem, second))
-                throw new InvalidOperationException("Right click left the previously selected row active: " + modifiers);
+                throw new InvalidOperationException("Right click selected the wrong row in " + grid.Name
+                    + "; modifiers=" + modifiers + "; selected=" + Describe(grid.SelectedItem)
+                    + "; expected=" + Describe(second) + "; point=" + position);
             menu.Open(grid);
             await Program.WaitUntilAsync(() => menu.IsOpen);
             if (!ReferenceEquals(grid.SelectedItem, second))

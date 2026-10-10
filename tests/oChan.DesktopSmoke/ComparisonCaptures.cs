@@ -17,7 +17,7 @@ namespace oChan.DesktopSmoke;
 /// <summary>Consistent visual-review scenes using passive public snapshots, without provider watches or HTTP.</summary>
 internal static class ComparisonCaptures
 {
-    internal static async Task RunAsync(MainWindow window)
+    internal static async Task RunAsync(MainWindow window, bool visualReview = false)
     {
         Config initial = Config.LoadConfig();
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
@@ -33,12 +33,22 @@ internal static class ComparisonCaptures
         ThreadRow[] rows = CreateEntries().Select(entry => new ThreadRow(entry)).ToArray();
         try
         {
+            if (visualReview) await ResizeAsync(window, 1440, 920);
+            // Empty lists expose disabled toolbar controls that populated scenes cannot review.
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            await CaptureEmptyAsync(window, "smoke-comparison-empty-dark.png");
+            await SetThemeAsync(window, "Light");
+            await CaptureEmptyAsync(window, "smoke-comparison-empty-light.png");
+            await SetThemeAsync(window, "Dark");
+            await PresentationChecks.SwitchModeAsync(window, "Simple");
             foreach (ThreadRow row in rows) window.UrlList.Add(row);
             window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
             grid.SelectedItem = rows[0];
 
             await SetInspectorAsync(window, false);
             await CaptureAsync(window, rows, "smoke-comparison-simple-dark.png");
+            await CheckButtonContrastAsync(window);
+            if (visualReview) await CaptureKeyboardFocusAsync(window, "smoke-comparison-focus-dark.png");
             await CaptureContextMenuAsync(window, rows[0], "smoke-context-dark.png");
 
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
@@ -46,14 +56,22 @@ internal static class ComparisonCaptures
             await CaptureAsync(window, rows, "smoke-comparison-advanced-dark.png");
 
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            if (visualReview) await ResizeAsync(window, 880, 680);
             await SetInspectorAsync(window, false);
             await CaptureAsync(window, rows, "smoke-comparison-barebones-dark.png");
 
             await PresentationChecks.SwitchModeAsync(window, "Simple");
             await SetInspectorAsync(window, false);
+            if (visualReview) await CaptureSettingsAsync(window, "smoke-comparison-settings-dark.png");
             await SetThemeAsync(window, "Light");
             await CaptureAsync(window, rows, "smoke-comparison-simple-light.png");
             await CaptureContextMenuAsync(window, rows[0], "smoke-context-light.png");
+            await CheckButtonContrastAsync(window);
+            if (visualReview)
+            {
+                await CaptureKeyboardFocusAsync(window, "smoke-comparison-focus-light.png");
+                await CaptureSettingsAsync(window, "smoke-comparison-settings-light.png");
+            }
             Console.WriteLine("SMOKE comparison scenes: six passive thread snapshots across Simple/Dark, Advanced/Dark, Barebones/Dark and Simple/Light; no watches admitted or network requests made.");
         }
         finally
@@ -68,6 +86,86 @@ internal static class ComparisonCaptures
                 row.Dispose();
             }
         }
+    }
+
+    private static async Task CaptureEmptyAsync(MainWindow window, string fileName)
+    {
+        Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            Point? origin = copy.TranslatePoint(new Point(0, 0), window);
+            return !copy.IsEnabled && copy.IsEffectivelyVisible && copy.Bounds.Width > 0
+                && Math.Abs(window.Bounds.Width - window.Width) <= 1 && Math.Abs(window.Bounds.Height - window.Height) <= 1
+                && origin.HasValue && origin.Value.X >= 0 && origin.Value.Y >= 0
+                && origin.Value.X + copy.Bounds.Width <= window.Bounds.Width + 1
+                && window.FindControl<TextBlock>("ThreadsEmptyState")!.IsEffectivelyVisible;
+        });
+        Program.CaptureWindow(window, fileName);
+    }
+
+    private static async Task ResizeAsync(MainWindow window, double width, double height)
+    {
+        window.WindowState = WindowState.Normal;
+        window.Width = width;
+        window.Height = height;
+        await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1);
+    }
+
+    private static async Task CaptureSettingsAsync(MainWindow window, string fileName)
+    {
+        window.FindControl<Button>("SettingsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible && window.SettingsEditor.Bounds.Height > 0);
+        window.SettingsEditor.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
+        Program.CaptureWindow(window, fileName);
+        string original = window.SettingsEditor.DownloadPath;
+        window.SettingsEditor.DownloadPath = Path.Combine(original, "pending-edit");
+        window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        window.FindControl<Button>("SettingsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if (window.SettingsEditor.DownloadPath != Path.Combine(original, "pending-edit"))
+            throw new InvalidOperationException("Visual page navigation lost the pending settings edit.");
+        window.SettingsEditor.DownloadPath = original;
+        window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
+    }
+
+    private static async Task CaptureKeyboardFocusAsync(MainWindow window, string fileName)
+    {
+        Button add = window.FindControl<Button>("AddUrlButton")!;
+        add.Focus(NavigationMethod.Tab);
+        await Program.WaitUntilAsync(() => add.IsFocused);
+        Program.CaptureWindow(window, fileName);
+        window.FindControl<TextBox>("UrlInput")!.Focus();
+    }
+
+    private static async Task CheckButtonContrastAsync(MainWindow window)
+    {
+        Button add = window.FindControl<Button>("AddUrlButton")!;
+        TextBlock? label = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            label = add.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.Text == add.Content as string);
+            return label?.IsEffectivelyVisible == true;
+        });
+        // Check the rendered label: a global TextBlock style can override Button.Foreground.
+        if (label!.Foreground is not ISolidColorBrush text || add.Background is not ISolidColorBrush fill)
+            throw new InvalidOperationException("The primary action did not resolve solid foreground/background brushes.");
+        double first = Luminance(text.Color);
+        double second = Luminance(fill.Color);
+        double contrast = (Math.Max(first, second) + 0.05) / (Math.Min(first, second) + 0.05);
+        if (contrast < 4.5)
+            throw new InvalidOperationException("Primary action text contrast is below 4.5:1: " + contrast);
+        Console.WriteLine("SMOKE primary action rendered text contrast: " + contrast.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static double Luminance(Color color)
+    {
+        static double Linear(byte value)
+        {
+            double component = value / 255d;
+            return component <= 0.04045 ? component / 12.92 : Math.Pow((component + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
     }
 
     private static async Task CaptureContextMenuAsync(MainWindow window, ThreadRow row, string fileName)

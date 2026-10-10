@@ -93,7 +93,8 @@
             </StackPanel>
         </ScrollViewer>
         <Border Grid.Row="2" Padding="20,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" HorizontalAlignment="Left"
+                  Width="{Binding Bounds.Width, ElementName=SettingsContent}">
                 <TextBlock Text="{Binding StatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding IsEditable}">
                     <Button x:Name="CancelSettingsButton" Content="{Binding CancelLabel}" Click="OnCancelButtonClick" />

@@ -11,6 +11,9 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#F49B9B</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#83D4AC</SolidColorBrush>
                 </ResourceDictionary>
@@ -23,11 +26,51 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#46556A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#1D5CB5</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Hover">#DCE3EC</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.AccentHover">#174E9A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#176342</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
+        <!-- Keep workspace buttons independent of the vendor theme's state brushes. -->
+        <ControlTheme x:Key="Workspace.Button" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+            <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                                      Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" RecognizesAccessKey="True"
+                                      Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /></Style>
+            <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+            <Style Selector="^:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+            <Style Selector="^.primary:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.OnAccent}" />
+            </Style>
+            <Style Selector="^.primary:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.AccentHover}" /></Style>
+            <Style Selector="^.primary:pressed"><Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /></Style>
+            <Style Selector="^:disabled">
+                <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
+                <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+                <Setter Property="Opacity" Value="0.65" />
+            </Style>
+        </ControlTheme>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -35,7 +78,6 @@
         <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
         <Setter Property="FontSize" Value="13" />
     </Style>
-    <Style Selector="TextBlock, SelectableTextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="TextBlock.error, SelectableTextBlock.error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
@@ -49,19 +91,23 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="5" /></Style>
     <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="5" /></Style>
     <Style Selector="Button">
+        <Setter Property="Theme" Value="{StaticResource Workspace.Button}" />
         <Setter Property="MinHeight" Value="30" /><Setter Property="Padding" Value="10,5" />
         <Setter Property="CornerRadius" Value="5" /><Setter Property="FontSize" Value="13" />
     </Style>
     <Style Selector="Button.primary">
-        <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Panel}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.OnAccent}" />
         <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="36" /></Style>
     <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav.selected TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="32" /><Setter Property="FontSize" Value="13" /></Style>
@@ -77,5 +123,6 @@
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+    <Style Selector="DataGridRow:pointerover /template/ Border#border"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
     <Style Selector="DataGridRow:selected /template/ Border#border"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
 </Styles>
