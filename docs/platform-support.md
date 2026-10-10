@@ -4,7 +4,7 @@ This record separates upstream platform support, candidate oChan packages, and c
 
 ## Current 0.9.0 preparation
 
-0.9.0 replaces the desktop UI with Simple, Advanced and Barebones views, appearance/language preferences, batch URL admission and details panels. The platform targets and .NET 10 baseline remain unchanged. Local Linux source-built checks for the new UI are recorded below, separately from historical 0.8.0 results. Final native acceptance of the 0.9.0 extracted packages is still open.
+0.9.0 replaces the desktop UI with Simple, Advanced and Barebones views, appearance/language preferences, batch URL admission and details panels. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
 
 Current acceptance must cover the integrated download/restore flow, all three views, Dark/Light, English/German, keyboard focus, small windows and native rendering at the intended display scales. The [release-notes draft](releases/v0.9.0.md) records user-visible behavior and remaining boundaries.
 
@@ -25,7 +25,7 @@ The current Linux desktop uses X11, including XWayland on a Wayland desktop. A w
 | Runtime identifier | Archive | Intended native validation baseline | Evidence still required |
 | --- | --- | --- | --- |
 | `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
-| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current Manjaro source-built checks and historical 0.8.0 package/CI evidence are recorded separately below. |
+| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current Manjaro source-built checks and actual package startup/exit are recorded below. |
 | `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
 | `osx-x64` | `.tar.gz` | macOS 15 x64 | Native Intel Mac package and desktop run. |
 | `osx-arm64` | `.tar.gz` | macOS 15 Arm64 | Final 0.9.0 source-built and extracted `.app` workflows plus Gatekeeper behavior; the passing Arm64 harness below used the earlier UI. |
@@ -70,7 +70,28 @@ Each directory contains `results.json`, scenario logs and window captures. The s
 
 The download-session scenario uses the real FourChan provider, registry, shared queue and file storage with a controlled in-process `HttpMessageHandler`. It checks UI admission and alias deduplication, appearance changes during work, a verified saved media file, native window shutdown, and restoration through a fresh host/window using the same isolated profile. Restoration reuses the saved media; there is only one media request across the initial session and restart. Both window lifetimes release their profile lease.
 
-The integrated UI and final layout/harness fixes are recorded in commits `2e03d95` and `afa873c`. These checks used the 0.9.0 version metadata being prepared alongside the fixes; final restore/build/test logs are retained locally in `artifacts/ap13-v090-accepted-checks`. They do not identify a final release archive. No public imageboard HTTP requests were made. Clipboard and file-picker checks use controlled services; native clipboard/file-picker integration and every desktop's tray host remain outside this evidence. Window captures demonstrate application rendering at the measured scale, not complete desktop screenshots or validation of all monitor arrangements. Windows, macOS, Linux Arm64 and the final extracted 0.9.0 packages still need their own native evidence.
+The integrated UI and final layout/harness fixes are recorded in commits `2e03d95` and `afa873c`. These checks used the 0.9.0 version metadata being prepared alongside the fixes; final restore/build/test logs are retained locally in `artifacts/ap13-v090-accepted-checks`. They do not identify a final release archive. No public imageboard HTTP requests were made. Clipboard and file-picker checks use controlled services; native clipboard/file-picker integration and every desktop's tray host remain outside this evidence. Window captures demonstrate application rendering at the measured scale, not complete desktop screenshots or validation of all monitor arrangements. Full workflows in the extracted packages, including Windows, macOS and Linux Arm64, still require their own native evidence.
+
+### Local 0.9.0 packages and Linux apphost — 2026-10-10
+
+All five desktop packages were produced from source commit `2deaf1bcd15e730b1413b5899952a104cb6f4347`, archived and extracted successfully. All five publish logs were free of warning and error lines. Required documents, language-pack instructions, screenshots and native dependencies were present; applicable Unix executable permissions survived extraction. The macOS outputs use the unsigned app-bundle structure described above. These checks used SDK 10.0.111 and .NET host 10.0.11 on the Linux development machine.
+
+The local record is `artifacts/ap13-release-0.9.0/evidence/results.json`. The same evidence directory retains SDK information, source status, per-runtime desktop/library assets files, restore/publish/bundle logs and library-consumer output. Archives are under `artifacts/ap13-release-0.9.0/packages`. The hashes below identify those existing artifacts; subsequent documentation commits do not rebuild or change their source commit.
+
+| Artifact | SHA256 |
+| --- | --- |
+| `oChan-0.9.0-linux-x64.tar.gz` | `f553c00ec321a843623f627bb572beec759b22321c7e41f47db73254c3f83fcc` |
+| `oChan-0.9.0-win-x64.zip` | `3a89fa9d500e255f0c74c5e05d474dbdb2fbb6954b6011edda41971ac062d217` |
+| `oChan-0.9.0-linux-arm64.tar.gz` | `398acf9b09d8a1be816c36040484d4898d42f721ec221bd3e72ea0ce16462de6` |
+| `oChan-0.9.0-osx-x64.tar.gz` | `e0e16f3fe946d65bd330de5045a3e167b009666083bd5512300904592132fb71` |
+| `oChan-0.9.0-osx-arm64.tar.gz` | `752e4306640481f817d81a9323e7e9f597201f0644bfa271cd081fcecf4d2c8c` |
+| `libochan.0.9.0.nupkg` | `b96156d1c11e254d39c9684fee8e2c56fccd1ec0b5e13ee47a542598f3038442` |
+
+The 0.9.0 library package passed the isolated consumer using a fresh package cache and an exact package-hash match, without desktop dependencies. The consumer verified a download, manifest reuse without another media request, and clean shutdown; its exit code was 0. This is local package-consumption evidence, not public NuGet publication.
+
+The actual extracted `linux-x64` apphost also opened its native main window and closed normally on Manjaro x86_64 (kernel 6.18.49-1-MANJARO, glibc 2.44). Its inspected screenshot shows the new Simple/Dark interface and version `v0.9.0`. It started from a different working directory with an isolated profile. A normal close request to its native main window returned exit code 0 without forced termination, and all extracted files remained unchanged. The apphost retained mode `0755`. The result and native screenshot are recorded in `artifacts/ap13-v090-apphost-linux-x64/result.json` and `main-window.png` in that directory; the archive hash matches the Linux x64 row above.
+
+This apphost check supplied no watch URLs and performed no downloads. It proves package startup and normal close only. The five archive checks do not establish native execution on Windows, macOS or Linux Arm64, and neither they nor this Linux startup check close the full download/removal/restore, clipboard/folder, tray and Gatekeeper acceptance matrix.
 
 ### Historical 0.8.0 checks
 
@@ -100,7 +121,7 @@ For every platform promised as supported, record the source commit, SDK/runtime 
 6. Simple/Advanced/Barebones, Dark/Light and English/German remain usable in small windows and at the tested display scales; input, selection and active downloads survive presentation changes.
 7. `LICENSE`, `README.md`, `CHANGELOG.md`, `THIRD-PARTY-NOTICES.md`, the release notes and language-pack instructions accompany the complete package; Unix executable permissions survive extraction.
 
-The local 0.9.0 source-built checks and historical 0.8.0 runs establish only their stated coverage. Full native workflow acceptance of the 0.9.0 extracted package matrix remains open, including Windows 11, Linux Arm64 and both Mac architectures. Archive construction and a passing source-built harness do not complete that acceptance.
+The local 0.9.0 source-built checks, package round-trips, Linux apphost startup/exit and historical 0.8.0 runs establish only their stated coverage. Full native workflow acceptance of the 0.9.0 extracted package matrix remains open, including Windows 11, Linux Arm64 and both Mac architectures. Archive construction, a passing source-built harness and apphost startup alone do not complete that acceptance.
 
 ## Dependency restores and updates
 
