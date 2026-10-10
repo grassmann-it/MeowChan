@@ -292,6 +292,7 @@ public partial class ArchivePage : UserControl
     {
         bool ready = _available && !_busy && !_ended;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
+        Control<Button>("ExportArchiveButton").IsEnabled = ready && _thread != null && !_exportRunning;
         Control<Button>("ArchiveHistoryBack").IsVisible = _history.Count > 0;
         Control<Button>("RefreshArchiveButton").IsEnabled = ready;
         Control<Button>("PreviousThreadsButton").IsEnabled = ready && _listOffset > 0;
@@ -446,6 +447,7 @@ public partial class ArchivePage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button) button.Content = Texts.T(key);
         }
+        LocalizeExport();
         LocalizeSearch();
         Control<TabItem>("ArchiveReferencesTab").Header = Texts.T("archive.references");
         Control<TabItem>("ArchivePostsTab").Header = Texts.T("archive.posts");
@@ -469,6 +471,7 @@ public partial class ArchivePage : UserControl
         ++_contentRequest;
         CancelMediaLoad();
         CancelReferences();
+        _exportCancellation?.Cancel();
         _lifetime.Cancel();
         Texts.Changed -= OnLanguageChanged;
         ClosePreview();

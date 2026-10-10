@@ -7,7 +7,7 @@ Version **0.9.0** is in preparation with a new desktop interface on top of the d
 ## What's new in 0.9.0
 
 - A redesigned Avalonia interface with Barebones, Simple (default) and Advanced views of the same running session.
-- Downloads, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
+- Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
 - Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
@@ -76,7 +76,7 @@ Completed media is verified and recorded in a manifest. Files are published atom
 
 The Archive page lists locally registered threads and reads captured posts and manifest-recorded original media. New threads capture posts by default; older restored watches start media-only unless capture was already enabled. Use the archive's capture action to change that preference explicitly. Removing a watch or disabling capture preserves the existing archive. The reader retains observed posts even when they disappear from later source responses; it cannot recover posts that were never captured.
 
-Local posts remain readable without contacting the source. Supported images can be previewed from verified local files; unavailable files and unsupported previews are reported. Video playback, full-text search, separate thumbnail downloads and standalone HTML export are future work. The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. Keep the profile and referenced media together when backing up, and stop the application before a simple file-copy backup. Existing v1 media manifests remain readable; new v2 history manifests are not supported by older binaries, so keep backups before upgrading.
+Local posts remain readable without contacting the source. Supported images can be previewed from verified local files; unavailable files and unsupported previews are reported. Search retained text and titles, apply source/board/state filters and follow captured quotes or local backlinks without fetching remote targets. The archive export action creates a new portable HTML folder with its own CSS and matching verified saved originals; omission reasons are visible. Move the complete folder to retain offline reading. Existing export folders are not replaced. Video playback in the desktop reader, separate thumbnails and collection exports remain later work. The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. The writer atomically upgrades archive schema 1 to schema 2 for indexed search and quotes; keep a backup before upgrading because old schema-1-only readers cannot read the new catalog. Keep the profile and referenced media together when backing up, and stop the application before a simple file-copy backup. Existing v1 media manifests remain readable; new v2 history manifests are not supported by older binaries, so keep backups before upgrading.
 
 Rules select allowed filename extensions and a maximum reported size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes use decimal MB (1 MB = 1,000,000 bytes); media with unknown size remain eligible. Save affects newly evaluated media only: already recorded selections/exclusions and existing files remain unchanged, including after restart. This size setting is a metadata filter, not a hard transfer limit.
 
@@ -104,7 +104,7 @@ dotnet pack libochan/libochan.csproj -c Release -o artifacts/packages
 
 The [library guide](libochan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibOChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
 
-Provider registration is explicit. A dedicated Sources page, dynamic plugin loading, a daemon, TUI, terminal browser and standalone HTML export are future work. Provider registration is independent of whether its website is currently reachable.
+Provider registration is explicit. Sources shows registered adapter capabilities and actual watch observations. Provider descriptions are passive and optional. Dynamic plugin loading, a daemon, TUI and terminal browser remain later work. The library already exposes local search, quotes/backlinks and portable single-thread HTML export. Provider registration is independent of whether its website is currently reachable.
 
 ## Verification
 

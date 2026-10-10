@@ -94,3 +94,24 @@ This checks native desktop startup and lifetime integration on the OS and CPU re
 Rules checks save actual global/board overrides, verify field origins and disabled inheritance, preserve invalid drafts across scope/page/language/view changes, and exercise failed commits in the same window. The active scope and visible selection must agree. Compact EN/DE screenshots cover all three views. Diagnostics uses current synthetic failures and exact watch lifetimes; both pages retain the single host session.
 
 The download-session case also captures a real provider fixture post, restarts, removes its watch, and reads retained posts plus a verified PNG from the archive. A delayed manifest-loader fixture proves local posts remain usable while media are waiting. Preview reactivation cannot block the list. Compact EN/DE readers retain at least 100 logical pixels of post viewport; dark/light screenshots supplement those assertions. These checks use sequential windows in the isolated runner, never the personal desktop.
+
+The download-session case additionally exercises local archive search and filters,
+quote navigation onto another thread's second post page, backlinks and reading
+history. Its HTML workflow exports a synthetic retained reply together with the
+real fixture PNG through the shared library, verifies actual output counts, rejects
+repeated output without overwriting and moves the completed folder.
+Set `OCHAN_SMOKE_EXPORT_EVIDENCE` to a fresh existing output parent to retain that
+relocated folder; otherwise the fixture removes its export after checking it.
+
+For actual browser acceptance, install Python Playwright in a test environment and
+use an installed Chromium executable (no browser download is needed):
+
+```sh
+python scripts/check-html-export-offline.py --directory 'artifacts/export-evidence/relocated thread' --output artifacts/export-browser --chromium /usr/bin/chromium
+```
+
+This opens the relocated `file://` export in a fresh headless context with network
+access disabled. It checks decoded copied images, own CSS, real internal quote
+anchors, retained posts, missing/external target explanations and absence of active
+source content. Requests must remain within the exported folder. JSON evidence and
+a full-page screenshot are written to the chosen output directory.

@@ -55,7 +55,8 @@ internal static class Program
                 "https://demo.invalid/demo/thread/1", "Offline package archive", ThreadSourceState.Archived,
                 DateTimeOffset.UtcNow, mediaDirectory, new[]
                 {
-                    new CapturedPost("1", 0, PostFieldPresence.Html, Html: capturedBody)
+                    new CapturedPost("1", 0, PostFieldPresence.Html | PostFieldPresence.Attachments, Html: capturedBody,
+                        Attachments: new[] { new CapturedAttachment(0, "1", ExpectedSize: DemoPayload.Bytes.Length, ExpectedMd5: DemoPayload.Md5) })
                 }));
         }
         // The reader outlives the writer and profile lease, with no provider or UI dependency.
@@ -72,6 +73,10 @@ internal static class Program
         if (matches.TotalCount != 1 || matches.Items.Single().Id != id || resolution.State != ArchiveQuoteState.Captured
             || resolution.PostIndex != 0 || (await reader.GetBacklinksAsync(postId)).TotalCount != 1)
             throw new InvalidOperationException("The packaged indexed search/quote APIs did not resolve retained local content.");
+        ArchiveHtmlExportResult exported = await ArchiveHtmlExporter.ExportAsync(reader, id, Path.Combine(directory, "html-export"));
+        if (exported.PostCount != 1 || exported.FileCount != 1 || exported.Omissions.Count != 0
+            || !File.Exists(exported.IndexPath) || !File.Exists(Path.Combine(exported.Directory, "style.css")))
+            throw new InvalidOperationException("The packaged portable HTML export did not publish a complete local folder.");
     }
 
     private static async Task RunSessionAsync(HttpClient transport, DemoHandler handler, string directory, int run)

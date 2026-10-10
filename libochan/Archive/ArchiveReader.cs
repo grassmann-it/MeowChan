@@ -57,6 +57,17 @@ public sealed class ArchiveReader : IAsyncDisposable
         return ReadAsync((connection, transaction) => ArchiveSql.ReadThread(connection, transaction, id), cancellationToken);
     }
 
+    internal Task<ArchiveExportSnapshot?> ReadExportAsync(ResourceId id, CancellationToken cancellationToken)
+    {
+        ArchiveValidation.ValidateId(id);
+        return ReadAsync((connection, transaction) =>
+        {
+            ArchivedThreadView? view = ArchiveSql.ReadThread(connection, transaction, id);
+            return view == null ? null : new ArchiveExportSnapshot(view,
+                ArchiveCatalog.ReadDecisions(connection, transaction, id));
+        }, cancellationToken);
+    }
+
     public Task<IReadOnlyList<string>> GetMediaDirectoriesAsync(ResourceId id, CancellationToken cancellationToken = default)
     {
         ArchiveValidation.ValidateId(id);

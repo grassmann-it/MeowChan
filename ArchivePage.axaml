@@ -53,7 +53,10 @@
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
+                    <WrapPanel>
+                    <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" HorizontalAlignment="Left" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" HorizontalAlignment="Left" IsVisible="False" />
+                    </WrapPanel>
                     <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
                 <Border Grid.Row="1" Classes="panel">
@@ -149,6 +152,28 @@
                 <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <TextBox x:Name="ArchivePreviewPath" IsReadOnly="True" />
                     <Button Grid.Column="1" Tag="action.openFolder" Classes="localized" Click="OnOpenMediaFolder" />
+                </Grid>
+            </Grid>
+        </Border>
+        <Border x:Name="ArchiveExportDialog" Grid.RowSpan="3" Classes="panel" Padding="16" IsVisible="False" KeyDown="OnExportKeyDown">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+                <TextBlock Tag="archive.export" Classes="section-title localized" />
+                <TextBlock x:Name="ArchiveExportSummary" Grid.Row="1" TextWrapping="Wrap" />
+                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="8">
+                    <TextBlock Tag="archive.exportHint" Classes="muted localized" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="ArchiveExportDestination" />
+                        <Button x:Name="ArchiveExportBrowse" Grid.Column="1" Tag="archive.exportBrowse" Classes="localized" Click="OnExportBrowse" />
+                    </Grid>
+                    <CheckBox x:Name="ArchiveExportMedia" IsChecked="True" />
+                    <TextBlock x:Name="ArchiveExportStatus" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+                </ScrollViewer>
+                <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                    <Button x:Name="ArchiveExportClose" Tag="action.close" Classes="localized" Click="OnExportClose" />
+                    <Button x:Name="ArchiveExportOpen" Grid.Column="2" Tag="action.openFolder" Classes="localized" Click="OnExportOpen" IsVisible="False" />
+                    <Button x:Name="ArchiveExportStart" Grid.Column="3" Tag="archive.exportStart" Classes="localized" Click="OnExportStart" />
                 </Grid>
             </Grid>
         </Border>

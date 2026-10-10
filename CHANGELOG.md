@@ -9,6 +9,9 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 - **Check now / retry missing.** Downloads and Diagnostics can request a check on the exact watch. Requests coalesce, obey provider limits and retry missing selected media, including terminal threads, without changing previous rule decisions.
 - **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
+- **Local archive search and navigation.** Search retained post text, titles and identities, filter by source/board/state/capture preference and sort results. Captured quote targets open on the correct post page; local backlinks and reading-position history work across threads. Missing and external references remain explicit without remote fetching.
+- **Portable HTML thread export.** Archive writes a new independent folder with captured posts, its own CSS and verified matching saved originals. Retained older media revisions remain selectable by captured checksum; missing media and preserved rule exclusions are explained. Existing output is never replaced. Media-only archives export a current-original gallery.
+
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
 - **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
 - **Downloads and Settings pages.** Both remain in the same shell, with navigation at the bottom. Switching pages retains URL input, selection, details, invalid settings drafts and running downloads. Save and Cancel stay on Settings; About remains in the application menu.
@@ -43,18 +46,15 @@ The branch now also contains live Diagnostics, a persistent Archive with an offl
 - Rules resolve allowed extensions and maximum metadata file size through Global → Source → Board → Thread, with visible origins and durable first decisions. Existing decisions and files survive later changes. Unknown sizes remain allowed; this is not a transfer-byte cap.
 - Manifests retain saved media versions, and the independent library reader verifies selected bytes. Changed size/hash during an active download schedules the latest revision afterward.
 
-Progress now uses **saved / selected media**, with exclusions shown separately. The additive `ThreadContentRuntime`, `ArchiveReader`, rules and media-reader APIs remain independent of Avalonia. Back up the profile and media manifests before upgrading: v1 manifests are accepted, but the new v2 history is not a downgrade format for older binaries.
+Progress now uses **saved / selected media**, with exclusions shown separately. The additive `ThreadContentRuntime`, `ArchiveReader`, rules and media-reader APIs remain independent of Avalonia. Back up the profile and media manifests before upgrading: v1 manifests are accepted, but the new v2 history is not a downgrade format for older binaries. The writer also migrates schema-1 archive catalogs atomically to schema 2 for indexed search and quotes; old schema-1-only readers cannot read the upgraded catalog. The current passive reader can still read schema 1 without migrating it.
 
-Sources is concretely planned but has no product page yet. Pause/resume, full-text search, import/export, TUI/daemon clients and dynamic plugin loading remain later work.
+Sources, persistent pause, local search/quote navigation and single-thread HTML export are implemented. Collection exports, structured packages/import, TUI/daemon clients and dynamic plugin loading remain later work.
 
 ## 0.8.0
 
 This update rebuilds download and session handling for 4chan and 8kun and makes `libochan` usable independently of the desktop app.
 
 ### What's new
-
-- **Check now / retry missing.** Downloads and Diagnostics can request a check on the exact watch. Requests coalesce, obey provider limits and retry missing selected media, including terminal threads, without changing previous rule decisions.
-- **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
 - **More reliable source checks.** Updated 8kun media URLs, canonical URL handling and conditional thread requests reduce broken or duplicate work. Archived or missing sources remain distinguishable from unfinished media downloads.
 - **Controlled HTTP requests.** Shared request pacing, bounded retries, server cooldowns and request/body deadlines handle rate limits and temporary failures. Stopping a watch cancels its requests and waits for cleanup.

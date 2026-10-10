@@ -196,7 +196,48 @@ foreach (MediaAssetReference asset in assets.GetPage(offset: 0, limit: 100))
 }
 ```
 
-`OpenVerifiedReadAsync` verifies the selected file's length and SHA-256 and returns the same stream rewound for consumption. A manifest entry or a previously displayed preview alone cannot guarantee that an external file still exists or is unchanged. `IsCurrent` identifies the last committed version for that requested filename in this manifest view; it does not claim a live match to the latest provider response. The current store publishes original media; independent preview/video variants and HTML export remain separate work.
+`OpenVerifiedReadAsync` verifies the selected file's length and SHA-256 and returns the same stream rewound for consumption. A manifest entry or a previously displayed preview alone cannot guarantee that an external file still exists or is unchanged. `IsCurrent` identifies the last committed version for that requested filename in this manifest view; it does not claim a live match to the latest provider response. The current store publishes original media; independent preview/video variants remain separate work.
+
+## Portable single-thread HTML export
+
+```csharp
+await using ArchiveReader reader = await ArchiveReader.OpenAsync(profileDirectory);
+ArchiveHtmlExportResult result = await ArchiveHtmlExporter.ExportAsync(reader, resourceId,
+    destinationDirectory: newThreadFolder,
+    options: new ArchiveHtmlExportOptions(IncludeMedia: true),
+    cancellationToken: cancellationToken);
+Console.WriteLine(result.IndexPath);
+```
+
+The destination must be a new folder under an existing parent. The exporter reads
+posts, attachment metadata and first selection decisions in one local transaction,
+then reads saved manifests without a provider or network. It selects originals
+matching the captured checksum/size, including a retained older revision; it does
+not substitute a known different revision or reconsider a rule exclusion. Without
+expected bytes, selection prefers the manifest's current version. A media-only
+thread exports a gallery of current published originals. `IncludeMedia: false`
+reads no media directories and visibly explains the choice.
+
+Every folder contains its own `index.html`, `style.css` and copied `media/` files.
+The renderer uses inert encoded text and controlled image/video/download elements;
+it copies no source scripts, remote embeds or active attributes. Captured
+same-thread quotes use local anchors. Missing posts, external references and
+cross-thread targets outside the single-thread export are labeled without fetching
+them. Static export labels are English in this first implementation.
+
+Chosen media are verified before copying and the copied bytes are checked again.
+`Omissions` distinguishes deliberate exclusions, unavailable files, differing
+versions and failed verification; `Warnings` describes unreadable manifests or
+directories. Their explanations appear in the HTML even when the rest of the
+thread exports successfully. Output write failures throw and never report success.
+
+A sibling staging folder is published by a directory move only after HTML, CSS
+and media complete. Cancellation or failure removes staging and preserves any
+existing export. No overwrite is offered. The folder remains readable over
+`file://` after moving it elsewhere, without a local server or the original profile.
+`IProgress<ArchiveHtmlExportProgress>` provides throttled post/file counts. A
+blocked filesystem operation may wait on the OS despite cancellation; hosts should
+keep export work separate from their UI and limit concurrent exports.
 
 ## State and provider extensions
 
@@ -212,7 +253,7 @@ Register a custom `IImageBoard` in the constructor. `BaseImageBoard`, `BaseBoard
 
 Custom `UpdateMonitoringInterval` implementations must accept intervals validated by `SessionOptions.Validate` without throwing or performing I/O. They update the next waiting period; stricter provider minimums may increase the effective delay. This contract allows `ApplyOptionsAsync` to commit settings and then apply the already validated runtime values consistently. The supplied base implementations follow this contract.
 
-Post capture and persistent rule decisions require adapter participation. A `BaseThread` adapter opts in with `SupportsContent`, restores candidates through `RestoreContentCandidatesAsync`, submits normalized snapshots through `CaptureContentAsync`, records terminal source states through `CaptureSourceStateAsync`, and admits media through `EnqueueKnownMediaAsync`. The built-in thread adapters demonstrate this awaited path. Setting a capability flag without implementing these steps does not provide capture or filtering to a custom adapter. `IImageBoard` currently has no general capability descriptor or online-health API; registering a provider proves neither current reachability nor successful capture.
+Post capture and persistent rule decisions require adapter participation. A `BaseThread` adapter opts in with `SupportsContent`, restores candidates through `RestoreContentCandidatesAsync`, submits normalized snapshots through `CaptureContentAsync`, records terminal source states through `CaptureSourceStateAsync`, and admits media through `EnqueueKnownMediaAsync`. The built-in thread adapters demonstrate this awaited path. Setting a capability flag without implementing these steps does not provide capture or filtering to a custom adapter. The optional `IProviderDescriptorSource` describes declared capabilities; `IImageBoard` requires no new descriptor method and has no online-health API. Registering a provider proves neither current reachability nor successful capture.
 
 Built-in default clients share rate admission and cooldown policy. An injected `HttpClient` is an advanced host-owned transport: wrap real HTTP with `ProviderHttpClientFactory.CreatePolicyClient` and share `RequestPolicyState` when limits must be coordinated. The underlying transport must disable automatic redirects/retries and honor cancellation. Caller-owned policy clients are disposed after session shutdown; process-owned default clients must not be disposed or mutated.
 

@@ -74,6 +74,7 @@ internal static class ArchivePageChecks
         await Program.WaitUntilAsync(() => Application.Current?.RequestedThemeVariant == Avalonia.Styling.ThemeVariant.Dark
             && window.FindControl<Button>("ThemeToggleButton")!.IsEnabled);
         Program.CaptureWindow(window, "smoke-archive-dark-compact.png");
+        await ArchiveExportChecks.RunAsync(window, page.CurrentThread!);
         await CheckSlowMediaAsync(window, id);
         await ArchiveNavigationChecks.RunAsync(window);
         Console.WriteLine("SMOKE archive: real post capture, restart, watch removal, plain offline reader, verified image preview, independent media loading and compact EN/DE pages passed.");

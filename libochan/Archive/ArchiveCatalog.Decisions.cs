@@ -77,23 +77,27 @@ public sealed partial class ArchiveCatalog
     {
         ArgumentNullException.ThrowIfNull(resource);
         _ = MediaRuleScope.ForThread(resource.Source, resource.Board, resource.Thread!);
-        return ReadAsync<IReadOnlyList<CandidateDecision>>((SqliteConnection connection) =>
-        {
-            using SqliteCommand command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
-                    original_filename,legacy_path,extension,selection_json,decided_at_utc
-                FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
-                ORDER BY media_id,variant;
-                """;
-            command.Parameters.AddWithValue("$source", resource.Source);
-            command.Parameters.AddWithValue("$board", resource.Board);
-            command.Parameters.AddWithValue("$thread", resource.Thread!);
-            List<CandidateDecision> decisions = new List<CandidateDecision>();
-            using SqliteDataReader reader = command.ExecuteReader();
-            while (reader.Read()) decisions.Add(ReadDecision(reader, resource));
-            return new ReadOnlyCollection<CandidateDecision>(decisions);
-        }, cancellationToken);
+        return ReadAsync(connection => ReadDecisions(connection, null, resource), cancellationToken);
+    }
+
+    internal static IReadOnlyList<CandidateDecision> ReadDecisions(SqliteConnection connection,
+        SqliteTransaction? transaction, ResourceId resource)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
+                original_filename,legacy_path,extension,selection_json,decided_at_utc
+            FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
+            ORDER BY media_id,variant;
+            """;
+        command.Parameters.AddWithValue("$source", resource.Source);
+        command.Parameters.AddWithValue("$board", resource.Board);
+        command.Parameters.AddWithValue("$thread", resource.Thread!);
+        List<CandidateDecision> decisions = new List<CandidateDecision>();
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read()) decisions.Add(ReadDecision(reader, resource));
+        return new ReadOnlyCollection<CandidateDecision>(decisions);
     }
 
     internal static void CreateDecisionSchema(SqliteConnection connection, SqliteTransaction transaction)
