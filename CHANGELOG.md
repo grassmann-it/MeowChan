@@ -21,7 +21,7 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 - Existing profiles, watched URLs and assigned download paths remain usable. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save**. Cancel reloads confirmed settings; neither action leaves the page.
 - **Double-click opens details**, replacing the previous folder-opening shortcut. Open folder remains a separate action. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
-- Progress is **saved / known media**, not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
+- Progress is **saved / selected media**, with rule exclusions shown separately; it is not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
 - View/theme/language/density preferences persist. Window geometry, column layout and details-panel width do not persist across restarts.
 - .NET 10 and the existing platform targets are retained. This UI update introduces no new public `libochan` API requirement.
 
@@ -29,7 +29,18 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 0.9.0 is in preparation. Final native acceptance of freshly extracted packages remains open; the existing 0.8.0 CI evidence does not validate the new interface. macOS bundles remain unsigned and not notarized. See the [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
 
-Pause/resume, archive browsing, rules, TUI/daemon clients and dynamic plugin loading remain later work.
+### Additional work on the current branch
+
+The branch now also contains live Diagnostics, a persistent Archive with an offline post/media reader, and basic inherited media rules. Publishing and final version allocation remain separate decisions.
+
+- Diagnostics shows current watch failures, request/cooldown state, content-storage failures and session warnings, with copy and exact-watch navigation.
+- The local SQLite catalog retains observed posts for 4chan/8kun. Media may remain on NAS drives; slow media discovery does not block local reading. Removing monitoring preserves captured content. New watches capture posts; restored older watches start media-only until explicitly enabled.
+- Rules resolve allowed extensions and maximum metadata file size through Global → Source → Board → Thread, with visible origins and durable first decisions. Existing decisions and files survive later changes. Unknown sizes remain allowed; this is not a transfer-byte cap.
+- Manifests retain saved media versions, and the independent library reader verifies selected bytes. Changed size/hash during an active download schedules the latest revision afterward.
+
+Progress now uses **saved / selected media**, with exclusions shown separately. The additive `ThreadContentRuntime`, `ArchiveReader`, rules and media-reader APIs remain independent of Avalonia. Back up the profile and media manifests before upgrading: v1 manifests are accepted, but the new v2 history is not a downgrade format for older binaries.
+
+Sources is concretely planned but has no product page yet. Pause/resume, full-text search, import/export, TUI/daemon clients and dynamic plugin loading remain later work.
 
 ## 0.8.0
 

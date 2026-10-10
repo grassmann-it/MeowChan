@@ -7,11 +7,14 @@ Version **0.9.0** is in preparation with a new desktop interface on top of the d
 ## What's new in 0.9.0
 
 - A redesigned Avalonia interface with Barebones, Simple (default) and Advanced views of the same running session.
-- Downloads and Settings pages in a shared workspace; drafts and running downloads survive navigation.
+- Downloads, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
 - Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
 - Single-URL and whole-session copying in a format that can be imported again.
+- A local archive with captured posts, retained original media versions and verified image previews, readable after a watch is removed.
+- Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
+- Diagnostics for current request cooldowns, download/storage errors and session warnings.
 
 The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libochan` continues to work independently of the UI. Final native package acceptance for 0.9.0 is still open.
 
@@ -27,7 +30,7 @@ The first start uses **Simple**, **Dark**, **English** and normal density. Switc
 
 Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.
 
-Use the bottom navigation to switch between Downloads and Settings. About remains in the application menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
+Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. About remains in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
 
 ![Simple view with representative download states](docs/screenshots/v0.9.0-simple.png)
 
@@ -59,7 +62,7 @@ Use **Copy URL** for a single row or **Copy all URLs** for every watched thread 
 
 Open **Show details**, use the row context menu, or double-click a row to see its URL, assigned destination and current errors. **Double-click now opens details instead of the folder.** Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
-Progress measures saved media against currently known media, not transferred bytes. The known count can grow, and reaching 100% does not stop monitoring. Queued and active counts describe media jobs, not watched threads. An archived source does not imply that a local HTML archive exists. Rate limits and temporary HTTP failures are retried within bounded limits; cancellation waits for active work to stop.
+Progress measures saved media against currently selected media, with rule exclusions shown separately; it does not measure transferred bytes. The known count can grow, and reaching 100% does not stop monitoring. Queued and active counts describe media jobs, not watched threads. An archived source does not imply that a local HTML archive exists. Rate limits and temporary HTTP failures are retried within bounded limits; cancellation waits for active work to stop.
 
 Media is stored under:
 
@@ -68,6 +71,16 @@ Media is stored under:
 ```
 
 Completed media is verified and recorded in a manifest. Files are published atomically; unrelated files are preserved. Interrupted transfers restart from the beginning. Removing a board stops discovery while its existing threads continue. Removing a thread also suppresses its automatic rediscovery; explicitly adding its URL allows it again.
+
+## Archive, rules and diagnostics
+
+The Archive page lists locally registered threads and reads captured posts and manifest-recorded original media. New threads capture posts by default; older restored watches start media-only unless capture was already enabled. Use the archive's capture action to change that preference explicitly. Removing a watch or disabling capture preserves the existing archive. The reader retains observed posts even when they disappear from later source responses; it cannot recover posts that were never captured.
+
+Local posts remain readable without contacting the source. Supported images can be previewed from verified local files; unavailable files and unsupported previews are reported. Video playback, full-text search, separate thumbnail downloads and standalone HTML export are future work. The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. Keep the profile and referenced media together when backing up, and stop the application before a simple file-copy backup. Existing v1 media manifests remain readable; new v2 history manifests are not supported by older binaries, so keep backups before upgrading.
+
+Rules select allowed filename extensions and a maximum reported size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes use decimal MB (1 MB = 1,000,000 bytes); media with unknown size remain eligible. Save affects newly evaluated media only: already recorded selections/exclusions and existing files remain unchanged, including after restart. This size setting is a metadata filter, not a hard transfer limit.
+
+Diagnostics shows current session warnings, request cooldowns and watch/media/storage failures. You can copy details and navigate to the affected watch. It reflects current snapshots, not a complete event history or a source-wide online test.
 
 ## Settings and saved sessions
 
@@ -89,9 +102,9 @@ The library project is `libochan/libochan.csproj`; package consumers keep the ex
 dotnet pack libochan/libochan.csproj -c Release -o artifacts/packages
 ```
 
-The [package consumer sample](samples/LibOChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
+The [library guide](libochan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibOChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
 
-Provider registration is explicit. Dynamic plugin loading, a daemon, TUI, terminal browser and HTML archive are future work.
+Provider registration is explicit. A dedicated Sources page, dynamic plugin loading, a daemon, TUI, terminal browser and standalone HTML export are future work. Provider registration is independent of whether its website is currently reachable.
 
 ## Verification
 

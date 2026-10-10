@@ -4,6 +4,8 @@ This .NET 10 console application references the local `libochan` NuGet package. 
 
 The example registers its own provider through the public API, serves deterministic bytes from an injected `HttpMessageHandler`, and lets the real registry, queue and media store perform the download. It serializes the typed `ThreadSnapshot` from `Registry.GetSnapshot()` as JSON and checks the saved bytes, media totals and actual queue counts. A second session with fresh provider, queue and store instances reuses the committed file; the handler must receive exactly one media request across both sessions. Both sessions shut down before their temporary output is deleted.
 
+The example also initializes the packaged SQLite catalog, captures a synthetic post, disposes the writer and profile lease, and reads the post through the independent archive API. This checks native SQLite resolution from the actual package graph.
+
 The first-poll completion in `DemoThread` is specific to this fixture. Waiting for queue idle immediately after `AddAsync` would race the asynchronous first poll, so the sample waits for that poll to enqueue its medium first.
 
 Run the repository's isolated package verifier:

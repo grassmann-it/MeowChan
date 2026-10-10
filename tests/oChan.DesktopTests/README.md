@@ -7,3 +7,5 @@ dotnet test tests/oChan.DesktopTests/oChan.DesktopTests.csproj -c Release
 ```
 
 The separate [core suite](../oChan.Tests/README.md) references only `libochan`. Run `dotnet test oChan.sln -c Release` for both suites. Native window/tray checks remain in [oChan.DesktopSmoke](../oChan.DesktopSmoke/README.md).
+
+Archive presentation tests cover inactive plain-text rendering of source HTML. Passive-row tests distinguish known, excluded, selected and saved media so filtered files do not count as successful downloads or dilute selected progress.

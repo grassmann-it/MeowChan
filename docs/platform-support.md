@@ -157,6 +157,36 @@ The same successful run passed the isolated NuGet consumer and produced all five
 
 Separately, an earlier local `linux-x64` package from commit `10e3d7b5f0144ff98a2fd92fe38127545f798d4a` opened its main window and closed normally with exit code 0 on Manjaro x86_64 (kernel 6.18.49-1-MANJARO, glibc 2.44). The profile lock was released and extracted files were unchanged. Its archive SHA256 was `7f09c38934a08f4011ff86ab008be33a002238637010d90f1a0eb2e40cc7cb65`. This was an actual extracted apphost check with an isolated profile and different working directory, limited to startup and normal window close; no watch URLs or download/restore workflows were exercised. It is separate evidence for that earlier package.
 
+## Content pages branch checks (2026-10-10)
+
+The content/rules foundation is committed as `965bb53`; the desktop integration is
+`a6b2e72`, following diagnostics `e65aded`. On the local Linux x64 host, 464 core
+and 95 desktop contract tests passed. Default Debug and Release builds completed
+without warnings. Isolated Xvfb/Openbox/private-DBus harness runs passed at actual
+100% and 200% render scaling, using synthetic HTTP and temporary profiles:
+
+- Rules: actual global/board saves, inherited field origins, disabled overrides,
+  retained invalid drafts, failed saves, and visible selection/text after scope
+  and language changes. Final 100% evidence: `artifacts/rules-selection-fix-100-v1`.
+- Archive: capture through the bundled provider, restart, watch removal, retained
+  plain-text posts, verified PNG preview, and local reading while media discovery
+  is delayed. 100% evidence: `artifacts/content-pages-final-100/download-session`.
+- Both workflows plus existing desktop regressions at 200%:
+  `artifacts/content-pages-final-200`. Screenshots cover compact EN/DE layouts;
+  the personal desktop was not used.
+
+Earlier runs and failures remain in their own artifact directories. Visual review
+caught stale/empty rule selections that earlier model-only assertions missed;
+final assertions cover the visible controls as well. The small archive reader
+now reserves useful post space by reducing secondary chrome.
+
+The real local NuGet consumer used a fresh cache, excluded desktop dependencies,
+verified media reuse and read a SQLite catalog after disposing its writer/lease.
+The five exact CI publish restores passed with locked inputs and their native
+SQLite assets (`artifacts/content-runtime-publish-restore-ci`). A Linux x64
+self-contained publish includes `libe_sqlite3.so`. These are source/dependency
+checks, not final Windows/macOS/Arm64 runtime acceptance or a release of this branch.
+
 ## Final artifact acceptance record
 
 For every platform promised as supported, record the source commit, SDK/runtime and resolved dependency graph, archive SHA256, actual OS/version/CPU, and native test result. Extract to a fresh directory and start from a different working directory using an isolated `OCHAN_PROFILE`. Verify:

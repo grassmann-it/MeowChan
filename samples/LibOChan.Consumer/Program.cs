@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using oChan;
 using oChan.Boards.Base;
+using oChan.Archive;
+using oChan.Persistence;
 using oChan.Downloader;
 using oChan.Interfaces;
 using oChan.Storage;
@@ -28,12 +30,40 @@ internal static class Program
             if (handler.RequestCount != 1)
                 throw new InvalidOperationException("Restoring verified media issued another request.");
 
-            Console.WriteLine("Package consumer passed: verified download, manifest restore, and clean shutdown.");
+            await CheckIndependentArchiveAsync(directory);
+            Console.WriteLine("Package consumer passed: verified download, manifest restore, independent SQLite archive, and clean shutdown.");
         }
         finally
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private static async Task CheckIndependentArchiveAsync(string directory)
+    {
+        string profile = Path.Combine(directory, "profile");
+        ResourceId id = new ResourceId("demo", "demo", "1");
+        string mediaDirectory = StorageLayout.GetThreadDirectory(directory, id.Source, id.Board, id.Thread!);
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        {
+            await using ThreadContentRuntime content = new ThreadContentRuntime(profile, lease);
+            await content.InitializeAsync();
+            await content.Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(id,
+                "https://demo.invalid/demo/thread/1", "Offline package archive", mediaDirectory, true));
+            await content.Catalog.CaptureAsync(new CapturedThreadSnapshot(id,
+                "https://demo.invalid/demo/thread/1", "Offline package archive", ThreadSourceState.Archived,
+                DateTimeOffset.UtcNow, mediaDirectory, new[]
+                {
+                    new CapturedPost("1", 0, PostFieldPresence.Html, Html: "Package-only offline post")
+                }));
+        }
+        // The reader outlives the writer and profile lease, with no provider or UI dependency.
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        ArchivedThreadView saved = await reader.ReadThreadAsync(id)
+            ?? throw new InvalidOperationException("The packaged catalog lost its thread.");
+        if (saved.PostCount != 1 || saved.GetPosts(0, 1).Single().Html != "Package-only offline post"
+            || saved.Summary.SourceState != ThreadSourceState.Archived)
+            throw new InvalidOperationException("The packaged independent reader did not recover the catalog.");
     }
 
     private static async Task RunSessionAsync(HttpClient transport, DemoHandler handler, string directory, int run)
