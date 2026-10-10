@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,11 @@ using oChan.Downloader;
 
 namespace oChan.Storage;
 
-public sealed record MediaCommitResult(string Path, long Length, string Sha256, bool Reused);
+public sealed record MediaCommitResult(string Path, long Length, string Sha256, bool Reused)
+{
+    /// <summary>The concrete asset in the thread manifest, set by MediaStore after commit or restore.</summary>
+    public string? AssetId { get; init; }
+}
 
 /// <summary>
 /// Commits verified media and a versioned per-thread manifest. Directory leases serialize
@@ -22,11 +27,12 @@ public sealed record MediaCommitResult(string Path, long Length, string Sha256, 
 /// Changes preserving every fingerprint field are detected by the first restore at or after
 /// that fixed deadline. Cache hits do not extend it; restarting the store discards all proof.
 /// </summary>
-public sealed class MediaStore
+public sealed partial class MediaStore
 {
     private const string ManifestFileName = ".ochan-manifest.json";
     private const string DirectoryLeaseFileName = ".ochan-store.lock";
-    private const int ManifestVersion = 1;
+    private const int ManifestVersion = 2;
+    private const int MaximumManifestBytes = 32 * 1024 * 1024;
     private const int MaximumRecoveryCandidates = 256;
     private const int MaximumVerificationCacheEntries = 4096;
     private static readonly TimeSpan VerificationCacheLifetime = TimeSpan.FromMinutes(10);
@@ -102,7 +108,7 @@ public sealed class MediaStore
                     expectedMd5, cancellationToken).ConfigureAwait(false);
                 if (digest != null)
                 {
-                    return ToResult(recordedPath!, digest, true);
+                    return ToResult(item, recordedPath!, digest, true);
                 }
             }
             else
@@ -118,7 +124,7 @@ public sealed class MediaStore
                     cancellationToken.ThrowIfCancellationRequested();
                     AddManifestEntry(manifestRead.Manifest, item, destination, digest);
                     await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
-                    return ToResult(destination, digest, true);
+                    return ToResult(item, destination, digest, true);
                 }
 
                 // A failed manifest commit can leave a complete file at a conflict path. Recover
@@ -137,7 +143,7 @@ public sealed class MediaStore
                     cancellationToken.ThrowIfCancellationRequested();
                     AddManifestEntry(manifestRead.Manifest, item, candidatePath, candidateDigest);
                     await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
-                    return ToResult(candidatePath, candidateDigest, true);
+                    return ToResult(item, candidatePath, candidateDigest, true);
                 }
             }
         }
@@ -273,7 +279,7 @@ public sealed class MediaStore
 
                 AddManifestEntry(manifestRead.Manifest, item, publishedPath, digest);
                 await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
-                return ToResult(publishedPath, digest, reused);
+                return ToResult(item, publishedPath, digest, reused);
             }
             finally
             {
@@ -654,9 +660,16 @@ public sealed class MediaStore
         return string.Equals(first, second, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
-    private static MediaCommitResult ToResult(string path, FileDigest digest, bool reused)
+    private static MediaCommitResult ToResult(DownloadItem item, string path, FileDigest digest, bool reused)
     {
-        return new MediaCommitResult(path, digest.Length, digest.Sha256, reused);
+        MediaManifestEntry identity = new MediaManifestEntry
+        {
+            MediaIdentifier = item.MediaIdentifier, FileName = Path.GetFileName(path), Sha256 = digest.Sha256
+        };
+        return new MediaCommitResult(path, digest.Length, digest.Sha256, reused)
+        {
+            AssetId = GetAssetId(Path.GetFileName(item.DestinationPath), identity)
+        };
     }
 
     private async Task<FileStream> AcquireDirectoryLeaseAsync(string directory, CancellationToken cancellationToken)
@@ -698,7 +711,8 @@ public sealed class MediaStore
 
     private static void AddManifestEntry(MediaManifest manifest, DownloadItem item, string actualPath, FileDigest digest)
     {
-        manifest.Entries[Path.GetFileName(item.DestinationPath)] = new MediaManifestEntry
+        string requestedName = Path.GetFileName(item.DestinationPath);
+        MediaManifestEntry entry = new MediaManifestEntry
         {
             MediaIdentifier = item.MediaIdentifier,
             SourceUrl = item.DownloadUri.AbsoluteUri,
@@ -709,26 +723,54 @@ public sealed class MediaStore
             ExpectedMd5 = item.ExpectedMd5,
             OriginalFileName = item.OriginalFileName
         };
+        manifest.Entries[requestedName] = entry;
+        AddAsset(manifest, requestedName, entry);
+    }
+
+    private static void AddAsset(MediaManifest manifest, string requestedName, MediaManifestEntry entry)
+    {
+        string id = GetAssetId(requestedName, entry);
+        manifest.Assets[id] = new MediaManifestAsset { RequestedFileName = requestedName, Entry = entry };
+    }
+
+    private static string GetAssetId(string requestedName, MediaManifestEntry entry)
+    {
+        // The identifier binds one published path and its bytes, not a mutable current-media pointer.
+        string identity = JsonSerializer.Serialize(new[]
+        {
+            requestedName, entry.MediaIdentifier, entry.FileName, entry.Sha256?.ToLowerInvariant()
+        });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
     }
 
     private static async Task<ManifestRead> ReadManifestAsync(string directory, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string path = Path.Combine(directory, ManifestFileName);
         try
         {
-            await using FileStream stream = OpenRead(path);
-            MediaManifest? manifest = await JsonSerializer.DeserializeAsync<MediaManifest>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
-            if (manifest != null && manifest.Version > 0 && manifest.Version != ManifestVersion)
+            byte[] bytes = await ReadManifestBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            string generation = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            MediaManifest? manifest = JsonSerializer.Deserialize<MediaManifest>(bytes, JsonOptions);
+            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != ManifestVersion)
             {
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             }
 
-            if (manifest == null || manifest.Version < 1 || manifest.Entries == null)
+            if (manifest == null || manifest.Version < 1 || manifest.Entries == null || manifest.Assets == null)
             {
                 return NewManifestRead(corrupt: true);
             }
 
-            return new ManifestRead(manifest, false);
+            int sourceVersion = manifest.Version;
+            // Version 1 names only its current assets. Never infer ownership of other files.
+            if (sourceVersion == 1) manifest.Assets.Clear();
+            foreach (KeyValuePair<string, MediaManifestEntry> pair in manifest.Entries)
+            {
+                if (pair.Value != null) AddAsset(manifest, pair.Key, pair.Value);
+            }
+            manifest.Version = ManifestVersion;
+            return new ManifestRead(manifest, false, false, generation, sourceVersion);
         }
         catch (JsonException)
         {
@@ -736,17 +778,37 @@ public sealed class MediaStore
         }
         catch (FileNotFoundException)
         {
-            return NewManifestRead(corrupt: false);
+            return NewManifestRead(corrupt: false, missing: true);
         }
         catch (DirectoryNotFoundException)
         {
-            return NewManifestRead(corrupt: false);
+            return NewManifestRead(corrupt: false, missing: true);
         }
     }
 
-    private static ManifestRead NewManifestRead(bool corrupt)
+    private static ManifestRead NewManifestRead(bool corrupt, bool missing = false)
     {
-        return new ManifestRead(new MediaManifest { Version = ManifestVersion }, corrupt);
+        return new ManifestRead(new MediaManifest { Version = ManifestVersion }, corrupt, missing, null, null);
+    }
+
+    private static async Task<byte[]> ReadManifestBytesAsync(string path, CancellationToken cancellationToken)
+    {
+        // Readers need no writer lease and may retain the old complete file across atomic replacement.
+        await using FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.Read | FileShare.Delete, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (stream.Length > MaximumManifestBytes)
+            throw new InvalidDataException("The media manifest exceeds the supported size limit.");
+        using MemoryStream contents = new MemoryStream();
+        byte[] buffer = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) != 0)
+        {
+            if (contents.Length + read > MaximumManifestBytes)
+                throw new InvalidDataException("The media manifest exceeds the supported size limit.");
+            contents.Write(buffer, 0, read);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return contents.ToArray();
     }
 
     private async Task SaveManifestAsync(string directory, ManifestRead manifestRead, CancellationToken cancellationToken)
@@ -760,6 +822,8 @@ public sealed class MediaStore
                 FileShare.None, 4096, FileOptions.Asynchronous))
             {
                 await JsonSerializer.SerializeAsync(stream, manifestRead.Manifest, JsonOptions, cancellationToken).ConfigureAwait(false);
+                if (stream.Length > MaximumManifestBytes)
+                    throw new InvalidDataException("The media manifest exceeds the supported size limit.");
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 stream.Flush(flushToDisk: true);
             }
@@ -800,13 +864,20 @@ public sealed class MediaStore
     private sealed record VerificationFingerprint(string ActualPath, FileStamp Stamp, long? ExpectedSize,
         string? ExpectedMd5, ManifestEntryFingerprint ManifestEntry);
     private sealed record VerifiedFile(VerificationFingerprint Fingerprint, FileDigest Digest, long VerifiedAtTimestamp);
-    private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt);
+    private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt, bool Missing, string? Generation, int? SourceVersion);
 
     private sealed class MediaManifest
     {
         public MediaManifest() { }
         public int Version { get; set; }
         public Dictionary<string, MediaManifestEntry> Entries { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, MediaManifestAsset> Assets { get; set; } = new(StringComparer.Ordinal);
+    }
+
+    private sealed class MediaManifestAsset
+    {
+        public string RequestedFileName { get; set; } = string.Empty;
+        public MediaManifestEntry Entry { get; set; } = new MediaManifestEntry();
     }
 
     private sealed class MediaManifestEntry
