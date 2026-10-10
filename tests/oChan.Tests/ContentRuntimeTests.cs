@@ -85,6 +85,10 @@ public sealed class ContentRuntimeTests
         await using Registry registry = Registry(client, queue, Path.Combine(profile.Path, "media"), runtime);
         IThread thread = (await registry.AddAsync(Url)).Thread!;
         await TestWait.UntilAsync(() => thread.GetSnapshot(new DownloadCounts()).Content?.CaptureFailure != null);
+        // Capture failure is published before durable selection/admission. Stopping at that point
+        // legitimately cancels work not yet admitted, so await the intended successful transfer.
+        await TestWait.UntilAsync(() => thread.DownloadedMediaCount == 1);
+        Assert.NotNull(thread.GetSnapshot(new DownloadCounts()).Content?.CaptureFailure);
         await thread.StopMonitoringAsync();
         await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
         Assert.Equal(1, thread.DownloadedMediaCount);

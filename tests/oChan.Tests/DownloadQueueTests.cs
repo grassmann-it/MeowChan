@@ -12,6 +12,20 @@ public sealed class DownloadQueueTests
     private static readonly byte[] Payload = [1, 3, 5, 7, 9];
 
     [Fact]
+    public async Task OriginalConstructorMetadataRemainsCompatibleAndUsesBoundedDefaults()
+    {
+        System.Reflection.ConstructorInfo? constructor = typeof(DownloadQueue).GetConstructor(new[]
+        {
+            typeof(int), typeof(long), typeof(oChan.Storage.MediaStore), typeof(TimeSpan?), typeof(TimeProvider), typeof(Serilog.ILogger)
+        });
+        Assert.NotNull(constructor);
+        DownloadQueue queue = (DownloadQueue)constructor.Invoke(new object?[] { 1, UnthrottledBandwidth, null, null, null, null });
+        Assert.Equal(256, queue.MaxPendingDownloads);
+        await queue.StopAllAsync();
+        Assert.Throws<ArgumentOutOfRangeException>(() => new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 0));
+    }
+
+    [Fact]
     public async Task ManyThreadsShareTheConfiguredWorkerLimit()
     {
         const int workerLimit = 3;

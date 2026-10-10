@@ -101,8 +101,12 @@ public class DownloadQueue
     }
 
     public DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, MediaStore? mediaStore = null,
-        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null,
-        int maxPendingDownloads = 256)
+        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null)
+        : this(maxParallelDownloads, maxBandwidthBytesPerSecond, 256, mediaStore, bodyIdleTimeout, timeProvider, logger) { }
+
+    /// <summary>Configures bounded pending admission while retaining the original constructor signature.</summary>
+    public DownloadQueue(int maxParallelDownloads, long maxBandwidthBytesPerSecond, int maxPendingDownloads,
+        MediaStore? mediaStore = null, TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null)
     {
         if (maxParallelDownloads <= 0)
         {
