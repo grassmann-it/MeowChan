@@ -2,6 +2,7 @@ using System.Net;
 using System.Threading.Channels;
 using oChan.Downloader;
 using oChan.Interfaces;
+using oChan.Persistence;
 
 namespace oChan.Tests;
 
@@ -521,6 +522,41 @@ public sealed class DownloadQueueTests
             Assert.True(manual.IsMediaDownloaded("manual"));
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task RestoredDiscoveryOriginStillYieldsToManualWork()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        SessionStore store = new SessionStore(directory.Path, lease);
+        string discoveredUrl = "https://stub.test/g/thread/1";
+        string manualUrl = "https://stub.test/g/thread/2";
+        await store.SaveAsync(new SessionSnapshot
+        {
+            ThreadUrls = [discoveredUrl, manualUrl], DiscoveredThreadUrls = [discoveredUrl],
+            DownloadDirectories = new Dictionary<string, string> { [discoveredUrl] = directory.Path, [manualUrl] = directory.Path }
+        });
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 2);
+        await using Registry registry = new Registry([board], queue, directory.Path, TimeSpan.FromSeconds(60), 60, store);
+        try
+        {
+            await registry.RestoreAsync();
+            IThread automatic = registry.Threads.Single(thread => thread.ThreadId == "1");
+            IThread manual = registry.Threads.Single(thread => thread.ThreadId == "2");
+            Assert.True(queue.TryEnqueue(CreateItem(board, automatic, directory, "active.bin", "active")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, automatic, directory, "board.bin", "board")));
+            Assert.True(queue.TryEnqueue(CreateItem(board, manual, directory, "manual.bin", "manual")));
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.Equal("manual.bin", Path.GetFileName(handler.StartedUris.Last().AbsolutePath));
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+        }
+        finally { await registry.StopAsync().WaitAsync(TestWait.Timeout); }
     }
 
     [Fact]
