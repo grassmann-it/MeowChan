@@ -539,6 +539,66 @@ public sealed class DownloadQueueTests
     }
 
     [Fact]
+    public async Task NewlyArrivingWatchesDoNotContinuallyOvertakeOlderWaitingWork()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 3);
+        IThread original = Thread(board, 1);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, original, directory, "start.bin", "start")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, original, directory, "older.bin", "older")));
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 2), directory, "new-a.bin", "new-a")));
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.Equal("new-a.bin", Path.GetFileName(handler.StartedUris.Last().AbsolutePath));
+            Assert.True(queue.TryEnqueue(CreateItem(board, Thread(board, 3), directory, "new-b.bin", "new-b")));
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.Equal("older.bin", Path.GetFileName(handler.StartedUris.Last().AbsolutePath));
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task PromotingAWatchReclassifiesItsExistingAdmissionWait()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth, maxPendingDownloads: 1);
+        IThread active = Thread(board, 1);
+        IThread older = Thread(board, 2);
+        IThread promoted = Thread(board, 3);
+        foreach (IThread thread in new[] { active, older, promoted }) queue.SetThreadPriority(thread, DownloadPriority.BoardDiscovery);
+        try
+        {
+            Assert.True(queue.TryEnqueue(CreateItem(board, active, directory, "active.bin", "active")));
+            await handler.WaitForStartsAsync(1);
+            Assert.True(queue.TryEnqueue(CreateItem(board, active, directory, "pending.bin", "pending")));
+            Task<bool> first = queue.EnqueueAsync(CreateItem(board, older, directory, "older.bin", "older"));
+            Task<bool> second = queue.EnqueueAsync(CreateItem(board, promoted, directory, "promoted.bin", "promoted"));
+            queue.SetThreadPriority(promoted, DownloadPriority.Manual);
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.True(await second.WaitAsync(TestWait.Timeout));
+            Assert.False(first.IsCompleted);
+            handler.Release(1);
+            await handler.WaitForStartsAsync(1);
+            Assert.Equal("promoted.bin", Path.GetFileName(handler.StartedUris.Last().AbsolutePath));
+            Assert.True(await first.WaitAsync(TestWait.Timeout));
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
     public async Task RestoredDiscoveryOriginStillYieldsToManualWork()
     {
         using TempDirectory directory = new TempDirectory();

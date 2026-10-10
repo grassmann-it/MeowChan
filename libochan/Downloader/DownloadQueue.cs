@@ -23,8 +23,7 @@ public class DownloadQueue
     private readonly object _stateLock = new object();
     private readonly LinkedList<QueuedDownload> _pendingDownloads = new LinkedList<QueuedDownload>();
     private readonly ConditionalWeakTable<IThread, PriorityState> _priorities = new ConditionalWeakTable<IThread, PriorityState>();
-    private readonly LinkedList<AdmissionWaiter> _manualWaiters = new LinkedList<AdmissionWaiter>();
-    private readonly LinkedList<AdmissionWaiter> _boardWaiters = new LinkedList<AdmissionWaiter>();
+    private readonly LinkedList<AdmissionWaiter> _admissionWaiters = new LinkedList<AdmissionWaiter>();
     private TaskCompletionSource _capacityChanged = CreateCompletionSource();
     private readonly int _maxPendingDownloads;
     private int _reservedSuccessors;
@@ -183,14 +182,18 @@ public class DownloadQueue
     {
         ArgumentNullException.ThrowIfNull(thread);
         if (!Enum.IsDefined(priority)) throw new ArgumentOutOfRangeException(nameof(priority));
-        lock (_stateLock) { _priorities.GetValue(thread, static _ => new PriorityState()).Priority = priority; }
+        lock (_stateLock)
+        {
+            _priorities.GetValue(thread, static _ => new PriorityState()).Priority = priority;
+            PulseCapacityLocked();
+        }
     }
 
     /// <summary>Pending includes reserved successors of active media revisions, never exceeding the configured cap.</summary>
     public (int Active, int Pending, int WaitingAdmission) GetCapacitySnapshot()
     {
         lock (_stateLock) return (_activeDownloads, _pendingDownloads.Count + _reservedSuccessors,
-            _manualWaiters.Count + _boardWaiters.Count);
+            _admissionWaiters.Count);
     }
 
     /// <summary>
@@ -213,13 +216,11 @@ public class DownloadQueue
     {
         PreparedDownload prepared = Prepare(item);
         AdmissionWaiter waiter;
-        LinkedList<AdmissionWaiter> waiters;
         LinkedListNode<AdmissionWaiter> node;
         lock (_stateLock)
         {
-            waiter = new AdmissionWaiter(item.Thread, GetPriorityLocked(item.Thread));
-            waiters = waiter.Priority == DownloadPriority.Manual ? _manualWaiters : _boardWaiters;
-            node = waiters.AddLast(waiter);
+            waiter = new AdmissionWaiter(item.Thread);
+            node = _admissionWaiters.AddLast(waiter);
             PulseCapacityLocked();
         }
         try
@@ -236,7 +237,7 @@ public class DownloadQueue
                         bool accepted = TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: true);
                         if (!full)
                         {
-                            _preferManualAdmission = waiter.Priority != DownloadPriority.Manual;
+                            _preferManualAdmission = GetPriorityLocked(waiter.Thread) != DownloadPriority.Manual;
                             return accepted;
                         }
                     }
@@ -247,7 +248,7 @@ public class DownloadQueue
         }
         finally
         {
-            lock (_stateLock) { waiters.Remove(node); PulseCapacityLocked(); }
+            lock (_stateLock) { _admissionWaiters.Remove(node); PulseCapacityLocked(); }
         }
     }
 
@@ -299,7 +300,7 @@ public class DownloadQueue
             else
             {
 
-                if ((!fromWaiter && (_manualWaiters.Count + _boardWaiters.Count > 0))
+                if ((!fromWaiter && (_admissionWaiters.Count > 0))
                     || (_activeDownloads >= _maxParallelDownloads && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
                 { full = true; return false; }
 
@@ -312,7 +313,9 @@ public class DownloadQueue
                 }
                 else
                 {
-                    threadState = new ThreadState(threadIdentity, item.Thread);
+                    // Join the current service round rather than starting at epoch zero: a stream
+                // of new watches must not continually overtake an older waiting watch.
+                threadState = new ThreadState(threadIdentity, item.Thread) { LastDispatch = _dispatchSequence - 1 };
                     _threads.Add(threadIdentity, threadState);
                 }
 
@@ -466,9 +469,13 @@ public class DownloadQueue
     private DownloadPriority GetPriorityLocked(IThread thread) =>
         _priorities.TryGetValue(thread, out PriorityState? state) ? state.Priority : DownloadPriority.Manual;
 
-    private AdmissionWaiter? NextWaiterLocked() => _preferManualAdmission
-        ? _manualWaiters.First?.Value ?? _boardWaiters.First?.Value
-        : _boardWaiters.First?.Value ?? _manualWaiters.First?.Value;
+    private AdmissionWaiter? NextWaiterLocked()
+    {
+        DownloadPriority preferred = _preferManualAdmission ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
+        foreach (AdmissionWaiter waiter in _admissionWaiters)
+            if (GetPriorityLocked(waiter.Thread) == preferred) return waiter;
+        return _admissionWaiters.First?.Value;
+    }
 
     private void PulseCapacityLocked()
     {
@@ -696,7 +703,7 @@ public class DownloadQueue
     }
 
     private sealed class PriorityState { public DownloadPriority Priority { get; set; } }
-    private sealed record AdmissionWaiter(IThread Thread, DownloadPriority Priority);
+    private sealed record AdmissionWaiter(IThread Thread);
     private readonly record struct PreparedDownload(ThreadIdentity Thread, JobIdentity Job);
 
     private readonly record struct ThreadIdentity(string Source, string Board, string ThreadId);
