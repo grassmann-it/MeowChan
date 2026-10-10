@@ -147,6 +147,8 @@ public partial class MainWindow : Window
     {
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
         bool navigationReady = ready && !WorkspaceCommandBusy;
+        UpdatePauseControls(navigationReady);
+
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
         if (_rulesPage != null) _rulesPage.IsAvailable = ready;
         if (_archivePage != null) _archivePage.IsAvailable = ready;
@@ -223,6 +225,7 @@ public partial class MainWindow : Window
         }
         RefreshWorkspace();
 
+        UpdatePauseControls(_restoreCompleted && !WorkspaceCommandBusy);
         RefreshDiagnosticPage(view);
         RefreshSourcesPage(view);
         HashSet<string> currentWarnings = new HashSet<string>(StringComparer.Ordinal);
@@ -899,6 +902,32 @@ public partial class MainWindow : Window
         if (_trayFolderItem != null) _trayFolderItem.Header = Texts.T("tray.folder");
         if (_clipboardMenuItem != null) _clipboardMenuItem.Header = Texts.T("tray.clipboard");
         if (_trayExitItem != null) _trayExitItem.Header = Texts.T("tray.exit");
+    }
+
+    private void UpdatePauseControls(bool enabled)
+    {
+        bool paused = _session.IsPaused;
+        MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
+        menu.IsEnabled = enabled;
+        menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
+        Button button = this.FindControl<Button>("PauseButton")!;
+        button.IsEnabled = enabled;
+        button.Content = Texts.T(paused ? "action.resumeShort" : "action.pauseShort");
+        button.Classes.Set("selected", paused);
+        ToolTip.SetTip(button, menu.Header);
+    }
+
+    private async void OnPauseClick(object? sender, RoutedEventArgs e)
+    {
+        if (!_restoreCompleted || WorkspaceCommandBusy) return;
+        _applyingPreferences = true;
+        UpdateInteractionState();
+        try { await _session.SetPausedAsync(!_session.IsPaused); }
+        catch (Exception exception)
+        {
+            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error);
+        }
+        finally { _applyingPreferences = false; UpdateInteractionState(); }
     }
 
     private async void OnAboutMenuItemClick(object? sender, RoutedEventArgs e)

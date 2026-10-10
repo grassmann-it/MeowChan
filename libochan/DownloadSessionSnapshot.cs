@@ -53,8 +53,14 @@ public sealed record BoardSnapshot(ResourceId Id, string Url, string Name, strin
 /// independent workers are not paused to create a global transaction. Warnings retain the latest 32 entries.
 /// </summary>
 public sealed record DownloadSessionSnapshot(IReadOnlyList<ThreadSnapshot> Threads,
-    IReadOnlyList<BoardSnapshot> Boards, bool IsStopping, IReadOnlyList<string> Warnings);
+    IReadOnlyList<BoardSnapshot> Boards, bool IsStopping, IReadOnlyList<string> Warnings)
+{
+    public bool IsPaused { get; init; }
+}
 
 /// <summary>Read-only membership capture retaining exact resource handles alongside defensive state copies.</summary>
 public sealed record RegistryView(IReadOnlyDictionary<IThread, ThreadSnapshot> Threads,
-    IReadOnlyDictionary<IBoard, BoardSnapshot> Boards, bool IsStopping, IReadOnlyList<string> Warnings);
+    IReadOnlyDictionary<IBoard, BoardSnapshot> Boards, bool IsStopping, IReadOnlyList<string> Warnings)
+{
+    public bool IsPaused { get; init; }
+}

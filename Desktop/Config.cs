@@ -22,6 +22,7 @@ namespace oChan
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
+        public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         public int MaxParallelDownloads { get; set; } = 5;
@@ -143,6 +144,7 @@ namespace oChan
                 DownloadPath = DownloadPath,
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
+                DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
@@ -167,6 +169,7 @@ namespace oChan
             DownloadPath = absoluteDownloadPath;
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
+            DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;

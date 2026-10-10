@@ -113,3 +113,8 @@ Discovered thread origins are saved as the optional schema-1 field
 priority. Explicitly admitting an already tracked thread URL promotes that watch
 to manual priority after committing the changed session intent, when persistence
 is enabled. Both classes still obey the same network policy.
+
+`Registry.IsPaused` and `SetPaused(bool)` expose the queue's session pause. Built-in
+thread/board automatic checks share the queue gate; ongoing requests/transfers
+finish. Pause does not remove/re-add watches or clear media decisions. Library
+clients choose their own persistence; the desktop persists pause in settings.

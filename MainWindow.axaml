@@ -15,6 +15,7 @@
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
+                    <Button x:Name="PauseButton" Classes="subtle" Content="Pause" Click="OnPauseClick" />
                     <Button x:Name="ThemeToggleButton" Classes="subtle" Content="Light" />
                 </StackPanel>
                 <Menu Grid.Column="3" VerticalAlignment="Center">
@@ -23,6 +24,7 @@
                         <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                         <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
                         <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
+                        <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                         <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                         <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
                         <Separator />

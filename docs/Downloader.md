@@ -49,3 +49,20 @@ bool admitted = await queue.EnqueueAsync(item, cancellationToken);
 The variables come from the provider's parsed response; the MD5 value is the provider's Base64 encoding, not hexadecimal. Keep source/board/thread/media identifiers stable, validate paths through the storage layout, and propagate cancellation while producing descriptors. Never mark a file complete merely because enqueue returned `true`.
 
 The [session documentation](Registry.md) describes cancellation and persistence ownership. The package consumer sample provides a runnable custom provider.
+
+## Pause and resume
+
+`DownloadQueue.SetPaused(true)` prevents new worker reservations. Already reserved
+transfers finish normally; pending admission remains bounded even when worker
+slots are free. Resume dispatches retained jobs with the existing fairness policy.
+`WaitUntilResumedAsync(token)` lets provider polling share the same gate and is
+cancellation aware. Built-in `BaseThread` and registry-owned `BaseBoard` polling
+use this gate before each check. An already running metadata check can finish.
+Independent third-party pollers must use this gate themselves; Registry cannot
+intercept requests inside an arbitrary provider implementation.
+
+The desktop offers Pause/Resume in its header and menu and atomically persists the
+state in settings. Paused startup applies before restoration starts any watches.
+Pause persistence is independent of saved URL lists. Removing watches and closing
+the application still work while paused. Failed settings writes leave the previous
+runtime pause state intact.

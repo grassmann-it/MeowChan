@@ -6,6 +6,8 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 ### What's new
 
+- **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
+
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
 - **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
 - **Downloads and Settings pages.** Both remain in the same shell, with navigation at the bottom. Switching pages retains URL input, selection, details, invalid settings drafts and running downloads. Save and Cancel stay on Settings; About remains in the application menu.
@@ -49,6 +51,8 @@ Sources is concretely planned but has no product page yet. Pause/resume, full-te
 This update rebuilds download and session handling for 4chan and 8kun and makes `libochan` usable independently of the desktop app.
 
 ### What's new
+
+- **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
 - **More reliable source checks.** Updated 8kun media URLs, canonical URL handling and conditional thread requests reduce broken or duplicate work. Archived or missing sources remain distinguishable from unfinished media downloads.
 - **Controlled HTTP requests.** Shared request pacing, bounded retries, server cooldowns and request/body deadlines handle rate limits and temporary failures. Stopping a watch cancels its requests and waits for cleanup.

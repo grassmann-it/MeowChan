@@ -15,6 +15,93 @@ public sealed class DesktopSessionHostTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PauseSurvivesRestartAndSettingsDraftWithoutRewritingWatchPersistence(bool saveUrls)
+    {
+        using TempDirectory directory = new TempDirectory();
+        Config settings = new Config { SaveUrlsOnExit = saveUrls };
+        settings.SaveConfig(directory.Path);
+        string sessionPath = Path.Combine(directory.Path, "session.json");
+        File.WriteAllText(sessionPath, "retained watch intent");
+        // Use an injected empty store: this test isolates preferences from watch restoration.
+        ControlledStore store = new ControlledStore();
+        DesktopSessionHost host = new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>(), (_, _) => store);
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            Config draft = host.Config.Clone();
+            await host.SetPausedAsync(true).WaitAsync(Timeout);
+            await host.ApplySettingsAsync(draft).WaitAsync(Timeout);
+            Assert.True(host.IsPaused);
+            Assert.True(Config.LoadConfig(directory.Path).DownloadsPaused);
+            Assert.Equal("retained watch intent", File.ReadAllText(sessionPath));
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+        DesktopSessionHost restarted = new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>(), (_, _) => new ControlledStore());
+        try
+        {
+            await restarted.StartAsync().WaitAsync(Timeout);
+            Assert.True(restarted.IsPaused);
+            await restarted.SetPausedAsync(false).WaitAsync(Timeout);
+            Assert.False(Config.LoadConfig(directory.Path).DownloadsPaused);
+        }
+        finally { await restarted.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    [Fact]
+    public async Task PausedStartupRestoresRealWatchesWithoutRequestsAndResumeKeepsTheirIdentity()
+    {
+        using TempDirectory directory = new TempDirectory();
+        new Config { DownloadsPaused = true, DownloadPath = Path.Combine(directory.Path, "media") }.SaveConfig(directory.Path);
+        FixtureTransport initialTransport = new FixtureTransport();
+        using HttpClient initialClient = new HttpClient(initialTransport);
+        DesktopSessionHost first = new DesktopSessionHost(directory.Path, new[] { new FourChanImageBoard(initialClient) });
+        try
+        {
+            await first.StartAsync().WaitAsync(Timeout);
+            await first.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Timeout);
+            await first.AddAsync("https://boards.4chan.org/g/").WaitAsync(Timeout);
+        }
+        finally { await first.DisposeAsync().AsTask().WaitAsync(Timeout); }
+        Assert.Equal(0, initialTransport.Requests);
+        FixtureTransport restoredTransport = new FixtureTransport();
+        using HttpClient restoredClient = new HttpClient(restoredTransport);
+        DesktopSessionHost restored = new DesktopSessionHost(directory.Path, new[] { new FourChanImageBoard(restoredClient) });
+        try
+        {
+            await restored.StartAsync().WaitAsync(Timeout);
+            Assert.True(restored.IsPaused);
+            DesktopSessionView before = restored.GetView();
+            long threadId = Assert.Single(before.Threads).WatchId;
+            long boardId = Assert.Single(before.Boards).WatchId;
+            Assert.Equal(0, restoredTransport.Requests);
+            await restored.SetPausedAsync(false).WaitAsync(Timeout);
+            await restoredTransport.FirstRequest.Task.WaitAsync(Timeout);
+            DesktopSessionView after = restored.GetView();
+            Assert.Contains(after.Threads, entry => entry.WatchId == threadId);
+            Assert.Contains(after.Boards, entry => entry.WatchId == boardId);
+        }
+        finally { await restored.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    [Fact]
+    public async Task FailedPauseWriteLeavesRuntimeRunning()
+    {
+        using TempDirectory directory = new TempDirectory();
+        DesktopSessionHost host = new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>());
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            Directory.CreateDirectory(Path.Combine(directory.Path, "settings.json"));
+            await Assert.ThrowsAnyAsync<Exception>(() => host.SetPausedAsync(true).WaitAsync(Timeout));
+            Assert.False(host.IsPaused);
+            Assert.False(host.Config.DownloadsPaused);
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
     [Fact]
     public async Task ProfileRemainsLockedThroughStopUntilNativeCleanupCanFinish()
     {
@@ -283,12 +370,17 @@ public sealed class DesktopSessionHostTests
     private sealed class FixtureTransport : HttpMessageHandler
     {
         private int _mediaRequests;
+        private int _requests;
+        public int Requests => Volatile.Read(ref _requests);
+        public TaskCompletionSource FirstRequest { get; } = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         public byte[]? MediaPayload { get; init; }
         public int MediaRequests => Volatile.Read(ref _mediaRequests);
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _requests);
+            FirstRequest.TrySetResult();
             string path = request.RequestUri!.AbsolutePath;
             if (MediaPayload is byte[] payload)
             {

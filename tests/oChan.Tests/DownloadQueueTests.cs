@@ -12,6 +12,54 @@ public sealed class DownloadQueueTests
     private static readonly byte[] Payload = [1, 3, 5, 7, 9];
 
     [Fact]
+    public async Task PauseFinishesActiveTransferAndBoundsPendingAdmissionUntilResume()
+    {
+        using TempDirectory directory = new TempDirectory();
+        GatedMediaHandler handler = new GatedMediaHandler();
+        using StubImageBoard board = new StubImageBoard(handler);
+        DownloadQueue queue = new DownloadQueue(3, UnthrottledBandwidth, maxPendingDownloads: 1);
+        DownloadItem first = CreateItem(board, Thread(board, 1), directory, "1/media.bin", "one");
+        DownloadItem second = CreateItem(board, Thread(board, 2), directory, "2/media.bin", "two");
+        DownloadItem third = CreateItem(board, Thread(board, 3), directory, "3/media.bin", "three");
+        try
+        {
+            Assert.True(queue.TryEnqueue(first));
+            await handler.WaitForStartsAsync(1);
+            queue.SetPaused(true);
+            Assert.True(queue.TryEnqueue(second));
+            Assert.False(queue.TryEnqueue(third));
+            Task<bool> admission = queue.EnqueueAsync(third);
+            Assert.False(admission.IsCompleted);
+            handler.Release(1);
+            await TestWait.UntilAsync(() => first.Thread.IsMediaDownloaded(first.MediaIdentifier));
+            Assert.Equal(1, handler.RequestCount);
+            Assert.Equal(1, queue.GetCapacitySnapshot().Pending);
+            Assert.False(admission.IsCompleted);
+            queue.SetPaused(false);
+            Assert.True(await admission.WaitAsync(TestWait.Timeout));
+            await handler.WaitForStartsAsync(2);
+            handler.Release(2);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(3, handler.RequestCount);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task PauseGateIsCancellationAwareAndStopReleasesWaiters()
+    {
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth);
+        queue.SetPaused(true);
+        using CancellationTokenSource cancellation = new CancellationTokenSource();
+        Task cancelled = queue.WaitUntilResumedAsync(cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+        Task stopped = queue.WaitUntilResumedAsync();
+        await queue.StopAllAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stopped.WaitAsync(TestWait.Timeout));
+    }
+
+    [Fact]
     public async Task OriginalConstructorMetadataRemainsCompatibleAndUsesBoundedDefaults()
     {
         System.Reflection.ConstructorInfo? constructor = typeof(DownloadQueue).GetConstructor(new[]

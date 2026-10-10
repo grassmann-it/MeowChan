@@ -74,7 +74,7 @@ public sealed class Registry : IAsyncDisposable
     {
         RegistryView view = GetView();
         return new DownloadSessionSnapshot(Array.AsReadOnly(view.Threads.Values.ToArray()),
-            Array.AsReadOnly(view.Boards.Values.ToArray()), view.IsStopping, view.Warnings);
+            Array.AsReadOnly(view.Boards.Values.ToArray()), view.IsStopping, view.Warnings) { IsPaused = view.IsPaused };
     }
 
     /// <summary>Captures exact resource handles with their copied state, for in-process views and removal commands.</summary>
@@ -101,7 +101,7 @@ public sealed class Registry : IAsyncDisposable
             boardSnapshots.Add(watch.Board, watch.Board.GetSnapshot(directory));
         }
         return new RegistryView(new ReadOnlyDictionary<IThread, ThreadSnapshot>(threadSnapshots),
-            new ReadOnlyDictionary<IBoard, BoardSnapshot>(boardSnapshots), stopping, Array.AsReadOnly(warnings));
+            new ReadOnlyDictionary<IBoard, BoardSnapshot>(boardSnapshots), stopping, Array.AsReadOnly(warnings)) { IsPaused = _queue.IsPaused };
     }
 
     /// <summary>Passive registry descriptions; does not resolve URLs, make requests or create watches.</summary>
@@ -152,6 +152,9 @@ public sealed class Registry : IAsyncDisposable
         _persistSession = persistSession;
         _restoreRequired = sessionStore != null && persistSession;
     }
+
+    public bool IsPaused => _queue.IsPaused;
+    public void SetPaused(bool paused) => _queue.SetPaused(paused);
 
     public string GetDownloadDirectory(IBoard board)
     {
@@ -380,6 +383,7 @@ public sealed class Registry : IAsyncDisposable
                     new ValueTask(AdmitDiscoveryAsync(watch, thread, token)));
                 watch.StateHandler = (_, _) => SignalChanged();
                 resource.Board.PropertyChanged += watch.StateHandler;
+                if (resource.Board is BaseBoard baseBoard) baseBoard.AttachSessionQueue(_queue);
                 resource.Board.StartMonitoring((int)_boardInterval.TotalSeconds);
                 resource.Board.UpdateMonitoringInterval(_boardInterval);
             }

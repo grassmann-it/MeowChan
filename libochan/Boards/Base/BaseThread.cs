@@ -287,6 +287,7 @@ public abstract class BaseThread : IThread
             {
                 try
                 {
+                    await queue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
                     await checkThreadAsync(queue, cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
                 }

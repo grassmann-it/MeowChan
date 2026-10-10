@@ -74,6 +74,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             Config = global::oChan.Config.LoadConfig(_profileLease.ProfileDirectory);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
+            queue.SetPaused(Config.DownloadsPaused);
             IImageBoard[] sources = providers?.ToArray() ?? new IImageBoard[]
             {
                 new FourChanImageBoard(logger: _logger), new EightKunImageBoard(logger: _logger)
@@ -261,6 +262,8 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         try
         {
             EnsureReady();
+            // Settings drafts must not overwrite the separately controlled live pause state.
+            candidate.DownloadsPaused = Config.DownloadsPaused;
             SessionOptions options = new SessionOptions
             {
                 DownloadPath = candidate.DownloadPath,
@@ -270,6 +273,24 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             };
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
+            Config.CopyFrom(candidate);
+        }
+        finally { _commands.Release(); }
+        SignalChanged();
+    }
+
+    public bool IsPaused => _registry.IsPaused;
+
+    public async Task SetPausedAsync(bool paused)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            Config candidate = Config.Clone();
+            candidate.DownloadsPaused = paused;
+            candidate.SaveConfig(_profileLease.ProfileDirectory);
+            _registry.SetPaused(paused);
             Config.CopyFrom(candidate);
         }
         finally { _commands.Release(); }

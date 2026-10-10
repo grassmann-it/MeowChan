@@ -23,6 +23,8 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged
     private RequestPolicyProgress? _requestProgress;
     private CancellationTokenSource? _monitoringCancellation;
     private Task? _monitoringTask;
+    private DownloadQueue? _sessionQueue;
+    internal void AttachSessionQueue(DownloadQueue queue) => _sessionQueue = queue;
     private TimeSpan _monitoringInterval = TimeSpan.FromSeconds(60);
 
     public abstract IImageBoard ImageBoard { get; }
@@ -142,6 +144,7 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged
             {
                 try
                 {
+                    if (_sessionQueue != null) await _sessionQueue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
                     await CheckForNewThreadsAsync(cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
                 }

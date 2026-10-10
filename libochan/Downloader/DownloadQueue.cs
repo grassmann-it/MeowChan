@@ -44,6 +44,8 @@ public class DownloadQueue
     private int _maxParallelDownloads;
     private int _activeDownloads;
     private bool _stopping;
+    private bool _paused;
+    private TaskCompletionSource _resumed = CreateCompletedSource();
 
     /// <summary>Coalesced asynchronous invalidation; read a fresh snapshot when notified.</summary>
     public event Action? StateChanged
@@ -60,6 +62,42 @@ public class DownloadQueue
             {
                 return _maxParallelDownloads;
             }
+        }
+    }
+
+    /// <summary>Pauses new worker reservations; transfers already reserved may finish.</summary>
+    public bool IsPaused { get { lock (_stateLock) { return _paused; } } }
+
+    public void SetPaused(bool paused)
+    {
+        List<QueuedDownload> ready;
+        lock (_stateLock)
+        {
+            if (_stopping) throw new InvalidOperationException("The queue is stopping.");
+            if (_paused == paused) return;
+            _paused = paused;
+            if (paused) _resumed = CreateCompletionSource();
+            else _resumed.TrySetResult();
+            ready = ReserveWorkersLocked();
+        }
+        StartWorkers(ready);
+        _changes.Signal();
+    }
+
+    /// <summary>Shared gate for automatic provider checks. Cancellation still ends a paused watch.</summary>
+    public async Task WaitUntilResumedAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        while (true)
+        {
+            Task resumed;
+            lock (_stateLock)
+            {
+                if (_stopping) throw new OperationCanceledException("The queue is stopping.", cancellationToken);
+                if (!_paused) return;
+                resumed = _resumed.Task;
+            }
+            await resumed.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -301,7 +339,7 @@ public class DownloadQueue
             {
 
                 if ((!fromWaiter && (_admissionWaiters.Count > 0))
-                    || (_activeDownloads >= _maxParallelDownloads && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
+                    || ((_paused || _activeDownloads >= _maxParallelDownloads) && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
                 { full = true; return false; }
 
                 if (_threads.TryGetValue(threadIdentity, out ThreadState? threadState))
@@ -412,6 +450,7 @@ public class DownloadQueue
             }
 
             _stopping = true;
+            _resumed.TrySetResult();
             stopCompletion = CreateCompletionSource();
             _stopCompletion = stopCompletion;
             threads = new List<ThreadState>(_threads.Values);
@@ -487,7 +526,7 @@ public class DownloadQueue
     private List<QueuedDownload> ReserveWorkersLocked()
     {
         List<QueuedDownload> ready = new List<QueuedDownload>();
-        while (!_stopping && _activeDownloads < _maxParallelDownloads && _pendingDownloads.Count > 0)
+        while (!_stopping && !_paused && _activeDownloads < _maxParallelDownloads && _pendingDownloads.Count > 0)
         {
             DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
             LinkedListNode<QueuedDownload>? chosen = null;

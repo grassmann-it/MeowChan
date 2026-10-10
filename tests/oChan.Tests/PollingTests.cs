@@ -6,6 +6,49 @@ namespace oChan.Tests;
 public sealed class PollingTests
 {
     [Fact]
+    public async Task RegistryPausesBoardDiscoveryAndResumeUsesTheExistingWatch()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        await using Registry registry = new Registry(new[] { provider }, queue, directory.Path, TimeSpan.FromSeconds(60), 60);
+        registry.SetPaused(true);
+        Assert.True(registry.GetSnapshot().IsPaused);
+        Assert.True(registry.GetView().IsPaused);
+        await registry.AddAsync(provider.Board.BoardUri.AbsoluteUri);
+        Assert.Equal(0, provider.Board.Checks);
+        registry.SetPaused(false);
+        await TestWait.UntilAsync(() => provider.Board.Clock.Waits == 1);
+        Assert.Equal(1, provider.Board.Checks);
+        registry.SetPaused(true);
+        provider.Board.Clock.Advance();
+        await registry.RemoveBoardAsync(provider.Board).WaitAsync(TestWait.Timeout);
+        Assert.Equal(1, provider.Board.Checks);
+    }
+
+    [Fact]
+    public async Task PausedThreadDoesNotStartInitialCheckAndCanStopWithoutResume()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        queue.SetPaused(true);
+        ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+        await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+        Assert.Equal(0, thread.Checks);
+        thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+        queue.SetPaused(false);
+        await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+        Assert.Equal(1, thread.Checks);
+        queue.SetPaused(true);
+        thread.Clock.Advance();
+        await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+        Assert.Equal(1, thread.Checks);
+        await queue.StopAllAsync();
+    }
+
+    [Fact]
     public async Task ThreadIntervalChangeAppliesToTheNextWaitWithoutStartingAnotherCheck()
     {
         using TempDirectory directory = new();

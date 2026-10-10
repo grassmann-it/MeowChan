@@ -10,6 +10,11 @@ internal static class BuiltInCatalog
     // Keeping both built-ins on each line makes missing translations visible during review.
     private static readonly (string Key, string English, string German)[] Entries =
     {
+        ("shell.paused", "Paused · active transfers may finish", "Pausiert · laufende Transfers dürfen fertig werden"),
+        ("action.pauseShort", "Pause", "Pause"),
+        ("action.resumeShort", "Resume", "Fortsetzen"),
+        ("action.pause", "Pause downloads and checks", "Downloads und Prüfungen pausieren"),
+        ("action.resume", "Resume downloads and checks", "Downloads und Prüfungen fortsetzen"),
         ("nav.downloads", "Downloads", "Downloads"),
         ("nav.diagnostics", "Diagnostics", "Diagnose"),
         ("nav.tools", "Tools", "Werkzeuge"),

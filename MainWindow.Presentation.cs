@@ -242,7 +242,7 @@ public partial class MainWindow
         WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(WorkspaceControl<Border>("WorkspaceInspector").IsVisible ? "action.hideDetails" : "action.showDetails");
         string stateKey = _isClosing ? "shell.stopping" : _importing ? "shell.importing" : _session.State switch
         {
-            DesktopSessionState.Ready => "shell.ready",
+            DesktopSessionState.Ready => _session.IsPaused ? "shell.paused" : "shell.ready",
             DesktopSessionState.RecoveryFailed => "shell.recoveryFailed",
             DesktopSessionState.Stopping or DesktopSessionState.Stopped => "shell.stopping",
             _ => "shell.starting"
