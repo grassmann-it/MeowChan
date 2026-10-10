@@ -106,8 +106,21 @@ internal static class DownloadSessionChecks
                 && initial.FindControl<SelectableTextBlock>("InspectorDirectory")!.Text == retained.DownloadDirectory);
             Program.CaptureWindow(initial, "smoke-download-in-flight.png");
 
+            SettingsEditor settings = initial.SettingsEditor;
+            Click(initial.FindControl<Button>("SettingsNavigationButton")!);
+            await Program.WaitUntilAsync(() => settings.IsEffectivelyVisible && settings.Bounds.Width > 0);
+            string settingsDraft = Path.Combine(profile, "retained-settings-draft");
+            settings.DownloadPath = settingsDraft;
+            Require(retained.Active == 1 && retained.CompletedMedia == 0 && app.Transport.MediaRequests == 1,
+                "Navigating to Settings changed the in-flight download.");
             app.Transport.AllowMedia();
             await Program.WaitUntilAsync(() => retained.CompletedMedia == 1 && retained.Active == 0 && retained.Queued == 0);
+            Require(initial.SettingsPageVisible && settings.DownloadPath == settingsDraft,
+                "A background download discarded the settings page or its draft.");
+            Click(initial.FindControl<Button>("DownloadsNavigationButton")!);
+            Require(!initial.SettingsPageVisible && ReferenceEquals(initial.SettingsEditor, settings)
+                && inspector.IsVisible && ReferenceEquals(grid.SelectedItem, retained),
+                "Returning to Downloads reconstructed controls or lost the inspector/selection.");
             Require(!wrongThread && ReferenceEquals(initial.UrlList.Single(), retained)
                 && ReferenceEquals(grid.SelectedItem, retained) && input.Text == draft,
                 "Real download updates crossed the UI thread or replaced selection/input.");
@@ -117,7 +130,7 @@ internal static class DownloadSessionChecks
             string assignedDirectory = retained.DownloadDirectory;
             await Program.WaitUntilAsync(() => initial.FindControl<SelectableTextBlock>("InspectorProgress")!.Text == retained.Progress);
             Program.CaptureWindow(initial, "smoke-download-saved.png");
-            Console.WriteLine("SMOKE download session: native Add/alias, real provider/queue/storage, in-flight preferences, dispatcher updates and verified saved file passed.");
+            Console.WriteLine("SMOKE download session: native Add/alias, real provider/queue/storage, retained page drafts during background download, in-flight preferences, dispatcher updates and verified saved file passed.");
 
             await CloseNormallyAsync(initial);
             using (ProfileLease lease = ProfileLease.Acquire(profile))

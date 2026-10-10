@@ -50,7 +50,7 @@ namespace oChan
             set
             {
                 SetField(ref _isAvailable, value, nameof(IsAvailable));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
+                if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
             }
         }
         public bool IsEditable => IsAvailable && !IsBusy;
@@ -80,6 +80,9 @@ namespace oChan
             CompactDensity = config.CompactDensity;
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
+            ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
+            ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
+            ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
             Texts.Changed += OnLanguageChanged;
         }
 
@@ -404,7 +407,8 @@ namespace oChan
             StatusMessage = null;
             try
             {
-                if (DataValidationErrors.GetHasErrors(RecheckTimerInput) ||
+                if (HasInvalidText(RecheckTimerInput) || HasInvalidText(BandwidthInput) || HasInvalidText(ParallelDownloadsInput) ||
+                    DataValidationErrors.GetHasErrors(RecheckTimerInput) ||
                     DataValidationErrors.GetHasErrors(BandwidthInput) ||
                     DataValidationErrors.GetHasErrors(ParallelDownloadsInput))
                 {
@@ -467,6 +471,8 @@ namespace oChan
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
         }
+
+        private static bool HasInvalidText(NumericUpDown input) => !decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out _);
 
         private static int GetPositiveInteger(decimal? value, string label)
         {

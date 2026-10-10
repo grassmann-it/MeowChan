@@ -62,6 +62,8 @@
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="36" /></Style>
     <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="32" /><Setter Property="FontSize" Value="13" /></Style>
     <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="12" /></Style>
     <Style Selector="DataGrid">

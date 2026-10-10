@@ -367,14 +367,14 @@ internal static class SettingsChecks
         }
     }
 
-    private sealed class FixtureStorageProviderFactory : IStorageProviderFactory
+    internal sealed class FixtureStorageProviderFactory : IStorageProviderFactory
     {
         private readonly IStorageProvider _provider;
         public FixtureStorageProviderFactory(IStorageProvider provider) => _provider = provider;
         public IStorageProvider CreateProvider(TopLevel topLevel) => _provider;
     }
 
-    private sealed class FixtureStorageProvider : IStorageProvider
+    internal sealed class FixtureStorageProvider : IStorageProvider
     {
         public bool CanOpen => false;
         public bool CanSave => false;
@@ -397,7 +397,7 @@ internal static class SettingsChecks
         public Task<IStorageFolder?> TryGetWellKnownFolderAsync(WellKnownFolder wellKnownFolder) => throw new NotSupportedException();
     }
 
-    private sealed class FixtureStorageFolder : IStorageFolder
+    internal sealed class FixtureStorageFolder : IStorageFolder
     {
         public FixtureStorageFolder(Uri path) => Path = path;
         public string Name => "Fixture folder";

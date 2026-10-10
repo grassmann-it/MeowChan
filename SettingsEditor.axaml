@@ -16,7 +16,10 @@
                     <TextBlock Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,6" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                            <TextBlock Text="{Binding WorkspaceModeLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
+                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                                <TextBlock Text="{Binding WorkspaceModeLabel}" FontWeight="Medium" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ModeHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
                             <ComboBox x:Name="WorkspaceModeInput" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding WorkspaceChoices}" SelectedItem="{Binding SelectedWorkspaceMode, Mode=TwoWay}">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>

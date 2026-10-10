@@ -98,6 +98,7 @@ public partial class MainWindow : Window
                 Position = NotificationPosition.TopRight,
                 MaxItems = 3
             };
+            InitializeWorkspacePages();
             InitializeWorkspace();
             WireWorkspaceCommands();
             Texts.Changed += OnLanguageChanged;
@@ -111,6 +112,7 @@ public partial class MainWindow : Window
             Texts.Changed -= OnLanguageChanged;
             _session.StateChanged -= OnSessionChanged;
             DisposeWorkspace();
+            DisposeWorkspacePages();
             _sessionRefresh?.Dispose();
             DisposeTrayIcon();
             _session.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -143,15 +145,19 @@ public partial class MainWindow : Window
     private void UpdateInteractionState()
     {
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
+        bool navigationReady = ready && !(_settingsEditor?.IsBusy ?? false);
+        if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
         this.FindControl<Button>("AddUrlButton")!.IsEnabled = ready && !_importing;
         this.FindControl<TextBox>("UrlInput")!.IsEnabled = ready;
-        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = ready;
+        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = navigationReady;
         if (_clipboardMenuItem != null)
         {
-            _clipboardMenuItem.IsEnabled = ready && !_importing;
+            _clipboardMenuItem.IsEnabled = navigationReady && !_importing;
         }
-        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = ready;
-        this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = ready;
+        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = navigationReady;
         RefreshWorkspace();
     }
 
@@ -371,7 +377,7 @@ public partial class MainWindow : Window
         if (e.KeyModifiers == pasteModifier && e.Key == Key.L)
         {
             e.Handled = true;
-            urlInput.Focus();
+            if (NavigateWorkspace(false)) urlInput.Focus();
             return;
         }
         if (e.KeyModifiers == pasteModifier && e.Key == Key.V && e.Source is not TextBox &&
@@ -384,11 +390,12 @@ public partial class MainWindow : Window
 
     private async Task ImportClipboardAsync()
     {
-        if (!_restoreCompleted || _isClosing || _importing)
+        if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false))
         {
             return;
         }
 
+        NavigateWorkspace(false);
         _importing = true;
         UpdateInteractionState();
         try
@@ -589,6 +596,7 @@ public partial class MainWindow : Window
 
         _isClosing = true;
         _shutdownRunning = true;
+        _settingsEditor?.EndLifetime();
         UpdateInteractionState();
         Log.Information("Application shutdown started.");
         try
@@ -637,7 +645,6 @@ public partial class MainWindow : Window
             _allowClose = true;
             Close();
             Log.Information("Application shutdown window close returned; visible {IsVisible}.", IsVisible);
-            Log.CloseAndFlush();
         }
         catch (Exception exception)
         {
@@ -749,14 +756,7 @@ public partial class MainWindow : Window
     private void OnThreadDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
     private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
 
-    private async void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (_restoreCompleted && !_isClosing)
-        {
-            SettingsWindow settingsWindow = new SettingsWindow(_config, ApplySettingsAsync);
-            await settingsWindow.ShowDialog(this);
-        }
-    }
+    private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(true);
 
     private async Task ApplySettingsAsync(Config candidate)
     {
@@ -791,7 +791,12 @@ public partial class MainWindow : Window
     {
         this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectionChanged += async (sender, e) =>
         {
-            if (_updatingWorkspacePreferences || !_restoreCompleted || _isClosing || _applyingPreferences) return;
+            if (_updatingWorkspacePreferences) return;
+            if (!_restoreCompleted || _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false))
+            {
+                ApplyWorkspacePreferences();
+                return;
+            }
             if (this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem is ComboBoxItem item && item.Tag is string mode && mode != _config.WorkspaceMode)
             {
                 Config candidate = _config.Clone();
@@ -801,7 +806,7 @@ public partial class MainWindow : Window
         };
         this.FindControl<Button>("ThemeToggleButton")!.Click += async (sender, e) =>
         {
-            if (!_restoreCompleted || _isClosing || _applyingPreferences) return;
+            if (!_restoreCompleted || _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false)) return;
             Config candidate = _config.Clone();
             candidate.Theme = _config.Theme == "Dark" ? "Light" : "Dark";
             await SaveAppearanceAsync(candidate);
@@ -818,7 +823,13 @@ public partial class MainWindow : Window
 
     private async Task SaveAppearanceAsync(Config candidate)
     {
-        try { await ApplySettingsAsync(candidate); }
+        bool themeChanged = candidate.Theme != _config.Theme;
+        bool modeChanged = candidate.WorkspaceMode != _config.WorkspaceMode;
+        try
+        {
+            await ApplySettingsAsync(candidate);
+            _settingsEditor?.RefreshConfirmedAppearance(themeChanged, modeChanged);
+        }
         catch (Exception exception)
         {
             Log.Error(exception, "Could not save display preferences.");

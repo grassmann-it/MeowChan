@@ -130,7 +130,7 @@ internal static class BuiltInCatalog
         ("settings.pickerLocalOnly", "Choose a folder on the local file system.", "Einen Ordner im lokalen Dateisystem auswählen."),
         ("settings.pickerFailed", "Could not open the folder picker: {0}", "Die Ordnerauswahl konnte nicht geöffnet werden: {0}"),
         ("settings.pickerTitle", "Select Download Folder", "Downloadordner auswählen"),
-        ("settings.invalidNumbers", "Check the highlighted settings for invalid numbers.", "Die markierten Einstellungen auf ungültige Zahlen prüfen."),
+        ("settings.invalidNumbers", "Enter valid numbers for the timer, bandwidth and parallel downloads.", "Gültige Zahlen für Prüfintervall, Bandbreite und parallele Downloads eingeben."),
         ("settings.bandwidthPositive", "Bandwidth limit must be greater than zero.", "Das Bandbreitenlimit muss größer als null sein."),
         ("settings.positiveInteger", "{0} must be a positive whole number.", "{0} muss eine positive ganze Zahl sein."),
         ("settings.saveFailed", "Could not save and apply settings: {0}", "Einstellungen konnten nicht gespeichert und übernommen werden: {0}"),

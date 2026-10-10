@@ -279,6 +279,7 @@ internal static class Program
             mainWindow.UrlList.Remove(threadRow);
             mainWindow.BoardsList.Remove(boardRow);
             await GridChecks.RunAsync(mainWindow);
+            await SettingsPageChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);
             Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");
             foreach (Window ownedWindow in mainWindow.OwnedWindows)

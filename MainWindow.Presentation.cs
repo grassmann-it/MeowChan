@@ -52,6 +52,7 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
+        DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
         UrlList.CollectionChanged -= OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged -= OnWorkspaceCollectionChanged;
@@ -68,7 +69,7 @@ public partial class MainWindow
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
+        if (_settingsPageSelected || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
         OnDetailsToggleClick(sender, e);
         WorkspaceControl<DataGrid>(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
             ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
@@ -232,7 +233,7 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = UrlList.Count == 0;
         WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = BoardsList.Count == 0;
         WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
-        WorkspaceControl<Button>("AboutNavigationButton").IsEnabled = !_isClosing;
+        WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
         WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(WorkspaceControl<Border>("WorkspaceInspector").IsVisible ? "action.hideDetails" : "action.showDetails");
         string stateKey = _isClosing ? "shell.stopping" : _importing ? "shell.importing" : _session.State switch
@@ -335,9 +336,9 @@ public partial class MainWindow
             bool reducedChrome = barebones || shortWindow;
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !reducedChrome;
             WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
-            // The same mode selector remains available at the right edge of the footer
-            // even when a small window omits the larger navigation buttons.
-            WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = !reducedChrome;
+            // Both pages and the mode selector remain reachable in compact windows.
+            WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = true;
+            WorkspaceControl<Border>("WorkspaceNavigation").Padding = new Thickness(12, reducedChrome ? 2 : 5);
             WorkspaceControl<Grid>("WorkspaceRoot").RowDefinitions[3].Height = new GridLength(reducedChrome ? 40 : 52);
             WorkspaceControl<Grid>("WorkspaceBody").RowSpacing = reducedChrome ? 8 : 10;
             WorkspaceControl<Grid>("WorkspaceBody").Margin = barebones ? new Thickness(12)
@@ -388,9 +389,11 @@ public partial class MainWindow
     private void OnOpenWorkspaceDetailsClick(object? sender, RoutedEventArgs e) => OpenWorkspaceDetails();
     private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
-    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => WorkspaceControl<TextBox>("UrlInput").Focus();
+    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e)
+    {
+        if (NavigateWorkspace(false)) WorkspaceControl<TextBox>("UrlInput").Focus();
+    }
     private void OnSettingsNavigationClick(object? sender, RoutedEventArgs e) => OnSettingsMenuItemClick(sender, e);
-    private void OnAboutNavigationClick(object? sender, RoutedEventArgs e) => OnAboutMenuItemClick(sender, e);
 
     private void OnInspectorOpenFolderClick(object? sender, RoutedEventArgs e)
     {

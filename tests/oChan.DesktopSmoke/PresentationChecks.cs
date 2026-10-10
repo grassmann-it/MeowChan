@@ -268,12 +268,14 @@ internal static class PresentationChecks
     private static async Task ChangeLanguageAsync(MainWindow window, string code)
     {
         window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<SettingsWindow>().Any(item => item.IsVisible));
-        SettingsWindow settings = window.OwnedWindows.OfType<SettingsWindow>().Single(item => item.IsVisible);
-        settings.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = settings.Editor.LanguageChoices.Single(choice => choice.Code == code);
-        Click(settings.Editor.FindControl<Button>("SaveSettingsButton")!);
-        await Program.WaitUntilAsync(() => !settings.IsVisible && Config.LoadConfig().Language == code
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+        SettingsEditor settings = window.SettingsEditor;
+        settings.FindControl<ComboBox>("LanguageInput")!.SelectedItem = settings.LanguageChoices.Single(choice => choice.Code == code);
+        Click(settings.FindControl<Button>("SaveSettingsButton")!);
+        await Program.WaitUntilAsync(() => !settings.IsBusy && Config.LoadConfig().Language == code
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
+        window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
     }
 
     private static string? Mode(ComboBox modes) => (modes.SelectedItem as ComboBoxItem)?.Tag as string;
