@@ -89,7 +89,7 @@ internal static class ComparisonCaptures
                 new PixelSize((int)Math.Ceiling(menu.Bounds.Width * scale), (int)Math.Ceiling(menu.Bounds.Height * scale)),
                 new Vector(96 * scale, 96 * scale));
             screenshot.Render(menu);
-            screenshot.Save(Path.Combine(AppContext.BaseDirectory, fileName));
+            screenshot.Save(Path.Combine(AppContext.BaseDirectory, fileName), PngBitmapEncoderOptions.Default);
             Console.WriteLine("SMOKE context menu render: " + fileName + "; icon color=" + expected + "; scale=" + scale);
         }
         finally
@@ -119,6 +119,13 @@ internal static class ComparisonCaptures
         });
         if (!window.UrlList.SequenceEqual(rows) || !ReferenceEquals(grid.SelectedItem, rows[0]))
             throw new InvalidOperationException("Changing the comparison view replaced its passive rows or selection.");
+        DataGridRow selected = grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, rows[0]));
+        Border background = selected.GetVisualDescendants().OfType<Border>()
+            .First(border => border.Name == "border" && ReferenceEquals(border.TemplatedParent, selected));
+        Color expectedSelection = Application.Current?.RequestedThemeVariant == ThemeVariant.Dark
+            ? Color.Parse("#25344A") : Color.Parse("#E0EBFC");
+        if (background.Background is not ISolidColorBrush selection || selection.Color != expectedSelection)
+            throw new InvalidOperationException("The row template overrode the workspace's selection color.");
         Console.WriteLine("SMOKE comparison capture: " + fileName + "; bounds=" + window.Bounds
             + "; rows=" + rows.Length + "; scale=" + window.RenderScaling + ";");
         Program.CaptureWindow(window, fileName);

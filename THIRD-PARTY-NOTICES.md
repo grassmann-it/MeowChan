@@ -15,7 +15,7 @@ preserved in full and can describe components beyond the subset used here.
 
 ## Actipro redistribution terms
 
-The exact `25.2.3` NuSpec descriptions designate both
+The exact `26.2.0` NuSpec descriptions designate both
 `ActiproSoftware.Controls.Avalonia` and
 `ActiproSoftware.Controls.Avalonia.Themes.DataGrid` as free products. Their
 included EULA's **FREE VS. PAID** clause automatically authorizes licensees of
@@ -23,7 +23,7 @@ products designated free without a purchase. These packages remain proprietary
 software governed by the Actipro EULA; “free” describes the price and product
 designation, not an open-source license.
 
-The [version 25.2 deployment documentation](https://www.actiprosoftware.com/docs/controls/avalonia/deployment?v=25.2)
+The [version 26.2 deployment documentation](https://www.actiprosoftware.com/docs/controls/avalonia/deployment?v=26.2)
 expressly lists `ActiproSoftware.Avalonia.Core.dll`,
 `ActiproSoftware.Avalonia.Shared.dll` and
 `ActiproSoftware.Avalonia.Themes.Native.DataGrid.dll` as redistributable for free.
@@ -57,24 +57,26 @@ versioned NuGet archives, rather than a general assumption about Actipro product
 
 | Package | Version | License information | Package attribution |
 | --- | --- | --- | --- |
-| [ActiproSoftware.Controls.Avalonia](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia/25.2.3) | 25.2.3 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC.  All rights reserved. |
-| [ActiproSoftware.Controls.Avalonia.Themes.DataGrid](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia.Themes.DataGrid/25.2.3) | 25.2.3 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC.  All rights reserved. |
-| [Avalonia](https://www.nuget.org/packages/Avalonia/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Angle.Windows.Natives](https://www.nuget.org/packages/Avalonia.Angle.Windows.Natives/2.1.25547.20250602) | 2.1.25547.20250602 | BSD; bundled LICENSE | Copyright 2013-2025 © The AvaloniaUI Project |
-| [Avalonia.Controls.DataGrid](https://www.nuget.org/packages/Avalonia.Controls.DataGrid/11.3.13) | 11.3.13 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Desktop](https://www.nuget.org/packages/Avalonia.Desktop/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Fonts.Inter](https://www.nuget.org/packages/Avalonia.Fonts.Inter/11.3.22) | 11.3.22 | MIT wrapper; SIL OFL 1.1 fonts | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.FreeDesktop](https://www.nuget.org/packages/Avalonia.FreeDesktop/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Native](https://www.nuget.org/packages/Avalonia.Native/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Remote.Protocol](https://www.nuget.org/packages/Avalonia.Remote.Protocol/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Skia](https://www.nuget.org/packages/Avalonia.Skia/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.Win32](https://www.nuget.org/packages/Avalonia.Win32/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [Avalonia.X11](https://www.nuget.org/packages/Avalonia.X11/11.3.22) | 11.3.22 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
-| [HarfBuzzSharp](https://www.nuget.org/packages/HarfBuzzSharp/8.3.1.1) | 8.3.1.1 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [HarfBuzzSharp.NativeAssets.Linux](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Linux/8.3.1.1) | 8.3.1.1 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [HarfBuzzSharp.NativeAssets.macOS](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.macOS/8.3.1.1) | 8.3.1.1 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [HarfBuzzSharp.NativeAssets.Win32](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Win32/8.3.1.1) | 8.3.1.1 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [MicroCom.Runtime](https://www.nuget.org/packages/MicroCom.Runtime/0.11.0) | 0.11.0 | MIT | Copyright 2021 © Nikita Tsukanov |
+| [ActiproSoftware.Controls.Avalonia](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia/26.2.0) | 26.2.0 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC |
+| [ActiproSoftware.Controls.Avalonia.Themes.DataGrid](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia.Themes.DataGrid/26.2.0) | 26.2.0 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC |
+| [Avalonia](https://www.nuget.org/packages/Avalonia/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Angle.Windows.Natives](https://www.nuget.org/packages/Avalonia.Angle.Windows.Natives/2.1.27548.20260419) | 2.1.27548.20260419 | BSD; bundled LICENSE | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Controls.DataGrid](https://www.nuget.org/packages/Avalonia.Controls.DataGrid/12.1.2) | 12.1.2 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Desktop](https://www.nuget.org/packages/Avalonia.Desktop/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Fonts.Inter](https://www.nuget.org/packages/Avalonia.Fonts.Inter/12.1.4) | 12.1.4 | MIT wrapper; SIL OFL 1.1 fonts | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.FreeDesktop](https://www.nuget.org/packages/Avalonia.FreeDesktop/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.FreeDesktop.AtSpi](https://www.nuget.org/packages/Avalonia.FreeDesktop.AtSpi/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.HarfBuzz](https://www.nuget.org/packages/Avalonia.HarfBuzz/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Native](https://www.nuget.org/packages/Avalonia.Native/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Remote.Protocol](https://www.nuget.org/packages/Avalonia.Remote.Protocol/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Skia](https://www.nuget.org/packages/Avalonia.Skia/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.Win32](https://www.nuget.org/packages/Avalonia.Win32/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [Avalonia.X11](https://www.nuget.org/packages/Avalonia.X11/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
+| [HarfBuzzSharp](https://www.nuget.org/packages/HarfBuzzSharp/8.3.1.3) | 8.3.1.3 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [HarfBuzzSharp.NativeAssets.Linux](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Linux/8.3.1.3) | 8.3.1.3 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [HarfBuzzSharp.NativeAssets.macOS](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.macOS/8.3.1.3) | 8.3.1.3 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [HarfBuzzSharp.NativeAssets.Win32](https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Win32/8.3.1.3) | 8.3.1.3 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [MicroCom.Runtime](https://www.nuget.org/packages/MicroCom.Runtime/0.11.6) | 0.11.6 | MIT | Copyright 2021 © Nikita Tsukanov |
 | [Microsoft.Extensions.DependencyInjection](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection/8.0.0) | 8.0.0 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
 | [Microsoft.Extensions.DependencyInjection.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection.Abstractions/8.0.0) | 8.0.0 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
 | [Microsoft.Extensions.Logging](https://www.nuget.org/packages/Microsoft.Extensions.Logging/8.0.0) | 8.0.0 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
@@ -86,11 +88,11 @@ versioned NuGet archives, rather than a general assumption about Actipro product
 | [Serilog.Extensions.Logging](https://www.nuget.org/packages/Serilog.Extensions.Logging/8.0.0) | 8.0.0 | Apache-2.0 | Microsoft,Serilog Contributors |
 | [Serilog.Sinks.Console](https://www.nuget.org/packages/Serilog.Sinks.Console/6.0.0) | 6.0.0 | Apache-2.0 | Serilog Contributors |
 | [Serilog.Sinks.File](https://www.nuget.org/packages/Serilog.Sinks.File/6.0.0) | 6.0.0 | Apache-2.0 | Serilog Contributors |
-| [SkiaSharp](https://www.nuget.org/packages/SkiaSharp/2.88.9) | 2.88.9 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [SkiaSharp.NativeAssets.Linux](https://www.nuget.org/packages/SkiaSharp.NativeAssets.Linux/2.88.9) | 2.88.9 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [SkiaSharp.NativeAssets.macOS](https://www.nuget.org/packages/SkiaSharp.NativeAssets.macOS/2.88.9) | 2.88.9 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [SkiaSharp.NativeAssets.Win32](https://www.nuget.org/packages/SkiaSharp.NativeAssets.Win32/2.88.9) | 2.88.9 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
-| [Tmds.DBus.Protocol](https://www.nuget.org/packages/Tmds.DBus.Protocol/0.92.0) | 0.92.0 | MIT | Tom Deseyn |
+| [SkiaSharp](https://www.nuget.org/packages/SkiaSharp/3.119.4) | 3.119.4 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [SkiaSharp.NativeAssets.Linux](https://www.nuget.org/packages/SkiaSharp.NativeAssets.Linux/3.119.4) | 3.119.4 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [SkiaSharp.NativeAssets.macOS](https://www.nuget.org/packages/SkiaSharp.NativeAssets.macOS/3.119.4) | 3.119.4 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [SkiaSharp.NativeAssets.Win32](https://www.nuget.org/packages/SkiaSharp.NativeAssets.Win32/3.119.4) | 3.119.4 | MIT; additional upstream notices | © Microsoft Corporation. All rights reserved. |
+| [Tmds.DBus.Protocol](https://www.nuget.org/packages/Tmds.DBus.Protocol/0.94.1) | 0.94.1 | MIT | Tom Deseyn |
 | .NET runtime (self-contained Linux verification) | 10.0.11 | MIT; additional upstream notices | .NET Foundation and Contributors |
 
 ## Maintaining this inventory
@@ -141,11 +143,11 @@ SOFTWARE.
 
 ## Actipro Avalonia Free — proprietary EULA
 
-Source: [License.txt in ActiproSoftware.Controls.Avalonia 25.2.3](https://api.nuget.org/v3-flatcontainer/actiprosoftware.controls.avalonia/25.2.3/actiprosoftware.controls.avalonia.25.2.3.nupkg).
+Source: [License.txt in ActiproSoftware.Controls.Avalonia 26.2.0](https://api.nuget.org/v3-flatcontainer/actiprosoftware.controls.avalonia/26.2.0/actiprosoftware.controls.avalonia.26.2.0.nupkg).
 
 Original SHA-256: `1db19003e1c6f1343fba8ef65f89d7268c06b22d233993ae9cf907a97e457e45`.
 
-The same byte-identical EULA is included in ActiproSoftware.Controls.Avalonia.Themes.DataGrid 25.2.3. Package copyright: Copyright (c) 2021-2026 Actipro Software LLC. All rights reserved.
+The same byte-identical EULA is included in ActiproSoftware.Controls.Avalonia.Themes.DataGrid 26.2.0. Package copyright: Copyright (c) 2021-2026 Actipro Software LLC. All rights reserved.
 
 ````text
 END-USER LICENSE AGREEMENT FOR ACTIPRO SOFTWARE LLC SOFTWARE
@@ -273,11 +275,11 @@ EULA Version: 2023-09-14
 
 ## Avalonia — MIT
 
-Source: [licence.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/627ae9ef921621e27e7aa58df2796fbadb50af88/licence.md).
+Source: [licence.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/2d79ba55fae1b1e71c69f93a668080c9029e6a31/licence.md).
 
 Original SHA-256: `213814d306090074d234d760239ff0f67eb9b8d20eefb4d5631bb39dbe0b769b`.
 
-The commit is recorded in the 11.3.22 package metadata. The package metadata additionally states: Copyright 2013-2026 © The AvaloniaUI Project.
+The commit is recorded in the 12.1.4 package metadata. The package metadata additionally states: Copyright 2013-2026 © The AvaloniaUI Project.
 
 ````text
 The MIT License (MIT)
@@ -306,9 +308,9 @@ SOFTWARE.
 
 ## Avalonia — upstream third-party notices
 
-Source: [NOTICE.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/627ae9ef921621e27e7aa58df2796fbadb50af88/NOTICE.md).
+Source: [NOTICE.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/2d79ba55fae1b1e71c69f93a668080c9029e6a31/NOTICE.md).
 
-Original SHA-256: `0e1ecea8b94eaacec8ade631994149d678940d05163b21d6f4be3d5dccb0a08d`.
+Original SHA-256: `dd6f80852d16320c865a2e403ffd1a8b07a0e34c5b37122c0bc2343639ff68e6`.
 
 ````text
 # WPF
@@ -338,30 +340,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-# SharpDX
-
-https://github.com/sharpdx/SharpDX
-
-Copyright (c) 2010-2014 SharpDX - Alexandre Mutel
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
 
 # Silverlight Toolkit
 
@@ -679,11 +657,11 @@ SOFTWARE.
 
 ## Avalonia.Controls.DataGrid — license
 
-Source: [licence.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia.Controls.DataGrid/f5a676546cbe80f7ecbf0908336d3f29bd494c75/licence.md).
+Source: [licence.md](https://raw.githubusercontent.com/AvaloniaUI/Avalonia.Controls.DataGrid/1e12211eb0c52a09e314ca57a344147c37d0a26c/licence.md).
 
 Original SHA-256: `213814d306090074d234d760239ff0f67eb9b8d20eefb4d5631bb39dbe0b769b`.
 
-The commit is recorded in the 11.3.13 package metadata.
+The commit is recorded in the 12.1.2 package metadata.
 
 ````text
 The MIT License (MIT)
@@ -716,7 +694,7 @@ Source: [LICENSE.txt](https://raw.githubusercontent.com/rsms/inter/0a5106e0b/LIC
 
 Original SHA-256: `4d7d9c95e7d7f2f0ebf76d5e0b344826b74e903a34028ee18ab54bb639e45906`.
 
-Avalonia.Fonts.Inter 11.3.22 embeds Inter fonts. The Inter-Regular.ttf at the package source commit reports Version 3.019;git-0a5106e0b, Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter), and SIL Open Font License 1.1. This font license is separate from the MIT license of the Avalonia assembly.
+Avalonia.Fonts.Inter 12.1.4 embeds Inter fonts. The Inter-Regular.ttf at the package source commit reports Version 3.019;git-0a5106e0b, Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter), and SIL Open Font License 1.1. This font license is separate from the MIT license of the Avalonia assembly.
 
 ````text
 Copyright (c) 2016-2020 The Inter Project Authors.
@@ -821,7 +799,7 @@ Source: [LICENSE](https://raw.githubusercontent.com/kekekeks/MicroCom/76785efcaf
 
 Original SHA-256: `6ee769c9ac4dac9abb16b98b1341e9528ff9f4ab685481410d3376d14148f3a9`.
 
-MicroCom.Runtime 0.11.0 metadata declares MIT and Copyright 2021 © Nikita Tsukanov. Its metadata names this repository but does not pin a source commit; the license text is retrieved from the recorded upstream revision above.
+MicroCom.Runtime 0.11.6 metadata declares MIT and Copyright 2021 © Nikita Tsukanov. Its metadata names this repository but does not pin a source commit; the license text is retrieved from the recorded upstream revision above.
 
 ````text
 MIT License
@@ -849,11 +827,11 @@ SOFTWARE.
 
 ## Tmds.DBus.Protocol — MIT
 
-Source: [COPYING](https://raw.githubusercontent.com/tmds/Tmds.DBus/282acebca8d4e4e3ba211646ac650911ee94edfd/COPYING).
+Source: [COPYING](https://raw.githubusercontent.com/tmds/Tmds.DBus/b4a7fed0b878f74cb54f7cca84d2889af4e596ba/COPYING).
 
 Original SHA-256: `aca3b49277abcc7886ccb2f115603a9f5b15fc3f96019a10c00f2974098b210c`.
 
-The commit is recorded in the [0.92.0 package metadata](https://api.nuget.org/v3-flatcontainer/tmds.dbus.protocol/0.92.0/tmds.dbus.protocol.nuspec); the package credits Tom Deseyn. The MIT license text and its original SHA-256 are unchanged from the previously recorded 0.21.3 package source. Version 0.92.0 is a desktop dependency selected for Avalonia compatibility; it does not add a dependency to the standalone downloader library.
+The commit is recorded in the [0.94.1 package metadata](https://api.nuget.org/v3-flatcontainer/tmds.dbus.protocol/0.94.1/tmds.dbus.protocol.nuspec); the package credits Tom Deseyn. The MIT license text and its original SHA-256 are unchanged from the previously recorded 0.21.3 package source. Version 0.94.1 is the transitive desktop dependency selected by Avalonia.FreeDesktop 12.1.4; it does not add a dependency to the standalone downloader library.
 
 ````text
 Copyright 2006 Alp Toker <alp@atoker.com>
@@ -3066,11 +3044,11 @@ https://github.com/SixLabors/ImageSharp/blob/f4f689ce67ecbcc35cebddba5aacb603e6d
 
 ## SkiaSharp and HarfBuzzSharp — MIT
 
-Source: [LICENSE.txt in SkiaSharp 2.88.9](https://api.nuget.org/v3-flatcontainer/skiasharp/2.88.9/skiasharp.2.88.9.nupkg).
+Source: [LICENSE.txt in SkiaSharp 3.119.4](https://api.nuget.org/v3-flatcontainer/skiasharp/3.119.4/skiasharp.3.119.4.nupkg).
 
 Original SHA-256: `89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938`.
 
-Applies to SkiaSharp 2.88.9, HarfBuzzSharp 8.3.1.1 and the Windows, Linux and macOS native asset packages listed in the inventory. Their included MIT license texts are identical.
+Applies to SkiaSharp 3.119.4, HarfBuzzSharp 8.3.1.3 and the Windows, Linux and macOS native asset packages listed in the inventory. Their included MIT license texts are identical.
 
 ````text
 Copyright (c) 2015-2016 Xamarin, Inc.
@@ -3096,11 +3074,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## SkiaSharp and HarfBuzzSharp — upstream third-party notices
 
-Source: [THIRD-PARTY-NOTICES.txt in SkiaSharp 2.88.9](https://api.nuget.org/v3-flatcontainer/skiasharp/2.88.9/skiasharp.2.88.9.nupkg).
+Source: [THIRD-PARTY-NOTICES.txt in SkiaSharp 3.119.4](https://api.nuget.org/v3-flatcontainer/skiasharp/3.119.4/skiasharp.3.119.4.nupkg).
 
 Original SHA-256: `21504c46c4c58aa64c1055bd2dcbc5f9a136b4b8c412ed3cc6740e22c5b127f5`.
 
-The selected Windows, Linux and macOS native asset packages for SkiaSharp 2.88.9 and HarfBuzzSharp 8.3.1.1 carry byte-identical copies of this notice. It includes the native libraries' own terms and attributions.
+The selected Windows, Linux and macOS native asset packages for SkiaSharp 3.119.4 and HarfBuzzSharp 8.3.1.3 carry byte-identical copies of this notice. It includes the native libraries' own terms and attributions.
 
 ````text
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
@@ -5832,7 +5810,7 @@ mozzconf.h is distributed under the MPL 1.1/GPL 2.0/LGPL 2.1 tri-license.
 
 ## ANGLE Windows native assets — BSD license
 
-Source: [LICENSE in Avalonia.Angle.Windows.Natives 2.1.25547.20250602](https://api.nuget.org/v3-flatcontainer/avalonia.angle.windows.natives/2.1.25547.20250602/avalonia.angle.windows.natives.2.1.25547.20250602.nupkg).
+Source: [LICENSE in Avalonia.Angle.Windows.Natives 2.1.27548.20260419](https://api.nuget.org/v3-flatcontainer/avalonia.angle.windows.natives/2.1.27548.20260419/avalonia.angle.windows.natives.2.1.27548.20260419.nupkg).
 
 Original SHA-256: `54aff7276217df9f6b5181613999d208c9e40d2b1d51bf55217837e6871a4a63`.
 

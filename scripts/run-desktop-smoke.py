@@ -51,7 +51,7 @@ def main() -> int:
         environment["OCHAN_DESKTOP_SMOKE_XVFB"] = "1"
     else:
         environment.pop("OCHAN_DESKTOP_SMOKE_XVFB", None)
-    modes = ("normal", "locked-profile", "no-tray", "tray-failure", "download-session")
+    modes = ("normal", "locked-profile", "no-tray", "tray-failure", "download-session", "tray-lifecycle")
     results: list[dict[str, object]] = []
     failed = False
     for mode in modes:

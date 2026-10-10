@@ -16,16 +16,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ActiproSoftware.Controls.Avalonia" Version="25.2.3" />
-    <PackageReference Include="ActiproSoftware.Controls.Avalonia.Themes.DataGrid" Version="25.2.3" />
-    <PackageReference Include="Avalonia" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="ActiproSoftware.Controls.Avalonia" Version="26.2.0" />
+    <PackageReference Include="ActiproSoftware.Controls.Avalonia.Themes.DataGrid" Version="26.2.0" />
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.22" />
-    <!-- 0.92 fixes shutdown dispatch while preserving Avalonia 11.3's required API. -->
-    <PackageReference Include="Tmds.DBus.Protocol" Version="[0.92.0]" />
+    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="12.1.4" />
     <PackageReference Include="Serilog" Version="4.0.2" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />

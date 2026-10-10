@@ -28,13 +28,14 @@ internal static class Program
     private static bool _noTrayMode;
     private static bool _trayFailureMode;
     private static bool _downloadSessionMode;
+    private static bool _trayLifecycleMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle")))
         {
-            Console.Error.WriteLine("Usage: oChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session]");
+            Console.Error.WriteLine("Usage: oChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle]");
             return 2;
         }
 
@@ -45,6 +46,7 @@ internal static class Program
         _noTrayMode = args.Contains("--no-tray", StringComparer.Ordinal);
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
         _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
+        _trayLifecycleMode = args.Contains("--tray-lifecycle", StringComparer.Ordinal);
         bool xvfbEnvironment = OperatingSystem.IsLinux()
             && Environment.GetEnvironmentVariable("OCHAN_DESKTOP_SMOKE_XVFB") == "1";
         SmokeLogSink sink = new SmokeLogSink();
@@ -106,6 +108,7 @@ internal static class Program
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
+                : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -156,6 +159,13 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (_trayLifecycleMode)
+            {
+                await TrayLifecycleChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (_downloadSessionMode)
             {
                 await DownloadSessionChecks.RunAsync(mainWindow, desktop);
@@ -347,7 +357,7 @@ internal static class Program
             new PixelSize((int)Math.Ceiling(window.Bounds.Width * scale), (int)Math.Ceiling(window.Bounds.Height * scale)),
             new Vector(96 * scale, 96 * scale));
         screenshot.Render(window);
-        screenshot.Save(screenshotPath);
+        screenshot.Save(screenshotPath, PngBitmapEncoderOptions.Default);
         Console.WriteLine("SMOKE window render: " + screenshotPath);
     }
 
@@ -374,6 +384,7 @@ internal static class Program
         }
 
         public IWindowImpl CreateWindow() => _inner.CreateWindow();
+        public void GetWindowsZOrder(ReadOnlySpan<IWindowImpl> windows, Span<long> zOrder) => _inner.GetWindowsZOrder(windows, zOrder);
         public ITopLevelImpl CreateEmbeddableTopLevel() => _inner.CreateEmbeddableTopLevel();
         public IWindowImpl CreateEmbeddableWindow() => _inner.CreateEmbeddableWindow();
 

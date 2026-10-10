@@ -195,7 +195,7 @@ public partial class MainWindow
                 if (key != null) column.Header = Texts.T(key);
             }
         }
-        WorkspaceControl<TextBox>("UrlInput").Watermark = Texts.T("downloads.urlPlaceholder");
+        WorkspaceControl<TextBox>("UrlInput").PlaceholderText = Texts.T("downloads.urlPlaceholder");
         AutomationProperties.SetName(WorkspaceControl<TextBox>("UrlInput"), Texts.T("downloads.urlPlaceholder"));
         WorkspaceControl<ComboBoxItem>("SimpleModeItem").Content = Texts.T("mode.simple");
         WorkspaceControl<ComboBoxItem>("AdvancedModeItem").Content = Texts.T("mode.advanced");

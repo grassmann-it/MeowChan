@@ -216,31 +216,19 @@ internal static class ClipboardChecks
             return Read();
         }
 
-        public Task SetTextAsync(string? text)
+        public async Task SetDataAsync(IAsyncDataTransfer? dataTransfer)
         {
-            WriteCount++;
-            WrittenText = text;
-            return Task.CompletedTask;
+            if (dataTransfer == null) throw UnexpectedApi();
+            try
+            {
+                WrittenText = await dataTransfer.TryGetValueAsync(DataFormat.Text);
+                WriteCount++;
+            }
+            finally { dataTransfer.Dispose(); }
         }
         public Task ClearAsync() => throw UnexpectedApi();
-        public Task SetDataAsync(IAsyncDataTransfer? dataTransfer) => throw UnexpectedApi();
         public Task FlushAsync() => throw UnexpectedApi();
         public Task<IAsyncDataTransfer?> TryGetInProcessDataAsync() => throw UnexpectedApi();
-
-        [Obsolete("The smoke fixture only supports TryGetDataAsync.")]
-        public Task<string?> GetTextAsync() => throw UnexpectedApi();
-
-        [Obsolete("The smoke fixture only supports TryGetDataAsync.")]
-        public Task SetDataObjectAsync(IDataObject data) => throw UnexpectedApi();
-
-        [Obsolete("The smoke fixture only supports TryGetDataAsync.")]
-        public Task<string[]> GetFormatsAsync() => throw UnexpectedApi();
-
-        [Obsolete("The smoke fixture only supports TryGetDataAsync.")]
-        public Task<object?> GetDataAsync(string format) => throw UnexpectedApi();
-
-        [Obsolete("The smoke fixture only supports TryGetDataAsync.")]
-        public Task<IDataObject?> TryGetInProcessDataObjectAsync() => throw UnexpectedApi();
 
         private static InvalidOperationException UnexpectedApi() =>
             new InvalidOperationException("The smoke fixture received an unexpected clipboard API call.");

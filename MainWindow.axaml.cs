@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _knownWarnings = new HashSet<string>(StringComparer.Ordinal);
     private readonly Task _restoreTask;
     private TrayIcon? _trayIcon;
+    private TrayIcons? _applicationTrayIcons;
     private NativeMenuItem? _clipboardMenuItem;
     private bool _trayInteractionObserved;
     private bool _hasOpened;
@@ -414,14 +415,22 @@ public partial class MainWindow : Window
         try
         {
             _trayIcon = new TrayIcon();
+            ConfigureTrayIcon(_trayIcon);
+            Application application = Application.Current ?? throw new InvalidOperationException("The desktop application is unavailable.");
+            _applicationTrayIcons = TrayIcon.GetIcons(application);
+            if (_applicationTrayIcons == null)
+            {
+                _applicationTrayIcons = new TrayIcons();
+                TrayIcon.SetIcons(application, _applicationTrayIcons);
+            }
+            // Avalonia 12 creates the native implementation when the icon joins this collection.
+            _applicationTrayIcons.Add(_trayIcon);
             if (_trayIcon.NativeMenuExporter == null)
             {
                 DisposeTrayIcon();
                 Log.Information("Tray menus are unavailable; minimize will keep the window in the taskbar.");
                 return;
             }
-
-            ConfigureTrayIcon(_trayIcon);
         }
         catch (Exception exception)
         {
@@ -514,12 +523,17 @@ public partial class MainWindow : Window
         _trayInteractionObserved = false;
         try
         {
-            trayIcon?.Dispose();
+            if (trayIcon != null)
+            {
+                try { _applicationTrayIcons?.Remove(trayIcon); }
+                finally { trayIcon.Dispose(); }
+            }
         }
         catch (Exception exception)
         {
             Log.Warning(exception, "Could not dispose the tray icon.");
         }
+        _applicationTrayIcons = null;
         foreach (Bitmap icon in _trayMenuIcons.Values)
             icon.Dispose();
         _trayMenuIcons.Clear();

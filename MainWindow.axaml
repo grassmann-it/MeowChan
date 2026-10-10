@@ -36,7 +36,7 @@
             <Border x:Name="WorkspaceIntakeCard" Grid.Row="1" Classes="panel" CornerRadius="6" Padding="12,10">
                 <StackPanel Spacing="7">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox x:Name="UrlInput" Watermark="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
+                        <TextBox x:Name="UrlInput" PlaceholderText="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
                                  MinHeight="36" MaxHeight="72" VerticalContentAlignment="Center" />
                         <Button x:Name="AddUrlButton" Grid.Column="1" Classes="primary localized" Tag="action.add" Content="Add"
                                 MinWidth="100" MinHeight="36" VerticalAlignment="Stretch" Click="OnAddUrl" />
