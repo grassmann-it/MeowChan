@@ -2,6 +2,12 @@
 
 This record separates upstream platform support, candidate oChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
+## Current 0.9.0 preparation
+
+0.9.0 replaces the desktop UI with Simple, Advanced and Barebones views, appearance/language preferences, batch URL admission and details panels. The platform targets and .NET 10 baseline remain unchanged. Local Linux source-built checks for the new UI are recorded below, separately from historical 0.8.0 results. Final native acceptance of the 0.9.0 extracted packages is still open.
+
+Current acceptance must cover the integrated download/restore flow, all three views, Dark/Light, English/German, keyboard focus, small windows and native rendering at the intended display scales. The [release-notes draft](releases/v0.9.0.md) records user-visible behavior and remaining boundaries.
+
 ## Upstream requirements checked on 2026-10-10
 
 The official [.NET 10 supported OS matrix](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md), updated 2026-09-28 when checked, lists:
@@ -18,11 +24,11 @@ The current Linux desktop uses X11, including XWayland on a Wayland desktop. A w
 
 | Runtime identifier | Archive | Intended native validation baseline | Evidence still required |
 | --- | --- | --- | --- |
-| `win-x64` | `.zip` | Maintained Windows 11 x64 | Final extracted-package workflows on Windows 11; the passing Server 2022 source-built harness covers a different OS and executable. |
-| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full workflows in the final extracted package on Ubuntu; source-built CI and an earlier Manjaro package startup check are recorded separately below. |
+| `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
+| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current Manjaro source-built checks and historical 0.8.0 package/CI evidence are recorded separately below. |
 | `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
 | `osx-x64` | `.tar.gz` | macOS 15 x64 | Native Intel Mac package and desktop run. |
-| `osx-arm64` | `.tar.gz` | macOS 15 Arm64 | Final extracted `.app` workflows and Gatekeeper behavior; the native Arm64 source-built harness has passed. |
+| `osx-arm64` | `.tar.gz` | macOS 15 Arm64 | Final 0.9.0 source-built and extracted `.app` workflows plus Gatekeeper behavior; the passing Arm64 harness below used the earlier UI. |
 
 These are candidate validation baselines, not completed platform certifications. Exact supported OS releases will be recorded with the tested artifacts. Microsoft/Avalonia support policies can change with OS end-of-life; consult the linked current policy before expanding the product matrix.
 
@@ -48,6 +54,26 @@ CI runs the graphical harness on Windows/macOS runners and uses Xvfb with a priv
 
 ## Recorded validation
 
+### Local 0.9.0 source and desktop checks — 2026-10-10
+
+The integrated 0.9.0 source working tree passed 457 .NET tests: 367 core and 90 desktop tests. All 22 Python macOS-packaging fixture tests also passed. These were local source checks using the repository's pinned SDK 10.0.111 on Manjaro Linux x86_64 (kernel 6.18.49-1-MANJARO). The packaging fixtures check packaging code against controlled inputs; they do not establish that a 0.9.0 release archive was built or launched.
+
+The source-built Avalonia harness ran in the existing Linux graphical session with native rendering. All five scenarios passed at each requested scale, with exit code 0 and no timeout. The harness measured the native windows' actual `RenderScaling`; the figures below are observed values, not just environment settings.
+
+| Requested scale | Measured `RenderScaling` in all five scenarios | Result | Local evidence directory |
+| --- | --- | --- | --- |
+| 100% | `1.0` | 5/5 passed | `artifacts/ap13-v090-accepted-scale-100` |
+| 150% | `1.5` | 5/5 passed | `artifacts/ap13-v090-accepted-scale-150` |
+| 200% | `2.0` | 5/5 passed | `artifacts/ap13-v090-accepted-scale-200` |
+
+Each directory contains `results.json`, scenario logs and window captures. The scenarios are `normal`, `locked-profile`, `no-tray`, `tray-failure` and `download-session`, each run in a separate process. These local evidence files are not part of the desktop distribution. Normal-mode checks exercise presentation/settings, all three views, Dark/Light, English/German, small-window details and retained input/selection. Profile and tray scenarios cover their respective startup/shutdown and fallback paths.
+
+The download-session scenario uses the real FourChan provider, registry, shared queue and file storage with a controlled in-process `HttpMessageHandler`. It checks UI admission and alias deduplication, appearance changes during work, a verified saved media file, native window shutdown, and restoration through a fresh host/window using the same isolated profile. Restoration reuses the saved media; there is only one media request across the initial session and restart. Both window lifetimes release their profile lease.
+
+The integrated UI and final layout/harness fixes are recorded in commits `2e03d95` and `afa873c`. These checks used the 0.9.0 version metadata being prepared alongside the fixes; final restore/build/test logs are retained locally in `artifacts/ap13-v090-accepted-checks`. They do not identify a final release archive. No public imageboard HTTP requests were made. Clipboard and file-picker checks use controlled services; native clipboard/file-picker integration and every desktop's tray host remain outside this evidence. Window captures demonstrate application rendering at the measured scale, not complete desktop screenshots or validation of all monitor arrangements. Windows, macOS, Linux Arm64 and the final extracted 0.9.0 packages still need their own native evidence.
+
+### Historical 0.8.0 checks
+
 The three validation jobs in [GitHub Actions run 38055772655](https://github.com/tfgrass/oChan/actions/runs/38055772655) passed on 2026-10-10. The PR head was `49d994c75f7aebb75e157b3a7c4b28a61471ee62`; CI built merge checkout `2906d21da90efd579a867f7d6d2fa91bc6713a7f` with SDK 10.0.111.
 
 | Native runner | Offline tests | Packaging fixtures | Desktop harness |
@@ -71,9 +97,10 @@ For every platform promised as supported, record the source commit, SDK/runtime 
 3. Removing boards/threads has the documented behavior; settings persistence and an already-owned profile are handled visibly.
 4. Clipboard, two-row context menus, folder picker and folder opening operate on the intended data.
 5. Normal Exit works; unavailable/failing tray support leaves an accessible application.
-6. `LICENSE`, `README.md` and `THIRD-PARTY-NOTICES.md` accompany the complete package; Unix executable permissions survive extraction.
+6. Simple/Advanced/Barebones, Dark/Light and English/German remain usable in small windows and at the tested display scales; input, selection and active downloads survive presentation changes.
+7. `LICENSE`, `README.md`, `CHANGELOG.md`, `THIRD-PARTY-NOTICES.md`, the release notes and language-pack instructions accompany the complete package; Unix executable permissions survive extraction.
 
-The recorded source-built checks establish their stated runner coverage. Full native workflow acceptance of the final extracted package matrix remains open, including Windows 11, Linux Arm64 and both Mac architectures. Archive construction and a passing source-built harness do not complete that acceptance.
+The local 0.9.0 source-built checks and historical 0.8.0 runs establish only their stated coverage. Full native workflow acceptance of the 0.9.0 extracted package matrix remains open, including Windows 11, Linux Arm64 and both Mac architectures. Archive construction and a passing source-built harness do not complete that acceptance.
 
 ## Dependency restores and updates
 

@@ -2,7 +2,7 @@
 
 `libochan` is the .NET 10 media-download library used by the oChan desktop application. It includes the 4chan and 8kun adapters, a shared download queue, verified file storage and optional session persistence. It has no Avalonia dependency and reads no desktop configuration files. Existing namespaces remain `oChan`, `oChan.Interfaces`, `oChan.Downloader` and `oChan.Boards.*`.
 
-The package is prepared locally by this repository. Local packaging does not imply that version 0.8.0 has been published or that every platform release check has passed.
+This branch prepares the 0.9.0 desktop update; the public library API remains unchanged by that UI replacement. The repository can prepare the library package locally. Local packaging does not imply public NuGet publication or completion of desktop platform acceptance.
 
 ## Start a session
 

@@ -1,6 +1,33 @@
 # Changelog
 
-## 0.8.0 (unreleased preview)
+## 0.9.0 (unreleased)
+
+This update replaces the desktop interface while keeping the 4chan/8kun download engine, durable sessions and independently usable `libochan` library.
+
+### What's new
+
+- **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
+- **Appearance and language preferences.** Dark/Light themes, normal/compact density and built-in English/German are saved in the profile. Optional data-only JSON language packs load at startup, with English fallback and visible warnings for invalid or missing packs.
+- **Batch URL admission.** Add or Enter accepts comma- and newline-separated thread/board URLs through the existing provider registry. Each entry receives a result, including duplicates and failures; valid later entries still run. Failed lists remain editable, and edits made during an import are preserved.
+- **Details for threads and boards.** A side panel, or an overlay in narrow windows, shows the selected URL, actual assigned folder, status and current errors. Thread details also show saved/known media and queued/active media counts. Folder, browser, copy and remove actions remain accessible.
+- **Reusable URL copying.** Copy a single URL or all watched thread and board URLs as a newline-separated list. Empty Add, the tray action and the main-window paste shortcut import the clipboard once when explicitly invoked.
+- **Updated desktop dialogs.** Settings, About and startup errors use the new appearance and localization while retaining existing download settings, save/cancel behavior and profile/tray recovery paths.
+
+### Upgrade and behavior notes
+
+- Existing profiles, watched URLs and assigned download paths remain usable. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save & Close**.
+- **Double-click opens details**, replacing the previous folder-opening shortcut. Open folder remains a separate action. Escape closes details; Ctrl+L/Cmd+L focuses URL input, and Shift+Enter inserts a newline.
+- Progress is **saved / known media**, not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
+- View/theme/language/density preferences persist. Window geometry, column layout and details-panel width do not persist across restarts.
+- .NET 10 and the existing platform targets are retained. This UI update introduces no new public `libochan` API requirement.
+
+### Release status
+
+0.9.0 is in preparation. Final native acceptance of freshly extracted packages remains open; the existing 0.8.0 CI evidence does not validate the new interface. macOS bundles remain unsigned and not notarized. See the [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
+
+Pause/resume, archive browsing, rules, TUI/daemon clients and dynamic plugin loading remain later work.
+
+## 0.8.0
 
 This update rebuilds download and session handling for 4chan and 8kun and makes `libochan` usable independently of the desktop app.
 

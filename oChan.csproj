@@ -35,6 +35,8 @@
     <None Update="LICENSE;README.md;CHANGELOG.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="docs/platform-support.md;docs/Registry.md;docs/Downloader.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="Desktop/Localization/README.md;docs/releases/v0.9.0.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/screenshots/v0.9.0-*.png" CopyToPublishDirectory="PreserveNewest" />
     <None Include="samples/LibOChan.Consumer/README.md" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
