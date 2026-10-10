@@ -157,6 +157,16 @@ internal static class DownloadSessionChecks
                 && (restored.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Advanced",
                 "The second native window did not restore presentation preferences.");
             Program.CaptureWindow(restored, "smoke-download-restored.png");
+            restored.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = recovered;
+            Click(restored.FindControl<Button>("DetailsToggleButton")!);
+            Button check = restored.FindControl<Button>("InspectorCheckButton")!;
+            await Program.WaitUntilAsync(() => check.IsEffectivelyVisible && check.IsEnabled);
+            Click(check);
+            await Program.WaitUntilAsync(() => restored.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Notifications.NotificationCard>().Any(card => card.IsEffectivelyVisible
+                    && card.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("check.scheduled")
+                        || text.Text == Texts.T("check.alreadyScheduled"))));
+            Require(ReferenceEquals(restored.UrlList.Single(), recovered), "The real Check action replaced the restored watch row.");
             await ArchivePageChecks.RunAsync(restored, recovered.WatchId, new ResourceId("4chan", "g", "123"));
             await CloseNormallyAsync(restored);
             using (ProfileLease lease = ProfileLease.Acquire(profile))

@@ -6,6 +6,138 @@ namespace oChan.Tests;
 public sealed class PollingTests
 {
     [Fact]
+    public async Task RemovingTheLifetimeCancelsAnActiveManualCheckAndItsQueuedSuccessor()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromHours(1));
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+            thread.OnCheckWithCancellation = token => Task.Delay(Timeout.Infinite, token);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            await TestWait.UntilAsync(() => thread.Checks == 2);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(2, thread.Checks);
+            Assert.Equal(1, thread.MaximumActive);
+            Assert.Equal(CheckRequestStatus.Stopping, thread.RequestCheck());
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitChecksKeepTheProvidersMinimumRecheckInterval()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        MinimumIntervalThread thread = new MinimumIntervalThread(provider.Board);
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromHours(1));
+            await thread.FirstWait.Task.WaitAsync(TestWait.Timeout);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            await TestWait.UntilAsync(() => thread.Checks == 2);
+            Assert.True(thread.SecondCheckAt - thread.FirstCheckAt >= TimeSpan.FromMilliseconds(190));
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    private sealed class MinimumIntervalThread : ProbeThread
+    {
+        private readonly System.Diagnostics.Stopwatch _elapsed = System.Diagnostics.Stopwatch.StartNew();
+        internal TaskCompletionSource FirstWait { get; } = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TimeSpan FirstCheckAt { get; private set; }
+        internal TimeSpan SecondCheckAt { get; private set; }
+        internal MinimumIntervalThread(IBoard board) : base(board, new Uri("https://stub.test/g/thread/123")) { }
+        protected override TimeSpan MinimumRecheckInterval => TimeSpan.FromMilliseconds(200);
+        public override async Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
+        {
+            if (Checks == 0) FirstCheckAt = _elapsed.Elapsed;
+            else if (Checks == 1) SecondCheckAt = _elapsed.Elapsed;
+            await base.checkThreadAsync(queue, cancellationToken);
+        }
+        protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
+        {
+            FirstWait.TrySetResult();
+            return base.WaitForNextCheckAsync(interval, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task ManualThreadChecksWakeTheExistingLoopAndCoalesceWhileItIsBusy()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        TaskCompletionSource release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromHours(1));
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+            thread.OnCheckWithCancellation = token => release.Task.WaitAsync(token);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            await TestWait.UntilAsync(() => thread.Checks == 2);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            Assert.All(Enumerable.Range(0, 32), _ => Assert.Equal(CheckRequestStatus.AlreadyScheduled, thread.RequestCheck()));
+            release.TrySetResult();
+            await TestWait.UntilAsync(() => thread.Checks == 3 && thread.Clock.Waits == 2);
+            Assert.Equal(1, thread.MaximumActive);
+            queue.SetPaused(true);
+            Assert.Equal(CheckRequestStatus.Paused, thread.RequestCheck());
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(CheckRequestStatus.Stopping, thread.RequestCheck());
+        }
+        finally
+        {
+            release.TrySetResult();
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    [Fact]
+    public async Task ManualBoardChecksUseDiscoveryAndDoNotOverlapOrWakeTheRemovedWatch()
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        DownloadQueue queue = new DownloadQueue(1, 1024 * 1024);
+        await using Registry registry = new Registry(new[] { provider }, queue, directory.Path, TimeSpan.FromHours(1), 3600);
+        ProbeBoard board = provider.Board;
+        await registry.AddAsync(board.BoardUri.AbsoluteUri);
+        await TestWait.UntilAsync(() => board.Clock.Waits == 1);
+        TaskCompletionSource<IEnumerable<IThread>> release = new TaskCompletionSource<IEnumerable<IThread>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ProbeThread discovered = new ProbeThread(board, new Uri("https://stub.test/g/thread/124"));
+        try
+        {
+            board.OnCheckWithCancellation = token => release.Task.WaitAsync(token);
+            Assert.Equal(CheckRequestStatus.Scheduled, registry.RequestCheck(board));
+            await TestWait.UntilAsync(() => board.Checks == 2);
+            Assert.Equal(CheckRequestStatus.Scheduled, registry.RequestCheck(board));
+            Assert.Equal(CheckRequestStatus.AlreadyScheduled, registry.RequestCheck(board));
+            release.TrySetResult(new[] { discovered });
+            await TestWait.UntilAsync(() => board.Checks == 3 && board.Clock.Waits == 2);
+            Assert.Same(discovered, Assert.Single(registry.Threads));
+            Assert.Equal(1, board.MaximumActive);
+            await registry.RemoveBoardAsync(board).WaitAsync(TestWait.Timeout);
+            Assert.Equal(CheckRequestStatus.Stale, registry.RequestCheck(board));
+        }
+        finally { release.TrySetResult(Array.Empty<IThread>()); }
+    }
+
+    [Fact]
     public async Task RegistryPausesBoardDiscoveryAndResumeUsesTheExistingWatch()
     {
         using TempDirectory directory = new TempDirectory();

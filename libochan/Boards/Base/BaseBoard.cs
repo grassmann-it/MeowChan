@@ -13,9 +13,10 @@ using oChan.Notifications;
 using Serilog;
 
 /// <summary>A passive board with one explicitly owned, nonoverlapping polling lifetime.</summary>
-public abstract class BaseBoard : IBoard, INotifyPropertyChanged
+public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestSource
 {
     private readonly object _monitoringLock = new object();
+    private PollingTrigger _checkTrigger = new PollingTrigger();
     protected object StateLock { get; } = new object();
     private FailureInfo? _lastCheckFailure;
     private readonly CoalescedEvent<PropertyChangedEventHandler> _propertyChanges;
@@ -90,11 +91,23 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged
         lock (_monitoringLock)
         {
             if (_monitoringTask != null) return;
+            _checkTrigger = new PollingTrigger();
             _monitoringInterval = interval;
             CancellationTokenSource cancellation = new CancellationTokenSource();
             CancellationToken token = cancellation.Token;
             _monitoringCancellation = cancellation;
             _monitoringTask = Task.Run(() => MonitorAsync(token));
+        }
+    }
+
+    public CheckRequestStatus RequestCheck()
+    {
+        lock (_monitoringLock)
+        {
+            if (_monitoringCancellation == null || _monitoringCancellation.IsCancellationRequested
+                || _monitoringTask == null || _monitoringTask.IsCompleted) return CheckRequestStatus.Stopping;
+            if (_sessionQueue?.IsPaused == true) return CheckRequestStatus.Paused;
+            return _checkTrigger.Request();
         }
     }
 
@@ -142,6 +155,7 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                _checkTrigger.Consume();
                 try
                 {
                     if (_sessionQueue != null) await _sessionQueue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
@@ -160,7 +174,7 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged
                 cancellationToken.ThrowIfCancellationRequested();
                 TimeSpan interval;
                 lock (_monitoringLock) { interval = _monitoringInterval; }
-                await WaitForNextCheckAsync(interval, cancellationToken).ConfigureAwait(false);
+                await _checkTrigger.WaitOrDelayAsync(token => WaitForNextCheckAsync(interval, token), cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

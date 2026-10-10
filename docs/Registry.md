@@ -118,3 +118,26 @@ is enabled. Both classes still obey the same network policy.
 thread/board automatic checks share the queue gate; ongoing requests/transfers
 finish. Pause does not remove/re-add watches or clear media decisions. Library
 clients choose their own persistence; the desktop persists pause in settings.
+
+## Explicit checks and retry
+
+`RequestCheck(thread)` and `RequestCheck(board)` target the exact registered
+object/lifetime, never merely a URL. `Scheduled` means a request was signalled,
+not that HTTP or a download has completed. Repeated requests coalesce into at
+most one pending check. Paused, removed, stopping and unsupported watches return
+separate statuses. The optional `ICheckRequestSource` contract leaves older
+providers compatible; implementations must signal promptly without doing
+provider work on the caller's thread.
+
+Built-in BaseThread/BaseBoard polling consumes these requests in its existing
+serialized loop. Automatic delays can be woken; the provider's minimum thread
+interval and HTTP admission/cooldown remain in force. Terminal built-in threads
+retain their owned lifetime for an explicit retry of known selected media and
+pending content work, without restarting remote polling. Removing a watch or
+stopping the registry cancels pending and active checks through that lifetime.
+
+The desktop exposes this action in Downloads details/context menus and on a
+selected Diagnostics entry. It retries missing selected media through the same
+queue and storage verification; it does not clear errors in advance, re-evaluate
+previous exclusions, or create replacement watches. Errors disappear only when
+the corresponding operation actually succeeds.

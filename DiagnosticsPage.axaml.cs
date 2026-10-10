@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using oChan.Desktop;
 using oChan.Desktop.Localization;
+using oChan.Interfaces;
 
 namespace oChan;
 
@@ -16,13 +17,19 @@ public partial class DiagnosticsPage : UserControl
     private readonly Func<string, Task>? _copy;
     private IReadOnlyList<DiagnosticEntry> _entries = Array.Empty<DiagnosticEntry>();
     private bool _available;
+    private bool _retryBusy;
+    private readonly Func<DiagnosticTarget, Task<CheckRequestStatus>>? _retry;
+    private readonly Func<DiagnosticTarget, bool>? _canRetry;
     private bool _ended;
 
     public DiagnosticsPage() { InitializeComponent(); }
-    internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy) : this()
+    internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy,
+        Func<DiagnosticTarget, Task<CheckRequestStatus>>? retry = null, Func<DiagnosticTarget, bool>? canRetry = null) : this()
     {
         _openWatch = openWatch;
         _copy = copy;
+        _retry = retry;
+        _canRetry = canRetry;
     }
 
     internal void Refresh(DesktopSessionView view, bool available)
@@ -60,7 +67,11 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<TextBox>("DiagnosticDetails")!.Text = Selected?.Details ?? string.Empty;
         this.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled = _available && Selected != null;
         this.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled = _available && Selected?.Target != null;
+        this.FindControl<Button>("RetryDiagnosticButton")!.Content = Texts.T(Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action");
+        this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
+            && Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true;
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = string.Empty;
+        this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", true);
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {
@@ -76,6 +87,28 @@ public partial class DiagnosticsPage : UserControl
         if (_ended || !_available || Selected?.Target is not DiagnosticTarget target) return;
         if (_openWatch?.Invoke(target) != true)
             this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = Texts.T("diagnostics.removed");
+    }
+    private async void OnRetryClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || !_available || _retryBusy || Selected?.Target is not DiagnosticTarget target
+            || _retry == null || _canRetry?.Invoke(target) != true) return;
+        _retryBusy = true;
+        RefreshSelection();
+        string message;
+        bool failed;
+        try
+        {
+            CheckRequestStatus result = await _retry(target);
+            message = CheckActionText.ForResult(result, target.Kind);
+            failed = result is not (CheckRequestStatus.Scheduled or CheckRequestStatus.AlreadyScheduled);
+        }
+        catch (Exception exception) { message = Texts.T("check.failed", exception.Message); failed = true; }
+        finally { _retryBusy = false; }
+        if (_ended) return;
+        RefreshSelection();
+        if (Selected?.Target != target) return;
+        this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
+        this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", failed);
     }
     internal void EndLifetime() { _ended = true; _available = false; }
 }

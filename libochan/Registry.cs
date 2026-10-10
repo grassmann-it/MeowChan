@@ -448,6 +448,32 @@ public sealed class Registry : IAsyncDisposable
         if (result != null) SignalChanged();
     }
 
+    public CheckRequestStatus RequestCheck(IThread thread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        return RequestCheck(Key(thread), thread, null);
+    }
+
+    public CheckRequestStatus RequestCheck(IBoard board)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        return RequestCheck(Key(board), null, board);
+    }
+
+    private CheckRequestStatus RequestCheck(ResourceKey key, IThread? thread, IBoard? board)
+    {
+        lock (_state)
+        {
+            if (_stopping) return CheckRequestStatus.Stopping;
+            if (!_watches.TryGetValue(key, out Watch? watch) || !watch.Ready || watch.Stopping
+                || !ReferenceEquals(watch.Thread, thread) || !ReferenceEquals(watch.Board, board)) return CheckRequestStatus.Stale;
+            if (_queue.IsPaused) return CheckRequestStatus.Paused;
+            // Optional contract only signals a lifetime; no provider work runs under this lock.
+            ICheckRequestSource? checks = (object?)thread as ICheckRequestSource ?? board as ICheckRequestSource;
+            return checks?.RequestCheck() ?? CheckRequestStatus.Unsupported;
+        }
+    }
+
     public Task RemoveThreadAsync(IThread thread)
     {
         ArgumentNullException.ThrowIfNull(thread);

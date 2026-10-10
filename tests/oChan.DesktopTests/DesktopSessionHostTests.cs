@@ -51,6 +51,33 @@ public sealed class DesktopSessionHostTests
     }
 
     [Fact]
+    public async Task ManualCheckUsesExactWatchLifetimeAndRespectsPause()
+    {
+        using TempDirectory directory = new TempDirectory();
+        new Config { DownloadsPaused = true, DownloadPath = Path.Combine(directory.Path, "media") }.SaveConfig(directory.Path);
+        using HttpClient client = new HttpClient(new FixtureTransport());
+        DesktopSessionHost host = new DesktopSessionHost(directory.Path, new[] { new FourChanImageBoard(client) });
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            DesktopAdmissionResult first = await host.AddAsync("https://boards.4chan.org/g/thread/123");
+            DiagnosticTarget old = new DiagnosticTarget(DiagnosticTargetKind.Thread, first.WatchId!.Value);
+            Assert.False(host.CanRequestCheck(old));
+            Assert.Equal(CheckRequestStatus.Paused, await host.RequestCheckAsync(old));
+            await host.RemoveThreadAsync(old.WatchId);
+            DesktopAdmissionResult replacement = await host.AddAsync("https://boards.4chan.org/g/thread/123");
+            Assert.NotEqual(first.WatchId, replacement.WatchId);
+            await host.SetPausedAsync(false);
+            Assert.Equal(CheckRequestStatus.Stale, await host.RequestCheckAsync(old));
+            DiagnosticTarget current = new DiagnosticTarget(DiagnosticTargetKind.Thread, replacement.WatchId!.Value);
+            Assert.True(host.CanRequestCheck(current));
+            Assert.Equal(CheckRequestStatus.Stale, await host.RequestCheckAsync(current with { Kind = DiagnosticTargetKind.Board }));
+            Assert.Contains(await host.RequestCheckAsync(current), new[] { CheckRequestStatus.Scheduled, CheckRequestStatus.AlreadyScheduled });
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    [Fact]
     public async Task PausedStartupRestoresRealWatchesWithoutRequestsAndResumeKeepsTheirIdentity()
     {
         using TempDirectory directory = new TempDirectory();

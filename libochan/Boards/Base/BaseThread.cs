@@ -21,9 +21,11 @@ using Serilog;
 /// Passive thread state. The session explicitly starts and stops its polling lifetime.
 /// Property notifications are asynchronous, coalesced invalidations. UI clients must dispatch them.
 /// </summary>
-public abstract class BaseThread : IThread
+public abstract class BaseThread : IThread, ICheckRequestSource
 {
     private readonly object _monitoringLock = new object();
+    private PollingTrigger _checkTrigger = new PollingTrigger();
+    private DownloadQueue? _monitoringQueue;
     private readonly object _stateLock = new object();
     private CancellationTokenSource? _monitoringCancellation;
     private Task? _monitoringTask;
@@ -240,12 +242,25 @@ public abstract class BaseThread : IThread
         lock (_monitoringLock)
         {
             if (_monitoringTask != null) return;
+            _checkTrigger = new PollingTrigger();
+            _monitoringQueue = queue;
             OutputDirectory = outputDirectory;
             _monitoringInterval = interval;
             CancellationTokenSource cancellation = new CancellationTokenSource();
             CancellationToken token = cancellation.Token;
             _monitoringCancellation = cancellation;
             _monitoringTask = Task.Run(() => MonitorAsync(queue, token));
+        }
+    }
+
+    public CheckRequestStatus RequestCheck()
+    {
+        lock (_monitoringLock)
+        {
+            if (_monitoringCancellation == null || _monitoringCancellation.IsCancellationRequested
+                || _monitoringTask == null || _monitoringTask.IsCompleted) return CheckRequestStatus.Stopping;
+            if (_monitoringQueue?.IsPaused == true) return CheckRequestStatus.Paused;
+            return _checkTrigger.Request();
         }
     }
 
@@ -283,8 +298,9 @@ public abstract class BaseThread : IThread
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested && (SourceState == ThreadSourceState.Active || (_content?.NeedsRetry ?? false)))
+            while (!cancellationToken.IsCancellationRequested)
             {
+                _checkTrigger.Consume();
                 try
                 {
                     await queue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
@@ -302,12 +318,24 @@ public abstract class BaseThread : IThread
                     Logger.Error(exception, "Error checking thread {ThreadId}", ThreadId);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                if (SourceState != ThreadSourceState.Active && !(_content?.NeedsRetry ?? false)) return;
+                long finished = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (SourceState != ThreadSourceState.Active && !(_content?.NeedsRetry ?? false))
+                {
+                    // Keep the owned lifetime available for explicit retry of known terminal media.
+                    await _checkTrigger.WaitForRequestAsync(cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
                 TimeSpan interval;
                 lock (_monitoringLock) { interval = _monitoringInterval; }
                 TimeSpan minimumInterval = MinimumRecheckInterval;
                 if (interval < minimumInterval) interval = minimumInterval;
-                await WaitForNextCheckAsync(interval, cancellationToken).ConfigureAwait(false);
+                bool requested = await _checkTrigger.WaitOrDelayAsync(
+                    token => WaitForNextCheckAsync(interval, token), cancellationToken).ConfigureAwait(false);
+                if (requested)
+                {
+                    TimeSpan remaining = minimumInterval - System.Diagnostics.Stopwatch.GetElapsedTime(finished);
+                    if (remaining > TimeSpan.Zero) await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

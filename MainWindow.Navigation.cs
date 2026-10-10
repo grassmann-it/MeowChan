@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
 using oChan.Desktop;
+using oChan.Desktop.Localization;
 
 namespace oChan;
 
@@ -35,7 +36,7 @@ public partial class MainWindow
             if (_isClosing) return;
             if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
             await Clipboard.SetTextAsync(text);
-        });
+        }, _session.RequestCheckAsync, _session.CanRequestCheck);
         this.FindControl<ContentControl>("DiagnosticsPageHost")!.Content = _diagnosticsPage;
         _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
         _rulesPage.BusyChanged += OnSettingsBusyChanged;
@@ -160,6 +161,30 @@ public partial class MainWindow
         if (id == null || !NavigateWorkspace(WorkspacePage.Rules)) return;
         _rulesPage?.EditScope(id.Thread == null ? Rules.MediaRuleScope.ForBoard(id.Source, id.Board)
             : Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread));
+    }
+
+    private async void OnCheckSelectionClick(object? sender, RoutedEventArgs e)
+    {
+        if (!_restoreCompleted || WorkspaceCommandBusy) return;
+        DiagnosticTarget? target = GetWorkspaceSelection() switch
+        {
+            ThreadRow thread => new DiagnosticTarget(DiagnosticTargetKind.Thread, thread.WatchId),
+            BoardRow board => new DiagnosticTarget(DiagnosticTargetKind.Board, board.WatchId),
+            _ => null
+        };
+        if (target == null) return;
+        try
+        {
+            Interfaces.CheckRequestStatus result = await _session.RequestCheckAsync(target);
+            ShowNotification(Texts.T("notification.session"), CheckActionText.ForResult(result, target.Kind),
+                result is Interfaces.CheckRequestStatus.Scheduled or Interfaces.CheckRequestStatus.AlreadyScheduled
+                    ? Avalonia.Controls.Notifications.NotificationType.Information : Avalonia.Controls.Notifications.NotificationType.Warning);
+        }
+        catch (Exception exception)
+        {
+            ShowNotification(Texts.T("notification.error"), Texts.T("check.failed", exception.Message),
+                Avalonia.Controls.Notifications.NotificationType.Error);
+        }
     }
 
     private void DisposeWorkspacePages()

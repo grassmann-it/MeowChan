@@ -322,6 +322,12 @@ public partial class MainWindow
         foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;
         WorkspaceControl<Button>("InspectorRemoveButton").IsEnabled = _restoreCompleted && !_isClosing;
+        DiagnosticTarget target = selected is ThreadRow selectedThread
+            ? new DiagnosticTarget(DiagnosticTargetKind.Thread, selectedThread.WatchId)
+            : new DiagnosticTarget(DiagnosticTargetKind.Board, ((BoardRow)selected).WatchId);
+        WorkspaceControl<Button>("InspectorCheckButton").Content = Texts.T(isThread ? "check.action" : "check.boardAction");
+        WorkspaceControl<Button>("InspectorCheckButton").IsEnabled = _restoreCompleted && !WorkspaceCommandBusy
+            && _session.CanRequestCheck(target);
     }
 
     private void UpdateWorkspaceLayout()

@@ -208,6 +208,37 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
+    internal bool CanRequestCheck(DiagnosticTarget target)
+    {
+        if (State != DesktopSessionState.Ready || IsPaused) return false;
+        lock (_projection)
+        {
+            return target.Kind == DiagnosticTargetKind.Thread
+                ? _threadHandles.TryGetValue(target.WatchId, out IThread? thread) && thread is ICheckRequestSource
+                : _boardHandles.TryGetValue(target.WatchId, out IBoard? board) && board is ICheckRequestSource;
+        }
+    }
+
+    internal async Task<CheckRequestStatus> RequestCheckAsync(DiagnosticTarget target)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            IThread? thread;
+            IBoard? board;
+            lock (_projection)
+            {
+                _threadHandles.TryGetValue(target.WatchId, out thread);
+                _boardHandles.TryGetValue(target.WatchId, out board);
+            }
+            if (target.Kind == DiagnosticTargetKind.Thread)
+                return thread == null ? CheckRequestStatus.Stale : _registry.RequestCheck(thread);
+            return board == null ? CheckRequestStatus.Stale : _registry.RequestCheck(board);
+        }
+        finally { _commands.Release(); }
+    }
+
     public async Task RemoveThreadAsync(long watchId)
     {
         await _commands.WaitAsync().ConfigureAwait(false);

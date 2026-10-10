@@ -6,6 +6,7 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 ### What's new
 
+- **Check now / retry missing.** Downloads and Diagnostics can request a check on the exact watch. Requests coalesce, obey provider limits and retry missing selected media, including terminal threads, without changing previous rule decisions.
 - **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
@@ -52,6 +53,7 @@ This update rebuilds download and session handling for 4chan and 8kun and makes 
 
 ### What's new
 
+- **Check now / retry missing.** Downloads and Diagnostics can request a check on the exact watch. Requests coalesce, obey provider limits and retry missing selected media, including terminal threads, without changing previous rule decisions.
 - **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
 - **More reliable source checks.** Updated 8kun media URLs, canonical URL handling and conditional thread requests reduce broken or duplicate work. Archived or missing sources remain distinguishable from unfinished media downloads.

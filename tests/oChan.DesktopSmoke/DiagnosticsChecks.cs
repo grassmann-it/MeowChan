@@ -1,11 +1,14 @@
 using System.Net;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using oChan.Desktop;
 using oChan.Desktop.Localization;
 using oChan.Http;
+using oChan.Interfaces;
 
 namespace oChan.DesktopSmoke;
 
@@ -13,6 +16,10 @@ internal static class DiagnosticsChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        foreach (NotificationCard notification in window.GetVisualDescendants().OfType<NotificationCard>().ToArray())
+            notification.Close();
+        await Program.WaitUntilAsync(() => !window.GetVisualDescendants().OfType<NotificationCard>()
+            .Any(notification => notification.IsEffectivelyVisible));
         Config initial = Config.LoadConfig();
         SettingsEditor settings = window.SettingsEditor;
         double width = window.Width;
@@ -21,7 +28,13 @@ internal static class DiagnosticsChecks
         object? previous = host.Content;
         // The live owner may refresh its own page while these passive fixture snapshots are rendered.
         // Keep the isolated fixture as a retained page without introducing another native window.
-        DiagnosticsPage page = new DiagnosticsPage(_ => false, _ => Task.CompletedTask);
+        DiagnosticTarget? requested = null;
+        Func<DiagnosticTarget, Task<CheckRequestStatus>> retryOperation = _ => Task.FromResult(CheckRequestStatus.Stale);
+        DiagnosticsPage page = new DiagnosticsPage(_ => false, _ => Task.CompletedTask, target =>
+        {
+            requested = target;
+            return retryOperation(target);
+        }, _ => true);
         host.Content = page;
         DesktopThreadEntry thread = SnapshotFixtures.Thread(9123, "123", "Offline diagnostic fixture") with
         {
@@ -52,21 +65,51 @@ internal static class DiagnosticsChecks
                     DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
                     grid.SelectedItem = grid.ItemsSource!.Cast<DiagnosticEntry>().Single(entry => entry.Details.Contains("HTTP 429"));
                     await Program.WaitUntilAsync(() => Fits(window, page.FindControl<Button>("CopyDiagnosticButton")!)
-                        && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!) && grid.Bounds.Height > 40
+                        && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                        && Fits(window, page.FindControl<Button>("RetryDiagnosticButton")!) && grid.Bounds.Height > 40
                         && page.FindControl<TextBox>("DiagnosticDetails")!.Text?.Contains("HTTP 429") == true);
+                    grid.ScrollIntoView(grid.SelectedItem, null);
+                    await Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>()
+                        .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, grid.SelectedItem)));
                     Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics && settings.DownloadPath == "retained diagnosis draft",
                         "Diagnostics navigation lost the selected page or settings draft.");
                     Require(page.FindControl<TextBox>("DiagnosticDetails")!.Text!.Contains("HTTP 429"), "The complete diagnostic was not rendered.");
                     Program.CaptureWindow(window, $"smoke-diagnostics-{mode.ToLowerInvariant()}-{language}.png");
+                    requested = null;
+                    Click(page.FindControl<Button>("RetryDiagnosticButton")!);
+                    await Program.WaitUntilAsync(() => requested != null && page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled);
+                    Require(requested == new DiagnosticTarget(DiagnosticTargetKind.Thread, 9123)
+                        && page.FindControl<TextBlock>("DiagnosticsActionError")!.Text == Texts.T("diagnostics.removed"),
+                        "Retry did not preserve the exact selected watch lifetime or its stale result.");
                     // A stale lifetime must never select a different watch, even if its URL matches.
                     Click(page.FindControl<Button>("OpenDiagnosticWatchButton")!);
+                    grid.ScrollIntoView(grid.SelectedItem, null);
+                    await Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>()
+                        .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, grid.SelectedItem)));
                     Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics
                         && !string.IsNullOrEmpty(page.FindControl<TextBlock>("DiagnosticsActionError")!.Text), "A stale diagnostic action changed pages.");
                     page.Refresh(view with { Threads = Array.Empty<DesktopThreadEntry>() }, true);
                     Require(!page.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled
-                        && !page.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled, "Removed diagnostics left actions enabled.");
+                        && !page.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled
+                        && !page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled, "Removed diagnostics left actions enabled.");
                 }
             }
+            TaskCompletionSource<CheckRequestStatus> delayedRetry = new TaskCompletionSource<CheckRequestStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+            retryOperation = _ => delayedRetry.Task;
+            DesktopBoardEntry board = SnapshotFixtures.Board(9124) with
+            {
+                Snapshot = SnapshotFixtures.Board(9124).Snapshot with { LastCheckFailure = new FailureInfo(FailureKind.Network, "Other watch") }
+            };
+            page.Refresh(view with { Boards = new[] { board } }, true);
+            DataGrid delayedGrid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
+            delayedGrid.SelectedItem = delayedGrid.ItemsSource!.Cast<DiagnosticEntry>().First(entry => entry.Target?.Kind == DiagnosticTargetKind.Thread);
+            Click(page.FindControl<Button>("RetryDiagnosticButton")!);
+            Require(!page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled, "A pending retry left its action enabled.");
+            delayedGrid.SelectedItem = delayedGrid.ItemsSource!.Cast<DiagnosticEntry>().Single(entry => entry.Target?.Kind == DiagnosticTargetKind.Board);
+            delayedRetry.TrySetResult(CheckRequestStatus.Stale);
+            await Program.WaitUntilAsync(() => page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled);
+            Require(string.IsNullOrEmpty(page.FindControl<TextBlock>("DiagnosticsActionError")!.Text),
+                "A delayed check result appeared on a different selected watch.");
             window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.L,
                 KeyModifiers = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control });
             Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads && window.FindControl<TextBox>("UrlInput")!.IsFocused,

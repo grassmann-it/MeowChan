@@ -19,6 +19,40 @@ public sealed class ContentRuntimeTests
     private static readonly ResourceId Id = new ResourceId("4chan", "g", "123");
 
     [Fact]
+    public async Task ExplicitTerminalRetrySavesMissingSelectedMediaWithoutRefetchingOrReevaluatingExclusions()
+    {
+        using TempDirectory profile = new TempDirectory();
+        ContentTransport transport = new ContentTransport
+        {
+            MediaStatus = HttpStatusCode.Forbidden,
+            Json = ThreadJson(new { no = 123, archived = 1, com = "terminal", tim = 777, ext = ".png", filename = "image",
+                fsize = ContentTransport.Payload.Length, md5 = Convert.ToBase64String(MD5.HashData(ContentTransport.Payload)) },
+                new { no = 124, tim = 778, ext = ".webm", filename = "excluded", fsize = 4 })
+        };
+        using HttpClient client = new HttpClient(transport);
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        await using ThreadContentRuntime runtime = new ThreadContentRuntime(profile.Path, lease);
+        await runtime.InitializeAsync();
+        await runtime.Rules.SaveAsync(new[] { new MediaRule(MediaRuleScope.Global,
+            types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { ".png" })) });
+        DownloadQueue queue = new DownloadQueue(1, 1L << 30);
+        await using Registry registry = Registry(client, queue, Path.Combine(profile.Path, "media"), runtime);
+        IThread thread = (await registry.AddAsync(Url)).Thread!;
+        await TestWait.UntilAsync(() => thread.MediaFailures.Count == 1);
+        Assert.Equal(ThreadSourceState.Archived, thread.SourceState);
+        Assert.Equal(1, thread.GetSnapshot(new DownloadCounts()).Content!.ExcludedMedia);
+        int metadataRequests = transport.ThreadRequests;
+        await runtime.Rules.SaveAsync(Array.Empty<MediaRule>());
+        transport.MediaStatus = HttpStatusCode.OK;
+        Assert.Equal(CheckRequestStatus.Scheduled, registry.RequestCheck(thread));
+        await TestWait.UntilAsync(() => thread.DownloadedMediaCount == 1 && thread.MediaFailures.Count == 0);
+        await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+        Assert.Equal(metadataRequests, transport.ThreadRequests);
+        Assert.Equal(1, thread.GetSnapshot(new DownloadCounts()).Content!.ExcludedMedia);
+        Assert.Equal(2, transport.MediaRequests);
+    }
+
+    [Fact]
     public async Task ExclusionSurvivesRuleChangesRemoveRestartAnd404WhileNewMediaUsesNewRules()
     {
         using TempDirectory profile = new TempDirectory();
@@ -181,15 +215,20 @@ public sealed class ContentRuntimeTests
         internal string Json = "{\"posts\":[]}";
         internal HttpStatusCode Status = HttpStatusCode.OK;
         internal int MediaRequests;
+        internal int ThreadRequests;
+        internal HttpStatusCode MediaStatus = HttpStatusCode.OK;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             string path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("boards.json", StringComparison.Ordinal))
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"boards\":[{\"board\":\"g\",\"title\":\"Technology\"},{\"uri\":\"test\",\"title\":\"Test\"}]}") });
             if (path.EndsWith(".json", StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref ThreadRequests);
                 return Task.FromResult(new HttpResponseMessage(Status) { Content = new StringContent(Json) });
+            }
             Interlocked.Increment(ref MediaRequests);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Payload) });
+            return Task.FromResult(new HttpResponseMessage(MediaStatus) { Content = new ByteArrayContent(Payload) });
         }
     }
 }
