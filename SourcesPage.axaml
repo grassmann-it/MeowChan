@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:desktop="clr-namespace:oChan.Desktop"
+             x:Class="oChan.SourcesPage">
+    <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20" Spacing="14">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="5">
+                    <TextBlock Tag="nav.sources" Classes="page-title localized" />
+                    <TextBlock Tag="sources.subtitle" Classes="muted localized" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock x:Name="SourceCount" Grid.Column="1" Classes="muted" VerticalAlignment="Top" />
+            </Grid>
+            <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
+            <StackPanel x:Name="SourceCards" Spacing="10" />
+            <Border x:Name="SourceDetailsPanel" Classes="panel" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="SourceHeading" Classes="section-title" FontSize="18" />
+                    <TextBlock x:Name="SourceIdentity" Classes="muted mono" TextWrapping="Wrap" />
+                    <WrapPanel x:Name="CapabilityCards" />
+                    <TextBlock x:Name="SourceCaptureAvailability" Classes="muted" TextWrapping="Wrap" />
+                    <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="6">
+                            <TextBlock x:Name="SourceHosts" Classes="muted" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SourceVersion" Classes="muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
+                        <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
+                    </StackPanel>
+                    <TextBlock Tag="sources.urlHint" Classes="muted localized" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="SourceUrlInput" KeyDown="OnUrlKeyDown" />
+                        <Button x:Name="SourceAddButton" Grid.Column="1" Tag="action.add" Classes="primary localized" Click="OnAddClick" />
+                    </Grid>
+                    <TextBlock x:Name="SourceUrlResult" Classes="muted" TextWrapping="Wrap" />
+                    <Button x:Name="SourceDownloadsButton" Tag="nav.downloads" Classes="localized" HorizontalAlignment="Left" Click="OnDownloadsClick" />
+                    <TextBlock Tag="sources.watches" Classes="localized" FontWeight="SemiBold" />
+                    <TextBlock x:Name="SourceWatchSummary" Classes="muted" TextWrapping="Wrap" />
+                    <DataGrid x:Name="SourceWatchesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              GridLinesVisibility="None" SelectionMode="Single" RowHeight="40"
+                              MinHeight="100" MaxHeight="240" SelectionChanged="OnWatchSelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="2*" Binding="{Binding Resource, DataType=desktop:SourceWatchRow}" />
+                            <DataGridTextColumn Width="140" Binding="{Binding Work, DataType=desktop:SourceWatchRow}" />
+                            <DataGridTextColumn Width="*" Binding="{Binding Observation, DataType=desktop:SourceWatchRow}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />
+                    <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
+                    <TextBlock x:Name="SourcesActionError" Classes="error" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

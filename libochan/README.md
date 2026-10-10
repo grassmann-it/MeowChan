@@ -188,3 +188,13 @@ python3 scripts/test-local-package.py --feed artifacts/packages --consumer sampl
 Use a fresh feed containing one candidate package. The verifier restores the sample with a fresh package cache and forces `libochan` to come from that local feed, checks the restored package hash and excludes desktop packages from the dependency graph. The sample performs a verified download, starts a fresh session over the same files, confirms reuse without another media request, and stops cleanly. It then creates and reads a SQLite post catalog after disposing its writer and lease, verifying the native dependency through the actual package. It contacts no public imageboard.
 
 `libochan` is licensed under Artistic License 2.0; the package includes `LICENSE`. Its NuGet dependencies retain their own licenses. This package contains no Actipro or Avalonia binaries, desktop assets or desktop redistribution terms.
+
+## Passive provider descriptions
+
+`Registry.GetProviderDescriptors()` returns registered source identities, addresses
+and optional implementation capabilities without requesting a site or creating
+a watch. Existing providers need no new mandatory interface. Implement
+`IProviderDescriptorSource` to declare capabilities, explicit supported hosts and
+an optional adapter version. Missing capabilities mean unspecified, not unsupported.
+`CaptureAvailable` additionally requires initialized session content services;
+registration and descriptions do not imply online availability.

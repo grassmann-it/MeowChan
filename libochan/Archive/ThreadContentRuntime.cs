@@ -19,6 +19,8 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
     private readonly string _profileDirectory;
     private readonly ProfileLease _lease;
     private ArchiveCatalog? _catalog;
+    private bool _disposed;
+    public bool IsInitialized => _catalog != null && !_disposed;
     public MediaRuleStore Rules { get; }
     public ArchiveCatalog Catalog => _catalog ?? throw new InvalidOperationException("Initialize content services before starting watches.");
     public string? LoadWarning { get; private set; }
@@ -32,6 +34,7 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_catalog != null) return;
         MediaRuleLoadResult rules = await Rules.LoadAsync(cancellationToken).ConfigureAwait(false);
         LoadWarning = rules.Warning;
@@ -52,6 +55,7 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         if (_catalog != null) await _catalog.DisposeAsync().ConfigureAwait(false);
     }
 }

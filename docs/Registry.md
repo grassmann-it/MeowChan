@@ -97,3 +97,19 @@ Core components accept an optional caller-owned Serilog `ILogger` and are silent
 The built-in default HTTP clients share the provider request policy. Supplying a custom `HttpClient` is an advanced injection path; use `ProviderHttpClientFactory.CreatePolicyClient` when the same request policy is required, and follow its ownership/cancellation contract. Never dispose or mutate process-owned default clients.
 
 The [package consumer sample](../samples/LibOChan.Consumer/README.md) is the compiled reference for package restore and a custom provider. The library contains no Avalonia UI, daemon, dynamic plugin loader or HTML archive implementation.
+
+## Registered source capabilities
+
+`GetProviderDescriptors()` passively lists registered identities, canonical base
+addresses and optional capabilities. Built-ins describe thread watches, board
+catalogs, post capture and original media. Existing custom `IImageBoard` providers
+remain compatible; capabilities are unspecified unless they implement
+`IProviderDescriptorSource`. `CaptureAvailable` additionally requires live,
+initialized session content services. No description lookup checks site health
+or admits watches. Current failures and cooldowns belong to the observed watches.
+
+Discovered thread origins are saved as the optional schema-1 field
+`DiscoveredThreadUrls`. Legacy watches without that field use manual scheduling
+priority. Explicitly admitting an already tracked thread URL promotes that watch
+to manual priority after committing the changed session intent, when persistence
+is enabled. Both classes still obey the same network policy.

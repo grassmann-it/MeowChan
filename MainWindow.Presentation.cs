@@ -210,6 +210,7 @@ public partial class MainWindow
         AutomationProperties.SetName(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceControl<MenuItem>("WorkspaceMenuItem"), Texts.T("nav.settings"));
         ToolTip.SetTip(WorkspaceControl<ProgressBar>("InspectorProgressBar"), Texts.T("detail.knownHint"));
+        RefreshSourcesPage();
     }
 
     private static void LocalizeWorkspaceControl(Control control)

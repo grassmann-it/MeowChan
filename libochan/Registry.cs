@@ -39,6 +39,7 @@ public sealed class Registry : IAsyncDisposable
     }
 
     private readonly IImageBoard[] _providers;
+    private readonly ProviderDescriptor[] _providerDescriptors;
     private readonly ILogger _logger;
     private readonly CoalescedEvent<Action> _stateChanges;
     private readonly Queue<string> _warnings = new Queue<string>();
@@ -103,6 +104,11 @@ public sealed class Registry : IAsyncDisposable
             new ReadOnlyDictionary<IBoard, BoardSnapshot>(boardSnapshots), stopping, Array.AsReadOnly(warnings));
     }
 
+    /// <summary>Passive registry descriptions; does not resolve URLs, make requests or create watches.</summary>
+    public IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => Array.AsReadOnly(_providerDescriptors
+        .Select(descriptor => descriptor with { CaptureAvailable = _contentRuntime?.IsInitialized == true
+            && descriptor.Capabilities?.HasFlag(ProviderCapabilities.PostCapture) == true }).ToArray());
+
     public IReadOnlyList<IThread> Threads
     {
         get { lock (_state) { return _watches.Values.Where(w => w.Thread != null && w.Ready && !w.Stopping).Select(w => w.Thread!).ToArray(); } }
@@ -127,6 +133,12 @@ public sealed class Registry : IAsyncDisposable
         _providers = providers.ToArray();
         if (_providers.Any(p => p == null) || _providers.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count() != _providers.Length)
             throw new ArgumentException("Providers must have distinct, non-null source identities.", nameof(providers));
+        _providerDescriptors = _providers.Select(provider =>
+        {
+            IProviderDescriptorSource? description = provider as IProviderDescriptorSource;
+            return new ProviderDescriptor(provider.Name, provider.NiceName, provider.BaseUri, description?.Capabilities,
+                Array.AsReadOnly(description?.SupportedHosts.ToArray() ?? Array.Empty<string>()), description?.AdapterVersion, false);
+        }).ToArray();
         string resolvedOutputDirectory = Path.GetFullPath(outputDirectory);
         _logger = logger ?? Serilog.Core.Logger.None;
         _stateChanges = new CoalescedEvent<Action>(handler => handler(),

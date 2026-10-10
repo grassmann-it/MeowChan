@@ -8,11 +8,12 @@ namespace oChan;
 
 public partial class MainWindow
 {
-    internal enum WorkspacePage { Downloads, Archive, Rules, Diagnostics, Settings }
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings }
     private SettingsEditor? _settingsEditor;
     private DiagnosticsPage? _diagnosticsPage;
     private RulesPage? _rulesPage;
     private ArchivePage? _archivePage;
+    private SourcesPage? _sourcesPage;
     private WorkspacePage _selectedPage;
     internal SettingsEditor SettingsEditor => _settingsEditor
         ?? throw new InvalidOperationException("The settings page has not been initialized.");
@@ -22,7 +23,7 @@ public partial class MainWindow
     internal RulesPage RulesPage => _rulesPage ?? throw new InvalidOperationException("The rules page is not initialized.");
 
     internal ArchivePage ArchivePage => _archivePage ?? throw new InvalidOperationException("The archive page is not initialized.");
-    private bool WorkspaceCommandBusy => _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false) || (_rulesPage?.IsBusy ?? false);
+    private bool WorkspaceCommandBusy => _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false) || (_rulesPage?.IsBusy ?? false) || (_sourcesPage?.IsBusy ?? false);
 
     private void InitializeWorkspacePages()
     {
@@ -41,6 +42,12 @@ public partial class MainWindow
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, OpenDirectory);
         this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
+        _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
+        {
+            if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
+        }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads), SubmitInputAsync);
+        _sourcesPage.BusyChanged += OnSettingsBusyChanged;
+        this.FindControl<ContentControl>("SourcesPageHost")!.Content = _sourcesPage;
     }
 
     private void OnSettingsBusyChanged(object? sender, EventArgs e)
@@ -58,12 +65,15 @@ public partial class MainWindow
         this.FindControl<ContentControl>("DiagnosticsPageHost")!.IsVisible = page == WorkspacePage.Diagnostics;
         this.FindControl<ContentControl>("RulesPageHost")!.IsVisible = page == WorkspacePage.Rules;
         this.FindControl<ContentControl>("ArchivePageHost")!.IsVisible = page == WorkspacePage.Archive;
+        this.FindControl<ContentControl>("SourcesPageHost")!.IsVisible = page == WorkspacePage.Sources;
         this.FindControl<Button>("DownloadsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Downloads);
         this.FindControl<Button>("SettingsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Settings);
         this.FindControl<Button>("DiagnosticsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Diagnostics);
         this.FindControl<Button>("RulesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Rules);
         this.FindControl<Button>("ArchiveNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Archive);
+        this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
         UpdatePageNavigation();
+        if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();
@@ -85,15 +95,25 @@ public partial class MainWindow
         bool archive = _config.WorkspaceMode != "Barebones";
         this.FindControl<Button>("DiagnosticsNavigationButton")!.IsVisible = full;
         this.FindControl<Button>("RulesNavigationButton")!.IsVisible = full;
+        this.FindControl<Button>("SourcesNavigationButton")!.IsVisible = full;
         this.FindControl<Button>("ArchiveNavigationButton")!.IsVisible = archive;
         Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
         tools.IsVisible = !full;
-        tools.Classes.Set("selected", !full && (_selectedPage is WorkspacePage.Diagnostics or WorkspacePage.Rules
+        tools.Classes.Set("selected", !full && (_selectedPage is WorkspacePage.Diagnostics or WorkspacePage.Rules or WorkspacePage.Sources
             || (!archive && _selectedPage == WorkspacePage.Archive)));
     }
 
     private void RefreshDiagnosticPage(DesktopSessionView? view = null) => _diagnosticsPage?.Refresh(view ?? _session.GetView(),
         !WorkspaceCommandBusy);
+
+    private void RefreshSourcesPage(DesktopSessionView? view = null) => _sourcesPage?.Refresh(_session.GetProviderDescriptors(),
+        view ?? _session.GetView(), _restoreCompleted && !WorkspaceCommandBusy && !_importing);
+
+    private void OnSourcesNavigationClick(object? sender, RoutedEventArgs e)
+    {
+        this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
+        NavigateWorkspace(WorkspacePage.Sources);
+    }
 
     private bool OpenDiagnosticWatch(DiagnosticTarget target)
     {
@@ -145,6 +165,7 @@ public partial class MainWindow
     private void DisposeWorkspacePages()
     {
         _diagnosticsPage?.EndLifetime();
+        if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();
         if (_rulesPage != null) { _rulesPage.BusyChanged -= OnSettingsBusyChanged; _rulesPage.EndLifetime(); }
         if (_settingsEditor == null) return;

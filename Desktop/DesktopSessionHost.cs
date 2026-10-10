@@ -276,6 +276,8 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         SignalChanged();
     }
 
+    internal IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => _registry.GetProviderDescriptors();
+
     internal MediaRuleSet MediaRules => _content.Rules.Current;
     internal EffectiveMediaRule ResolveRules(MediaRuleScope scope) => _content.Rules.Resolve(scope);
     internal Task<ArchiveReader> OpenArchiveReaderAsync(CancellationToken cancellationToken = default) =>

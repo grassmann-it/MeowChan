@@ -301,6 +301,7 @@ internal static class Program
             await GridChecks.RunAsync(mainWindow);
             await SettingsPageChecks.RunAsync(mainWindow);
             await DiagnosticsChecks.RunAsync(mainWindow);
+            await SourcesChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);
             Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");

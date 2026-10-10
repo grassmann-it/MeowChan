@@ -157,6 +157,8 @@ public partial class MainWindow : Window
         this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
@@ -171,6 +173,7 @@ public partial class MainWindow : Window
         this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = navigationReady;
         this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = navigationReady;
         RefreshDiagnosticPage();
+        RefreshSourcesPage();
         RefreshWorkspace();
     }
 
@@ -221,6 +224,7 @@ public partial class MainWindow : Window
         RefreshWorkspace();
 
         RefreshDiagnosticPage(view);
+        RefreshSourcesPage(view);
         HashSet<string> currentWarnings = new HashSet<string>(StringComparer.Ordinal);
         foreach (string warning in view.Warnings)
         {

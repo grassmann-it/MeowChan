@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using oChan.Boards.Base;
@@ -8,7 +9,7 @@ using Serilog;
 
 namespace oChan.Boards.EightKun;
 
-public class EightKunImageBoard : BaseImageBoard
+public class EightKunImageBoard : BaseImageBoard, IProviderDescriptorSource
 {
     private static readonly Uri CanonicalBaseUri = new("https://8kun.top/");
     private static readonly Regex BoardPattern = new(@"^/(?<board>[a-zA-Z0-9_]+)(?:/(?:catalog(?:\.html)?|index\.html))?/?$", RegexOptions.CultureInvariant);
@@ -24,6 +25,10 @@ public class EightKunImageBoard : BaseImageBoard
     public override string Name => "8kun";
     public override string NiceName => "8kun";
     public override Uri BaseUri => CanonicalBaseUri;
+
+    public ProviderCapabilities Capabilities => ProviderCapabilities.ThreadWatch | ProviderCapabilities.BoardCatalog
+        | ProviderCapabilities.PostCapture | ProviderCapabilities.OriginalMedia;
+    public IReadOnlyList<string> SupportedHosts { get; } = Array.AsReadOnly(new[] { "8kun.top" });
 
     public override bool CanHandle(Uri uri) => IsSupportedUri(uri);
     public override bool IsBoardUri(Uri uri) => CanHandle(uri) && BoardPattern.IsMatch(uri.AbsolutePath);

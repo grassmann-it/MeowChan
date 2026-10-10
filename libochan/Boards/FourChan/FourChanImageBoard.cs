@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using oChan.Boards.Base;
@@ -8,7 +9,7 @@ using Serilog;
 
 namespace oChan.Boards.FourChan;
 
-public class FourChanImageBoard : BaseImageBoard
+public class FourChanImageBoard : BaseImageBoard, IProviderDescriptorSource
 {
     private static readonly Uri CanonicalBaseUri = new("https://boards.4chan.org/");
     private static readonly Regex BoardPattern = new(@"^/(?<board>[a-zA-Z0-9_]+)(?:/catalog)?/?$", RegexOptions.CultureInvariant);
@@ -24,6 +25,10 @@ public class FourChanImageBoard : BaseImageBoard
     public override string Name => "4chan";
     public override string NiceName => "4chan";
     public override Uri BaseUri => CanonicalBaseUri;
+
+    public ProviderCapabilities Capabilities => ProviderCapabilities.ThreadWatch | ProviderCapabilities.BoardCatalog
+        | ProviderCapabilities.PostCapture | ProviderCapabilities.OriginalMedia;
+    public IReadOnlyList<string> SupportedHosts { get; } = Array.AsReadOnly(new[] { "boards.4chan.org", "boards.4channel.org" });
 
     public override bool CanHandle(Uri uri) => IsSupportedUri(uri);
     public override bool IsBoardUri(Uri uri) => CanHandle(uri) && BoardPattern.IsMatch(uri.AbsolutePath);
