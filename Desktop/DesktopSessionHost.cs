@@ -56,6 +56,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
 
     public Config Config { get; }
     internal ExportHistoryStore ExportHistory { get; }
+    internal CollectionExportHistoryStore CollectionExportHistory { get; }
     internal IReadOnlyList<ThreadWorkSnapshot> GetThreadWorkSnapshots() => _registry.GetWorkSnapshots();
     public string ProfileDirectory => _profileLease.ProfileDirectory;
     public DesktopSessionState State { get { lock (_lifecycle) { return _state; } } }
@@ -75,6 +76,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         {
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
+            CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
             queue.SetPaused(Config.DownloadsPaused);

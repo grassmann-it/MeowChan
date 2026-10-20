@@ -98,77 +98,10 @@ public static class ArchiveHtmlExporter
         Directory.CreateDirectory(stage);
         try
         {
+            ArchiveHtmlExportResult rendered = await RenderAsync(snapshot, stage, "index.html", "style.css", "media/",
+                new Dictionary<string, string>(StringComparer.Ordinal), null, false, options, progress, token).ConfigureAwait(false);
             ArchivedThreadView view = snapshot.View;
-            Dictionary<(string, string), CandidateDecision> decisions = snapshot.Decisions.ToDictionary(
-                decision => (decision.Metadata.Key.MediaId, decision.Metadata.Key.Variant));
-            List<(MediaAssetSnapshot Manifest, MediaAssetReference Asset)> assets = new();
-            List<string> warnings = new();
-            if (options.IncludeMedia)
-            {
-                progress?.Report(new ArchiveHtmlExportProgress(ArchiveHtmlExportPhase.ReadingMedia, 0, 0));
-                foreach (string directory in view.MediaDirectories)
-                {
-                    token.ThrowIfCancellationRequested();
-                    try
-                    {
-                        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory, token).ConfigureAwait(false);
-                        if (manifest.Warning != null) warnings.Add(manifest.Warning);
-                        if (manifest.Status == MediaManifestStatus.Missing) warnings.Add("A saved media manifest is unavailable.");
-                        for (int offset = 0; offset < manifest.Count; offset += 500)
-                            assets.AddRange(manifest.GetPage(offset, 500).Select(asset => (manifest, asset)));
-                    }
-                    catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
-                    { warnings.Add("A saved media directory could not be read."); }
-                }
-            }
-            Dictionary<string, string> copied = new(StringComparer.Ordinal);
-            List<ArchiveExportOmission> omissions = new();
-            HashSet<string> capturedIds = view.Posts.Select(post => post.PostId).ToHashSet(StringComparer.Ordinal);
-            int files = 0;
-            int posts = 0;
-            Directory.CreateDirectory(Path.Combine(stage, "media"));
-            await using FileStream output = new(Path.Combine(stage, "index.html"), FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                81920, FileOptions.Asynchronous);
-            await using StreamWriter html = new(output, new UTF8Encoding(false));
-            await html.WriteLineAsync("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"style.css\"></head><body><header><h1>" + Encode(view.Summary.Title) + "</h1><p>" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p><p>Last observed capture: " + Encode(view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? "No captured posts") + "</p><p>Only observed posts are retained. Missing source posts do not erase earlier captures. External threads are not included in this folder.</p></header><main>");
-            foreach (CapturedPost post in view.Posts)
-            {
-                token.ThrowIfCancellationRequested();
-                await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
-                    + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · Removed at source" : "") + "</p><div class=\"body\">" + Encode(ArchiveText.PlainText(post.Html)) + "</div>");
-                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(view.Summary.Id, view.Summary.Url, post))
-                {
-                    bool captured = quote.Target?.Thread == view.Summary.Id && capturedIds.Contains(quote.Target.PostId);
-                    if (captured) await html.WriteLineAsync("<a class=\"quote\" href=\"#" + PostAnchor(quote.Target!.PostId) + "\">" + Encode(quote.Label) + "</a>");
-                    else await html.WriteLineAsync("<span class=\"omission\">" + Encode(quote.Label) + " — "
-                        + (quote.IsExternal ? "External reference" : quote.Target?.Thread == view.Summary.Id ? "Post not captured" : quote.Target != null ? "Other thread, outside this export" : "Unresolved reference") + "</span>");
-                }
-                foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
-                    await AttachmentAsync(post.PostId, attachment).ConfigureAwait(false);
-                await html.WriteLineAsync("</article>");
-                posts++;
-                if (posts == 1 || posts % 25 == 0 || posts == view.PostCount)
-                    progress?.Report(new ArchiveHtmlExportProgress(ArchiveHtmlExportPhase.WritingPosts, posts, files));
-            }
-            // Old/media-only threads remain useful as a local gallery, without inventing posts.
-            if (view.PostCount == 0)
-            {
-                await html.WriteLineAsync("<article><h2>Saved media</h2><p>No post text was captured. This gallery contains current manifest-published originals.</p>");
-                if (!options.IncludeMedia) await html.WriteLineAsync("<p class=\"omission\">Saved media omitted by export choice.</p>");
-                foreach ((MediaAssetSnapshot manifest, MediaAssetReference asset) in assets.Where(pair => pair.Asset.IsCurrent && pair.Asset.Variant == "original"))
-                {
-                    token.ThrowIfCancellationRequested();
-                    await AttachmentAsync(null, new CapturedAttachment(0, asset.MediaIdentifier, asset.Variant,
-                        OriginalFileName: asset.OriginalFileName, ExpectedSize: asset.Length, ExpectedMd5: asset.Md5)).ConfigureAwait(false);
-                }
-                await html.WriteLineAsync("</article>");
-            }
-            await html.WriteLineAsync("</main><footer><h2>Export result</h2><p>" + posts + " captured posts · " + files + " copied media files · " + omissions.Count + " attachment omissions</p>");
-            foreach (string warning in warnings.Distinct()) await html.WriteLineAsync("<p class=\"omission\">" + Encode(warning) + "</p>");
-            await html.WriteLineAsync("<p>Media bytes were verified against their manifest before copying. This folder requires no MeowChan profile, server or network connection.</p></footer></body></html>");
-            await html.FlushAsync(token).ConfigureAwait(false);
-            await html.DisposeAsync().ConfigureAwait(false);
-            await output.DisposeAsync().ConfigureAwait(false);
+            List<string> warnings = rendered.Warnings.ToList();
             await File.WriteAllTextAsync(Path.Combine(stage, "style.css"), Css, new UTF8Encoding(false), token).ConfigureAwait(false);
             ArchiveExportMetadata metadata = await ArchiveExportMetadataFile.CreateAsync(stage, view, options,
                 update?.Existing.Metadata.ExportId ?? Guid.NewGuid(),
@@ -185,86 +118,175 @@ public static class ArchiveHtmlExporter
                 publicationWarning = publication.Warning;
             }
             if (publicationWarning != null) warnings.Add(publicationWarning);
-            return new ArchiveHtmlExportResult(destination, Path.Combine(destination, "index.html"), posts, files,
-                Array.AsReadOnly(omissions.ToArray())) { Warnings = Array.AsReadOnly(warnings.Distinct().ToArray()),
+            return new ArchiveHtmlExportResult(destination, Path.Combine(destination, "index.html"), rendered.PostCount, rendered.FileCount,
+                rendered.Omissions) { Warnings = Array.AsReadOnly(warnings.Distinct().ToArray()),
                     Metadata = metadata, BackupDirectory = backup };
-
-            async Task AttachmentAsync(string? postId, CapturedAttachment attachment)
-            {
-                ArchiveExportOmissionReason? reason = null;
-                (MediaAssetSnapshot Manifest, MediaAssetReference Asset)? chosen = null;
-                if (!options.IncludeMedia) reason = ArchiveExportOmissionReason.MediaNotIncluded;
-                else if (attachment.MediaId == null) reason = ArchiveExportOmissionReason.NoMediaIdentity;
-                else if (decisions.TryGetValue((attachment.MediaId, attachment.Variant), out CandidateDecision? decision)
-                    && decision.Selection.Outcome == MediaSelectionOutcome.Excluded) reason = ArchiveExportOmissionReason.ExcludedByRule;
-                else
-                {
-                    (MediaAssetSnapshot Manifest, MediaAssetReference Asset)[] matches = assets.Where(pair => pair.Asset.MediaIdentifier == attachment.MediaId
-                        && pair.Asset.Variant == attachment.Variant).ToArray();
-                    chosen = matches.Where(pair => (attachment.ExpectedSize == null || pair.Asset.Length == attachment.ExpectedSize)
-                            && (attachment.ExpectedMd5 == null || pair.Asset.Md5 == attachment.ExpectedMd5))
-                        .OrderByDescending(pair => pair.Asset.IsCurrent).ThenBy(pair => pair.Asset.AssetId, StringComparer.Ordinal)
-                        .Select(pair => ((MediaAssetSnapshot Manifest, MediaAssetReference Asset)?)pair).FirstOrDefault();
-                    if (chosen == null) reason = matches.Length == 0 ? ArchiveExportOmissionReason.Unavailable : ArchiveExportOmissionReason.DifferentVersion;
-                }
-                string? relative = null;
-                if (chosen is (MediaAssetSnapshot manifest, MediaAssetReference asset))
-                {
-                    string extension = SafeExtension(asset.Path);
-                    string name = asset.Sha256.ToLowerInvariant() + extension;
-                    if (!copied.TryGetValue(name, out relative))
-                    {
-                        Stream? source = null;
-                        try { source = await manifest.OpenVerifiedReadAsync(asset.AssetId, token).ConfigureAwait(false); }
-                        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
-                        { reason = ArchiveExportOmissionReason.VerificationFailed; }
-                        if (source != null)
-                        {
-                            bool matches;
-                            await using (source)
-                            await using (FileStream target = new(Path.Combine(stage, "media", name), FileMode.CreateNew, FileAccess.ReadWrite,
-                                FileShare.None, 81920, FileOptions.Asynchronous))
-                            {
-                                await source.CopyToAsync(target, token).ConfigureAwait(false);
-                                target.Position = 0;
-                                byte[] digest = await SHA256.HashDataAsync(target, token).ConfigureAwait(false);
-                                matches = target.Length == asset.Length && Convert.ToHexString(digest).Equals(asset.Sha256, StringComparison.OrdinalIgnoreCase);
-                            }
-                            if (!matches)
-                            {
-                                File.Delete(Path.Combine(stage, "media", name));
-                                reason = ArchiveExportOmissionReason.VerificationFailed;
-                            }
-                            else
-                            {
-                                relative = "media/" + name;
-                                copied.Add(name, relative);
-                                files++;
-                            }
-                        }
-                    }
-                }
-                string label = Encode(attachment.OriginalFileName ?? attachment.MediaId ?? "Deleted attachment");
-                if (reason != null)
-                {
-                    omissions.Add(new ArchiveExportOmission(postId, attachment.MediaId, reason.Value));
-                    await html.WriteLineAsync("<p class=\"omission\">" + label + " — " + OmissionText(reason.Value) + "</p>");
-                }
-                else if (relative != null)
-                {
-                    string extension = Path.GetExtension(relative);
-                    if (extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")
-                        await html.WriteLineAsync("<figure><a href=\"" + relative + "\"><img loading=\"lazy\" src=\"" + relative + "\" alt=\"" + label + "\"></a><figcaption>" + label + "</figcaption></figure>");
-                    else if (extension is ".webm" or ".mp4")
-                        await html.WriteLineAsync("<figure><video controls preload=\"metadata\" src=\"" + relative + "\"></video><figcaption><a href=\"" + relative + "\" download>" + label + "</a></figcaption></figure>");
-                    else await html.WriteLineAsync("<p><a href=\"" + relative + "\" download>" + label + "</a></p>");
-                }
-            }
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true); }
     }
-    private static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
-    private static string PostAnchor(string id) => "p-" + Convert.ToHexString(Encoding.UTF8.GetBytes(id)).ToLowerInvariant();
+    internal static async Task<ArchiveHtmlExportResult> RenderAsync(ArchiveExportSnapshot snapshot, string stage,
+        string pagePath, string cssReference, string mediaPrefix, Dictionary<string, string> copied,
+        Func<ArchiveQuote, string?>? quoteResolver, bool verifyEachOrigin, ArchiveHtmlExportOptions options,
+        IProgress<ArchiveHtmlExportProgress>? progress, CancellationToken token)
+    {
+        ArchivedThreadView view = snapshot.View;
+        Dictionary<(string, string), CandidateDecision> decisions = snapshot.Decisions.ToDictionary(
+            decision => (decision.Metadata.Key.MediaId, decision.Metadata.Key.Variant));
+        List<(MediaAssetSnapshot Manifest, MediaAssetReference Asset)> assets = new();
+        List<string> warnings = new();
+        if (options.IncludeMedia)
+        {
+            progress?.Report(new ArchiveHtmlExportProgress(ArchiveHtmlExportPhase.ReadingMedia, 0, 0));
+            foreach (string directory in view.MediaDirectories)
+            {
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory, token).ConfigureAwait(false);
+                    if (manifest.Warning != null) warnings.Add(manifest.Warning);
+                    if (manifest.Status == MediaManifestStatus.Missing) warnings.Add("A saved media manifest is unavailable.");
+                    for (int offset = 0; offset < manifest.Count; offset += 500)
+                        assets.AddRange(manifest.GetPage(offset, 500).Select(asset => (manifest, asset)));
+                }
+                catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+                { warnings.Add("A saved media directory could not be read."); }
+            }
+        }
+        List<ArchiveExportOmission> omissions = new();
+        HashSet<string> capturedIds = view.Posts.Select(post => post.PostId).ToHashSet(StringComparer.Ordinal);
+        int files = 0;
+        int posts = 0;
+        Directory.CreateDirectory(Path.Combine(stage, "media"));
+        await using FileStream output = new(Path.Combine(stage, pagePath), FileMode.CreateNew, FileAccess.Write, FileShare.None,
+            81920, FileOptions.Asynchronous);
+        await using StreamWriter html = new(output, new UTF8Encoding(false));
+        await html.WriteLineAsync("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'\"><title>" + Encode(view.Summary.Title) + "</title><link rel=\"stylesheet\" href=\"" + Encode(cssReference) + "\"></head><body><header><h1>" + Encode(view.Summary.Title) + "</h1><p>" + Encode(view.Summary.Id.Source + " /" + view.Summary.Id.Board + "/ " + view.Summary.Id.Thread) + "</p><p>Last observed capture: " + Encode(view.Summary.LastCapturedAt?.ToString("u", CultureInfo.InvariantCulture) ?? "No captured posts") + "</p><p>Only observed posts are retained. Missing source posts do not erase earlier captures. " + (quoteResolver == null ? "External threads are not included in this folder." : "References outside captured export posts remain unavailable offline.") + "</p></header><main>");
+        if (quoteResolver != null) await html.WriteLineAsync("<nav><a href=\"../index.html\">Collection start page</a></nav>");
+        foreach (CapturedPost post in view.Posts)
+        {
+            token.ThrowIfCancellationRequested();
+            await html.WriteLineAsync("<article id=\"" + PostAnchor(post.PostId) + "\"><h2>#" + Encode(post.PostId) + " " + Encode(post.Subject) + "</h2><p class=\"meta\">" + Encode(post.Author)
+                + " " + Encode(post.PostedAt?.ToString("u", CultureInfo.InvariantCulture)) + (post.IsDeleted ? " · Removed at source" : "") + "</p><div class=\"body\">" + Encode(ArchiveText.PlainText(post.Html)) + "</div>");
+            foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(view.Summary.Id, view.Summary.Url, post))
+            {
+                string? quotePath = quoteResolver == null
+                    ? quote.Target?.Thread == view.Summary.Id && capturedIds.Contains(quote.Target.PostId) ? "#" + PostAnchor(quote.Target.PostId) : null
+                    : quoteResolver(quote);
+                if (quotePath != null) await html.WriteLineAsync("<a class=\"quote\" href=\"" + Encode(quotePath) + "\">" + Encode(quote.Label) + "</a>");
+                else await html.WriteLineAsync("<span class=\"omission\">" + Encode(quote.Label) + " — "
+                    + (quote.IsExternal ? "External reference" : quote.Target?.Thread == view.Summary.Id ? "Post not captured" : quote.Target != null ? "Other thread, outside this export" : "Unresolved reference") + "</span>");
+            }
+            foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
+                await AttachmentAsync(post.PostId, attachment).ConfigureAwait(false);
+            await html.WriteLineAsync("</article>");
+            posts++;
+            if (posts == 1 || posts % 25 == 0 || posts == view.PostCount)
+                progress?.Report(new ArchiveHtmlExportProgress(ArchiveHtmlExportPhase.WritingPosts, posts, files));
+        }
+        // Old/media-only threads remain useful as a local gallery, without inventing posts.
+        if (view.PostCount == 0)
+        {
+            await html.WriteLineAsync("<article><h2>Saved media</h2><p>No post text was captured. This gallery contains current manifest-published originals.</p>");
+            if (!options.IncludeMedia) await html.WriteLineAsync("<p class=\"omission\">Saved media omitted by export choice.</p>");
+            foreach ((MediaAssetSnapshot manifest, MediaAssetReference asset) in assets.Where(pair => pair.Asset.IsCurrent && pair.Asset.Variant == "original"))
+            {
+                token.ThrowIfCancellationRequested();
+                await AttachmentAsync(null, new CapturedAttachment(0, asset.MediaIdentifier, asset.Variant,
+                    OriginalFileName: asset.OriginalFileName, ExpectedSize: asset.Length, ExpectedMd5: asset.Md5)).ConfigureAwait(false);
+            }
+            await html.WriteLineAsync("</article>");
+        }
+        await html.WriteLineAsync("</main><footer><h2>Export result</h2><p>" + posts + " captured posts · " + files + " copied media files · " + omissions.Count + " attachment omissions</p>");
+        foreach (string warning in warnings.Distinct()) await html.WriteLineAsync("<p class=\"omission\">" + Encode(warning) + "</p>");
+        await html.WriteLineAsync("<p>Media bytes were verified against their manifest before copying. This folder requires no MeowChan profile, server or network connection.</p></footer></body></html>");
+        await html.FlushAsync(token).ConfigureAwait(false);
+        await html.DisposeAsync().ConfigureAwait(false);
+        await output.DisposeAsync().ConfigureAwait(false);
+
+        return new ArchiveHtmlExportResult(stage, Path.Combine(stage, pagePath), posts, files,
+            Array.AsReadOnly(omissions.ToArray())) { Warnings = warnings.Distinct().ToArray() };
+
+        async Task AttachmentAsync(string? postId, CapturedAttachment attachment)
+        {
+            ArchiveExportOmissionReason? reason = null;
+            (MediaAssetSnapshot Manifest, MediaAssetReference Asset)? chosen = null;
+            if (!options.IncludeMedia) reason = ArchiveExportOmissionReason.MediaNotIncluded;
+            else if (attachment.MediaId == null) reason = ArchiveExportOmissionReason.NoMediaIdentity;
+            else if (decisions.TryGetValue((attachment.MediaId, attachment.Variant), out CandidateDecision? decision)
+                && decision.Selection.Outcome == MediaSelectionOutcome.Excluded) reason = ArchiveExportOmissionReason.ExcludedByRule;
+            else
+            {
+                (MediaAssetSnapshot Manifest, MediaAssetReference Asset)[] matches = assets.Where(pair => pair.Asset.MediaIdentifier == attachment.MediaId
+                    && pair.Asset.Variant == attachment.Variant).ToArray();
+                chosen = matches.Where(pair => (attachment.ExpectedSize == null || pair.Asset.Length == attachment.ExpectedSize)
+                        && (attachment.ExpectedMd5 == null || pair.Asset.Md5 == attachment.ExpectedMd5))
+                    .OrderByDescending(pair => pair.Asset.IsCurrent).ThenBy(pair => pair.Asset.AssetId, StringComparer.Ordinal)
+                    .Select(pair => ((MediaAssetSnapshot Manifest, MediaAssetReference Asset)?)pair).FirstOrDefault();
+                if (chosen == null) reason = matches.Length == 0 ? ArchiveExportOmissionReason.Unavailable : ArchiveExportOmissionReason.DifferentVersion;
+            }
+            string? relative = null;
+            if (chosen is (MediaAssetSnapshot manifest, MediaAssetReference asset))
+            {
+                string extension = SafeExtension(asset.Path);
+                string name = asset.Sha256.ToLowerInvariant() + extension;
+                if (!copied.TryGetValue(name, out relative) || verifyEachOrigin)
+                {
+                    Stream? source = null;
+                    try { source = await manifest.OpenVerifiedReadAsync(asset.AssetId, token).ConfigureAwait(false); }
+                    catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+                    { reason = ArchiveExportOmissionReason.VerificationFailed; }
+                    if (source != null)
+                    {
+                        string copyPath = Path.Combine(stage, "media", name + ".pending-" + Guid.NewGuid().ToString("N"));
+                        bool matches;
+                        await using (source)
+                        await using (FileStream target = new(copyPath, FileMode.CreateNew, FileAccess.ReadWrite,
+                            FileShare.None, 81920, FileOptions.Asynchronous))
+                        {
+                            await source.CopyToAsync(target, token).ConfigureAwait(false);
+                            target.Position = 0;
+                            byte[] digest = await SHA256.HashDataAsync(target, token).ConfigureAwait(false);
+                            matches = target.Length == asset.Length && Convert.ToHexString(digest).Equals(asset.Sha256, StringComparison.OrdinalIgnoreCase);
+                        }
+                        if (!matches)
+                        {
+                            File.Delete(copyPath);
+                            reason = ArchiveExportOmissionReason.VerificationFailed;
+                        }
+                        else
+                        {
+                            relative = mediaPrefix + name;
+                            if (!copied.ContainsKey(name))
+                            {
+                                File.Move(copyPath, Path.Combine(stage, "media", name));
+                                copied.Add(name, name);
+                                files++;
+                            }
+                            else File.Delete(copyPath);
+                        }
+                    }
+                }
+            }
+            if (relative != null && reason == null) relative = mediaPrefix + Path.GetFileName(relative);
+            string label = Encode(attachment.OriginalFileName ?? attachment.MediaId ?? "Deleted attachment");
+            if (reason != null)
+            {
+                omissions.Add(new ArchiveExportOmission(postId, attachment.MediaId, reason.Value));
+                await html.WriteLineAsync("<p class=\"omission\">" + label + " — " + OmissionText(reason.Value) + "</p>");
+            }
+            else if (relative != null)
+            {
+                string extension = Path.GetExtension(relative);
+                if (extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")
+                    await html.WriteLineAsync("<figure><a href=\"" + relative + "\"><img loading=\"lazy\" src=\"" + relative + "\" alt=\"" + label + "\"></a><figcaption>" + label + "</figcaption></figure>");
+                else if (extension is ".webm" or ".mp4")
+                    await html.WriteLineAsync("<figure><video controls preload=\"metadata\" src=\"" + relative + "\"></video><figcaption><a href=\"" + relative + "\" download>" + label + "</a></figcaption></figure>");
+                else await html.WriteLineAsync("<p><a href=\"" + relative + "\" download>" + label + "</a></p>");
+            }
+        }
+    }
+    internal static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
+    internal static string PostAnchor(string id) => "p-" + Convert.ToHexString(Encoding.UTF8.GetBytes(id)).ToLowerInvariant();
     private static string SafeExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     { ".png" => ".png", ".jpg" => ".jpg", ".jpeg" => ".jpeg", ".gif" => ".gif", ".webp" => ".webp", ".bmp" => ".bmp", ".webm" => ".webm", ".mp4" => ".mp4", _ => ".bin" };
     private static string OmissionText(ArchiveExportOmissionReason reason) => reason switch
@@ -276,7 +298,7 @@ public static class ArchiveHtmlExporter
         ArchiveExportOmissionReason.VerificationFailed => "Saved media failed verification or could not be read",
         _ => "No retained media identity"
     };
-    private const string Css = """
+    internal const string Css = """
         :root{color-scheme:dark light;font:16px/1.5 system-ui,sans-serif;background:#15181c;color:#e0e3e6}
         body{max-width:960px;margin:auto;padding:24px}header,footer,article{background:#20242a;border:1px solid #363b44;border-radius:6px;padding:20px;margin-bottom:16px}
         h1,h2{overflow-wrap:anywhere}h2{font-size:1.05rem}.body{white-space:pre-wrap;overflow-wrap:anywhere}.meta{color:#aab2be;font-size:.85rem}
