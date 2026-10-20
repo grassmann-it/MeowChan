@@ -416,7 +416,15 @@ jobs:
       - name: Play both WebM codecs through the extracted Linux apphost
         if: runner.os == 'Linux'
         run: python3 scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan --evidence-dir artifacts/media-evidence/playback
-      # Evidence only until the matching macOS source companion is assembled.
+      - name: Retain playback-verified Windows or Linux archive and evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-media-candidate-${{ matrix.runtime }}
+          path: |
+            artifacts/media-packages/*
+            artifacts/media-evidence/**
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain native package playback evidence
         if: always()
         uses: actions/upload-artifact@v7
