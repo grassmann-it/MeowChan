@@ -11,6 +11,7 @@ internal static class SourcesCatalog
         ("sources.select", "Select a source", "Quelle auswählen"),
         ("sources.selected", "Selected", "Ausgewählt"),
         ("sources.details", "Adapter details", "Adapterdetails"),
+        ("sources.website", "Open website: {0}", "Website öffnen: {0}"),
         ("sources.identity", "Source ID: {0} · {1}", "Quellen-ID: {0} · {1}"),
         ("sources.version", "Adapter version: {0}", "Adapterversion: {0}"),
         ("sources.hosts", "Supported hosts: {0}", "Unterstützte Hosts: {0}"),

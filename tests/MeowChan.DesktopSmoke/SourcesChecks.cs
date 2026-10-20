@@ -74,16 +74,45 @@ internal static class SourcesChecks
                 window.Width = mode == "Barebones" ? 640 : 760;
                 window.Height = mode == "Barebones" ? 480 : 560;
                 window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                if (mode == "Barebones")
+                    await Program.WaitUntilAsync(() => page.Bounds.Width > 0 && page.Bounds.Width < 760
+                        && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions.Count == 1);
                 foreach (string language in new[] { "en", "de" })
                 {
                     Texts.SetLanguage(language);
                     page.Refresh(providers, view, true);
                     page.FindControl<TextBox>("SourceUrlInput")!.Text = "https://unknown.invalid/g/thread/123";
+                    Button firstSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[0];
+                    Require(firstSource.Content is StackPanel && !firstSource.GetVisualDescendants().OfType<Button>().Any(),
+                        "Source row still requires a separate Select button.");
+                    if (page.Bounds.Width < 760)
+                    {
+                        if (page.FindControl<Border>("SourceDetailsPanel")!.IsVisible)
+                            page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Require(page.FindControl<StackPanel>("SourcesListPane")!.IsVisible
+                            && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
+                            "Narrow Sources did not start with the source list.");
+                        firstSource.Focus();
+                        firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Require(page.FindControl<Border>("SourceDetailsPanel")!.IsVisible
+                            && !page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
+                            "Narrow row activation did not open details.");
+                        page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                        Require(firstSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible
+                            && page.FindControl<TextBox>("SourceUrlInput")!.Text == "https://unknown.invalid/g/thread/123",
+                            "Narrow Back did not restore source focus and URL draft.");
+                        firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    }
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                     Require(window.SelectedPage == MainWindow.WorkspacePage.Sources, "Sources navigation did not retain its page.");
                     Require(page.FindControl<TextBlock>("SourceWatchSummary")!.Text!.Contains("1"), "Sources lost active watch counts.");
                     Require(page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureAvailable"),
                         "Capture support and initialized session availability were not shown.");
+                    Require(page.FindControl<Button>("SourceWebsiteButton")!.Content?.ToString()
+                        == Texts.T("sources.website", "https://boards.4chan.org/"),
+                        "Selected source website is not directly reachable.");
                     page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                     Program.CaptureWindow(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}.png");
@@ -111,9 +140,11 @@ internal static class SourcesChecks
                 }
             }
             Require(submissions == 6, "Opening or refreshing Sources caused unsolicited admissions.");
-            Border secondCard = (Border)page.FindControl<StackPanel>("SourceCards")!.Children[1];
-            ((Grid)secondCard.Child!).Children.OfType<Button>().Single().RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Button selectedSource = ((Grid)secondCard.Child!).Children.OfType<Button>().Single();
+            window.Width = 1280;
+            await Program.WaitUntilAsync(() => page.Bounds.Width >= 760
+                && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions.Count == 2);
+            Button selectedSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[1];
+            selectedSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             selectedSource.Focus();
             page.Refresh(providers, view, true);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -122,7 +153,6 @@ internal static class SourcesChecks
                 && page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureUnavailable")
                 && page.FindControl<TextBlock>("SourceVersion")!.Text!.Contains("fixture-version"),
                 "Thread-only provider selection or optional descriptor details were lost after refresh.");
-            window.Width = 1280;
             await Program.WaitUntilAsync(() => window.FindControl<Button>("SourcesNavigationButton")!.IsVisible);
             window.FindControl<Button>("SourcesNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(window.SelectedPage == MainWindow.WorkspacePage.Sources

@@ -20,13 +20,15 @@ public partial class SourcesPage : UserControl
     private readonly Action? _openDownloads;
     private readonly Func<string, Task<bool>>? _submit;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
-    private sealed record SourceCard(Border Container, TextBlock Name, TextBlock Address, TextBlock Observation, Button Select);
+    private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
     private readonly Dictionary<string, SourceCard> _sourceCards = new Dictionary<string, SourceCard>(StringComparer.Ordinal);
     private string? _selectedId;
     private bool _available;
     private bool _busy;
     private bool _ended;
     private bool _hasUrlResult;
+    private bool _showDetails;
+    private bool _narrow;
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
@@ -52,7 +54,7 @@ public partial class SourcesPage : UserControl
         StackPanel cards = this.FindControl<StackPanel>("SourceCards")!;
         foreach (string removed in _sourceCards.Keys.Where(id => !_rows.Any(row => row.Id == id)).ToArray())
         {
-            cards.Children.Remove(_sourceCards[removed].Container);
+            cards.Children.Remove(_sourceCards[removed].Control);
             _sourceCards.Remove(removed);
         }
         foreach (SourceRow row in _rows)
@@ -64,24 +66,24 @@ public partial class SourcesPage : UserControl
                 TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("muted");
                 StackPanel labels = new StackPanel { Spacing = 4 };
                 labels.Children.Add(name); labels.Children.Add(address); labels.Children.Add(observation);
-                Button select = new Button { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                Button select = new Button { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(14) };
                 string sourceId = row.Id;
                 select.Click += (_, _) =>
                 {
                     _selectedId = sourceId;
+                    _showDetails = true;
                     this.FindControl<TextBlock>("SourcesActionError")!.Text = string.Empty;
                     RenderDetails();
                 };
-                Grid heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-                heading.Children.Add(labels); Grid.SetColumn(select, 1); heading.Children.Add(select);
-                Border container = new Border { Child = heading, Padding = new Thickness(14) }; container.Classes.Add("panel");
-                card = new SourceCard(container, name, address, observation, select);
-                _sourceCards.Add(row.Id, card); cards.Children.Add(container);
+                select.Content = labels;
+                card = new SourceCard(select, name, address, observation);
+                _sourceCards.Add(row.Id, card); cards.Children.Add(select);
             }
-            card.Name.Text = row.Name;
+            card.Name.Text = (row.Id == _selectedId ? "● " : "") + row.Name;
             card.Address.Text = row.Address;
             card.Observation.Text = row.Summary;
-            card.Select.IsEnabled = !_busy;
+            card.Control.IsEnabled = !_busy;
         }
         RenderDetails();
     }
@@ -90,9 +92,16 @@ public partial class SourcesPage : UserControl
     private void RenderDetails()
     {
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
-            source.Value.Select.Content = Texts.T(source.Key == _selectedId ? "sources.selected" : "sources.select");
+        {
+            source.Value.Name.Text = (source.Key == _selectedId ? "● " : "")
+                + (_rows.FirstOrDefault(row => row.Id == source.Key)?.Name ?? source.Key);
+            source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
+        }
         SourceRow? row = Selected;
-        this.FindControl<Border>("SourceDetailsPanel")!.IsVisible = row != null;
+        this.FindControl<Border>("SourceDetailsPanel")!.IsVisible = row != null && (!_narrow || _showDetails);
+        this.FindControl<StackPanel>("SourcesListPane")!.IsVisible = !_narrow || !_showDetails || row == null;
+        this.FindControl<Button>("SourceBackButton")!.IsVisible = _narrow;
+        this.FindControl<Button>("SourceBackButton")!.Content = "← " + Texts.T("nav.sources");
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
@@ -102,6 +111,9 @@ public partial class SourcesPage : UserControl
         if (row == null) return;
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
+        Button website = this.FindControl<Button>("SourceWebsiteButton")!;
+        website.Content = Texts.T("sources.website", row.Address);
+        website.IsEnabled = !_busy;
         this.FindControl<TextBlock>("SourceHosts")!.Text = Texts.T("sources.hosts", row.Descriptor.SupportedHosts.Count > 0
             ? string.Join(", ", row.Descriptor.SupportedHosts) : Texts.T("sources.unspecified"));
         this.FindControl<TextBlock>("SourceVersion")!.Text = Texts.T("sources.version", row.Descriptor.AdapterVersion ?? Texts.T("sources.unspecified"));
@@ -153,6 +165,28 @@ public partial class SourcesPage : UserControl
             ? watch.Resource + Environment.NewLine + watch.Work + Environment.NewLine + watch.Observation : string.Empty;
     }
     private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
+    private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        bool narrow = Bounds.Width < 760;
+        if (_narrow == narrow) return;
+        _narrow = narrow;
+        Grid split = this.FindControl<Grid>("SourcesSplit")!;
+        split.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "280,*");
+        Grid.SetColumn(this.FindControl<Border>("SourceDetailsPanel")!, narrow ? 0 : 1);
+        RenderDetails();
+    }
+    private void OnBackClick(object? sender, RoutedEventArgs e)
+    {
+        _showDetails = false;
+        RenderDetails();
+        if (_selectedId is string id && _sourceCards.TryGetValue(id, out SourceCard? card)) card.Control.Focus();
+    }
+    private async void OnWebsiteClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || _busy || Selected is not SourceRow row) return;
+        try { await ExternalLauncher.OpenAsync(row.Address); }
+        catch (Exception exception) { if (!_ended) this.FindControl<TextBlock>("SourcesActionError")!.Text = exception.Message; }
+    }
     private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDiagnostics?.Invoke(); }
     private void OnDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)

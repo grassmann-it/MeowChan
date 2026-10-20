@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
-             x:Class="MeowChan.SourcesPage">
+             x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20" Spacing="14">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -11,12 +11,17 @@
                 </StackPanel>
                 <TextBlock x:Name="SourceCount" Grid.Column="1" Classes="muted" VerticalAlignment="Top" />
             </Grid>
-            <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
-            <StackPanel x:Name="SourceCards" Spacing="10" />
-            <Border x:Name="SourceDetailsPanel" Classes="panel" Padding="16">
+            <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="14">
+              <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="10">
+                <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
+                <StackPanel x:Name="SourceCards" Spacing="10" />
+              </StackPanel>
+              <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="panel" Padding="16">
                 <StackPanel Spacing="12">
+                    <Button x:Name="SourceBackButton" HorizontalAlignment="Left" Click="OnBackClick" />
                     <TextBlock x:Name="SourceHeading" Classes="section-title" FontSize="18" />
                     <TextBlock x:Name="SourceIdentity" Classes="muted mono" TextWrapping="Wrap" />
+                    <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
                     <WrapPanel x:Name="CapabilityCards" />
                     <TextBlock x:Name="SourceCaptureAvailability" Classes="muted" TextWrapping="Wrap" />
                     <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch">
@@ -51,7 +56,8 @@
                     <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
                     <TextBlock x:Name="SourcesActionError" Classes="error" TextWrapping="Wrap" />
                 </StackPanel>
-            </Border>
+              </Border>
+            </Grid>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
