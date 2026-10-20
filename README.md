@@ -47,7 +47,7 @@ These scenes show the integrated interface using original offline demo artwork a
 
 ## What's new in 0.9.0
 
-- A redesigned Avalonia interface with Barebones, Simple (default) and Advanced views of the same running session.
+- A redesigned Avalonia interface with Barebones (default in builds after Preview 3), Simple and Advanced views of the same running session.
 - Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
 - Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
@@ -63,12 +63,12 @@ The 4chan/8kun providers, shared download queue, verified storage and durable se
 
 ## Desktop views
 
-The first start uses **Simple**, **Dark**, **English** and normal density. Switch views without restarting downloads or losing the current selection and URL input:
+Builds after Windows Preview 3 use **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Published Windows Preview 3 (`a98759e`) still defaults to Simple; choose Barebones manually there. Switch views without restarting downloads or losing the current selection and URL input:
 
 | View | Presentation |
 | --- | --- |
-| **Barebones** | A smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
-| **Simple** | The default: combined source/board, title with inline thread ID, and status with media progress. |
+| **Barebones** | The default in following builds: a smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
+| **Simple** | Combined source/board, title with inline thread ID, and status with media progress. |
 | **Advanced** | Adds separate sortable columns for thread ID, status, queued media and active media downloads. |
 
 Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.

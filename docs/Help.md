@@ -13,6 +13,14 @@ preparation; see the [release notes](releases/v0.9.0.md) for acceptance limits.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
+### Desktop view defaults
+
+Builds after Windows Preview 3 start new profiles in **Barebones**; missing or
+invalid view preferences also fall back to Barebones. Saved **Barebones**,
+**Simple** and **Advanced** choices remain unchanged. Use the footer view selector
+to switch. Published Windows Preview 3 (`a98759e`) still defaults to **Simple**;
+Barebones can be selected manually there.
+
 ### Board admission and exclusions
 
 The board-admission wizard is enabled by default. Before adding a pasted batch,
