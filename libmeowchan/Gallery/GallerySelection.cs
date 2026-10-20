@@ -15,6 +15,7 @@ public sealed record GalleryEntry(GalleryAssetKey Key, MediaAssetSnapshot Manife
     MediaAssetReference Asset, CapturedPost? Post, CapturedAttachment? Attachment,
     bool Historical, bool Unassigned)
 {
+    public SavedMediaKind Kind => SavedMediaTypes.Classify(Asset.OriginalFileName ?? Asset.Path);
     public GalleryEntryKey EntryKey => new(Key, Post?.PostId, Attachment?.Position);
     public string ThreadUrl { get; init; } = string.Empty;
 }
@@ -30,7 +31,7 @@ public static class GallerySelection
         { ".mp4", ".webm", ".mov", ".mkv", ".avi", ".mp3", ".wav", ".ogg", ".flac", ".pdf", ".zip" };
 
     public static GalleryThreadResult Build(ArchivedThreadView thread,
-        IEnumerable<MediaAssetSnapshot> manifests, bool allSavedVersions = false)
+        IEnumerable<MediaAssetSnapshot> manifests, bool allSavedVersions = false, bool includeOtherMedia = false)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(manifests);
@@ -41,7 +42,7 @@ public static class GallerySelection
         {
             if (snapshot.Warning != null) warnings.Add(snapshot.Directory + ": " + snapshot.Warning);
             for (int offset = 0; offset < snapshot.Count; offset += 500)
-                images.AddRange(snapshot.GetPage(offset, 500).Where(asset => IsImage(asset))
+                images.AddRange(snapshot.GetPage(offset, 500).Where(asset => includeOtherMedia || IsImage(asset))
                     .Select(asset => (snapshot, asset)));
         }
         List<GalleryEntry> entries = new();

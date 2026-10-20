@@ -59,17 +59,38 @@ public sealed class GallerySelectionTests
         Assert.Equal(1005, GallerySelection.Build((await reader.ReadThreadAsync(first))!, new[] { manifest }).Entries.Count);
     }
 
-    private static async Task<MediaAssetSnapshot> CreateManifestAsync(string directory)
+    [Fact]
+    public async Task VideoMediaRetainsCapturedPostAssociationWithoutChangingImageOnlyDefault()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+        ResourceId id = new("4chan", "g", "42");
+        await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/42", "Video",
+            ThreadSourceState.Archived, DateTimeOffset.UtcNow, directory.Path,
+            new[] { new CapturedPost("43", 0, PostFieldPresence.All,
+                Attachments: new[] { new CapturedAttachment(0, "shared", OriginalFileName: "shared.webm") }) }));
+        MediaAssetSnapshot manifest = await CreateManifestAsync(directory.Path, "shared.webm");
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        ArchivedThreadView thread = (await reader.ReadThreadAsync(id))!;
+        Assert.Empty(GallerySelection.Build(thread, new[] { manifest }).Entries);
+        GalleryEntry entry = Assert.Single(GallerySelection.Build(thread, new[] { manifest }, includeOtherMedia: true).Entries);
+        Assert.Equal(SavedMediaKind.Video, entry.Kind);
+        Assert.Equal("43", entry.Post!.PostId);
+        Assert.Equal(0, entry.Attachment!.Position);
+    }
+
+    private static async Task<MediaAssetSnapshot> CreateManifestAsync(string directory, string fileName = "shared.png")
     {
         byte[] bytes = [1, 2, 3];
-        await File.WriteAllBytesAsync(Path.Combine(directory, "shared.png"), bytes);
+        await File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes);
         await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"), JsonSerializer.Serialize(new
         {
             Version = 1,
             Entries = new Dictionary<string, object>
             {
-                ["shared.png"] = new { MediaIdentifier = "shared", SourceUrl = "https://offline.invalid/shared.png",
-                    FileName = "shared.png", Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
+                [fileName] = new { MediaIdentifier = "shared", SourceUrl = "https://offline.invalid/shared.png",
+                    FileName = fileName, Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
                     Md5 = Convert.ToBase64String(MD5.HashData(bytes)) }
             }
         }));
