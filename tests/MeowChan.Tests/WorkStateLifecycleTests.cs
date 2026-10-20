@@ -308,6 +308,8 @@ public sealed class WorkStateLifecycleTests
             directory.Path, TimeSpan.FromMinutes(1), 60, workStore: work);
         await registry.AddAsync("https://stub.test/g/catalog");
         await TestWait.UntilAsync(() => work.LoadResources().Any(item => item.Url == ThreadUrl && item.Intent == WorkIntent.Completed));
+        // Durable completion precedes the asynchronous removal of the public watch.
+        await TestWait.UntilAsync(() => registry.Threads.Count == 0);
         Assert.Empty(registry.Threads);
         WorkResource completed = work.LoadResources().Single(item => item.Url == ThreadUrl);
         provider.Board.Clock.Advance();
@@ -336,6 +338,8 @@ public sealed class WorkStateLifecycleTests
         Assert.Equal(1, await registry.RetryCompletedMediaAsync(ThreadUrl));
         await TestWait.UntilAsync(() => work.LoadResources().Single().Intent == WorkIntent.Completed
             && work.LoadMedia(ThreadUrl, 1).Single().Status == MediaWorkStatus.NeedsIntervention);
+        // A repaired resource is durable before its public watch has finished retiring.
+        await TestWait.UntilAsync(() => registry.Threads.Count == 0);
         Assert.Equal(1, Volatile.Read(ref requests));
         Assert.Empty(registry.Threads);
         Assert.Equal(403, work.LoadMedia(ThreadUrl, 1).Single().HttpStatus);
