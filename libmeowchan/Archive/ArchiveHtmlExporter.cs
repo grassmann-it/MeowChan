@@ -22,6 +22,8 @@ public sealed record ArchiveHtmlExportResult(string Directory, string IndexPath,
     IReadOnlyList<ArchiveExportOmission> Omissions)
 {
     public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
+    public ArchiveExportMetadata? Metadata { get; init; }
+    public string? BackupDirectory { get; init; }
 }
 internal sealed record ArchiveExportSnapshot(ArchivedThreadView View, IReadOnlyList<CandidateDecision> Decisions);
 
@@ -38,15 +40,58 @@ public static class ArchiveHtmlExporter
         string destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
         string? parent = Path.GetDirectoryName(destination);
         if (parent == null || !Directory.Exists(parent)) throw new DirectoryNotFoundException("The export parent directory must exist.");
+        using ArchiveExportTargetLease targetLease = ArchiveExportTargetLease.Acquire(destination);
+        ArchiveExportReplacement.Recover(destination);
         if (Directory.Exists(destination) || File.Exists(destination)) throw new IOException("The export destination already exists; choose a new folder.");
         ArchiveExportSnapshot snapshot = await reader.ReadExportAsync(thread, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException("The thread is not in the local archive.");
-        return await Task.Run(() => WriteAsync(snapshot, destination, options ?? new ArchiveHtmlExportOptions(), progress, cancellationToken),
+        return await Task.Run(() => WriteAsync(snapshot, destination, options ?? new ArchiveHtmlExportOptions(), progress, cancellationToken, null),
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Explicitly replaces a previously inspected export. Expected identity must match at commit.</summary>
+    public static async Task<ArchiveHtmlExportResult> UpdateAsync(ArchiveReader reader, ResourceId thread,
+        string destinationDirectory, Guid expectedExportId, int expectedGeneration,
+        ArchiveHtmlExportOptions? options = null, bool confirmPreserveBackup = false,
+        IProgress<ArchiveHtmlExportProgress>? progress = null, CancellationToken cancellationToken = default,
+        string? expectedObservedFingerprint = null)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        if (expectedExportId == Guid.Empty || expectedGeneration < 1) throw new ArgumentException("An expected export identity is required.");
+        string destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
+        using ArchiveExportTargetLease targetLease = ArchiveExportTargetLease.Acquire(destination);
+        ArchiveExportReplacement.Recover(destination);
+        ArchiveExportInspection existing = await ArchiveExportMetadataFile.InspectAsync(destination, thread, cancellationToken).ConfigureAwait(false);
+        if (existing.Metadata.ExportId != expectedExportId || existing.Metadata.Generation != expectedGeneration)
+            throw new IOException("The selected export changed; inspect it again before updating.");
+        if (expectedObservedFingerprint != null && existing.ObservedFingerprint != expectedObservedFingerprint)
+            throw new IOException("The selected export contents changed; inspect them again before updating.");
+        ArchiveExportSnapshot snapshot = await reader.ReadExportAsync(thread, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException("The thread is not in the local archive.");
+        string profile = Path.GetDirectoryName(reader.DatabasePath)!;
+        if (IsSameOrAncestor(destination, profile) || IsSameOrAncestor(profile, destination) || snapshot.View.MediaDirectories.Where(media =>
+            !Path.GetFullPath(media).Equals(Path.GetFullPath(profile), OperatingSystem.IsWindows() ?
+                StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)).Any(media =>
+            IsSameOrAncestor(destination, media) || IsSameOrAncestor(media, destination)))
+            throw new InvalidDataException("An export cannot replace its profile or source media directory.");
+        return await WriteAsync(snapshot, destination, options ?? new ArchiveHtmlExportOptions(), progress,
+            cancellationToken, new ArchiveExportUpdate(existing, confirmPreserveBackup)).ConfigureAwait(false);
+    }
+
+    internal static bool IsSameOrAncestor(string possibleAncestor, string protectedPath)
+    {
+        string first = Path.TrimEndingDirectorySeparator(Path.GetFullPath(possibleAncestor));
+        string second = Path.TrimEndingDirectorySeparator(Path.GetFullPath(protectedPath));
+        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return first.Equals(second, comparison) || second.StartsWith(first + Path.DirectorySeparatorChar, comparison);
+    }
+
+    public static Task<ArchiveExportInspection> InspectAsync(string destinationDirectory, ResourceId thread,
+        CancellationToken cancellationToken = default) => ArchiveExportMetadataFile.InspectAsync(destinationDirectory, thread, cancellationToken);
+
     private static async Task<ArchiveHtmlExportResult> WriteAsync(ArchiveExportSnapshot snapshot, string destination,
-        ArchiveHtmlExportOptions options, IProgress<ArchiveHtmlExportProgress>? progress, CancellationToken token)
+        ArchiveHtmlExportOptions options, IProgress<ArchiveHtmlExportProgress>? progress, CancellationToken token,
+        ArchiveExportUpdate? update)
     {
         string stage = Path.Combine(Path.GetDirectoryName(destination)!, ".meowchan-export-" + Guid.NewGuid().ToString("N"));
         token.ThrowIfCancellationRequested();
@@ -125,10 +170,24 @@ public static class ArchiveHtmlExporter
             await html.DisposeAsync().ConfigureAwait(false);
             await output.DisposeAsync().ConfigureAwait(false);
             await File.WriteAllTextAsync(Path.Combine(stage, "style.css"), Css, new UTF8Encoding(false), token).ConfigureAwait(false);
+            ArchiveExportMetadata metadata = await ArchiveExportMetadataFile.CreateAsync(stage, view, options,
+                update?.Existing.Metadata.ExportId ?? Guid.NewGuid(),
+                (update?.Existing.Metadata.Generation ?? 0) + 1, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            Directory.Move(stage, destination);
+            string? backup = null;
+            string? publicationWarning = null;
+            if (update == null)
+                Directory.Move(stage, destination);
+            else
+            {
+                ArchiveExportPublication publication = await ArchiveExportReplacement.PublishAsync(stage, destination, update, metadata, token).ConfigureAwait(false);
+                backup = publication.BackupDirectory;
+                publicationWarning = publication.Warning;
+            }
+            if (publicationWarning != null) warnings.Add(publicationWarning);
             return new ArchiveHtmlExportResult(destination, Path.Combine(destination, "index.html"), posts, files,
-                Array.AsReadOnly(omissions.ToArray())) { Warnings = Array.AsReadOnly(warnings.Distinct().ToArray()) };
+                Array.AsReadOnly(omissions.ToArray())) { Warnings = Array.AsReadOnly(warnings.Distinct().ToArray()),
+                    Metadata = metadata, BackupDirectory = backup };
 
             async Task AttachmentAsync(string? postId, CapturedAttachment attachment)
             {
