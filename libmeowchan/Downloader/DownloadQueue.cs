@@ -63,6 +63,7 @@ public class DownloadQueue
     private TaskCompletionSource? _stopCompletion;
     private int _maxParallelDownloads;
     private int _activeDownloads;
+    private long _receivedMediaBytes;
     private bool _stopping;
     private bool _paused;
     private TaskCompletionSource _resumed = CreateCompletedSource();
@@ -147,6 +148,8 @@ public class DownloadQueue
     }
 
     public long MaxBandwidthBytesPerSecond => _bandwidthLimiter.MaxBytesPerSecond;
+    /// <summary>Cumulative media response-body bytes read by this queue, including failed attempts; excludes local restoration.</summary>
+    public long ReceivedMediaBytes => Interlocked.Read(ref _receivedMediaBytes);
     public DateTimeOffset UtcNow => _timeProvider.GetUtcNow();
     internal TimeProvider Clock => _timeProvider;
 
@@ -870,7 +873,10 @@ public class DownloadQueue
             cancellation.Token.ThrowIfCancellationRequested();
             if (!CanRunDurable(job.Item)) return;
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
-                _logger, notifyThread: _workStore == null);
+                _logger, notifyThread: _workStore == null)
+            {
+                BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes)
+            };
             await worker.ExecuteAsync(cancellation.Token).ConfigureAwait(false);
             succeeded = true;
         }

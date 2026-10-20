@@ -28,6 +28,7 @@ public sealed class DownloadQueueTests
             await handler.WaitForStartsAsync(1);
             await queue.SetPausedAsync(true);
             Assert.Equal(0, handler.ActiveRequests);
+            Assert.Equal(0, queue.ReceivedMediaBytes);
             Assert.False(first.Thread.IsMediaDownloaded(first.MediaIdentifier));
             Assert.False(File.Exists(first.DestinationPath));
             Assert.True(queue.TryEnqueue(second));
@@ -44,6 +45,7 @@ public sealed class DownloadQueueTests
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(4, handler.RequestCount);
             Assert.True(first.Thread.IsMediaDownloaded(first.MediaIdentifier));
+            Assert.Equal(3 * Payload.Length, queue.ReceivedMediaBytes);
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
     }
@@ -833,6 +835,7 @@ public sealed class DownloadQueueTests
                     $"files={Directory.GetFiles(directory.Path, "*.bin", SearchOption.AllDirectories).Length}.", exception);
             }
             Assert.Equal(320, handler.RequestCount);
+            Assert.Equal(320 * Payload.Length, queue.ReceivedMediaBytes);
             Assert.Equal(32, handler.MaximumActiveRequests);
             Assert.Equal(320, Directory.GetFiles(directory.Path, "*.bin", SearchOption.AllDirectories).Length);
             Assert.Equal((0, 0, 0), queue.GetCapacitySnapshot());

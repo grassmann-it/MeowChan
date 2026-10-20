@@ -55,6 +55,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     private bool _disposed;
 
     public Config Config { get; }
+    internal long ReceivedMediaBytes => _registry.ReceivedMediaBytes;
     internal ExportHistoryStore ExportHistory { get; }
     internal CollectionExportHistoryStore CollectionExportHistory { get; }
     internal IReadOnlyList<ThreadWorkSnapshot> GetThreadWorkSnapshots() => _registry.GetWorkSnapshots();

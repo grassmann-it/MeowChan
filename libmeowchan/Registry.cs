@@ -192,6 +192,8 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     public bool IsPaused => _queue.IsPaused;
+    /// <summary>Cumulative received media bytes for the current session, including failed attempts.</summary>
+    public long ReceivedMediaBytes => _queue.ReceivedMediaBytes;
     public void SetPaused(bool paused) => SetPausedAsync(paused).GetAwaiter().GetResult();
 
     public async Task SetPausedAsync(bool paused)

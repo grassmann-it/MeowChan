@@ -20,6 +20,7 @@ public sealed class DownloadWorker
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
     private readonly bool _notifyThread;
+    internal Action<int>? BytesReceived { get; init; }
 
     public DownloadWorker(DownloadItem downloadItem, BandwidthLimiter bandwidthLimiter, MediaStore? store = null,
         TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null, bool notifyThread = true)
@@ -62,12 +63,20 @@ public sealed class DownloadWorker
         await using Stream source = await OpenBodyAsync(response.Content, cancellationToken).ConfigureAwait(false);
         using IdleTimeoutReadStream timedSource = new IdleTimeoutReadStream(source, _bodyIdleTimeout, _timeProvider);
         MediaCommitResult completed = await _store.CommitAsync(verifiedItem, timedSource, cancellationToken,
-            _limiter.ThrottleAsync).ConfigureAwait(false);
+            RecordAndThrottleAsync).ConfigureAwait(false);
         // CommitAsync deliberately finishes its short manifest commit after publishing the file,
         // even when cancellation arrives then. This is a verified completion, not a partial file.
         if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
         _logger.Debug("Saved verified media {MediaId} to {Path} ({Length} bytes)",
             _item.MediaIdentifier, completed.Path, completed.Length);
+    }
+
+    private Task RecordAndThrottleAsync(int bytes, CancellationToken cancellationToken)
+    {
+        // Count body bytes as they are read, including interrupted or failed attempts.
+        // Restoring an existing file never enters this path.
+        BytesReceived?.Invoke(bytes);
+        return _limiter.ThrottleAsync(bytes, cancellationToken);
     }
 
     private async Task<Stream> OpenBodyAsync(HttpContent content, CancellationToken cancellationToken)

@@ -25,9 +25,14 @@ public sealed class DownloadWorkerTests
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
         }));
         DownloadItem item = CreateItem(board, directory);
-        DownloadWorker worker = new DownloadWorker(item, new BandwidthLimiter(1L << 30), new MediaStore());
+        long bytes = 0;
+        DownloadWorker worker = new DownloadWorker(item, new BandwidthLimiter(1L << 30), new MediaStore())
+        {
+            BytesReceived = count => Interlocked.Add(ref bytes, count)
+        };
 
         await Assert.ThrowsAsync<IOException>(() => worker.ExecuteAsync(CancellationToken.None));
+        Assert.Equal(3, bytes);
 
         Assert.False(File.Exists(item.DestinationPath));
         Assert.False(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
@@ -37,6 +42,10 @@ public sealed class DownloadWorkerTests
         Assert.Equal(2, requests);
         Assert.Equal(Payload, await File.ReadAllBytesAsync(item.DestinationPath));
         Assert.True(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
+        Assert.Equal(3 + Payload.Length, bytes);
+        await worker.ExecuteAsync(CancellationToken.None);
+        Assert.Equal(3 + Payload.Length, bytes);
+        Assert.Equal(2, requests);
     }
 
     [Fact]
@@ -57,6 +66,41 @@ public sealed class DownloadWorkerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.ExecuteAsync(cancellation.Token));
 
         Assert.Equal(0, Volatile.Read(ref removals));
+        Assert.False(File.Exists(item.DestinationPath));
+        Assert.False(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
+    }
+
+    [Fact]
+    public async Task ReceivedBodyProgressIsVisibleBeforePublicationAndSurvivesCancellation()
+    {
+        using TempDirectory directory = new();
+        using CancellationTokenSource cancellation = new();
+        GatedBodyStream body = new();
+        using StubImageBoard board = new(new DelegateHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) })));
+        DownloadItem item = CreateItem(board, directory);
+        long bytes = 0;
+        DownloadWorker worker = new(item, new BandwidthLimiter(1L << 30), new MediaStore())
+        {
+            BytesReceived = count => Interlocked.Add(ref bytes, count)
+        };
+        Task execution = worker.ExecuteAsync(cancellation.Token);
+        try
+        {
+            await TestWait.UntilAsync(() => body.Reads == 1);
+            body.Supply(Payload[..3]);
+            await TestWait.UntilAsync(() => body.Reads == 2);
+            Assert.Equal(3, Interlocked.Read(ref bytes));
+            Assert.False(execution.IsCompleted);
+            Assert.False(File.Exists(item.DestinationPath));
+            Assert.False(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution.WaitAsync(TestWait.Timeout));
+        }
+        Assert.Equal(3, Interlocked.Read(ref bytes));
         Assert.False(File.Exists(item.DestinationPath));
         Assert.False(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
     }
