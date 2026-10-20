@@ -57,13 +57,29 @@ Native Mac execution and bundled VLC playback still require validation.
 
 ## Current 0.9.0 preparation
 
-Stable MeowChan 0.9.0 is in preparation. [Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3) is the compatibility-test preview, with .NET 10 and VLC bundled. Extract the whole ZIP and launch `MeowChan.exe`. Direct Windows hardware, real audio, bundled native VLC playback and full desktop workflow acceptance remain open. The six current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md).
+Stable MeowChan 0.9.0 is in preparation. [Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3) is the published compatibility-test preview, with .NET 10 and VLC bundled. Extract the whole ZIP and launch `MeowChan.exe`. Direct Windows hardware, real audio, bundled native VLC playback and full desktop workflow acceptance remain open. The six current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md).
 
-**Preview 2 remains an unpublished draft:** Windows startup could create a window larger than the available screen work area. Preview 3 is the successor for the startup-geometry fix; its final source and Windows CI results must be verified before publication. No native video or hardware acceptance follows from this window-sizing check.
+**Published Preview 3:** release source/tag `a98759e819f233bee0de806cb4f0b9fbd535d2cd`, prerelease, not latest stable. ZIP 128546741 bytes, SHA-256 `c8b099897adb0041f5f7bd3914c0f355ea8e7db0e64474864a991aa4f104c66c`. Its required native-video source companion and checksums are included in the release.
 
-**Windows profile handle lifecycle:** Preview 1 is no longer the recommended test build. Default SQLite connection pooling in `WorkStateStore.Open` can retain profile database handles after host disposal and release of the profile lease, preventing profile-directory deletion in the same process. Windows CI reported 41 temporary-directory cleanup failures from this issue. Preview 3 retains the fix that disables pooling for this store and adds a handle-release regression check. The focused source checks passed 83 tests; this establishes their source-level coverage, not native Windows package or hardware acceptance. The cleanup failures do not establish data loss. Preview 1 and its corresponding-source asset remain available for reference.
+| Windows source-built gate | Verified result |
+| --- | --- |
+| [Run 39511988229, job 118935015628](https://github.com/tfgrass/MeowChan/actions/runs/39511988229/job/118935015628) | Job success; Core 628/628, Desktop 146/146 passed |
+| Native GUI | Normal, locked-profile, no-tray, tray-failure, download-session and separate tray-lifecycle passed; startup frame fits 1024×728 work area |
+| Source relation | Artifact source `d17840bd38e1a50f2ce990dcfc86a1187768f97c`; reviewed product-source/build-input equivalence to ZIP source `a98759e` |
 
-**Earlier profile-handle fix-source checkpoint — `f8f769d23e8450b5779732780d27adf2d9fcd848`:** focused tests **83/83**, full Core **628/628** and Desktop **141/141** passed (769 full-suite tests), with no warnings. Logs: `artifacts/r09-windows-preview-1/ci-lifetime-{focused,core,desktop}.log`. These local source results cover the handle-lifecycle fix; the screenshot UI is unchanged since `8d31f2c`. Native Windows CI is a separate check and no passing result is asserted here.
+Evidence: `artifacts/r09-windows-preview-3/windows-ci-progress-followup/` and
+`ci-product-source-equivalence-d17840b.json`. The workflow as a whole is not green: the Linux job encountered a test-fixture
+race; the Mac temporary-path fix was verified separately in the later native
+offline run recorded below. The Windows source-built gate does not establish
+extracted-ZIP VLC playback, real hardware/audio or full package acceptance.
+macOS ZIP, native extracted-app startup, playback and Gatekeeper acceptance
+remain open.
+
+**Historical Preview 2 finding:** Windows startup could create a window larger than the available screen work area. Published Preview 3 includes the startup-geometry fix and passed the Windows source-built test gate described below. No native video or hardware acceptance follows from this window-sizing check.
+
+**Windows profile handle lifecycle:** The earlier Preview 1 exposed this issue. Default SQLite connection pooling in `WorkStateStore.Open` can retain profile database handles after host disposal and release of the profile lease, preventing profile-directory deletion in the same process. Windows CI reported 41 temporary-directory cleanup failures from this issue. Preview 3 retains the fix that disables pooling for this store and adds a handle-release regression check. The focused source checks passed 83 tests; this establishes their source-level coverage, not native Windows package or hardware acceptance. The cleanup failures do not establish data loss. Only Preview 3 is listed as the current preview; the earlier preview names here identify historical findings, not currently available releases.
+
+**Earlier profile-handle fix-source checkpoint — `f8f769d23e8450b5779732780d27adf2d9fcd848`:** focused tests **83/83**, full Core **628/628** and Desktop **141/141** passed (769 full-suite tests), with no warnings. Logs: `artifacts/r09-windows-preview-1/ci-lifetime-{focused,core,desktop}.log`. These local source results cover the handle-lifecycle fix; the screenshot UI is unchanged since `8d31f2c`. The later Windows source-built CI result is recorded below; this earlier checkpoint alone does not establish it.
 
 **Historical pre-fix product-source checkpoint — `8d31f2c`, 2026-10-20:** locked Release restore passed; the Release solution build completed with **0 warnings and 0 errors**; **627/627 Core and 141/141 Desktop tests passed, none skipped** (768 total). The default Debug build also completed with **0 warnings and 0 errors**. These are source checks, not native Windows package acceptance.
 
