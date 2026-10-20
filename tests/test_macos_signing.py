@@ -49,6 +49,50 @@ class SigningContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unsafe'):
                 signing.inventory(root)
 
+    def test_executable_path_uses_inner_apphost_instead_of_launcher(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            launcher = root / 'Contents/MacOS/MeowChan'
+            apphost = root / 'Contents/Resources/application/MeowChan'
+            library = apphost.parent / 'native.dylib'
+            for path in (launcher, apphost, library):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(bytes.fromhex('cffaedfe'))
+            def commands(*args):
+                if '-archs' in args:
+                    return 'arm64'
+                return 'cmd LC_LOAD_DYLIB\nname @executable_path/native.dylib (offset 24)' if args[-1] == apphost else ''
+            with mock.patch.object(signing.sys, 'platform', 'darwin'), mock.patch.object(signing.platform, 'machine', return_value='arm64'), mock.patch.object(signing, 'run', side_effect=commands):
+                result = signing.validate(root, 'osx-arm64', signatures=False)
+                self.assertEqual('Contents/Resources/application/MeowChan', result['apphost'])
+                library.rename(launcher.parent / 'native.dylib')
+                with self.assertRaisesRegex(ValueError, 'Unresolved'):
+                    signing.validate(root, 'osx-arm64', signatures=False)
+
+    def test_apphost_sealing_waits_for_sibling_and_nested_native_code(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            apphost = root / 'Contents/MacOS/MeowChan'
+            sibling = apphost.parent / 'libAvaloniaNative.dylib'
+            framework = apphost.parent / 'Nested.framework'
+            nested = framework / 'Nested'
+            nested.parent.mkdir(parents=True)
+            for path in (apphost, sibling, nested):
+                path.write_bytes(bytes.fromhex('cffaedfe'))
+            signed = set()
+            def command(*args):
+                if '--sign' in args:
+                    target = args[-1]
+                    if target == apphost:
+                        # Apple's signer can inspect the enclosing bundle while
+                        # sealing its main executable; unsealed siblings fail.
+                        self.assertTrue({sibling, nested, framework}.issubset(signed))
+                    signed.add(target)
+                return ''
+            with mock.patch.object(signing.sys, 'platform', 'darwin'), mock.patch.object(signing, 'repair_vlc_references'), mock.patch.object(signing, 'validate', return_value={'passed': True}), mock.patch.object(signing, 'run', side_effect=command):
+                self.assertTrue(signing.sign(root, 'osx-arm64')['passed'])
+            self.assertIn(root, signed)
+
     def test_closure_rejects_external_dependency_and_wrong_architecture(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

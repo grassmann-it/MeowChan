@@ -279,9 +279,27 @@ def package_macos(
             staged_bundle = Path(staging) / BUNDLE_NAME
             contents = staged_bundle / "Contents"
             contents.mkdir(parents=True)
-            shutil.copytree(source, contents / "MacOS", symlinks=True)
             resources = contents / "Resources"
             resources.mkdir()
+            if sign_adhoc:
+                # MacOS is a code-only signing location. The complete publish
+                # tree includes managed data, documentation and licenses; seal
+                # it as resources while signing every contained Mach-O itself.
+                shutil.copytree(source, resources / "application", symlinks=True)
+                (contents / "MacOS").mkdir()
+                architecture = {"osx-arm64": "arm64", "osx-x64": "x86_64"}[runtime]
+                subprocess.run(["/usr/bin/clang", "-arch", architecture,
+                                "-mmacosx-version-min=" + MINIMUM_MACOS_VERSION,
+                                "-Wall", "-Wextra", "-Werror",
+                                str(Path(__file__).with_name("macos-launcher.c")),
+                                "-o", str(contents / "MacOS/MeowChan")], check=True)
+                launcher_source = resources / "launcher-source"
+                launcher_source.mkdir()
+                shutil.copy2(Path(__file__).with_name("macos-launcher.c"), launcher_source / "macos-launcher.c")
+                apphost = resources / "application/MeowChan"
+                apphost.chmod(apphost.stat().st_mode | stat.S_IXUSR)
+            else:
+                shutil.copytree(source, contents / "MacOS", symlinks=True)
             (resources / "meowchan.icns").write_bytes(make_icns(original_png))
             (contents / "Info.plist").write_bytes(plistlib.dumps(metadata, fmt=plistlib.FMT_XML, sort_keys=True))
             executable = contents / "MacOS" / "MeowChan"

@@ -281,6 +281,8 @@ jobs:
           test "$(uname -m)" = "${{ matrix.cpu }}"
           uname -a | tee artifacts/macos-evidence/host.txt
           sw_vers | tee -a artifacts/macos-evidence/host.txt
+          clang --version >> artifacts/macos-evidence/host.txt
+          xcrun --sdk macosx --show-sdk-version >> artifacts/macos-evidence/host.txt
           git rev-parse HEAD > artifacts/macos-evidence/source.txt
           dotnet --info > artifacts/macos-evidence/sdk.txt
       - name: Test packager and signing contracts
@@ -312,18 +314,13 @@ jobs:
           archive="artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           ditto -x -k "$archive" artifacts/macos-extracted
           python3 scripts/macos-signing.py artifacts/macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/signatures.json
-          python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
+          python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/Resources/application ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
           shasum -a 256 "$archive" > "$archive.sha256"
           echo "Native self-contained ad-hoc ZIP; no Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
       - name: Start and gracefully stop the actual extracted apphost
         run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
-      - name: Retain native ZIP candidate
-        uses: actions/upload-artifact@v7
-        with:
-          name: package-${{ matrix.runtime }}
-          path: artifacts/macos-packages/*
-          if-no-files-found: error
-          retention-days: 30
+      # Matching macOS VLC/contrib source closure is still pending. Build and
+      # test the ZIP locally on the runner, but upload evidence only for now.
       - name: Retain native macOS evidence
         if: always()
         uses: actions/upload-artifact@v7

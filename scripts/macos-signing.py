@@ -43,8 +43,9 @@ def inventory(bundle: Path) -> list[Path]:
                     binaries.append(path)
         elif not path.is_dir():
             raise ValueError(f'Unsupported bundle entry: {path}')
-    if bundle / 'Contents/MacOS/MeowChan' not in binaries:
-        raise ValueError('Missing Mach-O apphost')
+    for required in {bundle / 'Contents/MacOS/MeowChan', apphost_path(bundle)}:
+        if required not in binaries:
+            raise ValueError(f'Missing regular Mach-O executable: {required}')
     return binaries
 
 
@@ -73,6 +74,15 @@ def system_dependency(value: str) -> bool:
     return value.startswith(('/usr/lib/', '/System/Library/')) and '..' not in Path(value).parts
 
 
+def apphost_path(bundle: Path) -> Path:
+    payload = bundle / 'Contents/Resources/application/MeowChan'
+    if payload.parent.is_dir():
+        if not payload.is_file():
+            raise ValueError('Missing application payload apphost')
+        return payload
+    return bundle / 'Contents/MacOS/MeowChan'
+
+
 def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
     if sys.platform != 'darwin':
         raise ValueError('Native macOS is required for signing/validation')
@@ -81,7 +91,7 @@ def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
     if platform.machine() != expected:
         raise ValueError(f'Native runner architecture {platform.machine()} does not match {expected}')
     binaries = inventory(bundle)
-    executable = bundle / 'Contents/MacOS/MeowChan'
+    executable = apphost_path(bundle)
     commands = {p: load_commands(run('/usr/bin/otool', '-l', p)) for p in binaries}
     main_rpaths = [expand(r, executable, executable) for r in commands[executable][1]]
     binary_set = set(binaries)
@@ -114,8 +124,16 @@ def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
         actual = plistlib.loads(run('/usr/bin/codesign', '--display', '--entitlements', ':-', executable).encode())
         if actual != ENTITLEMENTS:
             raise ValueError(f'Unexpected CoreCLR apphost entitlements: {actual}')
+        launcher = bundle / 'Contents/MacOS/MeowChan'
+        if launcher != executable:
+            launcher_xml = run('/usr/bin/codesign', '--display', '--entitlements', ':-', launcher).strip()
+            if launcher_xml and plistlib.loads(launcher_xml.encode()):
+                raise ValueError('Native launcher must not carry CoreCLR entitlements')
     return {'runtime': runtime, 'native_host': platform.machine(), 'macho_files': len(binaries),
             'signatures_verified': signatures, 'dependency_closure': True,
+            'apphost': str(executable.relative_to(bundle)),
+            'launcher': 'Contents/MacOS/MeowChan',
+            'coreclr_entitlements_verified': signatures,
             'files': {str(p.relative_to(bundle)): hashlib.sha256(p.read_bytes()).hexdigest() for p in binaries}}
 
 
@@ -126,7 +144,7 @@ def repair_vlc_references(bundle: Path, runtime: str) -> None:
     dependency in the selected VLC subtree is rewritten; unknown dependencies
     remain fail-closed in validate(). Never flatten or replace the plugin tree.
     """
-    tree = bundle.resolve() / 'Contents/MacOS/libvlc' / runtime / 'lib'
+    tree = apphost_path(bundle.resolve()).parent / 'libvlc' / runtime / 'lib'
     core = tree / 'libvlccore.dylib'
     for path in inventory(bundle):
         if not path.is_relative_to(tree):
@@ -144,20 +162,27 @@ def sign(bundle: Path, runtime: str) -> dict:
         raise ValueError('Native macOS is required for signing')
     repair_vlc_references(bundle, runtime)
     validate(bundle, runtime, signatures=False)
-    executable = bundle.resolve() / 'Contents/MacOS/MeowChan'
+    executable = apphost_path(bundle.resolve())
+    launcher = bundle.resolve() / 'Contents/MacOS/MeowChan'
     with tempfile.TemporaryDirectory(prefix='meowchan-entitlements-') as temporary:
         entitlements = Path(temporary) / 'coreclr.plist'
         entitlements.write_bytes(plistlib.dumps(ENTITLEMENTS))
         for path in sorted(inventory(bundle), key=lambda p: len(p.parts), reverse=True):
-            args = ['/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none']
-            if path == executable:
-                args += ['--entitlements', str(entitlements)]
-            run(*args, path)
+            if path not in {executable, launcher}:
+                run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', path)
         # Seal nested code containers after their contents, before the outer app.
         nested = [p for p in bundle.rglob('*') if not p.is_symlink() and p.is_dir() and p.suffix in {'.framework', '.app', '.xpc', '.bundle'}]
         for path in sorted(nested, key=lambda p: len(p.parts), reverse=True):
             run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', path)
-        run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', '--entitlements', entitlements, bundle)
+        # Signing an apphost inside Contents/MacOS can make codesign inspect
+        # sibling code as part of its enclosing bundle. All sibling libraries
+        # and nested containers therefore must already have their final seals.
+        run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', '--entitlements', entitlements, executable)
+        if launcher != executable:
+            run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', launcher)
+            run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', bundle)
+        else:
+            run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', '--entitlements', entitlements, bundle)
     return validate(bundle, runtime)
 
 

@@ -200,7 +200,28 @@ class MacosPackagingTests(unittest.TestCase):
         import platform
         runtime = "osx-arm64" if platform.machine() == "arm64" else "osx-x64"
         source = self.root / "fixture.c"
-        source.write_text('#include <dlfcn.h>\nint main(int argc, char **argv) { if(argc < 2) return 0; void *p = dlopen(argv[1], RTLD_NOW); if(!p) return 2; int (*f)(void) = (int (*)(void))dlsym(p, "plugin"); return f ? f() : 3; }\n')
+        source.write_text('''#include <dlfcn.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include <stdio.h>
+extern int core(void);
+int main(int argc, char **argv) {
+    if (core() != 0) return 5;
+    CFBundleRef bundle = CFBundleGetMainBundle();
+    CFStringRef identifier = bundle ? CFBundleGetIdentifier(bundle) : NULL;
+    if (!identifier || !CFEqual(identifier, CFSTR("org.meowchan.desktop"))) {
+        fprintf(stderr, "Main bundle identity missing after native launcher exec\\n");
+        if (bundle) CFShow(bundle);
+        if (identifier) CFShow(identifier);
+        return 4;
+    }
+    puts("BUNDLE IDENTITY PASS");
+    if (argc < 2) return 0;
+    void *p = dlopen(argv[1], RTLD_NOW);
+    if (!p) return 2;
+    int (*f)(void) = (int (*)(void))dlsym(p, "plugin");
+    return f ? f() : 3;
+}
+''')
         native = self.publish / "libvlc" / runtime / "lib"
         plugins = native / "vlc/plugins"
         plugins.mkdir(parents=True)
@@ -212,16 +233,28 @@ class MacosPackagingTests(unittest.TestCase):
         self.symlink("libvlccore.dylib", native / "libvlccore-alias.dylib")
         plugin = plugins / "libfixture_plugin.dylib"
         subprocess.run(["/usr/bin/clang", "-dynamiclib", str(core_source), "-install_name", "@rpath/libvlccore.dylib", "-o", str(core)], check=True)
+        # Portable fixtures use a text placeholder here. Apple's bundle signer
+        # correctly treats a .dylib sibling as code, so native fixtures need code.
+        subprocess.run(["/usr/bin/clang", "-dynamiclib", str(core_source), "-install_name", "@loader_path/libAvaloniaNative.dylib", "-o", str(self.publish / "libAvaloniaNative.dylib")], check=True)
         plugin_name = f"@executable_path/libvlc/{runtime}/lib/vlc/plugins/libfixture_plugin.dylib"
         subprocess.run(["/usr/bin/clang", "-dynamiclib", str(plugin_source), str(core), "-install_name", plugin_name, "-o", str(plugin)], check=True)
-        subprocess.run(["/usr/bin/clang", str(source), "-o", str(self.publish / "MeowChan")], check=True)
+        payload_dependency = self.publish / "native.dylib"
+        subprocess.run(["/usr/bin/clang", "-dynamiclib", str(core_source), "-install_name", "@executable_path/native.dylib", "-o", str(payload_dependency)], check=True)
+        subprocess.run(["/usr/bin/clang", str(source), str(payload_dependency), "-framework", "CoreFoundation", "-o", str(self.publish / "MeowChan")], check=True)
         bundle, archive = self.package(archive_path=self.output / "native.zip", runtime=runtime, sign_adhoc=True)
         self.assertTrue(archive.is_file())
         report = packaging.signing_module().validate(bundle, runtime)
-        self.assertEqual(3, report["macho_files"])
-        dependencies, _ = packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", bundle / "Contents/MacOS/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib"))
+        self.assertEqual(6, report["macho_files"])
+        dependencies, _ = packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", bundle / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib"))
         self.assertIn("@loader_path/../../libvlccore.dylib", dependencies)
-        subprocess.run([str(bundle / "Contents/MacOS/MeowChan"), str(bundle / "Contents/MacOS/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], check=True)
+        extracted = self.root / "extracted ZIP with spaces"
+        subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive), str(extracted)], check=True)
+        extracted_bundle = extracted / "MeowChan.app"
+        launcher_link = self.root / "launcher alias with spaces"
+        self.symlink(extracted_bundle / "Contents/MacOS/MeowChan", launcher_link)
+        result = subprocess.run([str(launcher_link), str(extracted_bundle / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], cwd=self.root, capture_output=True, text=True, check=False)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("BUNDLE IDENTITY PASS", result.stdout)
         self.assertIn("@rpath/libvlccore.dylib", packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", plugin))[0])
         self.assertTrue(report["signatures_verified"])
         # A sealed resource mutation must invalidate the bundle signature.
