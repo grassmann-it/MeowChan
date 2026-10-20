@@ -35,6 +35,7 @@ internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWork
 
 internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
 {
+    public bool LargePreview { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public string Label => Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment");

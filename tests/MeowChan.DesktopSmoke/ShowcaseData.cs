@@ -53,7 +53,7 @@ internal static class ShowcaseData
                 await store.CommitAsync(item, bytes, CancellationToken.None);
                 string firstPostId = (900000001L + index * 100L).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 string body = post == 0
-                    ? "A small landscape study in light, shape and colour.<br>Original artwork for the MeowChan demo archive. Saved locally for offline browsing."
+                    ? "A landscape study in light, shape and colour.<br>Warm evening light meets cool mountain silhouettes. Fine horizontal strokes suggest reflections on the lake.<br>Original artwork from the demo sketchbook, saved locally for offline reading."
                     : $"<a href='#p{firstPostId}'>&gt;&gt;{firstPostId}</a><br>Another view from the landscape sketchbook. Layered ridgelines, soft reflections and a quiet evening sky.";
                 posts.Add(new CapturedPost(postId, post, PostFieldPresence.All, Epoch.AddMinutes(index + post),
                     Subjects[art], "Demo artist", body, Attachments:
@@ -72,8 +72,13 @@ internal static class ShowcaseData
     private static byte[] DrawLandscape(int variant)
     {
         const int width = 1600, height = 1000;
-        using SKSurface surface = SKSurface.Create(new SKImageInfo(width, height));
+        // Deliberately mixed original compositions: a wide opening study keeps its caption
+        // readable in the large Reader; the tall forest study remains for honest fit/scroll use.
+        int outputWidth = variant == 2 ? 1000 : width;
+        int outputHeight = variant == 0 ? 720 : variant == 2 ? 1500 : height;
+        using SKSurface surface = SKSurface.Create(new SKImageInfo(outputWidth, outputHeight));
         SKCanvas canvas = surface.Canvas;
+        canvas.Scale(outputWidth / (float)width, outputHeight / (float)height);
         SKColor[][] palettes =
         [
             [new(17, 36, 65), new(246, 177, 120), new(30, 62, 82), new(13, 40, 56)],

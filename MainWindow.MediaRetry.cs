@@ -14,6 +14,11 @@ public partial class MainWindow
 
     private async void OnRetryMissingMediaClick(object? sender, RoutedEventArgs e)
     {
+        if (sender is MenuItem)
+        {
+            await CheckDownloadSelectionAsync(false, retry: true);
+            return;
+        }
         if (!_restoreCompleted || WorkspaceCommandBusy || GetWorkspaceSelection() is not ThreadRow row
             || !row.CanRetryMedia || !_mediaRetryCommands.Add(row.WatchId)) return;
         RefreshMediaRetryControls();

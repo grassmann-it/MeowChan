@@ -88,9 +88,9 @@ public partial class MainWindow : Window
             this.FindControl<MenuItem>("AboutMenuItem")!.Click += OnAboutMenuItemClick;
             this.FindControl<MenuItem>("ExitMenuItem")!.Click += async (sender, e) => await CloseApplicationAsync();
             this.FindControl<DataGrid>("ThreadsDataGrid")!.AddHandler(PointerPressedEvent,
-                OnThreadPointerPressed, RoutingStrategies.Bubble, handledEventsToo: true);
+                OnThreadPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             this.FindControl<DataGrid>("BoardsDataGrid")!.AddHandler(PointerPressedEvent,
-                OnBoardPointerPressed, RoutingStrategies.Bubble, handledEventsToo: true);
+                OnBoardPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);
 
             _notificationManager = new WindowNotificationManager(this)
@@ -101,6 +101,7 @@ public partial class MainWindow : Window
             InitializeWorkspacePages();
             InitializeWorkspace();
             WireWorkspaceCommands();
+            InitializeSelectionCommands();
             Texts.Changed += OnLanguageChanged;
             SetupTrayIcon();
             Opened += OnMainWindowOpened;
@@ -385,7 +386,7 @@ public partial class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_gallery != null && !_gallerySuspended) return;
+        if (e.Handled || IsNativeShortcutSource(e.Source) || !IsEnabled || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
         TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
         KeyModifiers pasteModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (e.KeyModifiers == pasteModifier && e.Key == Key.L)
@@ -630,7 +631,9 @@ public partial class MainWindow : Window
         {
             Log.Debug("Shutdown: waiting for session restoration.");
             await _restoreTask;
-            Log.Debug("Shutdown: restoration completed; stopping the session.");
+            CloseGallery(restoreOrigin: false);
+            await _galleryCleanupTask;
+            Log.Debug("Shutdown: gallery media released; stopping the session.");
             await _session.StopAsync();
             Log.Debug("Shutdown: session stopped; disposing the session.");
             Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
@@ -702,8 +705,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private ThreadRow? SelectedThread => this.FindControl<DataGrid>("ThreadsDataGrid")?.SelectedItem as ThreadRow;
-    private BoardRow? SelectedBoard => this.FindControl<DataGrid>("BoardsDataGrid")?.SelectedItem as BoardRow;
+    private ThreadRow? SelectedThread => LeadThread;
+    private BoardRow? SelectedBoard => LeadBoard;
 
     private void OnOpenThreadInBrowserClick(object? sender, RoutedEventArgs e)
     {
@@ -744,49 +747,18 @@ public partial class MainWindow : Window
         if (!_isClosing && SelectedBoard is BoardRow row) OpenDirectory(row.DownloadDirectory);
     }
 
-    private async void OnRemoveThreadMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (!_restoreCompleted || _isClosing || SelectedThread is not ThreadRow row) return;
-        long watchId = row.WatchId;
-        try { await _session.RemoveThreadAsync(watchId); }
-        catch (Exception exception)
-        {
-            Log.Error(exception, "Failed to remove thread {ThreadUri}", row.Url);
-            ShowNotification(Texts.T("notification.error"), Texts.T("remove.threadFailed"), NotificationType.Error);
-        }
-    }
+    private async void OnRemoveThreadMenuItemClick(object? sender, RoutedEventArgs e) => await RemoveDownloadSelectionAsync(false);
+    private async void OnRemoveBoardMenuItemClick(object? sender, RoutedEventArgs e) => await RemoveDownloadSelectionAsync(true);
 
-    private async void OnRemoveBoardMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (!_restoreCompleted || _isClosing || SelectedBoard is not BoardRow row) return;
-        long watchId = row.WatchId;
-        try { await _session.RemoveBoardAsync(watchId); }
-        catch (Exception exception)
-        {
-            Log.Error(exception, "Failed to remove board {BoardUri}", row.Url);
-            ShowNotification(Texts.T("notification.error"), Texts.T("remove.boardFailed"), NotificationType.Error);
-        }
-    }
-
-    private static void SelectContextRow(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is DataGrid grid && e.GetCurrentPoint(grid).Properties.IsRightButtonPressed)
-        {
-            Visual? hit = grid.InputHitTest(e.GetPosition(grid)) as Visual;
-            DataGridRow? row = hit as DataGridRow ?? hit?.FindAncestorOfType<DataGridRow>();
-            grid.SelectedItem = row?.DataContext;
-        }
-    }
-
-    private void OnThreadPointerPressed(object? sender, PointerPressedEventArgs e) => SelectContextRow(sender, e);
-    private void OnBoardPointerPressed(object? sender, PointerPressedEventArgs e) => SelectContextRow(sender, e);
+    private void OnThreadPointerPressed(object? sender, PointerPressedEventArgs e) => SelectDownloadContextRow(sender, e);
+    private void OnBoardPointerPressed(object? sender, PointerPressedEventArgs e) => SelectDownloadContextRow(sender, e);
     private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (e.Source is Visual tapped && (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
         if (target?.DataContext is not ThreadRow row) return;
         e.Handled = true;
-        await OpenGalleryAsync(row.Snapshot.Id, origin: target);
+        await OpenDownloadReaderAsync(row.Snapshot.Id, target);
     }
     private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
 
@@ -848,9 +820,9 @@ public partial class MainWindow : Window
         this.FindControl<Button>("CopyAllUrlsButton")!.Click += async (sender, e) =>
             await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url)));
         this.FindControl<MenuItem>("ThreadCopyUrlMenuItem")!.Click += async (sender, e) =>
-            await CopyUrlsAsync(SelectedThread is ThreadRow row ? new[] { row.Url } : Array.Empty<string>());
+            await CopyUrlsAsync(SelectedThreads().Select(row => row.Url).ToArray());
         this.FindControl<MenuItem>("BoardCopyUrlMenuItem")!.Click += async (sender, e) =>
-            await CopyUrlsAsync(SelectedBoard is BoardRow row ? new[] { row.Url } : Array.Empty<string>());
+            await CopyUrlsAsync(SelectedBoards().Select(row => row.Url).ToArray());
         this.FindControl<Button>("InspectorCopyUrlButton")!.Click += async (sender, e) =>
             await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
@@ -908,18 +880,18 @@ public partial class MainWindow : Window
     {
         bool paused = _session.IsPaused;
         MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
-        menu.IsEnabled = enabled;
+        menu.IsEnabled = enabled && !_session.IsPauseTransitioning;
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
         Button button = this.FindControl<Button>("PauseButton")!;
-        button.IsEnabled = enabled;
-        button.Content = Texts.T(paused ? "action.resumeShort" : "action.pauseShort");
+        button.IsEnabled = enabled && !_session.IsPauseTransitioning;
+        button.Content = Texts.T(_session.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resumeShort" : "action.pauseShort");
         button.Classes.Set("selected", paused);
         ToolTip.SetTip(button, menu.Header);
     }
 
     private async void OnPauseClick(object? sender, RoutedEventArgs e)
     {
-        if (!_restoreCompleted || WorkspaceCommandBusy) return;
+        if (!_restoreCompleted || WorkspaceCommandBusy || _session.IsPauseTransitioning) return;
         _applyingPreferences = true;
         UpdateInteractionState();
         try { await _session.SetPausedAsync(!_session.IsPaused); }

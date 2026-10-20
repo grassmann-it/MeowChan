@@ -48,7 +48,7 @@ internal static class ArchiveExportChecks
                 if (exportGate != null) await exportGate.Task.WaitAsync(token);
                 if (holdReader) { holdReader = false; await readerGate.Task.WaitAsync(token); }
                 return await ArchiveReader.OpenAsync(profile, token);
-            }, (_, _) => Task.CompletedTask, path => opened = path) { ExportHistory = history };
+            }, (_, _) => Task.CompletedTask, path => opened = path) { ExportHistory = history, CollectionExportHistory = new CollectionExportHistoryStore(profile, exportLease) };
             host.Content = fixture;
             try
             {
@@ -153,6 +153,7 @@ internal static class ArchiveExportChecks
                 fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
                 Require(!fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export workflow did not close with Escape.");
                 Require(fixture.FindControl<Button>("ExportArchiveButton")!.IsFocused, "Closing export did not restore its real origin focus.");
+                await ArchiveCollectionExportChecks.RunAsync(fixture, saved.Summary.Id, readerIdentity, destinationRoot, value => exportGate = value, () => opened);
             }
             finally { readerGate.TrySetResult(); exportGate?.TrySetResult(); fixture.EndLifetime(); host.Content = retained; }
         }

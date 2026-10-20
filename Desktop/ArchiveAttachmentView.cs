@@ -45,6 +45,12 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private void UpdateLabel()
     {
+        bool large = (DataContext as ArchiveAttachmentRow)?.LargePreview == true;
+        _image.MaxWidth = large ? 1040 : 240;
+        _image.MaxHeight = large ? 720 : 180;
+        _label.MaxWidth = _status.MaxWidth = large ? 1040 : 240;
+        _image.HorizontalAlignment = large ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        _button.HorizontalAlignment = large ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         _label.Text = (DataContext as ArchiveAttachmentRow)?.Label ?? string.Empty;
         _status.Text = Texts.T("archive.loadingThumbnail");
         ToolTip.SetTip(_button, _label.Text);
@@ -74,7 +80,8 @@ public sealed class ArchiveAttachmentView : UserControl
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;
             _status.IsVisible = bitmap == null;
-            _status.Text = Texts.T("archive.inlineUnsupported");
+            _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
+                == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)

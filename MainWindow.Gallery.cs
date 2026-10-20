@@ -17,6 +17,10 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private GalleryViewer? _gallery;
+    private Task _galleryCleanupTask = Task.CompletedTask;
+    internal Task GalleryCleanupTask => _galleryCleanupTask;
+    private void TrackGalleryCleanup(Task task) => _galleryCleanupTask = _galleryCleanupTask.IsCompletedSuccessfully
+        ? task : Task.WhenAll(_galleryCleanupTask, task);
     private CancellationTokenSource? _galleryCancellation;
     private IReadOnlyList<ResourceId> _galleryThreads = Array.Empty<ResourceId>();
     private readonly List<GalleryEntry> _galleryEntries = new();
@@ -33,11 +37,24 @@ public partial class MainWindow
     private readonly List<string> _galleryWarnings = new();
     private bool _gallerySuspended;
     private bool _galleryVisitedReader;
+    private bool _galleryReaderOrigin;
+    private bool _galleryLargeReaderOrigin;
     private GalleryViewerState? _galleryReturnState;
     private WorkspacePage _galleryOriginPage;
 
     internal async Task OpenGalleryAsync(ResourceId id, GalleryEntryKey? start = null, Control? origin = null)
     {
+        if (_gallerySuspended && _largeReaderOpen && start != null)
+        {
+            int existing = _galleryEntries.FindIndex(entry => entry.EntryKey == start);
+            if (existing >= 0)
+            {
+                _galleryIndex = existing;
+                await ShowGalleryEntryAsync();
+                ReturnToGallery();
+                return;
+            }
+        }
         _galleryStart = start;
         _galleryAllVersions = start != null;
         await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin);
@@ -72,10 +89,15 @@ public partial class MainWindow
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null)
     {
-        CloseGallery();
+        bool largeReaderOrigin = _largeReaderOpen;
+        bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
+        WorkspacePage originPage = _selectedPage;
+        CloseGallery(restoreOrigin: false);
         int request = ++_galleryRequest;
         _galleryOrigin = origin;
-        _galleryOriginPage = _selectedPage;
+        _galleryOriginPage = originPage;
+        _galleryReaderOrigin = readerOrigin;
+        _galleryLargeReaderOrigin = largeReaderOrigin;
         _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
         _galleryVisitedReader = false;
         _galleryThreads = ids;
@@ -94,7 +116,7 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         _gallery = new GalleryViewer();
-        _gallery.CloseRequested += CloseGallery;
+        _gallery.CloseRequested += () => CloseGallery();
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
         _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
         _gallery.ReadPostRequested += entry => _ = ReadGalleryPostAsync(entry);
@@ -159,11 +181,13 @@ public partial class MainWindow
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                         catch (Exception exception) { errors.Add(directory + ": " + exception.Message); }
                     }
-                    GalleryThreadResult built = GallerySelection.Build(thread, manifests, allVersions);
+                    GalleryThreadResult built = GallerySelection.Build(thread, manifests, allVersions, includeOtherMedia: true);
                     List<GalleryEntry> verified = new();
                     foreach (GalleryEntry entry in built.Entries)
                     {
                         token.ThrowIfCancellationRequested();
+                        if (entry.Kind == SavedMediaKind.Other) continue;
+                        if (entry.Kind == SavedMediaKind.Video) { verified.Add(entry); continue; }
                         if (KnownImageSuffix(entry.Asset.OriginalFileName ?? entry.Asset.Path)) { verified.Add(entry); continue; }
                         try
                         {
@@ -225,6 +249,7 @@ public partial class MainWindow
     {
         ResourceId? thread = _galleryThreads.FirstOrDefault();
         if (thread == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        OpenGalleryReader();
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(thread);
     }
@@ -256,23 +281,34 @@ public partial class MainWindow
     {
         if (entry.Post == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         int request = _galleryRequest;
+        OpenGalleryReader();
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(entry.Key.Thread);
         if (request == _galleryRequest && _gallerySuspended && _gallery != null)
-            ArchivePage.ShowPost(entry.Post.PostId);
+            await ArchivePage.FocusPostAsync(entry.Post.PostId);
     }
 
     private async Task ReadGalleryQuoteAsync(ArchiveQuote quote)
     {
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        OpenGalleryReader();
         SuspendGallery();
         await ArchivePage.NavigateQuoteAsync(new ArchiveQuoteRow(quote));
+    }
+
+    private void OpenGalleryReader()
+    {
+        if (_largeReaderOpen) return;
+        OpenLargeReader();
+        ArchivePage.SetReaderScope(_galleryThreads.Count > 0 ? _galleryThreads
+            : _galleryEntries.Select(entry => entry.Key.Thread).Distinct().ToArray());
     }
 
     private void SuspendGallery()
     {
         if (_gallery == null) return;
         _galleryReturnState = _gallery.CaptureState();
+        TrackGalleryCleanup(_gallery.SuspendMediaAsync());
         _gallerySuspended = true;
         _galleryVisitedReader = true;
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = false;
@@ -287,25 +323,51 @@ public partial class MainWindow
         ArchivePage.ShowGalleryReturn(false);
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
+        TrackGalleryCleanup(_gallery.ResumeMediaAsync());
         _gallery.Focus();
     }
 
-    private void CloseGallery()
+    private void CloseGallery(bool restoreOrigin = true)
     {
         _archivePage?.CancelPendingGalleryOpen();
-        bool restorePage = _galleryVisitedReader;
+        GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
+        bool followReader = restoreOrigin && _galleryReaderOrigin;
+        bool restorePage = restoreOrigin && _galleryVisitedReader;
+        Action? restore = _galleryRestoreOrigin;
         _gallerySuspended = false;
         _galleryVisitedReader = false;
         if (_archivePage != null) { _archivePage.ShowGalleryReturn(false); _archivePage.GalleryReturn = null; }
         ++_galleryRequest;
         _galleryCancellation?.Cancel(); _galleryCancellation?.Dispose(); _galleryCancellation = null;
-        _gallery?.Stop(); _gallery = null;
+        if (_gallery != null) TrackGalleryCleanup(_gallery.StopAsync());
+        _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) { host.IsVisible = false; host.Content = null; }
-        if (restorePage) _galleryRestoreOrigin?.Invoke();
         _galleryRestoreOrigin = null;
-        if (restorePage && _selectedPage != _galleryOriginPage) NavigateWorkspace(_galleryOriginPage);
-        _galleryOrigin?.Focus(); _galleryOrigin = null;
+        if (followReader)
+        {
+            if (current?.Post != null) _ = FollowGalleryPostAsync(current);
+            else restore?.Invoke();
+        }
+        else if (restorePage)
+        {
+            if (!_galleryLargeReaderOrigin) CloseLargeReader(restoreOrigin: false);
+            restore?.Invoke();
+            if (_selectedPage != _galleryOriginPage) NavigateWorkspace(_galleryOriginPage, activateArchive: false);
+            _galleryOrigin?.Focus();
+        }
+        else if (restoreOrigin) _galleryOrigin?.Focus();
+        _galleryOrigin = null;
         _galleryResolvingRequest = -1;
     }
+    private async Task FollowGalleryPostAsync(GalleryEntry entry)
+    {
+        int request = _galleryRequest;
+        if (!_largeReaderOpen) OpenGalleryReader();
+        if (ArchivePage.CurrentThread?.Summary.Id != entry.Key.Thread)
+            await ArchivePage.LoadThreadAsync(entry.Key.Thread);
+        if (request == _galleryRequest && _largeReaderOpen && entry.Post != null)
+            await ArchivePage.FocusPostAsync(entry.Post.PostId);
+    }
+
 }

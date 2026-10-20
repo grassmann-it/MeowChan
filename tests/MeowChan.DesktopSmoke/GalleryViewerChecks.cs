@@ -114,7 +114,7 @@ internal static class GalleryViewerChecks
                 "Changed manifest bytes produced a stale or unverified image.");
             await File.WriteAllBytesAsync(path, bytes);
             Task closingLoad = viewer.ShowAsync(selected, CancellationToken.None);
-            viewer.Stop(); await closingLoad;
+            await viewer.StopAsync(); await closingLoad;
             Require(displayed.Source == null, "A canceled decode published pixels after closing.");
             int readRequests = 0;
             viewer.ReadPostsRequested += () => readRequests++;
@@ -125,7 +125,7 @@ internal static class GalleryViewerChecks
             Require(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text == "Manifest warning retained", "Empty state discarded manifest warnings.");
             Console.WriteLine("SMOKE gallery: verified offline fit/original, >1200px pixel detail, physical 1:1, context, restore and 100 superseded loads passed.");
         }
-        finally { viewer.Stop(); window.Content = content; Directory.Delete(directory, true); }
+        finally { await viewer.StopAsync(); window.Content = content; Directory.Delete(directory, true); }
     }
     private static T GalleryControl<T>(GalleryViewer viewer, string name) where T : Control =>
         viewer.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);

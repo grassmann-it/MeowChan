@@ -5,6 +5,24 @@ namespace MeowChan.DesktopTests;
 
 public sealed class GalleryViewerTests
 {
+    [Fact]
+    public void FractionalWheelZoomIsSmoothReversibleAndNeverSmallerThanFit()
+    {
+        const double fit = 0.25;
+        double zoom = fit;
+        for (int i = 0; i < 1000; i++) zoom = GalleryGeometry.ClampZoom(zoom * GalleryGeometry.WheelFactor(-0.01), fit);
+        Assert.Equal(fit, zoom);
+        Assert.InRange(GalleryGeometry.WheelFactor(0.01), 1.0001, 1.002);
+        zoom = GalleryGeometry.ClampZoom(zoom * GalleryGeometry.WheelFactor(0.1), fit);
+        Assert.InRange(zoom, fit, fit * 1.02);
+        zoom = GalleryGeometry.ClampZoom(zoom * GalleryGeometry.WheelFactor(-0.1), fit);
+        Assert.Equal(fit, zoom, 12);
+        for (int i = 0; i < 100000; i++) zoom = GalleryGeometry.ClampZoom(zoom * GalleryGeometry.WheelFactor(10000), fit);
+        Assert.Equal(16, zoom);
+        Assert.Equal(1, GalleryGeometry.ClampZoom(0.5, 1));
+        Assert.Equal(1, GalleryGeometry.WheelFactor(double.NaN));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(1.5)]

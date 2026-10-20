@@ -50,6 +50,8 @@ public partial class MainWindow
 
     private void DisposeWorkspace()
     {
+        CloseGallery(restoreOrigin: false);
+        CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
         DisposeWorkspacePages();
@@ -69,7 +71,7 @@ public partial class MainWindow
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_gallery != null && !_gallerySuspended) return;
+        if (e.Handled || IsNativeShortcutSource(e.Source) || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
         if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
         OnDetailsToggleClick(sender, e);
         WorkspaceControl<DataGrid>(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
@@ -243,7 +245,7 @@ public partial class MainWindow
         WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
         WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(WorkspaceControl<Border>("WorkspaceInspector").IsVisible ? "action.hideDetails" : "action.showDetails");
-        string stateKey = _isClosing ? "shell.stopping" : _importing ? "shell.importing" : _session.State switch
+        string stateKey = _isClosing ? "shell.stopping" : _session.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.State switch
         {
             DesktopSessionState.Ready => _session.IsPaused ? "shell.paused" : "shell.ready",
             DesktopSessionState.RecoveryFailed => "shell.recoveryFailed",
@@ -259,10 +261,10 @@ public partial class MainWindow
     {
         if (WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1)
         {
-            BoardRow? board = WorkspaceControl<DataGrid>("BoardsDataGrid").SelectedItem as BoardRow;
+            BoardRow? board = LeadBoard;
             return board != null && BoardsList.Contains(board) ? board : null;
         }
-        ThreadRow? thread = WorkspaceControl<DataGrid>("ThreadsDataGrid").SelectedItem as ThreadRow;
+        ThreadRow? thread = LeadThread;
         return thread != null && UrlList.Contains(thread) ? thread : null;
     }
 

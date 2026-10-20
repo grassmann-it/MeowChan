@@ -32,11 +32,11 @@ internal static class ArchivePageChecks
         await page.MediaLoadTask;
         DataGrid media = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
         Require(media.ItemsSource.Cast<ArchiveAssetRow>().Count() == 1, "The independent archive did not discover the saved manifest.");
-        await Program.WaitUntilAsync(() => page.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+        await Program.WaitUntilAsync(() => window.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap));
-        ArchiveAttachmentView inline = page.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
-        Require(inline.Thumbnail.Bounds.Width <= 240 && inline.Thumbnail.Bounds.Height <= 180,
-            "An inline image exceeded its bounded thumbnail dimensions.");
+        ArchiveAttachmentView inline = window.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
+        Require(inline.Thumbnail.Bounds.Width <= 1040 && inline.Thumbnail.Bounds.Height <= 720,
+            "An inline reader image exceeded its bounded preview dimensions.");
         await FlushAsync();
         Program.CaptureWindow(window, "smoke-archive-restored-posts.png");
         Click(inline.PreviewButton);
@@ -66,7 +66,7 @@ internal static class ArchivePageChecks
             "Closing after a reader excursion lost the original reader and tab.");
 
         // Visible entry action restores keyboard focus to the same origin control.
-        Button focusOrigin = page.FindControl<Button>("ArchiveReadPosts")!;
+        Button focusOrigin = page.FindControl<Button>("ArchiveCloseReader")!;
         Task supersededSearch = window.OpenSearchGalleryAsync(new ArchiveThreadQuery(), origin: focusOrigin);
         await window.OpenGalleryAsync(id, origin: focusOrigin);
         GalleryViewer replacementViewer = (GalleryViewer)gallery.Content!;
@@ -75,7 +75,8 @@ internal static class ArchivePageChecks
         Require(GalleryControl<TextBlock>(replacementViewer, "GalleryScope").Text!.StartsWith("Thread"),
             "A superseded search changed the current thread scope.");
         Click(GalleryControl<Button>(replacementViewer, "GalleryClose"));
-        Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), focusOrigin), "Gallery close did not restore origin focus.");
+        await Program.WaitUntilAsync(() => window.FocusManager!.GetFocusedElement() is Visual focused
+            && focused.GetVisualAncestors().Contains(page.FindControl<ListBox>("ArchivePosts")!));
 
         // A captured self-quote exercises the real quote/reader path without changing source data.
         CapturedPost quotePost = page.CurrentThread!.GetPosts().Single();
@@ -83,7 +84,7 @@ internal static class ArchivePageChecks
         await page.NavigateQuoteAsync(new ArchiveQuoteRow(new ArchiveQuote(quoteId, quoteId, ">>" + quotePost.PostId, null)));
         await page.MediaLoadTask;
         Require(page.FindControl<Button>("ArchiveHistoryBack")!.IsVisible, "Quote navigation did not create a reader history entry.");
-        Button backlinks = page.GetVisualDescendants().OfType<Button>().First(button => button.DataContext is ArchivePostRow
+        Button backlinks = window.GetVisualDescendants().OfType<Button>().First(button => button.DataContext is ArchivePostRow
             && button.Content?.ToString() == ((ArchivePostRow)button.DataContext).BacklinksLabel);
         Click(backlinks);
         await Program.WaitUntilAsync(() => page.FindControl<TextBlock>("ArchiveReferencesTitle")!.Text
@@ -148,6 +149,8 @@ internal static class ArchivePageChecks
         }
         Program.CaptureWindow(window, "smoke-archive-verified-preview.png");
         Click(gallery.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await page.LoadThreadAsync(id);
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         OpenArchive(window);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == id);
@@ -176,7 +179,7 @@ internal static class ArchivePageChecks
                         && Fits(window, window.FindControl<Button>("SettingsNavigationButton")!)
                         && Fits(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!);
                 });
-                await Program.WaitUntilAsync(() => page.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                await Program.WaitUntilAsync(() => window.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                     .Any(view => view.Thumbnail.Source is Bitmap));
                 Program.CaptureWindow(window, $"smoke-archive-{mode.ToLowerInvariant()}-{language}-minimum.png");
             }

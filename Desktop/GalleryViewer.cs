@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -37,6 +38,9 @@ internal sealed class GalleryViewer : UserControl
     private readonly Button _next;
     private readonly Button _close;
     private readonly Button _actual;
+    private GalleryVideoPlayer? _video;
+    private bool _videoSuspended;
+    private CancellationToken _sessionCancellation;
     private CancellationTokenSource? _load;
     private CancellationTokenSource? _detailLoad;
     private Bitmap? _fitBitmap;
@@ -69,14 +73,14 @@ internal sealed class GalleryViewer : UserControl
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         Background = new SolidColorBrush(Color.FromRgb(13, 16, 22));
         Grid root = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"), Margin = new Thickness(12), RowSpacing = 8 };
-        WrapPanel toolbar = new() { Orientation = Orientation.Horizontal };
+        WrapPanel toolbar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         _close = Command(toolbar, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         _previous = Command(toolbar, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
         _next = Command(toolbar, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
         Command(toolbar, "GalleryFit", Texts.T("gallery.fit"), Fit);
         _actual = Command(toolbar, "GalleryActual", "1:1", ActualPixels);
-        Command(toolbar, "GalleryMinus", "−", () => Zoom(1 / 1.25));
-        Command(toolbar, "GalleryPlus", "+", () => Zoom(1.25));
+        Command(toolbar, "GalleryMinus", "−", () => Zoom(1 / 1.1));
+        Command(toolbar, "GalleryPlus", "+", () => Zoom(1.1));
         Command(toolbar, "GalleryToggleContext", Texts.T("gallery.context"), () => { _contextOpen = !_contextOpen; LayoutContext(); });
         _readPosts = Command(toolbar, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
@@ -92,10 +96,11 @@ internal sealed class GalleryViewer : UserControl
         root.Children.Add(_body); Grid.SetRow(_body, 4); Content = root;
         SizeChanged += (_, _) => LayoutContext();
         _viewport.SizeChanged += (_, _) => FitIfAutomatic();
-        _viewport.PointerWheelChanged += (_, e) => { Zoom(e.Delta.Y > 0 ? 1.25 : 1 / 1.25, e.GetPosition(_viewport)); e.Handled = true; };
+        _viewport.PointerWheelChanged += (_, e) => { Focus(); Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), e.GetPosition(_viewport)); e.Handled = true; };
         _viewport.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(_viewport).Properties.IsLeftButtonPressed) return;
+            Focus();
             _dragging = true; _dragPoint = e.GetPosition(_viewport); e.Pointer.Capture(_viewport); e.Handled = true;
         };
         _viewport.PointerReleased += (_, e) => { _dragging = false; e.Pointer.Capture(null); };
@@ -107,7 +112,7 @@ internal sealed class GalleryViewer : UserControl
             _panX += point.X - _dragPoint.X; _panY += point.Y - _dragPoint.Y; _dragPoint = point; ApplyTransform();
         };
         _viewport.DoubleTapped += (_, e) => { if (_manualZoom) Fit(); else ActualPixels(); e.Handled = true; };
-        KeyDown += OnKeyDown;
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
     }
@@ -155,16 +160,33 @@ internal sealed class GalleryViewer : UserControl
         if (_restore is not { } state || _entry == null || state.Key != _entry.Key || state.PostId != _entry.Post?.PostId
             || state.AttachmentPosition != _entry.Attachment?.Position) return;
         _restore = null; _contextOpen = state.ContextOpen; LayoutContext();
-        _manualZoom = state.ManualZoom; _zoom = Math.Clamp(state.PhysicalZoom, 0.01, 16); _panX = state.PanX; _panY = state.PanY;
+        UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
+        _manualZoom = state.ManualZoom; _zoom = GalleryGeometry.ClampZoom(state.PhysicalZoom, CurrentFit); _panX = state.PanX; _panY = state.PanY;
         FitIfAutomatic(); if (_manualZoom) _ = EnsureDetailAsync();
     }
 
     internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
     {
         CancelLoads(); int request = ++_request; ClearBitmaps();
+        _sessionCancellation = cancellationToken; _videoSuspended = false;
+        if (_video != null)
+        {
+            await _video.StopAsync();
+            if (request != _request || cancellationToken.IsCancellationRequested) return;
+            _video.IsVisible = false;
+        }
+        _image.IsVisible = _status.IsVisible = true;
         _readPosts.IsVisible = false;
         _entry = entry; _info = null; _manualZoom = false; _panX = _panY = 0;
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; _actual.IsEnabled = false; UpdateContext();
+        if (entry.Kind == SavedMediaKind.Video)
+        {
+            if (_video == null) { _video = new GalleryVideoPlayer(); _viewport.Children.Add(_video); }
+            _image.IsVisible = _status.IsVisible = false; _video.IsVisible = true;
+            await _video.ShowAsync(entry, cancellationToken);
+            return;
+        }
+        if (entry.Kind == SavedMediaKind.Other) { _status.Text = Texts.T("gallery.fileOnly"); return; }
         // Capture all UI state before entering the decoder's worker.
         double scale = DisplayScale;
         Size available = _viewport.Bounds.Size;
@@ -254,16 +276,18 @@ internal sealed class GalleryViewer : UserControl
     private void Move(int delta) { if (delta < 0 ? _previous.IsEnabled : _next.IsEnabled) MoveRequested?.Invoke(delta); }
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.KeyModifiers != KeyModifiers.None && !(e.Key == Key.OemPlus && e.KeyModifiers == KeyModifiers.Shift)) return;
         if (e.Key == Key.Escape) { CloseRequested?.Invoke(); e.Handled = true; return; }
         // Text selection, input, and scrollable post context keep their native arrows/zoom keys.
         if (e.Source is Visual visual && (visual == _contextPanel || visual.GetVisualAncestors().Contains(_contextPanel))) return;
-        if (e.Source is TextBox or SelectableTextBlock) return;
+        if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control => control is TextBox or ComboBox or Slider)) return;
+        if (e.Source is SelectableTextBlock) return;
         switch (e.Key)
         {
             case Key.Left: Move(-1); break;
             case Key.Right: Move(1); break;
-            case Key.Add: case Key.OemPlus: Zoom(1.25); break;
-            case Key.Subtract: case Key.OemMinus: Zoom(1 / 1.25); break;
+            case Key.Add: case Key.OemPlus: Zoom(1.1); break;
+            case Key.Subtract: case Key.OemMinus: Zoom(1 / 1.1); break;
             default: return;
         }
         e.Handled = true;
@@ -272,20 +296,33 @@ internal sealed class GalleryViewer : UserControl
     private void Zoom(double factor, Point? anchor = null)
     {
         if (_info == null) return;
-        double old = _zoom; _manualZoom = true; _zoom = Math.Clamp(old * factor, 0.01, 16);
+        if (!double.IsFinite(factor) || factor <= 0) return;
+        double old = _zoom;
+        _zoom = GalleryGeometry.ClampZoom(old * factor, CurrentFit);
+        _manualZoom = _zoom > CurrentFit * (1 + 1e-10);
+        if (!_manualZoom) { _zoom = CurrentFit; _panX = _panY = 0; ApplyTransform(); return; }
         Point offset = anchor is { } point ? new Point(point.X - _viewport.Bounds.Width / 2, point.Y - _viewport.Bounds.Height / 2) : default;
         _panX = offset.X - (offset.X - _panX) * _zoom / old;
         _panY = offset.Y - (offset.Y - _panY) * _zoom / old;
-        ApplyTransform(); _ = EnsureDetailAsync();
+        ApplyTransform(); if (_manualZoom) _ = EnsureDetailAsync();
     }
-    private void ActualPixels() { if (_info == null) return; _manualZoom = true; _zoom = 1; _panX = _panY = 0; ApplyTransform(); _ = EnsureDetailAsync(); }
-    private void FitIfAutomatic() { if (!_manualZoom) Fit(); else ApplyTransform(); }
+    private double CurrentFit => _info == null ? 1 : GalleryGeometry.Fit(_info.Width, _info.Height,
+        _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale);
+    private void ActualPixels() { if (_info == null) return; _zoom = 1; _manualZoom = CurrentFit < 1; _panX = _panY = 0; ApplyTransform(); _ = EnsureDetailAsync(); }
+    private void FitIfAutomatic()
+    {
+        if (!_manualZoom || _zoom <= CurrentFit) Fit();
+        else { _zoom = GalleryGeometry.ClampZoom(_zoom, CurrentFit); ApplyTransform(); }
+    }
     private void Fit()
     {
         if (_info == null) return;
         _manualZoom = false; _panX = _panY = 0;
         _zoom = GalleryGeometry.Fit(_info.Width, _info.Height, _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale);
         ApplyTransform();
+        // A larger viewport can require more pixels than the initial fit decode supplied.
+        if (_fitBitmap != null && (_info.Width * _zoom > _fitBitmap.PixelSize.Width + 1
+            || _info.Height * _zoom > _fitBitmap.PixelSize.Height + 1)) _ = EnsureDetailAsync();
     }
     private void ApplyTransform()
     {
@@ -306,5 +343,21 @@ internal sealed class GalleryViewer : UserControl
     }
     private void CancelLoads() { _load?.Cancel(); _detailLoad?.Cancel(); _detailLoad = null; }
     private void ClearBitmaps() { _image.Source = null; _highBitmap?.Dispose(); _highBitmap = null; _fitBitmap?.Dispose(); _fitBitmap = null; }
-    internal void Stop() { ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null; _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; LayoutContext(); }
+    internal Task SuspendMediaAsync()
+    {
+        _videoSuspended = _entry?.Kind == SavedMediaKind.Video;
+        return _videoSuspended && _video != null ? _video.StopAsync() : Task.CompletedTask;
+    }
+    internal Task ResumeMediaAsync()
+    {
+        if (!_videoSuspended || _entry == null || _video == null) return Task.CompletedTask;
+        _videoSuspended = false;
+        return _video.ShowAsync(_entry, _sessionCancellation);
+    }
+    internal async Task StopAsync()
+    {
+        ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
+        _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; LayoutContext();
+        if (_video != null) await _video.DisposeAsync();
+    }
 }

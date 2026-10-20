@@ -64,6 +64,10 @@ internal static class GalleryViewerText
 /// <summary>Scale is physical display pixels per source pixel; pan is in device-independent units.</summary>
 internal static class GalleryGeometry
 {
+    internal static double WheelFactor(double delta) => double.IsFinite(delta)
+        ? Math.Exp(Math.Clamp(delta, -4, 4) * Math.Log(1.1)) : 1;
+    internal static double ClampZoom(double requested, double fit) =>
+        Math.Clamp(double.IsFinite(requested) ? requested : fit, fit, 16);
     internal static double Fit(int width, int height, double viewportWidth, double viewportHeight, double displayScale) =>
         Math.Min(1, Math.Min(Math.Max(1, viewportWidth) * displayScale / width, Math.Max(1, viewportHeight) * displayScale / height));
     internal static double Pan(double pan, int sourcePixels, double physicalZoom, double displayScale, double viewport) =>

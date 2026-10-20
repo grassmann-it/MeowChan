@@ -44,6 +44,8 @@ internal static class ShowcaseCaptures
         await CaptureAsync(window, "v0.9.0-gallery.png");
         Click(GalleryButton(gallery, "GalleryClose"));
 
+        await CaptureReaderAsync(window, page);
+
         // Search remains active beside the actual saved-media tiles of its selected thread.
         page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
         if (!page.FindControl<ListBox>("ArchiveMediaTiles")!.IsVisible)
@@ -59,7 +61,7 @@ internal static class ShowcaseCaptures
         await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.Bounds.Width > 0);
         await CaptureAsync(about, "v0.9.0-about.png");
         Click(about.FindControl<Button>("CloseButton")!);
-        Console.WriteLine("SHOWCASE five actual UI scenes captured: passive download projections, gallery with persisted post context, multipage archive search and media tiles, successful repeated HTML export, About.");
+        Console.WriteLine("SHOWCASE six actual UI scenes captured: passive download projections, gallery with persisted post context, large offline reader, multipage archive search and media tiles, successful repeated HTML export, About.");
     }
 
     private static async Task CaptureDownloadsAsync(MainWindow window)
@@ -153,6 +155,53 @@ internal static class ShowcaseCaptures
             grid.SelectedItem = null;
             foreach (ThreadRow row in rows) { window.UrlList.Remove(row); row.Dispose(); }
         }
+    }
+
+    private static async Task CaptureReaderAsync(MainWindow window, ArchivePage page)
+    {
+        page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 0;
+        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == ShowcaseData.Hero);
+        await page.MediaLoadTask;
+        await page.FocusPostAsync(ShowcaseData.Hero.Thread!);
+        Rect? previousImage = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            ArchiveAttachmentView? first = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .FirstOrDefault(view => view.IsEffectivelyVisible && view.DataContext is ArchiveAttachmentRow);
+            ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
+            SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
+            if (reader.Bounds.Width < window.ClientSize.Width - 1 || reader.Bounds.Height < window.ClientSize.Height - 1
+                || page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
+                || first?.Thumbnail.Source is not Bitmap bitmap || bitmap.PixelSize.Width <= 240
+                || first.Thumbnail.Bounds.Width < 640 || first.Thumbnail.Bounds.Height < 280 || body == null
+                || !FitsInReader(first.Thumbnail, reader) || !FitsInReader(body, reader)
+                || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
+                || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled)
+            { previousImage = null; return false; }
+            Point? origin = first.Thumbnail.TranslatePoint(default, reader);
+            if (origin == null) return false;
+            Rect image = new(origin.Value, first.Thumbnail.Bounds.Size);
+            bool stable = previousImage == image;
+            previousImage = image;
+            return stable;
+        });
+        await CaptureAsync(window, "v0.9.0-reader.png");
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await Program.WaitUntilAsync(() => !reader.IsVisible
+            && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"));
+    }
+
+    private static bool FitsInReader(Control control, ContentControl reader)
+    {
+        Point? point = control.TranslatePoint(default, reader);
+        return point.HasValue && point.Value.X >= 0 && point.Value.Y >= 0
+            && point.Value.X + control.Bounds.Width <= reader.Bounds.Width + 1
+            && point.Value.Y + control.Bounds.Height <= reader.Bounds.Height + 1;
     }
 
     private static async Task WaitForArchiveTilesAsync(MainWindow window, ArchivePage page)

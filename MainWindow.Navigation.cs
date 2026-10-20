@@ -43,6 +43,7 @@ public partial class MainWindow
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, OpenDirectory);
         _archivePage.ExportHistory = _session.ExportHistory;
+        _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
         _archivePage.GetWorkSnapshots = _session.GetThreadWorkSnapshots;
         _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
@@ -52,6 +53,8 @@ public partial class MainWindow
             candidate.ArchiveMediaTiles = tiles;
             await _session.ApplySettingsAsync(candidate);
         };
+        _archivePage.OpenReaderRequested = OpenLargeReader;
+        _archivePage.CloseReaderRequested = () => CloseLargeReader();
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
@@ -177,29 +180,8 @@ public partial class MainWindow
             : Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread));
     }
 
-    private async void OnCheckSelectionClick(object? sender, RoutedEventArgs e)
-    {
-        if (!_restoreCompleted || WorkspaceCommandBusy) return;
-        DiagnosticTarget? target = GetWorkspaceSelection() switch
-        {
-            ThreadRow thread => new DiagnosticTarget(DiagnosticTargetKind.Thread, thread.WatchId),
-            BoardRow board => new DiagnosticTarget(DiagnosticTargetKind.Board, board.WatchId),
-            _ => null
-        };
-        if (target == null) return;
-        try
-        {
-            Interfaces.CheckRequestStatus result = await _session.RequestCheckAsync(target);
-            ShowNotification(Texts.T("notification.session"), CheckActionText.ForResult(result, target.Kind),
-                result is Interfaces.CheckRequestStatus.Scheduled or Interfaces.CheckRequestStatus.AlreadyScheduled
-                    ? Avalonia.Controls.Notifications.NotificationType.Information : Avalonia.Controls.Notifications.NotificationType.Warning);
-        }
-        catch (Exception exception)
-        {
-            ShowNotification(Texts.T("notification.error"), Texts.T("check.failed", exception.Message),
-                Avalonia.Controls.Notifications.NotificationType.Error);
-        }
-    }
+    private async void OnCheckSelectionClick(object? sender, RoutedEventArgs e) =>
+        await CheckDownloadSelectionAsync(this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex == 1, false);
 
     private void DisposeWorkspacePages()
     {

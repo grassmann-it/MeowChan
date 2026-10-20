@@ -30,16 +30,20 @@ internal static class Program
     private static bool _downloadSessionMode;
     private static bool _trayLifecycleMode;
     private static bool _visualMode;
+    private static bool _readerUxMode;
+    private static bool _selectionMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection]");
             return 2;
         }
 
+        _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
+        _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _visualMode = args.Contains("--visual", StringComparer.Ordinal);
         string? showcaseRoot = _visualMode ? Path.Combine(Path.GetTempPath(), "MeowChan-showcase") : null;
         if (showcaseRoot != null && Directory.Exists(showcaseRoot))
@@ -67,10 +71,18 @@ internal static class Program
             {
                 DownloadPath = Path.Combine(profile, "Downloads"),
                 MinimizeToTray = _noTrayMode || _trayFailureMode,
+                DownloadsPaused = _selectionMode,
                 SaveUrlsOnExit = true
             };
             config.SaveConfig();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_selectionMode) ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_readerUxMode)
+            {
+                ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE") is { Length: > 0 } fixture)
+                    VideoGalleryChecks.SeedAsync(profile, fixture).GetAwaiter().GetResult();
+            }
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
@@ -120,6 +132,7 @@ internal static class Program
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
                 : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
+                : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -170,6 +183,23 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (_selectionMode)
+            {
+                await SelectionChecks.RunAsync(mainWindow);
+                await BoardAdmissionChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_readerUxMode)
+            {
+                await ReaderUxChecks.RunAsync(mainWindow);
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")))
+                    await VideoGalleryChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (_visualMode)
             {
                 await ComparisonCaptures.RunAsync(mainWindow, visualReview: true);
@@ -312,6 +342,7 @@ internal static class Program
             await SettingsPageChecks.RunAsync(mainWindow);
             await DiagnosticsChecks.RunAsync(mainWindow);
             await SourcesChecks.RunAsync(mainWindow);
+            await BoardAdmissionChecks.RunAsync(mainWindow);
             await PauseChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);

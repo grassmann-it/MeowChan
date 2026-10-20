@@ -29,15 +29,23 @@
                 </StackPanel>
                 <Border Grid.Row="1" Classes="panel">
                     <Grid>
-                        <ListBox x:Name="ArchiveThreads" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" KeyDown="OnThreadKeyDown">
+                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
                                     <StackPanel Spacing="4" Margin="5,6">
                                         <StackPanel.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="{Binding GalleryLabel}" Click="OnThreadGalleryMenu" />
-                                                <MenuItem Header="{Binding ReadLabel}" Click="OnThreadReadMenu" />
-                                                <MenuItem Header="{Binding ExportLabel}" Click="OnThreadExportMenu" />
+                                            <ContextMenu Opened="OnArchiveSelectionMenuOpened">
+                                                <MenuItem Header="{Binding GalleryLabel}" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
+                                                <MenuItem Header="{Binding ReadLabel}" InputGesture="Enter" Click="OnThreadReadMenu" />
+                                                <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" InputGesture="Ctrl+E" Click="OnThreadExportMenu" />
+                                                <MenuItem Tag="action.details" Classes="localized" Header="Details" InputGesture="Alt+Enter" Click="OnArchiveSelectionDetails" />
+                                                <MenuItem Tag="check.action" Classes="localized" Header="Check now" InputGesture="F5" Click="OnArchiveCheckSelection" />
+                                                <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" InputGesture="Shift+F5" Click="OnArchiveRetrySelection" />
+                                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" InputGesture="Ctrl+R" CommandParameter="rules" Click="OnArchiveLeadAction" />
+                                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" InputGesture="Ctrl+O" CommandParameter="folder" Click="OnArchiveLeadAction" />
+                                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" InputGesture="Ctrl+Shift+O" CommandParameter="browser" Click="OnArchiveLeadAction" />
+                                                <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" InputGesture="Ctrl+C" Click="OnArchiveCopySelection" />
+                                                <MenuItem Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnArchiveRemoveSelection" />
                                             </ContextMenu>
                                         </StackPanel.ContextMenu>
                                         <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
@@ -47,8 +55,8 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single"
-                                  SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped" KeyDown="OnThreadTableKeyDown" PointerPressed="OnThreadTablePointerPressed">
+                        <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
+                                  SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Source / board" Width="125" Binding="{Binding Identity, DataType=desktop:ArchiveThreadRow}" />
                                 <DataGridTextColumn Header="Title / ID" Width="*" Binding="{Binding Title, DataType=desktop:ArchiveThreadRow}" />
@@ -58,10 +66,19 @@
                                 <DataGridTextColumn Header="Work" Width="150" Binding="{Binding WorkStatus, DataType=desktop:ArchiveThreadRow}" />
                                 <DataGridTextColumn Header="Last capture" Width="150" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
                             </DataGrid.Columns>
-                            <DataGrid.ContextMenu><ContextMenu>
-                                <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" Click="OnThreadGalleryMenu" />
-                                <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" Click="OnThreadReadMenu" />
-                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export as HTML…" Click="OnThreadExportMenu" />
+                            <DataGrid.ContextMenu><ContextMenu Opened="OnArchiveSelectionMenuOpened">
+                                <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
+                                <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" InputGesture="Enter" Click="OnThreadReadMenu" />
+                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection…" InputGesture="Ctrl+E" Click="OnThreadExportMenu" />
+                                <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" InputGesture="Ctrl+C" Click="OnArchiveCopySelection" />
+                                <MenuItem Tag="action.details" Classes="localized" Header="Details" InputGesture="Alt+Enter" Click="OnArchiveSelectionDetails" />
+                                <MenuItem Tag="check.action" Classes="localized" Header="Check now" InputGesture="F5" Click="OnArchiveCheckSelection" />
+                                <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" InputGesture="Shift+F5" Click="OnArchiveRetrySelection" />
+                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" InputGesture="Ctrl+R" CommandParameter="rules" Click="OnArchiveLeadAction" />
+                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" InputGesture="Ctrl+O" CommandParameter="folder" Click="OnArchiveLeadAction" />
+                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" InputGesture="Ctrl+Shift+O" CommandParameter="browser" Click="OnArchiveLeadAction" />
+                                <Separator />
+                                <MenuItem x:Name="ArchiveTableRemoveMenu" Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnArchiveRemoveSelection" />
                             </ContextMenu></DataGrid.ContextMenu>
                         </DataGrid>
                         <TextBlock x:Name="ArchiveEmpty" Tag="archive.empty" Classes="muted localized" TextWrapping="Wrap" Margin="12" />
@@ -80,12 +97,19 @@
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
-                    <WrapPanel>
+                    <WrapPanel HorizontalAlignment="Center">
+                    <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" Margin="0,0,8,0" />
                     <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" HorizontalAlignment="Left" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" HorizontalAlignment="Left" IsVisible="False" />
+                    </WrapPanel>
+                    <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Center">
+                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
+                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
+                        <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
+                        <Button x:Name="ReaderNextThread" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
                     </WrapPanel>
                     <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>

@@ -5,6 +5,13 @@ internal static class ArchiveCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("archive.loadingThumbnail", "Loading image…", "Bild wird geladen …"),
+        ("reader.video", "Video · open in viewer", "Video · im Viewer öffnen"),
+        ("gallery.fileOnly", "This saved file has no built-in media viewer.", "Für diese gespeicherte Datei gibt es keinen integrierten Medienviewer."),
+        ("reader.previousPost", "↑ Previous post", "↑ Voriger Beitrag"),
+        ("reader.nextPost", "Next post ↓", "Nächster Beitrag ↓"),
+        ("reader.previousThread", "← Previous thread", "← Voriger Thread"),
+        ("reader.nextThread", "Next thread →", "Nächster Thread →"),
+        ("reader.close", "Close reader", "Leser schließen"),
         ("gallery.viewer0", "Close · Esc", "Schließen · Esc"),
         ("gallery.viewer1", "← Previous", "← Zurück"),
         ("gallery.viewer2", "Next →", "Weiter →"),

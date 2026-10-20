@@ -52,7 +52,7 @@ public partial class ArchivePage
             (GalleryEntry[] entries, GalleryEntryKey start) = await Task.Run(() =>
             {
                 GalleryThreadResult associated = GallerySelection.Build(thread,
-                    assets.Select(asset => asset.Manifest).DistinctBy(manifest => manifest.Directory), true);
+                    assets.Select(asset => asset.Manifest).DistinctBy(manifest => manifest.Directory), true, includeOtherMedia: true);
                 Dictionary<GalleryAssetKey, GalleryEntry> postByAsset = associated.Entries
                     .Where(entry => entry.Post != null).GroupBy(entry => entry.Key)
                     .ToDictionary(group => group.Key, group => group.First());
@@ -82,8 +82,19 @@ public partial class ArchivePage
         bool reader = _showReader;
         int offset = _postOffset;
         int tab = Control<TabControl>("ArchiveContentTabs").SelectedIndex;
-        object? listSelection = Control<ListBox>("ArchiveThreads").SelectedItem;
-        object? tableSelection = Control<DataGrid>("ArchiveThreadTable").SelectedItem;
+        ReaderAnchor? readerAnchor = reader && tab == 0 ? CaptureReaderAnchor() : null;
+        ArchiveThreadQuery query = _query;
+        int listOffset = _listOffset, listTotal = _listTotal, workFilter = _workFilter;
+        int mediaSort = _mediaSort;
+        bool allVersions = _allVersions;
+        var listRows = (Control<ListBox>("ArchiveThreads").ItemsSource as IEnumerable<ArchiveThreadRow>)?.ToArray() ?? Array.Empty<ArchiveThreadRow>();
+        string? searchText = Control<TextBox>("ArchiveSearchText").Text;
+        string? sourceFilter = Control<TextBox>("ArchiveSourceFilter").Text;
+        string? boardFilter = Control<TextBox>("ArchiveBoardFilter").Text;
+        string[] filterNames = { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort" };
+        int[] filterIndices = filterNames.Select(name => Control<ComboBox>(name).SelectedIndex).ToArray();
+        ResourceId[] listSelection = FrozenArchiveSelection();
+        ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow? mediaSelection = SelectedMediaRow();
         string? postSelection = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
         // Stack enumeration is newest-first; restore in reverse to retain the same Back path.
@@ -105,6 +116,12 @@ public partial class ArchivePage
             CancelReferences();
             CancelMediaLoad();
             _busy = false;
+            _query = query; _listOffset = listOffset; _listTotal = listTotal; _workFilter = workFilter;
+            _mediaSort = mediaSort; _allVersions = allVersions;
+            Control<TextBox>("ArchiveSearchText").Text = searchText;
+            Control<TextBox>("ArchiveSourceFilter").Text = sourceFilter;
+            Control<TextBox>("ArchiveBoardFilter").Text = boardFilter;
+            for (int index = 0; index < filterNames.Length; index++) Control<ComboBox>(filterNames[index]).SelectedIndex = filterIndices[index];
             _history.Clear();
             foreach (var position in history.Reverse()) _history.Push(position);
             _backlinkPost = backlinkPost;
@@ -122,8 +139,12 @@ public partial class ArchivePage
             _updatingList = true;
             try
             {
-                Control<ListBox>("ArchiveThreads").SelectedItem = listSelection;
-                Control<DataGrid>("ArchiveThreadTable").SelectedItem = tableSelection;
+                Control<ListBox>("ArchiveThreads").ItemsSource = listRows;
+                Control<DataGrid>("ArchiveThreadTable").ItemsSource = listRows;
+                _archiveSelectionIds.Clear();
+                foreach (ResourceId id in listSelection) _archiveSelectionIds.Add(id);
+                _archiveLeadId = listLead;
+                RestoreArchiveSelection(listRows);
             }
             finally { _updatingList = false; }
             RenderThread(); UpdateLayoutMode();
@@ -133,6 +154,7 @@ public partial class ArchivePage
             if (Control<ListBox>("ArchivePosts").ItemsSource is IEnumerable<ArchivePostRow> posts)
                 Control<ListBox>("ArchivePosts").SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
+            if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor);
         };
     }
 
@@ -148,14 +170,7 @@ public partial class ArchivePage
         return null;
     }
 
-    private void OnThreadTablePointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(Control<DataGrid>("ArchiveThreadTable")).Properties.IsRightButtonPressed) return;
-        DataGridRow? row = (e.Source as Avalonia.Visual)?.FindAncestorOfType<DataGridRow>();
-        _contextThread = row?.DataContext as ArchiveThreadRow;
-        if (_contextThread != null) Control<DataGrid>("ArchiveThreadTable").SelectedItem = _contextThread;
-        else e.Handled = true;
-    }
+    private void OnThreadTablePointerPressed(object? sender, PointerPressedEventArgs e) => OnArchiveListPointerPressed(sender, e);
 
     private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
     {
@@ -164,30 +179,12 @@ public partial class ArchivePage
         ArchiveThreadRow? row = EventThread(sender, e.Source);
         if (row == null || OpenGallery == null) return;
         e.Handled = true;
-        await OpenGallery(row.Summary.Id, null, e.Source as Control);
+        OpenReaderRequested?.Invoke(e.Source as Control);
+        await LoadThreadAsync(row.Summary.Id);
     }
 
-    private async void OnThreadKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || e.Source is not ListBoxItem || Control<ListBox>("ArchiveThreads").SelectedItem is not ArchiveThreadRow row
-            || OpenGallery == null) return;
-        e.Handled = true;
-        await OpenGallery(row.Summary.Id, null, Control<ListBox>("ArchiveThreads"));
-    }
-
-    private void OnThreadTableSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_updatingList || _ended || !_available || Control<DataGrid>("ArchiveThreadTable").SelectedItem is not ArchiveThreadRow row) return;
-        _updatingList = true;
-        try { Control<ListBox>("ArchiveThreads").SelectedItem = row; }
-        finally { _updatingList = false; }
-        _history.Clear();
-        _selectedThread = row.Summary.Id;
-        _contextThread = row;
-        _showReader = false;
-        UpdateLayoutMode();
-        UpdateActions();
-    }
+    private void OnThreadKeyDown(object? sender, KeyEventArgs e) => OnArchiveListKeyDown(sender, e);
+    private void OnThreadTableSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
 
     private async void OnThreadTableDoubleTapped(object? sender, TappedEventArgs e)
     {
@@ -196,20 +193,16 @@ public partial class ArchivePage
         DataGridRow? target = (e.Source as Avalonia.Visual)?.FindAncestorOfType<DataGridRow>();
         if (target?.DataContext is not ArchiveThreadRow row || OpenGallery == null) return;
         e.Handled = true;
-        await OpenGallery(row.Summary.Id, null, target);
+        OpenReaderRequested?.Invoke(target);
+        await LoadThreadAsync(row.Summary.Id);
     }
 
-    private async void OnThreadTableKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || e.Source is not (DataGridCell or DataGridRow) || Control<DataGrid>("ArchiveThreadTable").SelectedItem is not ArchiveThreadRow row
-            || OpenGallery == null) return;
-        e.Handled = true;
-        await OpenGallery(row.Summary.Id, null, Control<DataGrid>("ArchiveThreadTable"));
-    }
+    private void OnThreadTableKeyDown(object? sender, KeyEventArgs e) => OnArchiveListKeyDown(sender, e);
 
     private void OnThreadModeClick(object? sender, RoutedEventArgs e)
     {
         _threadTable = !_threadTable;
+        RestoreArchiveSelection(ArchiveVisibleRows);
         UpdateLayoutMode();
     }
 
@@ -221,13 +214,17 @@ public partial class ArchivePage
 
     private async void OnThreadReadMenu(object? sender, RoutedEventArgs e)
     {
-        if (EventThread(sender, e.Source) is ArchiveThreadRow row) await LoadThreadAsync(row.Summary.Id);
+        if (EventThread(sender, e.Source) is ArchiveThreadRow row)
+        {
+            OpenReaderRequested?.Invoke(ThreadOrigin(row));
+            await LoadThreadAsync(row.Summary.Id);
+        }
     }
 
     private async void OnThreadExportMenu(object? sender, RoutedEventArgs e)
     {
-        if (EventThread(sender, e.Source) is ArchiveThreadRow row)
-            await OpenExportForThreadAsync(row.Summary.Id, ThreadOrigin(row));
+        ResourceId[] ids = FrozenArchiveSelection();
+        if (ids.Length > 0) await OpenExportForThreadsAsync(ids, ArchiveSelectionList);
     }
 
     private Control ThreadOrigin(ArchiveThreadRow row) =>
@@ -257,6 +254,7 @@ public partial class ArchivePage
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
     {
         if (_selectedThread == null) return;
+        OpenReaderRequested?.Invoke(sender as Control);
         await LoadThreadAsync(_selectedThread);
         Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
     }
@@ -277,14 +275,14 @@ public partial class ArchivePage
 
     private void OnVersionScopeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized && !_largeReader) return;
         _allVersions = Control<ComboBox>("ArchiveVersionScope").SelectedIndex == 1;
         RenderMedia();
     }
 
     private void OnMediaSortChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized && !_largeReader) return;
         _mediaSort = Math.Max(0, Control<ComboBox>("ArchiveMediaSort").SelectedIndex);
         RenderMedia();
     }

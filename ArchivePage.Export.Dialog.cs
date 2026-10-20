@@ -79,13 +79,20 @@ public partial class ArchivePage
         _exportCard.Classes.Add("panel");
         KeyboardNavigation.SetTabNavigation(_exportCard, KeyboardNavigationMode.Cycle);
         _exportCard.AddHandler(KeyDownEvent, OnExportKeyDown, RoutingStrategies.Tunnel);
-        Control<Border>("ArchiveExportDialog").Child = _exportCard;
-        SizeChanged += (_, _) => ResizeExportDialog();
+        Border overlay = Control<Border>("ArchiveExportDialog");
+        overlay.Child = _exportCard;
+        // The reader and its overlay may be hosted outside this (hidden) page.
+        overlay.SizeChanged += (_, _) => ResizeExportDialog();
         ResizeExportDialog();
     }
     private void ResizeExportDialog()
     {
-        if (_exportCard != null) _exportCard.MaxHeight = Math.Max(100, Bounds.Height - 48);
+        if (_exportCard == null) return;
+        Border overlay = Control<Border>("ArchiveExportDialog");
+        double available = overlay.Bounds.Height;
+        if (available <= 0) available = (overlay.Parent as Control)?.Bounds.Height ?? 0;
+        if (available <= 0) available = TopLevel.GetTopLevel(overlay)?.ClientSize.Height ?? 0;
+        _exportCard.MaxHeight = Math.Max(100, available - 48);
     }
     private void ExportModalPointer(object? sender, PointerPressedEventArgs e)
     {
@@ -106,9 +113,10 @@ public partial class ArchivePage
     private void LocalizeExport()
     {
         if (_exportCard == null) return;
+        UpdateExportSummary();
         Control<TextBlock>("ArchiveExportTitle").Text = Texts.T("archive.export");
-        Control<TextBlock>("ArchiveExportHint").Text = Texts.T("export.hint");
-        Control<TextBlock>("ArchiveExportHistoryLabel").Text = Texts.T("export.known");
+        Control<TextBlock>("ArchiveExportHint").Text = Texts.T(IsCollectionExport ? "export.collectionHint" : "export.hint");
+        Control<TextBlock>("ArchiveExportHistoryLabel").Text = Texts.T(IsCollectionExport ? "export.collectionKnown" : "export.known");
         Control<RadioButton>("ArchiveExportNew").Content = Texts.T("export.new");
         Control<RadioButton>("ArchiveExportUpdate").Content = Texts.T("export.update");
         Control<Expander>("ArchiveExportLegacySection").Header = Texts.T("export.older");

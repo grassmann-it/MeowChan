@@ -160,6 +160,8 @@ internal static class DownloadSessionChecks
             restored.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = recovered;
             Click(restored.FindControl<Button>("DetailsToggleButton")!);
             Button check = restored.FindControl<Button>("InspectorCheckButton")!;
+            Console.WriteLine("SMOKE restored inspector diagnostic: selection=" + restored.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItems.Count + "; inspector=" + restored.FindControl<Border>("WorkspaceInspector")!.IsVisible + "; checkvisible=" + check.IsEffectivelyVisible + "; checkenabled=" + check.IsEnabled + "; paused=" + restored.SessionHost.IsPaused);
+            Program.CaptureWindow(restored, "smoke-download-inspector-selected.png");
             await Program.WaitUntilAsync(() => check.IsEffectivelyVisible && check.IsEnabled);
             Click(check);
             await Program.WaitUntilAsync(() => restored.GetVisualDescendants()
