@@ -143,15 +143,25 @@ checksums, build recipes and patches; upstream mirrors component source archives
 at [VideoLAN contrib downloads](https://download.videolan.org/pub/contrib/).
 The native NuGet upstream [Windows packaging script](https://code.videolan.org/videolan/libvlc-nuget/-/blob/master/package-nuget-win.sh)
 and [Mac packaging script](https://code.videolan.org/videolan/libvlc-nuget/-/blob/master/package-nuget-mac.sh)
-repackage official VLC distributions and remove their enumerated GPL modules for
-the non-GPL packages used here. These moving script links describe inspected
-upstream behavior, rather than proving a particular build's complete component set.
+repackage official VLC distributions and remove enumerated modules. The Mac
+package retains four modules whose exact source headers declare GPL-2.0-or-later:
+`libdolby_surround_decoder_plugin.dylib`, `libheadphone_channel_mixer_plugin.dylib`,
+`libsyslog_plugin.dylib` and `liblua_plugin.dylib`, in both architectures. The
+NuSpec aggregate LGPL expression does not override those individual licenses.
+Their source locations, hashes, full GPL v2 text and the verified 800-file
+NuGet-to-official-DMG mapping are recorded in the [Mac source notices and
+manifest](docs/native-video-macos-sources.md). The complete source base includes
+these modules. No plugin removal or change to MeowChan's Artistic 2.0 license is
+implied. The pinned upstream packaging helper accompanies application source.
 
 To use a compatible rebuilt native library, quit MeowChan, back up the complete
 `libvlc/<RID>` directory, replace that tree while preserving its plugin hierarchy
 and CPU architecture, then restart. On macOS the directory is inside
-`MeowChan.app/Contents/MacOS`; modifying an app bundle may require signing the
-modified bundle. To rebuild the managed binding, use the LibVLCSharp 3.10.2 source
+`MeowChan.app/Contents/Resources/application/libvlc/<RID>` for signed packages,
+exposed through a relative `Contents/MacOS/libvlc` link (legacy unsigned packages
+keep it directly in `Contents/MacOS`). Modifying a bundle requires re-signing the
+modified bundle for local use; see the [Mac build/replacement instructions](docs/native-video-macos-sources.md).
+To rebuild the managed binding, use the LibVLCSharp 3.10.2 source
 and replace its package reference with the rebuilt compatible package before
 building MeowChan. The desktop project and Release locks record all binding inputs.
 
@@ -171,8 +181,10 @@ prerelease as the Windows binary ZIP**, and include its hash in the release
 checksums. That companion supplies the verified official VLC source, the pinned
 contrib source inputs/patches and LibVLCSharp sources; merely publishing this
 paragraph without the companion asset does not complete the source mechanism.
-Mac package/source mapping and signing acceptance remain separate from that
-Windows prerelease record; see [macOS signing](docs/macos-signing.md).
+For a Mac release, offer that same immutable source base together with the
+release-specific overlay described in [Mac source availability](docs/native-video-macos-sources.md),
+bound to the final per-RID ZIP hashes. The source inventory is separate from
+exact upstream binary rebuild provenance and [native signing/runtime acceptance](docs/macos-signing.md).
 
 ## Maintaining this inventory
 

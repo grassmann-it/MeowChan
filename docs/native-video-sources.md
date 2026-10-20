@@ -93,6 +93,8 @@ MeowChan's project and lockfiles supply the application build inputs. The
 application license permits reverse engineering needed to debug modifications
 to these LGPL components, as stated in `THIRD-PARTY-NOTICES.md`.
 
-This record addresses the selected Windows package. The separate macOS signing
-procedure documents signing and replacement considerations for macOS; it does
-not assert that macOS signing, notarization or native acceptance has occurred.
+This record addresses the selected Windows package. The separate
+[macOS source and component notices](native-video-macos-sources.md) describe the
+unchanged source base plus a release-specific Mac overlay, retained GPL modules,
+and replacement/build instructions. [macOS signing](macos-signing.md) records
+the distinct native-signing/startup checkpoint and its runtime limitations.
