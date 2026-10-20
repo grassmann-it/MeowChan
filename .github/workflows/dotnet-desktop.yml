@@ -8,16 +8,26 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Full validation or isolated macOS offline test diagnosis
+        type: choice
+        required: true
+        default: validate
+        options:
+          - validate
+          - macos-diagnose
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}
   cancel-in-progress: true
 
 jobs:
   validate:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
     strategy:
       fail-fast: false
       matrix:
@@ -86,6 +96,7 @@ jobs:
           retention-days: 14
 
   library-package:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -109,6 +120,7 @@ jobs:
           retention-days: 30
 
   package:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -284,3 +296,37 @@ jobs:
           path: artifacts/build-evidence/**
           if-no-files-found: warn
           retention-days: 30
+
+  # Diagnostic evidence only: this mode does not run or satisfy release validation.
+  macos-diagnose:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'macos-diagnose'
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Record diagnostic source and SDK
+        shell: bash
+        run: |
+          mkdir -p artifacts/macos-test-diagnosis
+          git rev-parse HEAD > artifacts/macos-test-diagnosis/source.txt
+          dotnet --info > artifacts/macos-test-diagnosis/sdk.txt
+      - name: Restore reviewed dependencies for both complete test suites
+        timeout-minutes: 4
+        run: dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
+      - name: Build all production and test projects
+        timeout-minutes: 4
+        run: dotnet build MeowChan.sln --configuration Release --no-restore
+      - name: Diagnose Core then Desktop independently
+        timeout-minutes: 10
+        run: python3 scripts/macos-test-watchdog.py --timeout 240
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-test-diagnosis-${{ github.run_id }}
+          path: artifacts/macos-test-diagnosis/**
+          if-no-files-found: warn
+          retention-days: 14
