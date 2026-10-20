@@ -102,7 +102,7 @@ internal static class ShowcaseCaptures
                         Attempts = 1, LastAttemptAt = attempted,
                         ConsecutiveNotFound = number < scene.Saved ? 0 : 1,
                         HttpStatus = number < scene.Saved ? null : 404,
-                        DueAt = number < scene.Saved ? null : attempted.AddMinutes(30)
+                        DueAt = number < scene.Saved ? null : attempted.AddMinutes(15)
                     }).ToArray();
                     // Active source + one temporary media 404: real formatter semantics, not a stopped thread.
                     ThreadWorkSnapshot work = new(entry.Snapshot.Url, WorkIntent.Watching,
@@ -118,6 +118,11 @@ internal static class ShowcaseCaptures
             ThreadRow waiting = rows[3];
             ThreadWorkSnapshot retryWork = waiting.Snapshot.Work
                 ?? throw new InvalidOperationException("Missing showcase media work projection.");
+            MediaWork firstNotFound = retryWork.Media.Single(media => media.Status == MediaWorkStatus.Waiting);
+            if (firstNotFound.HttpStatus != 404 || firstNotFound.Attempts != 1 || firstNotFound.ConsecutiveNotFound != 1
+                || firstNotFound.LastAttemptAt == null
+                || firstNotFound.DueAt != firstNotFound.LastAttemptAt.Value.AddMinutes(15))
+                throw new InvalidOperationException("The first showcase media 404 must retain its real fifteen-minute retry interval.");
             if (retryWork.SavedMedia != 17 || retryWork.MissingMedia != 1
                 || retryWork.NextDueAt == null || retryWork.Deadline != null
                 || !waiting.Progress.Contains("1 paused (404)", StringComparison.Ordinal)
