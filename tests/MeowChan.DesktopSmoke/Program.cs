@@ -40,7 +40,12 @@ internal static class Program
             return 2;
         }
 
-        string profile = Path.Combine(Path.GetTempPath(), "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
+        _visualMode = args.Contains("--visual", StringComparer.Ordinal);
+        string? showcaseRoot = _visualMode ? Path.Combine(Path.GetTempPath(), "MeowChan-showcase") : null;
+        if (showcaseRoot != null && Directory.Exists(showcaseRoot))
+            throw new IOException("Showcase directory already exists; choose a clean isolated run: " + showcaseRoot);
+        string profile = showcaseRoot != null ? Path.Combine(showcaseRoot, "profile")
+            : Path.Combine(Path.GetTempPath(), "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);
@@ -50,7 +55,6 @@ internal static class Program
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
         _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
         _trayLifecycleMode = args.Contains("--tray-lifecycle", StringComparer.Ordinal);
-        _visualMode = args.Contains("--visual", StringComparer.Ordinal);
         bool xvfbEnvironment = OperatingSystem.IsLinux()
             && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1";
         SmokeLogSink sink = new SmokeLogSink();
@@ -66,10 +70,12 @@ internal static class Program
                 SaveUrlsOnExit = true
             };
             config.SaveConfig();
+            if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
-            AppBuilder appBuilder = (_downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>() : AppBuilder.Configure<App>())
+            AppBuilder appBuilder = (_downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>()
+                : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
                 .UsePlatformDetect()
                 .WithInterFont();
             if (xvfbEnvironment)
@@ -113,7 +119,7 @@ internal static class Program
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
-                : _visualMode ? "visual review of retained Downloads/Settings pages in one window, no watches or HTTP"
+                : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -123,7 +129,7 @@ internal static class Program
             if (Application.Current is DownloadSessionSmokeApp fixtureApp)
                 fixtureApp.DisposeFixture();
             Log.CloseAndFlush();
-            Directory.Delete(profile, recursive: true);
+            Directory.Delete(showcaseRoot ?? profile, recursive: true);
         }
     }
 
@@ -167,6 +173,7 @@ internal static class Program
             if (_visualMode)
             {
                 await ComparisonCaptures.RunAsync(mainWindow, visualReview: true);
+                await ShowcaseCaptures.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;

@@ -26,12 +26,29 @@ group ownership, not a security sandbox: independently detached descendants and
 Windows children surviving an already exited parent need stronger OS containment.
 These guarantees have window-free fixtures in `tests/test_desktop_smoke_runner.py`.
 
-Use `--mode visual` for a targeted style comparison in one retained main window.
-It captures empty/populated Downloads, Settings and keyboard focus in Dark/Light,
-plus compact Barebones and Advanced details. The 1440×920 regular and 880×680
-compact frames match the mock references. Passive rows make no provider requests;
-the check also verifies rendered primary-action text contrast and retained drafts.
-This optional scenario does not run the standard modal or tray-lifecycle tests.
+Use `--mode visual` for the release showcase in one retained main window:
+
+```sh
+python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode visual --scale 1 --output artifacts/r09-showcase
+```
+
+This seeds an isolated offline profile with original demo artwork and synthetic
+posts, multiple matching result pages and manifest-recorded media. The real
+Downloads, gallery with post context, archive search/media tiles, repeated HTML
+export and About window produce `v0.9.0-{downloads,gallery,archive,export,about}.png`
+under the scenario's screenshot evidence directory. Downloads states are passive
+projections; no provider watches or HTTP requests run. Gallery decoding, local
+archive reads and export services use the seeded files. Standard comparison
+captures remain part of the normal harness checks.
+
+The showcase uses Simple/Dark/English and a 1440×920 main window; the export
+scene uses the real compact dialog layout and About its own window. Keep the
+runner log and `results.json` with the source commit/WIP description, actual size,
+RenderScaling, OS and artwork provenance when promoting captures to
+`docs/screenshots/`. Use a fresh output directory and inspect all five PNGs before
+calling them final. These are real source-build UI captures; they do not establish
+native extracted-package acceptance or live source availability. This optional
+scenario does not run the standard modal or tray-lifecycle tests.
 
 The 16-window tray stress case requires a separate explicit invocation:
 

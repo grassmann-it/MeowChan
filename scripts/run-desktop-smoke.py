@@ -135,7 +135,8 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     command = ["dotnet", str(assembly)]
     if mode != "normal":
         command.append("--" + mode)
-    previous = {image: image.stat().st_mtime_ns for image in assembly.parent.glob("smoke-*.png")}
+    previous = {image: image.stat().st_mtime_ns for pattern in ("smoke-*.png", "v0.9.0-*.png")
+                for image in assembly.parent.glob(pattern)}
     timed_out = False
     interrupted = False
     error = None
@@ -172,7 +173,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
                     except (OSError, subprocess.TimeoutExpired) as exception:
                         error = f"Process cleanup failed: {exception}"
     log_text = (destination / "output.log").read_text(encoding="utf-8", errors="replace")
-    for image in assembly.parent.glob("smoke-*.png"):
+    for image in (image for pattern in ("smoke-*.png", "v0.9.0-*.png") for image in assembly.parent.glob(pattern)):
         if previous.get(image) != image.stat().st_mtime_ns:
             shutil.copy2(image, destination / image.name)
     scales = sorted({float(value) for value in re.findall(
