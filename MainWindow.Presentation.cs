@@ -349,8 +349,7 @@ public partial class MainWindow
             UpdatePageNavigation();
             // All pages and the mode selector remain reachable in compact windows.
             WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = true;
-            WorkspaceControl<Border>("WorkspaceNavigation").Padding = new Thickness(12, reducedChrome ? 2 : 5);
-            WorkspaceControl<Grid>("WorkspaceRoot").RowDefinitions[3].Height = new GridLength(reducedChrome ? 40 : 52);
+            // Keep the shared footer's height and padding from XAML in every view.
             WorkspaceControl<Grid>("WorkspaceBody").RowSpacing = reducedChrome ? 8 : 10;
             WorkspaceControl<Grid>("WorkspaceBody").Margin = barebones ? new Thickness(12)
                 : shortWindow ? new Thickness(16, 12) : new Thickness(20);

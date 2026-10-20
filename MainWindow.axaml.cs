@@ -16,7 +16,6 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -722,11 +721,11 @@ public partial class MainWindow : Window
         if (!_isClosing && SelectedBoard is BoardRow row) OpenTarget(row.Url);
     }
 
-    private void OpenTarget(string target)
+    private async void OpenTarget(string target)
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+            await ExternalLauncher.OpenAsync(target);
         }
         catch (Exception exception)
         {
