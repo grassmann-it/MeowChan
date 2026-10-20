@@ -60,7 +60,10 @@ public class EightKunThread : BaseThread
         await CaptureContentAsync(null, cancellationToken);
         if (SourceState != ThreadSourceState.Active)
         {
+            if (SourceState == ThreadSourceState.NotFound)
+                await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
             await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
+            await SettleTerminalWorkAsync();
             return;
         }
         if (Board is EightKunBoard board) await board.EnsureMetadataAsync(cancellationToken);
@@ -82,9 +85,10 @@ public class EightKunThread : BaseThread
             }
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
-                MarkPollingTerminal(ThreadSourceState.NotFound);
+                await ObserveSourceEndAsync(ThreadSourceState.NotFound);
                 await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
+                await SettleTerminalWorkAsync();
                 if (TotalMediaCount == 0 && MediaFailures.Count == 0) Activity = ThreadActivity.NotFound;
                 return;
             }

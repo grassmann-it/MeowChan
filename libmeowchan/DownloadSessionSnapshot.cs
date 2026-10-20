@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Linq;
 using Newtonsoft.Json;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 
 namespace MeowChan;
 
@@ -42,7 +44,19 @@ public sealed record ThreadSnapshot(ResourceId Id, string Url, string Title, str
 {
     /// <summary>Null for legacy providers without capture/selection support.</summary>
     public Archive.ThreadContentStatus? Content { get; init; }
+    public ThreadWorkSnapshot? Work { get; init; }
     public int SelectedMedia => Math.Max(0, KnownMedia - (Content?.ExcludedMedia ?? 0));
+}
+
+/// <summary>Durable source, intent, and media work, also available after automatic completion.</summary>
+public sealed record ThreadWorkSnapshot(string Url, WorkIntent Intent, ThreadSourceStateValue Source,
+    DateTimeOffset? EndObservedAt, bool CapturePending, IReadOnlyList<MediaWork> Media)
+{
+    public DateTimeOffset? Deadline => EndObservedAt?.AddHours(12);
+    public int SavedMedia => Media.Count(item => item.Status == MediaWorkStatus.Succeeded);
+    public int MissingMedia => Media.Count(item => item.Status != MediaWorkStatus.Succeeded);
+    public DateTimeOffset? NextDueAt => Media.Where(item => item.Status == MediaWorkStatus.Waiting)
+        .Select(item => item.DueAt).Where(value => value != null).Min();
 }
 
 public sealed record BoardSnapshot(ResourceId Id, string Url, string Name, string DownloadDirectory,

@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using MeowChan.Boards.EightKun;
 using MeowChan.Boards.FourChan;
 using MeowChan.Downloader;
+using MeowChan.Persistence;
 using MeowChan.Http;
 using MeowChan.Interfaces;
 
@@ -29,7 +30,7 @@ public sealed class ProviderHttpIntegrationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NotModifiedUsesLastModifiedAndRetriesKnownFailedMediaWithoutReadingItsBody(bool eightKun)
+    public async Task NotModifiedUsesLastModifiedAndRespectsMediaPauseUntilExplicitRetry(bool eightKun)
     {
         using TempDirectory directory = new TempDirectory();
         using UnreadableContent unchangedBody = new UnreadableContent();
@@ -61,6 +62,11 @@ public sealed class ProviderHttpIntegrationTests
         Assert.Equal(new DateTimeOffset?[] { null, Modified }, handler.Conditions.ToArray());
         Assert.Equal(0, unchangedBody.ReadAttempts);
         Assert.True(unchangedBody.Disposed);
+        Assert.Equal(1, handler.MediaRequests);
+        Assert.Empty(thread.DownloadedMedia);
+        Assert.Equal(1, registry.RetryMissingMedia(thread));
+        await TestWait.UntilAsync(() => thread.DownloadedMediaCount == 1);
+        await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
         Assert.Equal(2, handler.MediaRequests);
         Assert.Equal("1000", Assert.Single(thread.DownloadedMedia));
         Assert.Equal(1, thread.TotalMediaCount);
@@ -160,7 +166,8 @@ public sealed class ProviderHttpIntegrationTests
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(2, handler.ThreadRequests);
             Assert.Equal(1, observed.Clock.Waits);
-            Assert.Same(thread, Assert.Single(registry.Threads));
+            await TestWait.UntilAsync(() => registry.Threads.Count == 0);
+            Assert.Equal(WorkIntent.Completed, Assert.Single(registry.GetWorkSnapshots()).Intent);
             Assert.Equal(0, observed.RemovalRequests);
         }
         finally { releaseMedia.TrySetResult(); }
@@ -215,7 +222,8 @@ public sealed class ProviderHttpIntegrationTests
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(2, handler.ThreadRequests);
             Assert.Equal(1, observed.Clock.Waits);
-            Assert.Same(thread, Assert.Single(registry.Threads));
+            await TestWait.UntilAsync(() => registry.Threads.Count == 0);
+            Assert.Equal(WorkIntent.Completed, Assert.Single(registry.GetWorkSnapshots()).Intent);
             Assert.Equal(0, observed.RemovalRequests);
         }
         finally { releaseMedia.TrySetResult(); }

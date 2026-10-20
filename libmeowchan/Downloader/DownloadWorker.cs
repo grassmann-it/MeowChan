@@ -19,9 +19,10 @@ public sealed class DownloadWorker
     private readonly TimeSpan _bodyIdleTimeout;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+    private readonly bool _notifyThread;
 
     public DownloadWorker(DownloadItem downloadItem, BandwidthLimiter bandwidthLimiter, MediaStore? store = null,
-        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null)
+        TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null, bool notifyThread = true)
     {
         _item = downloadItem ?? throw new ArgumentNullException(nameof(downloadItem));
         _limiter = bandwidthLimiter ?? throw new ArgumentNullException(nameof(bandwidthLimiter));
@@ -30,6 +31,7 @@ public sealed class DownloadWorker
         IdleTimeoutReadStream.ValidateTimeout(_bodyIdleTimeout, nameof(bodyIdleTimeout));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger ?? Serilog.Core.Logger.None;
+        _notifyThread = notifyThread;
     }
 
     public async Task ExecuteAsync(CancellationToken cancellationToken)
@@ -38,10 +40,10 @@ public sealed class DownloadWorker
         MediaCommitResult? restored = await _store.TryRestoreAsync(_item, cancellationToken).ConfigureAwait(false);
         if (restored != null)
         {
-            _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
+            if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
             return;
         }
-        _item.Thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath);
+        if (_notifyThread) _item.Thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath);
 
         HttpClient client = _item.ImageBoard.GetHttpClient();
         using HttpResponseMessage response = await client.GetAsync(_item.DownloadUri,
@@ -63,7 +65,7 @@ public sealed class DownloadWorker
             _limiter.ThrottleAsync).ConfigureAwait(false);
         // CommitAsync deliberately finishes its short manifest commit after publishing the file,
         // even when cancellation arrives then. This is a verified completion, not a partial file.
-        _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
+        if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
         _logger.Debug("Saved verified media {MediaId} to {Path} ({Length} bytes)",
             _item.MediaIdentifier, completed.Path, completed.Length);
     }

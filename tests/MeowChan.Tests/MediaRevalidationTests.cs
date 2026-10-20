@@ -79,7 +79,7 @@ public sealed class MediaRevalidationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedRepairClearsThePreviousCompletionAndALaterCheckCanRecover(bool eightKun)
+    public async Task FailedRepairClearsThePreviousCompletionAndExplicitRetryCanRecover(bool eightKun)
     {
         await using RevalidationScenario scenario = await RevalidationScenario.StartAsync(eightKun);
         byte[] changed = InitialPayload.Reverse().ToArray();
@@ -97,6 +97,8 @@ public sealed class MediaRevalidationTests
 
         scenario.Handler.FailMedia = false;
         await scenario.NextCheckAsync();
+        Assert.Equal(2, scenario.Handler.MediaRequests);
+        await scenario.RetryMediaAsync();
 
         Assert.Equal(3, scenario.Handler.MediaRequests);
         await scenario.AssertVerifiedCompletionAsync(InitialPayload);
@@ -106,7 +108,7 @@ public sealed class MediaRevalidationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NotModifiedMetadataStillRetriesAMediumWhoseFirstDownloadFailed(bool eightKun)
+    public async Task NotModifiedMetadataRespectsFailedMediaPauseUntilExplicitRetry(bool eightKun)
     {
         await using RevalidationScenario scenario = await RevalidationScenario.StartAsync(
             eightKun, failInitialMedia: true, notModifiedAfterFirst: true);
@@ -118,6 +120,8 @@ public sealed class MediaRevalidationTests
 
         Assert.Equal(2, scenario.Handler.ThreadRequests);
         Assert.Equal(1, scenario.Handler.ConditionalThreadRequests);
+        Assert.Equal(1, scenario.Handler.MediaRequests);
+        await scenario.RetryMediaAsync();
         Assert.Equal(2, scenario.Handler.MediaRequests);
         await scenario.AssertVerifiedCompletionAsync(InitialPayload);
     }
@@ -188,6 +192,13 @@ public sealed class MediaRevalidationTests
                 await scenario.DisposeAsync();
                 throw;
             }
+        }
+
+        public async Task RetryMediaAsync()
+        {
+            Assert.Equal(1, _registry.RetryMissingMedia(Thread));
+            await TestWait.UntilAsync(() => Thread.DownloadedMediaCount == 1);
+            await _queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
         }
 
         public async Task NextCheckAsync()

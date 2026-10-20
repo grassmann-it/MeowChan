@@ -15,6 +15,8 @@ using MeowChan.Http;
 using MeowChan.Storage;
 using MeowChan.Notifications;
 using MeowChan.Archive;
+using MeowChan.Persistence;
+using System.Text.Json;
 using Serilog;
 
 /// <summary>
@@ -45,6 +47,11 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private int _totalMediaCount;
     private ThreadContentContext? _content;
     private bool _contentCandidatesRestored;
+    private Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, Task>? _endSink;
+    private Func<Task>? _captureSettledSink;
+    private DateTimeOffset? _firstEndObservation;
+    private TimeProvider _timeProvider = TimeProvider.System;
+    private CapturedThreadSnapshot? _restoredFinalSnapshot;
     /// <summary>Providers opt in when their poll path supplies captured posts and uses durable selection.</summary>
     public virtual bool SupportsContent => false;
 
@@ -62,6 +69,44 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         remove => _propertyChanges.Remove(value);
     }
     public IDisposable RegisterRemovalSink(Action<IThread> sink) => _removal.Register(sink);
+    internal void SetLifecycleSinks(Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, Task> endSink, Func<Task> captureSettledSink)
+    {
+        _endSink = endSink;
+        _captureSettledSink = captureSettledSink;
+    }
+    internal void SetTimeProvider(TimeProvider timeProvider) => _timeProvider = timeProvider;
+
+    internal void RestoreDurableState(WorkResource resource)
+    {
+        OutputDirectory = resource.OutputRoot;
+        _firstEndObservation = resource.EndObservedAt;
+        if (resource.FinalSnapshotJson != null)
+            _restoredFinalSnapshot = JsonSerializer.Deserialize<CapturedThreadSnapshot>(resource.FinalSnapshotJson)
+                ?? throw new InvalidDataException("The durable final snapshot contains null.");
+        if (resource.Source != ThreadSourceStateValue.Active)
+            MarkPollingTerminal(resource.Source == ThreadSourceStateValue.Archived ? ThreadSourceState.Archived : ThreadSourceState.NotFound);
+    }
+
+    internal void RestoreDurableMedia(IReadOnlyList<MediaWork> media)
+    {
+        lock (_stateLock)
+        {
+            _totalMediaCount = Math.Max(_totalMediaCount, media.Select(item => item.MediaIdentifier).Distinct(StringComparer.Ordinal).Count());
+            foreach (MediaWork item in media)
+            {
+                if (item.Status == MediaWorkStatus.Succeeded) _downloadedMedia.Add(item.MediaIdentifier);
+                else if (item.Failure != null)
+                {
+                    if (!_destinationFailures.TryGetValue(item.MediaIdentifier, out Dictionary<string, FailureInfo>? failures))
+                        _destinationFailures[item.MediaIdentifier] = failures = new Dictionary<string, FailureInfo>(DestinationComparer);
+                    failures[item.DestinationPath] = new FailureInfo(item.HttpStatus != null ? FailureKind.Http : FailureKind.Unknown,
+                        item.Failure, item.HttpStatus is int status ? (System.Net.HttpStatusCode)status : null);
+                    RefreshMediaFailureLocked(item.MediaIdentifier);
+                }
+            }
+        }
+        OnPropertyChanged();
+    }
     public FailureInfo? LastCheckFailure { get { lock (_stateLock) { return _lastCheckFailure; } } }
 
     public ThreadSnapshot GetSnapshot(DownloadCounts downloads)
@@ -368,6 +413,15 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         OnPropertyChanged(nameof(SourceState));
     }
 
+    protected async Task ObserveSourceEndAsync(ThreadSourceState state, CapturedThreadSnapshot? finalSnapshot = null)
+    {
+        if (state == ThreadSourceState.Active) throw new ArgumentOutOfRangeException(nameof(state));
+        DateTimeOffset first = _firstEndObservation ??= _timeProvider.GetUtcNow();
+        if (_endSink != null) await _endSink(state, first, finalSnapshot).ConfigureAwait(false);
+        _restoredFinalSnapshot = finalSnapshot;
+        MarkPollingTerminal(state);
+    }
+
 
     public virtual Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
     {
@@ -402,6 +456,15 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     protected async Task RestoreContentCandidatesAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken)
     {
+        if (_restoredFinalSnapshot != null)
+            foreach (CapturedPost post in _restoredFinalSnapshot.Posts)
+                foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
+                {
+                    if (attachment.MediaId == null || attachment.Url == null || attachment.PlannedPath == null) continue;
+                    media.TryAdd(attachment.MediaId, new DownloadItem(new Uri(attachment.Url), attachment.PlannedPath,
+                        Board.ImageBoard, this, attachment.MediaId, attachment.ExpectedSize, attachment.ExpectedMd5,
+                        attachment.OriginalFileName));
+                }
         if (_content == null || _contentCandidatesRestored) return;
         IReadOnlyList<DownloadItem> restored = await _content.RestoreCandidatesAsync(this, cancellationToken).ConfigureAwait(false);
         foreach (DownloadItem item in restored) media.TryAdd(item.MediaIdentifier, item);
@@ -410,16 +473,23 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     protected async Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
     {
-        if (_content == null) return;
-        await _content.CaptureAsync(observed, cancellationToken).ConfigureAwait(false);
+        observed ??= _restoredFinalSnapshot;
+        if (_content != null) await _content.CaptureAsync(observed, cancellationToken).ConfigureAwait(false);
         OnPropertyChanged();
     }
 
     protected async Task CaptureSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
     {
-        if (_content == null) return;
-        await _content.RecordSourceStateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (_content != null) await _content.RecordSourceStateAsync(state, cancellationToken).ConfigureAwait(false);
         OnPropertyChanged();
+    }
+
+    /// <summary>Closes the terminal capture barrier only after final media metadata is admitted.</summary>
+    protected async Task SettleTerminalWorkAsync()
+    {
+        if (SourceState == ThreadSourceState.Active || _content?.NeedsRetry == true ||
+            SourceState == ThreadSourceState.Archived && _restoredFinalSnapshot == null) return;
+        if (_captureSettledSink != null) await _captureSettledSink().ConfigureAwait(false);
     }
 
     protected async Task EnqueueKnownMediaAsync(DownloadQueue queue, IReadOnlyDictionary<string, DownloadItem> media,

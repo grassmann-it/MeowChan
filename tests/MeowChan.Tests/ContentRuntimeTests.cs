@@ -44,7 +44,7 @@ public sealed class ContentRuntimeTests
         int metadataRequests = transport.ThreadRequests;
         await runtime.Rules.SaveAsync(Array.Empty<MediaRule>());
         transport.MediaStatus = HttpStatusCode.OK;
-        Assert.Equal(CheckRequestStatus.Scheduled, registry.RequestCheck(thread));
+        Assert.Equal(1, registry.RetryMissingMedia(thread));
         await TestWait.UntilAsync(() => thread.DownloadedMediaCount == 1 && thread.MediaFailures.Count == 0);
         await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
         Assert.Equal(metadataRequests, transport.ThreadRequests);
@@ -90,7 +90,7 @@ public sealed class ContentRuntimeTests
             DownloadQueue queue = new DownloadQueue(2, 1L << 30);
             await using Registry registry = Registry(client, queue, output, runtime);
             IThread restored = (await registry.AddAsync(Url)).Thread!;
-            await TestWait.UntilAsync(() => restored.SourceState == ThreadSourceState.NotFound);
+            await TestWait.UntilAsync(() => restored.SourceState == ThreadSourceState.NotFound && restored.DownloadedMediaCount == 1);
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(1, transport.MediaRequests);
             Assert.Equal(1, restored.DownloadedMediaCount);

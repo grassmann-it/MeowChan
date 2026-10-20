@@ -430,8 +430,8 @@ public sealed class DesktopSessionHostTests
             {
                 "/boards.json" => "{\"boards\":[{\"board\":\"g\",\"title\":\"Technology\"}]}",
                 "/g/catalog.json" => "[]",
-                "/g/thread/123.json" => "{\"posts\":[{\"no\":123,\"sub\":\"First local fixture\",\"archived\":1}]}",
-                "/g/thread/456.json" => "{\"posts\":[{\"no\":456,\"sub\":\"Second local fixture\",\"archived\":1}]}",
+                "/g/thread/123.json" => "{\"posts\":[{\"no\":123,\"sub\":\"First local fixture\"}]}",
+                "/g/thread/456.json" => "{\"posts\":[{\"no\":456,\"sub\":\"Second local fixture\"}]}",
                 _ => throw new InvalidOperationException("Unexpected fixture request: " + path)
             };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });

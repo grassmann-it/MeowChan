@@ -55,6 +55,8 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
     private bool _disposed;
 
     public Config Config { get; }
+    internal ExportHistoryStore ExportHistory { get; }
+    internal IReadOnlyList<ThreadWorkSnapshot> GetThreadWorkSnapshots() => _registry.GetWorkSnapshots();
     public string ProfileDirectory => _profileLease.ProfileDirectory;
     public DesktopSessionState State { get { lock (_lifecycle) { return _state; } } }
     public string? StartupError { get { lock (_lifecycle) { return _startupError; } } }
@@ -72,6 +74,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         try
         {
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
             queue.SetPaused(Config.DownloadsPaused);
@@ -81,8 +84,9 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             };
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
+            IWorkStateStore workStore = new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
-                TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content);
+                TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.StateChanged += OnRegistryChanged;
         }
         catch
@@ -236,6 +240,26 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
                 return thread == null ? CheckRequestStatus.Stale : _registry.RequestCheck(thread);
             return board == null ? CheckRequestStatus.Stale : _registry.RequestCheck(board);
         }
+        finally { _commands.Release(); }
+    }
+
+    internal async Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            IThread? thread;
+            lock (_projection) { _threadHandles.TryGetValue(watchId, out thread); }
+            return thread == null ? 0 : _registry.RetryMissingMedia(thread, mediaIdentifier);
+        }
+        finally { _commands.Release(); }
+    }
+
+    internal async Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
+    {
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try { EnsureReady(); return await _registry.RetryCompletedMediaAsync(threadUrl, mediaIdentifier).ConfigureAwait(false); }
         finally { _commands.Release(); }
     }
 

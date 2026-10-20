@@ -4,12 +4,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Interfaces;
 using MeowChan.Notifications;
 using MeowChan.Storage;
+using MeowChan.Persistence;
+using System.Net;
+using System.Net.Http;
 using Serilog;
 
 public enum DownloadPriority { Manual, BoardDiscovery }
@@ -39,6 +43,12 @@ public class DownloadQueue
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
     private readonly CoalescedEvent<Action> _changes;
+    private readonly Dictionary<IThread, WorkResource> _workOwners = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<JobIdentity, ScheduledWork> _scheduled = new();
+    private readonly HashSet<JobIdentity> _quarantined = new();
+    private IWorkStateStore? _workStore;
+    private TaskCompletionSource _scheduleChanged = CreateCompletionSource();
+    private Task? _scheduleTask;
     private TaskCompletionSource _idleCompletion = CreateCompletedSource();
     private TaskCompletionSource? _stopCompletion;
     private int _maxParallelDownloads;
@@ -53,6 +63,7 @@ public class DownloadQueue
         add => _changes.Add(value);
         remove => _changes.Remove(value);
     }
+    public event Action<string>? PersistenceFailed;
 
     public int MaxParallelDownloads
     {
@@ -102,6 +113,8 @@ public class DownloadQueue
     }
 
     public long MaxBandwidthBytesPerSecond => _bandwidthLimiter.MaxBytesPerSecond;
+    public DateTimeOffset UtcNow => _timeProvider.GetUtcNow();
+    internal TimeProvider Clock => _timeProvider;
 
     /// <summary>
     /// Copies counts for the requested watch instances under one queue lock.
@@ -209,11 +222,175 @@ public class DownloadQueue
     public void EnqueueDownload(DownloadItem item)
     {
         PreparedDownload prepared = Prepare(item);
+        if (!PrepareDurableAdmission(item, prepared)) return;
         TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: false);
         if (full) throw new InvalidOperationException("Download capacity is full; use EnqueueAsync to wait without losing work.");
     }
 
     public int MaxPendingDownloads => _maxPendingDownloads;
+
+    /// <summary>Explicit durable mode. A library caller that does not configure it remains volatile.</summary>
+    public void ConfigureWorkState(IWorkStateStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        lock (_stateLock)
+        {
+            if (_workStore != null && !ReferenceEquals(_workStore, store)) throw new InvalidOperationException("The work store is already configured.");
+            _workStore = store;
+        }
+    }
+
+    /// <summary>Restores work before a provider lifetime starts; no endpoint request is required.</summary>
+    public void BindWork(IThread thread, WorkResource resource)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        IWorkStateStore store = _workStore ?? throw new InvalidOperationException("Configure durable work before binding watches.");
+        IReadOnlyList<MediaWork> saved = store.LoadMedia(resource.Url, resource.Generation);
+        lock (_stateLock)
+        {
+            _workOwners[thread] = resource;
+            foreach (MediaWork media in saved)
+            {
+                if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired) continue;
+                DownloadItem item = RestoreItem(thread, media);
+                PreparedDownload prepared = Prepare(item);
+                _scheduled[prepared.Job] = new ScheduledWork(item, media);
+            }
+            SignalScheduleLocked();
+        }
+        if (thread is Boards.Base.BaseThread baseThread) baseThread.RestoreDurableMedia(saved);
+    }
+
+    public int RequestMediaRetry(IThread thread, string? mediaIdentifier = null)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        IWorkStateStore? store = _workStore;
+        if (store == null) return 0;
+        WorkResource owner;
+        lock (_stateLock)
+        {
+            if (!_workOwners.TryGetValue(thread, out WorkResource? found) || _stopping) return 0;
+            owner = found;
+        }
+        int count = 0;
+        foreach (MediaWork media in store.LoadMedia(owner.Url, owner.Generation))
+        {
+            if (mediaIdentifier != null && media.MediaIdentifier != mediaIdentifier) continue;
+            if (media.Status == MediaWorkStatus.Succeeded || media.ManualAttempt) continue;
+            DownloadItem item = RestoreItem(thread, media);
+            PreparedDownload prepared = Prepare(item);
+            MediaWork manual = media with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
+            lock (_stateLock)
+            {
+                MediaWork? current = store.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(work =>
+                    work.MediaIdentifier == media.MediaIdentifier && work.DestinationPath == media.DestinationPath);
+                if (current == null || current.ManualAttempt || current.Status == MediaWorkStatus.Succeeded
+                    || _jobs.ContainsKey(prepared.Job)) continue;
+                manual = current with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
+                if (!store.CommitMedia(manual)) continue;
+                _quarantined.Remove(prepared.Job);
+                _scheduled[prepared.Job] = new ScheduledWork(item, manual);
+                SignalScheduleLocked();
+            }
+            count++;
+        }
+        if (count > 0) _changes.Signal();
+        return count;
+    }
+
+    private static DownloadItem RestoreItem(IThread thread, MediaWork media) => new(
+        new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
+        media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath);
+
+    private void SignalScheduleLocked()
+    {
+        TaskCompletionSource old = _scheduleChanged;
+        _scheduleChanged = CreateCompletionSource();
+        old.TrySetResult();
+        if (_scheduleTask == null && !_stopping) _scheduleTask = Task.Run(RunScheduleAsync);
+    }
+
+    private async Task RunScheduleAsync()
+    {
+        while (true)
+        {
+            ScheduledWork? due = null;
+            Task changed;
+            TimeSpan? delay = null;
+            List<ScheduledWork> expired = new();
+            lock (_stateLock)
+            {
+                if (_stopping) return;
+                DateTimeOffset now = _timeProvider.GetUtcNow();
+                List<JobIdentity> expiredKeys = new();
+                foreach (KeyValuePair<JobIdentity, ScheduledWork> entry in _scheduled)
+                {
+                    ScheduledWork candidate = entry.Value;
+                    if (_quarantined.Contains(entry.Key)) continue;
+                    if (_cancelledThreads.TryGetValue(candidate.Item.Thread, out _) || !_workOwners.TryGetValue(candidate.Item.Thread, out WorkResource? owner)
+                        || owner.Generation != candidate.Work.Generation) continue;
+                    DateTimeOffset at = candidate.Work.DueAt ?? now;
+                    if (!candidate.Work.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && candidate.Work.HttpStatus == 404)
+                    {
+                        DateTimeOffset deadline = end.AddHours(12);
+                        if (now >= deadline) { expiredKeys.Add(entry.Key); expired.Add(candidate); continue; }
+                        if (at >= deadline)
+                        {
+                            TimeSpan untilDeadline = deadline - now;
+                            if (delay == null || untilDeadline < delay) delay = untilDeadline;
+                            continue;
+                        }
+                    }
+                    if (at <= now && due == null) due = candidate;
+                    else if (at > now && (delay == null || at - now < delay)) delay = at - now;
+                }
+                foreach (JobIdentity key in expiredKeys) _scheduled.Remove(key);
+                if (due != null) _scheduled.Remove(Prepare(due.Item).Job);
+                changed = _scheduleChanged.Task;
+            }
+            foreach (ScheduledWork item in expired)
+            {
+                try
+                {
+                    lock (_stateLock)
+                    {
+                        // A manual request or new revision may have replaced this wait after the scan.
+                        MediaWork? current = _workStore?.LoadMedia(item.Work.ResourceUrl, item.Work.Generation)
+                            .FirstOrDefault(work => work.MediaIdentifier == item.Work.MediaIdentifier
+                                && work.DestinationPath == item.Work.DestinationPath);
+                        if (current == item.Work)
+                            _workStore?.CommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null });
+                    }
+                }
+                catch (Exception error) { Quarantine(item.Item, error); }
+            }
+            if (expired.Count > 0) _changes.Signal();
+            if (due != null)
+            {
+                try
+                {
+                    Task<bool>? admission = null;
+                    lock (_stateLock)
+                    {
+                        MediaWork? current = _workStore?.LoadMedia(due.Work.ResourceUrl, due.Work.Generation)
+                            .FirstOrDefault(work => work.MediaIdentifier == due.Work.MediaIdentifier
+                                && work.DestinationPath == due.Work.DestinationPath);
+                        if (current == due.Work) admission = EnqueueAsync(due.Item);
+                    }
+                    if (admission != null) await admission.ConfigureAwait(false);
+                }
+                catch (Exception error) { Quarantine(due.Item, error); }
+                continue;
+            }
+            if (delay == null) await changed.ConfigureAwait(false);
+            else
+            {
+                using CancellationTokenSource timer = new();
+                Task elapsed = Task.Delay(delay.Value, _timeProvider, timer.Token);
+                if (await Task.WhenAny(changed, elapsed).ConfigureAwait(false) == changed) timer.Cancel();
+            }
+        }
+    }
 
     /// <summary>Changes scheduling priority without changing HTTP policy or job identity.</summary>
     public void SetThreadPriority(IThread thread, DownloadPriority priority)
@@ -243,6 +420,7 @@ public class DownloadQueue
     public bool TryEnqueue(DownloadItem item)
     {
         PreparedDownload prepared = Prepare(item);
+        if (!PrepareDurableAdmission(item, prepared)) return false;
         return TryEnqueuePrepared(item, prepared, out _, fromWaiter: false);
     }
 
@@ -253,6 +431,7 @@ public class DownloadQueue
     public async Task<bool> EnqueueAsync(DownloadItem item, CancellationToken cancellationToken = default)
     {
         PreparedDownload prepared = Prepare(item);
+        if (!PrepareDurableAdmission(item, prepared)) return false;
         AdmissionWaiter waiter;
         LinkedListNode<AdmissionWaiter> node;
         lock (_stateLock)
@@ -297,6 +476,68 @@ public class DownloadQueue
         string destinationPath = Path.GetFullPath(item.DestinationPath);
         if (OperatingSystem.IsWindows()) destinationPath = destinationPath.ToUpperInvariant();
         return new PreparedDownload(threadIdentity, new JobIdentity(threadIdentity, item.MediaIdentifier, destinationPath));
+    }
+
+    private bool PrepareDurableAdmission(DownloadItem item, PreparedDownload prepared)
+    {
+        lock (_stateLock) return PrepareDurableAdmissionLocked(item, prepared);
+    }
+
+    private bool PrepareDurableAdmissionLocked(DownloadItem item, PreparedDownload prepared)
+    {
+        IWorkStateStore? store = _workStore;
+        if (store == null) return true;
+        WorkResource owner;
+        lock (_stateLock)
+        {
+            if (_quarantined.Contains(prepared.Job)) return false;
+            if (!_workOwners.TryGetValue(item.Thread, out WorkResource? found) || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
+            owner = found;
+        }
+        MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
+            .FirstOrDefault(media => media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+        bool newRevision = previous != null && (previous.ExpectedSize != item.ExpectedSize
+            || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal));
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        MediaWork next = previous == null || newRevision ? new MediaWork
+        {
+            ResourceUrl = owner.Url, Generation = owner.Generation, MediaIdentifier = item.MediaIdentifier,
+            DestinationPath = item.DestinationPath, DownloadUrl = item.DownloadUri.AbsoluteUri,
+            ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5,
+            OriginalFileName = item.OriginalFileName, LegacyPath = item.LegacyPath,
+            Status = MediaWorkStatus.Ready
+        } : previous with
+        {
+            DownloadUrl = item.DownloadUri.AbsoluteUri,
+            OriginalFileName = item.OriginalFileName,
+            LegacyPath = item.LegacyPath
+        };
+        if (next.Status is MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired) return false;
+        if (!next.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && next.HttpStatus == 404 && now >= end.AddHours(12)) return false;
+        if (!store.CommitMedia(next)) return false;
+        if (next.DueAt is DateTimeOffset due && due > now)
+        {
+            lock (_stateLock)
+            {
+                if (!_scheduled.TryGetValue(prepared.Job, out ScheduledWork? scheduled)
+                    || scheduled.Work != next || scheduled.Item.DownloadUri != item.DownloadUri)
+                {
+                    _scheduled[prepared.Job] = new ScheduledWork(item, next);
+                    SignalScheduleLocked();
+                }
+            }
+            return false;
+        }
+        lock (_stateLock) { _scheduled.Remove(prepared.Job); }
+        return true;
+    }
+
+    public void UpdateWorkOwner(IThread thread, WorkResource resource)
+    {
+        lock (_stateLock)
+        {
+            if (_workOwners.ContainsKey(thread)) { _workOwners[thread] = resource; SignalScheduleLocked(); }
+        }
     }
 
     private bool TryEnqueuePrepared(DownloadItem item, PreparedDownload prepared, out bool full, bool fromWaiter)
@@ -406,6 +647,10 @@ public class DownloadQueue
         lock (_stateLock)
         {
             _cancelledThreads.GetValue(thread, static (IThread _) => new object());
+            _workOwners.Remove(thread);
+            foreach (JobIdentity key in _scheduled.Where(entry => ReferenceEquals(entry.Value.Item.Thread, thread))
+                .Select(entry => entry.Key).ToArray()) _scheduled.Remove(key);
+            if (_workStore != null) SignalScheduleLocked();
             if (!_threads.TryGetValue(identity, out threadState) || !ReferenceEquals(threadState.Thread, thread))
             {
                 PulseCapacityLocked();
@@ -450,6 +695,7 @@ public class DownloadQueue
             }
 
             _stopping = true;
+            _scheduleChanged.TrySetResult();
             _resumed.TrySetResult();
             stopCompletion = CreateCompletionSource();
             _stopCompletion = stopCompletion;
@@ -560,11 +806,15 @@ public class DownloadQueue
 
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
+        bool succeeded = false;
         try
         {
             job.ThreadState.Token.ThrowIfCancellationRequested();
-            DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider, _logger);
+            if (!CanRunDurable(job.Item)) return;
+            DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
+                _logger, notifyThread: _workStore == null);
             await worker.ExecuteAsync(job.ThreadState.Token).ConfigureAwait(false);
+            succeeded = true;
         }
         catch (OperationCanceledException) when (job.ThreadState.Token.IsCancellationRequested)
         {
@@ -572,7 +822,13 @@ public class DownloadQueue
         }
         catch (Exception exception)
         {
-            try
+            bool current = _workStore == null;
+            try { current |= RecordDurableResult(job.Item, exception); }
+            catch (Exception persistenceFailure)
+            {
+                Quarantine(job.Item, persistenceFailure);
+            }
+            if (current) try
             {
                 job.Item.Thread.ReportMediaFailure(job.Item.MediaIdentifier, exception, job.Item.DestinationPath);
             }
@@ -584,6 +840,18 @@ public class DownloadQueue
         }
         finally
         {
+            if (succeeded)
+            {
+                try
+                {
+                    if (RecordDurableResult(job.Item, null))
+                        job.Item.Thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath);
+                }
+                catch (Exception persistenceFailure)
+                {
+                    Quarantine(job.Item, persistenceFailure);
+                }
+            }
             Cleanup cleanup = new Cleanup();
             List<QueuedDownload> ready;
             lock (_stateLock)
@@ -609,6 +877,102 @@ public class DownloadQueue
             StartWorkers(ready);
             _changes.Signal();
         }
+    }
+
+    private void Quarantine(DownloadItem item, Exception failure)
+    {
+        lock (_stateLock) { _quarantined.Add(Prepare(item).Job); _scheduled.Remove(Prepare(item).Job); }
+        string warning = $"Media work for {item.MediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
+        _logger.Error(failure, "{Warning}", warning);
+        PersistenceFailed?.Invoke(warning);
+        _changes.Signal();
+    }
+
+    private bool CanRunDurable(DownloadItem item)
+    {
+        lock (_stateLock) return CanRunDurableLocked(item);
+    }
+
+    private bool CanRunDurableLocked(DownloadItem item)
+    {
+        IWorkStateStore? store = _workStore;
+        if (store == null) return true;
+        WorkResource owner;
+        lock (_stateLock)
+        {
+            if (_quarantined.Contains(Prepare(item).Job)) return false;
+            if (!_workOwners.TryGetValue(item.Thread, out WorkResource? found)) return false;
+            owner = found;
+        }
+        WorkResource? current = store.LoadResources().FirstOrDefault(resource => resource.Url == owner.Url);
+        if (current == null || current.Generation != owner.Generation || current.Intent == WorkIntent.Suppressed) return false;
+        MediaWork? media = store.LoadMedia(owner.Url, owner.Generation)
+            .FirstOrDefault(work => work.MediaIdentifier == item.MediaIdentifier && work.DestinationPath == item.DestinationPath);
+        if (media == null || media.ExpectedSize != item.ExpectedSize
+            || !string.Equals(media.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        if (!media.ManualAttempt && media.HttpStatus == 404 && current.EndObservedAt is DateTimeOffset end
+            && now >= end.AddHours(12))
+        {
+            store.CommitMedia(media with { Status = MediaWorkStatus.Expired, DueAt = null });
+            _changes.Signal();
+            return false;
+        }
+        return media.Status is not (MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired)
+            && (media.DueAt == null || media.DueAt <= now);
+    }
+
+    private bool RecordDurableResult(DownloadItem item, Exception? failure)
+    {
+        lock (_stateLock) return RecordDurableResultLocked(item, failure);
+    }
+
+    private bool RecordDurableResultLocked(DownloadItem item, Exception? failure)
+    {
+        IWorkStateStore? store = _workStore;
+        if (store == null) return false;
+        WorkResource owner;
+        lock (_stateLock)
+        {
+            if (!_workOwners.TryGetValue(item.Thread, out WorkResource? found)) return false;
+            owner = found;
+        }
+        MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
+            .FirstOrDefault(media => media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+        if (previous == null || previous.ExpectedSize != item.ExpectedSize
+            || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        int attempt = previous.Attempts + 1;
+        int? status = (failure as HttpRequestException)?.StatusCode is HttpStatusCode http ? (int)http : null;
+        int missing = status == 404 ? previous.ConsecutiveNotFound + 1 : 0;
+        MediaWork next;
+        if (failure == null)
+        {
+            next = previous with { Status = MediaWorkStatus.Succeeded, Attempts = 0, ConsecutiveNotFound = 0,
+                LastAttemptAt = now, DueAt = null, Failure = null, HttpStatus = null, ManualAttempt = false };
+        }
+        else
+        {
+            bool transient = status == 404 || status is 429 or >= 500 and <= 599
+                || failure is HttpRequestException { StatusCode: null } or HttpIOException or TimeoutException;
+            bool intervention = !transient || status != 404 && (attempt >= 3 || previous.ManualAttempt);
+            TimeSpan wait = status == 404
+                ? TimeSpan.FromMinutes(15 * (1 << Math.Min(4, missing - 1)))
+                : attempt == 1 ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(5);
+            DateTimeOffset? due = intervention ? null : now + wait;
+            bool expired = status == 404 && owner.EndObservedAt is DateTimeOffset end && now >= end.AddHours(12);
+            next = previous with { Status = intervention ? MediaWorkStatus.NeedsIntervention
+                    : expired ? MediaWorkStatus.Expired : MediaWorkStatus.Waiting,
+                Attempts = attempt, ConsecutiveNotFound = missing, LastAttemptAt = now,
+                DueAt = expired ? null : due, Failure = failure.Message, HttpStatus = status, ManualAttempt = false };
+        }
+        if (!store.CommitMedia(next)) return false;
+        if (next.Status == MediaWorkStatus.Waiting && next.DueAt != null)
+        {
+            lock (_stateLock) { _scheduled[Prepare(item).Job] = new ScheduledWork(item, next); SignalScheduleLocked(); }
+        }
+        _changes.Signal();
+        return true;
     }
 
     private void RemovePendingJobsLocked(ThreadState threadState)
@@ -669,6 +1033,7 @@ public class DownloadQueue
 
             await Task.WhenAll(cancellations).ConfigureAwait(false);
             await WaitForIdleAsync().ConfigureAwait(false);
+            if (_scheduleTask != null) await _scheduleTask.ConfigureAwait(false);
             completion.TrySetResult();
         }
         catch (Exception exception)
@@ -742,6 +1107,7 @@ public class DownloadQueue
     }
 
     private sealed class PriorityState { public DownloadPriority Priority { get; set; } }
+    private sealed record ScheduledWork(DownloadItem Item, MediaWork Work);
     private sealed record AdmissionWaiter(IThread Thread);
     private readonly record struct PreparedDownload(ThreadIdentity Thread, JobIdentity Job);
 

@@ -62,7 +62,10 @@ public class FourChanThread : BaseThread
         await CaptureContentAsync(null, cancellationToken);
         if (SourceState != ThreadSourceState.Active)
         {
+            if (SourceState == ThreadSourceState.NotFound)
+                await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
             await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
+            await SettleTerminalWorkAsync();
             return;
         }
         if (Board is FourChanBoard board) await board.EnsureMetadataAsync(cancellationToken);
@@ -84,9 +87,10 @@ public class FourChanThread : BaseThread
             }
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
-                MarkPollingTerminal(ThreadSourceState.NotFound);
+                await ObserveSourceEndAsync(ThreadSourceState.NotFound);
                 await CaptureSourceStateAsync(ThreadSourceState.NotFound, cancellationToken);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
+                await SettleTerminalWorkAsync();
                 if (TotalMediaCount == 0 && MediaFailures.Count == 0) Activity = ThreadActivity.NotFound;
                 return;
             }
@@ -120,16 +124,18 @@ public class FourChanThread : BaseThread
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (KeyValuePair<string, DownloadItem> item in media) _knownMedia[item.Key] = item.Value;
-            await CaptureContentAsync(new CapturedThreadSnapshot(
+            bool archived = posts.Count > 0 && posts[0].Value<int?>("archived") == 1;
+            CapturedThreadSnapshot capturedSnapshot = new(
                 new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url, Title,
-                posts.Count > 0 && posts[0].Value<int?>("archived") == 1 ? ThreadSourceState.Archived : SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
-                capturedPosts.AsReadOnly()), cancellationToken);
+                archived ? ThreadSourceState.Archived : SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
+                capturedPosts.AsReadOnly());
+            if (archived) await ObserveSourceEndAsync(ThreadSourceState.Archived, capturedSnapshot);
+            foreach (KeyValuePair<string, DownloadItem> item in media) _knownMedia[item.Key] = item.Value;
+            await CaptureContentAsync(capturedSnapshot, cancellationToken);
             _lastModified = response.Content.Headers.LastModified;
             _hasSnapshot = true;
             await EnqueueKnownMediaAsync(queue, _knownMedia, cancellationToken);
-            if (posts.Count > 0 && posts[0].Value<int?>("archived") == 1)
-                MarkPollingTerminal(ThreadSourceState.Archived);
+            if (archived) await SettleTerminalWorkAsync();
         }
         finally
         {

@@ -15,6 +15,7 @@ using MeowChan.Storage;
 using MeowChan.Notifications;
 using MeowChan.Archive;
 using MeowChan.Boards.Base;
+using System.Text.Json;
 using Serilog;
 
 public enum AdmissionStatus { Added, AlreadyPresent, Invalid, Unsupported }
@@ -45,6 +46,12 @@ public sealed class Registry : IAsyncDisposable
     private readonly Queue<string> _warnings = new Queue<string>();
     private readonly DownloadQueue _queue;
     private readonly ISessionStore? _sessionStore;
+    private readonly IWorkStateStore? _workStore;
+    private readonly bool _durableWork;
+    private ThreadWorkSnapshot[] _workCache = Array.Empty<ThreadWorkSnapshot>();
+    private IReadOnlyDictionary<string, ThreadWorkSnapshot> _workCacheByUrl = new ReadOnlyDictionary<string, ThreadWorkSnapshot>(
+        new Dictionary<string, ThreadWorkSnapshot>(StringComparer.Ordinal));
+    private readonly Dictionary<ResourceKey, WorkResource> _workResources = new();
     private readonly ThreadContentRuntime? _contentRuntime;
     private string _outputDirectory;
     private TimeSpan _threadInterval;
@@ -61,6 +68,8 @@ public sealed class Registry : IAsyncDisposable
     private readonly HashSet<Task> _backgroundTasks = new HashSet<Task>();
     private readonly object _shutdownLock = new object();
     private bool _stopping;
+    private int _completionScanQueued;
+    private int _completionScanVersion;
     private Task? _shutdown;
 
     /// <summary>Asynchronous coalesced invalidation. Subscribe first, then read GetSnapshot; intermediate transitions may coalesce.</summary>
@@ -80,6 +89,7 @@ public sealed class Registry : IAsyncDisposable
     /// <summary>Captures exact resource handles with their copied state, for in-process views and removal commands.</summary>
     public RegistryView GetView()
     {
+        IReadOnlyDictionary<string, ThreadWorkSnapshot> work = Volatile.Read(ref _workCacheByUrl);
         Watch[] watches;
         bool stopping;
         string[] warnings;
@@ -93,7 +103,12 @@ public sealed class Registry : IAsyncDisposable
         IReadOnlyDictionary<IThread, DownloadCounts> counts = _queue.GetThreadCounts(threads);
         Dictionary<IThread, ThreadSnapshot> threadSnapshots = new Dictionary<IThread, ThreadSnapshot>(ReferenceEqualityComparer.Instance);
         Dictionary<IBoard, BoardSnapshot> boardSnapshots = new Dictionary<IBoard, BoardSnapshot>(ReferenceEqualityComparer.Instance);
-        foreach (IThread thread in threads) threadSnapshots.Add(thread, thread.GetSnapshot(counts[thread]));
+        foreach (IThread thread in threads)
+        {
+            ThreadSnapshot snapshot = thread.GetSnapshot(counts[thread]);
+            threadSnapshots.Add(thread, work.TryGetValue(snapshot.Url, out ThreadWorkSnapshot? state)
+                ? snapshot with { Work = state } : snapshot);
+        }
         foreach (Watch watch in watches)
         {
             if (watch.Board == null) continue;
@@ -102,6 +117,24 @@ public sealed class Registry : IAsyncDisposable
         }
         return new RegistryView(new ReadOnlyDictionary<IThread, ThreadSnapshot>(threadSnapshots),
             new ReadOnlyDictionary<IBoard, BoardSnapshot>(boardSnapshots), stopping, Array.AsReadOnly(warnings)) { IsPaused = _queue.IsPaused };
+    }
+
+    public IReadOnlyList<ThreadWorkSnapshot> GetWorkSnapshots()
+    {
+        return Array.AsReadOnly(Volatile.Read(ref _workCache));
+    }
+
+    private void RefreshWorkCache()
+    {
+        if (_workStore == null) return;
+        ThreadWorkSnapshot[] current = _workStore.LoadResources().Where(resource => resource.IsThread)
+            .Select(resource => new ThreadWorkSnapshot(resource.Url, resource.Intent, resource.Source,
+                resource.EndObservedAt, resource.CapturePending,
+                Array.AsReadOnly(_workStore.LoadMedia(resource.Url, resource.Generation).ToArray()))).ToArray();
+        IReadOnlyDictionary<string, ThreadWorkSnapshot> indexed = new ReadOnlyDictionary<string, ThreadWorkSnapshot>(
+            current.ToDictionary(item => item.Url, StringComparer.Ordinal));
+        Volatile.Write(ref _workCacheByUrl, indexed);
+        Volatile.Write(ref _workCache, current);
     }
 
     /// <summary>Passive registry descriptions; does not resolve URLs, make requests or create watches.</summary>
@@ -120,7 +153,7 @@ public sealed class Registry : IAsyncDisposable
 
     public Registry(IEnumerable<IImageBoard> providers, DownloadQueue queue, string outputDirectory,
         TimeSpan threadInterval, int boardIntervalSeconds, ISessionStore? sessionStore = null, bool persistSession = true, ILogger? logger = null,
-        ThreadContentRuntime? contentRuntime = null)
+        ThreadContentRuntime? contentRuntime = null, IWorkStateStore? workStore = null)
     {
         _contentRuntime = contentRuntime;
         ArgumentNullException.ThrowIfNull(providers);
@@ -145,10 +178,14 @@ public sealed class Registry : IAsyncDisposable
             exception => _logger.Error(exception, "Session observer failed"));
         _queue = queue;
         _queue.StateChanged += SignalChanged;
+        _queue.PersistenceFailed += Warn;
         _outputDirectory = resolvedOutputDirectory;
         _threadInterval = threadInterval;
         _boardInterval = TimeSpan.FromSeconds(boardIntervalSeconds);
         _sessionStore = sessionStore;
+        _durableWork = workStore != null;
+        _workStore = workStore ?? new MemoryWorkStateStore();
+        _queue.ConfigureWorkState(_workStore);
         _persistSession = persistSession;
         _restoreRequired = sessionStore != null && persistSession;
     }
@@ -203,7 +240,10 @@ public sealed class Registry : IAsyncDisposable
                 }
                 else
                 {
-                    result = await AdmitAsync(resource, _outputDirectory, persist: true).ConfigureAwait(false);
+                    string root = _workResources.TryGetValue(resource.Key, out WorkResource? previousWork)
+                        ? previousWork.OutputRoot : _workStore?.LoadResources().FirstOrDefault(item => item.Url == resource.Url)?.OutputRoot
+                            ?? _outputDirectory;
+                    result = await AdmitAsync(resource, root, persist: true).ConfigureAwait(false);
                 }
             }
             finally { _gate.Release(); }
@@ -224,17 +264,50 @@ public sealed class Registry : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (_restored) return;
             if (_hasMutations) throw new InvalidOperationException("Restore the session before adding or removing watches.");
-            if (_sessionStore == null) { _restored = true; return; }
-            SessionLoadResult loaded = await _sessionStore.LoadAsync().ConfigureAwait(false);
+            SessionLoadResult loaded = _sessionStore == null
+                ? new SessionLoadResult(new SessionSnapshot(), null, false)
+                : await _sessionStore.LoadAsync().ConfigureAwait(false);
             if (loaded.Warning != null) warnings.Add(loaded.Warning);
             Dictionary<ResourceKey, Resource> resources = new Dictionary<ResourceKey, Resource>();
             Dictionary<string, string> canonicalUrls = new Dictionary<string, string>(StringComparer.Ordinal);
             HashSet<string> threads = NormalizeRestoredUrls(loaded.Snapshot.ThreadUrls, true, resources, canonicalUrls, warnings);
             HashSet<string> boards = NormalizeRestoredUrls(loaded.Snapshot.BoardUrls, false, resources, canonicalUrls, warnings);
+            IReadOnlyList<WorkResource> durable = _workStore?.LoadResources() ?? Array.Empty<WorkResource>();
+            Dictionary<string, WorkResource> byUrl = durable.ToDictionary(item => item.Url, StringComparer.Ordinal);
+            foreach (WorkResource saved in durable)
+            {
+                if (Resolve(saved.Url, out Resource? resolved) == AdmissionStatus.Added && resolved != null)
+                    _workResources[resolved.Key] = saved;
+            }
+            if (_workStore != null)
+            {
+                // The journal is authoritative; the JSON document is an idempotent projection.
+                foreach (WorkResource saved in durable)
+                {
+                    if (saved.Intent is not (WorkIntent.Watching or WorkIntent.Repairing) || !_persistSession) continue;
+                    AdmissionStatus status = Resolve(saved.Url, out Resource? resource);
+                    if (resource == null) { warnings.Add($"Could not restore durable watch '{saved.Url}' ({status})."); continue; }
+                    resources[resource.Key] = resource;
+                    if (saved.IsThread) threads.Add(resource.Url); else boards.Add(resource.Url);
+                }
+                foreach (Resource resource in resources.Values.ToArray())
+                {
+                    if (byUrl.TryGetValue(resource.Url, out WorkResource? saved)
+                        && saved.Intent is not (WorkIntent.Watching or WorkIntent.Repairing))
+                    {
+                        resources.Remove(resource.Key);
+                        threads.Remove(resource.Url);
+                        boards.Remove(resource.Url);
+                    }
+                }
+                if (!_persistSession) { resources.Clear(); threads.Clear(); boards.Clear(); }
+            }
             HashSet<string> suppressedUrls = new HashSet<string>(StringComparer.Ordinal);
             _suppressed.Clear();
             foreach (string url in loaded.Snapshot.SuppressedThreadUrls)
             {
+                if (_workStore != null && byUrl.TryGetValue(url, out WorkResource? intent) && intent.Intent != WorkIntent.Suppressed)
+                    continue;
                 try
                 {
                     AdmissionStatus status = Resolve(url, out Resource? resource);
@@ -247,6 +320,12 @@ public sealed class Registry : IAsyncDisposable
                     else { suppressedUrls.Add(url); warnings.Add($"Could not restore suppressed thread '{url}' ({status}); its saved entry was retained."); }
                 }
                 catch (Exception exception) { suppressedUrls.Add(url); warnings.Add($"Could not resolve suppressed thread '{url}': {exception.Message}"); }
+            }
+            if (_workStore != null)
+            {
+                foreach (WorkResource saved in durable.Where(item => item.IsThread && item.Intent == WorkIntent.Suppressed))
+                    if (Resolve(saved.Url, out Resource? resolved) == AdmissionStatus.Added && resolved != null)
+                    { _suppressed.Add(resolved.Key); suppressedUrls.Add(saved.Url); }
             }
             Dictionary<string, string> roots = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> entry in loaded.Snapshot.DownloadDirectories)
@@ -263,6 +342,19 @@ public sealed class Registry : IAsyncDisposable
                 string inherited = roots.TryGetValue(boardUrl, out string? boardRoot) ? boardRoot : _outputDirectory;
                 roots.TryAdd(resource.Url, inherited);
             }
+            foreach (Resource resource in resources.Values)
+            {
+                if (_workStore == null) break;
+                if (!byUrl.TryGetValue(resource.Url, out WorkResource? saved))
+                {
+                    saved = _workStore.CommitIntent(new WorkResource { Url = resource.Url,
+                        OutputRoot = roots[resource.Url], Generation = 1, Intent = WorkIntent.Watching,
+                        IsThread = resource.Thread != null,
+                        Discovered = loaded.Snapshot.DiscoveredThreadUrls.Contains(resource.Url, StringComparer.Ordinal) });
+                }
+                _workResources[resource.Key] = saved;
+                roots[resource.Url] = saved.OutputRoot;
+            }
             HashSet<string> discovered = loaded.Snapshot.DiscoveredThreadUrls
                 .Select(url => canonicalUrls.TryGetValue(url, out string? canonical) ? canonical : url)
                 .Where(threads.Contains).ToHashSet(StringComparer.Ordinal);
@@ -273,13 +365,21 @@ public sealed class Registry : IAsyncDisposable
             };
             bool missingAssignments = resources.Values.Any(resource =>
                 !loaded.Snapshot.DownloadDirectories.TryGetValue(resource.Url, out string? savedRoot) || savedRoot != roots[resource.Url]);
-            if (_persistSession && !loaded.Recovered && missingAssignments)
+            bool projectionChanged = missingAssignments
+                || !threads.SetEquals(loaded.Snapshot.ThreadUrls)
+                || !boards.SetEquals(loaded.Snapshot.BoardUrls)
+                || !suppressedUrls.SetEquals(loaded.Snapshot.SuppressedThreadUrls)
+                || !discovered.SetEquals(loaded.Snapshot.DiscoveredThreadUrls);
+            if (_persistSession && !loaded.Recovered && projectionChanged)
             {
                 // Migrate the entire valid legacy snapshot before activation, preserving
                 // unsupported entries and suppressions. Recovery documents remain untouched.
-                await _sessionStore.SaveAsync(CopySnapshot(normalized)).ConfigureAwait(false);
+                try { await SaveSessionAsync(normalized).ConfigureAwait(false); }
+                catch (Exception exception) when (_durableWork)
+                { warnings.Add($"Session projection could not be saved: {exception.Message}"); }
             }
             _session = normalized;
+            RefreshWorkCache();
             _restored = true;
             _restoreRequired = false;
             foreach (Resource resource in resources.Values)
@@ -347,10 +447,26 @@ public sealed class Registry : IAsyncDisposable
     {
         SessionSnapshot previous = _session;
         bool previouslySuppressed = _suppressed.Contains(resource.Key);
+        WorkResource? durable = null;
         if (persist)
         {
             SessionSnapshot next = AdmissionSnapshot(resource, outputRoot, discovered);
-            await SaveSessionAsync(next).ConfigureAwait(false);
+            // Without a durable work authority, the session commit remains the admission barrier.
+            if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
+            if (_workStore != null)
+            {
+                _workResources.TryGetValue(resource.Key, out WorkResource? old);
+                old ??= _workStore.LoadResources().FirstOrDefault(item => item.Url == resource.Url);
+                durable = _workStore.CommitIntent(new WorkResource { Url = resource.Url, OutputRoot = outputRoot,
+                    Generation = (old?.Generation ?? 0) + 1, Intent = WorkIntent.Watching,
+                    IsThread = resource.Thread != null, Discovered = discovered });
+                _workResources[resource.Key] = durable;
+            }
+            if (_durableWork)
+            {
+                try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
+            }
             _session = next;
             _hasMutations = true;
             if (resource.Thread != null) _suppressed.Remove(resource.Key);
@@ -361,6 +477,18 @@ public sealed class Registry : IAsyncDisposable
         {
             if (resource.Thread != null)
             {
+                if (_workStore != null)
+                {
+                    durable ??= _workResources[resource.Key];
+                    if (resource.Thread is BaseThread durableThread)
+                    {
+                        durableThread.SetTimeProvider(_queue.Clock);
+                        durableThread.RestoreDurableState(durable);
+                        durableThread.SetLifecycleSinks((state, observed, finalSnapshot) => CommitSourceEndAsync(resource.Key, resource.Thread, state, observed, finalSnapshot),
+                            () => CommitCaptureSettledAsync(resource.Key, resource.Thread));
+                    }
+                    _queue.BindWork(resource.Thread, durable);
+                }
                 if (_contentRuntime != null && resource.Thread is BaseThread { SupportsContent: true } contentThread)
                     await _contentRuntime.BindAsync(contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
                 watch.OwnerRegistration = resource.Thread.RegisterRemovalSink(removed =>
@@ -406,7 +534,7 @@ public sealed class Registry : IAsyncDisposable
                 lock (_state) { _watches.Remove(resource.Key); }
                 watch.Stopped.TrySetResult();
             }
-            if (persist)
+            if (persist && !_durableWork)
             {
                 try
                 {
@@ -436,6 +564,8 @@ public sealed class Registry : IAsyncDisposable
                 if (!_watches.TryGetValue(boardKey, out Watch? current) || !ReferenceEquals(current, parent) || _watches.ContainsKey(threadKey)) return;
             }
             if (_suppressed.Contains(threadKey)) return;
+            if (_workResources.TryGetValue(threadKey, out WorkResource? prior)
+                && prior.Intent is WorkIntent.Completed or WorkIntent.Repairing or WorkIntent.Suppressed) return;
             Resource resource = new Resource(threadKey, thread.ThreadUri.AbsoluteUri, thread, null);
             result = await AdmitAsync(resource, parent.OutputRoot, persist: true, discovered: true).ConfigureAwait(false);
         }
@@ -448,10 +578,82 @@ public sealed class Registry : IAsyncDisposable
         if (result != null) SignalChanged();
     }
 
+    private async Task CommitSourceEndAsync(ResourceKey key, IThread thread, ThreadSourceState state, DateTimeOffset observed,
+        CapturedThreadSnapshot? finalSnapshot)
+    {
+        if (_workStore == null) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
+                || !_workResources.TryGetValue(key, out WorkResource? current)) return;
+            WorkResource? committed = _workStore.CommitEnd(current.Url, current.Generation,
+                state == ThreadSourceState.Archived ? ThreadSourceStateValue.Archived : ThreadSourceStateValue.NotFound,
+                observed, finalSnapshot == null ? null : JsonSerializer.Serialize(finalSnapshot));
+            if (committed == null) return;
+            _workResources[key] = committed;
+            _queue.UpdateWorkOwner(thread, committed);
+        }
+        finally { _gate.Release(); }
+        SignalChanged();
+    }
+
+    private async Task CommitCaptureSettledAsync(ResourceKey key, IThread thread)
+    {
+        if (_workStore == null) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
+                || !_workResources.TryGetValue(key, out WorkResource? current) || !current.CapturePending) return;
+            WorkResource? committed = _workStore.CommitState(current with { CapturePending = false });
+            if (committed != null) { _workResources[key] = committed; _queue.UpdateWorkOwner(thread, committed); }
+        }
+        finally { _gate.Release(); }
+        SignalChanged();
+    }
+
     public CheckRequestStatus RequestCheck(IThread thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
         return RequestCheck(Key(thread), thread, null);
+    }
+
+    /// <summary>One explicit outer media attempt; it never starts a new source watch or end window.</summary>
+    public int RetryMissingMedia(IThread thread, string? mediaIdentifier = null)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        lock (_state)
+        {
+            if (_stopping || !_watches.TryGetValue(Key(thread), out Watch? watch) || !ReferenceEquals(watch.Thread, thread)
+                || watch.Stopping || !watch.Ready) return 0;
+        }
+        return _queue.RequestMediaRetry(thread, mediaIdentifier);
+    }
+
+    /// <summary>Repairs a completed thread from saved retrieval metadata without polling its endpoint.</summary>
+    public async Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
+    {
+        if (_workStore == null) return 0;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_stopping, this);
+            if (Resolve(threadUrl, out Resource? resource) != AdmissionStatus.Added || resource?.Thread == null) return 0;
+            if (!_workResources.TryGetValue(resource.Key, out WorkResource? state))
+            {
+                state = _workStore.LoadResources().FirstOrDefault(item => item.Url == resource.Url);
+                if (state == null) return 0;
+                _workResources[resource.Key] = state;
+            }
+            if (state.Intent != WorkIntent.Completed) return 0;
+            WorkResource? repairing = _workStore.CommitState(state with { Intent = WorkIntent.Repairing });
+            if (repairing == null) return 0;
+            _workResources[resource.Key] = repairing;
+            await AdmitAsync(resource, repairing.OutputRoot, persist: false).ConfigureAwait(false);
+            return _queue.RequestMediaRetry(resource.Thread, mediaIdentifier);
+        }
+        finally { _gate.Release(); }
     }
 
     public CheckRequestStatus RequestCheck(IBoard board)
@@ -504,7 +706,18 @@ public sealed class Registry : IAsyncDisposable
                 {
                     string url = thread?.ThreadUri.AbsoluteUri ?? board!.BoardUri.AbsoluteUri;
                     SessionSnapshot next = RemovalSnapshot(url, thread != null);
-                    await SaveSessionAsync(next).ConfigureAwait(false);
+                    if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
+                    if (_workStore != null && _workResources.TryGetValue(key, out WorkResource? previous))
+                    {
+                        WorkResource suppressed = _workStore.CommitIntent(previous with
+                        { Generation = previous.Generation + 1, Intent = WorkIntent.Suppressed });
+                        _workResources[key] = suppressed;
+                    }
+                    if (_durableWork)
+                    {
+                        try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                        catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
+                    }
                     _session = next;
                     _hasMutations = true;
                     if (thread != null) _suppressed.Add(key);
@@ -675,9 +888,87 @@ public sealed class Registry : IAsyncDisposable
             CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
-    private void SignalChanged() => _stateChanges.Signal();
+    private void SignalChanged()
+    {
+        _stateChanges.Signal();
+        if (_workStore == null || _stopping) return;
+        Interlocked.Increment(ref _completionScanVersion);
+        if (Interlocked.Exchange(ref _completionScanQueued, 1) == 0)
+            Track(async () =>
+            {
+                int scanned = 0;
+                try
+                {
+                    do
+                    {
+                        scanned = Volatile.Read(ref _completionScanVersion);
+                        await TryCompleteAsync().ConfigureAwait(false);
+                    } while (!_stopping && scanned != Volatile.Read(ref _completionScanVersion));
+                }
+                catch (Exception exception)
+                {
+                    // A failed durable completion is blocked work, not a self-triggering retry loop.
+                    scanned = Volatile.Read(ref _completionScanVersion);
+                    Warn($"Completion could not be committed: {exception.Message}", scheduleCompletion: false);
+                }
+                finally
+                {
+                    Volatile.Write(ref _completionScanQueued, 0);
+                    // A completion arriving during the scan must not lose its only wakeup.
+                    if (!_stopping && scanned != Volatile.Read(ref _completionScanVersion)) SignalChanged();
+                }
+            });
+    }
 
-    private void Warn(string warning)
+    private async Task TryCompleteAsync()
+    {
+        List<(ResourceKey Key, Watch Watch)> completed = new();
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_stopping || _workStore == null) return;
+            RefreshWorkCache();
+            foreach (KeyValuePair<ResourceKey, WorkResource> entry in _workResources.ToArray())
+            {
+                WorkResource state = entry.Value;
+                if (state.Intent is not (WorkIntent.Watching or WorkIntent.Repairing) || state.Source == ThreadSourceStateValue.Active || state.CapturePending) continue;
+                if (!_watches.TryGetValue(entry.Key, out Watch? watch) || watch.Thread == null || watch.Stopping) continue;
+                DownloadCounts counts = _queue.GetThreadCounts(new[] { watch.Thread })[watch.Thread];
+                if (counts.Active != 0 || counts.Queued != 0) continue;
+                IReadOnlyList<MediaWork> media = _workStore.LoadMedia(state.Url, state.Generation);
+                DateTimeOffset now = _queue.UtcNow;
+                if (state.Intent == WorkIntent.Repairing)
+                {
+                    if (media.Any(item => item.ManualAttempt)) continue;
+                }
+                else
+                {
+                    if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
+                        item.Status != MediaWorkStatus.Succeeded && item.HttpStatus != 404)) continue;
+                    if (media.Any(item => item.Status != MediaWorkStatus.Succeeded && item.Status != MediaWorkStatus.Expired)) continue;
+                    if (media.Any(item => item.Status != MediaWorkStatus.Succeeded &&
+                        (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
+                }
+                WorkResource? committed = _workStore.CommitState(state with { Intent = WorkIntent.Completed });
+                if (committed == null) continue;
+                _workResources[entry.Key] = committed;
+                SessionSnapshot next = RemovalSnapshot(state.Url, true);
+                next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != state.Url).ToArray();
+                try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
+                _session = next;
+                completed.Add((entry.Key, watch));
+            }
+            if (completed.Count > 0) RefreshWorkCache();
+        }
+        finally { _gate.Release(); }
+        foreach ((ResourceKey key, Watch watch) in completed)
+            await RemoveAsync(key, watch.Thread, null, shutdown: true).ConfigureAwait(false);
+    }
+
+    private void Warn(string warning) => Warn(warning, scheduleCompletion: true);
+
+    private void Warn(string warning, bool scheduleCompletion)
     {
         lock (_state)
         {
@@ -685,7 +976,7 @@ public sealed class Registry : IAsyncDisposable
             _warnings.Enqueue(warning);
         }
         _logger.Warning("{SessionWarning}", warning);
-        SignalChanged();
+        if (scheduleCompletion) SignalChanged(); else _stateChanges.Signal();
     }
     private static ResourceKey Key(IThread thread) => new ResourceKey(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
     private static ResourceKey Key(IBoard board) => new ResourceKey(board.ImageBoard.Name, board.BoardCode);
@@ -695,6 +986,7 @@ public sealed class Registry : IAsyncDisposable
         finally
         {
             _queue.StateChanged -= SignalChanged;
+            _queue.PersistenceFailed -= Warn;
             _stateChanges.Dispose();
         }
     }
