@@ -125,6 +125,7 @@ public partial class MainWindow : Window
     {
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
+        BeginStartupWindowFit();
         if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
         {
             ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning);
