@@ -9,6 +9,7 @@ using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
+using MeowChan.Gallery;
 using MeowChan.Storage;
 
 namespace LibMeowChan.Consumer;
@@ -30,8 +31,11 @@ internal static class Program
             if (handler.RequestCount != 1)
                 throw new InvalidOperationException("Restoring verified media issued another request.");
 
+            using (ProfileLease lease = ProfileLease.Acquire(Path.Combine(directory, "profile")))
+                CheckSavedWork(new WorkStateStore(lease.ProfileDirectory, lease), directory, generation: 2);
+
             await CheckIndependentArchiveAsync(directory);
-            Console.WriteLine("Package consumer passed: verified download, manifest restore, independent SQLite archive, and clean shutdown.");
+            Console.WriteLine("Package consumer passed: durable work, verified media restore, passive gallery, independent archive, export update/history, and clean shutdown.");
         }
         finally
         {
@@ -66,27 +70,89 @@ internal static class Program
         if (saved.PostCount != 1 || saved.GetPosts(0, 1).Single().Html != capturedBody
             || saved.Summary.SourceState != ThreadSourceState.Archived)
             throw new InvalidOperationException("The packaged independent reader did not recover the catalog.");
-        ArchiveThreadPage matches = await reader.SearchThreadsAsync(new ArchiveThreadQuery("PACKAGE-ONLY", Source: "demo", Board: "demo", HasPosts: true));
+        ArchiveThreadQuery query = new ArchiveThreadQuery("PACKAGE-ONLY", Source: "demo", Board: "demo", HasPosts: true);
+        ArchiveThreadPage matches = await reader.SearchThreadsAsync(query);
         ArchivePostId postId = new ArchivePostId(id, "1");
         ArchiveQuote quote = (await reader.GetQuotesAsync(postId)).Items.Single();
         ArchiveQuoteResolution resolution = await reader.ResolveQuoteAsync(quote);
         if (matches.TotalCount != 1 || matches.Items.Single().Id != id || resolution.State != ArchiveQuoteState.Captured
             || resolution.PostIndex != 0 || (await reader.GetBacklinksAsync(postId)).TotalCount != 1)
             throw new InvalidOperationException("The packaged indexed search/quote APIs did not resolve retained local content.");
+        // Selection spans the full query, independently of the displayed search page.
+        IReadOnlyList<ResourceId> selectedIds = await reader.SelectThreadIdsAsync(query);
+        if (selectedIds.Count != 1 || selectedIds.Single() != id)
+            throw new InvalidOperationException("Query selection did not retain the found thread identity.");
+        foreach (ResourceId selectedId in selectedIds)
+        {
+            ArchivedThreadView selected = await reader.ReadThreadAsync(selectedId)
+                ?? throw new InvalidOperationException("A selected thread disappeared.");
+            List<MediaAssetSnapshot> manifests = new List<MediaAssetSnapshot>();
+            foreach (string savedDirectory in await reader.GetMediaDirectoriesAsync(selectedId))
+                manifests.Add(await MediaAssetReader.OpenAsync(savedDirectory));
+            GalleryThreadResult gallery = GallerySelection.Build(selected, manifests);
+            GalleryEntry entry = gallery.Entries.Single();
+            if (gallery.Warnings.Count != 0 || entry.Key.Thread != selectedId || entry.Unassigned || entry.Historical
+                || entry.Post?.PostId != "1" || entry.Attachment?.Position != 0)
+                throw new InvalidOperationException("The passive gallery lost its captured attachment association.");
+            MediaAssetReference exactAsset = entry.Manifest.FindById(entry.Key.AssetId)
+                ?? throw new InvalidOperationException("The gallery asset identity was not in its manifest.");
+            await using Stream bytes = await entry.Manifest.OpenVerifiedReadAsync(exactAsset.AssetId);
+            using MemoryStream copy = new MemoryStream();
+            await bytes.CopyToAsync(copy);
+            if (!copy.ToArray().AsSpan().SequenceEqual(DemoPayload.Bytes))
+                throw new InvalidOperationException("The exact gallery asset did not recover the verified bytes.");
+        }
+
         ArchiveHtmlExportResult exported = await ArchiveHtmlExporter.ExportAsync(reader, id, Path.Combine(directory, "html-export"));
         if (exported.PostCount != 1 || exported.FileCount != 1 || exported.Omissions.Count != 0
             || !File.Exists(exported.IndexPath) || !File.Exists(Path.Combine(exported.Directory, "style.css")))
             throw new InvalidOperationException("The packaged portable HTML export did not publish a complete local folder.");
+
+        ArchiveExportInspection before = await ArchiveHtmlExporter.InspectAsync(exported.Directory, id);
+        if (before.Metadata.Generation != 1 || before.Metadata.ExportId == Guid.Empty || before.RequiresBackup
+            || string.IsNullOrEmpty(before.ObservedFingerprint)
+            || !File.Exists(Path.Combine(exported.Directory, ArchiveExportMetadataFile.Name)))
+            throw new InvalidOperationException("The new export marker did not identify a clean first generation.");
+        ArchiveHtmlExportResult updated = await ArchiveHtmlExporter.UpdateAsync(reader, id, exported.Directory,
+            before.Metadata.ExportId, before.Metadata.Generation, expectedObservedFingerprint: before.ObservedFingerprint);
+        ArchiveExportInspection after = await ArchiveHtmlExporter.InspectAsync(updated.Directory, id);
+        if (updated.Metadata == null || updated.Metadata.ExportId != before.Metadata.ExportId
+            || updated.Metadata.Generation != before.Metadata.Generation + 1
+            || after.Metadata.ExportId != updated.Metadata.ExportId || after.Metadata.Generation != updated.Metadata.Generation
+            || after.RequiresBackup || updated.BackupDirectory != null || updated.PostCount != 1 || updated.FileCount != 1)
+            throw new InvalidOperationException("The guarded export update did not publish the next clean generation.");
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        {
+            ExportHistoryStore history = new ExportHistoryStore(profile, lease);
+            ArchiveExportOperationResult recorded = await history.RecordPublishedAsync(updated);
+            if (!recorded.HistoryRecorded || recorded.HistoryError != null
+                || recorded.Metadata.ExportId != after.Metadata.ExportId || recorded.Metadata.Generation != 2)
+                throw new InvalidOperationException("The published export was not associated with its profile history.");
+        }
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        {
+            // A fresh history store recognizes the marker after the recording lease has closed.
+            ExportHistoryStore reopened = new ExportHistoryStore(profile, lease);
+            var recognized = (await reopened.ListVerifiedAsync(id)).Single();
+            if (recognized.Inspection == null || recognized.Entry.ExportId != before.Metadata.ExportId
+                || recognized.Entry.Generation != 2 || recognized.Inspection.Metadata.Generation != 2
+                || recognized.Entry.Destination != updated.Directory)
+                throw new InvalidOperationException("Reopened export history did not recognize the published marker.");
+        }
     }
 
     private static async Task RunSessionAsync(HttpClient transport, DemoHandler handler, string directory, int run)
     {
+        string profile = Path.Combine(directory, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        WorkStateStore work = new WorkStateStore(profile, lease);
+        if (run > 1) CheckSavedWork(work, directory, generation: run - 1);
         DemoProvider provider = new DemoProvider(transport);
         MediaStore store = new MediaStore();
         DownloadQueue queue = new DownloadQueue(2, 1024 * 1024, store);
         await using Registry session = new Registry(
             new IImageBoard[] { provider }, queue, directory,
-            TimeSpan.FromHours(1), boardIntervalSeconds: 3600, persistSession: false);
+            TimeSpan.FromHours(1), boardIntervalSeconds: 3600, persistSession: false, workStore: work);
 
         AdmissionResult admission = await session.AddAsync("https://demo.invalid/demo/thread/1");
         if (admission.Status != AdmissionStatus.Added || admission.Thread is not DemoThread thread)
@@ -104,6 +170,7 @@ internal static class Program
             || snapshot.Downloads.Queued != 0 || snapshot.Downloads.Active != 0)
             throw new InvalidOperationException("The exposed progress does not match the saved medium.");
 
+        CheckSavedWork(work, directory, generation: run);
         ConsumerProgress progress = new ConsumerProgress(run, snapshot, saved.Length, handler.RequestCount);
         JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
         jsonOptions.Converters.Add(new JsonStringEnumConverter());
@@ -112,6 +179,21 @@ internal static class Program
         await session.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
         if (session.Threads.Count != 0 || session.Boards.Count != 0)
             throw new InvalidOperationException("Stopped watches remained active.");
+    }
+
+    private static void CheckSavedWork(WorkStateStore work, string directory, long generation)
+    {
+        WorkResource intent = work.LoadResources().Single();
+        MediaWork medium = work.LoadMedia(intent.Url, intent.Generation).Single();
+        string destination = StorageLayout.GetMediaPath(directory, "demo", "demo", "1", "1", ".bin");
+        if (intent.Url != "https://demo.invalid/demo/thread/1" || !intent.IsThread
+            || intent.OutputRoot != directory || intent.Generation != generation || intent.Intent != WorkIntent.Watching
+            || medium.Generation != generation || medium.ResourceUrl != intent.Url || medium.MediaIdentifier != "1"
+            || medium.DestinationPath != destination || medium.DownloadUrl != "https://demo.invalid/media/1.bin"
+            || medium.ExpectedMd5 != DemoPayload.Md5 || medium.ExpectedSize != DemoPayload.Bytes.Length
+            || medium.OriginalFileName != "sample.bin" || medium.Status != MediaWorkStatus.Succeeded
+            || medium.LastAttemptAt == null || medium.DueAt != null || medium.Failure != null)
+            throw new InvalidOperationException("The durable intent or retry descriptor did not survive with its verified outcome.");
     }
 
     private sealed record ConsumerProgress(int Run, ThreadSnapshot Thread, int SavedBytes, int MediaRequests);
