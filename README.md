@@ -14,7 +14,7 @@ Download published builds from the [MeowChan releases page](https://github.com/t
 
 ## Quick start
 
-Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. Self-contained archives include .NET. Linux requires glibc and X11/XWayland; macOS packages are unsigned and not notarized. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
+Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. Self-contained archives include .NET. Linux requires glibc and X11/XWayland; the macOS standard is separate self-contained Intel/Apple Silicon `.app` ZIPs with ad-hoc signatures and no notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
 
 The steps below describe the 0.9.0 interface and candidate launchers. Published older builds retain their original launcher names and controls.
 
@@ -85,7 +85,7 @@ dotnet build MeowChan.sln -c Release --no-restore
 dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. macOS archives contain an unsigned `MeowChan.app` bundle that can be opened in Finder. Native macOS launch and Gatekeeper behavior still require release validation. See [platform requirements and package checks](docs/platform-support.md).
+Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. The planned macOS ZIPs contain an ad-hoc-signed `MeowChan.app` bundle for Intel or Apple Silicon; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native macOS launch and Gatekeeper behavior still require release validation. See [platform requirements and package checks](docs/platform-support.md).
 
 ## Downloading
 

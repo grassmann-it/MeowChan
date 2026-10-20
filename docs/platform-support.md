@@ -48,8 +48,8 @@ still require their own evidence. Windows redistribution uses the
 source asset published alongside the binary ZIP. macOS source/signing acceptance
 remains separate, as recorded in [third-party notices](../THIRD-PARTY-NOTICES.md).
 
-Initial macOS 0.9.0 distribution deliberately uses unsigned/ad-hoc SDK bundles
-without Apple Developer ID or notarization; certificate acquisition is not a
+The macOS 0.9.0 standard is separate self-contained ARM/Intel `.app` ZIPs with
+ad-hoc signatures without Apple Developer ID or notarization; certificate acquisition is not a
 release prerequisite. The [macOS package guidance](macos-signing.md) explains
 manual approval in Privacy & Security and keeps Developer ID/plugin signing,
 hardened runtime and notarization as an optional later distribution route.
@@ -175,6 +175,24 @@ The desktop now uses Avalonia 12.1.4. Consult the [current Avalonia supported-pl
 
 The current Linux desktop uses X11, including XWayland on a Wayland desktop. A working graphical session and native graphics/font libraries are required even in a self-contained package. Ubuntu requires the X11/font dependencies used by Avalonia, including `libx11-6`, `libice6`, `libsm6`, `libfontconfig1` and `libdbus-1-3`. A `linux-x64` or `linux-arm64` package targets glibc; it is not a `linux-musl-*` Alpine package.
 
+## Native macOS offline source checkpoint — `5a7ca8d`
+
+[Run 39511554103](https://github.com/tfgrass/MeowChan/actions/runs/39511554103)
+passed on **macOS 15.7.9 ARM64**, SDK 10.0.111, source
+`5a7ca8d2c06df650751f6e46b513f1ebc7b7b2c0`:
+
+| Check | Observed result |
+| --- | --- |
+| Native source build | 0 warnings / 0 errors |
+| Core / Desktop tests | 631/631 / 146/146 passed |
+| Export coverage | All 43 existing single/collection cases and 3 path-safety cases passed |
+| Native temporary-path diagnosis | `/var/folders/.../T` resolves to `/private/var/folders/.../T`; owned physical temporary fixtures succeed while caller-supplied linked/dangling paths remain rejected |
+
+Evidence: `artifacts/r09-macos-export-path-fix/native-followup/RESULT.txt`,
+`summary.json` and `path-safety-diagnostics.txt`. This is an offline native
+source-test result, not GUI, extracted app ZIP, VLC playback or Gatekeeper
+acceptance, and it does not establish native Intel execution.
+
 ## Candidate package matrix
 
 | Runtime identifier | Archive | Intended native validation baseline | Evidence still required |
@@ -182,18 +200,24 @@ The current Linux desktop uses X11, including XWayland on a Wayland desktop. A w
 | `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
 | `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current isolated source-built checks and historical package startup/exit are recorded below. |
 | `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
-| `osx-x64` | `.tar.gz` | macOS 15 x64 | Native Intel Mac package and desktop run. |
-| `osx-arm64` | `.tar.gz` | macOS 15 Arm64 | Final 0.9.0 source-built and extracted `.app` workflows plus Gatekeeper behavior; the passing Arm64 harness below used the earlier UI. |
+| `osx-x64` | `.zip` | macOS 15 x64 | Native Intel Mac package and desktop run. |
+| `osx-arm64` | `.zip` | macOS 15 Arm64 | Native offline source tests passed at `5a7ca8d` (below); extracted `.app` ZIP, GUI, bundled VLC playback and Gatekeeper/manual-approval workflows remain open. |
 
 These are candidate validation baselines, not completed platform certifications. Exact supported OS releases will be recorded with the tested artifacts. Microsoft/Avalonia support policies can change with OS end-of-life; consult the linked current policy before expanding the product matrix.
 
 ## Planned MeowChan distribution form
 
-Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `MeowChan.exe` on Windows or `./MeowChan` on Linux. Keep the accompanying native libraries and notices beside the executable. macOS tar.gz archives will contain `MeowChan.app`; open that bundle in Finder or with `open MeowChan.app`.
+Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `MeowChan.exe` on Windows or `./MeowChan` on Linux. Keep the accompanying native libraries and notices beside the executable. The standard macOS archives are `MeowChan-<version>-osx-arm64.zip` and `MeowChan-<version>-osx-x64.zip`, each containing a self-contained ad-hoc-signed `MeowChan.app`; open that bundle in Finder or with `open MeowChan.app`.
 
-The macOS bundle is unsigned and is not notarized. Its structure contains the complete publish output under `Contents/MacOS`, the existing application icon under `Contents/Resources`, and `Info.plist` metadata generated from the product version. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
+The planned macOS bundle has an ad-hoc signature and is not notarized. Its structure contains the complete publish output under `Contents/MacOS`, the existing application icon under `Contents/Resources`, and `Info.plist` metadata generated from the product version. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
-Initial 0.9.0 macOS distribution uses the unsigned/ad-hoc SDK bundle without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native executable and bundled-plugin workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
+Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app ZIPs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native executable and bundled-plugin workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
+
+Native packaging targets `macos-15` (ARM) and `macos-15-intel` (Intel), with
+inside-out Mach-O/bundle signing, main-process CoreCLR entitlements, and ZIP
+extraction/signature/architecture/dependency revalidation. These checks are being
+implemented and validated; they are not recorded native acceptance. Homebrew
+source builds remain optional. See [the packaging contract](macos-signing.md#ad-hoc-packaging-contract).
 
 ## What each check proves
 

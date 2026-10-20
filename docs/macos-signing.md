@@ -1,12 +1,25 @@
 # macOS packages and optional future signing
 
-## Initial 0.9.0 distribution without an Apple certificate
+## Standard 0.9.0 macOS packages
 
-The initial macOS 0.9.0 distribution is intentionally **without Apple Developer ID
-signing or notarization**. Obtaining an Apple certificate or notarization account
-is not a release prerequisite. The packager preserves SDK-produced unsigned or
-ad-hoc-signed executable code; an ad-hoc signature does not establish Developer
-ID or notarized distribution.
+The standard macOS distribution is a complete self-contained `MeowChan.app` in
+one ZIP per architecture:
+
+- `MeowChan-<version>-osx-arm64.zip` for Apple Silicon.
+- `MeowChan-<version>-osx-x64.zip` for Intel Macs.
+
+The planned native packaging step applies an **ad-hoc signature**, without Apple
+Developer ID, hardened runtime or notarization. No Apple certificate is required.
+The ZIP includes the matching .NET runtime and selected VLC libraries/plugins;
+keep the entire app bundle together. Homebrew source builds remain an optional
+route, rather than a prerequisite for installing the packaged app.
+
+Packaging/signature and native acceptance checks are still being implemented and
+validated. An ad-hoc signature does not establish developer identity or automatic
+Gatekeeper approval. The intended native matrix uses `macos-15` for ARM and
+`macos-15-intel` for Intel. The [native ARM offline source checkpoint](platform-support.md#native-macos-offline-source-checkpoint--5a7ca8d)
+passed 631 Core and 146 Desktop tests with a clean build; it does not establish
+GUI, extracted ZIP, VLC playback, Gatekeeper or native Intel acceptance.
 
 Native execution of the complete bundle still needs validation on the intended
 Intel and Apple Silicon Macs, including .NET startup, dynamically loaded VLC
@@ -23,10 +36,26 @@ retain quarantine metadata. If macOS reports malware or a damaged app, investiga
 the download and diagnostics rather than treating this procedure as a repair.
 See [Apple's guidance for opening an app from an unidentified developer](https://support.apple.com/102445).
 
+## Ad-hoc packaging contract
+
+The packager interface is `scripts/package-macos.py --runtime osx-arm64` (or
+`osx-x64`) with `--sign-adhoc` and `--archive <output>.zip`, alongside its publish,
+output and version arguments. `scripts/macos-signing.py` provides the signing and
+validation helper. Complete binary/install-name changes first, then sign every
+nested Mach-O file from inside outward and the bundle last. Apply the explicit
+CoreCLR entitlements to the main process; do not copy those entitlements onto
+every library. The ad-hoc route does not enable hardened runtime.
+
+The ZIP is created with `ditto`; a fresh extraction must revalidate signatures,
+architecture, native dependency closure and bundle contents. Signature validation
+alone does not prove .NET JIT startup, VLC plugin loading/playback or shutdown.
+Those workflows still need native checks on both target architectures, followed
+by a downloaded/quarantined-copy check of the manual approval flow.
+
 ## Optional later Developer ID and notarized distribution
 
 The procedure below is a future optional distribution route, not a gate for the
-initial unsigned/ad-hoc 0.9.0 packages. It requires separately provisioned Apple
+initial ad-hoc 0.9.0 ZIP packages. It requires separately provisioned Apple
 credentials and native Mac validation; none of the steps is claimed as completed.
 It is independent of the Windows preview.
 
