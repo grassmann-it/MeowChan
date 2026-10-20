@@ -693,6 +693,119 @@ public sealed class WorkStateLifecycleTests
         command.ExecuteNonQuery();
     }
 
+    [Fact]
+    public async Task EventOnlyConsumerSeesRestoredVerifiedMediaAfterWorkCacheRefresh()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new(new DelegateHandler((_, _) =>
+            throw new InvalidOperationException("Verified media must restore without a network request.")));
+        string target = Path.Combine(directory.Path, "verified.bin");
+        ProbeThread original = new(provider.Board, new Uri(ThreadUrl));
+        DownloadItem item = new(new Uri("https://stub.test/media.bin"), target, provider, original, "verified", expectedSize: 3);
+        await using (MemoryStream bytes = new([1, 2, 3]))
+            await new MediaStore().CommitAsync(item, bytes, CancellationToken.None);
+        using RefreshGateStore store = new();
+        store.CommitIntent(new WorkResource { Url = ThreadUrl, OutputRoot = directory.Path,
+            Generation = 1, IsThread = true, Intent = WorkIntent.Watching });
+        store.CommitMedia(new MediaWork { ResourceUrl = ThreadUrl, Generation = 1, MediaIdentifier = "verified",
+            DestinationPath = target, DownloadUrl = item.DownloadUri.AbsoluteUri, ExpectedSize = 3, Status = MediaWorkStatus.Ready });
+        DownloadQueue queue = new(1, 1L << 30);
+        queue.SetPaused(true);
+        await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromHours(1), 3600, workStore: store);
+        await registry.RestoreAsync();
+        TaskCompletionSource<ThreadSnapshot> observed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        registry.StateChanged += () =>
+        {
+            ThreadSnapshot? snapshot = registry.GetSnapshot().Threads.SingleOrDefault();
+            if (snapshot is { CompletedMedia: 1, Work.SavedMedia: 1 }) observed.TrySetResult(snapshot);
+        };
+        try
+        {
+            queue.SetPaused(false);
+            await store.RefreshBlocked.Task.WaitAsync(TestWait.Timeout);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            // Let the finite queue/thread input notifications drain while the work projection is held back.
+            await Task.Delay(50);
+            Assert.False(observed.Task.IsCompleted);
+            store.ReleaseRefresh();
+            ThreadSnapshot fresh = await observed.Task.WaitAsync(TestWait.Timeout);
+            Assert.Equal(MediaWorkStatus.Succeeded, Assert.Single(fresh.Work!.Media).Status);
+            Assert.Equal(1, fresh.Work.SavedMedia);
+        }
+        finally { store.ReleaseRefresh(); }
+    }
+
+    [Theory]
+    [InlineData(404, MediaWorkStatus.Waiting)]
+    [InlineData(403, MediaWorkStatus.NeedsIntervention)]
+    public async Task EventOnlyConsumerSeesMediaFailureAfterWorkCacheRefresh(int status, MediaWorkStatus expected)
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new(new DelegateHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage((HttpStatusCode)status))));
+        using RefreshGateStore store = new() { GateAfterStatus = expected };
+        store.CommitIntent(new WorkResource { Url = ThreadUrl, OutputRoot = directory.Path,
+            Generation = 1, IsThread = true, Intent = WorkIntent.Watching });
+        store.CommitMedia(new MediaWork { ResourceUrl = ThreadUrl, Generation = 1, MediaIdentifier = "missing",
+            DestinationPath = Path.Combine(directory.Path, "missing.bin"), DownloadUrl = "https://stub.test/media.bin",
+            Status = MediaWorkStatus.Ready });
+        DownloadQueue queue = new(1, 1L << 30);
+        queue.SetPaused(true);
+        await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromHours(1), 3600, workStore: store);
+        await registry.RestoreAsync();
+        TaskCompletionSource<MediaWork> observed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        registry.StateChanged += () =>
+        {
+            MediaWork? media = registry.GetSnapshot().Threads.SingleOrDefault()?.Work?.Media.SingleOrDefault();
+            if (media?.Status == expected) observed.TrySetResult(media);
+        };
+        try
+        {
+            queue.SetPaused(false);
+            await store.RefreshBlocked.Task.WaitAsync(TestWait.Timeout);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            await Task.Delay(50);
+            Assert.False(observed.Task.IsCompleted);
+            store.ReleaseRefresh();
+            MediaWork failure = await observed.Task.WaitAsync(TestWait.Timeout);
+            Assert.Equal(status, failure.HttpStatus);
+            Assert.Equal(1, failure.Attempts);
+            Assert.NotNull(failure.Failure);
+        }
+        finally { store.ReleaseRefresh(); }
+    }
+
+    private sealed class RefreshGateStore : IWorkStateStore, IDisposable
+    {
+        private readonly MemoryWorkStateStore _inner = new();
+        private readonly ManualResetEventSlim _release = new();
+        private int _resultCommitted;
+        public MediaWorkStatus GateAfterStatus { get; init; } = MediaWorkStatus.Succeeded;
+        public TaskCompletionSource RefreshBlocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void ReleaseRefresh() => _release.Set();
+        public IReadOnlyList<WorkResource> LoadResources()
+        {
+            if (Volatile.Read(ref _resultCommitted) != 0)
+            {
+                RefreshBlocked.TrySetResult();
+                if (!_release.Wait(TestWait.Timeout)) throw new TimeoutException("Work cache refresh was not released.");
+            }
+            return _inner.LoadResources();
+        }
+        public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _inner.LoadMedia(url, generation);
+        public WorkResource CommitIntent(WorkResource resource) => _inner.CommitIntent(resource);
+        public WorkResource? CommitEnd(string url, long generation, ThreadSourceStateValue source,
+            DateTimeOffset observedAt, string? finalSnapshotJson = null) => _inner.CommitEnd(url, generation, source, observedAt, finalSnapshotJson);
+        public WorkResource? CommitState(WorkResource resource) => _inner.CommitState(resource);
+        public bool CommitMedia(MediaWork media)
+        {
+            bool committed = _inner.CommitMedia(media);
+            if (committed && media.Status == GateAfterStatus) Volatile.Write(ref _resultCommitted, 1);
+            return committed;
+        }
+        public void Dispose() => _release.Dispose();
+    }
+
     private static void SeedCompletedMissing(WorkStateStore work, string directory)
     {
         work.CommitIntent(new WorkResource { Url = ThreadUrl, OutputRoot = directory,

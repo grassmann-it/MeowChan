@@ -154,31 +154,60 @@ internal static class Program
             new IImageBoard[] { provider }, queue, directory,
             TimeSpan.FromHours(1), boardIntervalSeconds: 3600, persistSession: false, workStore: work);
 
-        AdmissionResult admission = await session.AddAsync("https://demo.invalid/demo/thread/1");
-        if (admission.Status != AdmissionStatus.Added || admission.Thread is not DemoThread thread)
-            throw new InvalidOperationException("The custom provider's thread was not admitted.");
+        TaskCompletionSource<ThreadSnapshot> completedNotification = new TaskCompletionSource<ThreadSnapshot>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        void ObserveSession()
+        {
+            try
+            {
+                ThreadSnapshot? observed = session.GetSnapshot().Threads.SingleOrDefault();
+                if (observed?.CompletedMedia == 1 && observed.Downloads.Queued == 0 && observed.Downloads.Active == 0
+                    && observed.Work is { SavedMedia: 1 } currentWork && currentWork.Media.Count == 1
+                    && currentWork.Media[0].Generation == run && currentWork.Media[0].Status == MediaWorkStatus.Succeeded)
+                    completedNotification.TrySetResult(observed);
+            }
+            catch (Exception exception)
+            {
+                completedNotification.TrySetException(exception);
+            }
+        }
 
-        // AddAsync starts monitoring. The queue may still be idle until its first poll.
-        await thread.FirstPollEnqueued.WaitAsync(TimeSpan.FromSeconds(10));
-        await queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
-        string destination = Path.Combine(thread.DownloadDirectory, "1.bin");
-        byte[] saved = await File.ReadAllBytesAsync(destination);
-        if (!saved.AsSpan().SequenceEqual(DemoPayload.Bytes) || !thread.IsMediaDownloaded("1"))
-            throw new InvalidOperationException("The download did not produce verified media.");
-        ThreadSnapshot snapshot = session.GetSnapshot().Threads.Single();
-        if (snapshot.KnownMedia != 1 || snapshot.CompletedMedia != 1 || snapshot.MediaFailures.Count != 0
-            || snapshot.Downloads.Queued != 0 || snapshot.Downloads.Active != 0)
-            throw new InvalidOperationException("The exposed progress does not match the saved medium.");
+        // Subscribe before admission so a fast manifest restore cannot hide its final invalidation.
+        session.StateChanged += ObserveSession;
+        try
+        {
+            AdmissionResult admission = await session.AddAsync("https://demo.invalid/demo/thread/1");
+            if (admission.Status != AdmissionStatus.Added || admission.Thread is not DemoThread thread)
+                throw new InvalidOperationException("The custom provider's thread was not admitted.");
 
-        CheckSavedWork(work, directory, generation: run);
-        ConsumerProgress progress = new ConsumerProgress(run, snapshot, saved.Length, handler.RequestCount);
-        JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new JsonStringEnumConverter());
-        Console.WriteLine(JsonSerializer.Serialize(progress, jsonOptions));
+            // AddAsync starts monitoring. The queue may still be idle until its first poll.
+            await thread.FirstPollEnqueued.WaitAsync(TimeSpan.FromSeconds(10));
+            await queue.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            string destination = Path.Combine(thread.DownloadDirectory, "1.bin");
+            byte[] saved = await File.ReadAllBytesAsync(destination);
+            if (!saved.AsSpan().SequenceEqual(DemoPayload.Bytes) || !thread.IsMediaDownloaded("1"))
+                throw new InvalidOperationException("The download did not produce verified media.");
+            // Queue idle fences durable commits; the event separately proves that the
+            // public notification delivers the refreshed work projection to a consumer.
+            ThreadSnapshot snapshot = await completedNotification.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (snapshot.KnownMedia != 1 || snapshot.CompletedMedia != 1 || snapshot.MediaFailures.Count != 0
+                || snapshot.Downloads.Queued != 0 || snapshot.Downloads.Active != 0)
+                throw new InvalidOperationException("The exposed progress does not match the saved medium.");
 
-        await session.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
-        if (session.Threads.Count != 0 || session.Boards.Count != 0)
-            throw new InvalidOperationException("Stopped watches remained active.");
+            CheckSavedWork(work, directory, generation: run);
+            ConsumerProgress progress = new ConsumerProgress(run, snapshot, saved.Length, handler.RequestCount);
+            JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
+            jsonOptions.Converters.Add(new JsonStringEnumConverter());
+            Console.WriteLine(JsonSerializer.Serialize(progress, jsonOptions));
+
+            await session.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            if (session.Threads.Count != 0 || session.Boards.Count != 0)
+                throw new InvalidOperationException("Stopped watches remained active.");
+        }
+        finally
+        {
+            session.StateChanged -= ObserveSession;
+        }
     }
 
     private static void CheckSavedWork(WorkStateStore work, string directory, long generation)

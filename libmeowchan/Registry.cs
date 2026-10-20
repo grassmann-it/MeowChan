@@ -890,8 +890,11 @@ public sealed class Registry : IAsyncDisposable
 
     private void SignalChanged()
     {
-        _stateChanges.Signal();
-        if (_workStore == null || _stopping) return;
+        if (_workStore == null || _stopping)
+        {
+            _stateChanges.Signal();
+            return;
+        }
         Interlocked.Increment(ref _completionScanVersion);
         if (Interlocked.Exchange(ref _completionScanQueued, 1) == 0)
             Track(async () =>
@@ -923,11 +926,13 @@ public sealed class Registry : IAsyncDisposable
     private async Task TryCompleteAsync()
     {
         List<(ResourceKey Key, Watch Watch)> completed = new();
+        bool refreshed = false;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
             if (_stopping || _workStore == null) return;
             RefreshWorkCache();
+            refreshed = true;
             foreach (KeyValuePair<ResourceKey, WorkResource> entry in _workResources.ToArray())
             {
                 WorkResource state = entry.Value;
@@ -961,7 +966,13 @@ public sealed class Registry : IAsyncDisposable
             }
             if (completed.Count > 0) RefreshWorkCache();
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            _gate.Release();
+            // Publish the refreshed projection without scheduling another completion scan.
+            // Event-only consumers must receive an invalidation after durable media results become visible.
+            if (refreshed) _stateChanges.Signal();
+        }
         foreach ((ResourceKey key, Watch watch) in completed)
             await RemoveAsync(key, watch.Thread, null, shutdown: true).ConfigureAwait(false);
     }
