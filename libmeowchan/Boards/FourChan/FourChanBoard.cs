@@ -102,6 +102,7 @@ public class FourChanBoard : BaseBoard
                     FourChanThread thread = new FourChanThread(this, new Uri($"https://boards.4chan.org/{BoardCode}/thread/{threadId}"));
                     string? subject = WebUtility.HtmlDecode(entry.Value<string>("sub"));
                     thread.Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {threadId}" : subject;
+                    thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Value<string>("com"));
                     threads.Add(thread);
                 }
             }

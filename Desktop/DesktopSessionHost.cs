@@ -32,7 +32,7 @@ internal sealed record DesktopSessionView(IReadOnlyList<DesktopThreadEntry> Thre
 /// the presentation layer dispatches a fresh GetView read and never receives live provider objects.
 /// StopAsync drains the engine; DisposeAsync releases the profile after native UI cleanup.
 /// </summary>
-internal sealed class DesktopSessionHost : IAsyncDisposable
+internal sealed partial class DesktopSessionHost : IAsyncDisposable
 {
     private sealed record WatchIdentity(long Id, string HostName);
 
@@ -89,6 +89,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             IWorkStateStore workStore = new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
+            _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
         }
         catch

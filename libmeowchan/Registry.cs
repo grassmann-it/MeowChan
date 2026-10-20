@@ -22,7 +22,7 @@ public enum AdmissionStatus { Added, AlreadyPresent, Invalid, Unsupported }
 public sealed record AdmissionResult(AdmissionStatus Status, IThread? Thread = null, IBoard? Board = null);
 
 /// <summary>Owns admission, durable session intent, watch lifetimes and the shared queue. Construction is passive.</summary>
-public sealed class Registry : IAsyncDisposable
+public sealed partial class Registry : IAsyncDisposable
 {
     private sealed record ResourceKey(string Source, string Board, string? Thread = null);
     private sealed record Resource(ResourceKey Key, string Url, IThread? Thread, IBoard? Board);
@@ -606,6 +606,7 @@ public sealed class Registry : IAsyncDisposable
             {
                 if (!_watches.TryGetValue(boardKey, out Watch? current) || !ReferenceEquals(current, parent) || _watches.ContainsKey(threadKey)) return;
             }
+            if (!AllowsBoardDiscovery(parent.Board!, thread)) return;
             if (_suppressed.Contains(threadKey)) return;
             if (_workResources.TryGetValue(threadKey, out WorkResource? prior)
                 && prior.Intent is WorkIntent.Completed or WorkIntent.Repairing or WorkIntent.Suppressed) return;

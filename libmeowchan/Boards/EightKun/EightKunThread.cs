@@ -15,13 +15,14 @@ using MeowChan.Archive;
 
 namespace MeowChan.Boards.EightKun;
 
-public class EightKunThread : BaseThread
+public class EightKunThread : BaseThread, IThread
 {
     private readonly Dictionary<string, DownloadItem> _knownMedia = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _checkGate = new(1, 1);
     private DateTimeOffset? _lastModified;
     private bool _hasSnapshot;
 
+    public string CatalogOpeningText { get; set; } = string.Empty;
     public override bool SupportsContent => true;
     public override IBoard Board { get; }
     public override string ThreadId { get; }

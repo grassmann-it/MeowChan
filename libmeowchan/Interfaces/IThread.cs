@@ -50,6 +50,9 @@ namespace MeowChan.Interfaces
         /// </summary>
         string Title { get; set; }
 
+        /// <summary>Inert opening-post text supplied by a board catalog, without fetching the thread.</summary>
+        string CatalogOpeningText => string.Empty;
+
         /// <summary>
         /// Gets a user-friendly name for the thread.
         /// </summary>

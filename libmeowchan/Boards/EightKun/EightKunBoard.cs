@@ -102,6 +102,7 @@ public class EightKunBoard : BaseBoard
                     EightKunThread thread = new EightKunThread(this, new Uri($"https://8kun.top/{BoardCode}/res/{threadId}.html"));
                     string? subject = WebUtility.HtmlDecode(entry.Value<string>("sub"));
                     thread.Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {threadId}" : subject;
+                    thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Value<string>("com"));
                     threads.Add(thread);
                 }
             }
