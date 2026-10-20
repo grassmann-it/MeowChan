@@ -36,8 +36,33 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private long _length;
     private bool _updatingSeek;
     private int _disposed;
+    private int _releasedStreams;
+    private int _cleanupFailures;
 
     private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream);
+
+    // Acceptance observes the real player under its normal native-operation lock.
+    // No alternate decoder, dummy video output or synthetic clock is used.
+    internal sealed record PlaybackEvidence(string State, long Time, int DecodedFrames, int DisplayedFrames,
+        bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures);
+
+    internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
+    {
+        await _operations.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            Playback? playback = _playback;
+            if (playback == null) return new PlaybackEvidence("Stopped", 0, 0, 0, false, _engine != null, _disposed != 0,
+                _releasedStreams, _cleanupFailures);
+            var stats = playback.Media.Statistics;
+            if (snapshotPath != null && !playback.Player.TakeSnapshot(0, snapshotPath, 0, 0))
+                throw new InvalidOperationException("The native video output rejected the frame snapshot.");
+            return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
+                stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, _disposed != 0,
+                _releasedStreams, _cleanupFailures);
+        }
+        finally { _operations.Release(); }
+    });
 
     internal GalleryVideoPlayer()
     {
@@ -206,11 +231,17 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _playback = null;
         await Dispatcher.UIThread.InvokeAsync(() => { if (ReferenceEquals(_video.MediaPlayer, playback.Player)) _video.MediaPlayer = null; });
         // Cleanup must release the verified file even when a backend operation fails.
-        try { playback.Player.Stop(); } catch (Exception) { }
-        try { playback.Player.Dispose(); } catch (Exception) { }
-        try { playback.Media.Dispose(); } catch (Exception) { }
-        try { playback.Input.Dispose(); } catch (Exception) { }
-        try { playback.Stream.Dispose(); } catch (Exception) { }
+        try { playback.Player.Stop(); } catch (Exception) { _cleanupFailures++; }
+        try { playback.Player.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        try { playback.Media.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        try { playback.Input.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        try
+        {
+            playback.Stream.Dispose();
+            if (!playback.Stream.CanRead) _releasedStreams++;
+            else _cleanupFailures++;
+        }
+        catch (Exception) { _cleanupFailures++; }
     }
 
     public async ValueTask DisposeAsync()
