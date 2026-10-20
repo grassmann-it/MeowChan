@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
@@ -12,7 +13,7 @@ internal static class ArchiveNavigationChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        string profile = Path.Combine(Path.GetTempPath(), "meowchan-archive-nav-" + Guid.NewGuid().ToString("N"));
+        string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-archive-nav-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         ResourceId origin = new("4chan", "g", "100");
         ResourceId target = new("4chan", "a", "400");

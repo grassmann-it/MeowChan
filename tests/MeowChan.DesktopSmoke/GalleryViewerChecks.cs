@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Diagnostics;
@@ -20,7 +21,7 @@ internal static class GalleryViewerChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        string directory = Path.Combine(Path.GetTempPath(), "meowchan-gallery-smoke-" + Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-gallery-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         object? content = window.Content;
         GalleryViewer viewer = new();

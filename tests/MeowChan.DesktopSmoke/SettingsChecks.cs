@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -15,7 +16,7 @@ internal static class SettingsChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
-        string profile = Path.Combine(Path.GetTempPath(), "meowchan-settings-smoke-" + Guid.NewGuid().ToString("N"));
+        string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-settings-smoke-" + Guid.NewGuid().ToString("N"));
         try
         {
             await CheckApplyAsync(owner, Path.Combine(profile, "apply"));

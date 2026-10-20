@@ -18,7 +18,7 @@ internal static class Program
 {
     private static async Task Main()
     {
-        string directory = Directory.CreateTempSubdirectory("libmeowchan-consumer-").FullName;
+        string directory = PhysicalWorkspaceDirectory(Directory.CreateTempSubdirectory("libmeowchan-consumer-").FullName);
         using DemoHandler handler = new DemoHandler();
         using HttpClient transport = new HttpClient(handler);
 
@@ -41,6 +41,21 @@ internal static class Program
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    // Resolve only this sample's own temporary workspace. Caller-supplied export targets stay subject to the library's strict link guard.
+    private static string PhysicalWorkspaceDirectory(string directory)
+    {
+        string full = Path.GetFullPath(directory);
+        string root = Path.GetPathRoot(full)!;
+        string physical = root;
+        foreach (string component in full[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            physical = Path.Combine(physical, component);
+            FileSystemInfo? target = new DirectoryInfo(physical).ResolveLinkTarget(returnFinalTarget: true);
+            if (target != null) physical = target.FullName;
+        }
+        return Path.TrimEndingDirectorySeparator(physical);
     }
 
     private static async Task CheckIndependentArchiveAsync(string directory)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MeowChan.Testing;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -10,8 +11,7 @@ namespace MeowChan.Tests;
 
 internal sealed class TempDirectory : IDisposable
 {
-    public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "meowchan-tests-" + Guid.NewGuid().ToString("N"));
-    public TempDirectory() => Directory.CreateDirectory(Path);
+    public string Path { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-tests-");
     public void Dispose() => Directory.Delete(Path, recursive: true);
 }
 

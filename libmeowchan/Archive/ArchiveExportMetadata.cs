@@ -188,7 +188,7 @@ public static class ArchiveExportMetadataFile
         {
             FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
             if (info.LinkTarget != null || (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0))
-                throw new InvalidDataException("A symbolic link or reparse point cannot be used as an export target.");
+                throw new InvalidDataException($"A symbolic link or reparse point cannot be used as an export target: '{current}' (requested path '{full}').");
             string? parent = System.IO.Path.GetDirectoryName(current);
             if (parent == current) break;
             current = parent;

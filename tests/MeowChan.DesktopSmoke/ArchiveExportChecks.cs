@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -17,9 +18,9 @@ internal static class ArchiveExportChecks
 {
     internal static async Task RunAsync(MainWindow window, ArchivedThreadView saved)
     {
-        string profile = Directory.CreateTempSubdirectory("meowchan-export-profile-").FullName;
+        string profile = TemporaryWorkspacePaths.CreateDirectory("meowchan-export-profile-");
         string? evidence = Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_EXPORT_EVIDENCE");
-        string destinationRoot = evidence ?? Directory.CreateTempSubdirectory("meowchan-export-evidence-").FullName;
+        string destinationRoot = evidence ?? TemporaryWorkspacePaths.CreateDirectory("meowchan-export-evidence-");
         Directory.CreateDirectory(destinationRoot);
         ResourceId readerIdentity = new(saved.Summary.Id.Source, saved.Summary.Id.Board, "900000001");
         try

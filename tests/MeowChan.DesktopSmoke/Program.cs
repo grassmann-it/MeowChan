@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using System.Collections.Concurrent;
 using System.Globalization;
 using Avalonia;
@@ -45,11 +46,11 @@ internal static class Program
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _visualMode = args.Contains("--visual", StringComparer.Ordinal);
-        string? showcaseRoot = _visualMode ? Path.Combine(Path.GetTempPath(), "MeowChan-showcase") : null;
+        string? showcaseRoot = _visualMode ? Path.Combine(TemporaryWorkspacePaths.TempRoot, "MeowChan-showcase") : null;
         if (showcaseRoot != null && Directory.Exists(showcaseRoot))
             throw new IOException("Showcase directory already exists; choose a clean isolated run: " + showcaseRoot);
         string profile = showcaseRoot != null ? Path.Combine(showcaseRoot, "profile")
-            : Path.Combine(Path.GetTempPath(), "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
+            : Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);

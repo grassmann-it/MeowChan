@@ -1,3 +1,4 @@
+using MeowChan.Testing;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
@@ -184,7 +185,7 @@ internal static class SettingsPageChecks
 
     private static async Task CheckPendingSaveAsync(MainWindow owner)
     {
-        string profile = Path.Combine(Path.GetTempPath(), "meowchan-page-save-" + Guid.NewGuid().ToString("N"));
+        string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-page-save-" + Guid.NewGuid().ToString("N"));
         SeedProfile(profile);
         GateStore? store = null;
         DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
@@ -244,7 +245,7 @@ internal static class SettingsPageChecks
 
     private static async Task CheckPickerCloseAsync(MainWindow owner)
     {
-        string profile = Path.Combine(Path.GetTempPath(), "meowchan-page-picker-" + Guid.NewGuid().ToString("N"));
+        string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-page-picker-" + Guid.NewGuid().ToString("N"));
         SeedProfile(profile);
         using IDisposable scope = AvaloniaLocator.EnterScope();
         SettingsChecks.FixtureStorageProvider provider = new SettingsChecks.FixtureStorageProvider();
