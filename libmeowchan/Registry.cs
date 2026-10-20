@@ -264,7 +264,7 @@ public sealed class Registry : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (_restored) return;
             if (_hasMutations) throw new InvalidOperationException("Restore the session before adding or removing watches.");
-            SessionLoadResult loaded = _sessionStore == null
+            SessionLoadResult loaded = _sessionStore == null || !_persistSession
                 ? new SessionLoadResult(new SessionSnapshot(), null, false)
                 : await _sessionStore.LoadAsync().ConfigureAwait(false);
             if (loaded.Warning != null) warnings.Add(loaded.Warning);

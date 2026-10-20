@@ -119,7 +119,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         try
         {
             await _content.InitializeAsync().ConfigureAwait(false);
-            if (Config.SaveUrlsOnExit) await _registry.RestoreAsync().ConfigureAwait(false);
+            await _registry.RestoreAsync().ConfigureAwait(false);
             lock (_lifecycle)
             {
                 if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
