@@ -269,8 +269,6 @@ jobs:
             cpu: x86_64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    env:
-      MEOWCHAN_PROFILE: ${{ runner.temp }}/meowchan-macos-package/profile
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -293,10 +291,11 @@ jobs:
         run: |
           version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Keep the reviewed ILLink.Tasks lock graph while exposing all runtime Mach-O files.
       - name: Restore native self-contained app with visible runtime libraries
-        run: dotnet restore MeowChan.csproj --artifacts-path artifacts/macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -warnaserror:NU1900
+        run: dotnet restore MeowChan.csproj --artifacts-path artifacts/macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true -warnaserror:NU1900
       - name: Publish native self-contained app
-        run: dotnet publish MeowChan.csproj --artifacts-path artifacts/macos-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=false --output artifacts/macos-publish
+        run: dotnet publish MeowChan.csproj --artifacts-path artifacts/macos-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true --output artifacts/macos-publish
       - name: Validate visible .NET and bundled video runtime before signing
         shell: bash
         run: |
@@ -374,12 +373,15 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     env:
-      HOMEBREW_TEMP: ${{ runner.temp }}/meowchan-homebrew/tmp
-      HOMEBREW_LOGS: ${{ runner.temp }}/meowchan-homebrew/evidence/brew-logs
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
-      MEOWCHAN_PROFILE: ${{ runner.temp }}/meowchan-homebrew/profile
     steps:
       - uses: actions/checkout@v7
+      - name: Initialize private Homebrew paths
+        shell: bash
+        run: |
+          echo "HOMEBREW_TEMP=$RUNNER_TEMP/meowchan-homebrew/tmp" >> "$GITHUB_ENV"
+          echo "HOMEBREW_LOGS=$RUNNER_TEMP/meowchan-homebrew/evidence/brew-logs" >> "$GITHUB_ENV"
+          echo "MEOWCHAN_PROFILE=$RUNNER_TEMP/meowchan-homebrew/profile" >> "$GITHUB_ENV"
       - name: Record native Homebrew source-build inputs
         shell: bash
         run: |
