@@ -45,10 +45,11 @@
     <AvaloniaResource Include="Assets/**" />
     <None Update="Assets/meowchan.png" CopyToPublishDirectory="PreserveNewest" />
     <None Update="LICENSE;README.md;CHANGELOG.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/native-video-licenses.txt;docs/native-video-sources.md;docs/native-video-source-manifest.json;docs/macos-signing.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="docs/Help.md;docs/platform-support.md;docs/Registry.md;docs/Downloader.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="Desktop/Localization/README.md;docs/releases/v0.9.0.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/screenshots/v0.9.0-downloads.png;docs/screenshots/v0.9.0-gallery.png;docs/screenshots/v0.9.0-archive.png;docs/screenshots/v0.9.0-export.png;docs/screenshots/v0.9.0-about.png;docs/screenshots/README.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/screenshots/v0.9.0-downloads.png;docs/screenshots/v0.9.0-gallery.png;docs/screenshots/v0.9.0-reader.png;docs/screenshots/v0.9.0-archive.png;docs/screenshots/v0.9.0-export.png;docs/screenshots/v0.9.0-about.png;docs/screenshots/README.md" CopyToPublishDirectory="PreserveNewest" />
     <None Include="tests/MeowChan.DesktopSmoke/README.md" CopyToPublishDirectory="PreserveNewest" />
     <None Include="libmeowchan/README.md" CopyToPublishDirectory="PreserveNewest" />
     <None Include="samples/LibMeowChan.Consumer/README.md" CopyToPublishDirectory="PreserveNewest" />

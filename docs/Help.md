@@ -10,16 +10,64 @@ preparation; see the [release notes](releases/v0.9.0.md) for acceptance limits.
 1. Choose the archive for your OS and CPU on the [releases page](https://github.com/tfgrass/MeowChan/releases). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` on Linux, or `MeowChan.app` on macOS. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. macOS packages are unsigned and not notarized; native package validation remains open. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
-4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause stops new checks/transfers while already running work finishes.
-5. Open Archive. Select the thread to inspect it, double-click its card or row to open its gallery, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open their gallery on double-click; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
+4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
+5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
+
+### Board admission and exclusions
+
+The board-admission wizard is enabled by default. Before adding a pasted batch,
+it previews catalog threads and lets you filter literal, case-insensitive text in
+the title, opening post or both, then adjust individual checkboxes. Includes match
+any include rule; any exclude wins, with explicit per-thread choices overriding
+text rules. Preview shows reasons and counts. It uses catalog metadata, without
+fetching every thread or downloading media. Cancelling cancels the whole pasted
+batch before any watch is added.
+
+Removed board threads remain durably excluded until explicitly reactivated.
+Editing a board's filters affects future admissions: existing watches continue
+and are not silently removed. The wizard labels existing manual/discovered
+watches. **Monitor all** clears the current board's text rules while retaining
+individual exceptions and removed-thread exclusions. Bypassing future previews
+is a separate explicit setting. Policies/exclusions persist independently of
+Save URLs on exit.
+
+### Selection and shortcuts
+
+Use mouse selection with Shift for a range and Ctrl (Command on macOS) to add or
+remove individual entries. Context menus expose actions for the selection,
+including copying URLs, removing watches and exporting selected threads. Delete
+removes selected watches. Enter opens the actually focused lead thread in the
+reader; Shift+Enter opens that thread’s gallery. These open actions target one
+focused thread, while batch commands act on the selection. Text fields and embedded controls keep their own
+keys. Removing a watch preserves the archive; removed board threads stay excluded
+from discovery until reactivated. In the Board
+list only, **Ctrl/Cmd+Shift+R** opens **Filter / exclusions…**
+(**Filter / Ausschlüsse…**) for the focused board. Text fields and modal dialogs
+keep their own keyboard input.
 
 ## Images, search and navigation
 
+The [interface screenshots](screenshots/README.md) show the reader, gallery and
+archive. The controls below describe the current 0.9.0 interface.
+
+Choose **Read posts** to open the large thread reader across the work area, with
+readable posts and embedded media. Up/Down moves exactly one post. Left/Right
+moves through the frozen current thread list/search in its sort order, across
+pages, without wrapping. A single thread opened without that scope has no global
+thread sequence. Input fields keep their native arrow-key behavior.
+
 The gallery uses the window's full work area. Left/Right or its navigation buttons
-move between images. Use Fit, 1:1, +/− or the mouse wheel to zoom; drag a zoomed
-image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
+move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
+Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
+the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
 Show context to read the associated saved post and available local references.
 A media-only item can have no captured post.
+
+When you open from reader post A, navigate to a medium associated with saved post
+D and close the gallery, return to the large reader at D. If the current medium
+has no saved post association, keep the previous reader anchor; do not infer a
+post from its filename. Opening from a search/media list keeps a separate return
+path: closing restores its query, filters, page, scroll and focus.
 
 Archive offers thread cards/table and saved-media rows/tiles. Double-click or
 Enter on a focused media row/tile opens that exact item, using the current media
@@ -35,14 +83,29 @@ new archive arrivals does not silently replace an already opened sequence;
 close and reopen to take a new result snapshot.
 
 Built-in image views support PNG, JPEG, GIF, WebP and BMP when the decoder accepts
-the file. Animated files show a still first frame; the gallery is not a video or
-audio player. Files above 64 MiB or 80 million source pixels are refused by the
-gallery. Fit decoding is bounded to 16 million pixels; 1:1 may need substantially
+the file. Animated files show a still first frame. Image previews above 64 MiB
+or 80 million source pixels are refused by the gallery. Fit decoding is bounded to 16 million pixels; 1:1 may need substantially
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
 
+### Local video
+
+The gallery includes a bounded LibVLC player for local video, including WebM.
+Linux uses system LibVLC and suitable plugins; missing libraries/codecs should
+produce a clear diagnostic instead of a bitmap error. Windows/macOS use official
+VideoLAN native assets. A self-contained .NET package includes .NET, and does not
+by itself supply the native VLC libraries/plugins. See the [platform record](platform-support.md) for native package/playback
+evidence and limits; audio, GPU and other OS coverage must be assessed there.
+
 ## Missing media and finished threads
+
+Full Pause applies globally to source checks, media transfers and manual retries.
+It waits for active cancellation before reporting a settled pause. Verified files
+remain saved; unfinished transfers are retained for Resume and restart from the
+beginning. Requested pause cancellation is not a failure or new retry attempt.
+Pause does not reset failure history or extend a terminal deadline; byte-range
+resume is not implemented.
 
 A media 404 pauses automatic retry for **15, 30, 60, 120, then 240 minutes** after
 successive failures; subsequent pauses remain at least 240 minutes. The displayed
@@ -93,6 +156,19 @@ Open `index.html` in the result folder in a browser. Copy the **entire folder** 
 another machine for portable offline reading. Keep its metadata file for future
 association and updates. A failure to open the system folder does not invalidate
 an otherwise successful export. Exports are not a full profile backup.
+
+### Combined export of selected threads
+
+Export a multi-selection as one offline folder: `index.html` is the landing page,
+individual thread pages live under `threads/`, and verified media are pooled under
+`media/`. Each member shows its captured read time; the export does not claim a
+single simultaneous snapshot across threads. Only saved local data are used.
+
+The dialog recognizes an earlier export of the same ordered selection. Choose a
+new folder or explicitly update an inspected result. Changing the selection
+requires a new folder. Updates check identity/generation and observed content;
+modified/extra files or reduced posts/media require a retained backup. Copy the
+whole folder for portable reading. This combined export is part of 0.9.0.
 
 ## Upgrading and backups
 

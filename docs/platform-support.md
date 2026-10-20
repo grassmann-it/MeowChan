@@ -43,13 +43,22 @@ reopening after cleanup. A separate process blocked `libvlc` loads via a local
 `missing-backend-result.json`; screenshot `screenshots/frame-1.png` visibly shows
 native video and the sibling toolbar. The harness injected an engine configured
 for dummy audio/software video; real audio/GPU and extracted-package playback
-still require their own evidence. Windows/macOS redistribution additionally
-requires the corresponding-source/contrib-notice gate in
-[third-party notices](../THIRD-PARTY-NOTICES.md).
+still require their own evidence. Windows redistribution uses the
+[companion-source and notices mechanism](native-video-sources.md), with the
+source asset published alongside the binary ZIP. macOS source/signing acceptance
+remains separate, as recorded in [third-party notices](../THIRD-PARTY-NOTICES.md).
+
+The separate [macOS signing procedure](macos-signing.md) records the required
+Developer ID, native-plugin signing, hardened runtime and notarization steps.
+It does not claim that those steps have been performed.
 
 ## Current 0.9.0 preparation
 
-MeowChan 0.9.0 is unreleased. The package names and hashes recorded below belong to earlier source checkpoints, before the complete product rename; they are historical local artifacts, not current MeowChan release candidates. The five current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md). The final candidate package matrix remains to be made and validated. Current published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
+Stable MeowChan 0.9.0 is in preparation. [Windows x64 Preview 1](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.1) is the compatibility-test preview, bundling .NET 10 and VLC. Extract the whole ZIP and launch `MeowChan.exe`. Native Windows execution and playback remain to be tested. The six current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md).
+
+**Latest product-source checkpoint — `8d31f2c`, 2026-10-20:** locked Release restore passed; the Release solution build completed with **0 warnings and 0 errors**; **627/627 Core and 141/141 Desktop tests passed, none skipped** (768 total). The default Debug build also completed with **0 warnings and 0 errors**. These are source checks, not native Windows package acceptance.
+
+The package names, hashes and results in the historical checkpoint sections below describe their respective earlier source revisions. They do not validate the current preview or final five-platform package matrix. Published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
 
 0.9.0 adds Simple, Advanced and Barebones views, local archive/search, a shared gallery, durable missing-media follow-up and compact repeat HTML export alongside appearance/language preferences and batch URL admission. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
 
@@ -59,7 +68,7 @@ The subsequent compact-layout/menu-contrast correction passed a Release build wi
 
 **Linux tray lifecycle correction:** The 14/15 layout checkpoint above is historical. Avalonia 11.3.22 could continue asynchronous DBus tray creation after disposal removed its handler. Commit `53162b9` upgrades to Avalonia 12.1.4, which includes [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980), with Actipro 26.2.0, DataGrid 12.1.2 and the transitive Tmds.DBus.Protocol 0.94.1. Icons now attach to the application's collection as required by Avalonia 12, and each window removes its entry on shutdown. The previous direct DBus pin is removed; locks and licensing notices are refreshed.
 
-**Current pages and local source evidence:** `0bbbfd5` extracts the shared settings editor, and `ae1b3f9` adds retained Downloads/Settings pages in one shell. Save/Cancel remain on Settings; footer actions preserve unrelated draft fields. The final source in `53162b9` passed 457 .NET tests and the 22 macOS-packaging fixtures. All six native Linux scenarios passed at measured 100%, 150% and 200%: **18/18**, retained in `artifacts/ap13-pages-final-scale-{100,150,200}`. The new tray-lifecycle scenario checks 16 rapid native windows per scale, confirms actual native tray attachment, checks collection cleanup and reacquires each profile lease. Normal mode also covers invalid draft navigation, footer failures, accepted save/picker shutdown, language refresh and small Settings pages; the download scenario completes media while Settings is visible and retains both page states.
+**Historical pages and local source evidence — `53162b9`:** `0bbbfd5` extracts the shared settings editor, and `ae1b3f9` adds retained Downloads/Settings pages in one shell. Save/Cancel remain on Settings; footer actions preserve unrelated draft fields. The final source in `53162b9` passed 457 .NET tests and the 22 macOS-packaging fixtures. All six native Linux scenarios passed at measured 100%, 150% and 200%: **18/18**, retained in `artifacts/ap13-pages-final-scale-{100,150,200}`. The new tray-lifecycle scenario checks 16 rapid native windows per scale, confirms actual native tray attachment, checks collection cleanup and reacquires each profile lease. Normal mode also covers invalid draft navigation, footer failures, accepted save/picker shutdown, language refresh and small Settings pages; the download scenario completes media while Settings is visible and retains both page states.
 
 The local host logged unavailable AT-SPI/global-menu services as warnings; native accessibility/global-menu integration is not established by that evidence. The Xvfb attempt at that checkpoint was unavailable because the tools were not installed. They have since been provided as verified, locally extracted Manjaro packages; the new isolated evidence is recorded separately below.
 

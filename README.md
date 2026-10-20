@@ -10,7 +10,7 @@
 
 MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
-Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Version **0.9.0 is in preparation and has not been released**; current releases are historical builds with their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
+Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Stable **0.9.0 is in preparation**. The Windows x64 compatibility test is [0.9.0 Preview 1](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.1), with .NET 10 and VLC included; native Windows compatibility remains to be tested. Older releases retain their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
 
 ## Quick start
 
@@ -21,25 +21,29 @@ The steps below describe the 0.9.0 interface and candidate launchers. Published 
 1. [Download a published build](https://github.com/tfgrass/MeowChan/releases) and extract the **whole archive**. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
-4. Open Archive to find saved content. Double-click a thread for its gallery; right-click for Read posts or Export as HTML. Copy an entire exported folder for offline reading elsewhere.
+4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
 
-## Downloads, gallery and archive
+## Downloads, gallery, reader and archive
 
 [![MeowChan Downloads in Simple Dark view with saved, active and paused media](docs/screenshots/v0.9.0-downloads.png)](docs/screenshots/v0.9.0-downloads.png)
 
-Downloads keeps watched threads and their saved/selected media progress together.
+Downloads keeps watched threads and their saved/selected media progress together. Details show a temporary media 404 and its earliest retry while the thread remains watched.
 
 [![MeowChan gallery showing a saved landscape with navigation, zoom and captured post context](docs/screenshots/v0.9.0-gallery.png)](docs/screenshots/v0.9.0-gallery.png)
 
 Browse local images at Fit or 1:1, zoom and pan, and show the associated captured post.
 
+[![MeowChan full-window offline reader with a large saved image, readable post text and post/thread navigation](docs/screenshots/v0.9.0-reader.png)](docs/screenshots/v0.9.0-reader.png)
+
+Read captured posts at full window size, with large local media and navigation between posts and threads.
+
 [![MeowChan Archive with local search results and saved-media tiles](docs/screenshots/v0.9.0-archive.png)](docs/screenshots/v0.9.0-archive.png)
 
-Find retained threads and media offline. Images of results includes all result pages in their current order.
+Find retained threads and media offline. Open images from all matching threads across every results page.
 
-These scenes use original offline demo artwork and synthetic posts in the real application through an isolated Linux Xvfb/Openbox harness, at 100% scaling with software rendering. Downloads uses passive example states; archive, gallery and export use persisted local data. They do not demonstrate live source availability or native package acceptance. Supplementary captures show [repeat HTML export](docs/screenshots/v0.9.0-export.png) and [About with the MeowChan cat](docs/screenshots/v0.9.0-about.png). See the [image provenance](docs/screenshots/README.md).
+These scenes show the integrated interface using original offline demo artwork and synthetic posts, captured through an isolated Linux Xvfb/Openbox harness at 100% scaling with software rendering. Downloads uses passive example states; archive, gallery, reader and export use persisted local data. The captures do not demonstrate live source availability or native package acceptance. Supplementary captures show [repeat HTML export](docs/screenshots/v0.9.0-export.png) and [About with the MeowChan cat](docs/screenshots/v0.9.0-about.png). See the [image provenance](docs/screenshots/README.md).
 
 ## What's new in 0.9.0
 
@@ -91,7 +95,7 @@ Selecting **Add** with an empty field reads the clipboard once. Explicit input u
 
 Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
 
-Double-click a thread row to open its gallery. Board rows open details. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
+Double-click a thread row to open the large reader. Shift+Enter or the context menu opens its gallery. Board rows open details. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
 Progress measures saved media against currently selected media, with rule exclusions shown separately; it does not measure transferred bytes. The known count can grow, and reaching 100% does not stop monitoring. Queued and active counts describe media jobs, not watched threads. An archived source does not imply that a local HTML archive exists. Rate limits and temporary HTTP failures are retried within bounded limits; cancellation waits for active work to stop.
 
@@ -105,6 +109,22 @@ Media is stored under:
 
 Completed media is verified and recorded in a manifest. Files are published atomically; unrelated files are preserved. Interrupted transfers restart from the beginning. Removing a board stops discovery while its existing threads continue. Removing a thread also suppresses its automatic rediscovery; explicitly adding its URL allows it again.
 
+### Selection, board intake and full pause
+
+Use Shift/Ctrl (Command on macOS) multi-selection and
+context actions for selected watches/exports. Delete removes the selection. Enter reads the actually focused lead thread and
+Shift+Enter opens that thread’s gallery; these open actions do not process the
+whole selection. Inputs retain their own keys. In the Board list only,
+Ctrl/Cmd+Shift+R opens **Filter / exclusions** for the focused board.
+Board intake previews catalog threads by default, with literal title/opening-post
+filters, reasons and per-thread choices. Cancel leaves the whole pasted batch
+unadded. Removed board threads stay durably excluded until reactivated; filter
+changes affect future admissions while existing watches continue.
+
+Full Pause cancels active source checks and transfers, showing Pausing until they
+quiesce. Resume retries unfinished work while keeping verified files and existing
+retry/deadline history. See the [user guide](docs/Help.md#board-admission-and-exclusions).
+
 ## Archive, rules and diagnostics
 
 The Archive page lists locally registered threads and reads captured posts and manifest-recorded original media. New threads capture posts by default; older restored watches start media-only unless capture was already enabled. Use the archive's capture action to change that preference explicitly. Removing a watch or disabling capture preserves the existing archive. The reader retains observed posts even when they disappear from later source responses; it cannot recover posts that were never captured.
@@ -113,9 +133,21 @@ The Archive page lists locally registered threads and reads captured posts and m
 
 Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Images of results** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
 
-The gallery uses Left/Right, Fit/1:1, +/− and mouse-wheel zoom. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes it. PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still first frame. Video/audio playback is not provided. Files above 64 MiB or 80 million source pixels are refused; Fit buffers are bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
+A large reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys.
+
+In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the large reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
+
+PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still first frame. Image previews refuse files above 64 MiB or 80 million source pixels; Fit buffers are bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
+
+The preview includes a bounded LibVLC player for local media. Linux uses system LibVLC with library/plugin diagnostics; Windows/macOS use official VideoLAN native assets. The self-contained .NET runtime is separate from these native requirements. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
 
 ### Portable HTML export
+
+A multi-selection can also create one combined folder with a landing page,
+individual thread pages and shared verified media. Smart repeat export recognizes
+the same ordered selection for explicit update or a new folder; a changed
+selection starts a new export. Member read times remain separate, rather than
+claiming one simultaneous capture. See [combined exports](docs/Help.md#combined-export-of-selected-threads).
 
 Export a thread from Archive or its reader. Only captured posts and matching verified saved originals are included; export never fetches remote content. Media-only threads export as a gallery. Copy the **entire folder** and open its `index.html` for portable offline reading.
 

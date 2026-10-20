@@ -1,0 +1,2323 @@
+{
+  "vlc_commit": "6de05adcbaf2e8b85fe86aad4169393098628119",
+  "vlc_release": "3.0.24",
+  "inputs": [
+    {
+      "kind": "source archive",
+      "name": "AMF-1.5.2.tar.gz",
+      "bytes": 83716,
+      "sha256": "d3c12eb324edf05e214608b6a395a51dd95770ed9d45520185d6c3a206811c99",
+      "licenses": [
+        "amf-headers-v1.5.2/AMF/core/Platform.h"
+      ],
+      "sha512": "b992d4a1f59f7b1c789d03e7bd9876417a569fb239bfe2e2178f2434ae18653bbacc912de2b8a5f8ff0a85fad28b0c1091c2a8d3417407a37c22c1e907e4c159",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/amf/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "GrowlSDK-2.0.1-src.tar.gz",
+      "bytes": 19225401,
+      "sha256": "08f4131cfa8d554237f83f7c68cbab2164f0a3df48e2ba7b9ac94969fc3e5630",
+      "licenses": [
+        "GrowlSDK-2.0.1-src/Core/Resources/Starwl.growlStyle/license",
+        "GrowlSDK-2.0.1-src/Developer Tools/Growl Registration Dictionary Editor/LICENSE.txt",
+        "GrowlSDK-2.0.1-src/Extras/Capster/LICENSE.txt",
+        "GrowlSDK-2.0.1-src/License.txt",
+        "GrowlSDK-2.0.1-src/Plugins/Actions/MailMe/License.txt",
+        "GrowlSDK-2.0.1-src/external_dependencies/SGHotKeysLib/LICENSE.txt",
+        "GrowlSDK-2.0.1-src/external_dependencies/cocoalumberjack/LICENSE.txt",
+        "GrowlSDK-2.0.1-src/external_dependencies/iso8601parser/LICENSE.txt",
+        "GrowlSDK-2.0.1-src/external_dependencies/tmslidercontrol/License.rtf"
+      ],
+      "sha512": "0e387977ade9a7475ddec3711b60842349521be5c9b60849f443f9819675cb0f490ce91d7a2092ee70288b48feb49988367ab030c30395ece8a1098d2ac811c0",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/growl/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "LibVNCServer-0.9.15.tar.gz",
+      "bytes": 600387,
+      "sha256": "62352c7795e231dfce044beb96156065a05a05c974e5de9e023d688d8ff675d7",
+      "licenses": [
+        "libvncserver-LibVNCServer-0.9.15/COPYING"
+      ],
+      "sha512": "3ad7e14eef3b591574714e320257ac465778e05bd157ddff09e48b990f35890bfa6883ce4ac027fcb08dccd96f721117d56aaee681482f7643cfee9adc59804b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/vncclient/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "SDL3-3.4.10.tar.gz",
+      "bytes": 15606216,
+      "sha256": "12b34280415ec8418c864408b93d008a20a6530687ee613d60bfbd20411f2785",
+      "licenses": [
+        "SDL3-3.4.10/LICENSE.txt",
+        "SDL3-3.4.10/src/hidapi/LICENSE-bsd.txt",
+        "SDL3-3.4.10/src/hidapi/LICENSE-gpl3.txt",
+        "SDL3-3.4.10/src/hidapi/LICENSE-orig.txt",
+        "SDL3-3.4.10/src/hidapi/LICENSE.txt",
+        "SDL3-3.4.10/src/video/yuv2rgb/LICENSE",
+        "SDL3-3.4.10/test/COPYING",
+        "SDL3-3.4.10/test/LICENSE.txt"
+      ],
+      "sha512": "a66366071aa5dcc5949c3f48b2041dff8850cd05917c1ba5f6ae251e9eef3277d31884fe020251388051887c8c1587cd80457a02bdb96c11eb41065ac9f69958",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/sdl/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "SDL3_image-3.4.4.tar.gz",
+      "bytes": 11123077,
+      "sha256": "29751304a13d25ac513f24305fa25b06a6edd9607718c90129b8350d35fc5573",
+      "licenses": [
+        "SDL3_image-3.4.4/LICENSE.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.aom.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.avif.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.dav1d.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.libpng.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.tiff.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x64/LICENSE.webp.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.aom.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.avif.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.dav1d.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.libpng.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.tiff.txt",
+        "SDL3_image-3.4.4/VisualC/external/optional/x86/LICENSE.webp.txt",
+        "SDL3_image-3.4.4/Xcode/iOS/SDL3.framework/LICENSE.txt",
+        "SDL3_image-3.4.4/Xcode/macOS/SDL3.framework/Versions/A/Resources/LICENSE.txt"
+      ],
+      "sha512": "1d0482e4ddc813111bfe539c0916866517225a76a462d46e764123947b5d0e2653dc64a03843ccd12eb8ce7fa122a257f077a3cac8983bf6ab4042863f4cb8c5",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/SDL_image/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "Sparkle-1.16.0.zip",
+      "bytes": 9001519,
+      "sha256": "ca389d8941601a0bef5b222ec93669a769047282e859d66e83c0ce09363b4244",
+      "licenses": [
+        "Sparkle-1.16.0/LICENSE"
+      ],
+      "sha512": "5ed418c48878d4304f2d0bbdcf2e1bfafbe0cde57d4f4e294bd1e60a23dab76d86a0b5d393ed12d1d7c144e470d004a994ad76f46765bcc789d0e43035b9ab2a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/sparkle/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "a52dec-0.7.4.tar.gz",
+      "bytes": 241507,
+      "sha256": "a21d724ab3b3933330194353687df82c475b5dfb997513eef4c25de6c865ec33",
+      "licenses": [
+        "a52dec-0.7.4/COPYING"
+      ],
+      "sha512": "4b26fe9492f218b775fb190b76ecf06edaeb656adfe6dcbd24d0a0f86871c3ba917edb88a398eb12dccedaa1605b6f0a0be06b09f9fddd9a46e457b7dd244848",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/a52/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "aribb24-1.0.3.tar.gz",
+      "bytes": 57378,
+      "sha256": "f61560738926e57f9173510389634d8c06cabedfa857db4b28fb7704707ff128",
+      "licenses": [
+        "aribb24-1.0.3/COPYING"
+      ],
+      "sha512": "622cc0c3928fd6db0b5ab3921f27348c956af20f8c0133ad5d9bf4de3d199077d9f23cc86ae149a9f0d13c7ee5906ec95de3fb8388207160cebd1f0c59078c8f",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/aribb24/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "aribb25-0.2.7.tar.gz",
+      "bytes": 367883,
+      "sha256": "a437d3b7975db1732c18dcdc66f92bb11e21f0a0b33b95fab4e60f3a40508301",
+      "licenses": [
+        "aribb25-0.2.7/LICENCE"
+      ],
+      "sha512": "24eda8c610bb8775847420023d2a35135fbcd03296cb69c80b1f8745bb6c1ee5f33199ed980d86e6c9f26a6ca3a2029b16ca2c6ab36fdbfd91a3f69cca5f3dad",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/aribb25/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "asdcplib-rel_2_13_2.tar.gz",
+      "bytes": 443888,
+      "sha256": "ee40998f737d5751cf9157c4c416f2ef4f63fc5bdae579afefbb91a3265e6039",
+      "licenses": [
+        "asdcplib-rel_2_13_2/COPYING"
+      ],
+      "sha512": "aa98f3a3dfc2d19e9dbe7aaeb487201a09ec658a9cd1a48f88443993a69f6951a43ca4788ef52120ce8604aa72e8f134af6a9656106a64a8b660baa5c4a79a1f",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/asdcplib/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "breakpad-0.1.3.tar.gz",
+      "bytes": 4804021,
+      "sha256": "97c2e3e770446649d10d3fbfbc2dafba8034290e20fbbdbea7be792f16c01590",
+      "licenses": [
+        "breakpad-0.1.3/LICENSE",
+        "breakpad-0.1.3/src/third_party/curl/COPYING",
+        "breakpad-0.1.3/src/third_party/libdisasm/LICENSE",
+        "breakpad-0.1.3/src/third_party/musl/COPYRIGHT"
+      ],
+      "sha512": "63b4e963d46eaf1ca3e4d0a93f5e02282992b48a730da613e987fcbd3d0135f8cfea32a52014e4e0e76ddabe1879950e110b4067b49e46f6fd739cbc7f461e0e",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/breakpad/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "chromaprint-1.6.0.tar.gz",
+      "bytes": 1577695,
+      "sha256": "9d33482e56a1389a37a0d6742c376139fa43e3b8a63d29003222b93db2cb40da",
+      "licenses": [
+        "chromaprint-1.6.0/LICENSE.md",
+        "chromaprint-1.6.0/src/3rdparty/googletest/LICENSE",
+        "chromaprint-1.6.0/src/3rdparty/kissfft/COPYING"
+      ],
+      "sha512": "517936826be34f492a63677b0f009985a802432ed906d08f9e6d48ef6fc67744a8f8bef579407eecc49d1948430442b7505445e8674389c17bb9e18ac1d259cf",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/chromaprint/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "crystalhd_lgpl_includes_v1.zip",
+      "bytes": 24169,
+      "sha256": "818d72fdbebcfc0a449d9e39153370c80325f2490798f82f1ed98c6bb60bc18c",
+      "licenses": [
+        "bc_drv_if.h"
+      ],
+      "sha512": "26a7443b8f3867742b519fac13552e0b4e7b8d5310223b5c73160a679ed777d7917b6d9ac0ed5629f23baa7d9db98425dd1d90c2893f9640c7890aebab4867db",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/crystalhd/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d11.h",
+      "bytes": 463136,
+      "sha256": "7081da1c5bd126703f0d187f59a5a03464963285bef8cc9732e63cfa382b4374",
+      "licenses": [],
+      "sha512": "47f35cd2cc5429f50bcc468af8fb5282e59840f1faca29b90fa2b12e2224e8b9631523d2555d15936fc7722d6adf7285bd10e80d359f38d3bedfd1a809b6df00",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d11_1.h",
+      "bytes": 249308,
+      "sha256": "96eb5f5f75f002206d00c0a191d464d029c4d4175052bc36fac1b378ea65403d",
+      "licenses": [],
+      "sha512": "d309fc35b655213673ca2e79776a41088009cca845a7fe1968f0683093587de771039a3f2acd59f778e382ddb558309f728bbebbc4ffd1cfacc08bf57a223a89",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d11_2.h",
+      "bytes": 133328,
+      "sha256": "8fb822fe8c01a847851f25bceaf4a3106b3da51e4cc38eb7f35c6dbb25e324c7",
+      "licenses": [],
+      "sha512": "9cd0805fb4ede1b6269455ac44f309b1f3e60a64c401e157f9866ce41427324c05717f3dc166aef12bd865ffca0c96696de8a9e4b549836a47c322aeae955f4e",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d11_3.h",
+      "bytes": 285631,
+      "sha256": "a02ce06264a437c6b823032e48c957b0ec09617a684161f99c87d3b64e4f90b8",
+      "licenses": [],
+      "sha512": "5c9b2d3ca071d555f61d45c839b3a474a8e3a440cb386c65303f0e9c95da74565ac7bdc6430582bdd506c192fc259707f10fd2b111ca0374e487e6bbd5ffc3ee",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d11_4.h",
+      "bytes": 147769,
+      "sha256": "155ac8d7b8b03f417cd22cb918a2a128679bd626ac93765b0903a187e070cec3",
+      "licenses": [],
+      "sha512": "f87eadc5c9a16a2e38d6a5615bd4e6d338df6a8b35879f315bcec39c876ebe9be47b0ce4174a5c259e6166895352a2403e503ae852218702fd7ed97b7aa3b142",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d9.h",
+      "bytes": 161598,
+      "sha256": "16c7ff6d9cbb6ffbf3529fbe9a7745d6995c6b77fbeb0278c229c594d8774502",
+      "licenses": [],
+      "sha512": "8f13fea86872a8736e0802ac5900a39e2c93c2811de8dd6bcf26edac5daad2d8d137bd255f44c36ef11b0ea5bc241676aac8fda060b5f6fd737dd9697e4f7857",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d9/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "d3d9caps.h",
+      "bytes": 21050,
+      "sha256": "0c8dc96d539e575b4a28f2b8d20f4a89dc9e74536a7501bb0d48a367ba45676f",
+      "licenses": [],
+      "sha512": "8acaaa8d62e5844e5fe42fc71a4337b6b8133ff13bfb2db0402474c9241cd70a50c942f0348d167ef6890fea593186f5505bd03ddc10a3fbbd8f34a8858d7a65",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d9/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "daala-e248823a04292a8c2f56aa260f5c0b369d41d64e.tar.xz",
+      "bytes": 1129948,
+      "sha256": "5e2d54fcb61c6d684c5b0b4cedf26a0733e67715738f1d8bd0971e21bdac7ce7",
+      "licenses": [
+        "daala-e248823a04292a8c2f56aa260f5c0b369d41d64e/COPYING",
+        "daala-e248823a04292a8c2f56aa260f5c0b369d41d64e/win32/Dependencies/COPYING"
+      ],
+      "sha512": "bf6f614ba842fe2af41cc92b380115958b1ae74afd33c5041c6969ff361ba9b91c93ff7c519f9b440b9d903adf7526d520dc191dac689a82530cbc98b2f991a6",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "e248823a04292a8c2f56aa260f5c0b369d41d64e",
+        "passed": true,
+        "evidence": "daala-e248823a04292a8c2f56aa260f5c0b369d41d64e.githash"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "dav1d-1.5.4.tar.xz",
+      "bytes": 1038852,
+      "sha256": "686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5",
+      "licenses": [
+        "dav1d-1.5.4/COPYING"
+      ],
+      "sha512": "75ab7c922bc9647d73534c9f6c95a514748557adbf7a4debf95eee52ef1db681012cbaad165a46141d904cdd01c1e6319cdea33d254afb5c6b3d968679e55b98",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dav1d/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi.h",
+      "bytes": 98855,
+      "sha256": "b131631e9c8566a7a633687c8a9cba16d3c296cebb17dabc4b213d81b518cede",
+      "licenses": [],
+      "sha512": "cb0120badd7671f0cda1055971554950fc39c77e92c1acc2ab98f8c9e0398456799d2fb49a3c73e4d4452deaffd551d8754ad0665803feb3cf0711841e297c1c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi1_2.h",
+      "bytes": 89657,
+      "sha256": "2da68f9332da7a3a33fda1a2a76f378ce9fb0bbff038627db19cccf4fb20937f",
+      "licenses": [],
+      "sha512": "3d1fa12e80b8ce7d54568439b1229b08356ba07b8d35a73971b9ba9fe8efe2b3e05e05bf343663fc921d421a0deb4b2355af49a6dbf20d30e7fafdc898537510",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi1_3.h",
+      "bytes": 82385,
+      "sha256": "f72123d319a4aa9e817a1d832dbfc3099fc831e2241c6d23ba7f71a4de9bef61",
+      "licenses": [],
+      "sha512": "b843e74266fdfdf4b6fdb121d75db441c48ab09282e20b1b9b81d816e9f2130b1404e9e4065bae69868e32b687c58a13d83f057a882b8cb4f897944b6330a22a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi1_4.h",
+      "bytes": 59125,
+      "sha256": "cae975f1bdc9178118f3f53f7450e65be1a4dbd55b509c3c7c6cc3d85ce974ee",
+      "licenses": [],
+      "sha512": "22c658dc1a9c1a047f429cc27b46b81c42f0d44e35b5936dcfb74ed3d1dcd5aae53beb0a9e3f1285493e2f03ac85544b5bc3d0a91d37ef537a430cbbe89c1173",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi1_5.h",
+      "bytes": 61562,
+      "sha256": "87a05e82915e74aef4aa59d8cd8e7b7138fbcfc9524560843be4d04d79e9504d",
+      "licenses": [],
+      "sha512": "bcbb0b2929a512137b1298b160e265141b8405e336dd347e6131a938edc62f2906e19f1451fef07ecae328824533445a90c8dffe10d3eab1ef5c93219b61a082",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgi1_6.h",
+      "bytes": 60963,
+      "sha256": "dc281e86f5668ebab17a6c9004d346b39106254f9d8001ce7f21fdf955295abd",
+      "licenses": [],
+      "sha512": "5ab157d2c41e9fc070a7eeb31479ffd0d3a259a4cd60b747077fe0e4fcd67aa79da9232058127158316332b0d672e6c78ef224d3c17fdda1307074e4f4f09902",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgicommon.h",
+      "bytes": 2138,
+      "sha256": "051251d8e0a62434fe00fdb2dc32b6809927ec2aa3001ba0b65d5fc8ff64d254",
+      "licenses": [],
+      "sha512": "6c4929f4a4b262d901aa0b1a7b47ffc739ee8e1ecd82f20627c43ad0ee5367aa7c8b6f374a25273b6928d5d1e3c735fbb84404107e6e4d2f2965252a6d91c0c3",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgidebug.h",
+      "bytes": 3850,
+      "sha256": "4fd1b4e618a43fad4a5d7eccd5c1417f7d446a42da263b26ff3a72feb2320aa0",
+      "licenses": [],
+      "sha512": "baa4e380e41467c7d53191756376e8a60b9a2173ab3db08d5736416d89b6ca0b2b9d8eccce24e88731fdfbb9711ac36782a7fac03733de1342684a8557d2efbf",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgiformat.h",
+      "bytes": 5098,
+      "sha256": "69958f34f46d3d05572deaf840b187fb0987ad6f4308321723903111bf957eb5",
+      "licenses": [],
+      "sha512": "3b1ccecaca5223a870a6195d4924908cfbc874d00e4dcb1e6415ec29323a15d36fae410049e86f25462dba996cc033f8ab716d9554c34f01ce061282b93c6f6e",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxgitype.h",
+      "bytes": 2281,
+      "sha256": "dc69a0690da9a11dbe09c20796434e12d9b22d57f684b4379001ced8b06a95d4",
+      "licenses": [],
+      "sha512": "7887819e18867f793448e21e5a2a73305d4685ad2b80a4499b5a5710f2c7d0dc9079184e7e82aa5f1837c7a1b2d621ca392a9b8a903f0d135b29969be51d508a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d11/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source header",
+      "name": "dxva2api.h",
+      "bytes": 67503,
+      "sha256": "6052f217d9c48489cbb6e433096be8ae91dacc57f6f99c552d72dbf187164ec7",
+      "licenses": [],
+      "sha512": "fc601b4279fcc24ff1f0da8a0f451139b00b4c7945d5e7a83e896f6132380cea632a035c150525f36292e2cd7ae31aad56ecad8b1647e1576ae45103fc7cb598",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/d3d9/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "faad2-2.11.3.tar.gz",
+      "bytes": 659176,
+      "sha256": "860ab62087e336c1844a70e33196c1790b525fb9a9e7b6ac4fab1a1a4e4d5ce8",
+      "licenses": [
+        "faad2-2.11.3/COPYING"
+      ],
+      "sha512": "1a468a65b8e738a37b7af5415645e8c45b0c3505fe0794948a6b1f5b17e4f9301c015214584fb534cbfc78f016bfe907a1c88131ab76b728ef1554e4dc7e4551",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/faad2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "ffmpeg-8.1.2.tar.xz",
+      "bytes": 11710924,
+      "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+      "licenses": [
+        "ffmpeg-8.1.2/COPYING.LGPLv2.1",
+        "ffmpeg-8.1.2/COPYING.GPLv2",
+        "ffmpeg-8.1.2/COPYING.LGPLv3",
+        "ffmpeg-8.1.2/COPYING.GPLv3",
+        "ffmpeg-8.1.2/LICENSE.md"
+      ],
+      "sha512": "b3adc16fe426217bb607da01c4137cee0a9788fc08e077874336db185d2b7287746a7dc94cf0181ea92cd8afcdb06094ee9456e2986112354f84538cb9a5ed0b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ffmpeg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "flac-1.4.2.tar.xz",
+      "bytes": 1013700,
+      "sha256": "e322d58a1f48d23d9dd38f432672865f6f79e73a6f9cc5a5f57fcaa83eb5a8e4",
+      "licenses": [
+        "flac-1.4.2/COPYING.FDL",
+        "flac-1.4.2/COPYING.GPL",
+        "flac-1.4.2/COPYING.LGPL",
+        "flac-1.4.2/COPYING.Xiph"
+      ],
+      "sha512": "20bdf0990a7432ac765037764bc8733a0d5646866fe6cc6f4868152d2a051c89676e501012ae489c7f87b3aacb45a5b30265afaca164cf0cf53ac058644a74c5",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/flac/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "fluidlite-b0f187b404e393ee0a495b277154d55d7d03cbeb.tar.xz",
+      "bytes": 555720,
+      "sha256": "d503f4239a2c4038966ac99d2d40167ef1aa27c44866240116af363dd9d0ad90",
+      "licenses": [
+        "fluidlite-b0f187b404e393ee0a495b277154d55d7d03cbeb/LICENSE"
+      ],
+      "sha512": "de0b5ec11dfe94752eccbcefab7fde7c699002e8e0b98a2bfef8bf221dbe439365bda406746b974fb21ff2cf04f8ceff4009790b5abd95faf505bd01acb923ff",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "b0f187b404e393ee0a495b277154d55d7d03cbeb",
+        "passed": true,
+        "evidence": "fluidlite-b0f187b404e393ee0a495b277154d55d7d03cbeb.githash"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "fluidsynth-2.1.8.tar.gz",
+      "bytes": 1369567,
+      "sha256": "a254efceff5d99f8d658d12d25318317f37307e6df852ec9baeb7da173496967",
+      "licenses": [
+        "fluidsynth-2.1.8/LICENSE",
+        "fluidsynth-2.1.8/sf2/COPYRIGHT.txt"
+      ],
+      "sha512": "34f87ea1577b1e89146a1589c67771262961bb18d0c8b21aaa9a1315e18dffc984f18f21cc8a96cc52dca9e94fcad1bdec2b62678c5f2f3434a4faba713854a6",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/fluid/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "fontconfig-2.12.3.tar.gz",
+      "bytes": 1903035,
+      "sha256": "ffc3cbf6dd9fcd516ee42f48306a715e66698b238933d6fa7cef02ea8b3b818e",
+      "licenses": [
+        "fontconfig-2.12.3/COPYING"
+      ],
+      "sha512": "b17725c028be1c5e6f76c136b0ed7db1be7694cbbf217310083512708e05cdc1a824427f89082e6ef259c10297900f26cbe899f7c5762e7662855739f3eff5ea",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/fontconfig/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "freetype-2.14.3.tar.xz",
+      "bytes": 2670220,
+      "sha256": "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f",
+      "licenses": [
+        "freetype-2.14.3/LICENSE.TXT"
+      ],
+      "sha512": "43de86ea70b4b47f6efaae67f3440f65a24ffac29dc6d11203a9764e4f1a749ce1ba7645acd23525220b3ba12ddad8687b962b9f1254e2c0a86070854e85d5a0",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/freetype2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "fribidi-1.0.12.tar.xz",
+      "bytes": 1154912,
+      "sha256": "0cd233f97fc8c67bb3ac27ce8440def5d3ffacf516765b91c2cc654498293495",
+      "licenses": [
+        "fribidi-1.0.12/COPYING"
+      ],
+      "sha512": "cd624f519b270303e89139ced4020115abe3b6a0d774ba57f17fa69c6036edebd76c635a42c468786e76c6ffb0c7d63b435cd2663bc2fba08dec405840dd8e49",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/fribidi/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "game-music-emu-0.6.5.tar.gz",
+      "bytes": 349606,
+      "sha256": "8531678502451c2cf04248cda45c8b4645e19fcfb63e6a7ec2549641c47bb392",
+      "licenses": [
+        "game-music-emu-0.6.5/gme/ext/LICENSE",
+        "game-music-emu-0.6.5/license.gpl2.txt",
+        "game-music-emu-0.6.5/license.txt"
+      ],
+      "sha512": "c28fc36098f5e083ef43cda3f037275d7f071868ab44abf577da3f07bd9f2ffae8a65fa842b060df42baa98ad6b5f42817001749fb3c08a4023dea7334d513e9",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gme/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "gettext-0.26.tar.xz",
+      "bytes": 10061740,
+      "sha256": "d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00",
+      "licenses": [
+        "gettext-0.26/COPYING",
+        "gettext-0.26/gettext-runtime/COPYING",
+        "gettext-0.26/gettext-runtime/libasprintf/COPYING",
+        "gettext-0.26/gettext-tools/COPYING",
+        "gettext-0.26/gettext-tools/gnulib-lib/libxml/COPYING",
+        "gettext-0.26/gnulib-local/lib/libxml/COPYING",
+        "gettext-0.26/libtextstyle/COPYING",
+        "gettext-0.26/libtextstyle/lib/libxml/COPYING",
+        "gettext-0.26/gettext-runtime/intl/COPYING.LIB",
+        "gettext-0.26/gettext-runtime/libasprintf/COPYING.LIB",
+        "gettext-0.26/gettext-tools/tree-sitter-0.23.2/LICENSE",
+        "gettext-0.26/gettext-tools/tree-sitter-0.23.2/lib/src/unicode/LICENSE",
+        "gettext-0.26/gettext-tools/tree-sitter-d-0.8.2/LICENSE",
+        "gettext-0.26/gettext-tools/tree-sitter-go-0.23.4/LICENSE",
+        "gettext-0.26/gettext-tools/tree-sitter-rust-0.23.2/LICENSE",
+        "gettext-0.26/gettext-tools/tree-sitter-typescript-0.23.2/LICENSE"
+      ],
+      "sha512": "544e41c9390695df1c21542842e9ca027a03cb7d4045d8cd759dec1a3dfb624aae900751b458bdb31d6454b37c40c474a952059b884555a03c7c95d6d0e687b1",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gettext/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "glew-2.3.1.tgz",
+      "bytes": 866060,
+      "sha256": "b64790f94b926acd7e8f84c5d6000a86cb43967bd1e688b03089079799c9e889",
+      "licenses": [
+        "glew-2.3.1/LICENSE.txt"
+      ],
+      "sha512": "cb4caecf32ec0f180c2691dc7769ffc99571c64f259a2663a2b80e788f1c2fd5362c59e0caaeefed6fb78a4070366d244666a657358049b09071b59fae2377e0",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/glew/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "glib-2.38.2.tar.xz",
+      "bytes": 6718296,
+      "sha256": "056a9854c0966a0945e16146b3345b7a82562a5ba4d5516fd10398732aea5734",
+      "licenses": [
+        "glib-2.38.2/COPYING",
+        "glib-2.38.2/gmodule/COPYING",
+        "glib-2.38.2/docs/reference/COPYING",
+        "glib-2.38.2/glib/pcre/COPYING"
+      ],
+      "sha512": "f31531060d898dbe05e71ffc4d057f5a703106674e68c28ad2346d227304ef9454736beaf653f27553ed5397caac8baf3d76d3b31b062898762e5cf4e24ff0e0",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/glib/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "gmp-6.3.0.tar.xz",
+      "bytes": 2094196,
+      "sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+      "licenses": [
+        "gmp-6.3.0/COPYING",
+        "gmp-6.3.0/COPYING.LESSERv3"
+      ],
+      "sha512": "e85a0dab5195889948a3462189f0e0598d331d3457612e2d3350799dba2e244316d256f8161df5219538eb003e4b5343f989aaa00f96321559063ed8c8f29fd2",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gmp/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "gnutls-3.8.13.tar.xz",
+      "bytes": 7275324,
+      "sha256": "ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e",
+      "licenses": [
+        "gnutls-3.8.13/COPYING",
+        "gnutls-3.8.13/COPYING.LESSERv2",
+        "gnutls-3.8.13/doc/examples/tlsproxy/LICENSE",
+        "gnutls-3.8.13/lib/accelerated/x86/license.txt",
+        "gnutls-3.8.13/lib/crau/LICENSE",
+        "gnutls-3.8.13/lib/inih/LICENSE.txt"
+      ],
+      "sha512": "71bf189a836fd18d58b9e995d4bfcecdb0aae6129dfd44247b98422b2f127dd868f9905d28fad2ca05afd919a0e6b3c8eebb6b95804067d3a8dab31ebdc72453",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gnutls/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "goom-2k4-0-src.tar.gz",
+      "bytes": 757058,
+      "sha256": "d993c904c05faba87fd7f159291fa1cb7aadcff2edd28454d8e967880a8a0c85",
+      "licenses": [
+        "goom2k4-0/COPYING",
+        "goom2k4-0/gtk-gui-devel/COPYING"
+      ],
+      "sha512": "790e3ab8dee122320ad8b3ae15f6a1cd2780222d5ae97979f614f16ba73b4b853960e7945ef9053ad9eddf9e29e69d0c52f0875d07c5c6c7cee41d764bf4ea5f",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/goom/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "harfbuzz-14.2.1.tar.xz",
+      "bytes": 19559952,
+      "sha256": "a54a5d8e9380a41fbb762ce367bcbf7704792dfca0d93f1bbca86c5a57902e0e",
+      "licenses": [
+        "harfbuzz-14.2.1/COPYING",
+        "harfbuzz-14.2.1/src/ms-use/COPYING",
+        "harfbuzz-14.2.1/test/COPYING",
+        "harfbuzz-14.2.1/test/shape/data/aots/COPYING",
+        "harfbuzz-14.2.1/test/shape/data/text-rendering-tests/COPYING"
+      ],
+      "sha512": "481dca68900e57895d3671baf0595c2d3a26f4f08d0db5662e83089f0d0ff6dc0c28c64c2811eb0f812b0525ed428e90db44f091a88bef47ace2f97d8285b013",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/harfbuzz/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "jack1-0.121.3.tar.gz",
+      "bytes": 459112,
+      "sha256": "2bd7c07dcfedd3e7432cc7f2c556fa84fcee0ef4d6d5e3f9c2535fe9304d3004",
+      "licenses": [
+        "jack1-0.121.3/COPYING",
+        "jack1-0.121.3/COPYING.GPL",
+        "jack1-0.121.3/COPYING.LGPL"
+      ],
+      "sha512": "a52655ca895e37a49a14cb72811f25c65c54bc26ae6d4ce35331b8b85f87905f1be25a88b2efb96c47b344abd0a6bf9371e4043e05ccf91cb08287835e5cc8ac",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/jack/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "jpegsrc.v10.tar.gz",
+      "bytes": 1099508,
+      "sha256": "8b9eaa13242690ebd03e1728ab1edf97a81a78ed6e83624d493655f31ac95ab5",
+      "licenses": [
+        "jpeg-10/README"
+      ],
+      "sha512": "3bdd55d805d76f35cbcd44074e27684a25b40f4811c62374ec9300dde31fa75a17ff3fccfcb8f5947311fa7b07f52dc9cba343562ae4ceb8b3cbe30fda1e4311",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/jpeg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "lame-3.100.tar.gz",
+      "bytes": 1524133,
+      "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+      "licenses": [
+        "lame-3.100/COPYING",
+        "lame-3.100/LICENSE",
+        "lame-3.100/debian/copyright"
+      ],
+      "sha512": "0844b9eadb4aacf8000444621451277de365041cc1d97b7f7a589da0b7a23899310afd4e4d81114b9912aa97832621d20588034715573d417b2923948c08634b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/lame/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libXau-1.0.6.tar.bz2",
+      "bytes": 261501,
+      "sha256": "ee84415ffedcc1c0d39b3a39c35d0596c89907bba93d22bf85e24d21f90170fc",
+      "licenses": [
+        "libXau-1.0.6/COPYING"
+      ],
+      "sha512": "673f6621384388f1ff12274a4d68d95b67e344dab30c2ceb7e96cfa515d0268874a712cfb26c792829b80855a91f0dbc777b16446a8858da28b8d10f3998bc53",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/xau/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libaom-3.15.0.tar.gz",
+      "bytes": 6622801,
+      "sha256": "ea08c38ecc078bc85bb1b691020e52b06250f1a81fe7ca5b624629225081af96",
+      "licenses": [
+        "libaom-3.15.0/LICENSE",
+        "libaom-3.15.0/third_party/fastfeat/LICENSE",
+        "libaom-3.15.0/third_party/googletest/src/LICENSE",
+        "libaom-3.15.0/third_party/highway/LICENSE-BSD3",
+        "libaom-3.15.0/third_party/libwebm/LICENSE.TXT",
+        "libaom-3.15.0/third_party/libyuv/LICENSE",
+        "libaom-3.15.0/third_party/vector/LICENSE",
+        "libaom-3.15.0/third_party/x86inc/LICENSE"
+      ],
+      "sha512": "68712a22e6912cdc16a208a62b4bd3a21fd4840924ed09191a4b85717bb6412b306ef302037e2ec4b524cdfb3c63ea2743671b989d84e45eca9c962eaa4d466b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/aom/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libarchive-3.8.9.tar.xz",
+      "bytes": 6617696,
+      "sha256": "888c934f9d95648ecb9163dc8e23ab80a476ecb81a8f1154704a227b5b676dde",
+      "licenses": [
+        "libarchive-3.8.9/COPYING"
+      ],
+      "sha512": "f37425417a9e3fdc194a2b892137452ddba6601c69e822598692d4d776c573a90e70aac4598d47c915615facc45d0c83fc46c24856ddf04afd7494b63bb9f137",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libarchive/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libass-0.17.5.tar.xz",
+      "bytes": 460148,
+      "sha256": "2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc",
+      "licenses": [
+        "libass-0.17.5/COPYING"
+      ],
+      "sha512": "b9e06023e9f5760ba1946f8dbcd8c411908bc6c77030099098f8252edabd31c98a6523cffb7cccf7b62e12bb374d136600a98e29a7916ccc218100ff694bfb7c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ass/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libbluray-1.4.1.tar.xz",
+      "bytes": 468052,
+      "sha256": "76b5dc40097f28dca4ebb009c98ed51321b2927453f75cc72cf74acd09b9f449",
+      "licenses": [
+        "libbluray-1.4.1/COPYING",
+        "libbluray-1.4.1/contrib/asm/LICENSE.txt",
+        "libbluray-1.4.1/contrib/libudfread/COPYING"
+      ],
+      "sha512": "76d686260b7cceb9e9e0272e4b9c4a815511925240dc4b69107c0816131728912f5cf3d08d5eab769024e024377f6591d1bbd51a459039a521639d569473cec6",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/bluray/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libbpg-0.9.7.tar.gz",
+      "bytes": 2028932,
+      "sha256": "05035862ff4ffca0280261871486f44e74c4af4337c931e0858483551e6efe25",
+      "licenses": [
+        "libbpg-0.9.7/x265/COPYING"
+      ],
+      "sha512": "d7414fc9cd801403e804d28d77c9e842b3f79fcd2e56213fba094b9708f587c5f3cbda1642d140d24d6c2868e2195572088da703d27c79981552c1751a893b0e",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/bpg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libcaca-0.99.beta20.tar.gz",
+      "bytes": 1099916,
+      "sha256": "8ad74babc63bf665b0b2378d95b4da65b7493c11bd9f3ac600517085b0c4acf2",
+      "licenses": [
+        "libcaca-0.99.beta20/COPYING.GPL",
+        "libcaca-0.99.beta20/COPYING.ISC",
+        "libcaca-0.99.beta20/COPYING",
+        "libcaca-0.99.beta20/COPYING.LGPL"
+      ],
+      "sha512": "ab03e6c7d17fd152b2d5e9161799531f5e87322e174cb9d25874700f5bc1acfaf8bc2736e733998dad906f793c5a0304740dd39eec04a5e4c3d181bb109b4f23",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/caca/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libcddb-1.3.2.tar.bz2",
+      "bytes": 352909,
+      "sha256": "35ce0ee1741ea38def304ddfe84a958901413aa829698357f0bee5bb8f0a223b",
+      "licenses": [
+        "libcddb-1.3.2/COPYING"
+      ],
+      "sha512": "0e07e7d37f2013164d75b530a5528f54847271fd20f3b7bedb192a05d1f61dcf006d10dc2927efe155a01eddcc57b940bc31d8ac88d5dfc4f1a09771caa84e0a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/cddb/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdca-0.0.7.tar.bz2",
+      "bytes": 158232,
+      "sha256": "3a0b13815f582c661d2388ffcabc2f1ea82f471783c400f765f2ec6c81065f6a",
+      "licenses": [
+        "libdca-0.0.7/COPYING"
+      ],
+      "sha512": "dae15d77d066687c882833d5bed8d65a585c1fc0277b7276563c89ddd5a83b35389ec94cca445f38af28a9b01430b72647e9afd1b08f030959e711de1a08924a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dca/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdsm-0.4.3.tar.xz",
+      "bytes": 128284,
+      "sha256": "d31921bd6f6a23878266b945731f7d57505472ef85d66f944c43b9f8eacc2a8a",
+      "licenses": [
+        "libdsm-0.4.3/COPYING"
+      ],
+      "sha512": "4abe2318aa5d63397404ce87fc42be30d364dffef3bdf6e081a2bb3ac4f011f39fa8acb5ba06361e94795a308df321b077e7a3cf2ec10d5e1e6c9b912cbbd8ba",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libdsm/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdvbpsi-1.3.3.tar.bz2",
+      "bytes": 488020,
+      "sha256": "02b5998bcf289cdfbd8757bedd5987e681309b0a25b3ffe6cebae599f7a00112",
+      "licenses": [
+        "libdvbpsi-1.3.3/COPYING"
+      ],
+      "sha512": "70f9e783a947e026ea50afe98ad2b3bfce075bd8d76932f73a6253b077a3a180aa632e9a1fff20308e2f0f3f881d727b4e4aad9b8da2b384edf9a3a0f9eacc69",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dvbpsi/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdvdcss-1.4.3.tar.bz2",
+      "bytes": 388404,
+      "sha256": "233cc92f5dc01c5d3a96f5b3582be7d5cee5a35a52d3a08158745d3d86070079",
+      "licenses": [
+        "libdvdcss-1.4.3/COPYING"
+      ],
+      "sha512": "0f9c0244feff5ca62459823810a39ede745b63fedb682707fcbaf0dff11fff42998cef31a281bb6380930123d079780d37a79871f6e628cdca9cfa06c64befb6",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dvdcss/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdvdnav-6.1.1.tar.bz2",
+      "bytes": 367606,
+      "sha256": "c191a7475947d323ff7680cf92c0fb1be8237701885f37656c64d04e98d18d48",
+      "licenses": [
+        "libdvdnav-6.1.1/COPYING"
+      ],
+      "sha512": "889bc987113189bfdfc1ebf603b256e5b228be37196455dcfdc7f66debe18e7298b82b807e86ff18a8925e491395ed4007c87cf18ba1ff1ccc213d86f5342a10",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dvdnav/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libdvdread-6.1.3.tar.bz2",
+      "bytes": 395439,
+      "sha256": "ce35454997a208cbe50e91232f0e73fb1ac3471965813a13b8730a8f18a15369",
+      "licenses": [
+        "libdvdread-6.1.3/COPYING"
+      ],
+      "sha512": "c98055829ccbbe2bb7b5df48f6e279cf6e91ecab39a35c37081581452f7df7531c1d7b8abd641c55eeee357235b2658b31478dbc307995cffdf8c011bd0dd0bc",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/dvdread/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libebml-1.4.6.tar.xz",
+      "bytes": 52424,
+      "sha256": "d06cf1d5ad89390389eeb1eb7d50f70b55ac7538b19aeac8859eed3f2a9908dc",
+      "licenses": [
+        "libebml-1.4.6/LICENSE.LGPL"
+      ],
+      "sha512": "86b469a1c1352e9ea6f581267ab8fc357575f2e410a3a732b12203575744667b152c135cf314978500d6a19fac4ef4015b89fdcfcca43f5bfc49f63e27ecbce2",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ebml/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libffi-3.0.13.tar.gz",
+      "bytes": 845747,
+      "sha256": "1dddde1400c3bcb7749d398071af88c3e4754058d2d4c0b3696c2f82dc5cf11c",
+      "licenses": [
+        "libffi-3.0.13/LICENSE"
+      ],
+      "sha512": "fc47f5d25197c631754efe05a349edb556d072807ecef19b41f17c1a8f39c95221be64926fbd05b1f8439181df1ddff8fc01462ce3a26005b75159ddc27e6f6a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ffi/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libgcrypt-1.12.2.tar.bz2",
+      "bytes": 4441855,
+      "sha256": "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e",
+      "licenses": [
+        "libgcrypt-1.12.2/COPYING",
+        "libgcrypt-1.12.2/COPYING.LIB"
+      ],
+      "sha512": "dc1a4a6c00a0d84d90c8d71f4bd121b968c80df74137d6e8867f1f4cc014a539efb5238c1a1429d7cb95e493a40718fc19252edc592ffe0f43057b372896591c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gcrypt/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libgpg-error-1.61.tar.bz2",
+      "bytes": 1124751,
+      "sha256": "7a85413f2bc354f4f8aa832b718af122e48965e9e0eb9012ee659c13c6385c93",
+      "licenses": [
+        "libgpg-error-1.61/COPYING",
+        "libgpg-error-1.61/COPYING.LIB"
+      ],
+      "sha512": "3e59eb52d061709fd8dfe56a4b36d2d5b49dd5e0c90c283899669d6a355286cb3a3f851631f8456c78c48b652bb31a4c1f8b081ccdf87e5db64b313d141a7670",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gpg-error/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libgsm_1.0.13.tar.gz",
+      "bytes": 65318,
+      "sha256": "52c518244d428c2e56c543b98c9135f4a76ff780c32455580b793f60a0a092ad",
+      "licenses": [
+        "gsm-1.0-pl13/COPYRIGHT"
+      ],
+      "sha512": "0d0cf9e1e81e64cd84f588c1e4f0cb74b849d45e41fdebf860f63588084c73c7c5198bfe73a6c976bda5735ee516661d3db00afbb5cc5886a7ee3a7b31d673aa",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/gsm/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libiconv-1.17.tar.gz",
+      "bytes": 5413283,
+      "sha256": "8f74213b56238c85a50a5329f77e06198771e70dd9a739779f4c02f65d971313",
+      "licenses": [
+        "libiconv-1.17/COPYING.LIB",
+        "libiconv-1.17/libcharset/COPYING.LIB",
+        "libiconv-1.17/COPYING"
+      ],
+      "sha512": "18a09de2d026da4f2d8b858517b0f26d853b21179cf4fa9a41070b2d140030ad9525637dc4f34fc7f27abca8acdc84c6751dfb1d426e78bf92af4040603ced86",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/iconv/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libkate-0.4.1.tar.gz",
+      "bytes": 906896,
+      "sha256": "c40e81d5866c3d4bf744e76ce0068d8f388f0e25f7e258ce0c8e76d7adc87b68",
+      "licenses": [
+        "libkate-0.4.1/contrib/build/win32/copying.txt",
+        "libkate-0.4.1/COPYING"
+      ],
+      "sha512": "2635237753abc0f6c43fc07bd0ecc57c2f3c893efa6c62ad08de9191045612477302ed45acd61cdfea7447efd654ebbe0ed2d6a2cbf867eb834581d7ee43377b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/kate/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libmad-0.16.4.tar.gz",
+      "bytes": 204446,
+      "sha256": "f4eb229452252600ce48f3c2704c9e6d97b789f81e31c37b0c67dd66f445ea35",
+      "licenses": [
+        "libmad/COPYING",
+        "libmad/COPYRIGHT"
+      ],
+      "sha512": "e56b84e112e3a95cd4fde7be1ce94c4a277275da3cc69ca051113162a84158ac9a1fe9c3f2de186202de5eca5c112aacb87533206288a084cf5ba048e6d95c22",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/mad/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libmatroska-1.7.2.tar.xz",
+      "bytes": 63016,
+      "sha256": "f3e4d406daf7f1399962c43940e4a87de089474d5bcfbf2e6ca516e98bb87cfc",
+      "licenses": [
+        "libmatroska-1.7.2/LICENSE.LGPL"
+      ],
+      "sha512": "86b21a0ff3e5149a2824a9f21f9460179d02aecf477f2b9f1f92ce2f991033bd0cb209d81a4aeee2c0c5ffc193dac57a84dd4f529939b12c900f2cfb881618fb",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/matroska/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libmodplug-0.8.9.0.tar.gz",
+      "bytes": 576566,
+      "sha256": "457ca5a6c179656d66c01505c0d95fafaead4329b9dbaa0f997d00a3508ad9de",
+      "licenses": [
+        "libmodplug-0.8.9.0/COPYING"
+      ],
+      "sha512": "880e10154fd367ee24ace53ca7e32a5c1fee7dfff1f934e6499944c12779427da63e2f55f8d6ce25db0a42a5b4424053bf64305b31dbfc4ef6a8909924d655fd",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/modplug/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libmpeg2-0.5.1.tar.gz",
+      "bytes": 524776,
+      "sha256": "dee22e893cb5fc2b2b6ebd60b88478ab8556cb3b93f9a0d7ce8f3b61851871d4",
+      "licenses": [
+        "libmpeg2-0.5.1/COPYING"
+      ],
+      "sha512": "3648a2b3d7e2056d5adb328acd2fb983a1fa9a05ccb6f9388cc686c819445421811f42e8439418a0491a13080977f074a0d8bf8fa6bc101ff245ddea65a46fbc",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libmpeg2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libmysofa-1.2.1.tar.gz",
+      "bytes": 200011479,
+      "sha256": "94cb02e488de4dc0860c8d23b29d93d290bb0a004d4aa17e1642985bba158ee9",
+      "licenses": [
+        "libmysofa-1.2.1/LICENSE",
+        "libmysofa-1.2.1/tests/LICENSE.CIPIC_subject_003_hrir_final",
+        "libmysofa-1.2.1/tests/LICENSE.D1_48K_24bit_0.3s_FIR_SOFA",
+        "libmysofa-1.2.1/tests/LICENSE.FHK_HRIR_L2354",
+        "libmysofa-1.2.1/tests/LICENSE.H20_44K_16bit_256tap_FIR_SOFA",
+        "libmysofa-1.2.1/tests/LICENSE.LISTEN_1002_IRC_1002_C_HRIR",
+        "libmysofa-1.2.1/tests/LICENSE.MIT_KEMAR_pinnae",
+        "libmysofa-1.2.1/tests/LICENSE.TU-Berlin_QU_KEMAR_anechoic",
+        "libmysofa-1.2.1/tests/LICENSE.pulse",
+        "libmysofa-1.2.1/windows/third-party/sys/LICENSE",
+        "libmysofa-1.2.1/windows/third-party/zlib-1.2.11/LICENSE"
+      ],
+      "sha512": "2058c94cd09aeeabe40975edd320d7447bd9e535108f32b2a5305c023c7bf89f0c2f44df182390b7e4be8f6ffc9b09c2e35817896bb5e63d3ec9f1bd5b7e972c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/mysofa/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libnfs-6.0.2.tar.gz",
+      "bytes": 338988,
+      "sha256": "4e5459cc3e0242447879004e9ad28286d4d27daa42cbdcde423248fad911e747",
+      "licenses": [
+        "libnfs-libnfs-6.0.2/COPYING",
+        "libnfs-libnfs-6.0.2/LICENCE-BSD.txt",
+        "libnfs-libnfs-6.0.2/LICENCE-GPL-3.txt",
+        "libnfs-libnfs-6.0.2/LICENCE-LGPL-2.1.txt"
+      ],
+      "sha512": "539790ab98aac7b2f25755b745d1f5e016518f1adb3748b8c58df187048bc31e091915d59e6359bb95c49dd986361cbbf2536edcda02598b0fac236762b61a46",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/nfs/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libogg-1.3.6.tar.xz",
+      "bytes": 439952,
+      "sha256": "5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061",
+      "licenses": [
+        "libogg-1.3.6/COPYING"
+      ],
+      "sha512": "2168548e57e23fadca4aa66351214b23d699bc3aa47f5d065f8b583a3fe85c99333014a6aa38e4021b0e3750115b88258a6c00cac1e1496cdee5f12cdc633814",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ogg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libplacebo-0.2.1.tar.gz",
+      "bytes": 169802,
+      "sha256": "d5d920a1745e4209287d32e8b96a85127b61b843304813980e11104cd9f15e82",
+      "licenses": [
+        "libplacebo-0.2.1/LICENSE"
+      ],
+      "sha512": "d662c1972ee36f45d1e75b1c38edb7d2a47a1df8dedd811c37662ae88514403c978088bc4a42c3bf850b22e9cc882cb5de730bf2463f36caf284f6172e177dbb",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libplacebo/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libpng-1.6.58.tar.xz",
+      "bytes": 1070096,
+      "sha256": "28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775",
+      "licenses": [
+        "libpng-1.6.58/LICENSE",
+        "libpng-1.6.58/ci/LICENSE_MIT.txt",
+        "libpng-1.6.58/contrib/gregbook/COPYING",
+        "libpng-1.6.58/contrib/gregbook/LICENSE",
+        "libpng-1.6.58/contrib/pngexif/LICENSE_MIT.txt",
+        "libpng-1.6.58/contrib/pngminus/LICENSE.txt"
+      ],
+      "sha512": "5937d6409d7ad564c9dba7969c5d39eea8bbc01936f433bf5936c872ec290dea353783f89bded91e124b3b3b15518320097de365acd3b0bcc922a0e90c94adc8",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/png/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "librist-v0.2.20.tar.gz",
+      "bytes": 3507334,
+      "sha256": "9e40eeb87f014790531ad41326cc271b930a65962e4b15231b301fc59b29fe31",
+      "licenses": [
+        "librist-v0.2.20/COPYING",
+        "librist-v0.2.20/contrib/mbedtls/LICENSE"
+      ],
+      "sha512": "3553d5db0cf67ab07ff85b55e4948958aa59251c236efa7b6605fce5c8e9552bce967cbfabdb1430cb21c1343b9eeebb582aaeb64bdb569b4cbe7493b8f3844a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/librist/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libsamplerate-0.1.9.tar.gz",
+      "bytes": 4336641,
+      "sha256": "0a7eb168e2f21353fb6d84da152e4512126f7dc48ccb0be80578c565413444c1",
+      "licenses": [
+        "libsamplerate-0.1.9/COPYING",
+        "libsamplerate-0.1.9/doc/license.html"
+      ],
+      "sha512": "78596657963cbf06785e3e6e1190b093df71da52ca340e75bd8246a962cd79dd1c90fa5527c607cebcb296e2c1ee605015278b274e3b768f2f3fbeb0eadfb728",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/samplerate/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libshout-2.4.6.tar.gz",
+      "bytes": 571153,
+      "sha256": "39cbd4f0efdfddc9755d88217e47f8f2d7108fa767f9d58a2ba26a16d8f7c910",
+      "licenses": [
+        "libshout-2.4.6/COPYING",
+        "libshout-2.4.6/src/common/avl/COPYING",
+        "libshout-2.4.6/src/common/net/COPYING",
+        "libshout-2.4.6/src/common/timing/COPYING",
+        "libshout-2.4.6/src/common/httpp/COPYING",
+        "libshout-2.4.6/src/common/thread/COPYING"
+      ],
+      "sha512": "e8478cdbf9a27674c16a7b620d1576f2e31a47262b8e29b314d0f46d4e5be24b9a29790b7b226f48939bc34cacf5734fae0aa5686c7ed5879cdbd827ff8e0339",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/shout/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libsmb2-6.1.tar.gz",
+      "bytes": 257668,
+      "sha256": "cee0a62457a46b1a4d48b9b0094cf53f489e3ff5028d1344c188156aeb1c7239",
+      "licenses": [
+        "libsmb2-libsmb2-6.1/COPYING",
+        "libsmb2-libsmb2-6.1/LICENCE-LGPL-2.1.txt"
+      ],
+      "sha512": "7f481b22f90b82d19c6bb29537ef10229b3ff4aff3d46dff5b11ee22c9c0410f1d58f466cf0774507d1d6f03c06dd82b223b1f4be75da239402e57749382fe5f",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/smb2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libssh2-1.11.1.tar.xz",
+      "bytes": 721700,
+      "sha256": "9954cb54c4f548198a7cbebad248bdc87dd64bd26185708a294b2b50771e3769",
+      "licenses": [
+        "libssh2-1.11.1/COPYING"
+      ],
+      "sha512": "8322b54a522b0cbbb07916d29ec045c08f8ed94bd8abb5e524038640e90a317667a25be46d95b62b101ed726ade0a51a90fb246cf34c045c38f927f4e439e431",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ssh2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libtasn1-4.21.0.tar.gz",
+      "bytes": 1816537,
+      "sha256": "1d8a444a223cc5464240777346e125de51d8e6abf0b8bac742ac84609167dc87",
+      "licenses": [
+        "libtasn1-4.21.0/COPYING",
+        "libtasn1-4.21.0/COPYING.LESSERv2"
+      ],
+      "sha512": "6a581c4c072b168bf29a0dec7e59a9329a798e392b7d1033791d0e3166a5d1164e2a7065373a84018d500a01563657900c318b1fd437c227c3174b754f9998d3",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libtasn1/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libtheora-1.1.1.tar.xz",
+      "bytes": 1434496,
+      "sha256": "f36da409947aa2b3dcc6af0a8c2e3144bc19db2ed547d64e9171c59c66561c61",
+      "licenses": [
+        "libtheora-1.1.1/LICENSE",
+        "libtheora-1.1.1/COPYING"
+      ],
+      "sha512": "032fb60f10ac0074ec87d5f8c586702309edc50dc0d2842d2f9b9c46ebd1500acc399e9309f858f318fff5b8fbe953234db3afb54ed74a03d0f2c6ee8c3ed481",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/theora/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libtiger-0.3.4.tar.gz",
+      "bytes": 383685,
+      "sha256": "7342b255fb476d75b08dd4c56d5ce580f39b1c71c42e99fb7af9d999725d4166",
+      "licenses": [
+        "libtiger-0.3.4/COPYING"
+      ],
+      "sha512": "559e522b5127f32fdd08d62c40dfb493dc2db1efd1e21707d723ef27cbe03e7e38fb04d40856d824ed0c3c94a223ed1a0358fc11ecb30446b5ee5c7a3b802e6d",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/tiger/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libvorbis-1.3.7.tar.xz",
+      "bytes": 1203792,
+      "sha256": "b33cc4934322bcbf6efcbacf49e3ca01aadbea4114ec9589d1b1e9d20f72954b",
+      "licenses": [
+        "libvorbis-1.3.7/COPYING"
+      ],
+      "sha512": "bbf5f11f623d959b3ba98d6b52806521b0b918b59b867f0658c153ea1013293364eead4987e9e71f8798021379310860a2e548fcf89d10caf23d45e41aba45cd",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/vorbis/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libvpl-2.13.0.tar.gz",
+      "bytes": 12952887,
+      "sha256": "1c740e2b58f7853f56b618bdb7d4a7e5d37f8c1a9b30105a0b79ba80873e1cbd",
+      "licenses": [
+        "libvpl-2.13.0/LICENSE",
+        "libvpl-2.13.0/examples/api1x_core/legacy-decode/License.txt",
+        "libvpl-2.13.0/examples/api1x_core/legacy-encode/License.txt",
+        "libvpl-2.13.0/examples/api1x_core/legacy-vpp/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-decode/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-decvpp/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-encode-jpeg/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-encode/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-sharing-dx11/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-sharing-ocl/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-sharing-vaapi/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-transcode/License.txt",
+        "libvpl-2.13.0/examples/api2x/hello-vpp/License.txt",
+        "libvpl-2.13.0/examples/interop/vpl-infer/License.txt",
+        "libvpl-2.13.0/examples/tutorials/01_transition/License.txt",
+        "libvpl-2.13.0/libvpl/test/ext/googletest/LICENSE"
+      ],
+      "sha512": "22b9f409a9b8ed551847e1b5a94d0c48502b5fbf68ec28021ba36d3f851ef83896205977e6b7f52c102f747a8fbc793424181ecd7edaf6058a39dc15b78d19cd",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/vpl/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libvpx-1.16.0.tar.gz",
+      "bytes": 5635379,
+      "sha256": "7a479a3c66b9f5d5542a4c6a1b7d3768a983b1e5c14c60a9396edc9b649e015c",
+      "licenses": [
+        "libvpx-1.16.0/LICENSE",
+        "libvpx-1.16.0/third_party/googletest/src/LICENSE",
+        "libvpx-1.16.0/third_party/libwebm/LICENSE.TXT",
+        "libvpx-1.16.0/third_party/libyuv/LICENSE",
+        "libvpx-1.16.0/third_party/nalloc/LICENSE",
+        "libvpx-1.16.0/third_party/x86inc/LICENSE"
+      ],
+      "sha512": "07f5e352411d6c0be331706d1835ac89bafbeddcbbac5542b473323766e9e974f4f68b33590f2aa50a7d8d69468a642b508cbb0a7c49a82c9933b07820f9c9d9",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/vpx/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libxcb-1.12.tar.bz2",
+      "bytes": 613822,
+      "sha256": "4adfb1b7c67e99bc9c2ccb110b2f175686576d2f792c8a71b9c8b19014057b5b",
+      "licenses": [
+        "libxcb-1.12/COPYING"
+      ],
+      "sha512": "4ce3e3f62b7e1c3a9e61c149c720ef2a4a760539ea615d7d52ae39e7f5a08456dc87d7a1ac5d85ca15dcc468a9a02d56fb8f8f6361c959af9b8780f011995896",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/xcb/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "libxml2-2.15.3.tar.xz",
+      "bytes": 3152452,
+      "sha256": "78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07",
+      "licenses": [
+        "libxml2-2.15.3/Copyright",
+        "libxml2-2.15.3/test/html-tokenizer/NOTICE",
+        "libxml2-2.15.3/result/html-tokenizer/NOTICE"
+      ],
+      "sha512": "6f7f1aabd012454553e851bd1ee548fbd14d21c576f2b2ab9eeedab3dfba51392083f74b34f060e9b538baeea212cdb462b8669c214c711771fb9a897fdc1c60",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/libxml2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "live.2026.06.24.tar.gz",
+      "bytes": 693632,
+      "sha256": "b22182db20fe554be886f74c453f6b900e471de9585a401b0b60228aebc27ef7",
+      "licenses": [
+        "live/COPYING",
+        "live/COPYING.LESSER"
+      ],
+      "sha512": "31b325f406c651e9008367c90937a1dc555588f76a0aaa820edb62ccfed3bb9f46d42fae4fe62f8812c7f25d0a3eeb13a8267b84130dfee7a25ab74f5d94c57a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/live555/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "lua-5.1.5.tar.gz",
+      "bytes": 221213,
+      "sha256": "2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333",
+      "licenses": [
+        "lua-5.1.5/COPYRIGHT"
+      ],
+      "sha512": "0142fefcbd13afcd9b201403592aa60620011cc8e8559d4d2db2f92739d18186860989f48caa45830ff4f99bfc7483287fd3ff3a16d4dec928e2767ce4d542a9",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/lua/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "microdns-0.2.0.tar.xz",
+      "bytes": 50544,
+      "sha256": "2da28e7dda4861d76f797f92ac3e6c3e048333b95f9e4fc3a6548ad8afd8c446",
+      "licenses": [
+        "microdns-0.2.0/COPYING"
+      ],
+      "sha512": "fc642d463f52409e76515897e3662b7b08ee35dc760e595980c343a4fd24f1b76cdfbd4f91ea2115a02243be8ae8908670440ead96715c8983abb2a8559702b6",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/microdns/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "mingw-w64-v14.0.0.tar.bz2",
+      "bytes": 11163292,
+      "sha256": "6eaf921d9eb987d3820b364ea9775bc19b965ec81490b6fdd716526c28e1995c",
+      "licenses": [
+        "mingw-w64-v14.0.0/COPYING",
+        "mingw-w64-v14.0.0/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt",
+        "mingw-w64-v14.0.0/COPYING.MinGW-w64/COPYING.MinGW-w64.txt",
+        "mingw-w64-v14.0.0/mingw-w64-crt/profile/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-libraries/libmangle/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-libraries/pseh/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-libraries/winpthreads/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-libraries/winstorecompat/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-tools/gendef/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-tools/genidl/COPYING",
+        "mingw-w64-v14.0.0/mingw-w64-tools/genpeimg/COPYING"
+      ],
+      "sha512": "17378a0e2abbbb688468a78cb0ba261f9001a1bc6e7d0270c24c4b8b13e5c6513e8fb8e617d08102fbc772c288ad81ec3a43ca756ed28f17cc5543f717a8bb6d",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/mingw64/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "mpg123-1.33.6.tar.bz2",
+      "bytes": 1123797,
+      "sha256": "929a7c18ba662b8927aed4de229ad9ae8ab2b4806dd0f30b90113eb1b4e2195a",
+      "licenses": [
+        "mpg123-1.33.6/COPYING",
+        "mpg123-1.33.6/doc/LICENSE"
+      ],
+      "sha512": "83d8fca128b1fd39e336e6052837b16951360d6f1a47919e00d4b7285717ee7cd4dd56c24bd873316ba6969081fe619cda93ebb20771aed052c6e9d07657f2ab",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/mpg123/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "musepack_src_r481.tar.gz",
+      "bytes": 200318,
+      "sha256": "8988bc1f05ecdf6067ed06c576dc9ed03760361ae6190952ac29b5953c49dbc6",
+      "licenses": [
+        "musepack_src_r481/libmpcdec/COPYING"
+      ],
+      "sha512": "89a8eab35e88d5ec1ef7c8fae897b23a5e31e1c99c8430f43a960c8543acd15cbb6b78e3d9da750a7d2649ebd86479c9136f9d370e0911675bfed8feff8de1d1",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/mpcdec/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "ncurses-6.3.tar.gz",
+      "bytes": 3583550,
+      "sha256": "97fc51ac2b085d4cde31ef4d2c3122c21abc217e9090a43a30fc5ec21684e059",
+      "licenses": [
+        "ncurses-6.3/COPYING",
+        "ncurses-6.3/test/package/debian/copyright",
+        "ncurses-6.3/test/package/debian-mingw64/copyright",
+        "ncurses-6.3/test/package/debian-mingw/copyright",
+        "ncurses-6.3/Ada95/package/debian/copyright",
+        "ncurses-6.3/package/debian/copyright",
+        "ncurses-6.3/package/debian-mingw64/copyright",
+        "ncurses-6.3/package/debian-mingw/copyright"
+      ],
+      "sha512": "5373f228cba6b7869210384a607a2d7faecfcbfef6dbfcd7c513f4e84fbd8bcad53ac7db2e7e84b95582248c1039dcfc7c4db205a618f7da22a166db482f0105",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/ncurses/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "nettle-3.10.2.tar.gz",
+      "bytes": 2644644,
+      "sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "licenses": [
+        "nettle-3.10.2/COPYING.LESSERv3"
+      ],
+      "sha512": "bf37ddd7dca8e78488da2a5286dcf16761d527d620572b42f2ad27bb8ee8c12999d92b0272e06f53766e7155a3f4a1ab7ad9c4b1c3caec47c031878b6b1772fb",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/nettle/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "openapv-0.3.0.0.tar.gz",
+      "bytes": 136855351,
+      "sha256": "dc5cd1618a07e8b340e12562cae37d612b3a1467ee80d986c477165ae602a37e",
+      "licenses": [
+        "openapv-0.3.0.0/LICENSE"
+      ],
+      "sha512": "38bf5f541b9879337c44b5e836209325dfe2c0aae1d94eca2e9e5a36ed80c824fadcfa9f5365fff2a43418f1aab8e74061f370cba045cd3c2a89b1386338448b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/openapv/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "openjpeg-2.5.4.tar.gz",
+      "bytes": 2157028,
+      "sha256": "a695fbe19c0165f295a8531b1e4e855cd94d0875d2f88ec4b61080677e27188a",
+      "licenses": [
+        "openjpeg-2.5.4/LICENSE",
+        "openjpeg-2.5.4/src/bin/wx/OPJViewer/source/license.txt",
+        "openjpeg-2.5.4/thirdparty/astyle/LICENSE.md",
+        "openjpeg-2.5.4/thirdparty/liblcms2/COPYING",
+        "openjpeg-2.5.4/thirdparty/libpng/LICENSE"
+      ],
+      "sha512": "702a10e20caaf8209684ded7c9fcf32f5ba6a972cf2d9fcf2611cdc6a446d2c3bb60324205758e6b6f92278c8cf4ef0fbae511e6ffb45ed6e8df514db0c6ab25",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/openjpeg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "opus-1.6.1.tar.gz",
+      "bytes": 10472813,
+      "sha256": "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1",
+      "licenses": [
+        "opus-1.6.1/COPYING"
+      ],
+      "sha512": "93742e86b2eb222808a5055e62627d142e6e7347b3d5aebb4d39b45df78ed7d437746c51eb24d724a7c865d064e9d16f4541a4ce6a82fcf7dcc23427d2252e16",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/opus/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "postproc-e4982b227779f24f7c54d699d2e247652f69c475.tar.xz",
+      "bytes": 2069744,
+      "sha256": "58a2592d8c5c2e0c157523adf486692e921dc96f5f7ec69c1417d568080853b6",
+      "licenses": [
+        "postproc-e4982b227779f24f7c54d699d2e247652f69c475/COPYING.GPLv2",
+        "postproc-e4982b227779f24f7c54d699d2e247652f69c475/COPYING.GPLv3",
+        "postproc-e4982b227779f24f7c54d699d2e247652f69c475/LICENSE.md"
+      ],
+      "sha512": "b202fa9d3ffe320d0b4b3b7bc09bc8198cecaa44a3192f0e4203aed8df80a28b4fa9cef4574f58f0525b62600206e566d684b34ceacce0877ad7a7ac0c4661bc",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "e4982b227779f24f7c54d699d2e247652f69c475",
+        "passed": true,
+        "evidence": "postproc-e4982b227779f24f7c54d699d2e247652f69c475.githash"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "projectM-2.0.1-Source.tar.gz",
+      "bytes": 865784,
+      "sha256": "c305182dfc8b7f87b82a146af6cf50a982e7c9c647877a0559dfef4b11dacb93",
+      "licenses": [
+        "projectM-2.0.1-Source/omptl/License.txt",
+        "projectM-2.0.1-Source/COPYING"
+      ],
+      "sha512": "0edbf487d45983b0004ee67009931da985f3b9909cb10eb32a2c9116eed46f9cf9c7a1c696138d16a30aedd81d43ac5533fb7666c9fba9326c9c89f4e87f88db",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/projectM/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "protobuf-3.4.1-cpp.tar.gz",
+      "bytes": 4274863,
+      "sha256": "2bb34b4a8211a30d12ef29fd8660995023d119c99fbab2e5fe46f17528c9cc78",
+      "licenses": [
+        "protobuf-3.4.1/LICENSE",
+        "protobuf-3.4.1/gmock/scripts/generator/LICENSE",
+        "protobuf-3.4.1/gmock/LICENSE",
+        "protobuf-3.4.1/gmock/gtest/LICENSE"
+      ],
+      "sha512": "6189e23c7e381f62e971bd0e35ad9c3ed8effe584755357013887c6a582cb5a9a654c39affa2a073b658854138f31bfb70f89fa1df494e9386f1d64fd73d07d2",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/protobuf/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "pupnp-release-1.14.31.tar.gz",
+      "bytes": 826590,
+      "sha256": "ce1dd3da7268ad61a56041af0ee80a3d067e7fbd197e2a387ae53942f70068bd",
+      "licenses": [
+        "pupnp-release-1.14.31/COPYING",
+        "pupnp-release-1.14.31/site/LICENSE"
+      ],
+      "sha512": "be0f876adb7a0799187531cc83a29afd5bfe8f7772e909f88faf406e344f992ccb07ef410f7511766576bde8128478926e33cebfcfa8ed1ba15fe136e0bfc8c7",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/upnp/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "qt-5.6.3.tar.xz",
+      "bytes": 47840424,
+      "sha256": "fef48529a6fc2617a30d75d952cb327c6be341fd104154993922184b3b3b4da1",
+      "licenses": [
+        "qtbase-opensource-src-5.6.3/src/3rdparty/harfbuzz-ng/COPYING",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/gradle/LICENSE-GRADLEW.txt",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/libpng/LICENSE",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/harfbuzz/COPYING",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/angle/src/third_party/murmurhash/LICENSE",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/angle/src/third_party/compiler/LICENSE",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/angle/LICENSE",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/xkbcommon/COPYING",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/pcre/COPYING",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/pcre/LICENCE",
+        "qtbase-opensource-src-5.6.3/src/3rdparty/freetype/docs/LICENSE.TXT",
+        "qtbase-opensource-src-5.6.3/LICENSE.PREVIEW.COMMERCIAL",
+        "qtbase-opensource-src-5.6.3/LICENSE.LGPLv3",
+        "qtbase-opensource-src-5.6.3/LICENSE.LGPLv21",
+        "qtbase-opensource-src-5.6.3/LICENSE.FDL",
+        "qtbase-opensource-src-5.6.3/LICENSE.GPLv3"
+      ],
+      "sha512": "19b505b6afb394a85dd27decf892fb7dccef89d33a41df458a9905d32a6dde23e76c11db9214bfaa7d9bddf48959d1579fad217d96d85333fdac94608c46389c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/qt/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "qtsvg-5.6.3.tar.xz",
+      "bytes": 1733136,
+      "sha256": "100f183517b46554079beabd8d2cabe3070a74dd0a2e64b6a304eac71cfadcec",
+      "licenses": [
+        "qtsvg-opensource-src-5.6.3/LICENSE.LGPLv3",
+        "qtsvg-opensource-src-5.6.3/LICENSE.LGPLv21",
+        "qtsvg-opensource-src-5.6.3/LICENSE.FDL",
+        "qtsvg-opensource-src-5.6.3/LICENSE.GPLv3"
+      ],
+      "sha512": "449c0b003f528af4a57334056dd3a8087e1a381db70ec7ad320aa662a28016ee4f3d644a262125509bd35c7d7630119f629b923826a1c87d38bde570e6b60bfb",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/qtsvg/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "regex-0.13.tar.gz",
+      "bytes": 327561,
+      "sha256": "dcdf884e4b04efae979fd847716771c69fff25e852eea35d00668ffd4bf78d79",
+      "licenses": [
+        "regex-0.13/COPYING",
+        "regex-0.13/COPYING.LIB"
+      ],
+      "sha512": "8a6d873c115357126db2df47886550b77d2b0f56f56f4261140a1823ba492ef86b64880ccb317a2e2a9058b6c046a06c3c6e700f6da16fc0ba60b4f568379723",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/regex/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "sidplay-libs-2.1.1.tar.gz",
+      "bytes": 1900252,
+      "sha256": "e9a24ada48215a46d2c232a70c5601bc9505e997f120e8f2ba3713e09e28d1f9",
+      "licenses": [
+        "sidplay-libs-2.1.1/libsidplay/COPYING",
+        "sidplay-libs-2.1.1/libsidutils/COPYING",
+        "sidplay-libs-2.1.1/resid/COPYING",
+        "sidplay-libs-2.1.1/builders/hardsid-builder/COPYING"
+      ],
+      "sha512": "754cd41f3d2d76754049522c395022bc090f99ea838e6d1ffb8d7689f3aedad9b3879be0312d0af49ba108563296c1176d1e533d1151d5b33368bfda0a1910e3",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/sidplay2/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "soxr-0.1.3-Source.tar.xz",
+      "bytes": 94384,
+      "sha256": "b111c15fdc8c029989330ff559184198c161100a59312f5dc19ddeb9b5a15889",
+      "licenses": [
+        "soxr-0.1.3-Source/LICENCE",
+        "soxr-0.1.3-Source/COPYING.LGPL"
+      ],
+      "sha512": "f4883ed298d5650399283238aac3dbe78d605b988246bea51fa343d4a8ce5ce97c6e143f6c3f50a3ff81795d9c19e7a07217c586d4020f6ced102aceac46aaa8",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/soxr/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "spatialaudio-0.3.0.tar.bz2",
+      "bytes": 934033,
+      "sha256": "284c1dbd8efd46c03be84ac7070bc87cae81b7125352b143a70be3e2b96988e3",
+      "licenses": [
+        "spatialaudio-0.3.0/LICENSE"
+      ],
+      "sha512": "ef1835a94cd87c55ac9327762ae8f1143272de2463ca850299be15d6cf7f5a554e536cc18f70475c25e2c78f434b9c51de158a7246956c8c1f9de3256a67b87a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/spatialaudio/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "speex-1.2.1.tar.gz",
+      "bytes": 1043278,
+      "sha256": "4b44d4f2b38a370a2d98a78329fefc56a0cf93d1c1be70029217baae6628feea",
+      "licenses": [
+        "speex-1.2.1/COPYING"
+      ],
+      "sha512": "52e00300df82e1c7fb527b245af02b99a1f37faef74d004b7cd981052f1aa22a412cb18f5c7a5618df4c958f727c97eb7385beec99d68548d5b02e76192d4e0a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/speex/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "speexdsp-1.2.1.tar.gz",
+      "bytes": 922584,
+      "sha256": "8c777343e4a6399569c72abc38a95b24db56882c83dbdb6c6424a5f4aeb54d3d",
+      "licenses": [
+        "speexdsp-1.2.1/COPYING"
+      ],
+      "sha512": "41b5f37b48db5cb8c5a0f6437a4a8266d2627a5b7c1088de8549fe0bf0bb3105b7df8024fe207eef194096e0726ea73e2b53e0a4293d8db8e133baa0f8a3bad3",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/speexdsp/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "srt-1.5.6.tar.gz",
+      "bytes": 1785147,
+      "sha256": "2c4980c2c4cfd142d21b829d939dc51db9c6628af5967fff62fd7290769569c7",
+      "licenses": [
+        "srt-1.5.6/LICENSE"
+      ],
+      "sha512": "57641b35644b6bfa5998648fb808b615d11d8eab52fecb628a58414dbc87b1d781ea281c8ceef42a92f0c3796a05b41b8411bea95188ce751544f8195b7dbb66",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/srt/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "taglib-1.13.1.tar.gz",
+      "bytes": 1372618,
+      "sha256": "c8da2b10f1bfec2cd7dbfcd33f4a2338db0765d851a50583d410bacf055cfd0b",
+      "licenses": [
+        "taglib-1.13.1/COPYING.LGPL",
+        "taglib-1.13.1/COPYING.MPL"
+      ],
+      "sha512": "986231ee62caa975afead7e94630d58acaac25a38bc33d4493d51bd635d79336e81bba60586d7355ebc0670e31f28d32da3ecceaf33292e4bc240c64bf00f35b",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/taglib/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "tremor-git.tar.xz",
+      "bytes": 110504,
+      "sha256": "6ca9645abfe2b9f80e88f7cfafceec41241ec8ed9f079bb75e72c732e0303dd3",
+      "licenses": [
+        "tremor-git/COPYING",
+        "tremor-git/debian/copyright"
+      ],
+      "sha512": "06376f7be0babb0089ad86ef143df4495234d642f2aa3eb2d6173da08e9dab818e0ff0205d36a8eed07e0728f6052e6b2b7b455a806fad507868a2c89fcb7974",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "b56ffce0",
+        "passed": true,
+        "evidence": "tremor-git.githash",
+        "resolved_revision": "b56ffce0c0773ec5ca04c466bc00b1bbcaf65aef",
+        "note": "upstream generic 40-character checker rejects its own 8-character hash; recorded revision separately resolved through upstream API"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "twolame-0.4.0.tar.gz",
+      "bytes": 890908,
+      "sha256": "cc35424f6019a88c6f52570b63e1baf50f62963a3eac52a03a800bb070d7c87d",
+      "licenses": [
+        "twolame-0.4.0/COPYING"
+      ],
+      "sha512": "cc594bc8d2322922280f915a3c0aa52540cca0350d6498bc96f3f60fd6e53f951e775ea015a44bdb29ec883b46b31a0e5483f6a5c188b02e30008289273c7d03",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/twolame/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "utfcpp-3.2.5.tar.gz",
+      "bytes": 28865,
+      "sha256": "14fd1b3c466814cb4c40771b7f207b61d2c7a0aa6a5e620ca05c00df27f25afd",
+      "licenses": [
+        "utfcpp-3.2.5/LICENSE"
+      ],
+      "sha512": "1ce12c8158a2f3bcddec104ceacedaea4031b4c88fc0fa1f1fae8dfa8df81c846861df9d01e8f294d79b9e4ab8c51bd1289f404eed24d07abc760688fee13090",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/utfcpp/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "util-macros-1.19.0.tar.bz2",
+      "bytes": 80027,
+      "sha256": "2835b11829ee634e19fa56517b4cfc52ef39acea0cd82e15f68096e27cbed0ba",
+      "licenses": [
+        "util-macros-1.19.0/COPYING"
+      ],
+      "sha512": "6820fced14e28d505ed47c4e7e9fae17340e93caf94cc983683128b53833e257aed636bcac6204ed87ddc10132473ceb4bd2f6de53ea66ab8f71b8cd23fbfc15",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/xorg-macros/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "wix3.14.1.8722.zip",
+      "bytes": 41297555,
+      "sha256": "6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31",
+      "licenses": [
+        "LICENSE.TXT"
+      ],
+      "sha512": "ff58d224e545722eb794d413c541ad483ab834f9ce92e2528fe8aeb645717ab077db833ae783e1a31ad9e50803eb80fdc9efcda72535493a3f0faea4aa3ba36d",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/wix/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "build-tool binary archive",
+      "name": "wix3.5.2519.0.zip",
+      "bytes": 23128476,
+      "sha256": "c91c35606e49a05395fe42b8a0652ace36e072cc26cc4a6f09b8e6a3cc749a77",
+      "licenses": [],
+      "sha512": "26b1d2a5b582fcaa31ffaaf289711854897f91e8e5002bd8ddee2e69c95a60f53c6e3375d38fba4519ddd4a68bcf402c36eaef5a8faa6f3a4b8b2bc011e8f05a",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/wixlzx/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": false
+    },
+    {
+      "kind": "source archive",
+      "name": "x262-git.tar.xz",
+      "bytes": 581280,
+      "sha256": "6fee7ad0574dcd75bacfe4632765158f47d0cc629934b3dcd8d1bf3ac801515a",
+      "licenses": [
+        "x262-git/COPYING"
+      ],
+      "sha512": "b204523b74730a1b074318c97175f8f4ac7d8c3eef381ee566cc7c334f598194b4e4c812db4676d7babf47258954aeb540e04534f4a470956a5d90f29a4b9adc",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "bb887aa4c0a4da955524aa220b62998c3b50504e",
+        "passed": true,
+        "evidence": "x262-git.githash"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "x264-e067ab0b530395f90b578f6d05ab0a225e2efdf9.tar.xz",
+      "bytes": 687984,
+      "sha256": "6ecfdff1dbeda7b19e33c31c3d392fd5462abf355e7ef28a036f0c3d0d967526",
+      "licenses": [
+        "x264-e067ab0b530395f90b578f6d05ab0a225e2efdf9/COPYING"
+      ],
+      "sha512": "29584f82d61d8c3451f996a5bcf9dcb94d2b1a4a6b80afe0ba2c8210faf9262103dcf0120730f6bc7e4edafa6b55811f5e284da054978c736711ecc5fd57c6f2",
+      "upstream_verification": {
+        "method": "pinned Git revision",
+        "revision": "e067ab0b530395f90b578f6d05ab0a225e2efdf9",
+        "passed": true,
+        "evidence": "x264-e067ab0b530395f90b578f6d05ab0a225e2efdf9.githash"
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "x265_4.1.tar.gz",
+      "bytes": 1725279,
+      "sha256": "a31699c6a89806b74b0151e5e6a7df65de4b49050482fe5ebf8a4379d7af8f29",
+      "licenses": [
+        "x265_4.1/COPYING",
+        "x265_4.1/source/dynamicHDR10/LICENSE.txt",
+        "x265_4.1/source/dynamicHDR10/json11/LICENSE.txt"
+      ],
+      "sha512": "5af5b958ff507f96a52813a6b72847c9fbc555bf95af287ae7f011055338266fb647dfea3b7789730c7f5c746f7e6cb7d9395ba10cbe43eb5034d3ed99730c3f",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/x265/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "xcb-proto-1.12.tar.bz2",
+      "bytes": 153890,
+      "sha256": "5922aba4c664ab7899a29d92ea91a87aa4c1fc7eb5ee550325c3216c480a4906",
+      "licenses": [
+        "xcb-proto-1.12/COPYING"
+      ],
+      "sha512": "1f427eaf223971b25b56c9f641350e03f5ebeb17a1fc212ce2a0c892de7aba7e53d5e3958b073a122bb344c387c0ff394cf96f542ff046f33de4e1cd27fb9e5c",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/xcb-proto/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "xproto-7.0.29.tar.bz2",
+      "bytes": 309065,
+      "sha256": "6c1a477092ca73233902b8d5f33012635c4b0208f17e7833cc7efe5c93ba9f8a",
+      "licenses": [
+        "xproto-7.0.29/COPYING"
+      ],
+      "sha512": "0e72d0673ae96906d88566e360fcd6d0b70deab50d108bc9caeccb3aa68e80d257407611649b4ddde2811c34c07c1eeb0b710243a9f7a9c3ff2c728832f7f647",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/xproto/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "zlib-1.3.2.tar.xz",
+      "bytes": 1320064,
+      "sha256": "d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3",
+      "licenses": [
+        "zlib-1.3.2/LICENSE",
+        "zlib-1.3.2/contrib/dotzlib/LICENSE_1_0.txt",
+        "zlib-1.3.2/contrib/minizip/LICENSE.Info-Zip"
+      ],
+      "sha512": "cf3d49fbabddc57cca99858feeca8f910e9de42a16014cddd406814d2d24ee33fee2af3805d7efbb1b04b05f55818092b000daf82502b675df65f2512c353f73",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/zlib/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    },
+    {
+      "kind": "source archive",
+      "name": "zvbi-0.2.45.tar.gz",
+      "bytes": 943158,
+      "sha256": "e6c954fde2a5a635187f19e1ab870a88c1a982012c5f1b33b8f2513e0ab7a50e",
+      "licenses": [
+        "zvbi-0.2.45/COPYING.md"
+      ],
+      "sha512": "c627b65627446287cededd26857a7f25191adc8c42cab5a66e76f9673e06cafa52d9c3e2d31e60f949bbcaa155f61b31d775876f97f3f5c7cffe980548992a07",
+      "upstream_verification": {
+        "method": "SHA-512",
+        "recipe": "contrib/src/zvbi/SHA512SUMS",
+        "passed": true
+      },
+      "in_companion_source_asset": true
+    }
+  ],
+  "core_source": {
+    "file": "vlc-3.0.24.tar.xz",
+    "bytes": 27620304,
+    "sha256": "e7cab503d1d7d5849b89d2cf0e1ee60d0ef6d012407791b644b9cfc0cc225fdf",
+    "url": "https://download.videolan.org/pub/videolan/vlc/3.0.24/vlc-3.0.24.tar.xz",
+    "commit": "6de05adcbaf2e8b85fe86aad4169393098628119"
+  },
+  "managed_binding_source": {
+    "file": "libvlcsharp-3.10.2.tar.gz",
+    "bytes": 4443826,
+    "sha256": "262bc5bbaadc127ded92c2e7155c4f07c0c4b1cfedb5b4f02d53dba93a0b6878",
+    "url": "https://code.videolan.org/videolan/LibVLCSharp/-/archive/3.10.2/libvlcsharp-3.10.2.tar.gz",
+    "tag": "3.10.2"
+  }
+}

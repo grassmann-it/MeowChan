@@ -142,11 +142,20 @@ jobs:
         shell: bash
         run: |
           package_version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
-          echo "version=$package_version" >> "$GITHUB_OUTPUT"
-          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$package_version" ]]; then
-            echo "Tag $GITHUB_REF_NAME does not match project version $package_version."
-            exit 1
+          artifact_version="$package_version"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            preview_prefix="v${package_version}-preview."
+            if [[ "$GITHUB_REF_NAME" == "v$package_version" ]]; then
+              artifact_version="$package_version"
+            elif [[ "$GITHUB_REF_NAME" == "$preview_prefix"* && "${GITHUB_REF_NAME#"$preview_prefix"}" =~ ^[1-9][0-9]*$ ]]; then
+              artifact_version="${GITHUB_REF_NAME#v}"
+            else
+              echo "Tag $GITHUB_REF_NAME does not match project version $package_version or its preview sequence."
+              exit 1
+            fi
           fi
+          echo "version=$artifact_version" >> "$GITHUB_OUTPUT"
+          echo "product_version=$package_version" >> "$GITHUB_OUTPUT"
       - name: Restore selected runtime
         run: dotnet restore MeowChan.csproj -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained application
@@ -166,7 +175,7 @@ jobs:
           $archive = "packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           Compress-Archive -Path "publish-output/${{ matrix.runtime }}/*" -DestinationPath $archive
           Expand-Archive -Path $archive -DestinationPath extracted
-          foreach ($name in @('MeowChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'Assets/meowchan.png', 'docs/Help.md', 'libmeowchan/README.md', 'tests/MeowChan.DesktopSmoke/README.md', 'docs/screenshots/README.md', 'docs/screenshots/v0.9.0-downloads.png', 'docs/screenshots/v0.9.0-gallery.png', 'docs/screenshots/v0.9.0-archive.png', 'docs/screenshots/v0.9.0-export.png', 'docs/screenshots/v0.9.0-about.png', 'samples/LibMeowChan.Consumer/README.md')) {
+          foreach ($name in @('MeowChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'Assets/meowchan.png', 'docs/Help.md', 'libmeowchan/README.md', 'tests/MeowChan.DesktopSmoke/README.md', 'docs/screenshots/README.md', 'docs/screenshots/v0.9.0-downloads.png', 'docs/screenshots/v0.9.0-gallery.png', 'docs/screenshots/v0.9.0-reader.png', 'docs/native-video-licenses.txt', 'docs/native-video-sources.md', 'docs/native-video-source-manifest.json', 'docs/macos-signing.md', 'docs/screenshots/v0.9.0-archive.png', 'docs/screenshots/v0.9.0-export.png', 'docs/screenshots/v0.9.0-about.png', 'samples/LibMeowChan.Consumer/README.md')) {
             if (-not (Test-Path -LiteralPath "extracted/$name" -PathType Leaf)) { throw "Archive is missing $name" }
           }
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
@@ -196,6 +205,11 @@ jobs:
           test -f extracted/docs/screenshots/README.md
           test -f extracted/docs/screenshots/v0.9.0-downloads.png
           test -f extracted/docs/screenshots/v0.9.0-gallery.png
+          test -f extracted/docs/screenshots/v0.9.0-reader.png
+          test -f extracted/docs/native-video-licenses.txt
+          test -f extracted/docs/native-video-sources.md
+          test -f extracted/docs/native-video-source-manifest.json
+          test -f extracted/docs/macos-signing.md
           test -f extracted/docs/screenshots/v0.9.0-archive.png
           test -f extracted/docs/screenshots/v0.9.0-export.png
           test -f extracted/docs/screenshots/v0.9.0-about.png
@@ -204,7 +218,7 @@ jobs:
           file extracted/MeowChan
       - name: Package unsigned macOS app bundle
         if: runner.os == 'macOS'
-        run: python scripts/package-macos.py --publish-dir publish-output/${{ matrix.runtime }} --output-dir bundle-output --version ${{ steps.metadata.outputs.version }} --archive packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.tar.gz
+        run: python scripts/package-macos.py --publish-dir publish-output/${{ matrix.runtime }} --output-dir bundle-output --version ${{ steps.metadata.outputs.product_version }} --archive packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.tar.gz
       - name: Validate extracted macOS bundle
         if: runner.os == 'macOS'
         shell: bash
@@ -231,12 +245,25 @@ jobs:
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/README.md
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-downloads.png
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-gallery.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-reader.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-licenses.txt
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-sources.md
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-source-manifest.json
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/macos-signing.md
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-archive.png
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-export.png
           test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-about.png
           test -f extracted/MeowChan.app/Contents/MacOS/samples/LibMeowChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/MeowChan.app/Contents/MacOS/MeowChan
+      - name: Validate extracted external video runtime
+        shell: bash
+        run: |
+          app_directory=extracted
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            app_directory=extracted/MeowChan.app/Contents/MacOS
+          fi
+          python scripts/check-video-native.py "$app_directory" ${{ matrix.runtime }}
       - name: Document package-check boundary
         shell: bash
         run: |
