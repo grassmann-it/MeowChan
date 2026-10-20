@@ -335,6 +335,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
     }
 
     public bool IsPaused => _registry.IsPaused;
+    public bool IsPauseTransitioning { get; private set; }
 
     public async Task SetPausedAsync(bool paused)
     {
@@ -345,8 +346,14 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
             Config candidate = Config.Clone();
             candidate.DownloadsPaused = paused;
             candidate.SaveConfig(_profileLease.ProfileDirectory);
-            _registry.SetPaused(paused);
-            Config.CopyFrom(candidate);
+            IsPauseTransitioning = true;
+            SignalChanged();
+            try
+            {
+                await _registry.SetPausedAsync(paused).ConfigureAwait(false);
+                Config.CopyFrom(candidate);
+            }
+            finally { IsPauseTransitioning = false; SignalChanged(); }
         }
         finally { _commands.Release(); }
         SignalChanged();

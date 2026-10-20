@@ -95,6 +95,51 @@ public sealed class WorkStateLifecycleTests
     }
 
     [Fact]
+    public async Task PauseDoesNotConsumeAttemptsOrExtendTerminalDeadline()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        WorkStateStore store = new(directory.Path, lease);
+        WorkResource owner = store.CommitIntent(new WorkResource { Url = ThreadUrl, OutputRoot = directory.Path,
+            Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
+        DateTimeOffset end = DateTimeOffset.UtcNow.AddHours(-1);
+        owner = store.CommitEnd(ThreadUrl, 1, ThreadSourceStateValue.NotFound, end)!;
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int requests = 0;
+        using StubImageBoard provider = new(new DelegateHandler(async (_, token) =>
+        {
+            if (Interlocked.Increment(ref requests) == 1)
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
+        }));
+        ProbeThread thread = new(provider.Board, new Uri(ThreadUrl));
+        DownloadQueue queue = new(1, 1L << 30);
+        queue.ConfigureWorkState(store);
+        queue.BindWork(thread, owner);
+        DownloadItem item = new(new Uri("https://stub.test/media.bin"), Path.Combine(directory.Path, "media.bin"), provider, thread, "media");
+        try
+        {
+            Assert.True(queue.TryEnqueue(item));
+            await started.Task.WaitAsync(TestWait.Timeout);
+            MediaWork before = Assert.Single(store.LoadMedia(ThreadUrl, 1));
+            await queue.SetPausedAsync(true).WaitAsync(TestWait.Timeout);
+            Assert.Equal(before, Assert.Single(store.LoadMedia(ThreadUrl, 1)));
+            Assert.Equal(end, Assert.Single(store.LoadResources()).EndObservedAt);
+            await queue.SetPausedAsync(false);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            MediaWork completed = Assert.Single(store.LoadMedia(ThreadUrl, 1));
+            Assert.Equal(MediaWorkStatus.Succeeded, completed.Status);
+            Assert.Equal(0, completed.Attempts);
+            Assert.Equal(2, requests);
+            Assert.Equal(end, Assert.Single(store.LoadResources()).EndObservedAt);
+        }
+        finally { await queue.StopAllAsync(); }
+    }
+
+    [Fact]
     public async Task TerminalWatchCompletesWithoutManualSuppression()
     {
         using TempDirectory directory = new();
@@ -115,7 +160,7 @@ public sealed class WorkStateLifecycleTests
     }
 
     [Fact]
-    public async Task OldActiveRevisionCannotCommitSuccessForNewPendingRevision()
+    public async Task PausePreservesLatestReplacementRevisionAcrossRestart()
     {
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
@@ -151,9 +196,9 @@ public sealed class WorkStateLifecycleTests
             Assert.True(firstQueue.TryEnqueue(old));
             await oldStarted.Task.WaitAsync(TestWait.Timeout);
             Assert.True(firstQueue.TryEnqueue(latest));
-            firstQueue.SetPaused(true);
+            await firstQueue.SetPausedAsync(true);
             releaseOld.TrySetResult();
-            await TestWait.UntilAsync(() => File.Exists(target));
+            Assert.False(File.Exists(target));
             await TestWait.UntilAsync(() => firstQueue.GetCapacitySnapshot().Active == 0);
             MediaWork pending = Assert.Single(store.LoadMedia(ThreadUrl, 1));
             Assert.Equal(4, pending.ExpectedSize);

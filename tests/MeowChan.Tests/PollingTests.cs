@@ -98,7 +98,7 @@ public sealed class PollingTests
             queue.SetPaused(true);
             Assert.Equal(CheckRequestStatus.Paused, thread.RequestCheck());
             await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
-            Assert.Equal(CheckRequestStatus.Stopping, thread.RequestCheck());
+            Assert.Equal(CheckRequestStatus.Paused, thread.RequestCheck());
         }
         finally
         {
@@ -156,6 +156,45 @@ public sealed class PollingTests
         provider.Board.Clock.Advance();
         await registry.RemoveBoardAsync(provider.Board).WaitAsync(TestWait.Timeout);
         Assert.Equal(1, provider.Board.Checks);
+    }
+
+    [Fact]
+    public async Task GlobalPauseCancelsActiveSourcesAndResumesTheSameWatchInstances()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1024 * 1024);
+        ProbeThread thread = new(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        provider.ThreadFactory = _ => thread;
+        TaskCompletionSource threadCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource boardCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        thread.OnCheckWithCancellation = async token =>
+        {
+            try { await Task.Delay(Timeout.Infinite, token); }
+            finally { threadCancelled.TrySetResult(); }
+        };
+        provider.Board.OnCheckWithCancellation = async token =>
+        {
+            try { await Task.Delay(Timeout.Infinite, token); return Array.Empty<IThread>(); }
+            finally { boardCancelled.TrySetResult(); }
+        };
+        await using Registry registry = new(new[] { provider }, queue, directory.Path, TimeSpan.FromSeconds(60), 60);
+        await registry.AddAsync(thread.ThreadUri.AbsoluteUri);
+        await registry.AddAsync(provider.Board.BoardUri.AbsoluteUri);
+        await TestWait.UntilAsync(() => thread.Checks == 1 && provider.Board.Checks == 1);
+        await registry.SetPausedAsync(true).WaitAsync(TestWait.Timeout);
+        Assert.True(threadCancelled.Task.IsCompleted);
+        Assert.True(boardCancelled.Task.IsCompleted);
+        Assert.Equal(CheckRequestStatus.Paused, thread.RequestCheck());
+        Assert.Equal(CheckRequestStatus.Paused, provider.Board.RequestCheck());
+        Assert.Same(thread, Assert.Single(registry.Threads));
+        Assert.Same(provider.Board, Assert.Single(registry.Boards));
+        thread.OnCheckWithCancellation = null;
+        provider.Board.OnCheckWithCancellation = null;
+        await registry.SetPausedAsync(false);
+        await TestWait.UntilAsync(() => thread.Checks == 2 && provider.Board.Checks == 2);
+        Assert.Equal(1, thread.MaximumActive);
+        Assert.Equal(1, provider.Board.MaximumActive);
     }
 
     [Fact]

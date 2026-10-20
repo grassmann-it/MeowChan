@@ -12,7 +12,7 @@ public sealed class DownloadQueueTests
     private static readonly byte[] Payload = [1, 3, 5, 7, 9];
 
     [Fact]
-    public async Task PauseFinishesActiveTransferAndBoundsPendingAdmissionUntilResume()
+    public async Task PauseCancelsActiveTransferAndBoundsPendingAdmissionUntilResume()
     {
         using TempDirectory directory = new TempDirectory();
         GatedMediaHandler handler = new GatedMediaHandler();
@@ -25,22 +25,103 @@ public sealed class DownloadQueueTests
         {
             Assert.True(queue.TryEnqueue(first));
             await handler.WaitForStartsAsync(1);
-            queue.SetPaused(true);
+            await queue.SetPausedAsync(true);
+            Assert.Equal(0, handler.ActiveRequests);
+            Assert.False(first.Thread.IsMediaDownloaded(first.MediaIdentifier));
+            Assert.False(File.Exists(first.DestinationPath));
             Assert.True(queue.TryEnqueue(second));
             Assert.False(queue.TryEnqueue(third));
             Task<bool> admission = queue.EnqueueAsync(third);
             Assert.False(admission.IsCompleted);
-            handler.Release(1);
-            await TestWait.UntilAsync(() => first.Thread.IsMediaDownloaded(first.MediaIdentifier));
             Assert.Equal(1, handler.RequestCount);
             Assert.Equal(1, queue.GetCapacitySnapshot().Pending);
             Assert.False(admission.IsCompleted);
             queue.SetPaused(false);
             Assert.True(await admission.WaitAsync(TestWait.Timeout));
-            await handler.WaitForStartsAsync(2);
-            handler.Release(2);
+            await handler.WaitForStartsAsync(3);
+            handler.Release(3);
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
-            Assert.Equal(3, handler.RequestCount);
+            Assert.Equal(4, handler.RequestCount);
+            Assert.True(first.Thread.IsMediaDownloaded(first.MediaIdentifier));
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task PauseWaitsForPhysicalCancellationAndResumeCannotOvertakeIt()
+    {
+        using TempDirectory directory = new();
+        using GatedMediaHandler handler = new(delayCancellationCompletion: true);
+        using StubImageBoard board = new(handler);
+        DownloadQueue queue = new(1, UnthrottledBandwidth);
+        DownloadItem item = CreateItem(board, Thread(board, 1), directory, "media.bin", "one");
+        try
+        {
+            Assert.True(queue.TryEnqueue(item));
+            await handler.WaitForStartsAsync(1);
+            Task pause = queue.SetPausedAsync(true);
+            await handler.WaitForCancellationAsync();
+            Assert.False(pause.IsCompleted);
+            Task resume = queue.SetPausedAsync(false);
+            Assert.False(resume.IsCompleted);
+            Assert.Equal(1, handler.RequestCount);
+            handler.CompleteCancellation();
+            await Task.WhenAll(pause, resume).WaitAsync(TestWait.Timeout);
+            await handler.WaitForStartsAsync(1);
+            handler.Release(1);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(2, handler.RequestCount);
+            Assert.Equal(1, handler.MaximumActiveRequests);
+        }
+        finally { handler.CompleteCancellation(); await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task RemovingAnInterruptedReservationPreventsItsRestart()
+    {
+        using TempDirectory directory = new();
+        using GatedMediaHandler handler = new();
+        using StubImageBoard board = new(handler);
+        DownloadQueue queue = new(1, UnthrottledBandwidth);
+        DownloadItem item = CreateItem(board, Thread(board, 1), directory, "media.bin", "one");
+        try
+        {
+            Assert.True(queue.TryEnqueue(item));
+            await handler.WaitForStartsAsync(1);
+            await queue.SetPausedAsync(true).WaitAsync(TestWait.Timeout);
+            await queue.CancelDownloadsForThreadAsync(item.Thread).WaitAsync(TestWait.Timeout);
+            await queue.SetPausedAsync(false);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(1, handler.RequestCount);
+            Assert.False(File.Exists(item.DestinationPath));
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task PausedReservationCannotStartHttpAfterStorageAdmissionIsReleased()
+    {
+        using TempDirectory directory = new();
+        using GatedMediaHandler handler = new();
+        using StubImageBoard board = new(handler);
+        DownloadQueue queue = new(1, UnthrottledBandwidth);
+        DownloadItem item = CreateItem(board, Thread(board, 1), directory, "blocked/media.bin", "one");
+        Directory.CreateDirectory(Path.GetDirectoryName(item.DestinationPath)!);
+        using FileStream lease = new(Path.Combine(Path.GetDirectoryName(item.DestinationPath)!, ".meowchan-store.lock"),
+            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            Assert.True(queue.TryEnqueue(item));
+            Assert.Equal(1, queue.GetCapacitySnapshot().Active);
+            await queue.SetPausedAsync(true).WaitAsync(TestWait.Timeout);
+            lease.Dispose();
+            Assert.Equal(0, handler.RequestCount);
+            Assert.Equal(0, queue.GetCapacitySnapshot().Active);
+            await queue.SetPausedAsync(false);
+            await handler.WaitForStartsAsync(1);
+            handler.Release(1);
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(1, handler.RequestCount);
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
     }

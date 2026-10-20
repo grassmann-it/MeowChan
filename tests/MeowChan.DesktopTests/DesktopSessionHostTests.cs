@@ -114,6 +114,62 @@ public sealed class DesktopSessionHostTests
     }
 
     [Fact]
+    public async Task PauseTransitionRemainsBusyUntilSourceCancellationAndSerializesStop()
+    {
+        using TempDirectory directory = new();
+        using DelayedPauseTransport transport = new();
+        using HttpClient client = new(transport);
+        DesktopSessionHost host = new(directory.Path, new[] { new FourChanImageBoard(client) });
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            await host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Timeout);
+            await transport.Started.Task.WaitAsync(Timeout);
+            ConcurrentQueue<bool> completedTransitionConfig = new();
+            host.StateChanged += () =>
+            {
+                if (host.IsPaused && !host.IsPauseTransitioning)
+                    completedTransitionConfig.Enqueue(host.Config.DownloadsPaused);
+            };
+            Task pause = host.SetPausedAsync(true);
+            await transport.Cancelled.Task.WaitAsync(Timeout);
+            Assert.True(host.IsPaused);
+            Assert.True(host.IsPauseTransitioning);
+            Assert.False(pause.IsCompleted);
+            Task stop = host.StopAsync();
+            Assert.False(stop.IsCompleted);
+            transport.Release.TrySetResult();
+            await Task.WhenAll(pause, stop).WaitAsync(Timeout);
+            Assert.False(host.IsPauseTransitioning);
+            Assert.NotEmpty(completedTransitionConfig);
+            Assert.All(completedTransitionConfig, value => Assert.True(value));
+            Assert.Equal(1, transport.Requests);
+        }
+        finally { transport.Release.TrySetResult(); await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    private sealed class DelayedPauseTransport : HttpMessageHandler
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Requests;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Interlocked.Increment(ref Requests);
+            Started.TrySetResult();
+            try { await Task.Delay(System.Threading.Timeout.Infinite, token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                Cancelled.TrySetResult();
+                await Release.Task;
+                throw;
+            }
+            throw new InvalidOperationException();
+        }
+    }
+
+    [Fact]
     public async Task FailedPauseWriteLeavesRuntimeRunning()
     {
         using TempDirectory directory = new TempDirectory();

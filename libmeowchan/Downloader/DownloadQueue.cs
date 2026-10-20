@@ -25,6 +25,11 @@ public enum DownloadPriority { Manual, BoardDiscovery }
 public class DownloadQueue
 {
     private readonly object _stateLock = new object();
+    private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
+    private CancellationTokenSource _transferEpoch = new();
+    private TaskCompletionSource _workersDrained = CreateCompletedSource();
+    // Interrupted reservations retain admission ownership without occupying bounded pending capacity.
+    private readonly LinkedList<QueuedDownload> _interruptedDownloads = new();
     private readonly LinkedList<QueuedDownload> _pendingDownloads = new LinkedList<QueuedDownload>();
     private readonly ConditionalWeakTable<IThread, PriorityState> _priorities = new ConditionalWeakTable<IThread, PriorityState>();
     private readonly LinkedList<AdmissionWaiter> _admissionWaiters = new LinkedList<AdmissionWaiter>();
@@ -76,23 +81,47 @@ public class DownloadQueue
         }
     }
 
-    /// <summary>Pauses new worker reservations; transfers already reserved may finish.</summary>
+    /// <summary>True while dispatch and provider checks are halted.</summary>
     public bool IsPaused { get { lock (_stateLock) { return _paused; } } }
 
-    public void SetPaused(bool paused)
+    public void SetPaused(bool paused) => SetPausedAsync(paused).GetAwaiter().GetResult();
+
+    /// <summary>Cancels transfer reservations and waits for their physical workers before confirming pause.</summary>
+    public async Task SetPausedAsync(bool paused)
     {
-        List<QueuedDownload> ready;
-        lock (_stateLock)
+        await _pauseTransitions.WaitAsync().ConfigureAwait(false);
+        try
         {
-            if (_stopping) throw new InvalidOperationException("The queue is stopping.");
-            if (_paused == paused) return;
-            _paused = paused;
-            if (paused) _resumed = CreateCompletionSource();
-            else _resumed.TrySetResult();
-            ready = ReserveWorkersLocked();
+            CancellationTokenSource? cancel = null;
+            Task drained = Task.CompletedTask;
+            List<QueuedDownload> ready;
+            lock (_stateLock)
+            {
+                if (_stopping) throw new InvalidOperationException("The queue is stopping.");
+                if (_paused == paused) return;
+                _paused = paused;
+                if (paused)
+                {
+                    _resumed = CreateCompletionSource();
+                    cancel = _transferEpoch;
+                    drained = _workersDrained.Task;
+                }
+                else
+                {
+                    _transferEpoch = new CancellationTokenSource();
+                    _resumed.TrySetResult();
+                }
+                ready = ReserveWorkersLocked();
+            }
+            StartWorkers(ready);
+            _changes.Signal();
+            if (cancel != null)
+            {
+                try { await cancel.CancelAsync().ConfigureAwait(false); }
+                finally { await drained.ConfigureAwait(false); cancel.Dispose(); }
+            }
         }
-        StartWorkers(ready);
-        _changes.Signal();
+        finally { _pauseTransitions.Release(); }
     }
 
     /// <summary>Shared gate for automatic provider checks. Cancellation still ends a paused watch.</summary>
@@ -404,7 +433,10 @@ public class DownloadQueue
         }
     }
 
-    /// <summary>Pending includes reserved successors of active media revisions, never exceeding the configured cap.</summary>
+    /// <summary>
+    /// Pending includes reserved successors of active media revisions, never exceeding the configured cap.
+    /// Interrupted worker reservations remain admitted separately; GetThreadCounts includes them as queued.
+    /// </summary>
     public (int Active, int Pending, int WaitingAdmission) GetCapacitySnapshot()
     {
         lock (_stateLock) return (_activeDownloads, _pendingDownloads.Count + _reservedSuccessors,
@@ -705,6 +737,13 @@ public class DownloadQueue
                 threadState.CancellationLeases++;
             }
 
+            while (_interruptedDownloads.First is LinkedListNode<QueuedDownload> interrupted)
+            {
+                _interruptedDownloads.RemoveFirst();
+                _jobs.Remove(interrupted.Value.Identity);
+                interrupted.Value.ThreadState.OutstandingJobs--;
+            }
+
             while (_pendingDownloads.First is LinkedListNode<QueuedDownload> node)
             {
                 QueuedDownload job = node.Value;
@@ -772,7 +811,7 @@ public class DownloadQueue
     private List<QueuedDownload> ReserveWorkersLocked()
     {
         List<QueuedDownload> ready = new List<QueuedDownload>();
-        while (!_stopping && !_paused && _activeDownloads < _maxParallelDownloads && _pendingDownloads.Count > 0)
+        while (!_stopping && !_paused && _activeDownloads < _maxParallelDownloads && (_pendingDownloads.Count > 0 || _interruptedDownloads.Count > 0))
         {
             DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
             LinkedListNode<QueuedDownload>? chosen = null;
@@ -784,11 +823,22 @@ public class DownloadQueue
                     || (matches == chosenMatches && node.Value.ThreadState.LastDispatch < chosen.Value.ThreadState.LastDispatch))
                     chosen = node;
             }
-            QueuedDownload job = chosen!.Value;
-            _pendingDownloads.Remove(chosen);
+            QueuedDownload job;
+            if (_interruptedDownloads.First is { } interrupted)
+            {
+                job = interrupted.Value;
+                _interruptedDownloads.RemoveFirst();
+            }
+            else
+            {
+                job = chosen!.Value;
+                _pendingDownloads.Remove(chosen);
+            }
             _preferManualDispatch = GetPriorityLocked(job.Item.Thread) != DownloadPriority.Manual;
             job.ThreadState.LastDispatch = ++_dispatchSequence;
             job.IsActive = true;
+            job.EpochToken = _transferEpoch.Token;
+            if (_activeDownloads == 0) _workersDrained = CreateCompletionSource();
             _activeDownloads++;
             ready.Add(job);
         }
@@ -807,17 +857,21 @@ public class DownloadQueue
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
         bool succeeded = false;
+        bool interrupted = false;
+        using AsyncCancellationLink cancellation = new(job.ThreadState.Token, job.EpochToken);
         try
         {
-            job.ThreadState.Token.ThrowIfCancellationRequested();
+            job.EpochToken.ThrowIfCancellationRequested();
+            cancellation.Token.ThrowIfCancellationRequested();
             if (!CanRunDurable(job.Item)) return;
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
                 _logger, notifyThread: _workStore == null);
-            await worker.ExecuteAsync(job.ThreadState.Token).ConfigureAwait(false);
+            await worker.ExecuteAsync(cancellation.Token).ConfigureAwait(false);
             succeeded = true;
         }
-        catch (OperationCanceledException) when (job.ThreadState.Token.IsCancellationRequested)
+        catch (OperationCanceledException) when (job.ThreadState.Token.IsCancellationRequested || job.EpochToken.IsCancellationRequested)
         {
+            interrupted = job.EpochToken.IsCancellationRequested;
             _logger.Debug("Download for {DownloadUri} was cancelled.", job.Item.DownloadUri);
         }
         catch (Exception exception)
@@ -857,20 +911,37 @@ public class DownloadQueue
             lock (_stateLock)
             {
                 _activeDownloads--;
-                _jobs.Remove(job.Identity);
-                job.ThreadState.OutstandingJobs--;
-                if (job.Replacement != null) _reservedSuccessors--;
-                if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
-                    && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
+                if (_activeDownloads == 0) _workersDrained.TrySetResult();
+                if (interrupted && !_stopping && !job.ThreadState.Token.IsCancellationRequested
+                    && !_cancelledThreads.TryGetValue(job.Item.Thread, out _))
                 {
-                    QueuedDownload successor = new QueuedDownload(job.Identity, replacement.DownloadUri.ToString(), replacement, job.ThreadState);
-                    _jobs.Add(job.Identity, successor);
-                    _pendingDownloads.AddLast(successor);
-                    job.ThreadState.OutstandingJobs++;
+                    job.IsActive = false;
+                    if (job.Replacement != null)
+                    {
+                        job.Item = job.Replacement;
+                        job.Replacement = null;
+                        _reservedSuccessors--;
+                    }
+                    _interruptedDownloads.AddLast(job);
+                    ready = ReserveWorkersLocked();
                 }
-                RetireThreadIfIdleLocked(job.ThreadState, cleanup);
-                SignalIdleIfNeededLocked(cleanup);
-                ready = ReserveWorkersLocked();
+                else
+                {
+                    _jobs.Remove(job.Identity);
+                    job.ThreadState.OutstandingJobs--;
+                    if (job.Replacement != null) _reservedSuccessors--;
+                    if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
+                        && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
+                    {
+                        QueuedDownload successor = new QueuedDownload(job.Identity, replacement.DownloadUri.ToString(), replacement, job.ThreadState);
+                        _jobs.Add(job.Identity, successor);
+                        _pendingDownloads.AddLast(successor);
+                        job.ThreadState.OutstandingJobs++;
+                    }
+                    RetireThreadIfIdleLocked(job.ThreadState, cleanup);
+                    SignalIdleIfNeededLocked(cleanup);
+                    ready = ReserveWorkersLocked();
+                }
             }
 
             RunCleanup(cleanup);
@@ -977,6 +1048,12 @@ public class DownloadQueue
 
     private void RemovePendingJobsLocked(ThreadState threadState)
     {
+        foreach (QueuedDownload interrupted in _interruptedDownloads.Where(job => ReferenceEquals(job.ThreadState, threadState)).ToArray())
+        {
+            _interruptedDownloads.Remove(interrupted);
+            _jobs.Remove(interrupted.Identity);
+            threadState.OutstandingJobs--;
+        }
         LinkedListNode<QueuedDownload>? node = _pendingDownloads.First;
         while (node != null)
         {
@@ -1122,6 +1199,7 @@ public class DownloadQueue
         public DownloadItem? Replacement { get; set; }
         public ThreadState ThreadState { get; }
         public bool IsActive { get; set; }
+        public CancellationToken EpochToken { get; set; }
 
         public QueuedDownload(JobIdentity identity, string url, DownloadItem item, ThreadState threadState)
         {

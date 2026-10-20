@@ -104,9 +104,9 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
     {
         lock (_monitoringLock)
         {
+            if (_sessionQueue?.IsPaused == true) return CheckRequestStatus.Paused;
             if (_monitoringCancellation == null || _monitoringCancellation.IsCancellationRequested
                 || _monitoringTask == null || _monitoringTask.IsCompleted) return CheckRequestStatus.Stopping;
-            if (_sessionQueue?.IsPaused == true) return CheckRequestStatus.Paused;
             return _checkTrigger.Request();
         }
     }

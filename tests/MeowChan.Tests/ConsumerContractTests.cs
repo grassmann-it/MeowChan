@@ -167,7 +167,7 @@ public sealed class ConsumerContractTests
             .Select(index => $"https://missing.test/g/thread/{index}").ToArray();
         ReadOnlySessionStore store = new ReadOnlySessionStore(new SessionSnapshot { ThreadUrls = urls });
         await using Registry registry = new Registry([provider], new DownloadQueue(1, UnthrottledBandwidth),
-            directory.Path, TimeSpan.FromMinutes(1), 60, store, persistSession: false);
+            directory.Path, TimeSpan.FromMinutes(1), 60, store, persistSession: true);
         DownloadSessionSnapshot before = registry.GetSnapshot();
 
         await registry.RestoreAsync().WaitAsync(TestWait.Timeout);

@@ -302,9 +302,9 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     {
         lock (_monitoringLock)
         {
+            if (_monitoringQueue?.IsPaused == true) return CheckRequestStatus.Paused;
             if (_monitoringCancellation == null || _monitoringCancellation.IsCancellationRequested
                 || _monitoringTask == null || _monitoringTask.IsCompleted) return CheckRequestStatus.Stopping;
-            if (_monitoringQueue?.IsPaused == true) return CheckRequestStatus.Paused;
             return _checkTrigger.Request();
         }
     }

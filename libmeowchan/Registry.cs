@@ -61,6 +61,7 @@ public sealed class Registry : IAsyncDisposable
     private SessionSnapshot _session = new SessionSnapshot();
     private bool _restored;
     private bool _hasMutations;
+    private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
     private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
     private readonly object _state = new object();
     private readonly Dictionary<ResourceKey, Watch> _watches = new Dictionary<ResourceKey, Watch>();
@@ -191,7 +192,49 @@ public sealed class Registry : IAsyncDisposable
     }
 
     public bool IsPaused => _queue.IsPaused;
-    public void SetPaused(bool paused) => _queue.SetPaused(paused);
+    public void SetPaused(bool paused) => SetPausedAsync(paused).GetAwaiter().GetResult();
+
+    public async Task SetPausedAsync(bool paused)
+    {
+        await _pauseTransitions.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (paused)
+            {
+                Task transfers = _queue.SetPausedAsync(true);
+                Watch[] active;
+                await _gate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    ObjectDisposedException.ThrowIf(_stopping, this);
+                    lock (_state) active = _watches.Values.Where(watch => !watch.Stopping).ToArray();
+                }
+                finally { _gate.Release(); }
+                // Provider callbacks may need _gate; never hold it while draining monitors.
+                await Task.WhenAll(active.Select(watch => watch.Thread != null
+                    ? watch.Thread.StopMonitoringAsync() : watch.Board!.StopMonitoringAsync()).Append(transfers)).ConfigureAwait(false);
+            }
+            else
+            {
+                await _gate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    ObjectDisposedException.ThrowIf(_stopping, this);
+                    Watch[] active;
+                    lock (_state) active = _watches.Values.Where(watch => watch.Ready && !watch.Stopping).ToArray();
+                    foreach (Watch watch in active)
+                    {
+                        if (watch.Thread != null) watch.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
+                        else watch.Board!.StartMonitoring((int)_boardInterval.TotalSeconds);
+                    }
+                    await _queue.SetPausedAsync(false).ConfigureAwait(false);
+                }
+                finally { _gate.Release(); }
+            }
+            SignalChanged();
+        }
+        finally { _pauseTransitions.Release(); }
+    }
 
     public string GetDownloadDirectory(IBoard board)
     {
