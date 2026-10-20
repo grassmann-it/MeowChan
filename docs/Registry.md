@@ -43,7 +43,7 @@ Use the exact objects returned by admission or `GetView()` when removing resourc
 
 ## Persistence ownership
 
-Persistence is optional. A host that uses the file store acquires a profile lease, constructs `SessionStore`, passes it to `Registry`, and calls `RestoreAsync` before admitting new persistent watches:
+Persistence is optional. A host that wants durable session intent **and** retry/lifecycle state acquires a profile lease, constructs `SessionStore` and `WorkStateStore`, passes both to `Registry`, and calls `RestoreAsync` before admitting new persistent watches:
 
 ```csharp
 using MeowChan.Persistence;
@@ -51,13 +51,42 @@ using MeowChan.Persistence;
 string profileRoot = Path.GetFullPath("profile");
 using ProfileLease lease = ProfileLease.Acquire(profileRoot);
 SessionStore store = new SessionStore(profileRoot, lease);
+WorkStateStore work = new WorkStateStore(profileRoot, lease);
 await using Registry session = new Registry(
     providers, queue, outputRoot, TimeSpan.FromSeconds(60), 60,
-    sessionStore: store, persistSession: true);
+    sessionStore: store, persistSession: true, workStore: work);
 await session.RestoreAsync();
 ```
 
-The lease must outlive the session; disposing in the order above satisfies that requirement. Enabled persistence saves confirmed additions, removals, suppression and assigned roots before acknowledging success. File-store errors propagate; the caller must display or otherwise handle them. `GetSnapshot().Warnings` retains the latest 32 recoverable session warnings. Unresolved saved URLs are retained for later recovery instead of silently discarded.
+`SessionStore` persists the watch-list projection; it does not by itself persist
+media retry history or source-end deadlines. Pass `workStore: new WorkStateStore(profileRoot, lease)`
+explicitly for that authority. It writes `work-state.sqlite` under the same lease
+and does not require post capture or Avalonia. The desktop supplies this store.
+Omitting `workStore` uses `MemoryWorkStateStore`: policy still applies during that
+registry's lifetime, but retry/end history is lost with that store. `persistSession: true`
+alone does not make the default work store durable. A fresh volatile store cannot
+reconstruct past failure times.
+
+`IWorkStateStore` exposes `LoadResources`, generation-scoped `LoadMedia`,
+`CommitIntent`, `CommitEnd`, `CommitState` and `CommitMedia`. `WorkResource` retains
+watch intent, assigned root, generation, source end and pending capture;
+`MediaWork` retains URI, destination, integrity metadata, attempts, failure and
+earliest due time. Custom implementations must preserve generation fencing,
+first-end immutability and confirmed intent before work admission. Do not edit
+these records independently while Registry owns the session.
+
+The lease must outlive the session; disposing in the order above satisfies that requirement.
+With session persistence enabled and the default in-memory work store, saving the
+session file remains the admission/removal barrier: a failed save propagates and
+the requested runtime change does not proceed. With an explicitly supplied durable
+work store, Registry commits authoritative intent, generation and assigned root
+first. Failure of that authority commit propagates and prevents the runtime change.
+A later failure to save the session JSON projection instead produces a warning;
+it does not undo committed intent or falsely reject an admission/removal that can
+proceed from the authority. Restore reconciles that projection against work state.
+Hosts must surface both operation exceptions and snapshot warnings.
+`GetSnapshot().Warnings` retains the latest 32 recoverable session warnings.
+Unresolved saved URLs are retained for later recovery instead of silently discarded.
 
 Before opening earlier-release profile or media data with MeowChan 0.9.0, stop older application and library processes and make a backup. Current profile and media locks use new names; older processes cannot coordinate with them. Concurrent old/new writers on the same data and downgrading migrated data are unsupported.
 
@@ -133,13 +162,46 @@ provider work on the caller's thread.
 
 Built-in BaseThread/BaseBoard polling consumes these requests in its existing
 serialized loop. Automatic delays can be woken; the provider's minimum thread
-interval and HTTP admission/cooldown remain in force. Terminal built-in threads
-retain their owned lifetime for an explicit retry of known selected media and
-pending content work, without restarting remote polling. Removing a watch or
-stopping the registry cancels pending and active checks through that lifetime.
+interval and HTTP admission/cooldown remain in force. A terminal source stops remote polling; known media follow-up uses persisted
+work descriptors rather than requiring another successful endpoint response.
+Removing a watch or stopping the registry cancels its owned work.
+
+`RetryMissingMedia(IThread, string? mediaIdentifier = null)` grants one outer
+media attempt through the shared queue for the exact current watch.
+`RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)` repairs a
+completed resource without starting a new source watch or 12-hour window.
+Ordinary `RequestCheck` is not an override for media due times. See the
+[download policy](Downloader.md#retry-and-source-end-policy).
 
 The desktop exposes this action in Downloads details/context menus and on a
-selected Diagnostics entry. It retries missing selected media through the same
+selected Diagnostics entry. The separate retry action retries missing selected media through the same
 queue and storage verification; it does not clear errors in advance, re-evaluate
 previous exclusions, or create replacement watches. Errors disappear only when
 the corresponding operation actually succeeds.
+
+## Restore and completion authority
+
+Durable work intent is authoritative over `saved_urls.json`. Restore reconciles
+watch generations and completion before activating work. `persistSession: false`
+(the desktop's `SaveUrlsOnExit=false`) prevents automatic watch restoration even
+when the work journal retains historical records. Retained archive data is separate.
+A source ending does not mean all media succeeded: snapshots distinguish follow-up,
+completed, repair and intervention states. Explicit re-add starts a new generation;
+a board catalog does not silently revive a completed watch. Persistence errors must
+be surfaced by the host; never treat a failed journal commit as successful completion.
+
+## Local export API
+
+`ArchiveHtmlExporter.ExportAsync(reader, threadId, destination, options, progress, token)`
+is create-only and refuses an existing destination. `InspectAsync(destination, threadId)`
+returns export identity, generation and inventory status. An explicit `UpdateAsync`
+requires the expected export ID and generation; pass the inspection's
+`ObservedFingerprint` as `expectedObservedFingerprint` to also fence external edits.
+`confirmPreserveBackup: true` acknowledges keeping the old folder when contents
+were changed, a legacy export was associated, or the new output is less complete.
+The default is false. Results expose actual `Directory`, `IndexPath`, omissions,
+`Warnings`, metadata and any retained `BackupDirectory`. Update stages the full
+new output and journals the folder exchange; it is not a general-purpose directory
+synchronizer or a power-loss guarantee for network storage. `ExportHistoryStore`
+is an optional profile index; portable marker metadata remains with the export.
+See the [offline export guide](Help.md#portable-html-export).

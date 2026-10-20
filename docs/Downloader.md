@@ -66,3 +66,33 @@ state in settings. Paused startup applies before restoration starts any watches.
 Pause persistence is independent of saved URL lists. Removing watches and closing
 the application still work while paused. Failed settings writes leave the previous
 runtime pause state intact.
+
+## Retry and source-end policy
+
+Media work is keyed by watch generation, stable media identity/revision and target.
+Provider URL changes alone do not reset history. Built-in Registry sessions apply
+this policy in memory by default; restart durability requires the explicit
+`IWorkStateStore` described in [persistence ownership](Registry.md#persistence-ownership).
+The desktop supplies a SQLite `WorkStateStore` independently of post capture.
+
+| Failure | Automatic outer attempts |
+| --- | --- |
+| Media HTTP 404 | Earliest pauses of 15/30/60/120/240 minutes after successive failures, then at least 240 minutes. No immediate confirmation retry. |
+| Temporary network/body or exhausted HTTP header policy | At most three outer attempts per episode, with at least 1 then 5 minutes before attempts 2 and 3; then intervention. |
+| 410, 401/403, storage/rights/integrity failures | Automatic work suspended; correct the cause and explicitly retry. |
+| Requested cancellation | No new transfer-failure attempt. |
+
+Inner 429/5xx header handling remains bounded to three requests per outer attempt;
+`Retry-After` and host cooldown can push eligibility later. Polls and restarts do
+not start a fresh episode. Check-now respects due times. Manual media retry allows
+one outer attempt, coalesces repeated requests and retains the failure stage.
+Pause, cancellation, queue admission and source limits still apply. Verified
+success or a genuinely new media revision resets failure history.
+
+A durably recorded archived/not-found source starts a fixed 12-hour follow-up
+window. Restore and pause do not move its end. At expiry, no new automatic 404
+work starts; already active transfers may finish. A completed thread can retain
+missing 404 media. Exhausted non-404 work or capture/storage failures require
+intervention. Manual repair after completion does not restart remote polling or
+the deadline. A source-end timestamp never committed before a crash cannot be
+recovered retrospectively. Due times describe earliest admission, not a transfer SLA.

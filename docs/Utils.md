@@ -1,6 +1,6 @@
 # Desktop formatting utilities
 
-`oChan.Utils` belongs to the desktop reference client, in [Desktop/Utils.cs](../Desktop/Utils.cs). It is not part of the `libochan` package. Library consumers receive numeric values and format them for their own interface.
+`MeowChan.Utils` belongs to the desktop reference client, in [Desktop/Utils.cs](../Desktop/Utils.cs). It is not part of the `libmeowchan` package. Library consumers receive numeric values and format them for their own interface.
 
 `ToHumanReadableSize(long bytes)` formats a byte count for display:
 

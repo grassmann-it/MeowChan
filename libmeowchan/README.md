@@ -1,6 +1,6 @@
 # libmeowchan
 
-`libmeowchan` is the .NET 10 media-download library used by the MeowChan desktop application. It includes the 4chan and 8kun adapters, a shared download queue, verified file storage, optional session persistence, media-selection rules and a local post archive. It has no Avalonia dependency and reads no desktop configuration files. Its current namespaces are `MeowChan`, `MeowChan.Interfaces`, `MeowChan.Downloader` and `MeowChan.Boards.*`; content APIs use `MeowChan.Archive`, `MeowChan.Rules` and `MeowChan.Storage`.
+`libmeowchan` is the .NET 10 media-download library used by the MeowChan desktop application. It includes the 4chan and 8kun adapters, a shared download queue, verified file storage, optional session persistence, media-selection rules, a searchable local post archive and portable HTML export. It has no Avalonia dependency and reads no desktop configuration files. Its current namespaces are `MeowChan`, `MeowChan.Interfaces`, `MeowChan.Downloader` and `MeowChan.Boards.*`; content APIs use `MeowChan.Archive`, `MeowChan.Rules` and `MeowChan.Storage`.
 
 This branch prepares the 0.9.0 desktop update and adds optional library content services. Download-only hosts can continue without those services, but consumers of earlier releases must change their PackageReference to `libmeowchan`, using directives to `MeowChan.*`, and any explicit assembly references to `libmeowchan`. There is no automatic package redirect or binary compatibility promise. The repository can prepare the new package locally; it has not been published to NuGet. Desktop platform acceptance is also still open.
 
@@ -45,7 +45,7 @@ Construction is passive. `Registry` owns watch lifetimes and the supplied queue'
 
 Registry mutation commands can be called concurrently; admission, persistence and removal decisions are serialized internally. Snapshots can be read from any thread. Await the initial restore before submitting user commands, and use the registry's lifecycle methods rather than starting or stopping its provider resources independently. A stopped session rejects new admissions.
 
-For durable watches, acquire `ProfileLease.Acquire(profileDirectory)`, create `SessionStore(profileDirectory, lease)`, pass that store to `Registry`, and await `RestoreAsync()` before accepting new mutations. Keep the lease alive until the registry has stopped. Successful persistent Add/Remove calls await the session commit; closing the application does not erase tracked intent. The built-in store allows one writer per profile. Separate profiles can coexist; media publication uses per-directory leases between cooperating writers.
+For durable watches and retry/source-end history, acquire `ProfileLease.Acquire(profileDirectory)`, create `SessionStore(profileDirectory, lease)`, create `WorkStateStore(profileDirectory, lease)` and pass it as `workStore` alongside the session store to `Registry`, then await `RestoreAsync()` before accepting new mutations. Keep the lease alive until the registry has stopped. With session persistence and the default in-memory work store, Add/Remove awaits the session-file commit before changing runtime membership. With an explicitly supplied durable work store, authoritative intent, generation and assigned root commit first; failure prevents the runtime change. A later session-JSON projection failure produces a snapshot warning without undoing committed intent. Restore reconciles the projection against work state. Hosts must surface operation exceptions and `GetSnapshot().Warnings`; closing the application does not erase committed watch intent. The built-in stores allow one writer per profile. `SessionStore` alone does not persist media retry or source-end history; the default `MemoryWorkStateStore` loses that state when discarded. Disabling session persistence prevents automatic watch restoration from retained work state as well as the URL list. Separate profiles can coexist; media publication uses per-directory leases between cooperating writers.
 
 When opening data written by an earlier release, stop all older applications and consumers first. The 0.9.0 profile and media locks use new names, so an older process cannot coordinate with a current writer. Concurrent old/new use of the same data and downgrading migrated data are unsupported. Back up the profile and referenced media before upgrading.
 
@@ -73,12 +73,13 @@ await content.InitializeAsync();
 if (content.LoadWarning != null) Console.Error.WriteLine(content.LoadWarning);
 
 SessionStore store = new SessionStore(profile, lease);
+WorkStateStore work = new WorkStateStore(profile, lease);
 IImageBoard[] providers = new IImageBoard[] { new FourChanImageBoard(), new EightKunImageBoard() };
 DownloadQueue queue = new DownloadQueue(maxParallelDownloads: 3, maxBandwidthBytesPerSecond: 1024 * 1024);
 await using Registry session = new Registry(
     providers, queue, Path.GetFullPath("downloads"),
     threadInterval: TimeSpan.FromSeconds(60), boardIntervalSeconds: 60,
-    sessionStore: store, persistSession: true, contentRuntime: content);
+    sessionStore: store, persistSession: true, contentRuntime: content, workStore: work);
 await session.RestoreAsync();
 
 AdmissionResult result = await session.AddAsync(args[0]);
@@ -235,11 +236,29 @@ thread exports successfully. Output write failures throw and never report succes
 
 A sibling staging folder is published by a directory move only after HTML, CSS
 and media complete. Cancellation or failure removes staging and preserves any
-existing export. No overwrite is offered. The folder remains readable over
+existing export. `ExportAsync` never overwrites a destination. The folder remains readable over
 `file://` after moving it elsewhere, without a local server or the original profile.
 `IProgress<ArchiveHtmlExportProgress>` provides throttled post/file counts. A
 blocked filesystem operation may wait on the OS despite cancellation; hosts should
 keep export work separate from their UI and limit concurrent exports.
+
+For explicit replacement, `InspectAsync(destination, threadId)` returns identity,
+generation and inventory status. `UpdateAsync` requires the expected export ID
+and generation; supplying `expectedObservedFingerprint` also fences external edits.
+Changed/extra files, associated legacy exports or less complete replacement output
+require `confirmPreserveBackup: true` to retain the previous folder. Results report
+the actual `BackupDirectory`, omissions and warnings. An optional
+`ExportHistoryStore` indexes earlier exports in the profile; portable identity
+metadata travels with the exported folder. This stages and exchanges an export;
+it does not merge arbitrary files. See the [export API](https://github.com/tfgrass/MeowChan/blob/main/docs/Registry.md#local-export-api)
+and [user workflow](https://github.com/tfgrass/MeowChan/blob/main/docs/Help.md#portable-html-export).
+
+Consecutive media 404 failures wait 15/30/60/120/240 minutes, then at least 240.
+Automatic 404 follow-up ends 12 hours after the first durably recorded source end.
+Ordinary check requests respect due times; explicit missing-media retry grants one
+outer attempt without resetting history. Completed-media repair does not restart
+source monitoring. Hosts must persist work state for these limits to survive
+restart; see the [download policy](https://github.com/tfgrass/MeowChan/blob/main/docs/Downloader.md#retry-and-source-end-policy).
 
 ## State and provider extensions
 

@@ -2,9 +2,38 @@
 
 # MeowChan
 
-MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun. It watches threads and boards, saves their media and captured posts, and offers local archive search and portable single-thread HTML export. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
+MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
 Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Version **0.9.0 is in preparation and has not been released**; current releases are historical builds with their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
+
+## Quick start
+
+Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. Self-contained archives include .NET. Linux requires glibc and X11/XWayland; macOS packages are unsigned and not notarized. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
+
+The steps below describe the 0.9.0 interface and candidate launchers. Published older builds retain their original launcher names and controls.
+
+1. [Download a published build](https://github.com/tfgrass/MeowChan/releases) and extract the **whole archive**. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+2. Set your download folder and media rules in Settings, then Save.
+3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
+4. Open Archive to find saved content. Double-click a thread for its gallery; right-click for Read posts or Export as HTML. Copy an entire exported folder for offline reading elsewhere.
+
+The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
+
+## Downloads, gallery and archive
+
+[![MeowChan Downloads in Simple Dark view with saved, active and paused media](docs/screenshots/v0.9.0-downloads.png)](docs/screenshots/v0.9.0-downloads.png)
+
+Downloads keeps watched threads and their saved/selected media progress together.
+
+[![MeowChan gallery showing a saved landscape with navigation, zoom and captured post context](docs/screenshots/v0.9.0-gallery.png)](docs/screenshots/v0.9.0-gallery.png)
+
+Browse local images at Fit or 1:1, zoom and pan, and show the associated captured post.
+
+[![MeowChan Archive with local search results and saved-media tiles](docs/screenshots/v0.9.0-archive.png)](docs/screenshots/v0.9.0-archive.png)
+
+Find retained threads and media offline. Images of results includes all result pages in their current order.
+
+These scenes use original offline demo artwork and synthetic posts in the real application through an isolated Linux Xvfb/Openbox harness, at 100% scaling with software rendering. Downloads uses passive example states; archive, gallery and export use persisted local data. They do not demonstrate live source availability or native package acceptance. Supplementary captures show [repeat HTML export](docs/screenshots/v0.9.0-export.png) and [About with the MeowChan cat](docs/screenshots/v0.9.0-about.png). See the [image provenance](docs/screenshots/README.md).
 
 ## What's new in 0.9.0
 
@@ -14,7 +43,9 @@ Download published builds from the [MeowChan releases page](https://github.com/t
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
 - Single-URL and whole-session copying in a format that can be imported again.
-- A local archive with captured posts, retained original media versions and verified image previews, readable after a watch is removed.
+- An offline archive with local search, saved-media tiles and a shared gallery with navigation, zoom/pan and captured post context.
+- Portable HTML export to a new folder or an explicit update of a recognized previous result, with backup protection.
+- Durable missing-media retries and a bounded source-end follow-up, with a separate manual repair action.
 - Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
 - Diagnostics for current request cooldowns, download/storage errors and session warnings.
 
@@ -33,14 +64,6 @@ The first start uses **Simple**, **Dark**, **English** and normal density. Switc
 Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.
 
 Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. About remains in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
-
-![Preview of the Simple view with representative download states](docs/screenshots/v0.9.0-simple.png)
-
-![Preview of the compact Barebones view of the same example session](docs/screenshots/v0.9.0-barebones.png)
-
-![Preview of Settings in the shared workspace](docs/screenshots/v0.9.0-settings.png)
-
-These are earlier UI previews from the isolated Linux harness at 100% scaling (Xvfb/Openbox, software rendering). Titles, URLs and states are passive test fixtures; no watches or network requests are started for these comparison scenes. Final MeowChan screenshots of Downloads, gallery, archive search, export and About have not yet been taken and will replace or supplement these previews after the UI is complete.
 
 ## Build and run
 
@@ -62,9 +85,11 @@ Selecting **Add** with an empty field reads the clipboard once. Explicit input u
 
 Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
 
-Open **Show details**, use the row context menu, or double-click a row to see its URL, assigned destination and current errors. **Double-click now opens details instead of the folder.** Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
+Double-click a thread row to open its gallery. Board rows open details. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
 Progress measures saved media against currently selected media, with rule exclusions shown separately; it does not measure transferred bytes. The known count can grow, and reaching 100% does not stop monitoring. Queued and active counts describe media jobs, not watched threads. An archived source does not imply that a local HTML archive exists. Rate limits and temporary HTTP failures are retried within bounded limits; cancellation waits for active work to stop.
+
+Missing-media 404s wait 15/30/60/120/240 minutes, then at least 240; Check now respects those pauses. Retry missing media grants one attempt through the normal queue without clearing failure history. Automatic 404 follow-up ends 12 hours after the first durably recorded source end. A finished thread can retain missing 404 media; other exhausted failures require intervention. See the [retry guide](docs/Help.md#missing-media-and-finished-threads).
 
 Media is stored under:
 
@@ -78,7 +103,19 @@ Completed media is verified and recorded in a manifest. Files are published atom
 
 The Archive page lists locally registered threads and reads captured posts and manifest-recorded original media. New threads capture posts by default; older restored watches start media-only unless capture was already enabled. Use the archive's capture action to change that preference explicitly. Removing a watch or disabling capture preserves the existing archive. The reader retains observed posts even when they disappear from later source responses; it cannot recover posts that were never captured.
 
-Local posts remain readable without contacting the source. Supported images can be previewed from verified local files; unavailable files and unsupported previews are reported. Search retained text and titles, apply source/board/state filters and follow captured quotes or local backlinks without fetching remote targets. The archive export action creates a new portable HTML folder with its own CSS and matching verified saved originals; omission reasons are visible. Move the complete folder to retain offline reading. Existing export folders are not replaced. Video playback in the desktop reader, separate thumbnails and collection exports remain later work. The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. The writer atomically upgrades archive schema 1 to schema 2 for indexed search and quotes; keep a backup before upgrading because old schema-1-only readers cannot read the new catalog. Keep the profile and referenced media together when backing up, and stop the application before a simple file-copy backup. Existing v1 media manifests remain readable; new v2 history manifests are not supported by older binaries, so keep backups before upgrading.
+### Gallery and local search
+
+Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Images of results** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
+
+The gallery uses Left/Right, Fit/1:1, +/− and mouse-wheel zoom. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes it. PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still first frame. Video/audio playback is not provided. Files above 64 MiB or 80 million source pixels are refused; Fit buffers are bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
+
+### Portable HTML export
+
+Export a thread from Archive or its reader. Only captured posts and matching verified saved originals are included; export never fetches remote content. Media-only threads export as a gallery. Copy the **entire folder** and open its `index.html` for portable offline reading.
+
+For a recognized earlier result, **New folder** keeps the previous copy and remains the default. **Update existing export** explicitly rebuilds that result; changed/extra files, associated legacy exports or reduced output require confirmation to retain the old folder as a backup. Open previous export and the successful current result’s Open folder are separate actions. See the [export guide](docs/Help.md#portable-html-export) for association, backup and space requirements.
+
+The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. Back up the complete profile and referenced media with the writer stopped. Current writers migrate archive schema 1 to 2; passive readers can read schema 1 without migration. V1 media manifests remain readable, but older binaries cannot read new V2 media history. Keep backups before upgrading.
 
 Rules select allowed filename extensions and a maximum reported size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes use decimal MB (1 MB = 1,000,000 bytes); media with unknown size remain eligible. Save affects newly evaluated media only: already recorded selections/exclusions and existing files remain unchanged, including after restart. This size setting is a metadata filter, not a hard transfer limit.
 
@@ -90,9 +127,9 @@ Settings control the output path, polling interval, global parallel downloads an
 
 Settings also control theme, language, view, compact density and minimizing to the tray. **Save** validates and saves changes while staying on Settings; **Cancel** reloads the confirmed values without leaving the page. Navigation preserves pending edits, including invalid number text. Theme and view changes made in the footer save immediately and update only that field in a pending Settings draft. Existing settings files receive defaults for the new appearance preferences while retaining their download and session settings.
 
-When **Restore session on startup** is enabled, confirmed changes to watched URLs are saved as they happen. The application restores them at startup. Settings/session failures are shown rather than silently replacing saved state. Only one running application can own a profile.
+When session saving is enabled, confirmed changes to watched URLs are saved as they happen. The application restores saved watches at startup. Disabling **Save URLs on exit** prevents automatic watch restoration from the URL list and durable work state; it does not erase the archive. Settings/session failures are shown rather than silently replacing saved state. Only one running application can own a profile.
 
-Fresh profiles use `%APPDATA%/.MeowChan` on Windows and `$HOME/.MeowChan` on macOS/Linux, with `settings.json` in that directory and a `Downloads/MeowChan` default media root. An existing `.oChan` profile remains in place and keeps its saved or implicit `Downloads/oChan` root. Set `MEOWCHAN_PROFILE` to select a profile explicitly; the legacy `OCHAN_PROFILE` override is also accepted. If both profile directories exist, select one explicitly. If both override variables are set, they must resolve to the same directory. Stop older applications before upgrading an existing profile or media store. Concurrent old/new applications on the same data and downgrading migrated data are unsupported.
+Fresh profiles use `%APPDATA%/.MeowChan` on Windows and `$HOME/.MeowChan` on macOS/Linux, with `settings.json` in that directory and a `Downloads/MeowChan` default media root. An existing installation’s profile remains in place when it is the only profile, preserving its configured or implicit media destination. Set `MEOWCHAN_PROFILE` to select a profile explicitly; the older environment-variable alias is also accepted. If both profile directories exist, select one explicitly. If both override variables are set, they must resolve to the same directory. Stop older applications before upgrading an existing profile or media store. Concurrent old/new applications on the same data and downgrading migrated data are unsupported.
 
 English and German are built in. To add another language, place a plain JSON pack in `<active profile>/LanguagePacks`, restart, then select it in Settings. Missing translations fall back to English; an invalid or unavailable selected pack produces a warning and an English fallback. See the [language-pack format](Desktop/Localization/README.md). Technical provider and exception messages can remain untranslated.
 

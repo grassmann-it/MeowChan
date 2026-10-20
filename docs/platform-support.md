@@ -4,11 +4,11 @@ This record separates upstream platform support, candidate MeowChan packages, an
 
 ## Current 0.9.0 preparation
 
-MeowChan 0.9.0 is unreleased. The package names and hashes recorded below belong to earlier source checkpoints, before the complete product rename; they are historical local artifacts, not current MeowChan release candidates. Final UI screenshots and the final package matrix remain to be made and validated. Current published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
+MeowChan 0.9.0 is unreleased. The package names and hashes recorded below belong to earlier source checkpoints, before the complete product rename; they are historical local artifacts, not current MeowChan release candidates. The five current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md). The final candidate package matrix remains to be made and validated. Current published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
 
-0.9.0 replaces the desktop UI with Simple, Advanced and Barebones views, appearance/language preferences, batch URL admission and details panels. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
+0.9.0 adds Simple, Advanced and Barebones views, local archive/search, a shared gallery, durable missing-media follow-up and compact repeat HTML export alongside appearance/language preferences and batch URL admission. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
 
-Current acceptance must cover the integrated download/restore flow, all three views, Dark/Light, English/German, keyboard focus, small windows and native rendering at the intended display scales. The [release-notes draft](releases/v0.9.0.md) records user-visible behavior and remaining boundaries.
+Current acceptance must cover gallery navigation/zoom/context, all-result search sequences, repeat-export update/backup/open-folder behavior, durable 404/terminal recovery and the integrated download/restore flow, all three views, Dark/Light, English/German, keyboard focus, small windows and native rendering at the intended display scales. The [release-notes draft](releases/v0.9.0.md) records user-visible behavior and remaining boundaries.
 
 The subsequent compact-layout/menu-contrast correction passed a Release build without warnings or errors and 90 desktop tests. Final source-built Linux checks passed 5/5 scenarios at measured 100% and 150%, and 4/5 at 200%: `artifacts/ap13-layout-final-scale-{100,150,200}` (14/15 runs, 72 captures). All presentation checks passed, including six passive comparison rows, source/board and numeric sorting, minimum window sizes, and separately rendered Dark/Light context menus with asserted icon colors. The earlier `ap13-layout-correction-v3-scale-*` runs passed 15/15, but do not supersede the later failure.
 
@@ -83,7 +83,7 @@ The visual scene uses six passive snapshot rows at the mock's 1440×920 size and
 
 These results do not reproduce or establish the cause of the reported native desktop freeze. Xvfb has no native tray host, GPU rendering, host accessibility or desktop portals, and does not prove native Windows/macOS or extracted-package behavior.
 
-### Refreshed local style candidate — source `203d7ed`
+### Historical local style candidate — source `203d7ed` (built as oChan)
 
 All five desktop archives and `libochan.0.9.0.nupkg` were rebuilt from source commit `203d7ed392edb5d99427a3f7b5d24c1dc448e1c5`. This includes the `1884ff5` style checkpoint, the retained pages, cat icon, Avalonia 12 and updated documentation/screenshots. All five publishes completed without warnings/errors. Complete extracted file hashes match their source trees; required documents, all three screenshots, native libraries and Unix executable permissions were checked. macOS bundle metadata and icons passed structural checks.
 
@@ -164,7 +164,7 @@ The download-session scenario uses the real FourChan provider, registry, shared 
 
 The integrated UI and final layout/harness fixes are recorded in commits `2e03d95` and `afa873c`. These checks used the 0.9.0 version metadata being prepared alongside the fixes; final restore/build/test logs are retained locally in `artifacts/ap13-v090-accepted-checks`. They do not identify a final release archive. No public imageboard HTTP requests were made. Clipboard and file-picker checks use controlled services; native clipboard/file-picker integration and every desktop's tray host remain outside this evidence. Window captures demonstrate application rendering at the measured scale, not complete desktop screenshots or validation of all monitor arrangements. Full workflows in the extracted packages, including Windows, macOS and Linux Arm64, still require their own native evidence.
 
-### Earlier 0.9.0 packages and Linux apphost — 2026-10-10
+### Historical 0.9.0 packages and Linux apphost — 2026-10-10 (built as oChan)
 
 All five desktop packages were produced from source commit `2deaf1bcd15e730b1413b5899952a104cb6f4347`, archived and extracted successfully. All five publish logs were free of warning and error lines. Required documents, language-pack instructions, screenshots and native dependencies were present; applicable Unix executable permissions survived extraction. The macOS outputs use the unsigned app-bundle structure described above. These checks used SDK 10.0.111 and .NET host 10.0.11 on the Linux development machine.
 
@@ -185,7 +185,7 @@ The actual extracted `linux-x64` apphost also opened its native main window and 
 
 This apphost check supplied no watch URLs and performed no downloads. It proves package startup and normal close only. The five archive checks do not establish native execution on Windows, macOS or Linux Arm64, and neither they nor this Linux startup check close the full download/removal/restore, clipboard/folder, tray and Gatekeeper acceptance matrix.
 
-### Historical 0.8.0 checks
+### Historical 0.8.0 checks (released as oChan)
 
 The three validation jobs in [GitHub Actions run 38055772655](https://github.com/tfgrass/MeowChan/actions/runs/38055772655) passed on 2026-10-10. The PR head was `49d994c75f7aebb75e157b3a7c4b28a61471ee62`; CI built merge checkout `2906d21da90efd579a867f7d6d2fa91bc6713a7f` with SDK 10.0.111.
 

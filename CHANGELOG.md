@@ -2,15 +2,19 @@
 
 ## 0.9.0 (unreleased)
 
-This update replaces the desktop interface while keeping the 4chan/8kun download engine, durable sessions and independently usable `libochan` library.
+This update replaces the desktop interface while keeping the 4chan/8kun download engine, durable sessions and independently usable `libmeowchan` library.
 
 ### What's new
 
-- **Check now / retry missing.** Downloads and Diagnostics can request a check on the exact watch. Requests coalesce, obey provider limits and retry missing selected media, including terminal threads, without changing previous rule decisions.
+- **Shared local gallery.** Thread rows/cards, saved-media tables/tiles and inline images open one viewer with Left/Right, Fit/1:1, zoom/pan and saved-post context. Images of results freezes every found thread in current sort order across result pages, including nonmatching posts; saved-media navigation follows its sort/version filter. Animated images show a first frame. Preview safety limits are 64 MiB and 80 million source pixels.
+- **Durable media follow-up.** Consecutive 404s pause 15/30/60/120/240 minutes, then at least 240. A terminal source gets a fixed 12-hour follow-up from its first durably recorded end. Restart/pause do not extend it; completion can retain missing 404 media. Other exhausted/capture/storage failures require intervention. Check-now respects media pauses; manual retry grants one outer attempt, including after completion, without a new watch or end window.
+- **Compact repeat export.** Known export targets survive restart. Choose a new folder or explicitly update an inspected earlier export; Open folder opens the current successful result. Modified or reduced output preserves the previous folder after confirmation.
+
+- **Check now and separate media retry.** Downloads and Diagnostics can request a check on the exact watch. Checks coalesce, obey provider limits and respect media due times. The separate media retry grants one outer attempt without changing previous rule decisions; completed-thread repair does not restart source monitoring.
 - **Persistent Pause/Resume.** Header and menu pause new transfers and automatic checks while active work finishes; queued work and pause survive desktop restarts.
 
 - **Local archive search and navigation.** Search retained post text, titles and identities, filter by source/board/state/capture preference and sort results. Captured quote targets open on the correct post page; local backlinks and reading-position history work across threads. Missing and external references remain explicit without remote fetching.
-- **Portable HTML thread export.** Archive writes a new independent folder with captured posts, its own CSS and verified matching saved originals. Retained older media revisions remain selectable by captured checksum; missing media and preserved rule exclusions are explained. Existing output is never replaced. Media-only archives export a current-original gallery.
+- **Portable HTML thread export.** Archive writes a new independent folder with captured posts, its own CSS and verified matching saved originals. Retained older media revisions remain selectable by captured checksum; missing media and preserved rule exclusions are explained. Known earlier exports can be explicitly updated or kept by choosing a new folder. Updates stage a complete new result; changed/extra files, associated legacy exports and reduced output require preserving the old folder as a backup. Media-only archives export a current-original gallery.
 
 - **New cat icon.** The selected photographic cat-head cutout now identifies the app, its windows and tray across the desktop packages.
 - **Three desktop views.** Simple is the default. Advanced adds separate thread-ID, queued-media and active-media columns. Barebones provides a smaller, denser window. Switching views preserves the running session, selection and input.
@@ -25,24 +29,24 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 
 ### Upgrade and behavior notes
 
-- Existing profiles, watched URLs and assigned download paths remain usable. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save**. Cancel reloads confirmed settings; neither action leaves the page.
-- **Double-click opens details**, replacing the previous folder-opening shortcut. Open folder remains a separate action. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
+- Existing profiles, watched URLs and assigned download paths remain usable. Stop all older application/library writers and back up the full profile and media manifests before upgrading. New profile/media leases do not coordinate with older writers; concurrent old/new access and downgrades are unsupported. Fresh profiles use the MeowChan name, while an existing installation's selected profile/destinations remain in place. `MEOWCHAN_PROFILE` selects an absolute profile path. New appearance fields default to **Simple, Dark, English and normal density** when absent. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save**. Cancel reloads confirmed settings; neither action leaves the page.
+- **Double-click a thread row/card to open its gallery**; right-click offers reading, gallery and HTML export in Archive. Board double-click retains details. Open folder and thread details remain explicit actions. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
 - Progress is **saved / selected media**, with rule exclusions shown separately; it is not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
 - View/theme/language/density preferences persist. Window geometry, column layout and details-panel width do not persist across restarts.
-- .NET 10 and the existing platform targets are retained. This UI update introduces no new public `libochan` API requirement.
+- .NET 10 and the existing platform targets are retained. Library consumers must use the `libmeowchan` package/assembly and `MeowChan.*` namespaces. No binary redirect is provided. Durable retry/lifecycle state requires explicitly passing `WorkStateStore`; the default is in memory.
 
 ### Release status
 
-0.9.0 is in preparation. Final native acceptance of freshly extracted packages remains open; the existing 0.8.0 CI evidence does not validate the new interface. macOS bundles remain unsigned and not notarized. See the [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
+0.9.0 is in preparation. Final native acceptance of freshly extracted packages remains open; the existing 0.8.0 CI evidence does not validate the new interface. macOS bundles remain unsigned and not notarized. See the [package-to-offline guide](docs/Help.md), [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
 
 ### Additional work on the current branch
 
-The branch now also contains live Diagnostics, a persistent Archive with an offline post/media reader, and basic inherited media rules. Publishing and final version allocation remain separate decisions.
+The branch now also contains live Diagnostics, a persistent Archive with an offline post/media reader, and basic inherited media rules. Publishing and final release acceptance remain separate decisions.
 
 - Media admission is bounded (256 pending reservations by default), cancellable and fair between manual and board-discovered work; revision successors share that pending budget. Board origins survive restart, and explicit URL admission promotes a tracked thread to manual priority.
 - Sources shows registered adapter capabilities and actual watch observations, with shared URL admission, canonical source rules and exact-watch navigation. Registration does not indicate site availability; external providers may optionally declare capabilities without an interface-breaking change.
 - Diagnostics shows current watch failures, request/cooldown state, content-storage failures and session warnings, with copy and exact-watch navigation.
-- Archived posts embed verified local image thumbnails. Visible images load asynchronously with bounded concurrency; clicking opens the larger preview. Compact posts stack images above wrapped text, while wider readers put images beside text. Unsupported, missing or mismatched attachments remain explicit.
+- Archived posts embed verified local image thumbnails. Visible images load asynchronously with bounded concurrency; clicking opens the shared gallery. Compact posts stack images above wrapped text, while wider readers put images beside text. Unsupported, missing or mismatched attachments remain explicit.
 - The local SQLite catalog retains observed posts for 4chan/8kun. Media may remain on NAS drives; slow media discovery does not block local reading. Removing monitoring preserves captured content. New watches capture posts; restored older watches start media-only until explicitly enabled.
 - Rules resolve allowed extensions and maximum metadata file size through Global → Source → Board → Thread, with visible origins and durable first decisions. Existing decisions and files survive later changes. Unknown sizes remain allowed; this is not a transfer-byte cap.
 - Manifests retain saved media versions, and the independent library reader verifies selected bytes. Changed size/hash during an active download schedules the latest revision afterward.
@@ -51,7 +55,7 @@ Progress now uses **saved / selected media**, with exclusions shown separately. 
 
 Sources, persistent pause, local search/quote navigation and single-thread HTML export are implemented. Collection exports, structured packages/import, TUI/daemon clients and dynamic plugin loading remain later work.
 
-## 0.8.0
+## 0.8.0 (released as oChan)
 
 This update rebuilds download and session handling for 4chan and 8kun and makes `libochan` usable independently of the desktop app.
 
@@ -70,7 +74,7 @@ This update rebuilds download and session handling for 4chan and 8kun and makes 
 - **.NET 10 replaces .NET 8.** Source builds use the SDK pinned in `global.json`; library consumers require .NET 10. Self-contained desktop packages include the runtime.
 - **Download paths now separate providers:** `<root>/<source>/<board>/<thread>/<media ID>.<extension>`. The default root is now `Downloads/oChan` under the user home directory; existing settings retain their configured root. Legacy files discovered through current provider metadata are imported only when size and MD5 match, leaving the originals untouched. Old completion markers alone are not trusted; interrupted transfers restart from the beginning.
 - **Profiles keep their existing locations:** `%APPDATA%/.oChan` on Windows and `$HOME/.oChan` on macOS/Linux. Older saved URL lists are accepted when session restore is enabled. Only one application instance may own a profile; use an absolute `OCHAN_PROFILE` directory for a separate instance.
-- **Library integration changes are breaking.** Source integrations must adopt explicit dependencies, asynchronous session operations and snapshot notifications. Desktop configuration is no longer part of the library. See the [session API](docs/Registry.md) and [package consumer sample](samples/LibOChan.Consumer/README.md).
+- **Library integration changes are breaking.** Source integrations must adopt explicit dependencies, asynchronous session operations and snapshot notifications. Desktop configuration is no longer part of the library. See the [session API](docs/Registry.md) and [package consumer sample](samples/LibMeowChan.Consumer/README.md).
 
 ### Packages and validation
 

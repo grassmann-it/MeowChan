@@ -6,11 +6,11 @@
     <RootNamespace>MeowChan</RootNamespace>
     <PackageId>libmeowchan</PackageId>
     <Product>MeowChan</Product>
-    <Description>Cross-platform imageboard media downloader with explicit provider registration.</Description>
+    <Description>MeowChan .NET library for 4chan and 8kun media downloads, offline post archives, local search and portable HTML export, with explicit provider registration.</Description>
     <PackageProjectUrl>https://github.com/tfgrass/MeowChan</PackageProjectUrl>
     <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>imageboard;media;downloader;archive;4chan;8kun</PackageTags>
+    <PackageTags>meowchan;imageboard;image-downloader;thread-archiver;offline-archive;html-export;4chan;8kun;cross-platform;dotnet;csharp</PackageTags>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

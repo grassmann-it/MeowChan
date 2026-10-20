@@ -164,7 +164,7 @@ jobs:
           $archive = "packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           Compress-Archive -Path "publish-output/${{ matrix.runtime }}/*" -DestinationPath $archive
           Expand-Archive -Path $archive -DestinationPath extracted
-          foreach ($name in @('MeowChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'docs/screenshots/v0.9.0-simple.png', 'docs/screenshots/v0.9.0-barebones.png', 'docs/screenshots/v0.9.0-settings.png', 'samples/LibMeowChan.Consumer/README.md')) {
+          foreach ($name in @('MeowChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'Assets/meowchan.png', 'docs/Help.md', 'libmeowchan/README.md', 'tests/MeowChan.DesktopSmoke/README.md', 'docs/screenshots/README.md', 'docs/screenshots/v0.9.0-downloads.png', 'docs/screenshots/v0.9.0-gallery.png', 'docs/screenshots/v0.9.0-archive.png', 'docs/screenshots/v0.9.0-export.png', 'docs/screenshots/v0.9.0-about.png', 'samples/LibMeowChan.Consumer/README.md')) {
             if (-not (Test-Path -LiteralPath "extracted/$name" -PathType Leaf)) { throw "Archive is missing $name" }
           }
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
@@ -187,9 +187,16 @@ jobs:
           test -f extracted/docs/Downloader.md
           test -f extracted/Desktop/Localization/README.md
           test -f extracted/docs/releases/v0.9.0.md
-          test -f extracted/docs/screenshots/v0.9.0-simple.png
-          test -f extracted/docs/screenshots/v0.9.0-barebones.png
-          test -f extracted/docs/screenshots/v0.9.0-settings.png
+          test -f extracted/Assets/meowchan.png
+          test -f extracted/docs/Help.md
+          test -f extracted/libmeowchan/README.md
+          test -f extracted/tests/MeowChan.DesktopSmoke/README.md
+          test -f extracted/docs/screenshots/README.md
+          test -f extracted/docs/screenshots/v0.9.0-downloads.png
+          test -f extracted/docs/screenshots/v0.9.0-gallery.png
+          test -f extracted/docs/screenshots/v0.9.0-archive.png
+          test -f extracted/docs/screenshots/v0.9.0-export.png
+          test -f extracted/docs/screenshots/v0.9.0-about.png
           test -f extracted/samples/LibMeowChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/MeowChan
@@ -215,9 +222,16 @@ jobs:
           test -f extracted/MeowChan.app/Contents/MacOS/docs/Downloader.md
           test -f extracted/MeowChan.app/Contents/MacOS/Desktop/Localization/README.md
           test -f extracted/MeowChan.app/Contents/MacOS/docs/releases/v0.9.0.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-simple.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-barebones.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-settings.png
+          test -f extracted/MeowChan.app/Contents/MacOS/Assets/meowchan.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/Help.md
+          test -f extracted/MeowChan.app/Contents/MacOS/libmeowchan/README.md
+          test -f extracted/MeowChan.app/Contents/MacOS/tests/MeowChan.DesktopSmoke/README.md
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/README.md
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-downloads.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-gallery.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-archive.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-export.png
+          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-about.png
           test -f extracted/MeowChan.app/Contents/MacOS/samples/LibMeowChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/MeowChan.app/Contents/MacOS/MeowChan

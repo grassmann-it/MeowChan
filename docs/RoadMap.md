@@ -1,6 +1,6 @@
 # Roadmap
 
-The current target is **0.9.0**, replacing the desktop interface on top of the download and session foundation released in 0.8.0. The app remains cross-platform, and `libochan` remains independently consumable by other .NET applications. 0.9.0 is in preparation; its final native package acceptance is still open.
+The current target is **0.9.0**, replacing the desktop interface on top of the download and session foundation released in 0.8.0. The app remains cross-platform, and `libmeowchan` remains independently consumable by other .NET applications. 0.9.0 is in preparation; its final native package acceptance is still open.
 
 ## Existing download and library foundation
 
@@ -8,10 +8,10 @@ The current target is **0.9.0**, replacing the desktop interface on top of the d
 - Verified media files are published atomically with manifests. Existing files, interrupted writes and restore failures have explicit recovery behavior.
 - Built-in 4chan and 8kun providers share request pacing, backoff and bounded deadlines. Source availability and media completion are separate states.
 - Confirmed session changes persist without depending on a graceful application exit. Settings apply through the active session, with assigned destinations preserved.
-- `libochan` has its own project/package and a package-only custom-provider sample. Typed snapshots and bounded observer notifications support clients without Avalonia.
+- `libmeowchan` has its own project/package and a package-only custom-provider sample. Typed snapshots and bounded observer notifications support clients without Avalonia.
 - Desktop input, settings, startup errors, shutdown and tray fallback use the same session behavior.
 
-The [session API](Registry.md), [download pipeline](Downloader.md), and [library sample](../samples/LibOChan.Consumer/README.md) describe the actual interfaces.
+The [session API](Registry.md), [download pipeline](Downloader.md), and [library sample](../samples/LibMeowChan.Consumer/README.md) describe the actual interfaces.
 
 ## Current desktop scope
 
@@ -21,7 +21,16 @@ The [session API](Registry.md), [download pipeline](Downloader.md), and [library
 - Comma/newline URL lists use the existing admission path, with per-entry results and editable failed input. Single/all URL copying produces re-importable lists.
 - Existing download settings, clipboard/tray actions, profile recovery and application shutdown remain part of the replacement.
 
-The [README](../README.md) documents current controls and the [release-notes draft](releases/v0.9.0.md) records compatibility and deliberate behavior changes.
+The [user guide](Help.md) documents package startup, current controls and offline export and the [release-notes draft](releases/v0.9.0.md) records compatibility and deliberate behavior changes.
+
+## Archive and completion in 0.9.0
+
+- Local post capture, indexed search, quotes/backlinks and inherited media rules accompany the download session. Removing a watch preserves captured content and saved media.
+- Thread cards/tables and saved-media rows/tiles enter the shared gallery. Thread double-click opens that thread; Images of results freezes all found threads across result pages in current sort order. Media entry follows its visible sort/version filter. Context menus keep reading and HTML export directly reachable.
+- Gallery provides arrows, Fit/1:1, zoom/pan and saved-post context. PNG/JPEG/GIF/WebP/BMP previews remain bounded; animations show a first frame. See [limits](Help.md#images-search-and-navigation).
+- Durable media 404 pauses follow 15/30/60/120/240 minutes, then at least 240. Terminal sources have a fixed 12-hour follow-up; completion and missing-media outcomes remain separate. Manual retry grants one outer attempt and does not restart the source-end window.
+- Compact single-thread HTML export recognizes previous exports and offers explicit update or a new folder, preserving a backup for changes/reduced output. The result folder opens directly after success.
+- The desktop supplies a leased SQLite work journal; library clients choose durable `WorkStateStore` explicitly. The default library work state is in memory.
 
 ## Remaining 0.9.0 release acceptance
 
@@ -33,4 +42,7 @@ The [platform and release record](platform-support.md) lists the candidate matri
 
 ## Later work
 
-1.0 is reserved for a later agreed scope; this UI replacement does not choose that feature set. Pause/resume, archive/reader views, rules, import/export, thumbnails and additional convenience features remain separate work. TUI, daemon/client connections, a terminal board browser and dynamic plugin loading are longer-term extensions. Providers can already be supplied explicitly through the library contracts.
+The agreed 1.0 focus moves source integration forward; its wider feature set is not
+settled by 0.9.0. Collection exports, structured import/export, OCR, new host/API or
+NAS services, TUI/daemon clients and dynamic plugin loading remain later work.
+Providers can already be supplied explicitly through the library contracts.
