@@ -104,6 +104,30 @@
     </Style>
     <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
+    <Style Selector="Button.header-icon">
+        <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.header-icon.selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+    <Style Selector="Path.header-icon">
+        <Setter Property="Width" Value="16" /><Setter Property="Height" Value="16" />
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.window-caption">
+        <Setter Property="Width" Value="44" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" /><Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.window-close:pointerover, Button.window-close:pressed">
+        <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Path.window-caption-icon">
+        <Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" />
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
     <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="36" /></Style>
     <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>

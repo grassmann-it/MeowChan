@@ -3,36 +3,63 @@
         xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop"
         x:Class="MeowChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
+        WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
         Title="MeowChan" Icon="avares://MeowChan/Assets/meowchan.png" TextOptions.TextRenderingMode="Antialias">
     <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
         <Border Classes="shell-bar" BorderThickness="0,0,0,1">
-            <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
-                           Stretch="Uniform" VerticalAlignment="Center" AutomationProperties.Name="MeowChan" />
-                    <TextBlock Text="MeowChan" Classes="brand" VerticalAlignment="Center" />
-                    <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+            <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
+                  WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
+                <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
+                               Stretch="Uniform" VerticalAlignment="Center" AutomationProperties.Name="MeowChan" />
+                        <TextBlock Text="MeowChan" Classes="brand" VerticalAlignment="Center" />
+                        <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
+                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Grid x:Name="TransferSpeed" ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                            <desktop:DownloadSpeedGraph x:Name="TransferSpeedGraph" Width="96" Height="24" IsHitTestVisible="False"
+                                                        Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
+                            <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="78" FontSize="11" Classes="mono muted"
+                                       VerticalAlignment="Center" Text="↓ 0 B/s" />
+                        </Grid>
+                        <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
+                            <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
+                        </Button>
+                        <Button x:Name="ThemeToggleButton" Classes="subtle header-icon">
+                            <Path x:Name="ThemeToggleIcon" Classes="header-icon" />
+                        </Button>
+                    </StackPanel>
+                    <Menu Grid.Column="3" VerticalAlignment="Center">
+                        <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
+                            <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                            <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
+                            <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
+                            <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
+                            <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
+                            <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
+                            <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
+                            <Separator />
+                            <MenuItem x:Name="ExitMenuItem" Tag="action.exit" Classes="localized" Header="Exit" />
+                        </MenuItem>
+                    </Menu>
+                </Grid>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="WindowMinimizeButton" Classes="window-caption" Click="OnWindowMinimizeClick"
+                            WindowDecorationProperties.ElementRole="MinimizeButton">
+                        <Path Data="M 0,5 L 10,5" Classes="window-caption-icon" />
+                    </Button>
+                    <Button x:Name="WindowMaximizeButton" Classes="window-caption" Click="OnWindowMaximizeClick"
+                            WindowDecorationProperties.ElementRole="MaximizeButton">
+                        <Path x:Name="WindowMaximizeIcon" Data="M 0.5,0.5 L 9.5,0.5 L 9.5,9.5 L 0.5,9.5 Z" Classes="window-caption-icon" />
+                    </Button>
+                    <Button x:Name="WindowCloseButton" Classes="window-caption window-close" Click="OnWindowCloseClick"
+                            WindowDecorationProperties.ElementRole="CloseButton">
+                        <Path Data="M 0,0 L 10,10 M 10,0 L 0,10" Classes="window-caption-icon" />
+                    </Button>
                 </StackPanel>
-                <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-
-                    <Button x:Name="PauseButton" Classes="subtle" Content="Pause" Click="OnPauseClick" />
-                    <Button x:Name="ThemeToggleButton" Classes="subtle" Content="Light" />
-                </StackPanel>
-                <Menu Grid.Column="3" VerticalAlignment="Center">
-                    <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
-                        <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
-                        <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
-                        <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
-                        <MenuItem x:Name="DiagnosticsMenuItem" Tag="nav.diagnostics" Classes="localized" Header="Diagnostics" Click="OnDiagnosticsNavigationClick" />
-                        <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
-                        <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
-                        <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
-                        <Separator />
-                        <MenuItem x:Name="ExitMenuItem" Tag="action.exit" Classes="localized" Header="Exit" />
-                    </MenuItem>
-                </Menu>
             </Grid>
         </Border>
         <Grid x:Name="WorkspacePages" Grid.Row="1">

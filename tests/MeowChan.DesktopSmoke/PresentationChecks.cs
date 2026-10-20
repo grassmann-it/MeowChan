@@ -14,6 +14,7 @@ internal static class PresentationChecks
 {
     internal static async Task RunPreferencesAsync(MainWindow window)
     {
+        await WindowChromeChecks.RunAsync(window);
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
         TextBox input = window.FindControl<TextBox>("UrlInput")!;
         Button add = window.FindControl<Button>("AddUrlButton")!;
@@ -23,7 +24,7 @@ internal static class PresentationChecks
             "The view choices were not ordered Barebones, Simple, Advanced.");
         Require(initial.WorkspaceMode == "Barebones" && Mode(modes) == "Barebones", "A new profile did not open in Barebones view.");
         Require(initial.Theme == "Dark" && initial.Language == "en", "A new profile did not use the English dark presentation.");
-        Require(window.FindControl<Button>("ThemeToggleButton")!.Content as string == "Light",
+        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Switch to light theme",
             "The dark view's theme action did not display a translated Light label.");
         const string draft = "https://unsupported.invalid/draft-one\nhttps://unsupported.invalid/draft-two";
         input.Text = draft;
@@ -52,16 +53,18 @@ internal static class PresentationChecks
         Click(window.FindControl<Button>("ThemeToggleButton")!);
         await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == "Light"
             && Application.Current?.RequestedThemeVariant == ThemeVariant.Light && add.IsEnabled);
-        Require(window.FindControl<Button>("ThemeToggleButton")!.Content as string == "Dark",
+        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Switch to dark theme",
             "The light view's theme action did not display a translated Dark label.");
         Require(input.Text == draft, "Changing theme discarded the pending URLs.");
         Program.CaptureWindow(window, "smoke-simple-light.png");
 
         await ChangeLanguageAsync(window, "de");
         await Program.WaitUntilAsync(() => add.Content?.ToString() != englishAdd);
+        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("WindowMinimizeButton")!) == "Minimieren",
+            "The caption did not update its accessible label after changing language.");
         Require(!string.IsNullOrWhiteSpace(add.Content?.ToString()) && input.Text == draft && Mode(modes) == "Simple",
             "Changing language did not translate intake or discarded pending view state.");
-        Require(window.FindControl<Button>("ThemeToggleButton")!.Content as string == "Dunkel",
+        Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Zum dunklen Design wechseln",
             "The German theme action exposed a missing translation key or an English label.");
         Program.CaptureWindow(window, "smoke-simple-german.png");
         await ChangeLanguageAsync(window, "en");
@@ -112,6 +115,7 @@ internal static class PresentationChecks
                 && Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1
                 && InViewport(window, input) && InViewport(window, add));
             Require(!inspector.IsVisible, "A small window reserved table space for the initially closed inspector.");
+            await WindowChromeChecks.CheckReachableAsync(window);
 
             input.Text = string.Join(Environment.NewLine, Enumerable.Range(1, 6)
                 .Select(index => "https://unsupported.invalid/small-window-" + index));

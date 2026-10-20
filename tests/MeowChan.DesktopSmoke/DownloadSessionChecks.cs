@@ -120,8 +120,22 @@ internal static class DownloadSessionChecks
             settings.DownloadPath = settingsDraft;
             Require(retained.Active == 1 && retained.CompletedMedia == 0 && app.Transport.MediaRequests == 1,
                 "Navigating to Settings changed the in-flight download.");
+            Button pause = initial.FindControl<Button>("PauseButton")!;
+            Click(pause);
+            await app.Transport.MediaCancelled.WaitAsync(Timeout);
+            await Program.WaitUntilAsync(() => initial.SessionHost.IsPaused && pause.IsEnabled && retained.Active == 0);
+            Require(!File.Exists(savedFile) && retained.CompletedMedia == 0 && initial.SessionHost.ReceivedMediaBytes == 0,
+                "Pausing the gated real request published a file or counted bytes that were never received.");
+            await WindowChromeChecks.CheckReachableAsync(initial);
+            initial.FindControl<MenuItem>("PauseMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Program.WaitUntilAsync(() => !initial.SessionHost.IsPaused && pause.IsEnabled
+                && retained.Active == 1 && app.Transport.MediaRequests == 2);
             app.Transport.AllowMedia();
             await Program.WaitUntilAsync(() => retained.CompletedMedia == 1 && retained.Active == 0 && retained.Queued == 0);
+            Require(initial.SessionHost.ReceivedMediaBytes == DownloadSessionTransport.Payload.Length,
+                "Session transfer telemetry did not count the actual media response body.");
+            await Program.WaitUntilAsync(() => initial.FindControl<TextBlock>("TransferSpeedLabel")!.Text is string speed
+                && speed.StartsWith("↓ ", StringComparison.Ordinal) && speed != "↓ 0 B/s");
             Require(initial.SettingsPageVisible && settings.DownloadPath == settingsDraft,
                 "A background download discarded the settings page or its draft.");
             Click(initial.FindControl<Button>("DownloadsNavigationButton")!);
@@ -132,7 +146,7 @@ internal static class DownloadSessionChecks
                 && ReferenceEquals(grid.SelectedItem, retained) && input.Text == draft,
                 "Real download updates crossed the UI thread or replaced selection/input.");
             Require(retained.SourceState == ThreadSourceState.Active, "Saving current media incorrectly ended source monitoring.");
-            Require(app.Transport.MediaRequests == 1 && (await File.ReadAllBytesAsync(savedFile)).SequenceEqual(DownloadSessionTransport.Payload),
+            Require(app.Transport.MediaRequests == 2 && (await File.ReadAllBytesAsync(savedFile)).SequenceEqual(DownloadSessionTransport.Payload),
                 "The real download queue did not produce exactly one verified fixture file.");
             string assignedDirectory = retained.DownloadDirectory;
             await Program.WaitUntilAsync(() => initial.FindControl<SelectableTextBlock>("InspectorProgress")!.Text == retained.Progress);
@@ -154,8 +168,10 @@ internal static class DownloadSessionChecks
             ThreadRow recovered = restored.UrlList[0];
             Require(recovered.DownloadDirectory == assignedDirectory && recovered.Url == retained.Url,
                 "Restart changed the durable watch identity or assigned directory.");
-            Require(app.Transport.MediaRequests == 1 && (await File.ReadAllBytesAsync(savedFile)).SequenceEqual(DownloadSessionTransport.Payload),
+            Require(app.Transport.MediaRequests == 2 && (await File.ReadAllBytesAsync(savedFile)).SequenceEqual(DownloadSessionTransport.Payload),
                 "Restoring verified local media issued another media request or changed the saved file.");
+            Require(restored.SessionHost.ReceivedMediaBytes == 0,
+                "Restoring local media was incorrectly counted as network download traffic.");
             Config preferences = Config.LoadConfig(profile);
             Require(preferences.Theme == "Light" && preferences.WorkspaceMode == "Advanced"
                 && Application.Current?.RequestedThemeVariant == ThemeVariant.Light
@@ -221,9 +237,11 @@ internal sealed class DownloadSessionTransport : HttpMessageHandler
     internal static readonly byte[] Payload = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAIAAAAUMWhjAAAAJElEQVR4nGMwmraFpohh1IJRC0YtGLVg1IJRC0YtGLVgaFgAACLJdD2wiEkfAAAAAElFTkSuQmCC");
     private readonly TaskCompletionSource _mediaAllowed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _mediaRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _mediaCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _mediaRequests;
 
     internal Task MediaRequested => _mediaRequested.Task;
+    internal Task MediaCancelled => _mediaCancelled.Task;
     internal int MediaRequests => Volatile.Read(ref _mediaRequests);
     internal void AllowMedia() => _mediaAllowed.TrySetResult();
 
@@ -235,7 +253,12 @@ internal sealed class DownloadSessionTransport : HttpMessageHandler
         {
             Interlocked.Increment(ref _mediaRequests);
             _mediaRequested.TrySetResult();
-            await _mediaAllowed.Task.WaitAsync(cancellationToken);
+            try { await _mediaAllowed.Task.WaitAsync(cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _mediaCancelled.TrySetResult();
+                throw;
+            }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Payload) };
         }
         if (uri.Host == "a.4cdn.org" && uri.AbsolutePath == "/boards.json")

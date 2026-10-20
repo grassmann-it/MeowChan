@@ -235,6 +235,13 @@ internal static class Program
                 mainWindow.WindowState = WindowState.Normal;
                 mainWindow.Activate();
                 await WaitUntilAsync(() => mainWindow.IsVisible && mainWindow.WindowState == WindowState.Normal);
+                mainWindow.FindControl<Button>("WindowCloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitUntilAsync(() => mainWindow.WindowState == WindowState.Minimized);
+                if (!mainWindow.IsVisible || !mainWindow.ShowInTaskbar || _closed)
+                    throw new InvalidOperationException("The custom close caption bypassed MinimizeToTray.");
+                mainWindow.WindowState = WindowState.Normal;
+                mainWindow.Activate();
+                await WaitUntilAsync(() => mainWindow.IsVisible && mainWindow.WindowState == WindowState.Normal);
                 MenuItem exit = mainWindow.FindControl<MenuItem>("ExitMenuItem")
                     ?? throw new InvalidOperationException("The window Exit menu item is missing.");
                 MenuItem applicationMenu = mainWindow.FindControl<MenuItem>("WorkspaceMenuItem")
@@ -353,9 +360,9 @@ internal static class Program
                 Console.WriteLine($"SMOKE remaining owned window: type={ownedWindow.GetType().Name}, visible={ownedWindow.IsVisible}, enabled={ownedWindow.IsEnabled}.");
             }
             _checksPassed = true;
-            Console.WriteLine("SMOKE requesting normal MainWindow.Close().");
-            window.Close();
-            Console.WriteLine($"SMOKE normal MainWindow.Close() returned: closed={_closed}, visible={window.IsVisible}.");
+            Console.WriteLine("SMOKE requesting close through the custom window caption.");
+            mainWindow.FindControl<Button>("WindowCloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Console.WriteLine($"SMOKE caption close returned: closed={_closed}, visible={window.IsVisible}.");
         }
         catch (Exception exception)
         {

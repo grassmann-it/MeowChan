@@ -41,11 +41,13 @@ public partial class MainWindow
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
         SizeChanged += OnWorkspaceSizeChanged;
+        PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         WorkspaceControl<TextBlock>("WorkspaceVersion").Text = "v" + (typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
             ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? string.Empty);
         ApplyWorkspacePreferences();
+        StartSpeedSampling();
     }
 
     private void DisposeWorkspace()
@@ -54,12 +56,17 @@ public partial class MainWindow
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
+        _speedTimer?.Stop();
+        if (_speedTimer != null) _speedTimer.Tick -= OnSpeedSample;
+        _speedTimer = null;
+        _downloadRate = null;
         DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
         UrlList.CollectionChanged -= OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged -= OnWorkspaceCollectionChanged;
         Texts.Changed -= OnWorkspaceLanguageChanged;
         SizeChanged -= OnWorkspaceSizeChanged;
+        PropertyChanged -= OnWindowChromePropertyChanged;
         KeyDown -= OnWorkspaceKeyDown;
     }
 
@@ -67,7 +74,11 @@ public partial class MainWindow
         ?? throw new InvalidOperationException("The workspace control is missing: " + name);
 
     private void OnWorkspaceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => _workspaceRefresh?.Request();
-    private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateWorkspaceLayout();
+    private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        WorkspaceControl<DownloadSpeedGraph>("TransferSpeedGraph").IsVisible = Bounds.Width >= 1000;
+        UpdateWorkspaceLayout();
+    }
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
@@ -208,11 +219,14 @@ public partial class MainWindow
         WorkspaceControl<ComboBoxItem>("BarebonesModeItem").Content = Texts.T("mode.barebones");
         AutomationProperties.SetName(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         ToolTip.SetTip(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
-        WorkspaceControl<Button>("ThemeToggleButton").Content = Texts.T(_config.Theme == "Dark" ? "settings.light" : "settings.dark");
+        UpdateThemeIcon();
+        RefreshSpeedLabel();
+        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceSubtitle"), Texts.T("shell.subtitle"));
         ToolTip.SetTip(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceControl<MenuItem>("WorkspaceMenuItem"), Texts.T("nav.settings"));
         ToolTip.SetTip(WorkspaceControl<ProgressBar>("InspectorProgressBar"), Texts.T("detail.knownHint"));
+        UpdateWindowControls();
         RefreshSourcesPage();
     }
 

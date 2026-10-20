@@ -14,12 +14,12 @@ internal static class PauseChecks
         foreach (string language in new[] { "en", "de" })
         {
             Texts.SetLanguage(language);
-            await Program.WaitUntilAsync(() => button.Content?.ToString() == Texts.T("action.pauseShort") && button.IsEnabled);
+            await Program.WaitUntilAsync(() => Avalonia.Automation.AutomationProperties.GetName(button) == Texts.T("action.pause") && button.IsEnabled);
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => window.SessionHost.IsPaused && button.IsEnabled);
             if (window.FindControl<TextBlock>("WorkspaceStatus")!.Text != Texts.T("shell.paused"))
                 throw new InvalidOperationException("The workspace does not show its paused state.");
-            if (!Config.LoadConfig().DownloadsPaused || button.Content?.ToString() != Texts.T("action.resumeShort")
+            if (!Config.LoadConfig().DownloadsPaused || Avalonia.Automation.AutomationProperties.GetName(button) != Texts.T("action.resume")
                 || menu.Header?.ToString() != Texts.T("action.resume"))
                 throw new InvalidOperationException("Pause is not durably and visibly reflected by the actual shell controls.");
             menu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
