@@ -19,17 +19,27 @@
                             <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
                             <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
                             <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
+                            <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
                             <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
                         </StackPanel>
                     </Expander>
                     <Button x:Name="SearchArchiveButton" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
+                    <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" Click="OnResultsGalleryClick" />
+                    <Button x:Name="ArchiveThreadMode" Click="OnThreadModeClick" Content="Compact cards" />
                 </StackPanel>
                 <Border Grid.Row="1" Classes="panel">
                     <Grid>
-                        <ListBox x:Name="ArchiveThreads" SelectionChanged="OnThreadSelected">
+                        <ListBox x:Name="ArchiveThreads" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" KeyDown="OnThreadKeyDown">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
                                     <StackPanel Spacing="4" Margin="5,6">
+                                        <StackPanel.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="{Binding GalleryLabel}" Click="OnThreadGalleryMenu" />
+                                                <MenuItem Header="{Binding ReadLabel}" Click="OnThreadReadMenu" />
+                                                <MenuItem Header="{Binding ExportLabel}" Click="OnThreadExportMenu" />
+                                            </ContextMenu>
+                                        </StackPanel.ContextMenu>
                                         <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
                                         <TextBlock Text="{Binding Identity}" Classes="muted" FontSize="12" />
                                         <TextBlock Text="{Binding Status}" Classes="muted" FontSize="12" />
@@ -37,6 +47,23 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single"
+                                  SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped" KeyDown="OnThreadTableKeyDown" PointerPressed="OnThreadTablePointerPressed">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Source / board" Width="125" Binding="{Binding Identity, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Title / ID" Width="*" Binding="{Binding Title, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Posts" Width="65" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Media" Width="135" Binding="{Binding MediaStatus, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Source" Width="125" Binding="{Binding SourceStatus, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Work" Width="150" Binding="{Binding WorkStatus, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTextColumn Header="Last capture" Width="150" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
+                            </DataGrid.Columns>
+                            <DataGrid.ContextMenu><ContextMenu>
+                                <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" Click="OnThreadGalleryMenu" />
+                                <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" Click="OnThreadReadMenu" />
+                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export as HTML…" Click="OnThreadExportMenu" />
+                            </ContextMenu></DataGrid.ContextMenu>
+                        </DataGrid>
                         <TextBlock x:Name="ArchiveEmpty" Tag="archive.empty" Classes="muted localized" TextWrapping="Wrap" Margin="12" />
                     </Grid>
                 </Border>
@@ -54,6 +81,9 @@
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
                     <WrapPanel>
+                    <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" Margin="0,0,8,0" />
+                    <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" Margin="0,0,8,0" />
+                    <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" Margin="0,0,8,0" />
                     <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" HorizontalAlignment="Left" Margin="0,0,8,0" />
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" HorizontalAlignment="Left" IsVisible="False" />
                     </WrapPanel>
@@ -75,7 +105,7 @@
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
                                                         <TextBlock Text="{Binding Header}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" RowSpacing="8" SizeChanged="OnPostLayoutChanged">
+                                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,0" ColumnSpacing="12" RowSpacing="8" SizeChanged="OnPostLayoutChanged">
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" MaxWidth="268" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
@@ -110,15 +140,29 @@
                             </TabItem>
                             <TabItem x:Name="ArchiveMediaTab" Header="Media">
                                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
-                                    <TextBlock Tag="archive.mediaHint" Classes="muted localized" FontSize="12" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="ArchiveMediaMode" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
+                                        <ComboBox x:Name="ArchiveMediaSort" Width="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
+                                        <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" Width="210" />
+                                    </StackPanel>
                                     <Grid Grid.Row="1">
-                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionChanged="OnMediaSelected" GridLinesVisibility="None">
+                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Single" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Width="*" Binding="{Binding Name, DataType=desktop:ArchiveAssetRow}" />
                                                 <DataGridTextColumn Width="85" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
                                                 <DataGridTextColumn Width="125" Binding="{Binding Version, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
+                                        <ListBox x:Name="ArchiveMediaTiles" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                            <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
+                                                <StackPanel Width="170" Margin="6" Spacing="5">
+                                                    <desktop:ArchiveMediaTileView Height="125" />
+                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding TileSummary}" TextWrapping="Wrap" Classes="muted" FontSize="11" />
+                                                </StackPanel>
+                                            </DataTemplate></ListBox.ItemTemplate>
+                                        </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />
                                     </Grid>
                                     <Button x:Name="PreviewArchiveMediaButton" Grid.Row="2" Tag="archive.preview" Classes="localized" HorizontalAlignment="Right" Click="OnPreviewClick" />
@@ -162,27 +206,6 @@
                 </Grid>
             </Grid>
         </Border>
-        <Border x:Name="ArchiveExportDialog" Grid.RowSpan="3" Classes="panel" Padding="16" IsVisible="False" KeyDown="OnExportKeyDown">
-            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
-                <TextBlock Tag="archive.export" Classes="section-title localized" />
-                <TextBlock x:Name="ArchiveExportSummary" Grid.Row="1" TextWrapping="Wrap" />
-                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="8">
-                    <TextBlock Tag="archive.exportHint" Classes="muted localized" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox x:Name="ArchiveExportDestination" />
-                        <Button x:Name="ArchiveExportBrowse" Grid.Column="1" Tag="archive.exportBrowse" Classes="localized" Click="OnExportBrowse" />
-                    </Grid>
-                    <CheckBox x:Name="ArchiveExportMedia" IsChecked="True" />
-                    <TextBlock x:Name="ArchiveExportStatus" Classes="muted" TextWrapping="Wrap" />
-                </StackPanel>
-                </ScrollViewer>
-                <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                    <Button x:Name="ArchiveExportClose" Tag="action.close" Classes="localized" Click="OnExportClose" />
-                    <Button x:Name="ArchiveExportOpen" Grid.Column="2" Tag="action.openFolder" Classes="localized" Click="OnExportOpen" IsVisible="False" />
-                    <Button x:Name="ArchiveExportStart" Grid.Column="3" Tag="archive.exportStart" Classes="localized" Click="OnExportStart" />
-                </Grid>
-            </Grid>
-        </Border>
+        <Border x:Name="ArchiveExportDialog" IsVisible="False" Background="#A6000000" Grid.RowSpan="3" ZIndex="20" />
     </Grid>
 </UserControl>

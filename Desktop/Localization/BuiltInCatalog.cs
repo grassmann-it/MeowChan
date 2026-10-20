@@ -17,8 +17,8 @@ internal static class BuiltInCatalog
         ("action.resume", "Resume downloads and checks", "Downloads und Prüfungen fortsetzen"),
         ("check.boardAction", "Check now", "Jetzt prüfen"),
         ("check.boardScheduled", "Catalog check requested. Rate limits still apply; new discoveries use normal admission.", "Katalogprüfung angefordert. Abruflimits gelten weiterhin; neue Threads verwenden die normale Aufnahme."),
-        ("check.action", "Check now / retry missing", "Jetzt prüfen / Fehlendes wiederholen"),
-        ("check.scheduled", "Check requested. Rate limits still apply; missing selected media will be retried.", "Prüfung angefordert. Abruflimits gelten weiterhin; fehlende ausgewählte Medien werden erneut versucht."),
+        ("check.action", "Check now", "Jetzt prüfen"),
+        ("check.scheduled", "Check requested. Media pauses and rate limits still apply.", "Prüfung angefordert. Medienpausen und Abruflimits gelten weiterhin."),
         ("check.alreadyScheduled", "A check is already requested.", "Eine Prüfung ist bereits angefordert."),
         ("check.paused", "Resume the session before requesting a check.", "Die Sitzung vor einer Prüfung fortsetzen."),
         ("check.unsupported", "This adapter does not support explicit checks.", "Dieser Adapter unterstützt keine ausdrücklich angeforderten Prüfungen."),
@@ -211,7 +211,7 @@ internal static class BuiltInCatalog
     };
 
     public static IReadOnlyDictionary<string, string> English { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
     public static IReadOnlyDictionary<string, string> German { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
 }

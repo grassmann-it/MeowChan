@@ -7,15 +7,30 @@ using Avalonia.Media.Imaging;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
 using MeowChan.Storage;
+using MeowChan.Persistence;
+using MeowChan.Interfaces;
 
 namespace MeowChan.Desktop;
 
-internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary)
+internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWorkSnapshot? Work = null)
 {
     public string Title => Summary.Title;
     public string Identity => Summary.Id.Source + " /" + Summary.Id.Board + "/ · " + Summary.Id.Thread;
     public string Status => Summary.LastCapturedAt == null ? Texts.T("archive.mediaOnly")
         : Texts.T("archive.postsCount", Summary.PostCount);
+    public int Posts => Summary.PostCount;
+    public string MediaStatus => Work == null ? Texts.T("gallery.unknown") : WorkStatusFormatter.Format(Work).Progress;
+    public string SourceStatus => Texts.T(Summary.SourceState switch
+    {
+        ThreadSourceState.Archived => "archive.sourceArchived",
+        ThreadSourceState.NotFound => "archive.sourceMissing",
+        _ => "archive.sourceActive"
+    });
+    public string WorkStatus => Work == null ? Texts.T("gallery.unknown") : WorkStatusFormatter.Format(Work).Status;
+    public string LastCapture => Summary.LastCapturedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? Texts.T("gallery.unknown");
+    public string GalleryLabel => Texts.T("gallery.open");
+    public string ReadLabel => Texts.T("gallery.read");
+    public string ExportLabel => Texts.T("gallery.export");
 }
 
 internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
@@ -42,6 +57,7 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
 {
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
     public string Size => (Asset.Length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB";
+    public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");
     public string Version => Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
     public string Path => Asset.Path;
 }

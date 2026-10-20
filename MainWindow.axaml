@@ -158,6 +158,7 @@
                             <ContextMenu>
  <MenuItem Tag="check.action" Classes="localized" Header="Check now / retry missing" Click="OnCheckSelectionClick" />
  <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnOpenWorkspaceDetailsClick" />
+ <MenuItem x:Name="ThreadMediaRetryMenuItem" Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnRetryMissingMediaClick" />
  <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnEditSelectionRules" />
  <Separator />
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenThreadDirectoryClick">
@@ -297,6 +298,7 @@
                                         <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Margin="0,0,6,6" Click="OnInspectorOpenFolderClick" />
                                         <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Margin="0,0,6,6" Click="OnInspectorOpenBrowserClick" />
                                         <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Margin="0,0,6,6" Click="OnCheckSelectionClick" />
+                                        <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Margin="0,0,6,6" Click="OnRetryMissingMediaClick" />
                                         <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" Margin="0,0,6,6" />
                                     </WrapPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Spacing="6">
@@ -385,5 +387,6 @@
             </ComboBox>
             </Grid>
         </Border>
+        <ContentControl x:Name="GalleryHost" Grid.RowSpan="4" IsVisible="False" />
     </Grid>
 </Window>

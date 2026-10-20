@@ -77,7 +77,8 @@ internal static class SourcesChecks
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 if (mode == "Barebones")
                     await Program.WaitUntilAsync(() => page.Bounds.Width > 0 && page.Bounds.Width < 760
-                        && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions.Count == 1);
+                        && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions[0].ActualWidth < 1
+                        && page.FindControl<Grid>("SourcesSplit")!.ColumnSpacing == 0);
                 foreach (string language in new[] { "en", "de" })
                 {
                     Texts.SetLanguage(language);

@@ -392,6 +392,7 @@ public partial class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_gallery != null && !_gallerySuspended) return;
         TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
         KeyModifiers pasteModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (e.KeyModifiers == pasteModifier && e.Key == Key.L)
@@ -786,7 +787,14 @@ public partial class MainWindow : Window
 
     private void OnThreadPointerPressed(object? sender, PointerPressedEventArgs e) => SelectContextRow(sender, e);
     private void OnBoardPointerPressed(object? sender, PointerPressedEventArgs e) => SelectContextRow(sender, e);
-    private void OnThreadDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
+    private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is Visual tapped && (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
+        DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
+        if (target?.DataContext is not ThreadRow row) return;
+        e.Handled = true;
+        await OpenGalleryAsync(row.Snapshot.Id, origin: target);
+    }
     private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
 
     private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(WorkspacePage.Settings);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using Microsoft.Data.Sqlite;
 
@@ -8,6 +9,31 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
+    internal static IReadOnlyList<ResourceId> SearchIds(SqliteConnection connection, SqliteTransaction transaction,
+        ArchiveThreadQuery query, CancellationToken cancellationToken)
+    {
+        return Array.AsReadOnly(SearchSummaries(connection, transaction, query, cancellationToken)
+            .Select(item => item.Id).ToArray());
+    }
+
+    internal static IReadOnlyList<ArchiveThreadSummary> SearchSummaries(SqliteConnection connection, SqliteTransaction transaction,
+        ArchiveThreadQuery query, CancellationToken cancellationToken)
+    {
+        // All pages use the caller's single deferred read transaction. This deliberately keeps
+        // only compact identities, never retained posts, manifests or image data.
+        List<ArchiveThreadSummary> summaries = new List<ArchiveThreadSummary>();
+        int offset = 0;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ArchiveThreadPage page = SearchPage(connection, transaction, query, offset, 500, cancellationToken);
+            summaries.AddRange(page.Items);
+            offset += page.Items.Count;
+            if (offset >= page.TotalCount || page.Items.Count == 0) break;
+        }
+        return Array.AsReadOnly(summaries.ToArray());
+    }
+
     internal static ArchiveThreadPage SearchPage(SqliteConnection connection, SqliteTransaction transaction,
         ArchiveThreadQuery query, int offset, int limit, CancellationToken cancellationToken)
     {

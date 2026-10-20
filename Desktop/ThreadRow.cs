@@ -11,6 +11,7 @@ namespace MeowChan.Desktop;
 public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 {
     private bool _disposed;
+    private bool _isPaused;
 
     public long WatchId { get; }
     public ThreadSnapshot Snapshot { get; private set; }
@@ -30,6 +31,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Status { get; private set; } = string.Empty;
     public string Progress { get; private set; } = string.Empty;
     public string ErrorDetails { get; private set; } = string.Empty;
+    public bool CanRetryMedia => Snapshot.Work != null && WorkStatusFormatter.Format(Snapshot.Work, _isPaused).CanRetry;
     public string StatusDetails => string.IsNullOrEmpty(ErrorDetails) ? Status : Status + Environment.NewLine + ErrorDetails;
     public double Completion { get; private set; }
     public int Queued { get; private set; }
@@ -108,7 +110,24 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (snapshot.Content?.SelectionFailure is FailureInfo selectionFailure)
             ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + selectionFailure.Message;
 
+        if (snapshot.Work is ThreadWorkSnapshot work)
+        {
+            WorkStatusPresentation presentation = WorkStatusFormatter.Format(work, _isPaused);
+            Status = presentation.Status;
+            Progress = presentation.Status + " · " + presentation.Progress;
+            if (snapshot.Content?.ExcludedMedia > 0)
+                Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
+            Completion = presentation.Completion;
+            ErrorDetails = string.Join(Environment.NewLine, new[] { presentation.Details, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
+        }
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+    }
+
+    public void SetPaused(bool isPaused)
+    {
+        if (_disposed || _isPaused == isPaused) return;
+        _isPaused = isPaused;
+        UpdateSnapshot(new DesktopThreadEntry(WatchId, Snapshot, HostName, BoardName));
     }
 
     public void Dispose()

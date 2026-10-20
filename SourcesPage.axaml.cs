@@ -171,8 +171,10 @@ public partial class SourcesPage : UserControl
         if (_narrow == narrow) return;
         _narrow = narrow;
         Grid split = this.FindControl<Grid>("SourcesSplit")!;
-        split.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "280,*");
-        Grid.SetColumn(this.FindControl<Border>("SourceDetailsPanel")!, narrow ? 0 : 1);
+        // Preserve the track collection while SizeChanged runs inside layout.
+        split.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 280);
+        split.ColumnSpacing = narrow ? 0 : 14;
+        Grid.SetColumn(this.FindControl<StackPanel>("SourcesListPane")!, narrow ? 1 : 0);
         RenderDetails();
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)

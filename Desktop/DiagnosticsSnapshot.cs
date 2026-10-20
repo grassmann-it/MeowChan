@@ -26,6 +26,12 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
             ThreadSnapshot snapshot = thread.Snapshot;
             DiagnosticTarget target = new DiagnosticTarget(DiagnosticTargetKind.Thread, thread.WatchId);
             AddResource(entries, target, snapshot.Url, snapshot.Title, snapshot.RequestProgress, snapshot.LastCheckFailure);
+            if (snapshot.Work is ThreadWorkSnapshot work && (work.MissingMedia > 0 || work.CapturePending))
+            {
+                WorkStatusPresentation status = WorkStatusFormatter.Format(work);
+                entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:work", Texts.T("diagnostics.media"), snapshot.Title,
+                    status.Status + " · " + status.Progress, snapshot.Url + Environment.NewLine + status.Details, target));
+            }
             if (snapshot.Content?.CaptureFailure is FailureInfo capture)
                 entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:capture", Texts.T("nav.archive"), snapshot.Title,
                     capture.Message, snapshot.Url + Environment.NewLine + FormatFailure(capture), target));

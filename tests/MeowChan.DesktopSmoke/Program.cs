@@ -209,6 +209,7 @@ internal static class Program
                 return;
             }
 
+            await MediaRetryChecks.RunAsync(mainWindow);
             await ComparisonCaptures.RunAsync(mainWindow);
             await ClipboardChecks.RunAsync(mainWindow);
             await PresentationChecks.RunPreferencesAsync(mainWindow);

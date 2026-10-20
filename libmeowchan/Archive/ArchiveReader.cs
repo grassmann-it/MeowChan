@@ -50,6 +50,25 @@ public sealed class ArchiveReader : IAsyncDisposable
         return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, query, offset, limit, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Freezes the complete ordered matching thread identities in one local catalog read transaction.
+    /// Media directories and posts are deliberately not opened. Consumers may resolve them lazily.</summary>
+    public Task<IReadOnlyList<ResourceId>> SelectThreadIdsAsync(ArchiveThreadQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        query.Validate();
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchIds(connection, transaction, query, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Freezes complete matching local thread metadata without accessing media directories.</summary>
+    public Task<IReadOnlyList<ArchiveThreadSummary>> SelectThreadSummariesAsync(ArchiveThreadQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        query.Validate();
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, query, cancellationToken), cancellationToken);
+    }
+
     /// <summary>Captures posts and attachment metadata in one transaction; its pages never change afterward.</summary>
     public Task<ArchivedThreadView?> ReadThreadAsync(ResourceId id, CancellationToken cancellationToken = default)
     {

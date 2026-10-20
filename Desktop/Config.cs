@@ -56,6 +56,9 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool CompactDensity { get; set; }
 
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveMediaTiles { get; set; } = true;
+
         [JsonIgnore]
         public string? LoadWarning { get; private set; }
 
@@ -204,6 +207,7 @@ namespace MeowChan
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
                 CompactDensity = CompactDensity,
+                ArchiveMediaTiles = ArchiveMediaTiles,
                 LoadWarning = LoadWarning,
                 _profileDirectory = _profileDirectory,
                 _relativePathBaseDirectory = _relativePathBaseDirectory
@@ -229,6 +233,7 @@ namespace MeowChan
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
             CompactDensity = source.CompactDensity;
+            ArchiveMediaTiles = source.ArchiveMediaTiles;
             LoadWarning = source.LoadWarning;
         }
 

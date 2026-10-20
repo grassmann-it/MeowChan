@@ -69,6 +69,7 @@ public partial class MainWindow
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_gallery != null && !_gallerySuspended) return;
         if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
         OnDetailsToggleClick(sender, e);
         WorkspaceControl<DataGrid>(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
@@ -228,6 +229,8 @@ public partial class MainWindow
     private void RefreshWorkspace()
     {
         if (!_workspaceInitialized) return;
+        foreach (ThreadRow row in UrlList) row.SetPaused(_session.IsPaused);
+        RefreshMediaRetryControls();
         string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
             UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
         WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;

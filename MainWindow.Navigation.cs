@@ -42,6 +42,19 @@ public partial class MainWindow
         _rulesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, OpenDirectory);
+        _archivePage.ExportHistory = _session.ExportHistory;
+        _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
+        _archivePage.GetWorkSnapshots = _session.GetThreadWorkSnapshots;
+        _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
+        _archivePage.SaveMediaTiles = async tiles =>
+        {
+            Config candidate = _config.Clone();
+            candidate.ArchiveMediaTiles = tiles;
+            await _session.ApplySettingsAsync(candidate);
+        };
+        _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
+        _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
+        _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
         {
@@ -56,10 +69,11 @@ public partial class MainWindow
         if (!_isClosing) UpdateInteractionState();
     }
 
-    private bool NavigateWorkspace(WorkspacePage page)
+    private bool NavigateWorkspace(WorkspacePage page, bool activateArchive = true)
     {
         if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.State == DesktopSessionState.RecoveryFailed))
             || WorkspaceCommandBusy) return false;
+        if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         _selectedPage = page;
         this.FindControl<Grid>("WorkspaceBody")!.IsVisible = page == WorkspacePage.Downloads;
         this.FindControl<ContentControl>("SettingsPageHost")!.IsVisible = page == WorkspacePage.Settings;
@@ -86,7 +100,7 @@ public partial class MainWindow
             _diagnosticsPage?.FindControl<DataGrid>("DiagnosticsGrid")?.Focus();
         }
         if (page == WorkspacePage.Rules) _rulesPage?.RefreshConfirmedRules();
-        if (page == WorkspacePage.Archive) _ = _archivePage?.ActivateAsync();
+        if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         return true;
     }
 

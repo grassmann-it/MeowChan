@@ -32,6 +32,8 @@ public partial class ArchivePage
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
         SetOptions("ArchivePostsFilter", "archive.allContent", "archive.withPosts", "archive.withoutPosts");
+        SetOptions("ArchiveWorkFilter", "gallery.allWork", "gallery.watching", "gallery.followup",
+            "gallery.intervention", "gallery.completed", "gallery.stopped");
         SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort");
     }
     private void SetOptions(string name, params string[] keys)
@@ -60,6 +62,7 @@ public partial class ArchivePage
             { 1 => ThreadSourceState.Active, 2 => ThreadSourceState.Archived, 3 => ThreadSourceState.NotFound, _ => null },
             Choice("ArchiveCaptureFilter"), Choice("ArchivePostsFilter"),
             (ArchiveThreadSort)Math.Max(0, Control<ComboBox>("ArchiveSort").SelectedIndex));
+        _workFilter = Math.Max(0, Control<ComboBox>("ArchiveWorkFilter").SelectedIndex);
         _listOffset = 0;
         _showReader = false;
         UpdateLayoutMode();
