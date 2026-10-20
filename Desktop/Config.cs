@@ -22,6 +22,7 @@ namespace MeowChan
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
+        public bool ShowBoardAdmissionWizard { get; set; } = true;
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
@@ -199,6 +200,7 @@ namespace MeowChan
                 DownloadPath = DownloadPath,
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
+                ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
                 BandwidthLimiter = BandwidthLimiter,
@@ -225,6 +227,7 @@ namespace MeowChan
             DownloadPath = absoluteDownloadPath;
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
+            ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
             BandwidthLimiter = source.BandwidthLimiter;

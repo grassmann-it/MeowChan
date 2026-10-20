@@ -303,15 +303,8 @@ public partial class MainWindow : Window
         bool allAccepted = true;
         try
         {
-            await AddInput.SubmitAsync(input, ReadClipboardAsync, async url =>
-            {
-                if (_isClosing) throw new OperationCanceledException();
-                DesktopAdmissionResult? result = await AddUrlAsync(url);
-                allAccepted &= result?.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent;
-                if (_admissionResults.Count % 32 == 0)
-                    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            });
-            if (_admissionResults.Count == 0 && !_isClosing)
+            allAccepted = await SubmitAdmissionBatchAsync(input);
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),

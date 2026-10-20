@@ -23,6 +23,7 @@ namespace MeowChan
         private decimal? _maxParallelDownloads;
         private decimal? _bandwidthLimiterMB;
         private bool _saveUrlsOnExit;
+        private bool _showBoardAdmissionWizard;
         private bool _minimizeToTray;
         private bool _isBusy;
         private bool _isClosed;
@@ -75,6 +76,7 @@ namespace MeowChan
             RecheckTimer = config.RecheckTimer;
             MaxParallelDownloads = config.MaxParallelDownloads;
             SaveUrlsOnExit = config.SaveUrlsOnExit;
+            ShowBoardAdmissionWizard = config.ShowBoardAdmissionWizard;
             MinimizeToTray = config.MinimizeToTray;
             BandwidthLimiterMB = config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = config.CompactDensity;
@@ -98,6 +100,7 @@ namespace MeowChan
         public string BandwidthLabel => Texts.T("settings.bandwidth");
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
         public string RestoreSessionLabel => Texts.T("settings.restoreSession");
+        public string BoardAdmissionWizardLabel => Texts.T("settings.boardAdmissionWizard");
         public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
         public string ThemeLabel => Texts.T("settings.theme");
         public string LanguageLabel => Texts.T("settings.language");
@@ -163,6 +166,12 @@ namespace MeowChan
         {
             get => _saveUrlsOnExit;
             set => SetField(ref _saveUrlsOnExit, value, nameof(SaveUrlsOnExit));
+        }
+
+        public bool ShowBoardAdmissionWizard
+        {
+            get => _showBoardAdmissionWizard;
+            set => SetField(ref _showBoardAdmissionWizard, value, nameof(ShowBoardAdmissionWizard));
         }
 
         public bool MinimizeToTray
@@ -252,6 +261,7 @@ namespace MeowChan
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
             SaveUrlsOnExit = _config.SaveUrlsOnExit;
+            ShowBoardAdmissionWizard = _config.ShowBoardAdmissionWizard;
             MinimizeToTray = _config.MinimizeToTray;
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = _config.CompactDensity;
@@ -420,6 +430,7 @@ namespace MeowChan
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
                 candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
+                candidate.ShowBoardAdmissionWizard = ShowBoardAdmissionWizard;
                 candidate.MinimizeToTray = MinimizeToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;

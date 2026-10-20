@@ -5,6 +5,19 @@ namespace MeowChan.DesktopTests;
 public sealed class ConfigTests
 {
     [Fact]
+    public void BoardWizardPreferenceDefaultsOnAndSurvivesCloneCopyAndPersistence()
+    {
+        using TempDirectory directory = new();
+        Assert.True(Config.LoadConfig(directory.Path).ShowBoardAdmissionWizard);
+        Config config = new();
+        Config draft = config.Clone(); draft.ShowBoardAdmissionWizard = false;
+        Assert.True(config.ShowBoardAdmissionWizard);
+        config.CopyFrom(draft); config.SaveConfig(directory.Path);
+        Assert.False(Config.LoadConfig(directory.Path).ShowBoardAdmissionWizard);
+        Assert.False(config.Clone().ShowBoardAdmissionWizard);
+    }
+
+    [Fact]
     public void LoadingMissingProfileReturnsDefaultsWithoutCreatingDirectories()
     {
         using TempDirectory directory = new TempDirectory();

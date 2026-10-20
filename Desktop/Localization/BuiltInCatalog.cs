@@ -10,7 +10,7 @@ internal static class BuiltInCatalog
     // Keeping both built-ins on each line makes missing translations visible during review.
     private static readonly (string Key, string English, string German)[] Entries =
     {
-        ("shell.paused", "Paused · active transfers may finish", "Pausiert · laufende Transfers dürfen fertig werden"),
+        ("shell.paused", "Paused · sources and transfers stopped", "Pausiert · Quellen und Transfers angehalten"),
         ("action.pauseShort", "Pause", "Pause"),
         ("action.resumeShort", "Resume", "Fortsetzen"),
         ("action.pause", "Pause downloads and checks", "Downloads und Prüfungen pausieren"),
@@ -211,7 +211,7 @@ internal static class BuiltInCatalog
     };
 
     public static IReadOnlyDictionary<string, string> English { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
     public static IReadOnlyDictionary<string, string> German { get; } = new ReadOnlyDictionary<string, string>(
-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
+        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
 }
