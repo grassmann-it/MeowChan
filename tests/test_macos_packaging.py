@@ -229,7 +229,7 @@ int main(int argc, char **argv) {
     CFBundleRef bundle = CFBundleGetMainBundle();
     CFStringRef identifier = bundle ? CFBundleGetIdentifier(bundle) : NULL;
     if (!identifier || !CFEqual(identifier, CFSTR("org.meowchan.desktop"))) {
-        fprintf(stderr, "Main bundle identity missing after native launcher exec\\n");
+        fprintf(stderr, "Main bundle identity missing at native apphost invocation\\n");
         if (bundle) CFShow(bundle);
         if (identifier) CFShow(identifier);
         return 4;
@@ -276,11 +276,18 @@ int main(int argc, char **argv) {
         extracted = self.root / "extracted ZIP with spaces"
         subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive), str(extracted)], check=True)
         extracted_bundle = extracted / "MeowChan.app"
-        launcher_link = self.root / "launcher alias with spaces"
-        self.symlink(extracted_bundle / "Contents/MacOS/MeowChan", launcher_link)
-        result = subprocess.run([str(launcher_link), str(extracted_bundle / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], cwd=self.root, capture_output=True, text=True, check=False)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn("BUNDLE IDENTITY PASS", result.stdout)
+        bundle_alias = self.root / "bundle alias with spaces.app"
+        self.symlink(extracted_bundle, bundle_alias)
+        # A standalone executable symlink outside the .app makes CoreFoundation
+        # use the external invocation directory as MainBundle (native runs
+        # 39514856002, ARM and Intel). It is not a supported bundle invocation.
+        # Test the shipped path and an entire .app symlink, each from a foreign
+        # CWD; retain the strict identity/icon/dependency checks in both cases.
+        for invocation in (extracted_bundle, bundle_alias):
+            with self.subTest(bundle_invocation=invocation.name):
+                result = subprocess.run([str(invocation / "Contents/MacOS/MeowChan"), str(invocation / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], cwd=self.root, capture_output=True, text=True, check=False)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertIn("BUNDLE IDENTITY PASS", result.stdout)
         self.assertIn("@rpath/libvlccore.dylib", packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", plugin))[0])
         self.assertTrue(report["signatures_verified"])
         # A sealed resource mutation must invalidate the bundle signature.
