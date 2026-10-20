@@ -164,11 +164,25 @@ internal static class RulesPageChecks
                     window.Width = width;
                     window.Height = height;
                     ScrollViewer scroll = page.FindControl<ScrollViewer>("RulesScroll")!;
-                    await WaitLayoutAsync(window, () => Math.Abs(window.Bounds.Width - width) <= 1
-                        && Math.Abs(window.Bounds.Height - height) <= 1
-                        && Fits(window, page.FindControl<Button>("SaveRuleButton")!)
-                        && Fits(window, page.FindControl<Button>("DiscardRuleButton")!)
-                        && scroll.Viewport.Height > 40 && scroll.Extent.Width <= scroll.Viewport.Width + 1);
+                    try
+                    {
+                        await WaitLayoutAsync(window, () => Math.Abs(window.Bounds.Width - width) <= 1
+                            && Math.Abs(window.Bounds.Height - height) <= 1
+                            && Fits(window, page.FindControl<Button>("SaveRuleButton")!)
+                            && Fits(window, page.FindControl<Button>("DiscardRuleButton")!)
+                            && scroll.Viewport.Height > 40 && ContentFitsHorizontally(page, scroll));
+                    }
+                    catch
+                    {
+                        Console.WriteLine($"SMOKE rules layout failure: mode={mode}; language={language}; requested={width}x{height}; actual={window.Bounds}; minimum={window.MinWidth}x{window.MinHeight}; state={window.WindowState}; viewport={scroll.Viewport}; extent={scroll.Extent}.");
+                        foreach (string name in new[] { "SaveRuleButton", "DiscardRuleButton", "RulesScroll", "RulesContent", "RuleExtensionsInput" })
+                        {
+                            Control control = page.FindControl<Control>(name)!;
+                            Console.WriteLine($"SMOKE rules control: {name}; bounds={control.Bounds}; width={control.Width}; desired={control.DesiredSize}; origin={control.TranslatePoint(new Point(0, 0), window)}; visible={control.IsEffectivelyVisible}; fits={Fits(window, control)}.");
+                        }
+                        Program.CaptureWindow(window, "smoke-rules-layout-failure.png");
+                        throw;
+                    }
                     scroll.Offset = new Vector(0, scroll.Extent.Height);
                     await FlushAsync();
                     Program.CaptureWindow(window, $"smoke-rules-{mode.ToLowerInvariant()}-{language}-minimum.png");
@@ -341,6 +355,17 @@ internal static class RulesPageChecks
         return control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > 0 && point.HasValue
             && point.Value.X >= -1 && point.Value.Y >= -1 && point.Value.X + control.Bounds.Width <= window.Bounds.Width + 1
             && point.Value.Y + control.Bounds.Height <= window.Bounds.Height + 1;
+    }
+    private static bool ContentFitsHorizontally(RulesPage page, ScrollViewer scroll)
+    {
+        // Avalonia can retain the previous wider Extent after a hidden page is resized.
+        // Check the arranged content and all its visible controls against the viewport.
+        StackPanel content = page.FindControl<StackPanel>("RulesContent")!;
+        return content.Bounds.Width > 0 && content.Bounds.Width <= scroll.Viewport.Width + 1
+            && content.GetVisualDescendants().OfType<Control>()
+                .Where(control => control.IsEffectivelyVisible && control.Bounds.Width > 0)
+                .All(control => control.TranslatePoint(new Point(0, 0), content) is Point point
+                    && point.X >= -1 && point.X + control.Bounds.Width <= scroll.Viewport.Width + 1);
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

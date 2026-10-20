@@ -141,7 +141,15 @@ internal static class SourcesChecks
                 }
             }
             Require(submissions == 6, "Opening or refreshing Sources caused unsolicited admissions.");
-            window.Width = 1280;
+            await CheckNavigationAsync(window, wide: false);
+            // Native Windows desktops can be narrower than the requested 1280 DIP.
+            // Exercise wide navigation only where the actual working area permits it.
+            Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+                ?? throw new InvalidOperationException("Sources navigation has no screen.");
+            double frameWidth = Math.Max(0, (window.FrameSize?.Width ?? window.ClientSize.Width) - window.ClientSize.Width);
+            double targetWidth = Math.Min(1280, Math.Floor(screen.WorkingArea.Width / window.RenderScaling - frameWidth));
+            window.Width = targetWidth;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
             await Program.WaitUntilAsync(() => page.Bounds.Width >= 760
                 && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions.Count == 2);
             Button selectedSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[1];
@@ -154,11 +162,7 @@ internal static class SourcesChecks
                 && page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureUnavailable")
                 && page.FindControl<TextBlock>("SourceVersion")!.Text!.Contains("fixture-version"),
                 "Thread-only provider selection or optional descriptor details were lost after refresh.");
-            await Program.WaitUntilAsync(() => window.FindControl<Button>("SourcesNavigationButton")!.IsVisible);
-            window.FindControl<Button>("SourcesNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(window.SelectedPage == MainWindow.WorkspacePage.Sources
-                && window.FindControl<Button>("SourcesNavigationButton")!.Classes.Contains("selected"),
-                "Wide Advanced navigation did not expose the productive Sources page.");
+            await CheckNavigationAsync(window, wide: targetWidth >= 1120);
             page.Refresh([], view, true);
             Require(page.FindControl<TextBlock>("SourcesEmpty")!.IsVisible && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
                 "Empty provider registry did not show its genuine empty state.");
@@ -172,6 +176,34 @@ internal static class SourcesChecks
             window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
         Console.WriteLine("SMOKE sources: passive capabilities, current cooldowns, exact watch actions, shared admission drafts and compact EN/DE views passed.");
+    }
+    private static async Task CheckNavigationAsync(MainWindow window, bool wide)
+    {
+        Button sources = window.FindControl<Button>("SourcesNavigationButton")!;
+        Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
+        window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads, "Sources navigation fixture did not leave the Sources page.");
+        await Program.WaitUntilAsync(() => sources.IsVisible == wide && tools.IsVisible != wide);
+        if (wide)
+        {
+            Require(Fits(window, sources) && sources.IsEffectivelyEnabled, "Wide Sources navigation is outside the usable window.");
+            sources.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
+        else
+        {
+            Require(Fits(window, tools) && tools.IsEffectivelyEnabled, "Compact Tools navigation is outside the usable window.");
+            MenuFlyout flyout = tools.Flyout as MenuFlyout
+                ?? throw new InvalidOperationException("Compact Tools has no productive menu.");
+            flyout.ShowAt(tools);
+            MenuItem item = flyout.Items.OfType<MenuItem>().Single(item => item.Tag as string == "nav.sources");
+            await Program.WaitUntilAsync(() => flyout.IsOpen && item.IsEffectivelyVisible && item.Bounds.Width > 0);
+            Require(item.IsEffectivelyEnabled, "Compact Sources menu action is disabled.");
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Program.WaitUntilAsync(() => !flyout.IsOpen);
+        }
+        Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && (wide ? sources : tools).Classes.Contains("selected"),
+            "The available Advanced navigation did not open and select the productive Sources page.");
+        Console.WriteLine($"SMOKE sources navigation: {(wide ? "wide button" : "compact Tools menu")}; actual-width={window.Bounds.Width}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
     }
     private static bool Fits(Window window, Control control)
     {
