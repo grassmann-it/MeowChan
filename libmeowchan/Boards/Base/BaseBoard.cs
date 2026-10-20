@@ -162,6 +162,11 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
                     await CheckForNewThreadsAsync(cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
                 }
+                catch (QueueStoppingException)
+                {
+                    // The queue can close its source gate before this watch's own token is cancelled.
+                    return;
+                }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     throw;

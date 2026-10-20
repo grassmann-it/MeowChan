@@ -352,6 +352,11 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                     await checkThreadAsync(queue, cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
                 }
+                catch (QueueStoppingException)
+                {
+                    // The queue can close its source gate before this watch's own token is cancelled.
+                    return;
+                }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     throw;

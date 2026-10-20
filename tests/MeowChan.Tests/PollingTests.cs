@@ -5,6 +5,79 @@ namespace MeowChan.Tests;
 
 public sealed class PollingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClosedQueueGateEndsMonitorWithoutFailureBeforeWatchCancellation(bool board)
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1024 * 1024);
+        ProbeThread thread = new(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        // Force shutdown to win the race before the monitor gets its first execution slot.
+        await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        try
+        {
+            if (board)
+            {
+                provider.Board.AttachSessionQueue(queue);
+                provider.Board.StartMonitoring(60);
+                await TestWait.UntilAsync(() => provider.Board.RequestCheck() == CheckRequestStatus.Stopping);
+                Assert.Equal(0, provider.Board.Checks);
+                Assert.Null(provider.Board.LastCheckFailure);
+            }
+            else
+            {
+                thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+                await TestWait.UntilAsync(() => thread.RequestCheck() == CheckRequestStatus.Stopping);
+                Assert.Equal(0, thread.Checks);
+                Assert.Null(thread.LastCheckFailure);
+                Assert.NotEqual(ThreadActivity.Error, thread.Activity);
+            }
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await provider.Board.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnrequestedProviderCancellationRemainsAnObservableSourceFailure(bool board)
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1024 * 1024);
+        ProbeThread thread = new(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        try
+        {
+            if (board)
+            {
+                provider.Board.AttachSessionQueue(queue);
+                provider.Board.OnCheckWithCancellation = _ => throw new OperationCanceledException("unexpected provider cancellation");
+                provider.Board.StartMonitoring(60);
+                await TestWait.UntilAsync(() => provider.Board.Clock.Waits == 1);
+                Assert.NotNull(provider.Board.LastCheckFailure);
+            }
+            else
+            {
+                thread.OnCheckWithCancellation = _ => throw new OperationCanceledException("unexpected provider cancellation");
+                thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+                await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+                Assert.NotNull(thread.LastCheckFailure);
+                Assert.Equal(ThreadActivity.Error, thread.Activity);
+            }
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await provider.Board.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
     [Fact]
     public async Task RemovingTheLifetimeCancelsAnActiveManualCheckAndItsQueuedSuccessor()
     {

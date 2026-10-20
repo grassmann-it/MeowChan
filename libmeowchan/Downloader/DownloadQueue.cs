@@ -18,6 +18,11 @@ using Serilog;
 
 public enum DownloadPriority { Manual, BoardDiscovery }
 
+/// <summary>Identifies the queue's closed source gate without classifying unrelated provider cancellation as shutdown.</summary>
+internal sealed class QueueStoppingException(CancellationToken cancellationToken)
+    : OperationCanceledException("The queue is stopping.", cancellationToken);
+
+
 /// <summary>
 /// Owns the session's media jobs and shared worker limit. Thread owners explicitly
 /// cancel their jobs when their watch ends; the queue does not subscribe to events.
@@ -133,7 +138,7 @@ public class DownloadQueue
             Task resumed;
             lock (_stateLock)
             {
-                if (_stopping) throw new OperationCanceledException("The queue is stopping.", cancellationToken);
+                if (_stopping) throw new QueueStoppingException(cancellationToken);
                 if (!_paused) return;
                 resumed = _resumed.Task;
             }
