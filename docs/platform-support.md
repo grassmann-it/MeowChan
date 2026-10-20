@@ -53,7 +53,8 @@ ad-hoc signatures without Apple Developer ID or notarization; certificate acquis
 release prerequisite. The [macOS package guidance](macos-signing.md) explains
 manual approval in Privacy & Security and keeps Developer ID/plugin signing,
 hardened runtime and notarization as an optional later distribution route.
-Native Mac execution and bundled VLC playback still require validation.
+Native Mac package/startup checks passed at `672b45d` below; bundled VLC playback
+and full desktop acceptance still require validation.
 
 ## Current 0.9.0 preparation
 
@@ -72,8 +73,8 @@ Evidence: `artifacts/r09-windows-preview-3/windows-ci-progress-followup/` and
 race; the Mac temporary-path fix was verified separately in the later native
 offline run recorded below. The Windows source-built gate does not establish
 extracted-ZIP VLC playback, real hardware/audio or full package acceptance.
-macOS ZIP, native extracted-app startup, playback and Gatekeeper acceptance
-remain open.
+macOS ZIP and native extracted-app startup subsequently passed at `672b45d`
+(below); playback, audio, real hardware and Gatekeeper acceptance remain open.
 
 **Historical Preview 2 finding:** Windows startup could create a window larger than the available screen work area. Published Preview 3 includes the startup-geometry fix and passed the Windows source-built test gate described below. No native video or hardware acceptance follows from this window-sizing check.
 
@@ -191,6 +192,28 @@ The desktop now uses Avalonia 12.1.4. Consult the [current Avalonia supported-pl
 
 The current Linux desktop uses X11, including XWayland on a Wayland desktop. A working graphical session and native graphics/font libraries are required even in a self-contained package. Ubuntu requires the X11/font dependencies used by Avalonia, including `libx11-6`, `libice6`, `libsm6`, `libfontconfig1` and `libdbus-1-3`. A `linux-x64` or `linux-arm64` package targets glibc; it is not a `linux-musl-*` Alpine package.
 
+## Native macOS package and startup checkpoint — `672b45d`
+
+[Run 39515151002](https://github.com/tfgrass/MeowChan/actions/runs/39515151002)
+completed successfully on both native targets, exact source
+`672b45db89b469a04904335f17b6ae3d9ec83492`:
+
+| Check | ARM (`macos-15`) | Intel (`macos-15-intel`) |
+| --- | --- | --- |
+| Native packaging/signing fixtures | 33/33 passed, including strict CFBundle identity/icon runtime lookups and direct/whole-app alias cases | Same 33/33 fixture checks passed |
+| Actual product package | Signatures, native dependency closure and ZIP round-trip passed | Same checks passed |
+| Actual extracted .NET app | Startup and graceful shutdown passed | Startup and graceful shutdown passed |
+
+Strict runtime CFBundle identity/icon lookups were exercised by the native
+fixtures. The actual product has package metadata/icon validation and a separate
+extracted .NET startup/shutdown result; runtime identity/icon introspection inside
+the actual .NET process is not claimed. Final evidence:
+`artifacts/r09-macos-adhoc-native/39515151002/RESULT.json` and `RESULT.txt`.
+
+This is an evidence-only package/startup checkpoint. It does not establish VLC
+playback, real audio/hardware, quarantine/Gatekeeper acceptance, corresponding-source
+closure or a public Mac release. Those remain separate requirements.
+
 ## Native macOS offline source checkpoint — `5a7ca8d`
 
 [Run 39511554103](https://github.com/tfgrass/MeowChan/actions/runs/39511554103)
@@ -216,8 +239,8 @@ acceptance, and it does not establish native Intel execution.
 | `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
 | `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current isolated source-built checks and historical package startup/exit are recorded below. |
 | `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
-| `osx-x64` | `.zip` | macOS 15 x64 | Native Intel Mac package and desktop run. |
-| `osx-arm64` | `.zip` | macOS 15 Arm64 | Native offline source tests passed at `5a7ca8d` (below); extracted `.app` ZIP, GUI, bundled VLC playback and Gatekeeper/manual-approval workflows remain open. |
+| `osx-x64` | `.zip` | macOS 15 x64 | Native package/startup passed at `672b45d`; playback, audio/hardware, full desktop and Gatekeeper/manual approval remain open. |
+| `osx-arm64` | `.zip` | macOS 15 Arm64 | Offline source tests passed at `5a7ca8d`; native package/startup passed at `672b45d`. Playback, audio/hardware, full desktop and Gatekeeper/manual approval remain open. |
 
 These are candidate validation baselines, not completed platform certifications. Exact supported OS releases will be recorded with the tested artifacts. Microsoft/Avalonia support policies can change with OS end-of-life; consult the linked current policy before expanding the product matrix.
 
@@ -225,14 +248,14 @@ These are candidate validation baselines, not completed platform certifications.
 
 Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `MeowChan.exe` on Windows or `./MeowChan` on Linux. Keep the accompanying native libraries and notices beside the executable. The standard macOS archives are `MeowChan-<version>-osx-arm64.zip` and `MeowChan-<version>-osx-x64.zip`, each containing a self-contained ad-hoc-signed `MeowChan.app`; open that bundle in Finder or with `open MeowChan.app`.
 
-The planned macOS bundle has an ad-hoc signature and is not notarized. Its revised signed ZIP layout puts the physical .NET main executable at `Contents/MacOS/MeowChan` with the four CoreCLR entitlements. All other publish entries reside in `Contents/Resources/application`, with relative top-level symlinks from `Contents/MacOS`; `Resources/application/MeowChan` links back to the physical main. No C launcher is used. All Mach-O code is explicitly signed and validated; native CFBundle identity and runtime acceptance of this revised layout remain open. The icon remains under `Contents/Resources`, with generated `Info.plist` metadata. Legacy unsigned/Homebrew bundles retain the earlier `Contents/MacOS` payload layout. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
+The planned macOS bundle has an ad-hoc signature and is not notarized. Its revised signed ZIP layout puts the physical .NET main executable at `Contents/MacOS/MeowChan` with the four CoreCLR entitlements. All other publish entries reside in `Contents/Resources/application`, with relative top-level symlinks from `Contents/MacOS`; `Resources/application/MeowChan` links back to the physical main. No C launcher is used. All Mach-O code is explicitly signed and validated; native-fixture CFBundle identity/icon lookups and separate actual extracted .NET startup/shutdown passed at `672b45d`, while full media/desktop acceptance remains open. The icon remains under `Contents/Resources`, with generated `Info.plist` metadata. Legacy unsigned/Homebrew bundles retain the earlier `Contents/MacOS` payload layout. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
-Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app ZIPs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native executable and bundled-plugin workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
+Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app ZIPs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native extracted-app startup/shutdown passed at the checkpoint above; bundled-plugin playback and full desktop workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
 
 Native packaging targets `macos-15` (ARM) and `macos-15-intel` (Intel), with
 inside-out Mach-O/bundle signing, main-apphost CoreCLR entitlements, and ZIP
-extraction/signature/architecture/dependency revalidation. These checks are being
-implemented and validated; they are not recorded native acceptance. Homebrew
+extraction/signature/architecture/dependency revalidation. Package/signature and extracted-startup checks passed at `672b45d`; this is
+limited native evidence, not full media/desktop or Gatekeeper acceptance. Homebrew
 source builds remain optional. See [the packaging contract](macos-signing.md#ad-hoc-packaging-contract).
 
 ## What each check proves

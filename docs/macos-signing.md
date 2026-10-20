@@ -8,23 +8,25 @@ one ZIP per architecture:
 - `MeowChan-<version>-osx-arm64.zip` for Apple Silicon.
 - `MeowChan-<version>-osx-x64.zip` for Intel Macs.
 
-The planned native packaging step applies an **ad-hoc signature**, without Apple
+The native packaging step applies an **ad-hoc signature**, without Apple
 Developer ID, hardened runtime or notarization. No Apple certificate is required.
 The ZIP includes the matching .NET runtime and selected VLC libraries/plugins;
 keep the entire app bundle together. Homebrew source builds remain an optional
 route, rather than a prerequisite for installing the packaged app.
 
-Packaging/signature and native acceptance checks are still being implemented and
-validated. An ad-hoc signature does not establish developer identity or automatic
-Gatekeeper approval. The intended native matrix uses `macos-15` for ARM and
-`macos-15-intel` for Intel. The [native ARM offline source checkpoint](platform-support.md#native-macos-offline-source-checkpoint--5a7ca8d)
-passed 631 Core and 146 Desktop tests with a clean build; it does not establish
-GUI, extracted ZIP, VLC playback, Gatekeeper or native Intel acceptance.
-
-Native execution of the complete bundle still needs validation on the intended
-Intel and Apple Silicon Macs, including .NET startup, dynamically loaded VLC
-plugins, playback and shutdown. Cross-publishing and Mach-O/bundle structural
-checks do not establish that any of these native workflows passed.
+Native ARM (`macos-15`) and Intel (`macos-15-intel`) package checks passed in
+[run 39515151002](https://github.com/tfgrass/MeowChan/actions/runs/39515151002),
+exact source `672b45db89b469a04904335f17b6ae3d9ec83492`: **33/33 fixtures per
+architecture**, including strict runtime CFBundle identity/icon lookups and
+direct/whole-app alias cases in the native fixtures. Separately, the actual product
+passed package metadata/icon validation, signatures, native dependency closure,
+ZIP round-trip and extracted .NET app startup/graceful shutdown. This does not
+claim identity/icon runtime introspection inside the actual .NET process.
+See [the platform evidence](platform-support.md#native-macos-package-and-startup-checkpoint--672b45d).
+An ad-hoc signature does not establish developer identity or automatic Gatekeeper
+approval. Playback, audio, real hardware and downloaded/quarantined-copy approval
+remain unvalidated. This is not a public Mac release or a corresponding-source
+closure claim.
 
 Extract the complete archive and open `MeowChan.app` in Finder. If macOS blocks
 it because the developer cannot be verified, and you trust the downloaded source,
@@ -54,8 +56,9 @@ entitlements and serves as the bundle's main executable. All other publish entri
 point to these payload entries; `Contents/Resources/application/MeowChan` links
 back to the physical main executable. There is no C launcher or launcher compiler
 source. Every Mach-O file in the code/payload locations is explicitly signed and
-validated. Native CFBundle identity and runtime checks of this revised layout
-remain open until a successful native follow-up.
+validated. Fixture CFBundle identity/icon lookups and separate actual extracted-app
+startup/shutdown passed at the exact checkpoint above; full runtime/media
+workflows remain open.
 
 Legacy unsigned/Homebrew bundles keep the publish output in `Contents/MacOS`.
 Self-contained publishing uses `PublishSingleFile=false` so native .NET libraries
@@ -64,8 +67,9 @@ remain visible for final signing; users still need no separate .NET installation
 The ZIP is created with `ditto`; a fresh extraction must revalidate signatures,
 architecture, native dependency closure and bundle contents. Signature validation
 alone does not prove .NET JIT startup, VLC plugin loading/playback or shutdown.
-Those workflows still need native checks on both target architectures, followed
-by a downloaded/quarantined-copy check of the manual approval flow.
+The extracted .NET startup/shutdown check passed on both architectures at the
+checkpoint above. VLC plugin playback and a downloaded/quarantined-copy check of
+the manual approval flow still require separate evidence.
 
 ## Optional later Developer ID and notarized distribution
 
