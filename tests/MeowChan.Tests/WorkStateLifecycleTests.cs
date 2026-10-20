@@ -798,8 +798,7 @@ public sealed class WorkStateLifecycleTests
             queue.SetPaused(false);
             await store.RefreshBlocked.Task.WaitAsync(TestWait.Timeout);
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
-            // Let the finite queue/thread input notifications drain while the work projection is held back.
-            await Task.Delay(50);
+            Assert.Equal(MediaWorkStatus.Ready, Assert.Single(registry.GetSnapshot().Threads.Single().Work!.Media).Status);
             Assert.False(observed.Task.IsCompleted);
             store.ReleaseRefresh();
             ThreadSnapshot fresh = await observed.Task.WaitAsync(TestWait.Timeout);
@@ -838,7 +837,7 @@ public sealed class WorkStateLifecycleTests
             queue.SetPaused(false);
             await store.RefreshBlocked.Task.WaitAsync(TestWait.Timeout);
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
-            await Task.Delay(50);
+            Assert.Equal(MediaWorkStatus.Ready, Assert.Single(registry.GetSnapshot().Threads.Single().Work!.Media).Status);
             Assert.False(observed.Task.IsCompleted);
             store.ReleaseRefresh();
             MediaWork failure = await observed.Task.WaitAsync(TestWait.Timeout);
@@ -860,13 +859,24 @@ public sealed class WorkStateLifecycleTests
         public IReadOnlyList<WorkResource> LoadResources()
         {
             if (Volatile.Read(ref _resultCommitted) != 0)
-            {
-                RefreshBlocked.TrySetResult();
-                if (!_release.Wait(TestWait.Timeout)) throw new TimeoutException("Work cache refresh was not released.");
-            }
+                WaitForRefreshRelease();
             return _inner.LoadResources();
         }
-        public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _inner.LoadMedia(url, generation);
+        public IReadOnlyList<MediaWork> LoadMedia(string url, long generation)
+        {
+            IReadOnlyList<MediaWork> media = _inner.LoadMedia(url, generation);
+            // A refresh can read resources before the result commits, then read media after it.
+            // Hold that copied result too; gating only LoadResources leaves this interleaving open.
+            // These fixtures have no immediate retry: 404 waits 15 minutes, while success/403 finish.
+            // The worker reads the previous Ready media before committing its result.
+            if (media.Any(item => item.Status == GateAfterStatus)) WaitForRefreshRelease();
+            return media;
+        }
+        private void WaitForRefreshRelease()
+        {
+            RefreshBlocked.TrySetResult();
+            if (!_release.Wait(TestWait.Timeout)) throw new TimeoutException("Work cache refresh was not released.");
+        }
         public WorkResource CommitIntent(WorkResource resource) => _inner.CommitIntent(resource);
         public WorkResource? CommitEnd(string url, long generation, ThreadSourceStateValue source,
             DateTimeOffset observedAt, string? finalSnapshotJson = null) => _inner.CommitEnd(url, generation, source, observedAt, finalSnapshotJson);
