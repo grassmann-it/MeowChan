@@ -294,6 +294,7 @@ jobs:
         run: |
           version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "$version" > artifacts/macos-evidence/version.txt
       # Keep the reviewed ILLink.Tasks lock graph while exposing all runtime Mach-O files.
       - name: Restore native self-contained app with visible runtime libraries
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true -warnaserror:NU1900
@@ -324,8 +325,16 @@ jobs:
       - name: Exercise native gallery playback from the extracted apphost
         if: inputs.mode == 'package-media'
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
-      # Matching macOS VLC/contrib source closure is still pending. Build and
-      # test the ZIP locally on the runner, but upload evidence only for now.
+      - name: Retain playback-verified native ZIP candidate and evidence
+        if: inputs.mode == 'package-media'
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-native-candidate-${{ matrix.runtime }}
+          path: |
+            artifacts/macos-packages/*.zip
+            artifacts/macos-evidence/**
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain native macOS evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -415,6 +424,118 @@ jobs:
           name: package-media-evidence-${{ matrix.runtime }}
           path: artifacts/media-evidence/**
           if-no-files-found: warn
+          retention-days: 30
+
+  macos-source-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
+    needs: [macos-package, package-media]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: macos-native-candidate-*
+          path: artifacts/macos-inputs
+      - name: Require matching native playback evidence and exact source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, subprocess, zipfile
+          root = pathlib.Path('artifacts/macos-inputs')
+          output = pathlib.Path('artifacts/macos-candidate')
+          output.mkdir(parents=True)
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert commit == os.environ['GITHUB_SHA'], 'Checkout differs from dispatched source'
+          expected = {'osx-arm64', 'osx-x64'}
+          assert {p.name.removeprefix('macos-native-candidate-') for p in root.iterdir()} == expected
+          versions = set()
+          for rid in sorted(expected):
+              directory = root / ('macos-native-candidate-' + rid)
+              evidence = directory / 'macos-evidence'
+              assert (evidence / 'source.txt').read_text().strip() == commit, 'Native source mismatch'
+              version = (evidence / 'version.txt').read_text().strip()
+              versions.add(version)
+              archive = directory / 'macos-packages' / f'MeowChan-{version}-{rid}.zip'
+              digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
+              assert (evidence / 'archive.sha256').read_text().split()[0] == digest, 'Final ZIP hash mismatch'
+              signatures = json.loads((evidence / 'signatures.json').read_text())
+              assert signatures['runtime'] == rid
+              assert all(signatures[key] is True for key in ('signatures_verified', 'dependency_closure', 'coreclr_entitlements_verified'))
+              startup = json.loads((evidence / 'apphost-startup.json').read_text())
+              assert startup['passed'] is True and startup['exit_code'] == 0 and startup['outer_timeout'] is False
+              playback = json.loads((evidence / 'playback/playback.json').read_text())
+              assert playback['passed'] is True and playback['isolatedDesktop'] is False
+              fixtures = json.loads(pathlib.Path('tests/Fixtures/gallery-playback-manifest.json').read_text())['files']
+              assert len(playback['fixtures']) == 2
+              assert {row['fixtureSha256'] for row in playback['fixtures']} == {row['sha256'] for row in fixtures}
+              assert all(row['passed'] is True and row['exitCode'] == 0 and row['timedOut'] is False for row in playback['fixtures'])
+              with zipfile.ZipFile(archive) as package:
+                  for name, expected_hash in signatures['files'].items():
+                      assert hashlib.sha256(package.read('MeowChan.app/' + name)).hexdigest() == expected_hash, 'ZIP/signature evidence mismatch'
+                  apphost_hash = hashlib.sha256(package.read('MeowChan.app/Contents/MacOS/MeowChan')).hexdigest()
+              assert playback['apphostSha256'] == apphost_hash, 'Playback apphost differs from final ZIP'
+              shutil.copy2(archive, output / archive.name)
+              shutil.copytree(evidence, output / 'evidence' / rid)
+              report = {'source_commit': commit, 'rid': rid, 'archive_sha256': digest,
+                        'signatures': signatures, 'startup': startup, 'playback': playback}
+              (output / f'{rid}-native-validation.json').write_text(json.dumps(report, indent=2) + '\n')
+          assert len(versions) == 1, 'Native versions differ'
+          (output / 'version.txt').write_text(versions.pop() + '\n')
+          (output / 'source.txt').write_text(commit + '\n')
+          PY
+      - name: Fetch and verify the unchanged public source base on CI only
+        shell: bash
+        run: |
+          mkdir -p artifacts/source-base
+          base=artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz
+          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/tfgrass/MeowChan/releases/download/v0.9.0-preview.3/MeowChan-0.9.0-video-sources.tar.gz
+          test "$(stat -c %s "$base")" = 725131331
+          echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
+      - name: Generate source overlay bound to both final native ZIPs
+        shell: bash
+        run: |
+          candidate=artifacts/macos-candidate
+          version="$(cat "$candidate/version.txt")"
+          python3 scripts/package-macos-sources.py \
+            --source-commit "$GITHUB_SHA" --version "$version" \
+            --base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz \
+            --binary-zip "osx-arm64=$candidate/MeowChan-$version-osx-arm64.zip" \
+            --binary-zip "osx-x64=$candidate/MeowChan-$version-osx-x64.zip" \
+            --validation-report "osx-arm64=$candidate/osx-arm64-native-validation.json" \
+            --validation-report "osx-x64=$candidate/osx-x64-native-validation.json" \
+            --output "$candidate/MeowChan-$version-macos-video-source-overlay.tar.gz" \
+            > "$candidate/source-overlay.json"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, tarfile
+          candidate = pathlib.Path('artifacts/macos-candidate')
+          overlay = next(candidate.glob('*-macos-video-source-overlay.tar.gz'))
+          with tarfile.open(overlay) as archive:
+              manifest = json.load(archive.extractfile('manifest.json'))
+          assert manifest['application_source_commit'] == os.environ['GITHUB_SHA']
+          assert set(manifest['architectures']) == {'osx-arm64', 'osx-x64'}
+          for rid, record in manifest['architectures'].items():
+              binary = candidate / record['signed_zip']['file']
+              with binary.open('rb') as data:
+                  assert hashlib.file_digest(data, 'sha256').hexdigest() == record['signed_zip']['sha256']
+          base = manifest['source_base']
+          base['url'] = 'https://github.com/tfgrass/MeowChan/releases/download/v0.9.0-preview.3/' + base['file']
+          (candidate / 'source-base.json').write_text(json.dumps(base, indent=2) + '\n')
+          (candidate / 'README.txt').write_text('CI candidates only; no public release. Both ZIPs and the source overlay bind to source.txt.\nUse the unchanged public source base identified in source-base.json together with the overlay.\nThe base is not duplicated in this CI artifact. A future release must offer both source assets.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
+          lines = []
+          for path in sorted(candidate.rglob('*')):
+              if path.is_file() and path.name != 'SHA256SUMS':
+                  with path.open('rb') as data:
+                      lines.append(hashlib.file_digest(data, 'sha256').hexdigest() + '  ' + path.relative_to(candidate).as_posix() + '\n')
+          (candidate / 'SHA256SUMS').write_text(''.join(lines))
+          PY
+          (cd "$candidate" && sha256sum --check --strict SHA256SUMS)
+      - name: Retain paired native ZIP and source-overlay candidates
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-paired-candidate-${{ github.sha }}
+          path: artifacts/macos-candidate/**
+          if-no-files-found: error
           retention-days: 30
 
   # Diagnostic evidence only: this mode does not run or satisfy release validation.
