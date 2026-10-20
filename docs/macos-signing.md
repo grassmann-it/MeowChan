@@ -1,10 +1,34 @@
-# Signing a macOS package with bundled LibVLC
+# macOS packages and optional future signing
 
-The current macOS packager produces an **unsigned** app bundle. Cross-publishing,
-checking Mach-O architectures and creating that bundle do not sign or notarize
-it. No Apple account, signing identity or notarization credentials are assumed.
-This record describes a future native macOS distribution step, independently of
-the Windows prerelease.
+## Initial 0.9.0 distribution without an Apple certificate
+
+The initial macOS 0.9.0 distribution is intentionally **without Apple Developer ID
+signing or notarization**. Obtaining an Apple certificate or notarization account
+is not a release prerequisite. The packager preserves SDK-produced unsigned or
+ad-hoc-signed executable code; an ad-hoc signature does not establish Developer
+ID or notarized distribution.
+
+Native execution of the complete bundle still needs validation on the intended
+Intel and Apple Silicon Macs, including .NET startup, dynamically loaded VLC
+plugins, playback and shutdown. Cross-publishing and Mach-O/bundle structural
+checks do not establish that any of these native workflows passed.
+
+Extract the complete archive and open `MeowChan.app` in Finder. If macOS blocks
+it because the developer cannot be verified, and you trust the downloaded source,
+open **System Settings → Privacy & Security**, find the blocked-app notice and
+choose **Open Anyway**, then confirm **Open** and authenticate if requested.
+On versions using System Preferences, use **Security & Privacy → General**.
+This is an explicit exception for the selected app; keep Gatekeeper enabled and
+retain quarantine metadata. If macOS reports malware or a damaged app, investigate
+the download and diagnostics rather than treating this procedure as a repair.
+See [Apple's guidance for opening an app from an unidentified developer](https://support.apple.com/102445).
+
+## Optional later Developer ID and notarized distribution
+
+The procedure below is a future optional distribution route, not a gate for the
+initial unsigned/ad-hoc 0.9.0 packages. It requires separately provisioned Apple
+credentials and native Mac validation; none of the steps is claimed as completed.
+It is independent of the Windows preview.
 
 LibVLC loads its plugins dynamically. Every selected dylib below
 `MeowChan.app/Contents/MacOS/libvlc/<RID>/lib`, including
@@ -13,7 +37,7 @@ inventory. Preserve the selected architecture, relative directory structure and
 contained symlinks. Complete copying and any install-name changes before signing;
 changing a signed binary or bundle afterward invalidates its signature.
 
-For distribution with Gatekeeper acceptance:
+For future Developer ID/notarized distribution:
 
 1. On a Mac with Xcode command-line tools, use an appropriate **Developer ID
    Application** certificate and its private key. An ad-hoc signature is useful
@@ -75,8 +99,8 @@ For distribution with Gatekeeper acceptance:
    downloaded/quarantined copy on a disposable Mac. A source-built launch or
    `codesign` success alone does not establish Gatekeeper acceptance.
 
-Do not instruct users to remove quarantine or disable Gatekeeper as a substitute
-for these checks. Replacing a VLC library later changes the signed bundle; users
+Do not remove quarantine or disable Gatekeeper as a substitute for either the
+per-app manual approval above or native validation. Replacing a VLC library later changes the signed bundle; users
 rebuilding or replacing LGPL components may need to re-sign their modified app
 for local use. The application must not prevent compatible component replacement.
 

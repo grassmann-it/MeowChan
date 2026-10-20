@@ -48,9 +48,12 @@ still require their own evidence. Windows redistribution uses the
 source asset published alongside the binary ZIP. macOS source/signing acceptance
 remains separate, as recorded in [third-party notices](../THIRD-PARTY-NOTICES.md).
 
-The separate [macOS signing procedure](macos-signing.md) records the required
-Developer ID, native-plugin signing, hardened runtime and notarization steps.
-It does not claim that those steps have been performed.
+Initial macOS 0.9.0 distribution deliberately uses unsigned/ad-hoc SDK bundles
+without Apple Developer ID or notarization; certificate acquisition is not a
+release prerequisite. The [macOS package guidance](macos-signing.md) explains
+manual approval in Privacy & Security and keeps Developer ID/plugin signing,
+hardened runtime and notarization as an optional later distribution route.
+Native Mac execution and bundled VLC playback still require validation.
 
 ## Current 0.9.0 preparation
 
@@ -190,7 +193,7 @@ Windows candidates contain a self-contained executable directory in a zip archiv
 
 The macOS bundle is unsigned and is not notarized. Its structure contains the complete publish output under `Contents/MacOS`, the existing application icon under `Contents/Resources`, and `Info.plist` metadata generated from the product version. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
-Packaging a `.app` can be prepared without credentials. Signing/notarization and public distribution require separate decisions and native Mac validation; no signing identity or publishing account is required for the local checks in this repository.
+Initial 0.9.0 macOS distribution uses the unsigned/ad-hoc SDK bundle without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native executable and bundled-plugin workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
 
 ## What each check proves
 
