@@ -56,6 +56,11 @@ internal static class DownloadSessionChecks
         string savedFile = StorageLayout.GetMediaPath(downloadRoot, "4chan", "g", "123", "777", ".png");
         try
         {
+            Require(Config.LoadConfig(profile).WorkspaceMode == "Barebones"
+                && (initial.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Barebones",
+                "The new download profile did not start in Barebones view.");
+            // Exercise the existing Simple-to-Barebones transition explicitly.
+            await PresentationChecks.SwitchModeAsync(initial, "Simple");
             TextBox input = initial.FindControl<TextBox>("UrlInput")!;
             Button add = initial.FindControl<Button>("AddUrlButton")!;
             DataGrid grid = initial.FindControl<DataGrid>("ThreadsDataGrid")!;

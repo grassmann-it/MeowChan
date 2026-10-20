@@ -27,6 +27,7 @@ public sealed class ConfigTests
 
         Assert.False(Directory.Exists(profile));
         Assert.Null(config.LoadWarning);
+        Assert.Equal("Barebones", config.WorkspaceMode);
         Assert.Equal(60, config.RecheckTimer);
         Assert.Equal(5, config.MaxParallelDownloads);
         Assert.Equal(1024 * 1024, config.BandwidthLimiter);
@@ -537,7 +538,7 @@ public sealed class ConfigTests
         Assert.Equal(7, config.MaxParallelDownloads);
         Assert.Equal("Dark", config.Theme);
         Assert.Equal("en", config.Language);
-        Assert.Equal("Simple", config.WorkspaceMode);
+        Assert.Equal("Barebones", config.WorkspaceMode);
         Assert.False(config.CompactDensity);
         Assert.Equal(original, File.ReadAllText(SettingsPath(directory)));
     }
@@ -550,13 +551,13 @@ public sealed class ConfigTests
         Config candidate = original.Clone();
         candidate.Theme = "Light";
         candidate.Language = "de";
-        candidate.WorkspaceMode = "Barebones";
+        candidate.WorkspaceMode = "Simple";
         candidate.CompactDensity = true;
         candidate.SaveConfig();
 
         Assert.Equal("Dark", original.Theme);
         Assert.Equal("en", original.Language);
-        Assert.Equal("Simple", original.WorkspaceMode);
+        Assert.Equal("Barebones", original.WorkspaceMode);
         Assert.False(original.CompactDensity);
 
         original.CopyFrom(candidate);
@@ -564,7 +565,7 @@ public sealed class ConfigTests
         Assert.Null(loaded.LoadWarning);
         Assert.Equal("Light", loaded.Theme);
         Assert.Equal("de", loaded.Language);
-        Assert.Equal("Barebones", loaded.WorkspaceMode);
+        Assert.Equal("Simple", loaded.WorkspaceMode);
         Assert.True(loaded.CompactDensity);
         Assert.Equal(loaded.Theme, original.Theme);
         Assert.Equal(loaded.Language, original.Language);
@@ -590,7 +591,7 @@ public sealed class ConfigTests
         Assert.Equal(7, config.MaxParallelDownloads);
         Assert.Equal("Dark", config.Theme);
         Assert.Equal("en", config.Language);
-        Assert.Equal("Simple", config.WorkspaceMode);
+        Assert.Equal("Barebones", config.WorkspaceMode);
         Assert.False(config.CompactDensity);
         Assert.Equal(json, File.ReadAllText(SettingsPath(directory)));
     }
@@ -598,7 +599,8 @@ public sealed class ConfigTests
     [Theory]
     [InlineData(" light ", " advanced ", " DE-de ", "Light", "Advanced", "de-DE")]
     [InlineData("DARK", "bareBONES", "en-US", "Dark", "Barebones", "en-US")]
-    [InlineData("system", "unknown", "not_a_language", "Dark", "Simple", "en")]
+    [InlineData("DARK", " simple ", "en-US", "Dark", "Simple", "en-US")]
+    [InlineData("system", "unknown", "not_a_language", "Dark", "Barebones", "en")]
     public void PresentationPreferenceValuesNormalizeConservatively(string theme, string mode, string language,
         string expectedTheme, string expectedMode, string expectedLanguage)
     {
@@ -609,5 +611,25 @@ public sealed class ConfigTests
         Assert.Equal(expectedTheme, config.Theme);
         Assert.Equal(expectedMode, config.WorkspaceMode);
         Assert.Equal(expectedLanguage, config.Language);
+    }
+
+    [Theory]
+    [InlineData("Barebones")]
+    [InlineData("Simple")]
+    [InlineData("Advanced")]
+    public void ExplicitSavedWorkspaceModesSurviveLoadCloneCopyAndSave(string mode)
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory), JsonSerializer.Serialize(new { WorkspaceMode = mode }));
+
+        Config loaded = Config.LoadConfig(directory.Path);
+        Config copied = new();
+        copied.CopyFrom(loaded.Clone());
+        copied.SaveConfig(directory.Path);
+
+        Assert.Null(loaded.LoadWarning);
+        Assert.Equal(mode, loaded.WorkspaceMode);
+        Assert.Equal(mode, copied.WorkspaceMode);
+        Assert.Equal(mode, Config.LoadConfig(directory.Path).WorkspaceMode);
     }
 }

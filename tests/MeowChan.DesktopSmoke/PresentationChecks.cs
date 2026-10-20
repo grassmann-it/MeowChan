@@ -21,7 +21,7 @@ internal static class PresentationChecks
         Require(modes.Items.OfType<ComboBoxItem>().Select(item => item.Tag as string)
             .SequenceEqual(new[] { "Barebones", "Simple", "Advanced" }),
             "The view choices were not ordered Barebones, Simple, Advanced.");
-        Require(initial.WorkspaceMode == "Simple" && Mode(modes) == "Simple", "A new profile did not open in Simple view.");
+        Require(initial.WorkspaceMode == "Barebones" && Mode(modes) == "Barebones", "A new profile did not open in Barebones view.");
         Require(initial.Theme == "Dark" && initial.Language == "en", "A new profile did not use the English dark presentation.");
         Require(window.FindControl<Button>("ThemeToggleButton")!.Content as string == "Light",
             "The dark view's theme action did not display a translated Light label.");
@@ -80,7 +80,7 @@ internal static class PresentationChecks
         input.Text = string.Empty;
         window.UrlList.Remove(retained);
         window.BoardsList.Remove(board);
-        Console.WriteLine("SMOKE presentation: Simple default; Advanced/Barebones persisted; compact controls reachable; Light/Dark and EN/DE roundtrip retained pending input and selected passive row.");
+        Console.WriteLine("SMOKE presentation: Barebones default; Simple/Advanced/Barebones persisted; compact controls reachable; Light/Dark and EN/DE roundtrip retained pending input and selected passive row.");
     }
 
     private static async Task CheckSmallWindowAsync(MainWindow window, ThreadRow selected, double width, double height, string scenario)

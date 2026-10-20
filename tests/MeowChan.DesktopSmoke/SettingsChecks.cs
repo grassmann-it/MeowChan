@@ -69,7 +69,7 @@ internal static class SettingsChecks
             await WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError);
             Require(window.IsVisible && !dialog.IsCompleted, "Apply failure closed the settings dialog.");
             Require(config.RecheckTimer == 60, "Apply failure changed the live configuration.");
-            Require(config.Theme == "Dark" && config.WorkspaceMode == "Simple" && config.Language == "en" && !config.CompactDensity,
+            Require(config.Theme == "Dark" && config.WorkspaceMode == "Barebones" && config.Language == "en" && !config.CompactDensity,
                 "Apply failure changed live appearance preferences.");
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original, "The dialog saved settings before its apply callback committed.");
             await AssertErrorInViewportAsync(window);
@@ -104,8 +104,8 @@ internal static class SettingsChecks
             Require(config.RecheckTimer == 120 && config.MaxParallelDownloads == 3, "Successful settings apply did not update the live configuration.");
             Require(Config.LoadConfig(profile).RecheckTimer == 120, "Successful settings apply did not commit the isolated profile.");
             Config saved = Config.LoadConfig(profile);
-            Require(config.Theme == "Light" && config.WorkspaceMode == "Barebones" && config.Language == "de" && config.CompactDensity
-                && saved.Theme == "Light" && saved.WorkspaceMode == "Barebones" && saved.Language == "de" && saved.CompactDensity,
+            Require(config.Theme == "Light" && config.WorkspaceMode == "Simple" && config.Language == "de" && config.CompactDensity
+                && saved.Theme == "Light" && saved.WorkspaceMode == "Simple" && saved.Language == "de" && saved.CompactDensity,
                 "Successful settings apply did not persist all appearance preferences.");
         }
         finally
@@ -138,11 +138,11 @@ internal static class SettingsChecks
             string originalTitle = window.Title ?? string.Empty;
             Texts.SetLanguage("de");
             await WaitUntilAsync(() => window.Title != originalTitle && window.Editor.SelectedLanguage?.Code == "de");
-            Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Barebones" && window.Editor.CompactDensity,
+            Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Simple" && window.Editor.CompactDensity,
                 "Changing language while settings were open discarded pending appearance edits.");
             Click(FindButton(window, "Cancel"));
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
-            Require(applies == 0 && config.Theme == "Dark" && config.WorkspaceMode == "Simple"
+            Require(applies == 0 && config.Theme == "Dark" && config.WorkspaceMode == "Barebones"
                 && config.Language == "en" && !config.CompactDensity,
                 "Cancelling appearance edits changed live settings or invoked apply.");
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original,
@@ -159,10 +159,10 @@ internal static class SettingsChecks
     private static void SetAppearance(SettingsWindow window)
     {
         window.Editor.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.Editor.ThemeChoices.Single(choice => choice.Value == "Light");
-        window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
+        window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Simple");
         window.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.Editor.LanguageChoices.Single(choice => choice.Code == "de");
         window.Editor.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
-        Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Barebones"
+        Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Simple"
             && window.Editor.SelectedLanguage?.Code == "de" && window.Editor.CompactDensity,
             "Appearance controls did not update the detached settings edit.");
     }

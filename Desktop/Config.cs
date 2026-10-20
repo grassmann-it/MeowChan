@@ -16,7 +16,7 @@ namespace MeowChan
         private string _relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
         private string _theme = "Dark";
         private string _language = "en";
-        private string _workspaceMode = "Simple";
+        private string _workspaceMode = "Barebones";
 
         public int SchemaVersion { get; set; } = 1;
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
@@ -50,7 +50,7 @@ namespace MeowChan
             {
                 string? mode = value?.Trim();
                 _workspaceMode = string.Equals(mode, "Advanced", StringComparison.OrdinalIgnoreCase) ? "Advanced"
-                    : string.Equals(mode, "Barebones", StringComparison.OrdinalIgnoreCase) ? "Barebones" : "Simple";
+                    : string.Equals(mode, "Simple", StringComparison.OrdinalIgnoreCase) ? "Simple" : "Barebones";
             }
         }
 
