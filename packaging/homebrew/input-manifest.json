@@ -1,0 +1,32 @@
+{
+  "source": {
+    "commit": "a98759e819f233bee0de806cb4f0b9fbd535d2cd",
+    "url": "https://github.com/tfgrass/MeowChan/archive/a98759e819f233bee0de806cb4f0b9fbd535d2cd.tar.gz",
+    "bytes": 4863487,
+    "sha256": "711cfdc9fa5b748431940b468c3935522156345fc82831bcae99d3f529bd7208",
+    "resolved_download_url": "https://codeload.github.com/tfgrass/MeowChan/tar.gz/a98759e819f233bee0de806cb4f0b9fbd535d2cd"
+  },
+  "sdk_version": "10.0.111",
+  "release_metadata": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",
+  "sdk_resources": [
+    {
+      "rid": "osx-arm64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.111/dotnet-sdk-10.0.111-osx-arm64.tar.gz",
+      "bytes": 230423203,
+      "sha256": "2f96158f7309f659e62281e826b3fe0dd4a2763a79de545851a8649f06ba3b67",
+      "sha512": "023124678e8bb9ba686e2f287bccf14c2bdf466aeb114819ae4256a8eed44a4fbb888a57aee1f077b8070fa58c611fd33b0be894fc8b0cab2ece4adcd403ea31",
+      "published_sha512_verified": true
+    },
+    {
+      "rid": "osx-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.111/dotnet-sdk-10.0.111-osx-x64.tar.gz",
+      "bytes": 238131362,
+      "sha256": "f018c77ebb89cca05bc8bcd77335d74abce5aecf726fd5e0dafbdae144cbc93c",
+      "sha512": "9549618e59c615dd47e2fd3c5d897c6fbdfc4a3ce3d6928f99dcbf51e3202359541a9d36f62c6cd8d0ed32aa61bbc4ec191b1146d41cf5fb1121f03e76f484b6",
+      "published_sha512_verified": true
+    }
+  ],
+  "homebrew_dotnet_available_version": "10.0.402",
+  "homebrew_dotnet_at_10_api_status": 404,
+  "validation": "Input integrity and local Ruby/static checks only; native Homebrew/macOS execution pending."
+}
