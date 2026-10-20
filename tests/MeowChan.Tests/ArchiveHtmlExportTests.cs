@@ -551,6 +551,47 @@ public sealed class ArchiveHtmlExportTests
         await Assert.ThrowsAsync<InvalidDataException>(() => ArchiveExportLegacy.AssociateAsync(reader, Id, legacy));
     }
 
+    [Theory]
+    [InlineData("modified-html")]
+    [InlineData("missing-css")]
+    [InlineData("extra-file")]
+    public async Task RecoveryNeverDeletesCleanFallbackWhenPublishedTargetHasChanged(string change)
+    {
+        using TempDirectory directory = new();
+        string profile = Path.Combine(directory.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.CaptureAsync(Snapshot(profile));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        string destination = Path.Combine(directory.Path, "export");
+        ArchiveHtmlExportResult first = await ArchiveHtmlExporter.ExportAsync(reader, Id, destination, new(false));
+        ArchiveExportInspection before = await ArchiveHtmlExporter.InspectAsync(destination, Id);
+        string candidate = Path.Combine(directory.Path, "candidate");
+        ArchiveHtmlExportResult next = await ArchiveHtmlExporter.ExportAsync(reader, Id, candidate, new(false));
+        await File.WriteAllTextAsync(Path.Combine(candidate, ArchiveExportMetadataFile.Name),
+            System.Text.Json.JsonSerializer.Serialize(next.Metadata! with { ExportId = first.Metadata!.ExportId, Generation = 2 }));
+        string backupName = ".meowchan-export-backup-" + Guid.NewGuid().ToString("N");
+        string backup = Path.Combine(directory.Path, backupName);
+        string journal = Path.Combine(directory.Path, ".meowchan-export-journal-" + ArchiveExportTargetLease.Key(destination) + ".json");
+        await File.WriteAllTextAsync(journal, System.Text.Json.JsonSerializer.Serialize(new ArchiveExportJournal(
+            backupName, first.Metadata.ExportId, 2, false, before.ObservedFingerprint)));
+        Directory.Move(destination, backup);
+        Directory.Move(candidate, destination);
+        if (change == "modified-html") await File.AppendAllTextAsync(Path.Combine(destination, "index.html"), "USER EDIT");
+        else if (change == "missing-css") File.Delete(Path.Combine(destination, "style.css"));
+        else await File.WriteAllTextAsync(Path.Combine(destination, "personal-note.txt"), "KEEP");
+        ArchiveExportInspection damaged = await ArchiveHtmlExporter.InspectAsync(destination, Id);
+        Assert.True(damaged.RequiresBackup);
+
+        IOException failure = Assert.Throws<IOException>(() => ArchiveExportReplacement.Recover(destination));
+
+        Assert.Contains("manual review", failure.Message);
+        Assert.Contains(backup, failure.Message);
+        Assert.True(File.Exists(journal));
+        Assert.Equal(before.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(backup, Id)).ObservedFingerprint);
+        Assert.Equal(damaged.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(destination, Id)).ObservedFingerprint);
+    }
+
     private sealed class InlineProgress(Action<ArchiveHtmlExportProgress> report) : IProgress<ArchiveHtmlExportProgress>
     { public void Report(ArchiveHtmlExportProgress value) => report(value); }
     private static CapturedThreadSnapshot Snapshot(string media) => new(Id, "https://boards.4chan.org/g/thread/123", "<Title> & stuff",

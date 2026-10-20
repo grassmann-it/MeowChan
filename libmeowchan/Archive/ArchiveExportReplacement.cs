@@ -59,6 +59,9 @@ internal static class ArchiveExportReplacement
         bool published = current.Metadata.ExportId == journal.ExportId && current.Metadata.Generation == journal.Generation;
         if (published)
         {
+            if (current.RequiresBackup)
+                throw new IOException($"The published export has changed or failed verification. Recovery requires manual review; " +
+                    $"the target '{destination}', any fallback at '{backup}', and recovery journal have been retained.");
             if (Directory.Exists(backup) && !journal.PreserveBackup && journal.BackupFingerprint != null)
             {
                 try
