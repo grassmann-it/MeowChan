@@ -195,6 +195,26 @@ class MacosPackagingTests(unittest.TestCase):
             self.package(sign_adhoc=True)
         self.assert_no_bundle()
 
+    def test_signed_layout_keeps_real_apphost_and_seals_resource_targets(self):
+        # This is a layout-only test; Apple signature execution is covered by
+        # the separate native fixture, never inferred from this mock.
+        signer = mock.Mock()
+        with mock.patch.object(packaging.sys, 'platform', 'darwin'), mock.patch.object(packaging, 'signing_module', return_value=signer), mock.patch.object(packaging, 'validate_bundle'):
+            bundle, _ = self.package(runtime='osx-arm64', sign_adhoc=True)
+        macos = bundle / 'Contents/MacOS'
+        payload = bundle / 'Contents/Resources/application'
+        self.assertFalse((macos / 'MeowChan').is_symlink())
+        self.assertTrue((payload / 'MeowChan').is_symlink())
+        for path in macos.iterdir():
+            if path.name != 'MeowChan':
+                self.assertTrue(path.is_symlink())
+                self.assertFalse(Path(os.readlink(path)).is_absolute())
+                self.assertTrue(path.resolve().is_relative_to(payload))
+        for path in self.publish.rglob('*'):
+            if path.is_file():
+                self.assertEqual(path.read_bytes(), (macos / path.relative_to(self.publish)).read_bytes())
+        signer.sign.assert_called_once()
+
     @unittest.skipUnless(sys.platform == "darwin", "Requires native Apple signing tools")
     def test_real_native_signed_zip_roundtrip(self):
         import platform
@@ -214,6 +234,12 @@ int main(int argc, char **argv) {
         if (identifier) CFShow(identifier);
         return 4;
     }
+    CFURLRef icon = CFBundleCopyResourceURL(bundle, CFSTR("meowchan"), CFSTR("icns"), NULL);
+    if (!icon) {
+        fprintf(stderr, "Outer bundle icon resource missing\\n");
+        return 6;
+    }
+    CFRelease(icon);
     puts("BUNDLE IDENTITY PASS");
     if (argc < 2) return 0;
     void *p = dlopen(argv[1], RTLD_NOW);
@@ -244,7 +270,7 @@ int main(int argc, char **argv) {
         bundle, archive = self.package(archive_path=self.output / "native.zip", runtime=runtime, sign_adhoc=True)
         self.assertTrue(archive.is_file())
         report = packaging.signing_module().validate(bundle, runtime)
-        self.assertEqual(6, report["macho_files"])
+        self.assertEqual(5, report["macho_files"])
         dependencies, _ = packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", bundle / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib"))
         self.assertIn("@loader_path/../../libvlccore.dylib", dependencies)
         extracted = self.root / "extracted ZIP with spaces"

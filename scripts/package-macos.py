@@ -287,17 +287,19 @@ def package_macos(
                 # it as resources while signing every contained Mach-O itself.
                 shutil.copytree(source, resources / "application", symlinks=True)
                 (contents / "MacOS").mkdir()
-                architecture = {"osx-arm64": "arm64", "osx-x64": "x86_64"}[runtime]
-                subprocess.run(["/usr/bin/clang", "-arch", architecture,
-                                "-mmacosx-version-min=" + MINIMUM_MACOS_VERSION,
-                                "-Wall", "-Wextra", "-Werror",
-                                str(Path(__file__).with_name("macos-launcher.c")),
-                                "-o", str(contents / "MacOS/MeowChan")], check=True)
-                launcher_source = resources / "launcher-source"
-                launcher_source.mkdir()
-                shutil.copy2(Path(__file__).with_name("macos-launcher.c"), launcher_source / "macos-launcher.c")
-                apphost = resources / "application/MeowChan"
-                apphost.chmod(apphost.stat().st_mode | stat.S_IXUSR)
+                payload = resources / "application"
+                executable = contents / "MacOS/MeowChan"
+                (payload / "MeowChan").rename(executable)
+                # Keep the genuine apphost in the canonical bundle location so
+                # CoreFoundation identifies the outer .app after startup. Only
+                # relative links to sealed resources remain beside the apphost.
+                (payload / "MeowChan").symlink_to("../../MacOS/MeowChan")
+                for entry in payload.iterdir():
+                    if entry.name != "MeowChan":
+                        (contents / "MacOS" / entry.name).symlink_to(
+                            Path("../Resources/application") / entry.name,
+                            target_is_directory=entry.is_dir(),
+                        )
             else:
                 shutil.copytree(source, contents / "MacOS", symlinks=True)
             (resources / "meowchan.icns").write_bytes(make_icns(original_png))

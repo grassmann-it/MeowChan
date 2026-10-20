@@ -43,8 +43,23 @@ The packager interface is `scripts/package-macos.py --runtime osx-arm64` (or
 output and version arguments. `scripts/macos-signing.py` provides the signing and
 validation helper. Complete binary/install-name changes first, then sign every
 nested Mach-O file from inside outward and the bundle last. Apply the explicit
-CoreCLR entitlements to the main process; do not copy those entitlements onto
-every library. The ad-hoc route does not enable hardened runtime.
+CoreCLR entitlements to the actual .NET apphost; do not copy them onto every
+library. The ad-hoc route does not enable hardened runtime.
+
+The current signed ZIP implementation places the real .NET executable physically
+at `MeowChan.app/Contents/MacOS/MeowChan`, where it carries the four CoreCLR
+entitlements and serves as the bundle's main executable. All other publish entries
+(runtime dylibs, VLC tree, licenses and documentation) live under
+`Contents/Resources/application`. Relative top-level symlinks in `Contents/MacOS`
+point to these payload entries; `Contents/Resources/application/MeowChan` links
+back to the physical main executable. There is no C launcher or launcher compiler
+source. Every Mach-O file in the code/payload locations is explicitly signed and
+validated. Native CFBundle identity and runtime checks of this revised layout
+remain open until a successful native follow-up.
+
+Legacy unsigned/Homebrew bundles keep the publish output in `Contents/MacOS`.
+Self-contained publishing uses `PublishSingleFile=false` so native .NET libraries
+remain visible for final signing; users still need no separate .NET installation.
 
 The ZIP is created with `ditto`; a fresh extraction must revalidate signatures,
 architecture, native dependency closure and bundle contents. Signature validation
@@ -60,7 +75,7 @@ credentials and native Mac validation; none of the steps is claimed as completed
 It is independent of the Windows preview.
 
 LibVLC loads its plugins dynamically. Every selected dylib below
-`MeowChan.app/Contents/MacOS/libvlc/<RID>/lib`, including
+`MeowChan.app/Contents/Resources/application/libvlc/<RID>/lib`, including
 `lib/vlc/plugins/*.dylib` and any dependent dylibs, must be included in the signing
 inventory. Preserve the selected architecture, relative directory structure and
 contained symlinks. Complete copying and any install-name changes before signing;
@@ -101,9 +116,11 @@ For future Developer ID/notarized distribution:
    Signing all embedded libraries with the application's identity remains useful
    and avoids depending on unsigned third-party plugins. Do not add further
    entitlements such as disabled executable-page protection without an established
-   need. Apply the apphost entitlements explicitly when signing the outer app/main
-   executable, for example `codesign --force --options runtime --timestamp
-   --entitlements MeowChan.entitlements.plist --sign "$IDENTITY" MeowChan.app`.
+   need. Apply the apphost entitlements explicitly to the physical .NET executable,
+   for example `codesign --force --options runtime --timestamp
+   --entitlements MeowChan.entitlements.plist --sign "$IDENTITY"
+   MeowChan.app/Contents/MacOS/MeowChan`. Then sign the outer bundle, retaining
+   the main executable's runtime entitlements.
    Do not blindly copy apphost JIT entitlements onto every dylib.
 
    A local read of both cross-published .NET 10 apphosts found code-signature

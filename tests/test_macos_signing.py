@@ -49,23 +49,28 @@ class SigningContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unsafe'):
                 signing.inventory(root)
 
-    def test_executable_path_uses_inner_apphost_instead_of_launcher(self):
+    def test_executable_path_uses_canonical_main_and_internal_resource_links(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
-            launcher = root / 'Contents/MacOS/MeowChan'
-            apphost = root / 'Contents/Resources/application/MeowChan'
-            library = apphost.parent / 'native.dylib'
-            for path in (launcher, apphost, library):
+            apphost = root / 'Contents/MacOS/MeowChan'
+            library = root / 'Contents/Resources/application/native.dylib'
+            for path in (apphost, library):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(bytes.fromhex('cffaedfe'))
+            link = apphost.parent / 'native.dylib'
+            try:
+                link.symlink_to('../Resources/application/native.dylib')
+            except OSError:
+                self.skipTest('Symlinks unavailable')
             def commands(*args):
                 if '-archs' in args:
                     return 'arm64'
                 return 'cmd LC_LOAD_DYLIB\nname @executable_path/native.dylib (offset 24)' if args[-1] == apphost else ''
             with mock.patch.object(signing.sys, 'platform', 'darwin'), mock.patch.object(signing.platform, 'machine', return_value='arm64'), mock.patch.object(signing, 'run', side_effect=commands):
                 result = signing.validate(root, 'osx-arm64', signatures=False)
-                self.assertEqual('Contents/Resources/application/MeowChan', result['apphost'])
-                library.rename(launcher.parent / 'native.dylib')
+                self.assertEqual('Contents/MacOS/MeowChan', result['apphost'])
+                self.assertEqual(2, result['macho_files'])
+                link.unlink()
                 with self.assertRaisesRegex(ValueError, 'Unresolved'):
                     signing.validate(root, 'osx-arm64', signatures=False)
 
