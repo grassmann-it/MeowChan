@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Build an unsigned MeowChan.app from an existing macOS dotnet publish directory.
+"""Build a MeowChan.app from an existing macOS dotnet publish directory.
 
 The 15.0 deployment floor is a candidate baseline, not evidence of a native run.
-Only Python's standard library is required. No signing or notarization is done.
+Optional native ad-hoc signing and verified ZIP output require Apple's tools.
+No Developer ID or notarization is used.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import plistlib
@@ -191,14 +194,53 @@ def write_archive(bundle: Path, archive_path: Path) -> None:
             raise PackagingError("The archive lost the executable permission.")
 
 
+def signing_module():
+    spec = importlib.util.spec_from_file_location("meowchan_signing", Path(__file__).with_name("macos-signing.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def tree_manifest(bundle: Path) -> dict:
+    result = {}
+    for path in bundle.rglob("*"):
+        name = path.relative_to(bundle).as_posix()
+        mode = stat.S_IMODE(path.lstat().st_mode)
+        if path.is_symlink():
+            result[name] = ("symlink", os.readlink(path))
+        elif path.is_file():
+            result[name] = ("file", mode, hashlib.sha256(path.read_bytes()).hexdigest())
+        else:
+            result[name] = ("directory", mode)
+    return result
+
+
+def write_zip(bundle: Path, archive: Path, runtime: str) -> None:
+    if sys.platform != "darwin":
+        raise PackagingError("Signed ZIP packaging requires native macOS and ditto.")
+    subprocess.run(["/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(bundle), str(archive)], check=True)
+    with tempfile.TemporaryDirectory(prefix="meowchan-zip-roundtrip-") as temporary:
+        subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive), temporary], check=True)
+        extracted = Path(temporary) / BUNDLE_NAME
+        if tree_manifest(bundle) != tree_manifest(extracted):
+            raise PackagingError("ZIP round trip changed bundle files, permissions or symlinks.")
+        signing_module().validate(extracted, runtime)
+
+
 def package_macos(
     publish_directory: Path,
     output_directory: Path,
     version: str,
     icon_path: Path = DEFAULT_ICON,
     archive_path: Path | None = None,
+    runtime: str | None = None,
+    sign_adhoc: bool = False,
 ) -> tuple[Path, Path | None]:
     metadata = bundle_metadata(version)
+    if sign_adhoc and runtime not in {"osx-arm64", "osx-x64"}:
+        raise PackagingError("Ad-hoc signing requires --runtime osx-arm64 or osx-x64.")
+    if sign_adhoc and sys.platform != "darwin":
+        raise PackagingError("Ad-hoc signing requires native macOS.")
     try:
         source = publish_directory.resolve(strict=True)
     except OSError as error:
@@ -215,14 +257,16 @@ def package_macos(
         if path_present(archive_path):
             raise PackagingError(f"Refusing to overwrite existing archive: {archive_path}")
         archive_destination = archive_path.resolve()
-        if not archive_destination.name.endswith((".tar.gz", ".tgz")):
-            raise PackagingError("Archive destination must end in .tar.gz or .tgz.")
+        if not archive_destination.name.endswith((".tar.gz", ".tgz", ".zip")):
+            raise PackagingError("Archive destination must end in .tar.gz, .tgz or .zip.")
         if (
             archive_destination.is_relative_to(source)
             or archive_destination.is_relative_to(destination)
             or destination.is_relative_to(archive_destination)
         ):
             raise PackagingError("Archive output must be outside the publish input and application bundle.")
+    if archive_destination is not None and archive_destination.suffix == ".zip" and not sign_adhoc:
+        raise PackagingError("ZIP output requires --sign-adhoc and a native runtime.")
     validate_publish_tree(source)
     original_png = png_from_ico(icon_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -243,9 +287,14 @@ def package_macos(
             executable = contents / "MacOS" / "MeowChan"
             executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
             validate_bundle(staged_bundle, metadata, original_png)
-            staged_archive = Path(staging) / "application.tar.gz"
+            if sign_adhoc:
+                signing_module().sign(staged_bundle, runtime)
+            staged_archive = Path(staging) / ("application.zip" if archive_destination is not None and archive_destination.suffix == ".zip" else "application.tar.gz")
             if archive_destination is not None:
-                write_archive(staged_bundle, staged_archive)
+                if archive_destination.suffix == ".zip":
+                    write_zip(staged_bundle, staged_archive, runtime)
+                else:
+                    write_archive(staged_bundle, staged_archive)
             # Exclusive mkdir reserves the final name without replacing existing data.
             destination.mkdir()
             created_bundle = True
@@ -272,12 +321,14 @@ def main() -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--icon", default=DEFAULT_ICON, type=Path)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--runtime", choices=["osx-arm64", "osx-x64"])
+    parser.add_argument("--sign-adhoc", action="store_true")
     arguments = parser.parse_args()
     try:
-        bundle, archive = package_macos(arguments.publish_dir, arguments.output_dir, arguments.version, arguments.icon, arguments.archive)
-    except (OSError, ValueError, tarfile.TarError) as error:
+        bundle, archive = package_macos(arguments.publish_dir, arguments.output_dir, arguments.version, arguments.icon, arguments.archive, arguments.runtime, arguments.sign_adhoc)
+    except (OSError, ValueError, tarfile.TarError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Packaging failed: {error}\n")
-    print(f"Created unsigned bundle: {bundle}")
+    print(f"Created {'ad-hoc signed' if arguments.sign_adhoc else 'unsigned'} bundle: {bundle}")
     if archive is not None:
         print(f"Created archive: {archive}")
     print(f"Minimum macOS {MINIMUM_MACOS_VERSION} is a candidate baseline; native launch verification remains required.")

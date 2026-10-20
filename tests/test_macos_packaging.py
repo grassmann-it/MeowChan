@@ -182,8 +182,52 @@ class MacosPackagingTests(unittest.TestCase):
 
     def test_archive_extension_is_validated(self):
         with self.assertRaisesRegex(packaging.PackagingError, "tar.gz"):
+            self.package(archive_path=self.output / "archive.bad")
+        self.assert_no_bundle()
+
+    def test_zip_requires_explicit_native_signing(self):
+        with self.assertRaisesRegex(packaging.PackagingError, "ZIP output requires"):
             self.package(archive_path=self.output / "archive.zip")
         self.assert_no_bundle()
+
+    def test_signing_requires_explicit_runtime(self):
+        with self.assertRaisesRegex(packaging.PackagingError, "requires --runtime"):
+            self.package(sign_adhoc=True)
+        self.assert_no_bundle()
+
+    @unittest.skipUnless(sys.platform == "darwin", "Requires native Apple signing tools")
+    def test_real_native_signed_zip_roundtrip(self):
+        import platform
+        runtime = "osx-arm64" if platform.machine() == "arm64" else "osx-x64"
+        source = self.root / "fixture.c"
+        source.write_text('#include <dlfcn.h>\nint main(int argc, char **argv) { if(argc < 2) return 0; void *p = dlopen(argv[1], RTLD_NOW); if(!p) return 2; int (*f)(void) = (int (*)(void))dlsym(p, "plugin"); return f ? f() : 3; }\n')
+        native = self.publish / "libvlc" / runtime / "lib"
+        plugins = native / "vlc/plugins"
+        plugins.mkdir(parents=True)
+        core_source = self.root / "core.c"
+        core_source.write_text("int core(void) { return 0; }\n")
+        plugin_source = self.root / "plugin.c"
+        plugin_source.write_text("extern int core(void); int plugin(void) { return core(); }\n")
+        core = native / "libvlccore.dylib"
+        self.symlink("libvlccore.dylib", native / "libvlccore-alias.dylib")
+        plugin = plugins / "libfixture_plugin.dylib"
+        subprocess.run(["/usr/bin/clang", "-dynamiclib", str(core_source), "-install_name", "@rpath/libvlccore.dylib", "-o", str(core)], check=True)
+        plugin_name = f"@executable_path/libvlc/{runtime}/lib/vlc/plugins/libfixture_plugin.dylib"
+        subprocess.run(["/usr/bin/clang", "-dynamiclib", str(plugin_source), str(core), "-install_name", plugin_name, "-o", str(plugin)], check=True)
+        subprocess.run(["/usr/bin/clang", str(source), "-o", str(self.publish / "MeowChan")], check=True)
+        bundle, archive = self.package(archive_path=self.output / "native.zip", runtime=runtime, sign_adhoc=True)
+        self.assertTrue(archive.is_file())
+        report = packaging.signing_module().validate(bundle, runtime)
+        self.assertEqual(3, report["macho_files"])
+        dependencies, _ = packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", bundle / "Contents/MacOS/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib"))
+        self.assertIn("@loader_path/../../libvlccore.dylib", dependencies)
+        subprocess.run([str(bundle / "Contents/MacOS/MeowChan"), str(bundle / "Contents/MacOS/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], check=True)
+        self.assertIn("@rpath/libvlccore.dylib", packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", plugin))[0])
+        self.assertTrue(report["signatures_verified"])
+        # A sealed resource mutation must invalidate the bundle signature.
+        (bundle / "Contents/Resources/meowchan.icns").write_bytes(b"tampered")
+        with self.assertRaisesRegex(ValueError, "Command failed"):
+            packaging.signing_module().validate(bundle, runtime)
 
     def symlink(self, target, link):
         try:

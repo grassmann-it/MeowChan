@@ -10,13 +10,15 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Full validation or isolated macOS offline test diagnosis
+        description: Full validation, native macOS ZIP packaging, offline diagnosis, or optional Homebrew
         type: choice
         required: true
         default: validate
         options:
           - validate
           - macos-diagnose
+          - macos-package
+          - homebrew-macos
 
 permissions:
   contents: read
@@ -132,10 +134,6 @@ jobs:
             os: ubuntu-24.04
           - runtime: linux-arm64
             os: ubuntu-24.04
-          - runtime: osx-x64
-            os: macos-15
-          - runtime: osx-arm64
-            os: macos-15
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -228,46 +226,6 @@ jobs:
           test -f extracted/samples/LibMeowChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/MeowChan
-      - name: Package unsigned macOS app bundle
-        if: runner.os == 'macOS'
-        run: python scripts/package-macos.py --publish-dir publish-output/${{ matrix.runtime }} --output-dir bundle-output --version ${{ steps.metadata.outputs.product_version }} --archive packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.tar.gz
-      - name: Validate extracted macOS bundle
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p extracted
-          archive="packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.tar.gz"
-          tar -xzf "$archive" -C extracted
-          plutil -lint extracted/MeowChan.app/Contents/Info.plist
-          test -x extracted/MeowChan.app/Contents/MacOS/MeowChan
-          test -f extracted/MeowChan.app/Contents/Resources/meowchan.icns
-          test -f extracted/MeowChan.app/Contents/MacOS/LICENSE
-          test -f extracted/MeowChan.app/Contents/MacOS/README.md
-          test -f extracted/MeowChan.app/Contents/MacOS/CHANGELOG.md
-          test -f extracted/MeowChan.app/Contents/MacOS/THIRD-PARTY-NOTICES.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/platform-support.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/Registry.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/Downloader.md
-          test -f extracted/MeowChan.app/Contents/MacOS/Desktop/Localization/README.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/releases/v0.9.0.md
-          test -f extracted/MeowChan.app/Contents/MacOS/Assets/meowchan.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/Help.md
-          test -f extracted/MeowChan.app/Contents/MacOS/libmeowchan/README.md
-          test -f extracted/MeowChan.app/Contents/MacOS/tests/MeowChan.DesktopSmoke/README.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/README.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-downloads.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-gallery.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-reader.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-licenses.txt
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-sources.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/native-video-source-manifest.json
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/macos-signing.md
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-archive.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-export.png
-          test -f extracted/MeowChan.app/Contents/MacOS/docs/screenshots/v0.9.0-about.png
-          test -f extracted/MeowChan.app/Contents/MacOS/samples/LibMeowChan.Consumer/README.md
-          (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
-          file extracted/MeowChan.app/Contents/MacOS/MeowChan
       - name: Validate extracted external video runtime
         shell: bash
         run: |
@@ -294,6 +252,85 @@ jobs:
         with:
           name: publish-evidence-${{ matrix.runtime }}
           path: artifacts/build-evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  macos-package:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'macos-package'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: osx-arm64
+            os: macos-15
+            cpu: arm64
+          - runtime: osx-x64
+            os: macos-15-intel
+            cpu: x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      MEOWCHAN_PROFILE: ${{ runner.temp }}/meowchan-macos-package/profile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Record native host and source
+        shell: bash
+        run: |
+          mkdir -p artifacts/macos-evidence
+          test "$(uname -m)" = "${{ matrix.cpu }}"
+          uname -a | tee artifacts/macos-evidence/host.txt
+          sw_vers | tee -a artifacts/macos-evidence/host.txt
+          git rev-parse HEAD > artifacts/macos-evidence/source.txt
+          dotnet --info > artifacts/macos-evidence/sdk.txt
+      - name: Test packager and signing contracts
+        run: python3 -m unittest discover -s tests -p 'test_macos*.py' -v
+      - name: Read product version
+        id: metadata
+        shell: bash
+        run: |
+          version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Restore native self-contained app with visible runtime libraries
+        run: dotnet restore MeowChan.csproj --artifacts-path artifacts/macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -warnaserror:NU1900
+      - name: Publish native self-contained app
+        run: dotnet publish MeowChan.csproj --artifacts-path artifacts/macos-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=false --output artifacts/macos-publish
+      - name: Validate visible .NET and bundled video runtime before signing
+        shell: bash
+        run: |
+          for library in libcoreclr.dylib libclrjit.dylib libhostfxr.dylib libhostpolicy.dylib; do
+            test -f "artifacts/macos-publish/$library"
+          done
+          python3 scripts/check-video-native.py artifacts/macos-publish ${{ matrix.runtime }}
+      - name: Sign app inside-out and verify ZIP round trip
+        run: python3 scripts/package-macos.py --publish-dir artifacts/macos-publish --output-dir artifacts/macos-bundle --version ${{ steps.metadata.outputs.version }} --runtime ${{ matrix.runtime }} --sign-adhoc --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip
+      - name: Retain signature and closure evidence from extracted ZIP
+        shell: bash
+        run: |
+          mkdir -p artifacts/macos-extracted
+          archive="artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
+          ditto -x -k "$archive" artifacts/macos-extracted
+          python3 scripts/macos-signing.py artifacts/macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/signatures.json
+          python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
+          shasum -a 256 "$archive" > "$archive.sha256"
+          echo "Native self-contained ad-hoc ZIP; no Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
+      - name: Start and gracefully stop the actual extracted apphost
+        run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
+      - name: Retain native ZIP candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.runtime }}
+          path: artifacts/macos-packages/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain native macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-package-evidence-${{ matrix.runtime }}
+          path: artifacts/macos-evidence/**
           if-no-files-found: warn
           retention-days: 30
 
@@ -328,5 +365,63 @@ jobs:
         with:
           name: macos-test-diagnosis-${{ github.run_id }}
           path: artifacts/macos-test-diagnosis/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Native source-build/structure evidence; GUI, playback and audio are separate gates.
+  homebrew-macos:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'homebrew-macos'
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      HOMEBREW_TEMP: ${{ runner.temp }}/meowchan-homebrew/tmp
+      HOMEBREW_LOGS: ${{ runner.temp }}/meowchan-homebrew/evidence/brew-logs
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      MEOWCHAN_PROFILE: ${{ runner.temp }}/meowchan-homebrew/profile
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record native Homebrew source-build inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/meowchan-homebrew/evidence"
+          mkdir -p "$evidence" "$HOMEBREW_TEMP"
+          git rev-parse HEAD > "$evidence/checkout-commit.txt"
+          brew --version > "$evidence/brew-version.txt"
+          brew config > "$evidence/brew-config.txt"
+          sw_vers > "$evidence/os.txt"
+          uname -m > "$evidence/cpu.txt"
+          cp packaging/homebrew/input-manifest.json "$evidence/"
+          shasum -a 256 packaging/homebrew/Formula/meowchan.rb > "$evidence/formula.sha256"
+      - name: Update Homebrew and stage local validation tap
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/meowchan-homebrew/evidence"
+          brew update 2>&1 | tee "$evidence/update.log"
+          brew tap-new --no-git meowchan-local/validation
+          install -m 644 packaging/homebrew/Formula/meowchan.rb "$(brew --repository meowchan-local/validation)/Formula/meowchan.rb"
+      - name: Install pinned source formula natively
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install --build-from-source --verbose meowchan-local/validation/meowchan 2>&1 | tee "$RUNNER_TEMP/meowchan-homebrew/evidence/install.log"
+      - name: Check installed Mach-O and signing structure
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/meowchan-homebrew/evidence"
+          brew test --verbose meowchan-local/validation/meowchan 2>&1 | tee "$evidence/test.log"
+          brew info --json=v2 meowchan-local/validation/meowchan > "$evidence/installed.json"
+          echo "Homebrew source installation and structural tests passed. GUI, playback and real audio remain unverified." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Homebrew source-build evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: homebrew-macos-${{ github.run_id }}
+          path: ${{ runner.temp }}/meowchan-homebrew/evidence/**
           if-no-files-found: warn
           retention-days: 14
