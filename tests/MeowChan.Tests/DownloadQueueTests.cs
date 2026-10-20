@@ -807,9 +807,31 @@ public sealed class DownloadQueueTests
             Assert.Equal(32, handler.ActiveRequests);
             Assert.Equal(8, queue.GetCapacitySnapshot().Pending);
             Assert.True(queue.GetCapacitySnapshot().WaitingAdmission > 0);
-            handler.Release(320);
-            await Task.WhenAll(producers).WaitAsync(TestWait.Timeout);
-            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            try
+            {
+                // Keep all producers contending for admission, but acknowledge progress one
+                // worker wave at a time. The watchdog detects stalled work; it does not require
+                // all 320 real file/manifest commits to meet one disk-throughput deadline.
+                for (int wave = 1; wave < 10; wave++)
+                {
+                    handler.Release(32);
+                    await handler.WaitForStartsAsync(32);
+                    Assert.Equal(32, handler.ActiveRequests);
+                    (int active, int pending, _) = queue.GetCapacitySnapshot();
+                    Assert.InRange(active, 0, 32);
+                    Assert.InRange(pending, 0, 8);
+                }
+                handler.Release(32);
+                await Task.WhenAll(producers).WaitAsync(TestWait.Timeout);
+                await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            }
+            catch (Exception exception) when (exception is TimeoutException or OperationCanceledException)
+            {
+                throw new TimeoutException($"Queue stopped making progress: capacity={queue.GetCapacitySnapshot()}, " +
+                    $"requests={handler.RequestCount}, activeHttp={handler.ActiveRequests}, " +
+                    $"producersCompleted={producers.Count(task => task.IsCompleted)}/{producers.Length}, " +
+                    $"files={Directory.GetFiles(directory.Path, "*.bin", SearchOption.AllDirectories).Length}.", exception);
+            }
             Assert.Equal(320, handler.RequestCount);
             Assert.Equal(32, handler.MaximumActiveRequests);
             Assert.Equal(320, Directory.GetFiles(directory.Path, "*.bin", SearchOption.AllDirectories).Length);
