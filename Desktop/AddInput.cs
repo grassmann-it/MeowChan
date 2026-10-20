@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 /// <summary>Resolves one Add action without reading the clipboard for explicit input.</summary>
 public static class AddInput

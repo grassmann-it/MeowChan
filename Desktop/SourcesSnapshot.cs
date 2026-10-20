@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal sealed record SourceWatchRow(DiagnosticTarget Target, string Resource, string Work, string Observation);
 internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, IReadOnlyList<SourceWatchRow> Watches)

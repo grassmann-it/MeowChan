@@ -1,13 +1,14 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 using Serilog;
 using System;
 using System.Diagnostics;
 using System.Reflection;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class AboutWindow : Window
 {
@@ -34,6 +35,7 @@ public partial class AboutWindow : Window
     private void ApplyTexts()
     {
         Title = Texts.T("about.title");
+        AutomationProperties.SetName(CatLogo, Texts.T("about.logoDescription"));
         VersionText.Text = Texts.T("shell.version", _version ?? Texts.T("about.unknownVersion"));
         DescriptionText.Text = Texts.T("about.description");
         AuthorText.Text = Texts.T("about.author");

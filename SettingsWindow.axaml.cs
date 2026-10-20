@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 
-namespace oChan;
+namespace MeowChan;
 
 // Compatibility host for the shared editor; the main shell hosts the editor directly.
 public partial class SettingsWindow : Window

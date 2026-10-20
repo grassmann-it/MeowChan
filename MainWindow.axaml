@@ -1,14 +1,14 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:oChan" xmlns:desktop="clr-namespace:oChan.Desktop"
-        x:Class="oChan.MainWindow" x:DataType="local:MainWindow"
+        xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop"
+        x:Class="MeowChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
-        Title="oChan" Icon="avares://oChan/Assets/ochan.png" TextOptions.TextRenderingMode="Antialias">
+        Title="MeowChan" Icon="avares://MeowChan/Assets/meowchan.png" TextOptions.TextRenderingMode="Antialias">
     <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
         <Border Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <TextBlock Text="oChan" Classes="brand" />
+                    <TextBlock Text="MeowChan" Classes="brand" />
                     <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
@@ -163,14 +163,14 @@
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenThreadDirectoryClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" Click="OnOpenThreadInBrowserClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
@@ -179,7 +179,7 @@
  <MenuItem Tag="action.remove" Classes="localized" Header="Remove" Click="OnRemoveThreadMenuItemClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
@@ -236,14 +236,14 @@
                                 <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" Click="OnOpenBoardDirectoryClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" Click="OnOpenBoardInBrowserClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>
@@ -252,7 +252,7 @@
  <MenuItem Tag="action.remove" Classes="localized" Header="Remove" Click="OnRemoveBoardMenuItemClick">
                                     <MenuItem.Icon>
                                         <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://oChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
+                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
                                         </Border>
                                     </MenuItem.Icon>
                                 </MenuItem>

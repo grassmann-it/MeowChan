@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace oChan.Desktop.Localization;
+namespace MeowChan.Desktop.Localization;
 
 internal static class BuiltInCatalog
 {
@@ -42,7 +42,7 @@ internal static class BuiltInCatalog
         ("diagnostics.openWatch", "Show in downloads", "In Downloads zeigen"),
         ("diagnostics.removed", "This watch has been removed.", "Diese Beobachtung wurde entfernt."),
         ("nav.settings", "Settings", "Einstellungen"),
-        ("nav.about", "About", "Über oChan"),
+        ("nav.about", "About", "Über MeowChan"),
         ("mode.simple", "Simple", "Simple"),
         ("mode.advanced", "Advanced", "Advanced"),
         ("mode.barebones", "Barebones", "Barebones"),
@@ -171,7 +171,7 @@ internal static class BuiltInCatalog
         ("notification.settings", "Settings", "Einstellungen"),
         ("notification.session", "Session", "Sitzung"),
         ("notification.languages", "Language packs", "Sprachpakete"),
-        ("startup.title", "oChan could not start", "oChan konnte nicht gestartet werden"),
+        ("startup.title", "MeowChan could not start", "MeowChan konnte nicht gestartet werden"),
         ("restore.title", "Session could not be restored", "Sitzung konnte nicht wiederhergestellt werden"),
         ("restore.failure", "Adding URLs is disabled. Resolve the session error and restart: {0}", "Das Hinzufügen von URLs ist deaktiviert. Den Sitzungsfehler beheben und neu starten: {0}"),
         ("clipboard.empty", "No URLs found in the clipboard.", "Keine URLs in der Zwischenablage gefunden."),
@@ -197,12 +197,13 @@ internal static class BuiltInCatalog
         ("admission.summary", "{0} added · {1} already watched · {2} rejected", "{0} hinzugefügt · {1} bereits beobachtet · {2} abgelehnt"),
         ("admission.results", "Import results", "Importergebnisse"),
         ("admission.empty", "No URLs found in the input.", "Keine URLs in der Eingabe gefunden."),
-        ("about.title", "About oChan", "Über oChan"),
-        ("about.description", "oChan is an imageboard media downloader for 4chan and 8kun.", "oChan lädt Medien aus Imageboards herunter und unterstützt 4chan und 8kun."),
+        ("about.title", "About MeowChan", "Über MeowChan"),
+        ("about.logoDescription", "MeowChan cat logo", "MeowChan-Katzenlogo"),
+        ("about.description", "MeowChan is an imageboard media downloader for 4chan and 8kun.", "MeowChan lädt Medien aus Imageboards herunter und unterstützt 4chan und 8kun."),
         ("about.author", "Written by Tomka (tfgrass), formerly known as themirage.", "Entwickelt von Tomka (tfgrass), früher bekannt als themirage."),
         ("about.history", "Special thanks to Issung for forking YChan and keeping it alive as GChan.", "Besonderer Dank an Issung für den Fork von YChan und dessen Weiterentwicklung als GChan."),
         ("about.icons", "Interface symbols by Feather Icons.", "Bedienungssymbole von Feather Icons."),
-        ("about.license", "oChan is licensed under the Artistic License 2.0. Dependency licenses and attributions are included in THIRD-PARTY-NOTICES.md alongside the application.", "oChan steht unter der Artistic License 2.0. Lizenzen und Hinweise zu Abhängigkeiten stehen in THIRD-PARTY-NOTICES.md neben der Anwendung."),
+        ("about.license", "MeowChan is licensed under the Artistic License 2.0. Dependency licenses and attributions are included in THIRD-PARTY-NOTICES.md alongside the application.", "MeowChan steht unter der Artistic License 2.0. Lizenzen und Hinweise zu Abhängigkeiten stehen in THIRD-PARTY-NOTICES.md neben der Anwendung."),
         ("about.project", "Project on GitHub", "Projekt auf GitHub"),
         ("about.authorLink", "Tomka on GitHub", "Tomka auf GitHub"),
         ("about.linkFailed", "Could not open {0}: {1}", "{0} konnte nicht geöffnet werden: {1}"),

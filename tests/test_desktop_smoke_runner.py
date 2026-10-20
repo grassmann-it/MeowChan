@@ -20,7 +20,7 @@ SPEC.loader.exec_module(runner)
 
 class DesktopSmokeRunnerTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="ochan runner fixtures ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="meowchan runner fixtures ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         self.assembly = self.root / "fixture.dll"
@@ -58,16 +58,32 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
     def test_isolation_removes_all_inherited_session_endpoints(self):
         base = {key: "personal-session-endpoint" for key in runner.SESSION_VARIABLES}
         base["PATH"] = "fixture-tools"
+        base["MEOWCHAN_PROFILE"] = "personal-new-profile"
+        base["OCHAN_PROFILE"] = "personal-old-profile"
         prepared = runner.prepare_environment(base, True, self.root)
         self.assertTrue(all(key not in prepared for key in runner.SESSION_VARIABLES))
         self.assertEqual("personal-session-endpoint", base["DISPLAY"])
         self.assertEqual("fixture-tools", prepared["PATH"])
-        self.assertEqual("1", prepared["OCHAN_DESKTOP_SMOKE_XVFB"])
+        self.assertEqual("1", prepared["MEOWCHAN_DESKTOP_SMOKE_XVFB"])
+        self.assertEqual(str(self.root / "profile"), prepared["MEOWCHAN_PROFILE"])
+        self.assertNotIn("OCHAN_PROFILE", prepared)
         self.assertNotIn("servicedir", (self.root / "bus.conf").read_text())
         for key in ("XDG_RUNTIME_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME"):
             self.assertTrue(Path(prepared[key]).is_relative_to(self.root))
         if os.name != "nt":
             self.assertEqual(0o700, Path(prepared["XDG_RUNTIME_DIR"]).stat().st_mode & 0o777)
+
+    def test_native_runner_uses_private_profile_and_drops_isolated_display_flag(self):
+        prepared = runner.prepare_environment({
+            "MEOWCHAN_PROFILE": "personal-new-profile",
+            "OCHAN_PROFILE": "personal-old-profile",
+            "MEOWCHAN_DESKTOP_SMOKE_XVFB": "1",
+            "DISPLAY": ":99",
+        }, False, self.root)
+        self.assertEqual(str(self.root / "profile"), prepared["MEOWCHAN_PROFILE"])
+        self.assertNotIn("OCHAN_PROFILE", prepared)
+        self.assertNotIn("MEOWCHAN_DESKTOP_SMOKE_XVFB", prepared)
+        self.assertEqual(":99", prepared["DISPLAY"])
 
     def test_missing_tools_fail_without_starting_any_process(self):
         with mock.patch.object(runner.sys, "platform", "linux"), \

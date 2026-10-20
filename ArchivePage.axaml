@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:oChan.Desktop" x:Class="oChan.ArchivePage" SizeChanged="OnSizeChanged">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
     <Grid x:Name="ArchiveRoot" Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="5">

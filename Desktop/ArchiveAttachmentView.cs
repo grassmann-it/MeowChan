@@ -6,9 +6,9 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 // A realized post can still be outside the viewport. Only visible attachments own decoded images.
 public sealed class ArchiveAttachmentView : UserControl

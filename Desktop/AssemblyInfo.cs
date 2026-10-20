@@ -1,4 +1,4 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("oChan.DesktopTests")]
-[assembly: InternalsVisibleTo("oChan.DesktopSmoke")]
+[assembly: InternalsVisibleTo("MeowChan.DesktopTests")]
+[assembly: InternalsVisibleTo("MeowChan.DesktopSmoke")]

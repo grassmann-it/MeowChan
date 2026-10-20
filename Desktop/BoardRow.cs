@@ -1,8 +1,8 @@
 using System;
 using System.ComponentModel;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 /// <summary>Passive board binding state. Its owner applies snapshots on the desktop dispatcher.</summary>
 public sealed class BoardRow : INotifyPropertyChanged, IDisposable

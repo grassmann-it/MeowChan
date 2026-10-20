@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:oChan"
-             x:Class="oChan.RulesPage" x:DataType="local:RulesPage"
+             xmlns:local="clr-namespace:MeowChan"
+             x:Class="MeowChan.RulesPage" x:DataType="local:RulesPage"
              SizeChanged="OnRulesSizeChanged">
     <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel Margin="20,20,20,12" Spacing="5">

@@ -2,10 +2,10 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class MainWindow
 {

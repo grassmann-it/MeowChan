@@ -4,11 +4,11 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using oChan.Models;
-using oChan.Persistence;
+using MeowChan.Models;
+using MeowChan.Persistence;
 using Serilog;
 
-namespace oChan
+namespace MeowChan
 {
     public class Config
     {
@@ -62,9 +62,11 @@ namespace oChan
         /// <summary>Resolves the profile without creating files or directories.</summary>
         public static string GetConfigDirectory()
         {
-            string? overrideDirectory = Environment.GetEnvironmentVariable("OCHAN_PROFILE");
-            if (!string.IsNullOrWhiteSpace(overrideDirectory))
-                return Path.GetFullPath(overrideDirectory);
+            string? overrideDirectory = ResolveProfileOverrides(
+                Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"),
+                Environment.GetEnvironmentVariable("OCHAN_PROFILE"));
+            if (overrideDirectory != null)
+                return overrideDirectory;
 
             string homePath = OperatingSystem.IsWindows()
                 ? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
@@ -73,16 +75,64 @@ namespace oChan
             if (string.IsNullOrWhiteSpace(homePath))
                 throw new InvalidOperationException("The user configuration directory could not be resolved.");
 
-            return Path.GetFullPath(Path.Combine(homePath, ".oChan"));
+            return ResolveDefaultProfileDirectory(homePath);
         }
 
-        private static string GetDefaultDownloadPath()
+        internal static string? ResolveProfileOverrides(string? meowChanProfile, string? oChanProfile)
+        {
+            string? current = string.IsNullOrWhiteSpace(meowChanProfile) ? null :
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(meowChanProfile));
+            string? legacy = string.IsNullOrWhiteSpace(oChanProfile) ? null :
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(oChanProfile));
+            if (current != null && legacy != null && !string.Equals(current, legacy,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "MEOWCHAN_PROFILE and OCHAN_PROFILE select different profiles. Set only one, or set both to the same directory.");
+
+            return current ?? legacy;
+        }
+
+        internal static string ResolveDefaultProfileDirectory(string homePath)
+        {
+            string current = Path.GetFullPath(Path.Combine(homePath, ".MeowChan"));
+            string legacy = Path.GetFullPath(Path.Combine(homePath, ".oChan"));
+            bool hasCurrent = ProfileDirectoryExists(current);
+            bool hasLegacy = ProfileDirectoryExists(legacy);
+            if (hasCurrent && hasLegacy)
+                throw new InvalidOperationException(
+                    $"Both MeowChan profiles exist ('{current}' and '{legacy}'). Select one explicitly with MEOWCHAN_PROFILE.");
+
+            return hasLegacy ? legacy : current;
+        }
+
+        private static bool ProfileDirectoryExists(string path)
+        {
+            try
+            {
+                FileAttributes attributes = File.GetAttributes(path);
+                if ((attributes & FileAttributes.Directory) == 0)
+                    throw new IOException($"The profile path '{path}' is a file, not a directory.");
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        private static string GetDefaultDownloadPath() => GetDefaultDownloadPath("MeowChan");
+
+        private static string GetDefaultDownloadPath(string productDirectory)
         {
             string homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (string.IsNullOrWhiteSpace(homePath))
                 throw new InvalidOperationException("The user home directory could not be resolved.");
 
-            return Path.GetFullPath(Path.Combine(homePath, "Downloads", "oChan"));
+            return Path.GetFullPath(Path.Combine(homePath, "Downloads", productDirectory));
         }
 
         public static Config LoadConfig() => LoadConfig(GetConfigDirectory());
@@ -109,6 +159,8 @@ namespace oChan
             }
 
             Config defaults = BindProfile(new Config(), directory, relativePathBaseDirectory);
+            if (IsLegacyProfileWithoutSettings(directory))
+                defaults.DownloadPath = GetDefaultDownloadPath("oChan");
             if (status != LoadStatus.Missing || backupStatus != LoadStatus.Missing)
             {
                 defaults.LoadWarning = $"Settings could not be loaded from '{filePath}' ({error ?? "file missing"}); " +
@@ -226,6 +278,38 @@ namespace oChan
             return Path.GetFullPath(profileDirectory);
         }
 
+        private static bool IsLegacyProfileWithoutSettings(string directory)
+        {
+            if (string.Equals(Path.GetFileName(Path.TrimEndingDirectorySeparator(directory)), ".oChan",
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                return true;
+
+            // The owner can have published the new protocol marker and lock before
+            // settings are loaded. These original data files still identify a legacy
+            // profile whose implicit download directory must remain unchanged.
+            return ProfileFileExists(Path.Combine(directory, "saved_urls.json")) ||
+                ProfileFileExists(Path.Combine(directory, ".ochan-profile.lock"));
+        }
+
+        private static bool ProfileFileExists(string path)
+        {
+            try
+            {
+                FileAttributes attributes = File.GetAttributes(path);
+                if ((attributes & FileAttributes.Directory) != 0)
+                    throw new IOException($"The profile file path '{path}' is a directory, not a file.");
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return false;
+            }
+        }
+
         private static string NormalizeLanguage(string? value)
         {
             string code = value?.Trim() ?? string.Empty;
@@ -268,6 +352,12 @@ namespace oChan
                 config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.Config);
                 if (config == null)
                     throw new InvalidDataException("The settings document contains null.");
+
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    if (!document.RootElement.TryGetProperty(nameof(DownloadPath), out _))
+                        config.DownloadPath = GetDefaultDownloadPath("oChan");
+                }
 
                 config._relativePathBaseDirectory = relativePathBaseDirectory;
                 config.Validate();

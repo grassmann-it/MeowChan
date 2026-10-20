@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:oChan.Desktop"
-             x:Class="oChan.SourcesPage">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             x:Class="MeowChan.SourcesPage">
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20" Spacing="14">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">

@@ -2,7 +2,7 @@
 """Verify a relocated thread export in an isolated Chromium with networking disabled.
 
 Requires Playwright for Python and an existing Chromium executable. No browser profile,
-server, provider, oChan process or network connection is used to read the export.
+server, provider, MeowChan process or network connection is used to read the export.
 """
 import argparse
 import json

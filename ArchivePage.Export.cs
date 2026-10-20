@@ -8,10 +8,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using oChan.Archive;
-using oChan.Desktop.Localization;
+using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class ArchivePage
 {
@@ -45,7 +45,7 @@ public partial class ArchivePage
     {
         string identity = _exportThread?.Source + "-" + _exportThread?.Board + "-" + _exportThread?.Thread;
         string safe = new(identity.Select(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' ? character : '_').Take(120).ToArray());
-        return "ochan-" + safe + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        return "meowchan-" + safe + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
     }
     private async void OnExportBrowse(object? sender, RoutedEventArgs e)
     {

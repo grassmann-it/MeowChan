@@ -1,15 +1,15 @@
 # Sessions and providers
 
-`oChan.Registry` owns a session's watched boards and threads, their monitoring lifetimes, and one shared `DownloadQueue`. Constructing a registry or resolving a provider URL performs no HTTP requests. `AddAsync` starts monitoring after admission succeeds.
+`MeowChan.Registry` owns a session's watched boards and threads, their monitoring lifetimes, and one shared `DownloadQueue`. Constructing a registry or resolving a provider URL performs no HTTP requests. `AddAsync` starts monitoring after admission succeeds.
 
 Create a queue with the desired global limits, register provider instances explicitly, and supply an absolute output root:
 
 ```csharp
-using oChan;
-using oChan.Boards.FourChan;
-using oChan.Boards.EightKun;
-using oChan.Downloader;
-using oChan.Interfaces;
+using MeowChan;
+using MeowChan.Boards.FourChan;
+using MeowChan.Boards.EightKun;
+using MeowChan.Downloader;
+using MeowChan.Interfaces;
 
 string threadOrBoardUrl = args[0];
 string outputRoot = Path.GetFullPath("downloads");
@@ -46,7 +46,7 @@ Use the exact objects returned by admission or `GetView()` when removing resourc
 Persistence is optional. A host that uses the file store acquires a profile lease, constructs `SessionStore`, passes it to `Registry`, and calls `RestoreAsync` before admitting new persistent watches:
 
 ```csharp
-using oChan.Persistence;
+using MeowChan.Persistence;
 
 string profileRoot = Path.GetFullPath("profile");
 using ProfileLease lease = ProfileLease.Acquire(profileRoot);
@@ -58,6 +58,8 @@ await session.RestoreAsync();
 ```
 
 The lease must outlive the session; disposing in the order above satisfies that requirement. Enabled persistence saves confirmed additions, removals, suppression and assigned roots before acknowledging success. File-store errors propagate; the caller must display or otherwise handle them. `GetSnapshot().Warnings` retains the latest 32 recoverable session warnings. Unresolved saved URLs are retained for later recovery instead of silently discarded.
+
+Before opening earlier-release profile or media data with MeowChan 0.9.0, stop older application and library processes and make a backup. Current profile and media locks use new names; older processes cannot coordinate with them. Concurrent old/new writers on the same data and downgrading migrated data are unsupported.
 
 `ApplyOptionsAsync(SessionOptions, persistSession)` updates the queue limits and future polling delays. Existing watches keep their assigned destination. Directly added watches use the current root; discoveries from an existing board inherit that board's assigned root. Hosts should treat a settings update as complete only after the task succeeds. The desktop client's settings-file transaction is host behavior, not a requirement to use its `Config` type.
 
@@ -96,7 +98,7 @@ Core components accept an optional caller-owned Serilog `ILogger` and are silent
 
 The built-in default HTTP clients share the provider request policy. Supplying a custom `HttpClient` is an advanced injection path; use `ProviderHttpClientFactory.CreatePolicyClient` when the same request policy is required, and follow its ownership/cancellation contract. Never dispose or mutate process-owned default clients.
 
-The [package consumer sample](../samples/LibOChan.Consumer/README.md) is the compiled reference for package restore and a custom provider. The library contains no Avalonia UI, daemon, dynamic plugin loader or HTML archive implementation.
+The [package consumer sample](../samples/LibMeowChan.Consumer/README.md) is the compiled reference for package restore and a custom provider. The library contains local single-thread HTML export, but no Avalonia UI, daemon or dynamic plugin loader.
 
 ## Registered source capabilities
 

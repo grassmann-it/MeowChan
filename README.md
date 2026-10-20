@@ -1,8 +1,10 @@
-# oChan
+<img src="Assets/meowchan.png" alt="MeowChan cat logo" width="192">
 
-oChan watches threads and boards on 4chan and 8kun and downloads their media. The Avalonia desktop app uses the independently consumable `libochan` library. Other applications can supply providers through the library contracts.
+# MeowChan
 
-Version **0.9.0** is in preparation with a new desktop interface on top of the download and session foundation released in 0.8.0. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the changes and upgrade considerations. The [platform validation record](docs/platform-support.md) separates historical checks from the remaining validation of the new UI and final packages.
+MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun. It watches threads and boards, saves their media and captured posts, and offers local archive search and portable single-thread HTML export. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
+
+Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Version **0.9.0 is in preparation and has not been released**; current releases are historical builds with their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
 
 ## What's new in 0.9.0
 
@@ -16,7 +18,7 @@ Version **0.9.0** is in preparation with a new desktop interface on top of the d
 - Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
 - Diagnostics for current request cooldowns, download/storage errors and session warnings.
 
-The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libochan` continues to work independently of the UI. Final native package acceptance for 0.9.0 is still open.
+The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libmeowchan` continues to work independently of the UI. Final native package acceptance for 0.9.0 is still open.
 
 ## Desktop views
 
@@ -32,25 +34,25 @@ Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, 
 
 Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. About remains in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
 
-![Simple view with representative download states](docs/screenshots/v0.9.0-simple.png)
+![Preview of the Simple view with representative download states](docs/screenshots/v0.9.0-simple.png)
 
-![Compact Barebones view of the same example session](docs/screenshots/v0.9.0-barebones.png)
+![Preview of the compact Barebones view of the same example session](docs/screenshots/v0.9.0-barebones.png)
 
-![Settings in the shared workspace](docs/screenshots/v0.9.0-settings.png)
+![Preview of Settings in the shared workspace](docs/screenshots/v0.9.0-settings.png)
 
-These screenshots show the productive UI at 100% scaling in the isolated Linux harness (Xvfb/Openbox, software rendering). Titles, URLs and states are passive test fixtures; no watches or network requests are started for these comparison scenes.
+These are earlier UI previews from the isolated Linux harness at 100% scaling (Xvfb/Openbox, software rendering). Titles, URLs and states are passive test fixtures; no watches or network requests are started for these comparison scenes. Final MeowChan screenshots of Downloads, gallery, archive search, export and About have not yet been taken and will replace or supplement these previews after the UI is complete.
 
 ## Build and run
 
 Use the exact .NET 10 SDK selected by `global.json` from a source checkout. Release builds use reviewed dependency lockfiles; [updating them](docs/platform-support.md#dependency-restores-and-updates) is an explicit maintainer step:
 
 ```sh
-dotnet restore oChan.sln -p:Configuration=Release --locked-mode
-dotnet build oChan.sln -c Release --no-restore
-dotnet run --project oChan.csproj -c Release --no-build --no-restore
+dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode
+dotnet build MeowChan.sln -c Release --no-restore
+dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. macOS archives contain an unsigned `oChan.app` bundle that can be opened in Finder. Native macOS launch and Gatekeeper behavior still require release validation. See [platform requirements and package checks](docs/platform-support.md).
+Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. macOS archives contain an unsigned `MeowChan.app` bundle that can be opened in Finder. Native macOS launch and Gatekeeper behavior still require release validation. See [platform requirements and package checks](docs/platform-support.md).
 
 ## Downloading
 
@@ -90,31 +92,31 @@ Settings also control theme, language, view, compact density and minimizing to t
 
 When **Restore session on startup** is enabled, confirmed changes to watched URLs are saved as they happen. The application restores them at startup. Settings/session failures are shown rather than silently replacing saved state. Only one running application can own a profile.
 
-The default profile is `%APPDATA%/.oChan` on Windows and `$HOME/.oChan` on macOS/Linux. Settings are stored in `settings.json` in that profile. Set `OCHAN_PROFILE` to an absolute directory to use an isolated profile. The default download root is `Downloads/oChan` under the user home directory.
+Fresh profiles use `%APPDATA%/.MeowChan` on Windows and `$HOME/.MeowChan` on macOS/Linux, with `settings.json` in that directory and a `Downloads/MeowChan` default media root. An existing `.oChan` profile remains in place and keeps its saved or implicit `Downloads/oChan` root. Set `MEOWCHAN_PROFILE` to select a profile explicitly; the legacy `OCHAN_PROFILE` override is also accepted. If both profile directories exist, select one explicitly. If both override variables are set, they must resolve to the same directory. Stop older applications before upgrading an existing profile or media store. Concurrent old/new applications on the same data and downgrading migrated data are unsupported.
 
 English and German are built in. To add another language, place a plain JSON pack in `<active profile>/LanguagePacks`, restart, then select it in Settings. Missing translations fall back to English; an invalid or unavailable selected pack produces a warning and an English fallback. See the [language-pack format](Desktop/Localization/README.md). Technical provider and exception messages can remain untranslated.
 
 ## Library
 
-The library project is `libochan/libochan.csproj`; package consumers keep the existing `oChan` namespaces. The desktop configuration, windows and Avalonia dependencies belong to the reference client.
+The library project, assembly and new package ID are `libmeowchan`; current source uses `MeowChan.*` namespaces. Package consumers must update their PackageReference, using directives and any assembly references from earlier releases. The historical package is not automatically redirected, and the new package has not been published to NuGet. The desktop configuration, windows and Avalonia dependencies belong to the reference client.
 
 ```sh
-dotnet pack libochan/libochan.csproj -c Release -o artifacts/packages
+dotnet pack libmeowchan/libmeowchan.csproj -c Release -o artifacts/packages
 ```
 
-The [library guide](libochan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibOChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
+The [library guide](libmeowchan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibMeowChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
 
 Provider registration is explicit. Sources shows registered adapter capabilities and actual watch observations. Provider descriptions are passive and optional. Dynamic plugin loading, a daemon, TUI and terminal browser remain later work. The library already exposes local search, quotes/backlinks and portable single-thread HTML export. Provider registration is independent of whether its website is currently reachable.
 
 ## Verification
 
 ```sh
-dotnet test oChan.sln -c Release
-dotnet build tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -c Release
-python scripts/run-desktop-smoke.py --assembly tests/oChan.DesktopSmoke/bin/Release/net10.0/oChan.DesktopSmoke.dll --output artifacts/desktop-smoke
+dotnet test MeowChan.sln -c Release
+dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release
+python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --output artifacts/desktop-smoke
 ```
 
-On Linux, the runner requires Xvfb, Openbox and a private session bus; missing tools fail without falling back to your desktop. Windows/macOS require a dedicated test desktop and `--allow-native-desktop`. Standard scenarios run serially and stop at the first failure. Rapid tray/window stress is a separate opt-in; do not run it on a personal workstation. See the [harness instructions](tests/oChan.DesktopSmoke/README.md) for prerequisites and targeted visual checks.
+On Linux, the runner requires Xvfb, Openbox and a private session bus; missing tools fail without falling back to your desktop. Windows/macOS require a dedicated test desktop and `--allow-native-desktop`. Standard scenarios run serially and stop at the first failure. Rapid tray/window stress is a separate opt-in; do not run it on a personal workstation. See the [harness instructions](tests/MeowChan.DesktopSmoke/README.md) for prerequisites and targeted visual checks.
 
 The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for evidence and remaining native checks.
 

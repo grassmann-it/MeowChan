@@ -1,8 +1,10 @@
 # Platform requirements and release evidence
 
-This record separates upstream platform support, candidate oChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
+This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
 ## Current 0.9.0 preparation
+
+MeowChan 0.9.0 is unreleased. The package names and hashes recorded below belong to earlier source checkpoints, before the complete product rename; they are historical local artifacts, not current MeowChan release candidates. Final UI screenshots and the final package matrix remain to be made and validated. Current published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
 
 0.9.0 replaces the desktop UI with Simple, Advanced and Barebones views, appearance/language preferences, batch URL admission and details panels. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
 
@@ -18,7 +20,7 @@ The local host logged unavailable AT-SPI/global-menu services as warnings; nativ
 
 **Workstation freeze and test isolation:** After the framework checkpoint, the user reported a desktop freeze during subsequent style checks. The last native run (`artifacts/ap13-styles-final-scale-100`) passed only 2/6 scenarios, with window-size/minimization timeouts. Its relationship to the freeze is unproven. Do not infer resolution from the earlier 18/18 pass or use the active personal desktop for automatic GUI suites.
 
-Commit `d355152` isolates Linux runs in Xvfb/Openbox with a private DBus session that cannot activate host services, private XDG directories and cleared inherited desktop endpoints. Standard scenarios stop at the first failure; stress requires a separate explicit invocation. Windows/macOS and Linux native-session runs require explicit opt-in on a disposable test desktop. Nine window-free runner fixtures verify the selection, fail-fast, timeout, process cleanup and evidence behavior. Isolation is process/display ownership, not a security sandbox; the [harness instructions](../tests/oChan.DesktopSmoke/README.md) explain the limits.
+Commit `d355152` isolates Linux runs in Xvfb/Openbox with a private DBus session that cannot activate host services, private XDG directories and cleared inherited desktop endpoints. Standard scenarios stop at the first failure; stress requires a separate explicit invocation. Windows/macOS and Linux native-session runs require explicit opt-in on a disposable test desktop. Nine window-free runner fixtures verify the selection, fail-fast, timeout, process cleanup and evidence behavior. Isolation is process/display ownership, not a security sandbox; the [harness instructions](../tests/MeowChan.DesktopSmoke/README.md) explain the limits.
 
 Native Windows/macOS, Linux Arm64 and full extracted-package workflows remain open. The earlier archives listed below predate the icon, pages, framework and style changes. Cross-publish alone cannot replace their native acceptance.
 
@@ -122,11 +124,11 @@ The current Linux desktop uses X11, including XWayland on a Wayland desktop. A w
 
 These are candidate validation baselines, not completed platform certifications. Exact supported OS releases will be recorded with the tested artifacts. Microsoft/Avalonia support policies can change with OS end-of-life; consult the linked current policy before expanding the product matrix.
 
-## Current distribution form
+## Planned MeowChan distribution form
 
-Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `oChan.exe` on Windows or `./oChan` on Linux. Keep the accompanying native libraries and notices beside the executable. macOS tar.gz archives contain `oChan.app`; open that bundle in Finder or with `open oChan.app`.
+Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `MeowChan.exe` on Windows or `./MeowChan` on Linux. Keep the accompanying native libraries and notices beside the executable. macOS tar.gz archives will contain `MeowChan.app`; open that bundle in Finder or with `open MeowChan.app`.
 
-The macOS bundle is unsigned and is not notarized. Its structure contains the complete publish output under `Contents/MacOS`, the existing application icon under `Contents/Resources`, and `Info.plist` metadata generated from the product version. The bundle identifier is `org.ochan.desktop`, executable name `oChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
+The macOS bundle is unsigned and is not notarized. Its structure contains the complete publish output under `Contents/MacOS`, the existing application icon under `Contents/Resources`, and `Info.plist` metadata generated from the product version. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
 Packaging a `.app` can be prepared without credentials. Signing/notarization and public distribution require separate decisions and native Mac validation; no signing identity or publishing account is required for the local checks in this repository.
 
@@ -135,7 +137,7 @@ Packaging a `.app` can be prepared without credentials. Signing/notarization and
 | Check | Evidence provided | Remaining boundary |
 | --- | --- | --- |
 | Offline tests | Deterministic production behavior against local fixtures, including failures and cancellation. | No public provider availability or native UI proof. |
-| Source-built desktop harness | Avalonia startup/bindings/shutdown and selected profile/tray error paths on that runner. | The harness is a separate executable, even when it references the same application assembly. It does not execute the published `oChan` apphost. |
+| Source-built desktop harness | Avalonia startup/bindings/shutdown and selected profile/tray error paths on that runner. | The harness is a separate executable, even when it references the same application assembly. It does not execute the published `MeowChan` apphost. |
 | Publish and archive round-trip | Target output can be created; full files, notices and Unix executable bits survive archiving/extraction. | No proof that the extracted app starts or downloads correctly. |
 | Native extracted app run | Actual apphost, native dependencies, resources and normal app entrypoint run on the recorded OS/CPU. | Other OS/CPU combinations remain untested. |
 | Local NuGet package consumer | A fresh restore can consume the candidate library with no project reference or desktop dependency. | No public NuGet publication is performed. |
@@ -185,7 +187,7 @@ This apphost check supplied no watch URLs and performed no downloads. It proves 
 
 ### Historical 0.8.0 checks
 
-The three validation jobs in [GitHub Actions run 38055772655](https://github.com/tfgrass/oChan/actions/runs/38055772655) passed on 2026-10-10. The PR head was `49d994c75f7aebb75e157b3a7c4b28a61471ee62`; CI built merge checkout `2906d21da90efd579a867f7d6d2fa91bc6713a7f` with SDK 10.0.111.
+The three validation jobs in [GitHub Actions run 38055772655](https://github.com/tfgrass/MeowChan/actions/runs/38055772655) passed on 2026-10-10. The PR head was `49d994c75f7aebb75e157b3a7c4b28a61471ee62`; CI built merge checkout `2906d21da90efd579a867f7d6d2fa91bc6713a7f` with SDK 10.0.111.
 
 | Native runner | Offline tests | Packaging fixtures | Desktop harness |
 | --- | --- | --- | --- |
@@ -231,7 +233,7 @@ checks, not final Windows/macOS/Arm64 runtime acceptance or a release of this br
 
 ## Final artifact acceptance record
 
-For every platform promised as supported, record the source commit, SDK/runtime and resolved dependency graph, archive SHA256, actual OS/version/CPU, and native test result. Extract to a fresh directory and start from a different working directory using an isolated `OCHAN_PROFILE`. Verify:
+For every platform promised as supported, record the source commit, SDK/runtime and resolved dependency graph, archive SHA256, actual OS/version/CPU, and native test result. Extract to a fresh directory and start from a different working directory using an isolated `MEOWCHAN_PROFILE`. Verify:
 
 1. The actual packaged application starts, loads icons/resources and reports the intended version.
 2. Add, bounded download, cancellation, restart/restore and assigned download directories work.
@@ -250,17 +252,17 @@ The local 0.9.0 source-built checks, package round-trips, Linux apphost startup/
 Use the same configuration and publish properties during restore and build:
 
 ```sh
-dotnet restore oChan.sln -p:Configuration=Release --locked-mode
-dotnet build oChan.sln -c Release --no-restore
-dotnet test oChan.sln -c Release --no-build --no-restore
-dotnet restore tests/oChan.DesktopSmoke/oChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode
+dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode
+dotnet build MeowChan.sln -c Release --no-restore
+dotnet test MeowChan.sln -c Release --no-build --no-restore
+dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode
 ```
 
 For a self-contained package, replace `<RID>` with one of the five candidate identifiers:
 
 ```sh
-dotnet restore oChan.csproj -p:RuntimeIdentifier=<RID> -p:Configuration=Release -p:SelfContained=true -p:PublishSingleFile=true --locked-mode
-dotnet publish oChan.csproj -c Release --runtime <RID> --self-contained true -p:PublishSingleFile=true --no-restore --output artifacts/publish/<RID>
+dotnet restore MeowChan.csproj -p:RuntimeIdentifier=<RID> -p:Configuration=Release -p:SelfContained=true -p:PublishSingleFile=true --locked-mode
+dotnet publish MeowChan.csproj -c Release --runtime <RID> --self-contained true -p:PublishSingleFile=true --no-restore --output artifacts/publish/<RID>
 ```
 
 The restore deliberately sets the singular `RuntimeIdentifier` property. `dotnet restore --runtime` sets the plural `RuntimeIdentifiers`; with a self-contained executable, the SDK can then infer the current host as an additional runtime. Selecting the target explicitly keeps each reviewed runtime lock independent of the build host.

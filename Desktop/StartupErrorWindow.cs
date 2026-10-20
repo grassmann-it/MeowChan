@@ -5,11 +5,11 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 using System;
 using System.IO;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 /// <summary>Keeps profile and initialization failures visible even when MainWindow cannot be created.</summary>
 public sealed class StartupErrorWindow : Window
@@ -20,7 +20,7 @@ public sealed class StartupErrorWindow : Window
 
     public StartupErrorWindow(string message)
     {
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan.png"));
+        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
         Icon = new WindowIcon(iconStream);
         Width = 560;
         Height = 360;

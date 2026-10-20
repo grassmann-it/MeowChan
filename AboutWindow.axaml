@@ -1,8 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="oChan.AboutWindow"
-        Title="About oChan"
-        Icon="avares://oChan/Assets/ochan.png"
+        x:Class="MeowChan.AboutWindow"
+        Title="About MeowChan"
+        Icon="avares://MeowChan/Assets/meowchan.png"
         Width="560" Height="570" MinWidth="340" MinHeight="280"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Workspace.Background}"
@@ -22,17 +22,22 @@
     <Grid RowDefinitions="*,Auto">
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24" Spacing="18">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="oChan" FontSize="30" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="VersionText" Foreground="{DynamicResource Workspace.Muted}"/>
-                </StackPanel>
+                <Grid ColumnDefinitions="96,*" ColumnSpacing="16">
+                    <Image x:Name="CatLogo" Grid.Column="0" Width="96" Height="96"
+                           Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"
+                           Focusable="False"/>
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="MeowChan" FontSize="30" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="VersionText" Foreground="{DynamicResource Workspace.Muted}"/>
+                    </StackPanel>
+                </Grid>
                 <TextBlock x:Name="DescriptionText" FontSize="15"/>
                 <Border Background="{DynamicResource Workspace.Panel}" BorderBrush="{DynamicResource Workspace.Border}"
                         BorderThickness="1" CornerRadius="8" Padding="16">
                     <StackPanel Spacing="12">
                         <TextBlock x:Name="AuthorText"/>
                         <WrapPanel>
-                            <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/tfgrass/oChan" Click="OnLinkClick"/>
+                            <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/tfgrass/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="HistoryText"/>
@@ -48,7 +53,7 @@
                             Tag="https://github.com/feathericons/feather" Click="OnLinkClick"/>
                     <TextBlock x:Name="LicenseText" Foreground="{DynamicResource Workspace.Muted}" FontSize="12"/>
                     <Button Content="Artistic License 2.0" Classes="link" HorizontalAlignment="Left"
-                            Tag="https://github.com/tfgrass/oChan/blob/main/LICENSE" Click="OnLinkClick"/>
+                            Tag="https://github.com/tfgrass/MeowChan/blob/main/LICENSE" Click="OnLinkClick"/>
                 </StackPanel>
                 <Border x:Name="LinkErrorPanel" IsVisible="False" Background="{DynamicResource Workspace.Raised}"
                         BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="1" CornerRadius="6" Padding="12">

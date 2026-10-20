@@ -9,7 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace oChan.Desktop.Localization;
+namespace MeowChan.Desktop.Localization;
 
 public sealed record LanguageInfo(string Code, string NativeName)
 {

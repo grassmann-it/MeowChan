@@ -1,6 +1,6 @@
 # Third-party notices
 
-This file records the third-party components used by oChan's desktop application,
+This file records the third-party components used by MeowChan's desktop application,
 their licensing sources, and the full license/notice texts provided by upstream.
 The inventory was checked on **2026-10-10** against the resolved Release package
 metadata and a self-contained `linux-x64` publish using SDK `10.0.111`.
@@ -53,7 +53,8 @@ versioned NuGet archives, rather than a general assumption about Actipro product
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
   that font license.
-- `Assets/ochan.png` and `Assets/ochan.ico`: cat-head branding selected by the
+- `Assets/meowchan.png`, `Assets/meowchan.ico` and high-resolution source
+  `Assets/branding/meowchan-source.png`: cat-head branding selected by the
   project maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
   photograph supplied by the maintainer. The PNG, Windows ICO and packaged
   macOS ICNS use the same selected photographic cutout.

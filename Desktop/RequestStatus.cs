@@ -1,8 +1,8 @@
 using System;
-using oChan.Desktop.Localization;
-using oChan.Http;
+using MeowChan.Desktop.Localization;
+using MeowChan.Http;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal static class RequestStatus
 {

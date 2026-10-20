@@ -17,7 +17,7 @@ import zlib
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "package-macos.py"
-SPEC = importlib.util.spec_from_file_location("ochan_macos_packaging", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("meowchan_macos_packaging", SCRIPT)
 packaging = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(packaging)
 
@@ -41,15 +41,15 @@ def make_ico(png):
 
 class MacosPackagingTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="ochan packaging fixtures ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="meowchan packaging fixtures ")
         self.addCleanup(self.temporary.cleanup)
         # macOS may return /var while packaging resolves the same tree to /private/var.
         self.root = Path(self.temporary.name).resolve(strict=True)
         self.publish = self.root / "publish input"
         self.publish.mkdir()
-        (self.publish / "oChan").write_bytes(b"fixture executable; not runnable")
-        (self.publish / "oChan").chmod(0o640)
-        (self.publish / "oChan.dll").write_bytes(b"managed fixture")
+        (self.publish / "MeowChan").write_bytes(b"fixture executable; not runnable")
+        (self.publish / "MeowChan").chmod(0o640)
+        (self.publish / "MeowChan.dll").write_bytes(b"managed fixture")
         (self.publish / "libAvaloniaNative.dylib").write_bytes(b"native fixture")
         (self.publish / ".metadata").write_text("publish metadata", encoding="utf-8")
         notices = self.publish / "licenses"
@@ -63,7 +63,7 @@ class MacosPackagingTests(unittest.TestCase):
         self.output.mkdir()
         self.sibling = self.output / "unrelated data.txt"
         self.sibling.write_text("keep", encoding="utf-8")
-        self.archive = self.output / "oChan osx fixture.tar.gz"
+        self.archive = self.output / "MeowChan osx fixture.tar.gz"
 
     def package(self, **kwargs):
         options = dict(publish_directory=self.publish, output_directory=self.output, version="1.0.0", icon_path=self.icon)
@@ -71,12 +71,12 @@ class MacosPackagingTests(unittest.TestCase):
         return packaging.package_macos(**options)
 
     def assert_no_bundle(self):
-        self.assertFalse((self.output / "oChan.app").exists())
+        self.assertFalse((self.output / "MeowChan.app").exists())
         self.assertEqual("keep", self.sibling.read_text(encoding="utf-8"))
         self.assertEqual([self.sibling], list(self.output.iterdir()))
 
     def test_complete_bundle_preserves_source_and_siblings(self):
-        source_mode = (self.publish / "oChan").stat().st_mode
+        source_mode = (self.publish / "MeowChan").stat().st_mode
         bundle, archive = self.package()
         self.assertIsNone(archive)
         macos = bundle / "Contents" / "MacOS"
@@ -87,17 +87,17 @@ class MacosPackagingTests(unittest.TestCase):
             else:
                 self.assertTrue(target.is_dir())
         self.assertEqual("keep", self.sibling.read_text(encoding="utf-8"))
-        self.assertEqual(source_mode, (self.publish / "oChan").stat().st_mode)
+        self.assertEqual(source_mode, (self.publish / "MeowChan").stat().st_mode)
         if os.name != "nt":
-            self.assertEqual(stat.S_IMODE(source_mode) | stat.S_IXUSR, stat.S_IMODE((macos / "oChan").stat().st_mode))
+            self.assertEqual(stat.S_IMODE(source_mode) | stat.S_IXUSR, stat.S_IMODE((macos / "MeowChan").stat().st_mode))
         metadata = plistlib.loads((bundle / "Contents" / "Info.plist").read_bytes())
-        self.assertEqual("org.ochan.desktop", metadata["CFBundleIdentifier"])
+        self.assertEqual("org.meowchan.desktop", metadata["CFBundleIdentifier"])
         self.assertEqual("1.0.0", metadata["CFBundleShortVersionString"])
         self.assertEqual("1.0.0", metadata["CFBundleVersion"])
         self.assertEqual("15.0", metadata["LSMinimumSystemVersion"])
-        self.assertEqual("oChan", metadata["CFBundleExecutable"])
-        self.assertEqual("ochan.icns", metadata["CFBundleIconFile"])
-        icon = (bundle / "Contents" / "Resources" / "ochan.icns").read_bytes()
+        self.assertEqual("MeowChan", metadata["CFBundleExecutable"])
+        self.assertEqual("meowchan.icns", metadata["CFBundleIconFile"])
+        icon = (bundle / "Contents" / "Resources" / "meowchan.icns").read_bytes()
         self.assertEqual((b"icns", len(icon), b"ic08", len(icon) - 8), struct.unpack_from(">4sI4sI", icon))
         self.assertEqual(self.png, icon[16:])
         self.assertEqual(self.png, packaging.validate_icns(icon))
@@ -107,17 +107,17 @@ class MacosPackagingTests(unittest.TestCase):
         self.assertEqual(self.archive, archive_path)
         with tarfile.open(archive_path, "r:gz") as archive:
             names = set(archive.getnames())
-            expected = {"oChan.app"} | {"oChan.app/" + entry.relative_to(bundle).as_posix() for entry in bundle.rglob("*")}
+            expected = {"MeowChan.app"} | {"MeowChan.app/" + entry.relative_to(bundle).as_posix() for entry in bundle.rglob("*")}
             self.assertEqual(expected, names)
-            self.assertTrue(all(name.split("/")[0] == "oChan.app" and ".." not in name.split("/") for name in names))
+            self.assertTrue(all(name.split("/")[0] == "MeowChan.app" and ".." not in name.split("/") for name in names))
             for name in names:
                 if archive.getmember(name).isfile():
                     self.assertEqual((self.output / name).read_bytes(), archive.extractfile(name).read())
-            self.assertTrue(archive.getmember("oChan.app/Contents/MacOS/oChan").mode & stat.S_IXUSR)
+            self.assertTrue(archive.getmember("MeowChan.app/Contents/MacOS/MeowChan").mode & stat.S_IXUSR)
             self.assertNotIn("unrelated data.txt", names)
 
     def test_existing_bundle_is_untouched(self):
-        bundle = self.output / "oChan.app"
+        bundle = self.output / "MeowChan.app"
         bundle.mkdir()
         marker = bundle / "existing.txt"
         marker.write_text("existing", encoding="utf-8")
@@ -130,19 +130,19 @@ class MacosPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(packaging.PackagingError, "overwrite"):
             self.package(archive_path=self.archive)
         self.assertEqual(b"previous archive", self.archive.read_bytes())
-        self.assertFalse((self.output / "oChan.app").exists())
+        self.assertFalse((self.output / "MeowChan.app").exists())
 
     def test_missing_input_and_executable_are_rejected(self):
         with self.assertRaises(packaging.PackagingError):
             self.package(publish_directory=self.root / "missing")
-        (self.publish / "oChan").unlink()
+        (self.publish / "MeowChan").unlink()
         with self.assertRaisesRegex(packaging.PackagingError, "executable"):
             self.package()
         self.assert_no_bundle()
 
     def test_file_input_is_rejected(self):
         with self.assertRaisesRegex(packaging.PackagingError, "directory"):
-            self.package(publish_directory=self.publish / "oChan")
+            self.package(publish_directory=self.publish / "MeowChan")
         self.assert_no_bundle()
 
     def test_invalid_version_is_rejected(self):
@@ -173,11 +173,11 @@ class MacosPackagingTests(unittest.TestCase):
     def test_output_must_not_overlap_publish_tree(self):
         with self.assertRaisesRegex(packaging.PackagingError, "overlap"):
             self.package(output_directory=self.publish)
-        self.assertFalse((self.publish / "oChan.app").exists())
+        self.assertFalse((self.publish / "MeowChan.app").exists())
         with self.assertRaisesRegex(packaging.PackagingError, "outside"):
             self.package(archive_path=self.publish / "output.tar.gz")
         with self.assertRaisesRegex(packaging.PackagingError, "outside"):
-            self.package(archive_path=self.output / "oChan.app" / "output.tar.gz")
+            self.package(archive_path=self.output / "MeowChan.app" / "output.tar.gz")
         self.assert_no_bundle()
 
     def test_archive_extension_is_validated(self):
@@ -198,12 +198,12 @@ class MacosPackagingTests(unittest.TestCase):
         self.assertTrue(link.is_symlink())
         self.assertEqual("libAvaloniaNative.dylib", os.readlink(link))
         with tarfile.open(self.archive, "r:gz") as archive:
-            entry = archive.getmember("oChan.app/Contents/MacOS/native-alias.dylib")
+            entry = archive.getmember("MeowChan.app/Contents/MacOS/native-alias.dylib")
             self.assertTrue(entry.issym())
             self.assertEqual("libAvaloniaNative.dylib", entry.linkname)
 
     def test_executable_must_not_be_a_symbolic_link(self):
-        executable = self.publish / "oChan"
+        executable = self.publish / "MeowChan"
         executable.rename(self.publish / "real-apphost")
         self.symlink("real-apphost", executable)
         with self.assertRaisesRegex(packaging.PackagingError, "regular file"):
@@ -236,7 +236,7 @@ class MacosPackagingTests(unittest.TestCase):
         self.assert_no_bundle()
 
     def test_dangling_destination_links_are_not_overwritten(self):
-        destination = self.output / "oChan.app"
+        destination = self.output / "MeowChan.app"
         self.symlink("missing", destination)
         with self.assertRaisesRegex(packaging.PackagingError, "overwrite"):
             self.package()
@@ -264,11 +264,11 @@ class MacosPackagingTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 self.package(archive_path=self.archive)
         self.assertEqual(b"concurrent owner", self.archive.read_bytes())
-        self.assertFalse((self.output / "oChan.app").exists())
+        self.assertFalse((self.output / "MeowChan.app").exists())
 
     def test_bundle_collision_during_packaging_is_preserved(self):
         original = packaging.write_archive
-        destination = self.output / "oChan.app"
+        destination = self.output / "MeowChan.app"
 
         def race(bundle, archive):
             original(bundle, archive)

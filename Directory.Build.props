@@ -1,14 +1,14 @@
 <Project>
   <PropertyGroup>
     <Version>0.9.0</Version>
-    <OChanUsesReleaseLock Condition="'$(Configuration)' == 'Release' and ('$(MSBuildProjectName)' == 'oChan' or '$(MSBuildProjectName)' == 'libochan' or '$(MSBuildProjectName)' == 'oChan.Tests' or '$(MSBuildProjectName)' == 'oChan.DesktopTests' or '$(MSBuildProjectName)' == 'oChan.DesktopSmoke')">true</OChanUsesReleaseLock>
+    <MeowChanUsesReleaseLock Condition="'$(Configuration)' == 'Release' and ('$(MSBuildProjectName)' == 'MeowChan' or '$(MSBuildProjectName)' == 'libmeowchan' or '$(MSBuildProjectName)' == 'MeowChan.Tests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopTests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopSmoke')">true</MeowChanUsesReleaseLock>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(OChanUsesReleaseLock)' == 'true'">
+  <PropertyGroup Condition="'$(MeowChanUsesReleaseLock)' == 'true'">
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <OChanReleaseLockRuntime>$(RuntimeIdentifier)</OChanReleaseLockRuntime>
-    <OChanReleaseLockRuntime Condition="'$(OChanReleaseLockRuntime)' == ''">$(RuntimeIdentifiers)</OChanReleaseLockRuntime>
-    <NuGetLockFilePath Condition="'$(OChanReleaseLockRuntime)' == ''">$(MSBuildProjectDirectory)/packages.release.lock.json</NuGetLockFilePath>
-    <NuGetLockFilePath Condition="'$(OChanReleaseLockRuntime)' != ''">$(MSBuildProjectDirectory)/packages.release.$(OChanReleaseLockRuntime).lock.json</NuGetLockFilePath>
+    <MeowChanReleaseLockRuntime>$(RuntimeIdentifier)</MeowChanReleaseLockRuntime>
+    <MeowChanReleaseLockRuntime Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(RuntimeIdentifiers)</MeowChanReleaseLockRuntime>
+    <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(MSBuildProjectDirectory)/packages.release.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' != ''">$(MSBuildProjectDirectory)/packages.release.$(MeowChanReleaseLockRuntime).lock.json</NuGetLockFilePath>
     <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
   </PropertyGroup>
 </Project>

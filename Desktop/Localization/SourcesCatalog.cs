@@ -1,4 +1,4 @@
-namespace oChan.Desktop.Localization;
+namespace MeowChan.Desktop.Localization;
 
 internal static class SourcesCatalog
 {

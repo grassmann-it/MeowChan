@@ -4,11 +4,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
-using oChan.Archive;
-using oChan.Desktop.Localization;
-using oChan.Storage;
+using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
+using MeowChan.Storage;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary)
 {

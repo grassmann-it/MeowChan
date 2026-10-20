@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an unsigned oChan.app from an existing macOS dotnet publish directory.
+"""Build an unsigned MeowChan.app from an existing macOS dotnet publish directory.
 
 The 15.0 deployment floor is a candidate baseline, not evidence of a native run.
 Only Python's standard library is required. No signing or notarization is done.
@@ -22,9 +22,9 @@ import tempfile
 import zlib
 
 
-BUNDLE_NAME = "oChan.app"
+BUNDLE_NAME = "MeowChan.app"
 MINIMUM_MACOS_VERSION = "15.0"
-DEFAULT_ICON = Path(__file__).resolve().parents[1] / "Assets" / "ochan.ico"
+DEFAULT_ICON = Path(__file__).resolve().parents[1] / "Assets" / "meowchan.ico"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -117,12 +117,12 @@ def bundle_metadata(version: str) -> dict[str, object]:
         raise PackagingError("Version must contain three numeric components, for example 1.0.0.")
     return {
         "CFBundleDevelopmentRegion": "en",
-        "CFBundleDisplayName": "oChan",
-        "CFBundleExecutable": "oChan",
-        "CFBundleIconFile": "ochan.icns",
-        "CFBundleIdentifier": "org.ochan.desktop",
+        "CFBundleDisplayName": "MeowChan",
+        "CFBundleExecutable": "MeowChan",
+        "CFBundleIconFile": "meowchan.icns",
+        "CFBundleIdentifier": "org.meowchan.desktop",
         "CFBundleInfoDictionaryVersion": "6.0",
-        "CFBundleName": "oChan",
+        "CFBundleName": "MeowChan",
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": version,
         "CFBundleVersion": version,
@@ -136,9 +136,9 @@ def path_present(path: Path) -> bool:
 
 
 def validate_publish_tree(publish_directory: Path) -> None:
-    executable = publish_directory / "oChan"
+    executable = publish_directory / "MeowChan"
     if executable.is_symlink() or not executable.is_file():
-        raise PackagingError("Publish directory must contain the oChan executable as a regular file.")
+        raise PackagingError("Publish directory must contain the MeowChan executable as a regular file.")
     for path in publish_directory.rglob("*"):
         if path.is_symlink():
             target = Path(os.readlink(path))
@@ -159,11 +159,11 @@ def validate_bundle(bundle: Path, metadata: dict[str, object], original_png: byt
     plist_path = bundle / "Contents" / "Info.plist"
     if plistlib.loads(plist_path.read_bytes()) != metadata:
         raise PackagingError("Info.plist did not survive its structural round trip.")
-    if validate_icns((bundle / "Contents" / "Resources" / "ochan.icns").read_bytes()) != original_png:
+    if validate_icns((bundle / "Contents" / "Resources" / "meowchan.icns").read_bytes()) != original_png:
         raise PackagingError("The ICNS icon does not preserve the source PNG.")
-    executable = bundle / "Contents" / "MacOS" / "oChan"
+    executable = bundle / "Contents" / "MacOS" / "MeowChan"
     if not executable.is_file() or (os.name != "nt" and not executable.stat().st_mode & stat.S_IXUSR):
-        raise PackagingError("The bundled oChan executable is missing or not executable.")
+        raise PackagingError("The bundled MeowChan executable is missing or not executable.")
     if sys.platform == "darwin" and shutil.which("plutil"):
         result = subprocess.run(["plutil", "-lint", str(plist_path)], capture_output=True, text=True, check=False)
         if result.returncode:
@@ -173,7 +173,7 @@ def validate_bundle(bundle: Path, metadata: dict[str, object], original_png: byt
 def write_archive(bundle: Path, archive_path: Path) -> None:
     def archive_permissions(member: tarfile.TarInfo) -> tarfile.TarInfo:
         # Windows cannot represent POSIX executable bits in its filesystem.
-        if member.name == f"{BUNDLE_NAME}/Contents/MacOS/oChan":
+        if member.name == f"{BUNDLE_NAME}/Contents/MacOS/MeowChan":
             member.mode |= stat.S_IXUSR
         return member
 
@@ -187,7 +187,7 @@ def write_archive(bundle: Path, archive_path: Path) -> None:
         plist = archive.extractfile(f"{BUNDLE_NAME}/Contents/Info.plist")
         if plist is None or plist.read() != (bundle / "Contents" / "Info.plist").read_bytes():
             raise PackagingError("The archive contains an invalid Info.plist.")
-        if not archive.getmember(f"{BUNDLE_NAME}/Contents/MacOS/oChan").mode & stat.S_IXUSR:
+        if not archive.getmember(f"{BUNDLE_NAME}/Contents/MacOS/MeowChan").mode & stat.S_IXUSR:
             raise PackagingError("The archive lost the executable permission.")
 
 
@@ -231,16 +231,16 @@ def package_macos(
     created_bundle = False
     created_archive = False
     try:
-        with tempfile.TemporaryDirectory(prefix=".ochan-macos-", dir=destination.parent) as staging:
+        with tempfile.TemporaryDirectory(prefix=".meowchan-macos-", dir=destination.parent) as staging:
             staged_bundle = Path(staging) / BUNDLE_NAME
             contents = staged_bundle / "Contents"
             contents.mkdir(parents=True)
             shutil.copytree(source, contents / "MacOS", symlinks=True)
             resources = contents / "Resources"
             resources.mkdir()
-            (resources / "ochan.icns").write_bytes(make_icns(original_png))
+            (resources / "meowchan.icns").write_bytes(make_icns(original_png))
             (contents / "Info.plist").write_bytes(plistlib.dumps(metadata, fmt=plistlib.FMT_XML, sort_keys=True))
-            executable = contents / "MacOS" / "oChan"
+            executable = contents / "MacOS" / "MeowChan"
             executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
             validate_bundle(staged_bundle, metadata, original_png)
             staged_archive = Path(staging) / "application.tar.gz"

@@ -7,7 +7,7 @@ not changed.
 
 Additional languages are optional, data-only JSON files in the active profile's
 `LanguagePacks` directory. Use the same profile as `settings.json` (including when
-`OCHAN_PROFILE` selects a custom profile). The desktop reads these files at startup;
+`MEOWCHAN_PROFILE` selects a custom profile). The desktop reads these files at startup;
 it does not create or write language packs. Select an accepted language in Settings.
 
 ## Format, schema version 1

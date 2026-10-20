@@ -4,17 +4,17 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using oChan.Boards.EightKun;
-using oChan.Boards.FourChan;
-using oChan.Downloader;
-using oChan.Interfaces;
-using oChan.Persistence;
+using MeowChan.Boards.EightKun;
+using MeowChan.Boards.FourChan;
+using MeowChan.Downloader;
+using MeowChan.Interfaces;
+using MeowChan.Persistence;
 using Serilog;
-using oChan.Archive;
-using oChan.Boards.Base;
-using oChan.Rules;
+using MeowChan.Archive;
+using MeowChan.Boards.Base;
+using MeowChan.Rules;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal enum DesktopSessionState { Starting, Ready, RecoveryFailed, Stopping, Stopped }
 
@@ -60,7 +60,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
     public string? StartupError { get { lock (_lifecycle) { return _startupError; } } }
     public event Action? StateChanged;
 
-    public DesktopSessionHost() : this(global::oChan.Config.GetConfigDirectory()) { }
+    public DesktopSessionHost() : this(global::MeowChan.Config.GetConfigDirectory()) { }
 
     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
@@ -71,7 +71,7 @@ internal sealed class DesktopSessionHost : IAsyncDisposable
         DownloadQueue? queue = null;
         try
         {
-            Config = global::oChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
             queue.SetPaused(Config.DownloadsPaused);

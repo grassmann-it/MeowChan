@@ -2,7 +2,7 @@ using Avalonia;
 using System;
 using Serilog;
 
-namespace oChan;
+namespace MeowChan;
 
 internal static class Program
 {

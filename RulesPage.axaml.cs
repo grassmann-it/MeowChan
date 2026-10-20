@@ -9,10 +9,10 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using oChan.Desktop.Localization;
-using oChan.Rules;
+using MeowChan.Desktop.Localization;
+using MeowChan.Rules;
 
-namespace oChan;
+namespace MeowChan;
 
 public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 

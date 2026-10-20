@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace oChan.Models
+namespace MeowChan.Models
 {
     /// <summary>
     /// Represents the URLs to be saved and loaded.

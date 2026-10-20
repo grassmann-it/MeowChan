@@ -2,10 +2,10 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using oChan.Desktop.Localization;
-using oChan.Interfaces;
+using MeowChan.Desktop.Localization;
+using MeowChan.Interfaces;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 /// <summary>Passive binding state. Its owner applies snapshots on the desktop dispatcher.</summary>
 public sealed class ThreadRow : INotifyPropertyChanged, IDisposable

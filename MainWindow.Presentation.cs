@@ -10,10 +10,10 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class MainWindow
 {

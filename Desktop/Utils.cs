@@ -1,4 +1,4 @@
-namespace oChan;
+namespace MeowChan;
 
 using System;
 using System.IO;

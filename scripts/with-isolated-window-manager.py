@@ -8,7 +8,7 @@ import time
 
 
 def main() -> int:
-    if os.environ.get("OCHAN_DESKTOP_SMOKE_XVFB") != "1" or not os.environ.get("DISPLAY"):
+    if os.environ.get("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1" or not os.environ.get("DISPLAY"):
         raise RuntimeError("This helper requires the isolated smoke runner's Xvfb environment")
     if len(sys.argv) < 3 or sys.argv[1] != "--":
         raise ValueError("Expected -- followed by the harness command")

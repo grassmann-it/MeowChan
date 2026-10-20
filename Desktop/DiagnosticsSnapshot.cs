@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal enum DiagnosticTargetKind { Thread, Board }
 internal sealed record DiagnosticTarget(DiagnosticTargetKind Kind, long WatchId);
@@ -18,9 +18,9 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
     {
         List<DiagnosticEntry> entries = new List<DiagnosticEntry>();
         if (view.StartupError is string startupError)
-            entries.Add(new DiagnosticEntry("startup", Texts.T("diagnostics.session"), "oChan", startupError, startupError, null));
+            entries.Add(new DiagnosticEntry("startup", Texts.T("diagnostics.session"), "MeowChan", startupError, startupError, null));
         foreach (string warning in view.Warnings.Distinct(StringComparer.Ordinal))
-            entries.Add(new DiagnosticEntry("warning:" + warning, Texts.T("diagnostics.warning"), "oChan", warning, warning, null));
+            entries.Add(new DiagnosticEntry("warning:" + warning, Texts.T("diagnostics.warning"), "MeowChan", warning, warning, null));
         foreach (DesktopThreadEntry thread in view.Threads)
         {
             ThreadSnapshot snapshot = thread.Snapshot;

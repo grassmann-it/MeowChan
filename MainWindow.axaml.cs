@@ -8,8 +8,8 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using Avalonia.Styling;
 using Avalonia.Media;
 using Serilog;
@@ -21,7 +21,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class MainWindow : Window
 {
@@ -462,9 +462,9 @@ public partial class MainWindow : Window
     private void ConfigureTrayIcon(TrayIcon trayIcon)
     {
         _trayPlatformSettings = Application.Current?.PlatformSettings;
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://oChan/Assets/ochan.png"));
+        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
         trayIcon.Icon = new WindowIcon(iconStream);
-        trayIcon.ToolTipText = "oChan - Image Downloader";
+        trayIcon.ToolTipText = "MeowChan - Image Downloader";
         NativeMenu menu = new NativeMenu();
         NativeMenuItem openItem = CreateTrayMenuItem(Texts.T("tray.open"), "list");
         _trayOpenItem = openItem;
@@ -576,7 +576,7 @@ public partial class MainWindow : Window
         string asset = (dark ? "light/" : string.Empty) + name;
         if (_trayMenuIcons.TryGetValue(asset, out Bitmap? cached))
             return cached;
-        using Stream stream = AssetLoader.Open(new Uri($"avares://oChan/Assets/icons/{asset}.png"));
+        using Stream stream = AssetLoader.Open(new Uri($"avares://MeowChan/Assets/icons/{asset}.png"));
         Bitmap bitmap = new Bitmap(stream);
         _trayMenuIcons.Add(asset, bitmap);
         return bitmap;

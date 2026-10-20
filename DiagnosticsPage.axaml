@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:oChan.Desktop"
-             x:Class="oChan.DiagnosticsPage">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             x:Class="MeowChan.DiagnosticsPage">
     <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
         <StackPanel Spacing="5">
             <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />

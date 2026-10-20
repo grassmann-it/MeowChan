@@ -61,6 +61,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -> dict[str, str]:
     environment = base.copy()
+    environment.pop("MEOWCHAN_PROFILE", None)
+    environment.pop("OCHAN_PROFILE", None)
+    environment["MEOWCHAN_PROFILE"] = str((directory / "profile").resolve())
     if isolated:
         for name in SESSION_VARIABLES:
             environment.pop(name, None)
@@ -70,7 +73,7 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
             location = directory / child
             location.mkdir(mode=0o700)
             environment[name] = str(location)
-        environment["OCHAN_DESKTOP_SMOKE_XVFB"] = "1"
+        environment["MEOWCHAN_DESKTOP_SMOKE_XVFB"] = "1"
         environment["XDG_SESSION_TYPE"] = "x11"
         # No service directories: the test bus must not auto-start desktop portals,
         # accessibility daemons or user-systemd services from the host installation.
@@ -80,7 +83,7 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
             '<policy context="default"><allow send_destination="*" eavesdrop="true"/>'
             '<allow eavesdrop="true"/><allow own="*"/></policy></busconfig>', encoding="utf-8")
     else:
-        environment.pop("OCHAN_DESKTOP_SMOKE_XVFB", None)
+        environment.pop("MEOWCHAN_DESKTOP_SMOKE_XVFB", None)
     return environment
 
 
@@ -137,7 +140,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     interrupted = False
     error = None
     exit_code = 1
-    with tempfile.TemporaryDirectory(prefix="ochan-smoke-cwd-") as working_directory:
+    with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         if isolated:
             manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()

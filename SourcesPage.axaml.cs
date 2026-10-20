@@ -7,10 +7,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class SourcesPage : UserControl
 {

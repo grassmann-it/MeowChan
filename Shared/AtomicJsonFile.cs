@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace oChan.Persistence;
+namespace MeowChan.Persistence;
 
 /// <summary>Single-writer atomic replacement within one filesystem directory.</summary>
 internal static class AtomicJsonFile

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Consume a local libochan nupkg through PackageReference and a fresh package cache."""
+"""Consume a local libmeowchan nupkg through PackageReference and a fresh package cache."""
 from __future__ import annotations
 
 import argparse
@@ -28,14 +28,14 @@ def inspect_package(package: Path) -> tuple[str, str]:
         root = ET.fromstring(archive.read(nuspecs[0]))
         metadata = next(item for item in root if item.tag.rsplit("}", 1)[-1] == "metadata")
         package_id, version = child_text(metadata, "id"), child_text(metadata, "version")
-        if package_id.lower() != "libochan":
+        if package_id.lower() != "libmeowchan":
             raise ValueError(f"Unexpected candidate package ID: {package_id}")
         for item in metadata.iter():
             dependency = item.attrib.get("id", "").lower()
-            if dependency.startswith(("avalonia", "actipro")) or dependency == "ochan":
+            if dependency.startswith(("avalonia", "actipro")) or dependency in {"ochan", "meowchan"}:
                 raise ValueError(f"Desktop dependency leaked into library package: {dependency}")
         assemblies = [name for name in archive.namelist() if name.endswith(".dll")]
-        if assemblies != ["lib/net10.0/libochan.dll"]:
+        if assemblies != ["lib/net10.0/libmeowchan.dll"]:
             raise ValueError(f"Unexpected package assemblies: {assemblies}")
         if not any(name.lower().endswith(("license", "license.txt", "license.md")) for name in archive.namelist()):
             raise ValueError("Package must include its project license.")
@@ -52,13 +52,13 @@ def main() -> int:
     args = parser.parse_args()
     feed = Path(args.feed).resolve(strict=True)
     consumer = Path(args.consumer).resolve(strict=True)
-    candidates = sorted(feed.glob("libochan.*.nupkg"))
+    candidates = sorted(feed.glob("libmeowchan.*.nupkg"))
     if len(candidates) != 1:
-        raise ValueError(f"Expected one unambiguous libochan candidate, found {len(candidates)}.")
+        raise ValueError(f"Expected one unambiguous libmeowchan candidate, found {len(candidates)}.")
     package = candidates[0]
     package_id, version = inspect_package(package)
     candidate_hash = hashlib.sha256(package.read_bytes()).hexdigest()
-    with tempfile.TemporaryDirectory(prefix="ochan-package-consumer-") as directory:
+    with tempfile.TemporaryDirectory(prefix="meowchan-package-consumer-") as directory:
         temporary = Path(directory)
         cache = temporary / "packages"
         config = ET.Element("configuration")
@@ -75,7 +75,7 @@ def main() -> int:
         environment = dict(os.environ)
         environment["NUGET_PACKAGES"] = str(cache)
         environment["NUGET_HTTP_CACHE_PATH"] = str(temporary / "http-cache")
-        version_property = "-p:LibOChanVersion=" + version
+        version_property = "-p:LibMeowChanVersion=" + version
         def run(arguments: list[str]) -> None:
             subprocess.run(arguments, cwd=consumer.parent, env=environment, check=True, timeout=240)
         run(["dotnet", "restore", str(consumer), "--configfile", str(config_path),
@@ -85,12 +85,12 @@ def main() -> int:
             dependency_id = name.rsplit("/", 1)[0].lower()
             if item["type"] == "project":
                 raise ValueError(f"Consumer has a forbidden ProjectReference: {name}")
-            if dependency_id.startswith(("avalonia", "actipro")) or dependency_id == "ochan":
+            if dependency_id.startswith(("avalonia", "actipro")) or dependency_id in {"ochan", "meowchan"}:
                 raise ValueError(f"Desktop dependency leaked into consumer: {name}")
         restored_entry = next((item for name, item in assets["libraries"].items()
                                if name.rsplit("/", 1)[0].lower() == package_id.lower()), None)
         if restored_entry is None:
-            raise ValueError("Consumer did not resolve libochan.")
+            raise ValueError("Consumer did not resolve libmeowchan.")
         restored_directory = (cache / restored_entry["path"]).resolve(strict=True)
         if not restored_directory.is_relative_to(cache.resolve()):
             raise ValueError("Package was restored outside the isolated cache.")

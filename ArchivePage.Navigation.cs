@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using oChan.Archive;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
-using oChan.Interfaces;
+using MeowChan.Archive;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+using MeowChan.Interfaces;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class ArchivePage
 {

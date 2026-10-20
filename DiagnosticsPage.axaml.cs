@@ -5,11 +5,11 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
-using oChan.Interfaces;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+using MeowChan.Interfaces;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class DiagnosticsPage : UserControl
 {

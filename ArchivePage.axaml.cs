@@ -10,14 +10,14 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
-using oChan.Archive;
-using oChan.Desktop;
-using oChan.Desktop.Localization;
-using oChan.Interfaces;
-using oChan.Storage;
+using MeowChan.Archive;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+using MeowChan.Interfaces;
+using MeowChan.Storage;
 using SkiaSharp;
 
-namespace oChan;
+namespace MeowChan;
 
 public partial class ArchivePage : UserControl
 {

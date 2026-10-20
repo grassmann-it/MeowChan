@@ -1,7 +1,7 @@
-using oChan.Interfaces;
-using oChan.Desktop.Localization;
+using MeowChan.Interfaces;
+using MeowChan.Desktop.Localization;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 internal static class CheckActionText
 {

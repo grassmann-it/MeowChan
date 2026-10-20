@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Avalonia.Threading;
 
-namespace oChan.Desktop;
+namespace MeowChan.Desktop;
 
 /// <summary>At most one pending UI update, with a fresh read after each burst of changes.</summary>
 internal sealed class CoalescedUiUpdate : IDisposable

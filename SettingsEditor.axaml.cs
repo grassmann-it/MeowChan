@@ -10,9 +10,9 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using oChan.Desktop.Localization;
+using MeowChan.Desktop.Localization;
 
-namespace oChan
+namespace MeowChan
 {
     public partial class SettingsEditor : UserControl, INotifyPropertyChanged
     {
