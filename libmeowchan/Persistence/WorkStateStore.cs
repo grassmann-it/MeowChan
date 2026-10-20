@@ -179,7 +179,10 @@ public sealed class WorkStateStore : IWorkStateStore
 
     private SqliteConnection Open()
     {
-        SqliteConnection db = new(new SqliteConnectionStringBuilder { DataSource = _databasePath, Mode = SqliteOpenMode.ReadWriteCreate }.ToString());
+        // Operations own short-lived native connections. Pooling would retain database
+        // handles beyond the profile lease and prevent moving/deleting a closed profile on Windows.
+        SqliteConnection db = new(new SqliteConnectionStringBuilder
+        { DataSource = _databasePath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
         db.Open();
         return db;
     }

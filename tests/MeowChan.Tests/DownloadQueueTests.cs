@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using MeowChan.Storage;
 
 namespace MeowChan.Tests;
 
@@ -104,16 +105,29 @@ public sealed class DownloadQueueTests
         using TempDirectory directory = new();
         using GatedMediaHandler handler = new();
         using StubImageBoard board = new(handler);
-        DownloadQueue queue = new(1, UnthrottledBandwidth);
+        MediaStore store = new();
+        DownloadQueue queue = new(1, UnthrottledBandwidth, mediaStore: store);
         DownloadItem item = CreateItem(board, Thread(board, 1), directory, "blocked/media.bin", "one");
-        Directory.CreateDirectory(Path.GetDirectoryName(item.DestinationPath)!);
+        DownloadItem seed = CreateItem(board, item.Thread, directory, "blocked/seed.bin", "seed");
+        using (MemoryStream payload = new(Payload, writable: false))
+            await store.CommitAsync(seed, payload, CancellationToken.None);
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(item.DestinationPath)!, ".meowchan-manifest.json")));
+        Assert.False(File.Exists(item.DestinationPath));
         using FileStream lease = new(Path.Combine(Path.GetDirectoryName(item.DestinationPath)!, ".meowchan-store.lock"),
             FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        using CancellationTokenSource probeCancellation = new();
+        // This call executes through the real restore-input check into the held file lease.
+        // It also holds this store's directory semaphore, gating the queue's restore worker.
+        Task<MediaCommitResult?> restoreProbe = store.TryRestoreAsync(item, probeCancellation.Token);
         try
         {
+            Assert.False(restoreProbe.IsCompleted);
             Assert.True(queue.TryEnqueue(item));
             Assert.Equal(1, queue.GetCapacitySnapshot().Active);
             await queue.SetPausedAsync(true).WaitAsync(TestWait.Timeout);
+            Assert.False(restoreProbe.IsCompleted);
+            probeCancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => restoreProbe.WaitAsync(TestWait.Timeout));
             lease.Dispose();
             Assert.Equal(0, handler.RequestCount);
             Assert.Equal(0, queue.GetCapacitySnapshot().Active);
@@ -123,7 +137,12 @@ public sealed class DownloadQueueTests
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(1, handler.RequestCount);
         }
-        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+        finally
+        {
+            probeCancellation.Cancel();
+            try { await restoreProbe; } catch (OperationCanceledException) { }
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
     }
 
     [Fact]

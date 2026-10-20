@@ -15,6 +15,29 @@ public sealed class WorkStateLifecycleTests
     private const string ThreadUrl = "https://stub.test/g/thread/123";
 
     [Fact]
+    public void CompletedWorkStoreOperationsReleaseNativeDatabaseHandles()
+    {
+        using TempDirectory directory = new();
+        string database = Path.Combine(directory.Path, "work-state.sqlite");
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            WorkStateStore store = new(directory.Path, lease);
+            store.CommitIntent(new WorkResource { Url = ThreadUrl, OutputRoot = directory.Path,
+                Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
+            Assert.Single(store.LoadResources());
+        }
+        // Windows rejects this exclusive open if a disposed connection was returned to
+        // SQLite's global pool with its native handle still open. Do not clear any pools.
+        using (FileStream exclusive = new(database, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            Assert.True(exclusive.Length > 0);
+        string moved = database + ".moved";
+        File.Move(database, moved);
+        File.Delete(moved);
+        Assert.False(File.Exists(database));
+        Assert.False(File.Exists(moved));
+    }
+
+    [Fact]
     public void AuthorityPreservesFirstEndAndRejectsOldGenerationCallbacks()
     {
         using TempDirectory directory = new();
@@ -154,6 +177,8 @@ public sealed class WorkStateLifecycleTests
         await registry.AddAsync(ThreadUrl);
         await TestWait.UntilAsync(() => observed?.Checks == 1);
         await TestWait.UntilAsync(() => store.LoadResources().Single().Intent == WorkIntent.Completed);
+        // Durable completion precedes the asynchronous removal of the public watch.
+        await TestWait.UntilAsync(() => registry.Threads.Count == 0);
         Assert.Empty(registry.Threads);
         Assert.Equal(ThreadSourceStateValue.NotFound, store.LoadResources().Single().Source);
         Assert.DoesNotContain(store.LoadResources(), item => item.Intent == WorkIntent.Suppressed);
@@ -730,7 +755,7 @@ public sealed class WorkStateLifecycleTests
     private static void ReplacePayload<T>(string directory, string table, T value)
     {
         using SqliteConnection db = new(new SqliteConnectionStringBuilder
-            { DataSource = Path.Combine(directory, "work-state.sqlite") }.ToString());
+            { DataSource = Path.Combine(directory, "work-state.sqlite"), Pooling = false }.ToString());
         db.Open();
         using SqliteCommand command = db.CreateCommand();
         command.CommandText = "UPDATE " + table + " SET payload=$payload";
