@@ -7,8 +7,10 @@
     <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
         <Border Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
-                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <TextBlock Text="MeowChan" Classes="brand" />
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Image Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
+                           Stretch="Uniform" VerticalAlignment="Center" AutomationProperties.Name="MeowChan" />
+                    <TextBlock Text="MeowChan" Classes="brand" VerticalAlignment="Center" />
                     <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"

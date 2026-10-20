@@ -1,6 +1,12 @@
-<img src="Assets/meowchan.png" alt="MeowChan cat logo" width="192">
+<p align="center">
+  <img src="Assets/meowchan.png" alt="MeowChan cat logo" width="256">
+</p>
 
-# MeowChan
+<h1 align="center">MeowChan</h1>
+
+<p align="center"><strong>0.9.0 · In preparation</strong></p>
+
+<p align="center">oChan is now MeowChan.<br>Save threads. Browse your archive. Keep it offline.</p>
 
 MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
