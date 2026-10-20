@@ -29,6 +29,7 @@ public partial class App : Application
                 Log.Error(exception, "Desktop startup failed.");
                 desktop.MainWindow = new StartupErrorWindow(exception.Message);
             }
+            Program.StartupSmoke?.Attach(desktop, desktop.MainWindow);
         }
 
         base.OnFrameworkInitializationCompleted();
