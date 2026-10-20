@@ -200,6 +200,20 @@
         "resolved": "8.3.1.3",
         "contentHash": "bx8CE8Js+XGX8PUxAHCBDEORt5aaBYtMN4Hr9QFs57Xithh6yjUyYqksizH6eRDhJkwsGI+SXWmPmMm8lZC9Pw=="
       },
+      "LibVLCSharp": {
+        "type": "Transitive",
+        "resolved": "3.10.2",
+        "contentHash": "WNLHBIK5QcOH0kNGBGupKC9Ds3hksPthHyp6ueE8zG5Hy/6EBwAU0BbMqukBCdLatCOY+V9DYHDwSVSXSmPGSA=="
+      },
+      "LibVLCSharp.Avalonia": {
+        "type": "Transitive",
+        "resolved": "3.10.2",
+        "contentHash": "ctYpV1iUYKXgpKCgd4+7zs5qX9kUHpx8RUsOwA7peIdPMNsSISwynBZ1g5vGwTq1SMjI9iEWIP1pDN1y7ck28g==",
+        "dependencies": {
+          "Avalonia": "11.3.13",
+          "LibVLCSharp": "3.10.2"
+        }
+      },
       "MicroCom.Runtime": {
         "type": "Transitive",
         "resolved": "0.11.6",
@@ -383,6 +397,16 @@
         "resolved": "0.94.1",
         "contentHash": "11YMr7FnAbL83bQmVxlhbIKHvSLxjO81D12Ej0QMSGXMDTxNA9MTOa4MQxx43nv5el/efuPHwzyrj6a5ha2gug=="
       },
+      "VideoLAN.LibVLC.Mac": {
+        "type": "Transitive",
+        "resolved": "3.1.3.2",
+        "contentHash": "UKX1vtHZUybjnntwQ1nWjgGxKZZ/NNECpxH2LeAqdkOSQcRbH8+f/0jc/TKdqxFOyoLBG+4SBXIx+85WBrUy+Q=="
+      },
+      "VideoLAN.LibVLC.Windows": {
+        "type": "Transitive",
+        "resolved": "3.0.24",
+        "contentHash": "U8SHuJr8eAC3x4+gEtOJD2heReo0tTWP3v21NunYNTzjmHpVp7qELs8phohqazxHMkaSIN8LufdIpAhldiLL/A=="
+      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -440,10 +464,13 @@
           "Avalonia.Controls.DataGrid": "[12.1.2, )",
           "Avalonia.Desktop": "[12.1.4, )",
           "Avalonia.Fonts.Inter": "[12.1.4, )",
+          "LibVLCSharp.Avalonia": "[3.10.2, )",
           "Serilog": "[4.0.2, )",
           "Serilog.Extensions.Logging": "[8.0.0, )",
           "Serilog.Sinks.Console": "[6.0.0, )",
           "Serilog.Sinks.File": "[6.0.0, )",
+          "VideoLAN.LibVLC.Mac": "[3.1.3.2, )",
+          "VideoLAN.LibVLC.Windows": "[3.0.24, )",
           "libmeowchan": "[0.9.0, )"
         }
       }

@@ -151,6 +151,8 @@ jobs:
         run: dotnet restore MeowChan.csproj -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained application
         run: dotnet publish MeowChan.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output publish-output/${{ matrix.runtime }}
+      - name: Validate selected external video runtime
+        run: python scripts/check-video-native.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
       - name: Retain resolved publish dependency and runtime packs
         shell: bash
         run: |

@@ -15,6 +15,13 @@
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+    <!-- Portable restores include both native packages on every host; copying remains host/RID-specific. -->
+    <VlcWindowsX64Enabled Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')))">true</VlcWindowsX64Enabled>
+    <VlcWindowsX64Enabled Condition="'$(VlcWindowsX64Enabled)' == ''">false</VlcWindowsX64Enabled>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <VlcWindowsArm64Enabled>false</VlcWindowsArm64Enabled>
+    <VlcMacEnabled Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')))">true</VlcMacEnabled>
+    <VlcMacEnabled Condition="'$(VlcMacEnabled)' == ''">false</VlcMacEnabled>
     <!-- Runtime and self-contained/single-file options are selected when publishing. -->
   </PropertyGroup>
 
@@ -25,6 +32,11 @@
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="LibVLCSharp.Avalonia" Version="3.10.2" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24"
+                      Condition="'$(RuntimeIdentifier)' == 'win-x64' Or $([System.String]::Copy('$(RuntimeIdentifiers)').Contains('win-x64')) Or ('$(RuntimeIdentifier)' == '' And '$(RuntimeIdentifiers)' == '')" />
+    <PackageReference Include="VideoLAN.LibVLC.Mac" Version="3.1.3.2"
+                      Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64' Or $([System.String]::Copy('$(RuntimeIdentifiers)').Contains('osx-')) Or ('$(RuntimeIdentifier)' == '' And '$(RuntimeIdentifiers)' == '')" />
     <PackageReference Include="Serilog" Version="4.0.2" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
@@ -46,4 +58,13 @@
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <Compile Include="Shared/AtomicJsonFile.cs" Link="Persistence/AtomicJsonFile.cs" />
   </ItemGroup>
+  <!-- Plugin trees must remain beside the executable, including single-file publishes. -->
+  <Target Name="KeepVlcNativeTreesExternal" AfterTargets="CollectVlcFilesToCopyWindows" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <Content Update="@(Content)" Condition="$([System.String]::Copy('%(Content.Link)').StartsWith('libvlc'))">
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
 </Project>

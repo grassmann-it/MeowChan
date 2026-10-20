@@ -2,6 +2,51 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
+## Integrated local video playback
+
+Gallery WebM playback uses LibVLCSharp.Avalonia 3.10.2. The video surface and
+transport controls occupy separate rows because native video has its own window.
+Left/right navigate media; a focused timeline or volume slider retains its own
+arrow keys. Playback reads the same retained stream verified by the local media
+manifest, stops when changing media or leaving the gallery, and releases that file
+before disposal completes. This does not download external media or install VLC.
+
+| Target | Native video runtime |
+| --- | --- |
+| Linux x64 / Arm64 | System LibVLC 3.0.21 or newer, plus Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins |
+| Windows x64 | Official VideoLAN.LibVLC.Windows 3.0.24, selected `libvlc/win-x64` tree |
+| macOS x64 / Arm64 | Official VideoLAN.LibVLC.Mac 3.1.3.2, selected `libvlc/<RID>/lib` tree |
+
+On Debian-derived systems the relevant package families include `libvlc5`,
+`libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; package versions and
+names vary by distribution. Use supported distribution packages. An unavailable
+backend, missing codec/plugin or unreadable/corrupt file produces an in-gallery
+status and leaves navigation available. No native library is automatically installed.
+
+A self-contained application bundles the .NET runtime. On Linux it still requires
+system VLC and the usual native desktop dependencies. Windows/macOS publishes keep
+the complete selected VLC plugin/data hierarchy external to the .NET single file.
+`scripts/check-video-native.py` verifies architecture and essential plugin presence
+in publishes or extracted packages; it does not prove playback on that OS.
+
+The ignored Linux spike exercised VP8/Vorbis, VP9/Opus and silent VP8 through a
+verified retained stream, including native frame delivery, pause, seek, stop,
+dispose and file release. It used system VLC on Manjaro x64, isolated Xvfb and a
+dummy audio sink; it establishes neither real audio/GPU behavior nor Windows,
+macOS or Linux Arm64 acceptance. A subsequent private-Xvfb harness compiled the actual production
+`GalleryVideoPlayer.cs` and passed all three clips with native displayed frames,
+12 real pointer clicks, pause, timeline seek, stop/replay, 18 superseding
+stop/show cycles, token cancellation, corrupt-media diagnosis and exclusive file
+reopening after cleanup. A separate process blocked `libvlc` loads via a local
+`dlopen` test shim and verified the production missing-backend status. Evidence:
+`artifacts/r09-video-controller/production-playback-result.json` and
+`missing-backend-result.json`; screenshot `screenshots/frame-1.png` visibly shows
+native video and the sibling toolbar. The harness injected an engine configured
+for dummy audio/software video; real audio/GPU and extracted-package playback
+still require their own evidence. Windows/macOS redistribution additionally
+requires the corresponding-source/contrib-notice gate in
+[third-party notices](../THIRD-PARTY-NOTICES.md).
+
 ## Current 0.9.0 preparation
 
 MeowChan 0.9.0 is unreleased. The package names and hashes recorded below belong to earlier source checkpoints, before the complete product rename; they are historical local artifacts, not current MeowChan release candidates. The five current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md). The final candidate package matrix remains to be made and validated. Current published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).

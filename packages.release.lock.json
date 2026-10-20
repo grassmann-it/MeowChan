@@ -65,6 +65,16 @@
           "Avalonia": "12.1.4"
         }
       },
+      "LibVLCSharp.Avalonia": {
+        "type": "Direct",
+        "requested": "[3.10.2, )",
+        "resolved": "3.10.2",
+        "contentHash": "ctYpV1iUYKXgpKCgd4+7zs5qX9kUHpx8RUsOwA7peIdPMNsSISwynBZ1g5vGwTq1SMjI9iEWIP1pDN1y7ck28g==",
+        "dependencies": {
+          "Avalonia": "11.3.13",
+          "LibVLCSharp": "3.10.2"
+        }
+      },
       "Serilog": {
         "type": "Direct",
         "requested": "[4.0.2, )",
@@ -98,6 +108,18 @@
         "dependencies": {
           "Serilog": "4.0.0"
         }
+      },
+      "VideoLAN.LibVLC.Mac": {
+        "type": "Direct",
+        "requested": "[3.1.3.2, )",
+        "resolved": "3.1.3.2",
+        "contentHash": "UKX1vtHZUybjnntwQ1nWjgGxKZZ/NNECpxH2LeAqdkOSQcRbH8+f/0jc/TKdqxFOyoLBG+4SBXIx+85WBrUy+Q=="
+      },
+      "VideoLAN.LibVLC.Windows": {
+        "type": "Direct",
+        "requested": "[3.0.24, )",
+        "resolved": "3.0.24",
+        "contentHash": "U8SHuJr8eAC3x4+gEtOJD2heReo0tTWP3v21NunYNTzjmHpVp7qELs8phohqazxHMkaSIN8LufdIpAhldiLL/A=="
       },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
@@ -212,6 +234,11 @@
         "type": "Transitive",
         "resolved": "8.3.1.3",
         "contentHash": "bx8CE8Js+XGX8PUxAHCBDEORt5aaBYtMN4Hr9QFs57Xithh6yjUyYqksizH6eRDhJkwsGI+SXWmPmMm8lZC9Pw=="
+      },
+      "LibVLCSharp": {
+        "type": "Transitive",
+        "resolved": "3.10.2",
+        "contentHash": "WNLHBIK5QcOH0kNGBGupKC9Ds3hksPthHyp6ueE8zG5Hy/6EBwAU0BbMqukBCdLatCOY+V9DYHDwSVSXSmPGSA=="
       },
       "MicroCom.Runtime": {
         "type": "Transitive",
