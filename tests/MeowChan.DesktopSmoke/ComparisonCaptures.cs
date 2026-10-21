@@ -109,7 +109,7 @@ internal static class ComparisonCaptures
         window.WindowState = WindowState.Normal;
         window.Width = width;
         window.Height = height;
-        await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1);
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
     }
 
     private static async Task CaptureSettingsAsync(MainWindow window, string fileName)

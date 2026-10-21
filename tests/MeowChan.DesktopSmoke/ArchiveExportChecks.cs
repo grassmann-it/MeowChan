@@ -187,7 +187,7 @@ internal static class ArchiveExportChecks
                         Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
                         Border card = (Border)dialog.Child!;
                         ScrollViewer body = card.GetVisualDescendants().OfType<ScrollViewer>().First();
-                        return Math.Abs(window.Bounds.Width - width) < 2 && Math.Abs(window.Bounds.Height - height) < 2
+                        return PresentationChecks.MatchesRequestedSize(window, width, height)
                             && page.Bounds.Width > 0 && page.Bounds.Height > 0
                             && dialog.Bounds.Width <= page.Bounds.Width + 1
                             && Fits(window, page.FindControl<Button>("ArchiveExportClose")!)

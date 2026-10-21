@@ -210,7 +210,7 @@ internal static class ReaderUxChecks
         {
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
             window.Width = 640; window.Height = 480;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - 640) <= 1 && Math.Abs(window.Bounds.Height - 480) <= 1);
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 640, 480));
             await CheckOverlayChromeAsync(window, overlay);
             Program.CaptureWindow(window, "smoke-gallery-caption-small.png");
             await WindowChromeChecks.RunAsync(window);
@@ -219,7 +219,7 @@ internal static class ReaderUxChecks
         {
             await PresentationChecks.SwitchModeAsync(window, mode);
             window.Width = width; window.Height = height;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1);
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
         }
         await CheckOverlayChromeAsync(window, overlay);
     }

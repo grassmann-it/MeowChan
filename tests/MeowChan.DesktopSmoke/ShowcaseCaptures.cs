@@ -269,7 +269,7 @@ internal static class ShowcaseCaptures
     private static async Task ResizeAsync(Window window, double width, double height)
     {
         window.WindowState = WindowState.Normal; window.Width = width; window.Height = height;
-        await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) < 2 && Math.Abs(window.Bounds.Height - height) < 2);
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
     }
     private static async Task CaptureAsync(Window window, string name)
     {

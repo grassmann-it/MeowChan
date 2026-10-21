@@ -172,7 +172,7 @@ internal static class ArchivePageChecks
                 await Program.WaitUntilAsync(() =>
                 {
                     window.UpdateLayout();
-                    return Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1
+                    return PresentationChecks.MatchesRequestedSize(window, width, height)
                         && Fits(window, page.FindControl<Button>("CapturePostsButton")!)
                         && Fits(window, page.FindControl<Button>("ArchiveBackButton")!)
                         && page.FindControl<ListBox>("ArchivePosts")!.Bounds.Height >= 100
