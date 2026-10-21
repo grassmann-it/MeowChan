@@ -33,12 +33,20 @@ on:
           - windows-2022
           - macos-15
           - macos-15-intel
+      scenario:
+        description: Native GUI validation scenarios (selection is a focused diagnostic run)
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - selection
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -103,12 +111,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
       - name: Exercise native graphical startup and fallback paths
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection --output artifacts/desktop-smoke
+        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
       - name: Exercise tray lifecycle separately on the disposable runner
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode tray-lifecycle --output artifacts/desktop-tray-stress
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Check native Linux tray host lifecycle on private DBus
-        if: runner.os == 'Linux'
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode tray-host --output artifacts/desktop-tray-host
+        if: runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
+        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
       - name: Capture bounded macOS native failure diagnostics
         if: failure() && runner.os == 'macOS'
         shell: bash

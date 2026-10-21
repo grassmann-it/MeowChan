@@ -149,32 +149,28 @@ internal static class SelectionChecks
         Click(page.FindControl<Button>("ArchiveLayoutList")!);
         ListBox cards = page.FindControl<ListBox>("ArchiveThreads")!;
         Require(cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToHashSet().SetEquals(archiveIds), "Table-to-card selection lost resource IDs.");
-        await Program.WaitUntilAsync(() =>
-        {
-            ListBoxItem[] visible = cards.GetVisualDescendants().OfType<ListBoxItem>()
-                .Where(item => item.IsEffectivelyVisible).Take(3).ToArray();
-            return visible.Length == 3 && visible.All(item => CardPointerReady(window, item));
-        });
-        ListBoxItem[] cardRows = cards.GetVisualDescendants().OfType<ListBoxItem>().Where(item => item.IsEffectivelyVisible).Take(3).ToArray();
-        string CardId(ListBoxItem item) => (item.DataContext as ArchiveThreadRow)?.Summary.Id.Thread ?? "<none>";
+        ResourceId firstCardId = archived[0].Summary.Id;
+        ResourceId thirdCardId = archived[2].Summary.Id;
         string CardSelection() => string.Join(",", cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread));
-        await PressAsync(window, cardRows[0]);
-        await PressAsync(window, cardRows[2], CommandModifier);
+        await PressAsync(window, await CardForAsync(window, cards, firstCardId));
+        await PressAsync(window, await CardForAsync(window, cards, thirdCardId), CommandModifier);
         if (cards.SelectedItems!.Count != 2)
         {
             Program.CaptureWindow(window, "smoke-selection-archive-command-click-failed.png");
             throw new InvalidOperationException("Archive cards Command-click did not preserve native multiple selection: count=" +
                 cards.SelectedItems.Count + "; selected=" + CardSelection() + "; row contexts=" +
-                string.Join(',', cardRows.Select(CardId)));
+                firstCardId.Thread + "," + thirdCardId.Thread);
         }
-        await PressAsync(window, cardRows[2], right: true);
-        ContextMenu cardMenu = cardRows[2].GetVisualDescendants().OfType<Control>()
+        ListBoxItem thirdCard = await CardForAsync(window, cards, thirdCardId);
+        await PressAsync(window, thirdCard, right: true);
+        ContextMenu cardMenu = thirdCard.GetVisualDescendants().OfType<Control>()
             .Select(control => control.ContextMenu).First(menu => menu != null)!;
         Require(cards.SelectedItems.Count == 2 && cardMenu.IsOpen,
             "Archive card right-click changed the selected set or failed to open its attached menu.");
         cardMenu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        await PressAsync(window, cardRows[0]); await PressAsync(window, cardRows[2], KeyModifiers.Shift);
+        await PressAsync(window, await CardForAsync(window, cards, firstCardId));
+        await PressAsync(window, await CardForAsync(window, cards, thirdCardId), KeyModifiers.Shift);
         Require(cards.SelectedItems!.Count == 3 && table.SelectedItems.Count == 3, "Archive card Shift range or table synchronization failed.");
         Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         PressKey(table, Key.A, CommandModifier);
@@ -215,6 +211,23 @@ internal static class SelectionChecks
         return point.HasValue && window.InputHitTest(point.Value) is Visual hit
             && hit.GetSelfAndVisualAncestors().Contains(row)
             && !hit.GetSelfAndVisualAncestors().OfType<Button>().Any();
+    }
+    private static async Task<ListBoxItem> CardForAsync(MainWindow window, ListBox cards, ResourceId id)
+    {
+        await Program.WaitUntilAsync(() => cards.IsEffectivelyVisible && cards.Bounds.Height > 0);
+        ArchiveThreadRow item = cards.ItemsSource!.Cast<ArchiveThreadRow>().Single(row => row.Summary.Id == id);
+        ListBoxItem? container = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            // A small viewport may virtualize one of the range endpoints.
+            // Bring this exact item into view before injecting its native click.
+            cards.ScrollIntoView(item);
+            container = cards.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(row =>
+                row.IsEffectivelyVisible && (row.DataContext as ArchiveThreadRow)?.Summary.Id == id
+                && CardPointerReady(window, row));
+            return container != null;
+        });
+        return container!;
     }
     private static Point CardSelectionPoint(ListBoxItem row) => new(
         Math.Min(Math.Max(112, row.Bounds.Width / 2), Math.Max(8, row.Bounds.Width - 8)), row.Bounds.Height / 2);
