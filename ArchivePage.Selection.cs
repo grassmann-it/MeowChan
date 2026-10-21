@@ -31,9 +31,23 @@ public partial class ArchivePage
 
     private ArchiveThreadRow[] ArchiveVisibleRows => Control<DataGrid>("ArchiveThreadTable").ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
     private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable") : Control<ListBox>("ArchiveThreads");
-    private ArchiveThreadRow? ArchiveLead => _archiveSelectionIds.Count == 0 ? null
-        : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == _archiveLeadId)
-            ?? ArchiveVisibleRows.FirstOrDefault(row => _archiveSelectionIds.Contains(row.Summary.Id));
+    private ArchiveThreadRow? ArchiveLead
+    {
+        get
+        {
+            ArchiveThreadRow[] rows = ArchiveVisibleRows;
+            ResourceId? id = ResolveArchiveLeadId(rows.Select(row => row.Summary.Id), _archiveSelectionIds, _archiveLeadId);
+            return id == null ? null : rows.FirstOrDefault(row => row.Summary.Id == id);
+        }
+    }
+    internal static ResourceId? ResolveArchiveLeadId(IEnumerable<ResourceId> visible,
+        IReadOnlySet<ResourceId> selected, ResourceId? preferred, ResourceId? current = null)
+    {
+        ResourceId[] rows = visible.ToArray();
+        if (preferred != null && selected.Contains(preferred) && rows.Contains(preferred)) return preferred;
+        if (current != null && selected.Contains(current) && rows.Contains(current)) return current;
+        return rows.FirstOrDefault(selected.Contains);
+    }
     internal string? ArchiveDirectoryFor(ResourceId id) => (_archiveCommandLead?.Summary.Id == id ? _archiveCommandLead : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id))?.Summary.MediaDirectory;
     internal string ArchiveUrlFor(ResourceId id) => (_archiveCommandLead?.Summary.Id == id ? _archiveCommandLead : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id))?.Summary.Url ?? string.Empty;
     private ResourceId[] FrozenArchiveSelection() => ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).Select(row => row.Summary.Id).ToArray();
@@ -55,8 +69,7 @@ public partial class ArchivePage
         HashSet<ResourceId> visible = rows.Select(row => row.Summary.Id).ToHashSet();
         _archiveSelectionIds.IntersectWith(visible);
         if (_archiveSelectionIds.Count == 0 && preferred != null && visible.Contains(preferred)) _archiveSelectionIds.Add(preferred);
-        if (_archiveLeadId == null || !visible.Contains(_archiveLeadId))
-            _archiveLeadId = rows.FirstOrDefault(row => _archiveSelectionIds.Contains(row.Summary.Id))?.Summary.Id;
+        _archiveLeadId = ResolveArchiveLeadId(rows.Select(row => row.Summary.Id), _archiveSelectionIds, _archiveLeadId);
         SynchronizeArchiveSelection(rows);
     }
 
@@ -89,8 +102,8 @@ public partial class ArchivePage
         _archiveSelectionIds.Clear();
         foreach (ArchiveThreadRow row in selected) _archiveSelectionIds.Add(row.Summary.Id);
         ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItem as ArchiveThreadRow;
-        if (_archiveLeadId == null || !ArchiveVisibleRows.Any(row => row.Summary.Id == _archiveLeadId))
-            _archiveLeadId = current?.Summary.Id;
+        _archiveLeadId = ResolveArchiveLeadId(ArchiveVisibleRows.Select(row => row.Summary.Id),
+            _archiveSelectionIds, _archiveLeadId, current?.Summary.Id);
         _history.Clear();
         _selectedThread = ArchiveLead?.Summary.Id;
         _showReader = false;
@@ -117,7 +130,9 @@ public partial class ArchivePage
         {
             if (row != null) Dispatcher.UIThread.Post(async () =>
             {
-                if (!_ended && _available && CanShowArchivePreviewBesideList && _selectedThread != row.Summary.Id)
+                if (!_ended && _available && CanShowArchivePreviewBesideList
+                    && _archiveLeadId == row.Summary.Id && _archiveSelectionIds.Contains(row.Summary.Id)
+                    && _selectedThread != row.Summary.Id)
                     await LoadThreadAsync(row.Summary.Id);
             }, DispatcherPriority.Background);
             return;
@@ -172,7 +187,7 @@ public partial class ArchivePage
             {
                 ArchiveThreadRow? row = list is DataGrid table ? table.CollectionView?.CurrentItem as ArchiveThreadRow
                     : (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext as ArchiveThreadRow;
-                if (row != null)
+                if (row != null && _archiveSelectionIds.Contains(row.Summary.Id))
                 {
                     _archiveLeadId = row.Summary.Id; _contextThread = row;
                     if (CanShowArchivePreviewBesideList &&

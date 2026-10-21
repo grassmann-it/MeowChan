@@ -159,7 +159,7 @@ public partial class MainWindow
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
             UpdatePageNavigation();
             WorkspaceControl<TextBlock>("WorkspaceSubtitle").IsVisible = !barebones;
-            WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = !barebones;
+            WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = true;
             WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
             Grid body = WorkspaceControl<Grid>("WorkspaceBody");
             body.Margin = barebones ? new Thickness(12) : new Thickness(20);
@@ -199,6 +199,11 @@ public partial class MainWindow
                             column.Width = defaultWidth;
                     }
                 }
+                DataGrid identityGrid = WorkspaceControl<DataGrid>(gridName);
+                string? restoreIdentity = RequiredDownloadIdentityToRestore(gridName,
+                    identityGrid.Columns.Where(column => column.IsVisible).Select(column => column.SortMemberPath).ToArray());
+                if (restoreIdentity != null)
+                    identityGrid.Columns.First(column => column.SortMemberPath == restoreIdentity).IsVisible = true;
                 if (modeChanged)
                 {
                     DataGrid grid = WorkspaceControl<DataGrid>(gridName);

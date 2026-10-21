@@ -35,7 +35,8 @@ public partial class MainWindow
                 Header = column.Header,
                 ToggleType = MenuItemToggleType.CheckBox,
                 IsChecked = column.IsVisible,
-                IsEnabled = !column.IsVisible || grid.Columns.Count(candidate => candidate.IsVisible) > 1
+                IsEnabled = !column.IsVisible || CanHideDownloadColumn(gridName, column.SortMemberPath,
+                    grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray())
             };
             bool visible = column.IsVisible;
             item.Click += async (_, _) => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode);
@@ -52,7 +53,9 @@ public partial class MainWindow
     private async Task SetDownloadColumnVisibleAsync(string gridName, string key, bool visible, string mode)
     {
         DataGrid grid = WorkspaceControl<DataGrid>(gridName);
-        if (!visible && _config.WorkspaceMode == mode && grid.Columns.Count(column => column.IsVisible) <= 1) return;
+        if (!visible && _config.WorkspaceMode == mode &&
+            !CanHideDownloadColumn(gridName, key[(gridName.Length + 1)..],
+                grid.Columns.Where(column => column.IsVisible).Select(column => column.SortMemberPath).ToArray())) return;
         Dictionary<string, bool> previous = new(_config.GetLayoutProfile(mode).ColumnVisibility, StringComparer.Ordinal);
         _config.GetLayoutProfile(mode).ColumnVisibility[key] = visible;
         if (_config.WorkspaceMode == mode) ApplyWorkspacePreferences();
@@ -66,6 +69,24 @@ public partial class MainWindow
             if (_config.WorkspaceMode == mode) ApplyWorkspacePreferences();
             Log.Warning(error, "Could not save download column visibility.");
         }
+    }
+
+    internal static bool CanHideDownloadColumn(string gridName, string columnKey, IReadOnlyCollection<string> visibleKeys)
+    {
+        if (visibleKeys.Count <= 1) return false;
+        // A source alone identifies neither a thread nor a board within that source.
+        string[] identityKeys = gridName == "BoardsDataGrid"
+            ? [nameof(BoardRow.NiceName)]
+            : [nameof(ThreadRow.ThreadNumber), nameof(ThreadRow.Title)];
+        return !identityKeys.Contains(columnKey) || identityKeys.Count(visibleKeys.Contains) > 1;
+    }
+
+    internal static string? RequiredDownloadIdentityToRestore(string gridName, IReadOnlyCollection<string> visibleKeys)
+    {
+        if (gridName == "BoardsDataGrid")
+            return visibleKeys.Contains(nameof(BoardRow.NiceName)) ? null : nameof(BoardRow.NiceName);
+        return visibleKeys.Contains(nameof(ThreadRow.Title)) || visibleKeys.Contains(nameof(ThreadRow.ThreadNumber))
+            ? null : nameof(ThreadRow.Title);
     }
 
     private async Task ResetDownloadColumnsAsync(string gridName, string mode)

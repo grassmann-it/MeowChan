@@ -23,6 +23,9 @@ internal static class PresentationChecks
             .SequenceEqual(new[] { "Barebones", "Simple", "Advanced" }),
             "The view choices were not ordered Barebones, Simple, Advanced.");
         Require(initial.WorkspaceMode == "Barebones" && Mode(modes) == "Barebones", "A new profile did not open in Barebones view.");
+        TextBlock version = window.FindControl<TextBlock>("WorkspaceVersion")!;
+        Require(version.IsVisible && !string.IsNullOrWhiteSpace(version.Text),
+            "Barebones did not display the application version in the title bar.");
         Require(initial.Theme == "Dark" && initial.Language == "en", "A new profile did not use the English dark presentation.");
         Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Switch to light theme",
             "The dark view's theme action did not display a translated Light label.");
