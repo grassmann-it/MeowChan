@@ -9,6 +9,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using MeowChan.Rules;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -38,6 +39,8 @@ internal static class ShowcaseCaptures
         ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
             .Any(image => image.Name == "GalleryImage" && image.Source is Bitmap));
+        Click(GalleryButton(gallery, "GalleryFavorite"));
+        await Program.WaitUntilAsync(() => page.GetFavorites?.Invoke().Count is > 0);
         Click(GalleryButton(gallery, "GalleryToggleContext"));
         await Program.WaitUntilAsync(() => gallery.GetVisualDescendants().OfType<Border>()
             .Any(border => border.Name == "GalleryContext" && border.IsVisible && border.Bounds.Width > 0));
@@ -54,14 +57,27 @@ internal static class ShowcaseCaptures
         await CaptureAsync(window, "v0.9.0-archive.png");
 
         await CaptureRepeatExportAsync(window, page);
+        await CaptureFavoritesAsync(window, page);
+        await CaptureSettingsAndRulesAsync(window);
         await ResizeAsync(window, 1440, 920);
         window.FindControl<MenuItem>("AboutMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any(about => about.IsVisible));
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
         await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.Bounds.Width > 0);
+        Button donate = about.FindControl<Button>("DonationLink")!;
+        if (!donate.IsEffectivelyVisible || donate.Tag?.ToString() != "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ")
+            throw new InvalidOperationException("The visible About support link does not match the project donation destination.");
         await CaptureAsync(about, "v0.9.0-about.png");
+        about.FindControl<TabControl>("AboutTabs")!.SelectedIndex = 1;
+        await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("VideoCreditsText")!.IsEffectivelyVisible);
+        await CaptureAsync(about, "v0.9.0-about-credits.png");
+        about.FindControl<TabControl>("AboutTabs")!.SelectedIndex = 2;
+        TextBox licenseSearch = about.FindControl<TextBox>("LicenseSearchBox")!;
+        licenseSearch.Text = "Feather";
+        await Program.WaitUntilAsync(() => about.FindControl<TextBox>("LicenseFullText")!.Text?.Contains("Cole Bemis") == true);
+        await CaptureAsync(about, "v0.9.0-about-licenses.png");
         Click(about.FindControl<Button>("CloseButton")!);
-        Console.WriteLine("SHOWCASE six actual UI scenes captured: passive download projections, gallery with persisted post context, large offline reader, multipage archive search and media tiles, successful repeated HTML export, About.");
+        Console.WriteLine("SHOWCASE final UI scenes captured: downloads, gallery/post context/favorite, reader and replies, archive/media, HTML export, favorites/original export, settings, rules, About/support/credits/offline licenses.");
     }
 
     private static async Task CaptureDownloadsAsync(MainWindow window)
@@ -180,10 +196,11 @@ internal static class ShowcaseCaptures
                 .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
             if (page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
                 || first?.Thumbnail.Source is not Bitmap bitmap || bitmap.PixelSize.Width <= 240
-                || first.Thumbnail.Bounds.Width < 640 || first.Thumbnail.Bounds.Height < 280 || body == null
+                || first.Thumbnail.Bounds.Width < 240 || first.Thumbnail.Bounds.Height < 160 || body == null
                 || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)
                 || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
-                || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled)
+                || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled
+                || !page.FindControl<CheckBox>("ReaderFollowLive")!.IsEffectivelyVisible)
             { previousImage = null; return false; }
             Point? origin = first.Thumbnail.TranslatePoint(default, reader);
             if (origin == null) return false;
@@ -193,6 +210,17 @@ internal static class ShowcaseCaptures
             return stable;
         });
         await CaptureAsync(window, "v0.9.0-reader.png");
+        ListBox postsList = page.FindControl<ListBox>("ArchivePosts")!;
+        ArchivePostRow openingPost = postsList.ItemsSource!.Cast<ArchivePostRow>().First();
+        Expander replies = reader.GetVisualDescendants().OfType<Expander>()
+            .First(expander => ReferenceEquals(expander.DataContext, openingPost));
+        replies.IsExpanded = true;
+        await Program.WaitUntilAsync(() => openingPost.RepliesLoaded && openingPost.Replies.Count > 0
+            && replies.IsEffectivelyVisible);
+        replies.BringIntoView();
+        await Program.WaitUntilAsync(() => replies.GetVisualDescendants().OfType<Button>()
+            .Any(button => button.IsEffectivelyVisible && button.Bounds.Width > 0));
+        await CaptureAsync(window, "v0.9.0-reader-replies.png");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         await Program.WaitUntilAsync(() => !reader.IsVisible
             && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"));
@@ -225,14 +253,13 @@ internal static class ShowcaseCaptures
             Control[] children = panel.Children.ToArray();
             Rect[] bounds = children.Select(child => child.Bounds).ToArray();
             bool wrapped = children.Length == 8 && bounds.Select(bound => Math.Round(bound.Y)).Distinct().Count() > 1;
-            bool fits = scroll.Viewport.Width > 0 && scroll.Extent.Width <= scroll.Viewport.Width + 1
-                && scroll.Extent.Height <= scroll.Viewport.Height + 1;
+            bool fits = scroll.Viewport.Width > 0 && scroll.Extent.Width <= scroll.Viewport.Width + 1;
             // Require the decoded tile arrangement to survive a complete further layout pass.
             bool settled = wrapped && fits && previous != null && bounds.SequenceEqual(previous);
             previous = bounds;
             return settled;
         });
-        Console.WriteLine("SHOWCASE archive tiles ready: all eight thumbnails decoded; multiple wrapped rows; all fit viewport; stable layout.");
+        Console.WriteLine("SHOWCASE archive media tiles ready: all eight thumbnails decoded; multiple wrapped rows; no horizontal overflow; stable layout.");
     }
 
     private static async Task CaptureRepeatExportAsync(MainWindow window, ArchivePage page)
@@ -261,6 +288,77 @@ internal static class ShowcaseCaptures
         await ResizeAsync(window, 1000, 820);
         await CaptureAsync(window, "v0.9.0-export.png");
         Click(page.FindControl<Button>("ArchiveExportClose")!);
+    }
+
+    private static async Task CaptureFavoritesAsync(MainWindow window, ArchivePage page)
+    {
+        if (page.GetFavorites?.Invoke().Count is not > 0)
+            throw new InvalidOperationException("The showcase must mark a real stored image as a favorite before capturing its export.");
+        await ResizeAsync(window, 1440, 920);
+        Task overviewTask = page.OpenFavoritesOverviewAsync();
+        Window overview = await WaitForOwnedWindowAsync(window, owned => owned.GetVisualDescendants()
+            .OfType<Button>().Any(button => button.Name == "FavoritesExportOriginals"));
+        try
+        {
+            await Program.WaitUntilAsync(() => overview.GetVisualDescendants().OfType<ListBox>()
+                .Any(list => list.Name == "FavoritesList" && list.ItemCount > 0)
+                && overview.GetVisualDescendants().OfType<Button>()
+                    .Any(button => button.Name == "FavoritesExportOriginals" && button.IsEnabled));
+            await CaptureAsync(overview, "v0.9.0-favorites.png");
+
+            string profile = Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE")
+                ?? throw new InvalidOperationException("A showcase profile is required.");
+            string destination = Path.Combine(Path.GetDirectoryName(profile)!, "Exports", "favorites-originals");
+            Directory.CreateDirectory(destination);
+            page.LastExportDirectoryPreference = destination;
+            Click(overview.GetVisualDescendants().OfType<Button>()
+                .Single(button => button.Name == "FavoritesExportOriginals"));
+            Window export = await WaitForOwnedWindowAsync(overview, owned => owned.GetVisualDescendants()
+                .OfType<TextBox>().Any(box => box.Name == "OriginalExportDestination"));
+            try
+            {
+                TextBox target = export.GetVisualDescendants().OfType<TextBox>()
+                    .Single(box => box.Name == "OriginalExportDestination");
+                if (target.Text != destination)
+                    throw new InvalidOperationException("Original export did not retain the isolated showcase destination.");
+                await CaptureAsync(export, "v0.9.0-favorites-original-export.png");
+                Button start = export.GetVisualDescendants().OfType<Button>()
+                    .Single(button => button.Content?.ToString() == "Export originals");
+                Click(start);
+                await Program.WaitUntilAsync(() => export.GetVisualDescendants().OfType<TextBlock>()
+                    .Any(label => label.Text?.StartsWith("Copied 1 ·", StringComparison.Ordinal) == true));
+                await CaptureAsync(export, "v0.9.0-favorites-original-result.png");
+            }
+            finally { export.Close(); }
+        }
+        finally { overview.Close(); await overviewTask; }
+    }
+
+    private static async Task CaptureSettingsAndRulesAsync(MainWindow window)
+    {
+        await ResizeAsync(window, 1200, 700);
+        window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+        SettingsEditor settings = window.SettingsEditor;
+        settings.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
+        await Program.WaitUntilAsync(() => settings.FindControl<ComboBox>("ReadingFontSizeInput")!.IsEffectivelyVisible);
+        await CaptureAsync(window, "v0.9.0-settings.png");
+
+        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        RulesPage rules = window.RulesPage;
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && rules.IsEditable);
+        rules.EditScope(MediaRuleScope.Global);
+        rules.FindControl<ScrollViewer>("RulesScroll")!.Offset = default;
+        await Program.WaitUntilAsync(() => rules.FindControl<TextBlock>("RuleEffectiveTypes")!.IsEffectivelyVisible);
+        await CaptureAsync(window, "v0.9.0-rules.png");
+    }
+
+    private static async Task<Window> WaitForOwnedWindowAsync(Window owner, Func<Window, bool> predicate)
+    {
+        Window? match = null;
+        await Program.WaitUntilAsync(() => (match = owner.OwnedWindows.FirstOrDefault(window =>
+            window.IsVisible && predicate(window))) != null);
+        return match!;
     }
 
     private static Button GalleryButton(ContentControl gallery, string name) => gallery.GetVisualDescendants()

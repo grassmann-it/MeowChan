@@ -29,7 +29,7 @@ internal static class ArchiveMediaCommandChecks
             Require(star.IsEnabled, "Saved inline media has no enabled favorite control.");
             star.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(marked && star is Avalonia.Controls.Primitives.ToggleButton { IsChecked: true } && AutomationProperties.GetName(star) == Texts.T("viewer.favorite.remove"), "Inline favorite did not update its accessible state.");
-            inline.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            inline.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = inline });
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             ContextMenu menu = page.ArchiveMediaMenu!;
             Require(menu.IsOpen, "Inline keyboard context request did not open a media menu.");

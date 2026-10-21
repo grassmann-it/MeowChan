@@ -69,6 +69,11 @@ public sealed class ArchiveSearchAndQuoteTests
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         ArchivePostId target = new ArchivePostId(Id, "123");
         ArchiveQuotePage first = await reader.GetBacklinksAsync(target, limit: 1);
+        IReadOnlyDictionary<string, int> counts = await reader.GetBacklinkCountsAsync(Id, ["123", "124", "absent"]);
+        Assert.Equal(2, counts["123"]);
+        Assert.Equal(first.TotalCount, counts["123"]);
+        Assert.Equal(0, counts["124"]);
+        Assert.Equal(0, counts["absent"]);
         ArchiveQuotePage second = await reader.GetBacklinksAsync(target, offset: 1, limit: 1);
         Assert.Equal(2, first.TotalCount);
         Assert.Equal("124", first.Items.Single().Origin.PostId);
@@ -90,6 +95,7 @@ public sealed class ArchiveSearchAndQuoteTests
         await using ArchiveReader legacy = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Single((await legacy.SearchThreadsAsync(new ArchiveThreadQuery("legacyneedle"))).Items);
         Assert.Single((await legacy.GetBacklinksAsync(new ArchivePostId(Id, "123"))).Items);
+        Assert.Equal(1, (await legacy.GetBacklinkCountsAsync(Id, ["123", "absent"]))["123"]);
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
         Assert.False(File.Exists(path + "-journal"));
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);

@@ -120,6 +120,7 @@ public partial class ArchivePage
         ClosePreview();
         _selectedThread = view.Summary.Id;
         _thread = view;
+        ReaderSnapshotLoaded();
         _postOffset = offset;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;

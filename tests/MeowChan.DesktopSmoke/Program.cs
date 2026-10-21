@@ -282,6 +282,8 @@ internal static class Program
             await ComparisonCaptures.RunAsync(mainWindow);
             await ClipboardChecks.RunAsync(mainWindow);
             await PresentationChecks.RunPreferencesAsync(mainWindow);
+            await ReaderLiveChecks.RunAsync(mainWindow);
+            await ReaderRepliesChecks.RunAsync(mainWindow);
 
             DesktopThreadEntry thread = SnapshotFixtures.Thread(123, "123", "Desktop smoke initial title");
             DesktopBoardEntry board = SnapshotFixtures.Board(124);

@@ -116,6 +116,17 @@ moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
 thread sequence. Input fields keep their native arrow-key behavior.
 
+Newly captured posts leave the open reader unchanged. A **Show new posts** notice
+lets you load them and jump to the first newly appended post. **Follow live** is
+an explicit choice for a currently watched thread with post capture enabled; it
+follows newly saved posts to the end without starting any network work. It waits
+while a gallery or export dialog is open. Changing threads or removing the watch
+turns following off. Repeated source polls without new posts show no notice.
+
+Expand **Replies to #…** on a post to see its local reply count and captured reply
+links inline. Replies load in pages of 20; **More replies** appends another page.
+Opening a reply uses saved posts only and never fetches the source.
+
 The reader reserves space for previews so loading images do not keep shifting posts. Refreshing the same thread
 retains the current reading position. If a preview cannot finish loading, it reports “The preview could not be loaded.”
 instead of remaining at Loading.

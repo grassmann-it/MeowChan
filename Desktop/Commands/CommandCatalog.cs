@@ -155,7 +155,7 @@ public static class CommandCatalog
         { "window.fullscreen", new Dictionary<string, string>(StringComparer.Ordinal) { { "windowed", "maximize" }, { "fullscreen", "minimize" } } },
         { "viewer.shortcut-hints", new Dictionary<string, string>(StringComparer.Ordinal) { { "hidden", "help-circle" }, { "shown", "help-circle" } } },
         { "watch.follow-live", new Dictionary<string, string>(StringComparer.Ordinal) { { "off", "arrow-down" }, { "on", "arrow-down" } } },
-        { "favorites.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "unmarked", "star" }, { "marked", "check-circle" } } },
+        { "favorites.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "unmarked", "star" }, { "marked", "check" } } },
         { "favorites.filter", new Dictionary<string, string>(StringComparer.Ordinal) { { "all", "star" }, { "favorites_only", "star" } } },
         { "video.play-pause", new Dictionary<string, string>(StringComparer.Ordinal) { { "paused", "play" }, { "playing", "pause" } } },
         { "video.mute", new Dictionary<string, string>(StringComparer.Ordinal) { { "audible", "volume-2" }, { "muted", "volume-x" } } },

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
@@ -46,6 +47,8 @@ public partial class MainWindow
         _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
         _archivePage.GetWorkSnapshots = _session.GetThreadWorkSnapshots;
+        _archivePage.CanFollowLive = id => _threadRows.Values.Any(row => row.Snapshot.Id == id);
+        _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
         _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
         _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;

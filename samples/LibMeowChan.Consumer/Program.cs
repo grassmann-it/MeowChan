@@ -80,6 +80,8 @@ internal static class Program
         }
         // The reader outlives the writer and profile lease, with no provider or UI dependency.
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        ArchiveThreadSummary summary = await reader.ReadThreadSummaryAsync(id)
+            ?? throw new InvalidOperationException("Saved thread metadata is missing.");
         ArchivedThreadView saved = await reader.ReadThreadAsync(id)
             ?? throw new InvalidOperationException("The packaged catalog lost its thread.");
         if (saved.PostCount != 1 || saved.GetPosts(0, 1).Single().Html != capturedBody
@@ -94,6 +96,9 @@ internal static class Program
             || resolution.PostIndex != 0 || (await reader.GetBacklinksAsync(postId)).TotalCount != 1)
             throw new InvalidOperationException("The packaged indexed search/quote APIs did not resolve retained local content.");
         // Selection spans the full query, independently of the displayed search page.
+        if (summary.Id != saved.Summary.Id || summary.Revision != saved.Summary.Revision
+            || (await reader.GetBacklinkCountsAsync(id, new[] { postId.PostId }))[postId.PostId] != 1)
+            throw new InvalidOperationException("Passive summary/backlink counts differ from saved content.");
         IReadOnlyList<ResourceId> selectedIds = await reader.SelectThreadIdsAsync(query);
         if (selectedIds.Count != 1 || selectedIds.Single() != id)
             throw new InvalidOperationException("Query selection did not retain the found thread identity.");

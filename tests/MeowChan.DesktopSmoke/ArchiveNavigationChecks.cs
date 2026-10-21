@@ -59,11 +59,12 @@ internal static class ArchiveNavigationChecks
                 ArchivePostRow targetRow = (ArchivePostRow)posts.SelectedItem!;
                 // Use the real item template button, including its wired UI action.
                 Control container = posts.ContainerFromItem(targetRow)!;
-                Button backlinks = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(container).OfType<Button>()
-                    .Single(button => Equals(button.Content, targetRow.BacklinksLabel));
-                backlinks.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await Program.WaitUntilAsync(() => fixture.FindControl<ListBox>("ArchiveReferences")!.ItemCount == 1);
-                ArchiveQuoteRow backlink = fixture.FindControl<ListBox>("ArchiveReferences")!.ItemsSource!.Cast<ArchiveQuoteRow>().Single();
+                await Program.WaitUntilAsync(() => targetRow.BacklinkCount == 1);
+                Expander backlinks = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(container).OfType<Expander>()
+                    .Single(expander => ReferenceEquals(expander.DataContext, targetRow));
+                backlinks.IsExpanded = true;
+                await Program.WaitUntilAsync(() => targetRow.Replies.Count == 1);
+                ArchiveQuoteRow backlink = targetRow.Replies.Single();
                 Require(backlink.Backlink && backlink.Quote.Origin.Thread == origin, "Backlink origin is wrong.");
                 Program.CaptureWindow(window, "smoke-archive-local-backlinks.png");
                 await fixture.NavigateQuoteAsync(backlink);

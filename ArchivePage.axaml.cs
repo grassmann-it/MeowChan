@@ -99,7 +99,7 @@ public partial class ArchivePage : UserControl
         InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
-        InitializeReaderInteraction();
+        InitializeReaderInteraction(); InitializeReaderUpdates();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -133,6 +133,7 @@ public partial class ArchivePage : UserControl
     {
         if (_ended || !_available || _openReader == null) return;
         CancelReferences();
+        CancelInlineReplies();
         int request = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -222,6 +223,7 @@ public partial class ArchivePage : UserControl
         if (_ended || !_available || _openReader == null) return;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
+        CancelInlineReplies();
         int request = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -256,6 +258,7 @@ public partial class ArchivePage : UserControl
             ArchivedThreadView? thread = await reader.ReadThreadAsync(id, cancellationToken);
             if (_ended || request != _contentRequest) return;
             _thread = thread;
+            ReaderSnapshotLoaded();
             if (_thread != null && _postOffset >= _thread.PostCount) _postOffset = 0;
             _busy = false;
             RenderThread();
@@ -368,8 +371,9 @@ public partial class ArchivePage : UserControl
                     .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
             }).ToArray();
             Control<ListBox>("ArchivePosts").ItemsSource = posts;
+            RefreshInlineReplies(posts);
         }
-        else Control<ListBox>("ArchivePosts").ItemsSource = null;
+        else { Control<ListBox>("ArchivePosts").ItemsSource = null; CancelInlineReplies(); }
         Control<TextBlock>("ArchiveNoPosts").IsVisible = _thread?.PostCount == 0;
         RenderMedia();
     }
@@ -457,6 +461,7 @@ public partial class ArchivePage : UserControl
         ResourceId id = _thread.Summary.Id;
         bool enabled = !_thread.Summary.CaptureEnabled;
         CancelReferences();
+        CancelInlineReplies();
         int request = ++_contentRequest;
         _busy = true;
         UpdateActions();
@@ -744,6 +749,7 @@ public partial class ArchivePage : UserControl
         ReaderAnchor? anchor = _showReader ? CaptureReaderAnchor() : null;
         _assets = Array.AsReadOnly(_assets.Select(row => new ArchiveAssetRow(row.Manifest, row.Asset)).ToArray());
         Localize();
+        LocalizeReaderUpdates();
         RenderThread();
         if (anchor != null) _ = RestoreReaderAnchorAsync(anchor);
         ListBox list = Control<ListBox>("ArchiveThreads");
@@ -825,6 +831,8 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         _ended = true;
+        _readerUpdateTimer?.Stop();
+        CancelInlineReplies();
         EndExportDialog();
         ++_contentRequest;
         CancelMediaLoad();

@@ -48,11 +48,58 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
 }
 
 internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,
-    IReadOnlyList<ArchiveAttachmentRow> Attachments)
+    IReadOnlyList<ArchiveAttachmentRow> Attachments) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     public bool HasAttachments => Attachments.Count > 0;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
-    public string BacklinksLabel => Texts.T("archive.backlinks", Id);
+    private int? _backlinkCount;
+    private IReadOnlyList<ArchiveQuoteRow> _replies = Array.Empty<ArchiveQuoteRow>();
+    private bool _repliesExpanded;
+    private bool _repliesLoading;
+    private bool _repliesLoaded;
+    private int _repliesOffset;
+    private string? _repliesError;
+    public int? BacklinkCount => _backlinkCount;
+    public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +
+        (_backlinkCount?.ToString(Texts.Culture) ?? "…");
+    public IReadOnlyList<ArchiveQuoteRow> Replies => _replies;
+    public bool RepliesExpanded
+    {
+        get => _repliesExpanded;
+        set { if (_repliesExpanded == value) return; _repliesExpanded = value; Changed(nameof(RepliesExpanded)); }
+    }
+    public bool RepliesLoading => _repliesLoading;
+    public bool RepliesLoaded => _repliesLoaded;
+    public int RepliesOffset => _repliesOffset;
+    public bool HasMoreReplies => _backlinkCount > _replies.Count;
+    public string MoreRepliesLabel => Texts.T("archive.moreReplies");
+    public string RepliesLoadingLabel => Texts.T("archive.loading");
+    public string RepliesPageLabel => _replies.Count.ToString(Texts.Culture) + " / " +
+        (_backlinkCount?.ToString(Texts.Culture) ?? "…");
+    public string? RepliesError => _repliesError;
+    public bool HasRepliesError => _repliesError != null;
+
+    public void SetBacklinkCount(int count)
+    {
+        _backlinkCount = count;
+        Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel));
+    }
+    public void SetReplies(IReadOnlyList<ArchiveQuoteRow> replies, int total, int offset)
+    {
+        _replies = replies; _repliesOffset = offset; _repliesError = null; _repliesLoaded = true;
+        SetBacklinkCount(total);
+        Changed(nameof(Replies), nameof(RepliesOffset), nameof(RepliesLoaded), nameof(HasMoreReplies), nameof(RepliesPageLabel),
+            nameof(RepliesError), nameof(HasRepliesError));
+    }
+    public void SetRepliesLoading(bool loading) { _repliesLoading = loading; Changed(nameof(RepliesLoading)); }
+    public void SetRepliesError(string? error)
+    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError)); }
+    private void Changed(params string[] names)
+    {
+        foreach (string name in names) PropertyChanged?.Invoke(this,
+            new System.ComponentModel.PropertyChangedEventArgs(name));
+    }
 }
 internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false)
 {

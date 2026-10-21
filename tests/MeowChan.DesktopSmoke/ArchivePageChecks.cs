@@ -32,9 +32,10 @@ internal static class ArchivePageChecks
         await page.MediaLoadTask;
         DataGrid media = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
         Require(media.ItemsSource.Cast<ArchiveAssetRow>().Count() == 1, "The independent archive did not discover the saved manifest.");
-        await Program.WaitUntilAsync(() => window.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        await Program.WaitUntilAsync(() => posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap));
-        ArchiveAttachmentView inline = window.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
+        ArchiveAttachmentView inline = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
         Require(inline.Thumbnail.Bounds.Width <= 1040 && inline.Thumbnail.Bounds.Height <= 720,
             "An inline reader image exceeded its bounded preview dimensions.");
         await ArchiveMediaCommandChecks.RunAsync(page, inline);

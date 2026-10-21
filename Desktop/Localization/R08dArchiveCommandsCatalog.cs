@@ -5,6 +5,7 @@ internal static class R08dArchiveCommandsCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("archive.favoritesOnly", "Favorites only", "Nur Favoriten"),
+        ("archive.moreReplies", "Show more replies", "Weitere Antworten anzeigen"),
         ("archive.allMedia", "All media", "Alle Medien"),
         ("archive.noFavorites", "No favorites in this selection.", "Keine Favoriten in dieser Auswahl."),
         ("archive.command.singleRead", "Select one thread to read its posts.", "Zum Lesen der Beiträge bitte genau einen Thread auswählen."),
