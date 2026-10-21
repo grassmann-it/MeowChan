@@ -29,9 +29,11 @@ public partial class MainWindow
     private string? _fullscreenExitMode;
     private bool _fullscreenExitRepairQueued;
     private bool _fullscreenExitRepairConsumed;
+    private bool _fullscreenExitSizeCorrectionQueued;
     private int _fullscreenExitGeneration;
     private int _fullscreenRestoreGeneration;
     private bool _applyingFullscreenRestoreGeometry;
+    private Size? _fullscreenRestoreRequestedClient;
 
     internal static Avalonia.Styling.ThemeVariant ThemeForPreference(string theme) => theme switch
     {
@@ -112,6 +114,7 @@ public partial class MainWindow
         _fullscreenOrigin = null;
         _fullscreenRestoreFromClient = ClientSize;
         _restoringFullscreen = true;
+        _fullscreenRestoreRequestedClient = null;
         int restoreGeneration = ++_fullscreenRestoreGeneration;
         WindowState = WindowState.Normal;
         // Apply only after the native state transition returns to the dispatcher.
@@ -140,12 +143,21 @@ public partial class MainWindow
                     _fullscreenRestoreClient = fit.Client;
                 }
                 else { Width = destination.Client.Width; Height = destination.Client.Height; Position = destination.Position; }
+                // A normal resize can arrive after the managed state changes but
+                // before this queued native restore applies its saved geometry.
+                // Keep that explicit request instead of restoring the old size.
+                if (_fullscreenRestoreRequestedClient is Size requested)
+                {
+                    Width = requested.Width; Height = requested.Height;
+                    _lastNormalClient = requested;
+                    _fullscreenRestoreClient = requested;
+                }
                 if (destination.State == WindowState.Maximized) WindowState = WindowState.Maximized;
             }
-            finally { _applyingFullscreenRestoreGeometry = false; _restoringFullscreen = false; }
+            finally { _fullscreenRestoreRequestedClient = null; _applyingFullscreenRestoreGeometry = false; _restoringFullscreen = false; }
             ContinueFullscreenRestore();
+            ContinuePendingFullscreenExitSizeRepair();
             RefreshShellCommands();
-            if (_fullscreenExitRepairConsumed) ClearFullscreenExitIntent();
         }, DispatcherPriority.Loaded);
     }
 
@@ -166,12 +178,20 @@ public partial class MainWindow
             if (WindowState == WindowState.Normal && !_restoringFullscreen)
                 CapturePendingFullscreenExitSize(ClientSize);
         }
-        else ContinueFullscreenRestore();
+        else
+        {
+            ContinueFullscreenRestore();
+            ContinuePendingFullscreenExitSizeRepair();
+        }
     }
 
     private void OnFullscreenStateChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == WindowStateProperty) ContinueFullscreenRestore();
+        if (e.Property == WindowStateProperty)
+        {
+            ContinueFullscreenRestore();
+            ContinuePendingFullscreenExitSizeRepair();
+        }
         if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent == null) return;
         if (e.Property != WindowStateProperty) return;
         if (_config.WorkspaceMode != _fullscreenExitMode)
@@ -195,6 +215,8 @@ public partial class MainWindow
         if (WindowState == WindowState.Normal || (pendingFullscreenExit && WindowState == WindowState.FullScreen))
         {
             CapturePendingFullscreenExitSize(requested);
+            if (_restoringFullscreen && WindowState == WindowState.Normal)
+                _fullscreenRestoreRequestedClient = requested;
             if (WindowState == WindowState.FullScreen) return;
             if (!_restoringFullscreen) _fullscreenRestoreClient = null;
         }
@@ -219,7 +241,34 @@ public partial class MainWindow
         _fullscreenExitMode = null;
         _fullscreenExitRepairQueued = false;
         _fullscreenExitRepairConsumed = false;
+        _fullscreenExitSizeCorrectionQueued = false;
         ++_fullscreenExitGeneration;
+    }
+
+    private void ContinuePendingFullscreenExitSizeRepair()
+    {
+        if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { State: WindowState.Normal } intent
+            || _fullscreenOrigin != null || _restoringFullscreen || _applyingFullscreenRestoreGeometry
+            || WindowState != WindowState.Normal || _isClosing
+            || Math.Abs(ClientSize.Width - intent.Client.Width) <= 1
+                && Math.Abs(ClientSize.Height - intent.Client.Height) <= 1
+            || _fullscreenExitSizeCorrectionQueued) return;
+        _fullscreenExitSizeCorrectionQueued = true;
+        int generation = _fullscreenExitGeneration;
+        // A native resize acknowledgement can arrive after an explicit normal
+        // resize and overwrite Width/Height. Reapply only the still-pending exit
+        // target; a real user drag updates that target in OnFullscreenRestoreResized.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (generation != _fullscreenExitGeneration) return;
+            _fullscreenExitSizeCorrectionQueued = false;
+            if (_fullscreenExitIntent is not { State: WindowState.Normal } target
+                || _fullscreenOrigin != null || _restoringFullscreen || WindowState != WindowState.Normal || _isClosing
+                || Math.Abs(ClientSize.Width - target.Client.Width) <= 1
+                    && Math.Abs(ClientSize.Height - target.Client.Height) <= 1) return;
+            Width = target.Client.Width;
+            Height = target.Client.Height;
+        }, DispatcherPriority.Background);
     }
 
     private void QueueFullscreenExitRepair()
