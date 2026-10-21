@@ -80,6 +80,7 @@ public partial class MainWindow
     private void OnWorkspaceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => _workspaceRefresh?.Request();
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
+        RefreshWorkspaceMinimumAfterResize();
         WorkspaceControl<DownloadSpeedGraph>("TransferSpeedGraph").IsVisible = Bounds.Width >= 1000;
         WorkspaceControl<Grid>("TransferSpeed").IsVisible = Bounds.Width >= 760;
         if (WorkspaceControl<Border>("ShellHelpOverlay").IsVisible)
@@ -136,18 +137,14 @@ public partial class MainWindow
                     _normalWorkspaceHeight = double.IsFinite(Height) ? Height : 850;
                     _normalWorkspaceState = WindowState;
                     WindowState = WindowState.Normal;
-                    MinWidth = 640;
-                    MinHeight = 480;
                     SetWorkspaceWindowSize(850, 530);
                     _workspaceInspectorVisible = false;
                     _workspaceNarrowInspectorVisible = false;
                 }
                 else if (_appliedWorkspaceMode == "Barebones")
                 {
-                    MinWidth = 760;
-                    MinHeight = 500;
-                    SetWorkspaceWindowSize(Math.Max(MinWidth, _normalWorkspaceWidth),
-                        Math.Max(MinHeight, _normalWorkspaceHeight));
+                    SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, _normalWorkspaceWidth),
+                        Math.Max(WorkspaceMinimumSize.Height, _normalWorkspaceHeight));
                     WindowState = _normalWorkspaceState;
                     _workspaceInspectorVisible = _normalWorkspaceInspectorVisible;
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;
