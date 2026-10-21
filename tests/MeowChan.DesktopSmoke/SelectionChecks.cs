@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -12,6 +13,8 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class SelectionChecks
 {
+    private static KeyModifiers CommandModifier => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+
     internal static async Task RunAsync(MainWindow window)
     {
         Require(window.SessionHost.IsPaused, "Selection fixture must never start network work.");
@@ -21,24 +24,29 @@ internal static class SelectionChecks
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         ThreadRow[] rows = window.UrlList.OrderBy(row => row.ThreadId).ToArray();
         await WaitRow(grid, rows[4]);
-        Press(window, Row(grid, rows[0]));
-        Press(window, Row(grid, rows[2]), KeyModifiers.Control);
-        Require(grid.SelectedItems.Count == 2, "Ctrl-click did not extend the native watch selection.");
-        Press(window, Row(grid, rows[2]), right: true);
+        await PressAsync(window, Row(grid, rows[0]));
+        await PressAsync(window, Row(grid, rows[2]), CommandModifier);
+        Require(grid.SelectedItems.Count == 2, "Command-click did not extend the native watch selection.");
+        await PressAsync(window, Row(grid, rows[2]), right: true);
         Require(grid.SelectedItems.Count == 2, "Right-click collapsed the existing multiple selection.");
+        Require(grid.ContextMenu!.IsOpen, "Right-click on a selected watch did not open its context menu.");
         grid.ContextMenu!.Close();
         await Task.Delay(80);
-        Press(window, Row(grid, rows[4]), right: true);
+        await CheckKeyboardContextAsync(grid, grid.ContextMenu);
+        await PressAsync(window, Row(grid, rows[4]), right: true);
         Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItem, rows[4]), "Right-click unselected watch did not replace selection.");
+        Require(grid.ContextMenu.IsOpen, "Right-click on an unselected watch did not open its context menu.");
         grid.ContextMenu.Close();
         await Task.Delay(80);
         Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 24), window)!.Value;
         PressAt(window, blank, KeyModifiers.None, right: true);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Require(grid.SelectedItems.Count == 0, "Blank-space right-click retained stale watch targets.");
-        Press(window, Row(grid, rows[0]));
-        Press(window, Row(grid, rows[3]), KeyModifiers.Shift);
+        Require(!grid.ContextMenu.IsOpen, "Blank-space right-click reopened an empty watch context menu.");
+        await PressAsync(window, Row(grid, rows[0]));
+        await PressAsync(window, Row(grid, rows[3]), KeyModifiers.Shift);
         Require(grid.SelectedItems.Count == 4, "Shift-click did not select a contiguous native row range.");
-        Press(window, Row(grid, rows[0]));
+        await PressAsync(window, Row(grid, rows[0]));
         PressKey(grid, Key.Down, KeyModifiers.Shift);
         Require(grid.SelectedItems.Count == 2, "Native Shift+Down did not extend a watch range.");
         PressKey(grid, Key.Down);
@@ -46,18 +54,18 @@ internal static class SelectionChecks
         ThreadRow selectedBeforeFocusMove = grid.SelectedItems.Cast<ThreadRow>().Single();
         ThreadRow[] currentOrder = grid.CollectionView.Cast<ThreadRow>().ToArray();
         ThreadRow focusedAfterMove = currentOrder[Array.IndexOf(currentOrder, selectedBeforeFocusMove) + 1];
-        Press(window, Row(grid, focusedAfterMove), KeyModifiers.Control);
-        Press(window, Row(grid, focusedAfterMove), KeyModifiers.Control);
+        await PressAsync(window, Row(grid, focusedAfterMove), CommandModifier);
+        await PressAsync(window, Row(grid, focusedAfterMove), CommandModifier);
         await Task.Delay(50);
         PressKey(grid, Key.Enter);
         await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
             && !window.ArchivePage.IsBusy && window.ArchivePage.CurrentThread?.Summary.Id == focusedAfterMove.Snapshot.Id);
         Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItems[0], selectedBeforeFocusMove),
-            "Ctrl-toggle/Enter changed the selection instead of opening only the focused unselected lead.");
+            "Command-toggle/Enter changed the selection instead of opening only the focused unselected lead.");
         Click(window.ArchivePage.FindControl<Button>("ArchiveCloseReader")!);
         await Program.WaitUntilAsync(() => !window.FindControl<ContentControl>("ReaderHost")!.IsVisible);
-        PressKey(grid, Key.A, KeyModifiers.Control);
-        Require(grid.SelectedItems.Count == 5, "List Ctrl+A did not select all watches.");
+        PressKey(grid, Key.A, CommandModifier);
+        Require(grid.SelectedItems.Count == 5, "List Select All did not select all watches.");
         long[] selectedIds = grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().ToArray();
         Texts.SetLanguage("de");
         await Task.Delay(50);
@@ -76,10 +84,10 @@ internal static class SelectionChecks
 
         TextBox input = window.FindControl<TextBox>("UrlInput")!;
         input.Text = "keep native input";
-        PressKey(input, Key.Delete); PressKey(input, Key.E, KeyModifiers.Control); PressKey(input, Key.A, KeyModifiers.Control);
+        PressKey(input, Key.Delete); PressKey(input, Key.E, CommandModifier); PressKey(input, Key.A, CommandModifier);
         Require(window.UrlList.Count == 5 && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
             "Text input shortcut escaped to a list command.");
-        PressKey(grid, Key.E, KeyModifiers.Control);
+        PressKey(grid, Key.E, CommandModifier);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")?.IsVisible == true && page.FindControl<Button>("ArchiveExportClose")!.IsEnabled);
         Require(window.SelectedPage == MainWindow.WorkspacePage.Archive && !window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
@@ -110,28 +118,43 @@ internal static class SelectionChecks
         ArchiveThreadRow[] archived = table.ItemsSource.Cast<ArchiveThreadRow>().ToArray();
         await WaitRow(table, archived[3]);
         await Task.Delay(80);
-        Press(window, Row(table, archived[0]));
+        await PressAsync(window, Row(table, archived[0]));
         await Task.Delay(80);
-        Press(window, Row(table, archived[3]), KeyModifiers.Shift);
+        await PressAsync(window, Row(table, archived[3]), KeyModifiers.Shift);
         Program.CaptureWindow(window, "smoke-selection-archive-range.png");
         Require(table.SelectedItems.Count == 4, "Archive native Shift range did not work.");
-        Press(window, Row(table, archived[3]), right: true);
+        await PressAsync(window, Row(table, archived[3]), right: true);
         Require(table.SelectedItems.Count == 4, "Archive selected right-click collapsed the set.");
+        Require(table.ContextMenu!.IsOpen, "Archive table right-click did not open its context menu.");
         table.ContextMenu!.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await CheckKeyboardContextAsync(table, table.ContextMenu);
         ResourceId[] archiveIds = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
         Texts.SetLanguage("de"); await Task.Delay(80);
         Require(table.SelectedItems.Count == 4, "Archive language refresh collapsed the set.");
         Click(page.FindControl<Button>("ArchiveThreadMode")!);
         ListBox cards = page.FindControl<ListBox>("ArchiveThreads")!;
         Require(cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToHashSet().SetEquals(archiveIds), "Table-to-card selection lost resource IDs.");
-        await Program.WaitUntilAsync(() => cards.GetVisualDescendants().OfType<ListBoxItem>().Count(item => item.IsEffectivelyVisible) >= 3);
+        await Program.WaitUntilAsync(() =>
+        {
+            ListBoxItem[] visible = cards.GetVisualDescendants().OfType<ListBoxItem>()
+                .Where(item => item.IsEffectivelyVisible).Take(3).ToArray();
+            return visible.Length == 3 && visible.All(item => CardPointerReady(window, item));
+        });
         ListBoxItem[] cardRows = cards.GetVisualDescendants().OfType<ListBoxItem>().Where(item => item.IsEffectivelyVisible).Take(3).ToArray();
-        Press(window, cardRows[0]); Press(window, cardRows[2], KeyModifiers.Control);
-        Require(cards.SelectedItems!.Count == 2, "Archive cards Ctrl-click did not preserve native multiple selection.");
-        Press(window, cardRows[0]); Press(window, cardRows[2], KeyModifiers.Shift);
+        await PressAsync(window, cardRows[0]); await PressAsync(window, cardRows[2], CommandModifier);
+        Require(cards.SelectedItems!.Count == 2, "Archive cards Command-click did not preserve native multiple selection.");
+        await PressAsync(window, cardRows[2], right: true);
+        ContextMenu cardMenu = cardRows[2].GetVisualDescendants().OfType<Control>()
+            .Select(control => control.ContextMenu).First(menu => menu != null)!;
+        Require(cards.SelectedItems.Count == 2 && cardMenu.IsOpen,
+            "Archive card right-click changed the selected set or failed to open its attached menu.");
+        cardMenu.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await PressAsync(window, cardRows[0]); await PressAsync(window, cardRows[2], KeyModifiers.Shift);
         Require(cards.SelectedItems!.Count == 3 && table.SelectedItems.Count == 3, "Archive card Shift range or table synchronization failed.");
         Click(page.FindControl<Button>("ArchiveThreadMode")!);
-        PressKey(table, Key.A, KeyModifiers.Control);
+        PressKey(table, Key.A, CommandModifier);
         Require(table.SelectedItems.Count == 50, "Archive Select All escaped the current page.");
         Click(page.FindControl<Button>("NextThreadsButton")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && table.ItemsSource.Cast<object>().Count() == 2);
@@ -159,11 +182,50 @@ internal static class SelectionChecks
     }
     private static Task WaitRow(DataGrid grid, object item) => Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item)));
     private static DataGridRow Row(DataGrid grid, object item) => grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item));
-    private static void Press(MainWindow window, Control row, KeyModifiers modifiers = KeyModifiers.None, bool right = false)
+    private static bool CardPointerReady(MainWindow window, ListBoxItem row)
+    {
+        if (row.Bounds.Width <= 0 || row.Bounds.Height <= 0) return false;
+        Point? point = row.TranslatePoint(new Point(Math.Min(20, row.Bounds.Width / 2), row.Bounds.Height / 2), window);
+        return point.HasValue && window.InputHitTest(point.Value) is Visual hit
+            && hit.GetSelfAndVisualAncestors().Contains(row);
+    }
+    private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu)
+    {
+        // Avalonia translates ContextMenu/Shift+F10 into a positionless request.
+        // Inject that native routed request, rather than bypassing it with menu.Open().
+        list.Focus();
+        list.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await Program.WaitUntilAsync(() => menu.IsOpen);
+        menu.Close();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+    private static async Task PressAsync(MainWindow window, Control row, KeyModifiers modifiers = KeyModifiers.None, bool right = false)
     {
         Control target = row is DataGridRow ? row.GetVisualDescendants().OfType<DataGridCell>().First(cell => cell.Bounds.Width > 10) : row;
-        Point point = target.TranslatePoint(new Point(Math.Min(20, target.Bounds.Width / 2), target.Bounds.Height / 2), window)!.Value;
+        Point point = default;
+        try
+        {
+            await Program.WaitUntilAsync(() =>
+            {
+                if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return false;
+                Point? translated = target.TranslatePoint(new Point(Math.Min(20, target.Bounds.Width / 2), target.Bounds.Height / 2), window);
+                if (!translated.HasValue) return false;
+                point = translated.Value;
+                return window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(row);
+            });
+        }
+        catch
+        {
+            Console.WriteLine($"SMOKE selection pointer blocked: row={row.GetType().Name}, point={point}, hit={window.InputHitTest(point)?.GetType().Name}; open context owners="
+                + string.Join(",", window.GetVisualDescendants().OfType<Control>().Where(control => control.ContextMenu?.IsOpen == true).Select(control => control.Name ?? control.GetType().Name))
+                + "; open submenus=" + string.Join(",", window.GetVisualDescendants().OfType<MenuItem>().Where(item => item.IsSubMenuOpen).Select(item => item.Name)));
+            Program.CaptureWindow(window, "smoke-selection-pointer-blocked.png");
+            throw;
+        }
         PressAt(window, point, modifiers, right);
+        // Complete queued native context-menu processing before the fixture closes
+        // a menu or injects the next pointer action.
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
     private static void PressAt(MainWindow window, Point point, KeyModifiers modifiers, bool right)
     {

@@ -44,6 +44,7 @@ public partial class MainWindow
         {
             DataGrid grid = this.FindControl<DataGrid>(name)!;
             grid.AddHandler(KeyDownEvent, OnDownloadListKeyDown, RoutingStrategies.Tunnel);
+            grid.AddHandler(ContextRequestedEvent, OnDownloadContextRequested, RoutingStrategies.Tunnel);
             if (grid.ContextMenu is ContextMenu menu) menu.Opened += (_, _) => NormalizeSelectionMenu(menu);
             grid.CurrentCellChanged += (_, _) =>
             {
@@ -93,11 +94,13 @@ public partial class MainWindow
     private void SelectDownloadContextRow(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not DataGrid grid) return;
+        _downloadPointerContextHandled.Remove(grid);
         DataGridRow? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
         object? item = hit?.DataContext;
         if (item is ThreadRow thread) _threadLeadId = thread.WatchId;
         if (item is BoardRow board) _boardLeadId = board.WatchId;
         if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        _downloadPointerContextHandled.Add(grid);
         if (item == null)
         {
             grid.SelectedItems.Clear();
@@ -112,6 +115,16 @@ public partial class MainWindow
         }
         e.Handled = true;
         RefreshWorkspace();
+    }
+
+    private readonly HashSet<Control> _downloadPointerContextHandled = new();
+
+    private void OnDownloadContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Control list && e.TryGetPosition(list, out _)
+            && _downloadPointerContextHandled.Remove(list))
+            e.Handled = true;
+        // Positionless keyboard requests keep Avalonia's native ContextMenu/Shift+F10 behavior.
     }
 
     private async void OnDownloadListKeyDown(object? sender, KeyEventArgs e)

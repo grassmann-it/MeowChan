@@ -16,6 +16,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private readonly HashSet<ResourceId> _archiveSelectionIds = new();
+    private readonly HashSet<Control> _archivePointerContextHandled = new();
     private ResourceId? _archiveLeadId;
     internal Func<IReadOnlyList<ResourceId>, Task>? RemoveSelectedWatches { get; set; }
     internal Func<ResourceId, bool>? CanRemoveWatch { get; set; }
@@ -39,6 +40,7 @@ public partial class ArchivePage
         {
             list.AddHandler(KeyDownEvent, OnArchiveListKeyDown, RoutingStrategies.Tunnel);
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
+            list.AddHandler(ContextRequestedEvent, OnArchiveContextRequested, RoutingStrategies.Tunnel);
         }
     }
 
@@ -101,10 +103,12 @@ public partial class ArchivePage
     private void OnArchiveListPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Control list || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        _archivePointerContextHandled.Remove(list);
         Control? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => control is DataGridRow or ListBoxItem);
         ArchiveThreadRow? row = hit?.DataContext as ArchiveThreadRow;
         if (row != null) _archiveLeadId = row.Summary.Id;
         if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed) return;
+        _archivePointerContextHandled.Add(list);
         if (row == null)
         {
             _archiveSelectionIds.Clear(); _archiveLeadId = null; _selectedThread = null;
@@ -122,6 +126,13 @@ public partial class ArchivePage
             owner?.ContextMenu?.Open(owner);
         }
         e.Handled = true;
+    }
+
+    private void OnArchiveContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Control list && e.TryGetPosition(list, out _)
+            && _archivePointerContextHandled.Remove(list))
+            e.Handled = true;
     }
 
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
