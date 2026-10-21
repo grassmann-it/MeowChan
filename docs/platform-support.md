@@ -5,7 +5,9 @@ This record separates upstream platform support, candidate MeowChan packages, an
 ## Integrated local video playback
 
 Gallery WebM playback uses LibVLCSharp.Avalonia 3.10.2. The video surface and
-transport controls occupy separate rows because native video has its own window.
+transport controls occupy separate rows. Windows/Linux use the native video
+window; macOS renders LibVLC software frames through an Avalonia surface so
+playback does not depend on an accelerated CGL context.
 Left/right navigate media; a focused timeline or volume slider retains its own
 arrow keys. Playback reads the same retained stream verified by the local media
 manifest, stops when changing media or leaving the gallery, and releases that file
@@ -19,7 +21,9 @@ before disposal completes. This does not download external media or install VLC.
 
 On Debian-derived systems the relevant package families include `libvlc5`,
 `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; package versions and
-names vary by distribution. Use supported distribution packages. An unavailable
+names vary by distribution. The Linux loader accepts the runtime ABI name
+`libvlc.so.5`; development-package symlinks are not required. Use supported
+distribution packages. An unavailable
 backend, missing codec/plugin or unreadable/corrupt file produces an in-gallery
 status and leaves navigation available. No native library is automatically installed.
 
@@ -57,6 +61,17 @@ Native Mac package/startup checks passed at `672b45d` below; bundled VLC playbac
 and full desktop acceptance still require validation.
 
 ## Current 0.9.0 preparation
+
+**Current integration checks:** the first native candidate at `5e5e64bc` did
+not pass the complete matrix. Its Windows extracted-package VP8/VP9 playback
+passed; Linux poster loading and macOS accelerated video output failed. Current
+source corrects Linux runtime-library resolution and adds the macOS software
+surface. The Linux fix has produced real VP8/VP9 posters in an isolated Ubuntu
+runtime-only environment. Window restore, minimum-size and platform-keyboard
+findings are also being integrated. Final native package checks must run again
+on the next complete candidate; none of these findings authorizes a release.
+No further intermediate preview release is planned. One tested self-contained
+Windows archive will be provided after the remaining work and checks.
 
 Stable MeowChan 0.9.0 is in preparation. [Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3) is the published compatibility-test preview, with .NET 10 and VLC bundled. Extract the whole ZIP and launch `MeowChan.exe`. Direct Windows hardware, real audio, bundled native VLC playback and full desktop workflow acceptance remain open. The six current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md).
 
