@@ -224,7 +224,7 @@ internal static class PresentationChecks
         return condition();
     });
 
-    private static bool MatchesRequestedSize(Window window, double width, double height)
+    internal static bool MatchesRequestedSize(Window window, double width, double height)
     {
         // Win32's BorderOnly minimum-track calculation includes the top resize
         // border even when the extended client area occupies most of that border.

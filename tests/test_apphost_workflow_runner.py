@@ -5,7 +5,7 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import struct
 import sys
 import tempfile
@@ -25,7 +25,7 @@ spec.loader.exec_module(runner)
 
 def metrics(phase='download', scale=1):
     return dict(schemaVersion=1, completed=True, failure=None, phase=phase, checks=sorted(runner.CHECKS[phase]),
-                renderScaling=scale, processId=123, workingDirectory='/owned/cwd', profile='/owned/profile',
+                renderScaling=scale, processId=123, workingDirectory=str(Path('/owned/cwd')), profile=str(Path('/owned/profile')),
                 assemblyInformationalVersion='0.9.0+0123456789abcdef',
                 externalDispatch=dict(kind='intercepted-export-command', target='/owned/exports/result'))
 
@@ -140,6 +140,25 @@ class WorkflowMetricsTests(unittest.TestCase):
             bad['externalDispatch'] = dispatch
             with self.subTest(dispatch=dispatch), self.assertRaisesRegex(ValueError, 'handoff'):
                 runner.validate_metrics(bad, 'download', 1)
+
+    def test_process_paths_use_platform_spelling_and_still_require_exact_matches(self):
+        for root in (PurePosixPath('/owned'), PureWindowsPath('C:/owned')):
+            working, profile = root / 'cwd', root / 'profile'
+            good = metrics()
+            good.update(workingDirectory=str(working), profile=str(profile))
+            with self.subTest(path_type=type(root).__name__):
+                runner.validate_metrics(good, 'download', 1, isolated=False, working=working,
+                                        profile=profile, process_id=123)
+                for field in ('workingDirectory', 'profile'):
+                    bad = good.copy()
+                    bad[field] = str(root / 'wrong')
+                    with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'mismatch'):
+                        runner.validate_metrics(bad, 'download', 1, isolated=False, working=working,
+                                                profile=profile, process_id=123)
+                bad = good.copy()
+                bad['workingDirectory'] = str(working).replace('\\', '/') if isinstance(root, PureWindowsPath) else str(working).replace('/', '\\')
+                with self.assertRaisesRegex(ValueError, 'mismatch'):
+                    runner.validate_metrics(bad, 'download', 1, isolated=False, working=working, profile=profile)
 
 
 class WorkflowSafetyTests(unittest.TestCase):

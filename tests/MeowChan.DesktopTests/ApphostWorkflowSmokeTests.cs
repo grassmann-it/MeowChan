@@ -86,6 +86,57 @@ public sealed class ApphostWorkflowSmokeTests
     }
 
     [Fact]
+    public void SystemTemporaryRootCanonicalizationResolvesAncestorAliasesInsideLinkTargets()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using OwnedRoot owned = new();
+        string storage = Path.Combine(owned.Root, "storage");
+        string real = Path.Combine(storage, "target", "child");
+        Directory.CreateDirectory(real);
+        string ancestorAlias = Path.Combine(owned.Root, "var-like");
+        string alias = Path.Combine(owned.Root, "target-alias");
+        Directory.CreateSymbolicLink(ancestorAlias, storage);
+        Directory.CreateSymbolicLink(alias, Path.Combine(ancestorAlias, "target"));
+        try
+        {
+            System.Reflection.MethodInfo canonical = typeof(ApphostWorkflowSmoke).GetMethod("CanonicalDirectory",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            string actual = (string)canonical.Invoke(null, [Path.Combine(alias, "child")])!;
+            string expected = (string)canonical.Invoke(null, [real])!;
+            Assert.Equal(expected, actual);
+        }
+        finally
+        {
+            Directory.Delete(alias);
+            Directory.Delete(ancestorAlias);
+        }
+    }
+
+    [Fact]
+    public void DirectoryCanonicalizationRejectsLinkCycles()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using OwnedRoot owned = new();
+        string first = Path.Combine(owned.Root, "cycle-one");
+        string second = Path.Combine(owned.Root, "cycle-two");
+        Directory.CreateSymbolicLink(first, second);
+        Directory.CreateSymbolicLink(second, first);
+        try
+        {
+            System.Reflection.MethodInfo canonical = typeof(ApphostWorkflowSmoke).GetMethod("CanonicalDirectory",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            System.Reflection.TargetInvocationException exception = Assert.Throws<System.Reflection.TargetInvocationException>(
+                () => canonical.Invoke(null, [first]));
+            Assert.IsType<IOException>(exception.InnerException);
+        }
+        finally
+        {
+            File.Delete(first);
+            File.Delete(second);
+        }
+    }
+
+    [Fact]
     public async Task TerminalHttpFixtureCannotSendUnexpectedTrafficAndHonorsCancellation()
     {
         using ApphostWorkflowSmoke.Transport transport = new();

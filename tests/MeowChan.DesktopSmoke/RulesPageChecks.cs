@@ -166,8 +166,7 @@ internal static class RulesPageChecks
                     ScrollViewer scroll = page.FindControl<ScrollViewer>("RulesScroll")!;
                     try
                     {
-                        await WaitLayoutAsync(window, () => Math.Abs(window.Bounds.Width - width) <= 1
-                            && Math.Abs(window.Bounds.Height - height) <= 1
+                        await WaitLayoutAsync(window, () => PresentationChecks.MatchesRequestedSize(window, width, height)
                             && Fits(window, page.FindControl<Button>("SaveRuleButton")!)
                             && Fits(window, page.FindControl<Button>("DiscardRuleButton")!)
                             && scroll.Viewport.Height > 40 && ContentFitsHorizontally(page, scroll));

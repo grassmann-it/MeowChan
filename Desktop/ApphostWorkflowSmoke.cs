@@ -145,14 +145,27 @@ internal sealed class ApphostWorkflowSmoke : IDisposable
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     private static string CanonicalDirectory(string path)
     {
-        string full = Path.GetFullPath(path);
-        string current = Path.GetPathRoot(full)!;
-        foreach (string segment in full[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        int followedLinks = 0;
+        string Resolve(string value)
         {
-            DirectoryInfo part = new(Path.Combine(current, segment));
-            current = part.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? part.FullName;
+            string full = Path.GetFullPath(value);
+            string current = Path.GetPathRoot(full)!;
+            foreach (string segment in full[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            {
+                DirectoryInfo part = new(Path.Combine(current, segment));
+                FileSystemInfo? target = part.ResolveLinkTarget(returnFinalTarget: false);
+                if (target == null) current = part.FullName;
+                else
+                {
+                    if (++followedLinks > 64) throw new IOException("Workflow directory contains a symbolic-link cycle or too many aliases.");
+                    // A link target can itself contain ancestor aliases, e.g. macOS
+                    // /var -> /private/var. Resolve its full path from the root again.
+                    current = Resolve(target.FullName);
+                }
+            }
+            return current;
         }
-        return current;
+        return Resolve(path);
     }
     public void Dispose() => _client?.Dispose();
 
