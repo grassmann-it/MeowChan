@@ -224,14 +224,14 @@ public partial class MainWindow
         }
         if (e.Reason == WindowResizeReason.User)
         {
-            if (OperatingSystem.IsMacOS() && _fullscreenExitIntent is { State: WindowState.Normal } intent
+            if (OperatingSystem.IsMacOS() && _fullscreenExitIntent is { } intent
                 && WindowState == WindowState.Normal)
             {
                 if (_restoringFullscreen)
                 {
                     // Cocoa can label its own exit animation as User. Remember
-                    // this exact native frame so a delayed duplicate cannot
-                    // replace a newer explicit normal resize request.
+                    // this exact native frame, including a Maximized origin,
+                    // so a delayed duplicate cannot replace the normal frame.
                     if (ClientSize != intent.Client) RememberFullscreenExitStaleClient(ClientSize);
                     return;
                 }
@@ -345,8 +345,12 @@ public partial class MainWindow
 
     private void ContinuePendingFullscreenExitSizeRepair()
     {
-        if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { State: WindowState.Normal } intent
+        // After a Maximized exit has been restaged and the caller unmaximizes,
+        // its retained client is again the normal-frame target. Keep the
+        // maximize staging itself free to resize before that transition.
+        if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { } intent
             || _fullscreenOrigin != null || _restoringFullscreen || _applyingFullscreenRestoreGeometry
+            || intent.State == WindowState.Maximized && _fullscreenMaximizeRestoreClient != null
             || WindowState != WindowState.Normal || _isClosing
             || Math.Abs(ClientSize.Width - intent.Client.Width) <= 1
                 && Math.Abs(ClientSize.Height - intent.Client.Height) <= 1
@@ -362,8 +366,9 @@ public partial class MainWindow
             TraceFullscreen($"normal size correction callback generation={generation}");
             if (generation != _fullscreenExitGeneration) return;
             _fullscreenExitSizeCorrectionQueued = false;
-            if (_fullscreenExitIntent is not { State: WindowState.Normal } target
+            if (_fullscreenExitIntent is not { } target
                 || _fullscreenOrigin != null || _restoringFullscreen || WindowState != WindowState.Normal || _isClosing
+                || target.State == WindowState.Maximized && _fullscreenMaximizeRestoreClient != null
                 || Math.Abs(ClientSize.Width - target.Client.Width) <= 1
                     && Math.Abs(ClientSize.Height - target.Client.Height) <= 1) return;
             TraceFullscreen($"normal size correction applied={target.Client}");
