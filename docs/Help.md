@@ -75,6 +75,7 @@ These shortcuts apply when the relevant list has focus. Ctrl means Command on ma
 | Alt+Enter | Show details |
 | Ctrl+C / Ctrl+E | Copy selected links / export selected threads as HTML |
 | Delete | Remove selected watches |
+| Shift+Delete | Permanently delete selected Archive threads and their local media (confirmation required) |
 | F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
 | Ctrl+R | Edit the lead entry's media rules |
 | Ctrl+Shift+R | Open the focused board's **Thread filters…** wizard (Board list only) |
@@ -228,6 +229,20 @@ source monitoring. Explicitly adding the thread again starts a new watch generat
 Removing monitoring retains captured posts and saved files. Disabling **Save URLs
 on exit** prevents automatic watch restoration from both the URL list and retained
 work state; it does not erase the archive.
+
+## Permanently deleting archived threads
+
+In Archive, select one or more threads and choose **Delete permanently…** from
+the context menu, or press **Shift+Delete**. Review the thread count, local file
+count, size and paths before confirming. Cancel leaves everything unchanged.
+This removes captured posts, indexed search data, manifest-owned originals and
+versions, favorites and cached video posters. Watched boards keep these threads
+excluded; you can explicitly enable them again through board exclusions.
+
+Exports and unrelated files remain available. Directories shared with unselected
+archived threads or with unverifiable ownership block deletion. Changed files or
+other failures are reported; affected archive records remain for another attempt.
+Ordinary **Delete** only removes watches and keeps the archive and media.
 
 ## Portable HTML export
 

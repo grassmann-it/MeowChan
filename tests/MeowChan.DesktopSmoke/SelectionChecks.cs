@@ -188,6 +188,7 @@ internal static class SelectionChecks
         Require(window.UrlList.Count == 0, "Archive Delete invented a watch target.");
         Texts.SetLanguage("en");
         Program.CaptureWindow(window, "smoke-selection-archive.png");
+        await ArchiveDeletionChecks.RunAsync(window, table);
         Console.WriteLine("SMOKE selection archive: native range/right-click, stable EN/DE IDs, table/cards preservation, page-boundary pruning and absent-watch Delete guard passed.");
     }
 

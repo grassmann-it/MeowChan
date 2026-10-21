@@ -80,7 +80,7 @@ internal static class Program
             };
             config.SaveConfig();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
-            if (_selectionMode) ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
             if (_readerUxMode)
             {
                 ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();

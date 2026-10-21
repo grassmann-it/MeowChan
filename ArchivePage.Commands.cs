@@ -127,6 +127,10 @@ public partial class ArchivePage
             ResourceId[] eligible = ids.Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
             if (eligible.Length > 0 && RemoveSelectedWatches != null) await RemoveSelectedWatches(eligible);
         }, () => RemoveSelectedWatches != null && ids.Any(id => CanRemoveWatch?.Invoke(id) == true), Texts.T("archive.command.noWatch"));
+        Add("archive.delete-permanently", async () =>
+        {
+            if (DeletePermanentlyRequested != null) await DeletePermanentlyRequested(ids, origin);
+        }, () => DeletePermanentlyRequested != null);
         if (ids.Length > 1)
         {
             string count = string.Format(Texts.T("archive.command.selectionCount"), ids.Length);

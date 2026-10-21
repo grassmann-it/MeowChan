@@ -53,6 +53,7 @@ public partial class MainWindow
             };
         }
         ArchivePage.RemoveSelectedWatches = RemoveArchiveWatchesAsync;
+        ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
         ArchivePage.CanRemoveWatch = id => _threadRows.Values.Any(row => row.Snapshot.Id == id);
         ArchivePage.CheckSelectedWatches = CheckArchiveWatchesAsync;
         ArchivePage.CopySelectedUrls = CopyUrlsAsync;

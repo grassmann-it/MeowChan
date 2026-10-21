@@ -66,6 +66,23 @@ public sealed class FavoriteStore
         });
     }
 
+    /// <summary>Removes all favorites of deleted archive threads in one profile update.</summary>
+    public int RemoveThreads(IReadOnlyCollection<ResourceId> threads, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        HashSet<ResourceId> selected = threads.ToHashSet();
+        return _lease.RunExclusive(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Document document = Read();
+            int removed = document.Entries.RemoveAll(entry => selected.Contains(entry.Key.Thread));
+            if (removed > 0)
+                AtomicJsonFile.WriteAllText(_path, JsonSerializer.Serialize(document), backupCurrentFile: true,
+                    cancellationToken);
+            return removed;
+        });
+    }
+
     public static FavoriteEntry From(ResourceId thread, MediaAssetReference asset)
         => new(FavoriteAssetKey.From(thread, asset), asset.Length, asset.OriginalFileName ?? asset.RequestedFileName);
 

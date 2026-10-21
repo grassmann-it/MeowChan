@@ -16,10 +16,13 @@ internal static class ArchiveCommandChecks
         var oldRemove = page.CanRemoveWatch;
         var oldChecks = page.CheckSelectedWatches;
         var oldCopy = page.CopySelectedUrls;
+        var oldDelete = page.DeletePermanentlyRequested;
         try
         {
             ResourceId[] checkedIds = Array.Empty<ResourceId>();
             string[] copied = Array.Empty<string>();
+            ResourceId[] deleted = Array.Empty<ResourceId>();
+            page.DeletePermanentlyRequested = (ids, _) => { deleted = ids.ToArray(); return Task.CompletedTask; };
             page.CanCheckWatch = id => id == rows[0].Summary.Id;
             page.CanRetryWatch = id => id == rows[1].Summary.Id;
             page.CanRemoveWatch = _ => false;
@@ -37,7 +40,7 @@ internal static class ArchiveCommandChecks
             Require(items.Select(item => (string)item.Tag!).SequenceEqual(new[]
             {
                 "thread.read", "gallery.open", "thread.details", "export.open-html-dialog", "selection.copy-links",
-                "location.open-folder", "location.open-source", "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove"
+                "location.open-folder", "location.open-source", "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove", "archive.delete-permanently"
             }), "Archive context menu action order differs from the common thread menu: " + string.Join(", ", items.Select(item => item.Tag)));
             MenuItem Find(string id) => items.Single(item => (string)item.Tag! == id);
             Require(Find("thread.read").Command?.CanExecute(null) == false, "Archive batch selection offered the single-thread reader action.");
@@ -55,6 +58,8 @@ internal static class ArchiveCommandChecks
             ArchiveThreadRow replacement = table.ItemsSource.Cast<ArchiveThreadRow>().First(row => row.Summary.Id == rows[2].Summary.Id);
             table.SelectedItems.Clear(); table.SelectedItems.Add(replacement);
             await Program.WaitUntilAsync(() => !page.IsBusy);
+            Find("archive.delete-permanently").Command!.Execute(null);
+            Require(deleted.SequenceEqual(rows.Take(2).Select(row => row.Summary.Id)), "Permanent deletion retargeted the open menu selection.");
             Find("selection.copy-links").Command!.Execute(null);
             Require(copied.SequenceEqual(rows.Take(2).Select(row => row.Summary.Url)), "Open archive menu retargeted copied links after refresh.");
             Find("watch.retry-media").Command!.Execute(null);
@@ -67,6 +72,7 @@ internal static class ArchiveCommandChecks
         {
             page.CanCheckWatch = oldCheck; page.CanRetryWatch = oldRetry; page.CanRemoveWatch = oldRemove;
             page.CheckSelectedWatches = oldChecks; page.CopySelectedUrls = oldCopy;
+            page.DeletePermanentlyRequested = oldDelete;
             table.ContextMenu?.Close();
         }
         Console.WriteLine("SMOKE archive commands: shared order, selection loading, mixed eligibility, watchless reasons and frozen targets after refresh passed.");

@@ -57,6 +57,7 @@ internal static class BuiltInCatalog
         ("action.remove", "Remove", "Entfernen"),
         ("action.copyUrl", "Copy URL", "URL kopieren"),
         ("action.copyAllUrls", "Copy all URLs", "Alle URLs kopieren"),
+        ("action.cancel", "Cancel", "Abbrechen"),
         ("action.close", "Close", "Schließen"),
         ("window.minimize", "Minimize", "Minimieren"),
         ("window.maximize", "Maximize", "Maximieren"),

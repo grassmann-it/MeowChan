@@ -19,6 +19,7 @@ public partial class ArchivePage
     private readonly HashSet<Control> _archivePointerContextHandled = new();
     private ResourceId? _archiveLeadId;
     internal Func<IReadOnlyList<ResourceId>, Task>? RemoveSelectedWatches { get; set; }
+    internal Func<IReadOnlyList<ResourceId>, Control?, Task>? DeletePermanentlyRequested { get; set; }
     internal Func<ResourceId, bool>? CanRemoveWatch { get; set; }
     internal Func<ResourceId, bool>? CanCheckWatch { get; set; }
     internal Func<ResourceId, bool>? CanRetryWatch { get; set; }
@@ -161,7 +162,7 @@ public partial class ArchivePage
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
-            || _ended || !_available || _largeReader || _exportCard?.IsVisible == true) return;
+            || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
         KeyModifiers command = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
@@ -193,6 +194,13 @@ public partial class ArchivePage
         { e.Handled = true; await CopyArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "export.open-html-dialog"))
         { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list); return; }
+        if (MatchesArchiveCommand(e, "archive.delete-permanently"))
+        {
+            e.Handled = true;
+            ResourceId[] ids = FrozenArchiveSelection();
+            if (ids.Length > 0 && DeletePermanentlyRequested != null) await DeletePermanentlyRequested(ids, list);
+            return;
+        }
         if (MatchesArchiveCommand(e, "watch.remove"))
         { e.Handled = true; await RemoveArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "watch.check") || MatchesArchiveCommand(e, "watch.retry-media"))

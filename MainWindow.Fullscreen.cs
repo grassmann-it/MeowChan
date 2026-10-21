@@ -189,7 +189,8 @@ public partial class MainWindow
                 if (target.Retriable.Length > 0) ids.Insert(0, "watch.retry-media");
             }
         }
-        if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen) ids.Insert(0, "input.focus-search");
+        if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
+            ids.InsertRange(0, new[] { "input.focus-search", "archive.delete-permanently" });
         WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine,
             ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _))
                 .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)));

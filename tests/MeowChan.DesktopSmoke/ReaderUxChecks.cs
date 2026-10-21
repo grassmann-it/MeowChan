@@ -23,7 +23,7 @@ namespace MeowChan.DesktopSmoke;
 internal static class ReaderUxChecks
 {
     private static readonly ResourceId Hero = new("4chan", "g", "1000");
-    internal static async Task SeedAsync(string profile)
+    internal static async Task SeedAsync(string profile, bool deletionFixture = false)
     {
         string media = Path.Combine(profile, "Reader media");
         Directory.CreateDirectory(media);
@@ -55,8 +55,17 @@ internal static class ReaderUxChecks
             CapturedPost[] posts = Enumerable.Range(thread, 55).Select((post, ordinal) => new CapturedPost(post.ToString(), ordinal,
                 PostFieldPresence.All, Html: "<p>Reader UX post " + post + ". Saved text remains readable beside its media.</p>",
                 Attachments: new[] { new CapturedAttachment(0, "shared", OriginalFileName: "reader.png") })).ToArray();
+            string threadMedia = media;
+            if (deletionFixture)
+            {
+                threadMedia = Path.Combine(profile, "Delete media " + thread);
+                Directory.CreateDirectory(threadMedia);
+                File.Copy(Path.Combine(media, "reader.png"), Path.Combine(threadMedia, "reader.png"));
+                File.Copy(Path.Combine(media, ".meowchan-manifest.json"), Path.Combine(threadMedia, ".meowchan-manifest.json"));
+                await File.WriteAllTextAsync(Path.Combine(threadMedia, "unrelated.txt"), "keep me");
+            }
             await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/" + thread,
-                "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, posts));
+                "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, threadMedia, posts));
         }
     }
 

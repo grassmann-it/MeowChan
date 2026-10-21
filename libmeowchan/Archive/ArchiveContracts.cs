@@ -43,6 +43,13 @@ public sealed record ArchiveThreadSummary(ResourceId Id, string Url, string Titl
 
 public sealed record ArchiveThreadPage(IReadOnlyList<ArchiveThreadSummary> Items, int TotalCount, int Offset);
 
+/// <summary>Metadata captured before a thread is removed from the catalog. Media files remain the caller's responsibility.</summary>
+public sealed record ArchiveDeletedThread(ArchiveThreadSummary Summary, IReadOnlyList<string> MediaDirectories);
+
+/// <summary>Read-only deletion preview. Shared directories are also registered to unselected threads.</summary>
+public sealed record ArchiveDeletionPlan(IReadOnlyList<ArchiveDeletedThread> Threads,
+    IReadOnlyList<string> SharedMediaDirectories);
+
 /// <summary>A complete immutable thread read transaction, with bounded access to its retained posts.</summary>
 public sealed class ArchivedThreadView
 {
