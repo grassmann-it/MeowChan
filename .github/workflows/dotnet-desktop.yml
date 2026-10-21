@@ -88,6 +88,33 @@ jobs:
       - name: Check native Linux tray host lifecycle on private DBus
         if: runner.os == 'Linux'
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode tray-host --output artifacts/desktop-tray-host
+      - name: Capture bounded macOS native failure diagnostics
+        if: failure() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, tempfile
+          evidence = pathlib.Path('artifacts/build-evidence')
+          evidence.mkdir(parents=True, exist_ok=True)
+          commands = {
+              'macos-vm-stat.txt': ['vm_stat'],
+              'macos-processes.txt': ['ps', '-axo', 'pid,ppid,rss,state,comm'],
+              'macos-native-failures.log': ['/usr/bin/log', 'show', '--last', '10m', '--style', 'compact',
+                  '--predicate', '(process == "kernel" OR process == "amfid" OR process == "syspolicyd")'],
+          }
+          for name, command in commands.items():
+              with tempfile.TemporaryFile() as output:
+                  try:
+                      result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, timeout=20, check=False)
+                      status = f'exit_code={result.returncode}\n'
+                  except (OSError, subprocess.TimeoutExpired) as error:
+                      status = f'diagnostic_error={error}\n'
+                  # Keep only a bounded tail; diagnostics never change the original failure result.
+                  output.seek(0, 2)
+                  length = output.tell()
+                  output.seek(max(0, length - 256 * 1024))
+                  (evidence / name).write_bytes(status.encode() + output.read(256 * 1024))
+          PY
       - name: Upload regression and graphical evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -329,6 +356,9 @@ jobs:
       - name: Exercise native gallery playback from the extracted apphost
         if: inputs.mode == 'package-media'
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
+      - name: Exercise the extracted apphost download, restore, export and desktop workflow
+        if: inputs.mode == 'package-media'
+        run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
       - name: Retain playback-verified native ZIP candidate and evidence
         if: inputs.mode == 'package-media'
         uses: actions/upload-artifact@v7
@@ -379,7 +409,9 @@ jobs:
           dotnet --info > artifacts/media-evidence/sdk.txt
           uname -a > artifacts/media-evidence/host.txt
       - name: Check runner evidence validation
-        run: python -m unittest discover -s tests -p test_apphost_playback_runner.py -v
+        run: |
+          python -m unittest discover -s tests -p test_apphost_playback_runner.py -v
+          python -m unittest discover -s tests -p test_apphost_workflow_runner.py -v
       - name: Restore the actual release package contract
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained single-file application
@@ -420,6 +452,12 @@ jobs:
       - name: Play both WebM codecs through the extracted Linux apphost
         if: runner.os == 'Linux'
         run: python3 scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan --evidence-dir artifacts/media-evidence/playback
+      - name: Exercise the extracted Windows apphost workflow
+        if: runner.os == 'Windows'
+        run: python scripts/apphost-workflow-smoke.py artifacts/media-extracted/MeowChan.exe --archive artifacts/media-packages/MeowChan-${{ matrix.runtime }}.zip --archive-member MeowChan.exe --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/media-evidence/workflow
+      - name: Exercise the extracted Linux apphost workflow at normal and HiDPI scale
+        if: runner.os == 'Linux'
+        run: python3 scripts/apphost-workflow-smoke.py artifacts/media-extracted/MeowChan --archive artifacts/media-packages/MeowChan-${{ matrix.runtime }}.tar.gz --archive-member ./MeowChan --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/media-evidence/workflow
       - name: Retain playback-verified Windows or Linux archive and evidence
         uses: actions/upload-artifact@v7
         with:
@@ -453,7 +491,10 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, json, os, pathlib, shutil, subprocess, zipfile
+          import hashlib, importlib.util, json, os, pathlib, shutil, subprocess, zipfile
+          spec = importlib.util.spec_from_file_location('workflow_runner', 'scripts/apphost-workflow-smoke.py')
+          workflow_runner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(workflow_runner)
           root = pathlib.Path('artifacts/macos-inputs')
           output = pathlib.Path('artifacts/macos-candidate')
           output.mkdir(parents=True)
@@ -478,6 +519,29 @@ jobs:
               assert startup['passed'] is True and startup['exit_code'] == 0 and startup['outer_timeout'] is False
               playback = json.loads((evidence / 'playback/playback.json').read_text())
               assert playback['passed'] is True and playback['isolatedDesktop'] is False
+              workflow = json.loads((evidence / 'workflow/workflow.json').read_text())
+              assert workflow['passed'] is True and workflow['completed'] is True
+              assert workflow['declaredSourceCommit'] == commit and workflow['declaredRuntime'] == rid
+              assert workflow['archiveBinding']['sha256'] == digest
+              closure = workflow['archiveClosure']
+              assert closure['verifiedBeforeRun'] is True and closure['verifiedAfterRun'] is True
+              archive_entries = workflow_runner.archive_entries(archive)
+              for key, value in archive_entries.items():
+                  assert closure[key] == value, 'Workflow managed/native closure differs from final ZIP: ' + key
+              assert closure['afterContentSha256'] == closure['contentSha256'], 'Executed bundle changed during workflow'
+              closure_files = {row['path']: row for row in closure['entries'] if row['kind'] == 'file'}
+              assert workflow['scales'], 'Workflow has no executed scale'
+              for scale in workflow['scales']:
+                  assert scale['passed'] is True
+                  assert len(scale['phases']) == 4
+                  assert {phase['phase'] for phase in scale['phases']} == {'download', 'restore', 'removed', 'shutdown'}
+                  for phase in scale['phases']:
+                      assert phase['passed'] is True and phase['managedAssemblyBindingVerified'] is True
+                      bindings = phase['managedAssemblyBindings']
+                      assert {row['name'] for row in bindings} == {'MeowChan', 'libmeowchan'}
+                      for row in bindings:
+                          assert row['archivePath'].startswith('MeowChan.app/Contents/Resources/application/')
+                          assert closure_files[row['archivePath']]['sha256'] == row['sha256'], 'Loaded managed assembly differs from final ZIP'
               fixtures = json.loads(pathlib.Path('tests/Fixtures/gallery-playback-manifest.json').read_text())['files']
               assert len(playback['fixtures']) == 2
               assert {row['fixtureSha256'] for row in playback['fixtures']} == {row['sha256'] for row in fixtures}
@@ -487,10 +551,11 @@ jobs:
                       assert hashlib.sha256(package.read('MeowChan.app/' + name)).hexdigest() == expected_hash, 'ZIP/signature evidence mismatch'
                   apphost_hash = hashlib.sha256(package.read('MeowChan.app/Contents/MacOS/MeowChan')).hexdigest()
               assert playback['apphostSha256'] == apphost_hash, 'Playback apphost differs from final ZIP'
+              assert workflow['apphostSha256'] == apphost_hash == workflow['archiveBinding']['memberSha256'], 'Workflow apphost differs from final ZIP'
               shutil.copy2(archive, output / archive.name)
               shutil.copytree(evidence, output / 'evidence' / rid)
               report = {'source_commit': commit, 'rid': rid, 'archive_sha256': digest,
-                        'signatures': signatures, 'startup': startup, 'playback': playback}
+                        'signatures': signatures, 'startup': startup, 'playback': playback, 'workflow': workflow}
               (output / f'{rid}-native-validation.json').write_text(json.dumps(report, indent=2) + '\n')
           assert len(versions) == 1, 'Native versions differ'
           (output / 'version.txt').write_text(versions.pop() + '\n')

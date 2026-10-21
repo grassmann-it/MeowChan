@@ -14,7 +14,8 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    protected virtual MainWindow CreateMainWindow() => new MainWindow();
+    protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
+        ? new MainWindow(workflow.CreateSession()) : new MainWindow();
 
     public override void OnFrameworkInitializationCompleted()
     {
