@@ -99,6 +99,8 @@ public partial class ArchivePage
         var thread = _thread!;
         ResourceId threadId = thread.Summary.Id;
         ArchiveAssetRow[] assets = _assets.ToArray();
+        ArchiveAssetRow[] visible = VisibleAssets().ToArray();
+        GalleryEntry[] galleryEntries = BuildVisibleGalleryEntries(thread, assets, visible);
         GalleryEntry[] entries = GallerySelection.Build(thread, assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
             true, includeOtherMedia: true).Entries.ToArray();
         GalleryEntry? entry = asset == null ? null : entries.FirstOrDefault(item => item.Key == new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId)
@@ -107,7 +109,7 @@ public partial class ArchivePage
             entry = new GalleryEntry(new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId), asset.Manifest, asset.Asset,
                 null, null, !asset.Asset.IsCurrent, true) { ThreadUrl = thread.Summary.Url };
         GalleryEntry? target = entry;
-        if (target != null && !entries.Any(item => item.Key == target.Key)) entries = entries.Append(target).ToArray();
+        GalleryEntry? galleryTarget = target == null ? null : galleryEntries.FirstOrDefault(item => item.Key == target.Key);
         bool saved = target != null;
         string missing = Texts.T("archive.notSaved");
         var unavailable = new List<string>();
@@ -125,9 +127,9 @@ public partial class ArchivePage
         }
         Add("gallery.open", async () =>
         {
-            if (target != null && OpenMediaGallery != null)
-                await OpenMediaGallery(entries, new GalleryEntryKey(target.Key, target.Post?.PostId, target.Attachment?.Position), origin);
-        }, saved && OpenMediaGallery != null, missing);
+            if (galleryTarget != null && OpenMediaGallery != null)
+                await OpenMediaGallery(galleryEntries, galleryTarget.EntryKey, origin);
+        }, galleryTarget != null && OpenMediaGallery != null, missing);
         Add("favorites.toggle", async () =>
         {
             if (target != null) await ToggleArchiveMediaFavoriteAsync(target);

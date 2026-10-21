@@ -19,11 +19,12 @@ internal static class ArchiveMediaCommandChecks
         var oldGallery = page.OpenMediaGallery;
         bool marked = false;
         GalleryEntryKey? opened = null;
+        IReadOnlyList<GalleryEntry>? openedEntries = null;
         try
         {
             page.IsArchiveFavorite = _ => marked;
             page.ToggleArchiveFavoriteAsync = _ => { marked = !marked; return Task.CompletedTask; };
-            page.OpenMediaGallery = (_, key, _) => { opened = key; return Task.CompletedTask; };
+            page.OpenMediaGallery = (entries, key, _) => { openedEntries = entries; opened = key; return Task.CompletedTask; };
             inline.RefreshFavorite();
             Button star = inline.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ArchiveMediaFavorite");
             Require(star.IsEnabled, "Saved inline media has no enabled favorite control.");
@@ -50,9 +51,34 @@ internal static class ArchiveMediaCommandChecks
             commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");
+            ArchiveAssetRow[] visible = page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().ToArray();
+            Require(openedEntries?.Select(entry => (entry.Manifest.Directory, entry.Asset.AssetId))
+                .SequenceEqual(visible.Select(row => (row.Manifest.Directory, row.Asset.AssetId))) == true,
+                "Inline context gallery did not use the visible media sequence.");
             commands.Single(item => (string)item.Tag! == "favorites.toggle").Command!.Execute(null);
             Require(!marked, "Inline context favorite did not use the same favorite action as its visible star.");
             menu.Close();
+            // An already opened menu retains its visible scope even when the favorites
+            // filter changes. A newly opened menu cannot navigate to the hidden row.
+            current.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            ContextMenu frozenMenu = page.ArchiveMediaMenu!;
+            Button favorites = page.FindControl<Button>("ArchiveFavoritesFilter")!;
+            favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(!page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().Any(),
+                "Favorites filter did not hide the unmarked archive asset.");
+            opened = null; openedEntries = null;
+            frozenMenu.Items.OfType<MenuItem>().Single(item => (string?)item.Tag == "gallery.open").Command!.Execute(null);
+            Require(openedEntries?.Count == visible.Length && opened?.Asset.AssetId == visible[0].Asset.AssetId,
+                "An open media menu lost its frozen visible gallery scope.");
+            frozenMenu.Close();
+            current.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            MenuItem hiddenGallery = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
+                .Single(item => (string?)item.Tag == "gallery.open");
+            Require(!hiddenGallery.IsEnabled, "A hidden inline asset remained navigable in the visible gallery.");
+            page.ArchiveMediaMenu.Close();
+            favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
         finally
         {

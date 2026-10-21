@@ -33,6 +33,24 @@ public partial class ArchivePage
         ? Control<ListBox>("ArchiveMediaTiles").SelectedItem
         : Control<DataGrid>("ArchiveMediaGrid").SelectedItem) as ArchiveAssetRow;
 
+    private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
+        ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
+    {
+        ResourceId threadId = thread.Summary.Id;
+        GalleryThreadResult associated = GallerySelection.Build(thread,
+            assets.Select(asset => asset.Manifest).DistinctBy(manifest => manifest.Directory), true, includeOtherMedia: true);
+        Dictionary<GalleryAssetKey, GalleryEntry> postByAsset = associated.Entries
+            .Where(entry => entry.Post != null).GroupBy(entry => entry.Key)
+            .ToDictionary(group => group.Key, group => group.First());
+        return visible.Select(asset =>
+        {
+            GalleryAssetKey identity = new(threadId, asset.Manifest.Directory, asset.Asset.AssetId);
+            return postByAsset.TryGetValue(identity, out GalleryEntry? match)
+                ? match : new GalleryEntry(identity, asset.Manifest, asset.Asset, null, null, !asset.Asset.IsCurrent, true)
+                { ThreadUrl = thread.Summary.Url };
+        }).ToArray();
+    }
+
     private async Task OpenAssetGalleryAsync(ArchiveAssetRow row, Control? origin)
     {
         if (_selectedThread == null || OpenMediaGallery == null || _thread == null) return;
@@ -49,26 +67,11 @@ public partial class ArchivePage
         // Freeze the visible sequence on the UI thread; matching a large archive runs off it.
         try
         {
-            (GalleryEntry[] entries, GalleryEntryKey start) = await Task.Run(() =>
-            {
-                GalleryThreadResult associated = GallerySelection.Build(thread,
-                    assets.Select(asset => asset.Manifest).DistinctBy(manifest => manifest.Directory), true, includeOtherMedia: true);
-                Dictionary<GalleryAssetKey, GalleryEntry> postByAsset = associated.Entries
-                    .Where(entry => entry.Post != null).GroupBy(entry => entry.Key)
-                    .ToDictionary(group => group.Key, group => group.First());
-                GalleryEntry[] selected = visible.Select(asset =>
-                {
-                    GalleryAssetKey identity = new(threadId, asset.Manifest.Directory, asset.Asset.AssetId);
-                    return postByAsset.TryGetValue(identity, out GalleryEntry? match)
-                        ? match : new GalleryEntry(identity, asset.Manifest, asset.Asset, null, null, !asset.Asset.IsCurrent, true)
-                        { ThreadUrl = thread.Summary.Url };
-                }).ToArray();
-                GalleryEntry? chosen = postByAsset.GetValueOrDefault(key);
-                return (selected, new GalleryEntryKey(key, chosen?.Post?.PostId, chosen?.Attachment?.Position));
-            }, token);
+            GalleryEntry[] entries = await Task.Run(() => BuildVisibleGalleryEntries(thread, assets, visible), token);
             if (_ended || token.IsCancellationRequested || request != _gallerySelectionRequest
                 || _selectedThread != threadId || !ReferenceEquals(_thread, thread) || !_showReader) return;
-            await OpenMediaGallery(entries, start, origin);
+            GalleryEntry? selected = entries.FirstOrDefault(entry => entry.Key == key);
+            if (selected != null) await OpenMediaGallery(entries, selected.EntryKey, origin);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         finally { if (ReferenceEquals(_gallerySelectionCancellation, loading)) _gallerySelectionCancellation = null; }

@@ -118,12 +118,12 @@ public partial class ArchivePage
         {
             if (ResolveFavoriteAssets == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
+            string label = scope.SelectedItem?.ToString() ?? Texts.T("viewer.favorites.all");
+            if (!string.IsNullOrWhiteSpace(search.Text)) label += " · " + Texts.T("viewer.favorites.searchApplied");
             export.IsEnabled = false;
             try
             {
                 FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(frozen, loading.Token);
-                string label = scope.SelectedItem?.ToString() ?? Texts.T("viewer.favorites.all");
-                if (!string.IsNullOrWhiteSpace(search.Text)) label += " · " + Texts.T("viewer.favorites.searchApplied");
                 await OpenOriginalExportAsync(resolved.Available, export, resolved.Missing.Count, label);
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
