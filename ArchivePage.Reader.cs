@@ -64,6 +64,7 @@ public partial class ArchivePage
         _largeReader = true;
         KeyboardNavigation.SetTabNavigation(pane, KeyboardNavigationMode.Cycle);
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
         pane.Margin = new Thickness(20);
         Control<Button>("ArchiveCloseReader").IsVisible = true;
         Control<Button>("ArchiveReadPosts").IsVisible = false;
@@ -83,6 +84,7 @@ public partial class ArchivePage
         ++_readerScopeRequest;
         _readerThreads = Array.Empty<ResourceId>();
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
+        pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
         pane.Margin = default;
         Control<Button>("ArchiveCloseReader").IsVisible = false;
         Control<Button>("ArchiveReadPosts").IsVisible = true;

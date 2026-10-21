@@ -221,7 +221,7 @@ internal sealed class GalleryViewer : UserControl
     };
 
     private static bool IsIconOnly(string name) => name is "GalleryPrevious" or "GalleryNext" or "GalleryFit" or
-        "GalleryMinus" or "GalleryPlus" or "GalleryFullscreen" or "GalleryHelp" or
+        "GalleryMinus" or "GalleryPlus" or "GalleryHelp" or
         "GalleryToggleContext" or "GalleryFavorite";
 
     private static Button Command(Panel panel, string name, string label, Action action)

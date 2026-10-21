@@ -29,7 +29,18 @@ internal static class ArchiveMediaCommandChecks
             Require(star.IsEnabled, "Saved inline media has no enabled favorite control.");
             star.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(marked && star is Avalonia.Controls.Primitives.ToggleButton { IsChecked: true } && AutomationProperties.GetName(star) == Texts.T("viewer.favorite.remove"), "Inline favorite did not update its accessible state.");
-            inline.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = inline });
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            await Program.WaitUntilAsync(() => posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .Any(view => view.DataContext is ArchiveAttachmentRow));
+            ArchiveAttachmentView current = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .First(view => view.DataContext is ArchiveAttachmentRow);
+            Require(current.DataContext is ArchiveAttachmentRow, "Current inline media has no attachment context.");
+            Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
+            Require(current.GetVisualAncestors().Contains(readerPane), "Current inline media is not in the reader pane.");
+            // The large reader reparents its pane outside ArchivePage. Raise at the registered
+            // tunnel owner for that visual route with the actual media source.
+            Control routeOwner = current.GetVisualAncestors().Contains(page) ? page : readerPane;
+            routeOwner.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = current });
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             ContextMenu menu = page.ArchiveMediaMenu!;
             Require(menu.IsOpen, "Inline keyboard context request did not open a media menu.");

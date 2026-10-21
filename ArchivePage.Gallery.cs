@@ -97,6 +97,8 @@ public partial class ArchivePage
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow? mediaSelection = SelectedMediaRow();
         string? postSelection = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
+        string[] expandedReplies = (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
+            .Where(post => post.RepliesExpanded).Select(post => post.Id).ToArray() ?? Array.Empty<string>();
         // Stack enumeration is newest-first; restore in reverse to retain the same Back path.
         var history = _history.ToArray();
         ArchivePostId? backlinkPost = _backlinkPost;
@@ -148,6 +150,9 @@ public partial class ArchivePage
             }
             finally { _updatingList = false; }
             RenderThread(); UpdateLayoutMode();
+            if (expandedReplies.Length > 0 && Control<ListBox>("ArchivePosts").ItemsSource is IEnumerable<ArchivePostRow> restoredPosts)
+                foreach (ArchivePostRow post in restoredPosts)
+                    if (expandedReplies.Contains(post.Id, StringComparer.Ordinal)) post.RepliesExpanded = true;
             Control<TabControl>("ArchiveContentTabs").SelectedIndex = tab;
             Control<DataGrid>("ArchiveMediaGrid").SelectedItem = mediaSelection;
             Control<ListBox>("ArchiveMediaTiles").SelectedItem = mediaSelection;

@@ -86,13 +86,15 @@ internal static class ArchivePageChecks
         await page.NavigateQuoteAsync(new ArchiveQuoteRow(new ArchiveQuote(quoteId, quoteId, ">>" + quotePost.PostId, null)));
         await page.MediaLoadTask;
         Require(page.FindControl<Button>("ArchiveHistoryBack")!.IsVisible, "Quote navigation did not create a reader history entry.");
-        Button backlinks = window.GetVisualDescendants().OfType<Button>().First(button => button.DataContext is ArchivePostRow
-            && button.Content?.ToString() == ((ArchivePostRow)button.DataContext).BacklinksLabel);
-        Click(backlinks);
-        await Program.WaitUntilAsync(() => page.FindControl<TextBlock>("ArchiveReferencesTitle")!.Text
-            == Texts.T("archive.noBacklinks", quotePost.PostId));
-        string? referenceTitle = page.FindControl<TextBlock>("ArchiveReferencesTitle")!.Text;
-        string? referencePage = page.FindControl<TextBlock>("ArchiveReferencesPage")!.Text;
+        ArchivePostRow replyTarget = page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!
+            .Cast<ArchivePostRow>().Single();
+        await Program.WaitUntilAsync(() => replyTarget.BacklinkCount == 0);
+        Expander replies = window.GetVisualDescendants().OfType<Expander>()
+            .Single(expander => ReferenceEquals(expander.DataContext, replyTarget));
+        replies.IsExpanded = true;
+        await Program.WaitUntilAsync(() => replyTarget.RepliesLoaded && !replyTarget.RepliesLoading);
+        Require(replyTarget.Replies.Count == 0 && replyTarget.RepliesExpanded,
+            "The inline reply expander did not show its empty local result.");
         ArchiveAssetRow quoteAsset = media.ItemsSource.Cast<ArchiveAssetRow>().Single();
         GalleryEntry quotedEntry = new(new GalleryAssetKey(id, quoteAsset.Manifest.Directory, quoteAsset.Asset.AssetId),
             quoteAsset.Manifest, quoteAsset.Asset,
@@ -107,13 +109,12 @@ internal static class ArchivePageChecks
         await Program.WaitUntilAsync(() => !gallery.IsVisible && page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 0);
         Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
         Click(GalleryControl<Button>(quoteViewer, "GalleryClose"));
-        Require(page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 2,
-            "Closing after a quote excursion lost the original references tab.");
-        Require(page.FindControl<TextBlock>("ArchiveReferencesTitle")!.Text == referenceTitle
-            && page.FindControl<TextBlock>("ArchiveReferencesPage")!.Text == referencePage,
-            "Closing after a quote excursion lost the original reference panel state.");
-        Require(!page.FindControl<Button>("PreviousReferences")!.IsEnabled && !page.FindControl<Button>("NextReferences")!.IsEnabled,
-            "Restored empty reference panel has incoherent paging actions.");
+        Require(page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 0,
+            "Closing after a quote excursion lost the post reader.");
+        ArchivePostRow restoredReplyTarget = page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!
+            .Cast<ArchivePostRow>().Single();
+        Require(restoredReplyTarget.Id == quotePost.PostId && restoredReplyTarget.RepliesExpanded,
+            "Closing after a quote excursion lost the inline reply expansion or post.");
         Click(page.FindControl<Button>("ArchiveHistoryBack")!);
         Require(!page.FindControl<Button>("ArchiveHistoryBack")!.IsVisible,
             "Closing after a quote excursion leaked its extra reader history entry.");
