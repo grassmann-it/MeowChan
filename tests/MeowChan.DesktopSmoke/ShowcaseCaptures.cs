@@ -217,9 +217,37 @@ internal static class ShowcaseCaptures
         replies.IsExpanded = true;
         await Program.WaitUntilAsync(() => openingPost.RepliesLoaded && openingPost.Replies.Count > 0
             && replies.IsEffectivelyVisible);
+        // Avalonia's Expander animates its reveal after the reply data is loaded.
+        // Capturing when only the first button appears clips later replies.
+        await Task.Delay(350);
         replies.BringIntoView();
-        await Program.WaitUntilAsync(() => replies.GetVisualDescendants().OfType<Button>()
-            .Any(button => button.IsEffectivelyVisible && button.Bounds.Width > 0));
+        ScrollViewer repliesViewport = postsList.GetVisualDescendants().OfType<ScrollViewer>().Single();
+        Rect[]? previousReplyBounds = null;
+        double previousExpanderHeight = 0;
+        int stableReplyPasses = 0;
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            Button[] buttons = replies.GetVisualDescendants().OfType<Button>()
+                .Where(button => button.DataContext is ArchiveQuoteRow).ToArray();
+            if (buttons.Length != openingPost.Replies.Count ||
+                buttons.Any(button => !button.IsEffectivelyVisible || button.Bounds.Width <= 0 || button.Bounds.Height <= 0
+                    || !FitsInside(button, replies) || !FitsInViewport(button, repliesViewport)))
+            {
+                stableReplyPasses = 0;
+                previousReplyBounds = null;
+                replies.BringIntoView();
+                return false;
+            }
+            Rect[] currentBounds = buttons.Select(button =>
+                new Rect(button.TranslatePoint(default, repliesViewport)!.Value, button.Bounds.Size)).ToArray();
+            stableReplyPasses = previousReplyBounds != null && currentBounds.SequenceEqual(previousReplyBounds)
+                && Math.Abs(replies.Bounds.Height - previousExpanderHeight) < 0.1 ? stableReplyPasses + 1 : 0;
+            previousReplyBounds = currentBounds;
+            previousExpanderHeight = replies.Bounds.Height;
+            return stableReplyPasses >= 2;
+        });
+        Console.WriteLine($"SHOWCASE reader replies settled: {openingPost.Replies.Count} complete visible buttons in expander and post viewport.");
         await CaptureAsync(window, "v0.9.0-reader-replies.png");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         await Program.WaitUntilAsync(() => !reader.IsVisible
@@ -233,6 +261,14 @@ internal static class ShowcaseCaptures
         return point.HasValue && point.Value.X >= 0 && point.Value.Y >= 0
             && point.Value.X + control.Bounds.Width <= viewport.Viewport.Width + 1
             && point.Value.Y + control.Bounds.Height <= viewport.Viewport.Height + 1;
+    }
+
+    private static bool FitsInside(Control child, Control parent)
+    {
+        Point? point = child.TranslatePoint(default, parent);
+        return point.HasValue && point.Value.X >= -1 && point.Value.Y >= -1
+            && point.Value.X + child.Bounds.Width <= parent.Bounds.Width + 1
+            && point.Value.Y + child.Bounds.Height <= parent.Bounds.Height + 1;
     }
 
     private static async Task WaitForArchiveTilesAsync(MainWindow window, ArchivePage page)

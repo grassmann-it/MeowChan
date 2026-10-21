@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../MeowChan.csproj" />
+    <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

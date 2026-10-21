@@ -4,6 +4,35 @@ namespace MeowChan.DesktopTests;
 
 public sealed class OfflineLegalCatalogTests
 {
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    [InlineData("\r")]
+    public void ShippedFullLicenseSectionsAreIndependentOfNoticeLineEndings(string newline)
+    {
+        string root = FindRepository();
+        string notices = File.ReadAllText(Path.Combine(root, "THIRD-PARTY-NOTICES.md"));
+        string fixture = Path.Combine(Path.GetTempPath(), "meowchan-legal-lines-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(fixture);
+        try
+        {
+            File.WriteAllText(Path.Combine(fixture, "THIRD-PARTY-NOTICES.md"), notices.ReplaceLineEndings(newline));
+            OfflineLegalCatalog catalog = OfflineLegalCatalog.Load(fixture);
+            Assert.Null(catalog.Error);
+            Assert.Equal(notices.ReplaceLineEndings("\n"), catalog.Notices);
+            OfflineLegalCatalog canonical = OfflineLegalCatalog.Load(root);
+            foreach (string name in new[] { "Avalonia", "Feather Icons", "Avalonia.Fonts.Inter" })
+            {
+                OfflineLegalCatalog.Entry entry = Assert.Single(catalog.Entries, e => e.Name == name);
+                Assert.Contains("THE SOFTWARE IS PROVIDED", entry.FullText);
+                Assert.DoesNotContain("Section missing", entry.FullText);
+                Assert.Equal(Assert.Single(canonical.Entries, e => e.Name == name).FullText, entry.FullText);
+            }
+            Assert.DoesNotContain("## Actipro Avalonia Free", Assert.Single(catalog.Entries, e => e.Name == "Feather Icons").FullText);
+        }
+        finally { Directory.Delete(fixture, recursive: true); }
+    }
+
     [Fact]
     public void PackageInventoryAndFullTextsUseShippedNotices()
     {

@@ -40,7 +40,10 @@ public sealed class OfflineLegalCatalog
     {
         try
         {
-            string notices = File.ReadAllText(Path.Combine(directory, "THIRD-PARTY-NOTICES.md"));
+            // Git checkouts and Windows packages can use CRLF. Section boundaries
+            // are Markdown lines, independent of the host's newline convention.
+            string notices = File.ReadAllText(Path.Combine(directory, "THIRD-PARTY-NOTICES.md"))
+                .ReplaceLineEndings("\n");
             var entries = new List<Entry>();
             string ownLicense = ReadOptional(directory, "LICENSE");
             entries.Add(new Entry("MeowChan", "application", "Artistic License 2.0", "Tomka (tfgrass)",
