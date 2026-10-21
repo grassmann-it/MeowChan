@@ -488,7 +488,10 @@ public partial class MainWindow : Window
         trayIcon.Menu = menu;
         trayIcon.Clicked += (sender, e) =>
         {
-            RestoreWindow();
+            if (IsVisible && WindowState != WindowState.Minimized)
+                MinimizeWindow(toTray: true);
+            else
+                RestoreWindow();
         };
         trayIcon.IsVisible = true;
         if (_trayPlatformSettings != null)

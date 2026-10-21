@@ -19,6 +19,22 @@ internal static class TrayHostChecks
         }
         if (!registered) throw new InvalidOperationException("The native icon was not registered with the private watcher.");
 
+        await ControlAsync("activate");
+        await AssertHiddenAsync(window, "left click on visible window");
+        await ControlAsync("activate");
+        await AssertRestoredAsync(window, "left click on hidden window");
+        window.WindowState = WindowState.Minimized;
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
+        await ControlAsync("activate");
+        await AssertRestoredAsync(window, "left click on taskbar-minimized window");
+        await ControlAsync("open-menu-item");
+        await Task.Delay(200);
+        await AssertRestoredAsync(window, "Open menu item on visible window");
+        await ControlAsync("activate");
+        await AssertHiddenAsync(window, "left click before Open menu item");
+        await ControlAsync("open-menu-item");
+        await AssertRestoredAsync(window, "Open menu item on hidden window");
+
         await ControlAsync("hide-own-item");
         Click(window, "WindowMinimizeButton");
         await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
@@ -61,7 +77,7 @@ internal static class TrayHostChecks
         await AssertHiddenAsync(window, "minimize after watcher restart");
         await ControlAsync("drop-watcher");
         await AssertRestoredAsync(window, "lost watcher");
-        Console.WriteLine("SMOKE tray host: native DBus registration; first minimize/close removed taskbar access; actual Activate restored; host loss, watcher restart and watcher loss remained reachable.");
+        Console.WriteLine("SMOKE tray host: native DBus registration; actual Activate toggled visible/hidden/minimized windows independent of minimize preference; Open menu item only restored; first minimize/close removed taskbar access; host loss, watcher restart and watcher loss remained reachable.");
     }
 
     private static async Task CheckIndependentPreferencesAsync(MainWindow window)
@@ -84,6 +100,10 @@ internal static class TrayHostChecks
         await Program.WaitUntilAsync(() => editor.IsAvailable && !editor.IsBusy && Config.LoadConfig().CloseToTray);
         if (Config.LoadConfig().MinimizeToTray)
             throw new InvalidOperationException("Saving MinimizeToTray changed CloseToTray.");
+        await ControlAsync("activate");
+        await AssertHiddenAsync(window, "explicit left click with MinimizeToTray disabled");
+        await ControlAsync("activate");
+        await AssertRestoredAsync(window, "left-click restore with MinimizeToTray disabled");
         Click(window, "WindowMinimizeButton");
         await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
         await Task.Delay(100);
