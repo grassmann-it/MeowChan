@@ -21,10 +21,13 @@ internal static class GalleryCloseChecks
         await Program.WaitUntilAsync(() => host.IsEffectivelyVisible && host.Content is GalleryViewer);
         GalleryViewer viewer = (GalleryViewer)host.Content!;
         if (videoFixture)
-            await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<Button>()
+        {
+            await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>()
                 .Any(button => button.Name == "GalleryVideoPause" && button.IsEffectivelyEnabled));
+            await RequireNativePlaybackAsync(viewer);
+        }
         else
-            await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<Image>()
+            await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Image>()
                 .Any(image => image.Name == "GalleryImage" && image.Source is Bitmap));
 
         bool maximizedOrigin = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_MAXIMIZED") == "1";
@@ -34,8 +37,12 @@ internal static class GalleryCloseChecks
             await Program.WaitUntilAsync(() => IsNativeMaximized(window));
         }
         Size normalOrigin = window.Bounds.Size;
+        RevealGalleryChrome(viewer);
+        if (videoFixture) RequireUncoveredVideoTransport(viewer);
+        await CaptureNativeAsync(videoFixture ? "video-open" : "image-open");
+        RevealGalleryChrome(viewer);
 
-        Button fullscreen = viewer.GetVisualDescendants().OfType<Button>()
+        Button fullscreen = viewer.GetGalleryVisualDescendants().OfType<Button>()
             .Single(button => button.Name == "GalleryFullscreen");
         Require(fullscreen.IsEffectivelyVisible && fullscreen.IsEffectivelyEnabled,
             "Gallery fullscreen control is not reachable.");
@@ -77,6 +84,17 @@ internal static class GalleryCloseChecks
         else Console.WriteLine("SMOKE gallery close: fullscreen toggles skipped for native caption input control.");
 
         Button close = window.FindControl<Button>("WindowCloseButton")!;
+        RevealGalleryChrome(viewer);
+        await CaptureNativeAsync(videoFixture ? "video-exit" : "image-exit");
+        if (videoFixture)
+        {
+            GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+            if ((await player.InspectPlaybackAsync()).State != "Playing")
+                viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlay")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await RequireNativePlaybackAsync(viewer);
+            RequireUncoveredVideoTransport(viewer);
+        }
         window.UpdateLayout();
         Point center = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window)
             ?? throw new InvalidOperationException("Close caption has no window position.");
@@ -109,6 +127,70 @@ internal static class GalleryCloseChecks
         && window.Screens.ScreenFromWindow(window) is { } screen
         && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.Bounds.Width) <= 2
         && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.Bounds.Height) <= 2;
+
+    private static void RevealGalleryChrome(GalleryViewer viewer) => viewer.RaiseEvent(
+        new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
+
+    private static void RequireUncoveredVideoTransport(GalleryViewer viewer)
+    {
+        viewer.UpdateLayout();
+        Border info = viewer.GetGalleryVisualDescendants().OfType<Border>()
+            .Single(control => control.Name == "GalleryOverlayInfo");
+        PixelPoint infoStart = info.PointToScreen(default);
+        double infoScale = TopLevel.GetTopLevel(info)!.RenderScaling;
+        foreach (Control transport in viewer.GetGalleryVisualDescendants().OfType<Control>()
+            .Where(control => control.Name is "GalleryVideoSeek" or "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+        {
+            Require(transport.IsEffectivelyVisible && transport.Bounds.Width > 0 && transport.Bounds.Height > 0,
+                "Video transport is not visible: " + transport.Name);
+            PixelPoint start = transport.PointToScreen(default);
+            double scale = TopLevel.GetTopLevel(transport)!.RenderScaling;
+            bool overlaps = infoStart.X < start.X + transport.Bounds.Width * scale
+                && infoStart.X + info.Bounds.Width * infoScale > start.X
+                && infoStart.Y < start.Y + transport.Bounds.Height * scale
+                && infoStart.Y + info.Bounds.Height * infoScale > start.Y;
+            Require(!overlaps, "Gallery info covers video transport: " + transport.Name);
+        }
+    }
+
+    private static async Task RequireNativePlaybackAsync(GalleryViewer viewer)
+    {
+        GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
+        GalleryVideoPlayer.PlaybackEvidence evidence;
+        do
+        {
+            evidence = await player.InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            bool visibleSoftwareFrames = OperatingSystem.IsWindows()
+                || evidence.SurfaceFrames >= 3 && evidence.SurfaceNonUniform;
+            if (evidence.DecodedFrames >= 3 && evidence.DisplayedFrames >= 3
+                && evidence.Time >= 250 && visibleSoftwareFrames) break;
+            if (DateTime.UtcNow >= deadline)
+                throw new TimeoutException("Native gallery video did not decode/display frames and advance its clock: " + evidence);
+            await Task.Delay(100);
+        } while (true);
+        long firstTime = evidence.Time;
+        await Task.Delay(300);
+        evidence = await player.InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        Require(evidence.Time > firstTime, "Native gallery video clock did not keep advancing: " + evidence);
+        Console.WriteLine("SMOKE gallery close: real native playback evidence=" + evidence);
+    }
+
+    private static async Task CaptureNativeAsync(string stage)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_NATIVE_CAPTURE_DIR");
+        if (string.IsNullOrEmpty(directory)) return;
+        Require(OperatingSystem.IsLinux() && (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1"
+            || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1"),
+            "Native gallery capture requires a private test desktop.");
+        Directory.CreateDirectory(directory);
+        System.Diagnostics.ProcessStartInfo info = new("import") { UseShellExecute = false };
+        info.ArgumentList.Add("-window"); info.ArgumentList.Add("root");
+        info.ArgumentList.Add(Path.Combine(directory, "gallery-native-" + stage + ".png"));
+        using System.Diagnostics.Process capture = System.Diagnostics.Process.Start(info)!;
+        await capture.WaitForExitAsync();
+        Require(capture.ExitCode == 0, "Private desktop native gallery capture failed.");
+    }
 
     private static bool IsNativeMaximized(MainWindow window) => window.WindowState == WindowState.Maximized
         && window.Screens.ScreenFromWindow(window) is { } screen

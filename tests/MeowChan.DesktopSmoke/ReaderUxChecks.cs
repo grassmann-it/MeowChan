@@ -135,8 +135,8 @@ internal static class ReaderUxChecks
         Click(GalleryButton(viewer, "GalleryPlus"));
         GalleryViewerState zoom = viewer.CaptureState();
         Click(GalleryButton(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
-        ComboBox association = viewer.GetVisualDescendants().OfType<ComboBox>().Single();
+        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
+        ComboBox association = viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Single();
         PressKey(association, Key.Right);
         Require(viewer.CaptureState().PostId == "1003", "Gallery shortcut captured the association selector's key.");
         Click(GalleryButton(viewer, "GalleryReadPost"));
@@ -189,7 +189,7 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap));
         viewer = (GalleryViewer)gallery.Content!;
         Click(GalleryButton(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
+        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
         Click(GalleryButton(viewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => reader.IsVisible && !gallery.IsVisible && !page.IsBusy);
         Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
@@ -329,11 +329,11 @@ internal static class ReaderUxChecks
 
     private static async Task CheckZoomAsync(MainWindow window, GalleryViewer viewer)
     {
-        Grid viewport = viewer.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "GalleryViewport");
+        Grid viewport = viewer.GetGalleryVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "GalleryViewport");
         Size originalSize = window.ClientSize;
         PixelPoint originalPosition = window.Position;
-        double ExpectedFit() => Math.Min(1, Math.Min(viewport.Bounds.Width * window.RenderScaling / 1800,
-            viewport.Bounds.Height * window.RenderScaling / 1000));
+        double ExpectedFit() => Math.Min(viewport.Bounds.Width * window.RenderScaling / 1800,
+            viewport.Bounds.Height * window.RenderScaling / 1000);
         bool MatchesFit() => viewport.Bounds.Width > 0 && viewport.Bounds.Height > 0
             && Math.Abs(viewer.CaptureState().PhysicalZoom - ExpectedFit()) < 1e-8;
         void TraceZoom(string stage) => Console.WriteLine($"SMOKE gallery zoom {stage}: requested={window.Width}x{window.Height}; "
@@ -405,8 +405,8 @@ internal static class ReaderUxChecks
         GalleryViewerState contextFit = viewer.CaptureState();
         Require(contextFit.PhysicalZoom <= resized.PhysicalZoom,
             "Opening context increased Fit despite narrowing the viewport.");
-        await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<SelectableTextBlock>().Any());
-        viewer.GetVisualDescendants().OfType<SelectableTextBlock>().First().Focus();
+        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<SelectableTextBlock>().Any());
+        viewer.GetGalleryVisualDescendants().OfType<SelectableTextBlock>().First().Focus();
         Wheel(window, viewport, -100000);
         Require(viewer.CaptureState().PhysicalZoom == contextFit.PhysicalZoom, "Context resize lost the Fit minimum.");
         Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), viewer), "Image wheel did not return keyboard focus to the gallery.");
@@ -422,10 +422,10 @@ internal static class ReaderUxChecks
         Click(GalleryButton(viewer, "GalleryToggleContext"));
         Click(GalleryButton(viewer, "GalleryFit"));
         await ResizeGalleryAsync(new Size(2200, 1500), "bounded maximum fit");
-        Require(viewer.CaptureState().PhysicalZoom <= 1, "Fit upscaled the original image above 1:1.");
+        Require(MatchesFit(), "Fit did not follow the enlarged viewport.");
         Click(GalleryButton(viewer, "GalleryActual"));
         await Program.WaitUntilAsync(() => viewer.CaptureState().PhysicalZoom == 1
-            && viewer.GetVisualDescendants().OfType<Image>().Any(image => image.Name == "GalleryImage"
+            && viewer.GetGalleryVisualDescendants().OfType<Image>().Any(image => image.Name == "GalleryImage"
             && image.Source is Bitmap bitmap && bitmap.PixelSize.Width == 1800));
         Click(GalleryButton(viewer, "GalleryFit"));
         await ResizeGalleryAsync(originalSize, "original viewport restored");
@@ -449,7 +449,7 @@ internal static class ReaderUxChecks
             .OrderBy(value => value.Top).Select(value => ((ArchivePostRow)value.Item.DataContext!).Id).FirstOrDefault();
     }
     private static string? SelectedPost(ArchivePage page) => (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id;
-    private static Button GalleryButton(GalleryViewer viewer, string name) => viewer.GetVisualDescendants().OfType<Button>().Single(button => button.Name == name);
+    private static Button GalleryButton(GalleryViewer viewer, string name) => viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == name);
     private static void PressKey(Control control, Key key) { control.Focus(); control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key }); }
     private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

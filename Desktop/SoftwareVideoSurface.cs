@@ -14,11 +14,11 @@ using LibVLCSharp.Shared;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// macOS VLC 3's window outputs require an accelerated CGL context, which is absent
-/// in some virtual/remote desktops. Render its real software video output through
-/// Avalonia instead. One queued frame bounds memory and drops frames if the UI is busy.
+/// Presents LibVLC software-decoded frames through Avalonia on macOS and Linux,
+/// avoiding native CGL/GLX and VAAPI/VDPAU output dependencies across compositor
+/// changes. One queued frame bounds memory and drops frames if the UI is busy.
 /// </summary>
-internal sealed class MacVideoSurface : IDisposable
+internal sealed class SoftwareVideoSurface : IDisposable
 {
     private readonly Image _image;
     private readonly MediaPlayer.LibVLCVideoFormatCb _format;
@@ -53,7 +53,7 @@ internal sealed class MacVideoSurface : IDisposable
     internal int PresentedFrames => Volatile.Read(ref _presented);
     internal bool NonUniform => Volatile.Read(ref _nonUniform) != 0;
 
-    internal MacVideoSurface(Image image, MediaPlayer player)
+    internal SoftwareVideoSurface(Image image, MediaPlayer player)
     {
         _image = image;
         _format = Format;

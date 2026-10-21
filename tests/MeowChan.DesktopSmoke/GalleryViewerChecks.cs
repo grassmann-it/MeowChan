@@ -100,6 +100,61 @@ internal static class GalleryViewerChecks
                 }
             Click(GalleryControl<Button>(viewer, "GalleryFit"));
             Require(!viewer.CaptureState().ManualZoom, "Fit did not reset manual zoom.");
+            // Small originals must fill one viewport axis in Fit while 1:1 stays physical-pixel sized.
+            string smallDirectory = Path.Combine(directory, "small");
+            Directory.CreateDirectory(smallDirectory);
+            using (SKBitmap smallSource = new(224, 255))
+            using (SKImage smallImage = SKImage.FromBitmap(smallSource))
+            using (SKData smallData = smallImage.Encode(SKEncodedImageFormat.Png, 100))
+            {
+                byte[] smallBytes = smallData.ToArray();
+                await File.WriteAllBytesAsync(Path.Combine(smallDirectory, "small.png"), smallBytes);
+                object smallManifestEntry = new { MediaIdentifier = "2", SourceUrl = "https://offline.invalid/small",
+                    FileName = "small.png", Length = smallBytes.Length,
+                    Sha256 = Convert.ToHexString(SHA256.HashData(smallBytes)), Md5 = Convert.ToBase64String(MD5.HashData(smallBytes)) };
+                await File.WriteAllTextAsync(Path.Combine(smallDirectory, ".meowchan-manifest.json"),
+                    JsonSerializer.Serialize(new { Version = 1, Entries = new Dictionary<string, object> { ["small.png"] = smallManifestEntry } }));
+            }
+            MediaAssetSnapshot smallManifest = await MediaAssetReader.OpenAsync(smallDirectory);
+            MediaAssetReference smallAsset = smallManifest.GetPage().Single();
+            GalleryEntry smallEntry = new(new GalleryAssetKey(new ResourceId("4chan", "g", "123"), smallDirectory, smallAsset.AssetId),
+                smallManifest, smallAsset, new CapturedPost("125", 0, PostFieldPresence.Html, Html: "<p>Small image context</p>"),
+                null, false, false);
+            await viewer.ShowAsync(smallEntry, CancellationToken.None);
+            Grid viewport = GalleryControl<Grid>(viewer, "GalleryViewport");
+            double smallScale = TopLevel.GetTopLevel(viewer)!.RenderScaling;
+            Require(viewer.CaptureState().PhysicalZoom > 1, "Small image Fit did not upscale.");
+            Require((Math.Abs(displayed.Width - viewport.Bounds.Width) < 1 || Math.Abs(displayed.Height - viewport.Bounds.Height) < 1)
+                && displayed.Width <= viewport.Bounds.Width + 1 && displayed.Height <= viewport.Bounds.Height + 1,
+                "Small image Fit did not fill a viewport axis without cropping.");
+            Click(GalleryControl<Button>(viewer, "GalleryActual"));
+            Require(Math.Abs(displayed.Width * smallScale - 224) < 0.01 && Math.Abs(displayed.Height * smallScale - 255) < 0.01,
+                "Small image 1:1 did not map source pixels to physical pixels.");
+            Click(GalleryControl<Button>(viewer, "GalleryPlus"));
+            Require(viewer.CaptureState().PhysicalZoom > 1 && viewer.CaptureState().PhysicalZoom <
+                GalleryGeometry.Fit(224, 255, viewport.Bounds.Width, viewport.Bounds.Height, smallScale),
+                "Zoom-in from small-image 1:1 jumped directly to Fit.");
+            GalleryViewerState smallState = viewer.CaptureState();
+            double fullViewportWidth = viewport.Bounds.Width;
+            Click(GalleryControl<Button>(viewer, "GalleryToggleContext"));
+            Border context = GalleryControl<Border>(viewer, "GalleryContext");
+            await Program.WaitUntilAsync(() => context.IsVisible &&
+                (viewer.Bounds.Width < 850 || viewport.Bounds.Width < fullViewportWidth - 20));
+            Require(Math.Abs(displayed.Width * smallScale - 224 * smallState.PhysicalZoom) < 0.01,
+                "Opening context reset below-Fit manual zoom.");
+            await viewer.ShowAsync(smallEntry, CancellationToken.None); viewer.RestoreState(smallState);
+            Require(Math.Abs(viewer.CaptureState().PhysicalZoom - smallState.PhysicalZoom) < 0.001,
+                "Restoring a small image lost below-Fit manual zoom.");
+            Require(!context.IsVisible, "Restoring the small image did not close its context panel.");
+            Click(GalleryControl<Button>(viewer, "GalleryFit"));
+            double initialViewportWidth = viewport.Bounds.Width;
+            viewer.Width = Math.Max(600, viewer.Bounds.Width - 100);
+            await Program.WaitUntilAsync(() => Math.Abs(viewport.Bounds.Width - initialViewportWidth) > 20);
+            Require((Math.Abs(displayed.Width - viewport.Bounds.Width) < 1 || Math.Abs(displayed.Height - viewport.Bounds.Height) < 1)
+                && displayed.Width <= viewport.Bounds.Width + 1 && displayed.Height <= viewport.Bounds.Height + 1,
+                "Resize left small-image Fit at a stale size.");
+            viewer.Width = double.NaN;
+            await viewer.ShowAsync(selected, CancellationToken.None);
             // Cancel 100 superseded verified reads. Only the final generation may publish pixels.
             Task[] switches = Enumerable.Range(0, 100).Select(_ => viewer.ShowAsync(selected, CancellationToken.None)).ToArray();
             await Task.WhenAll(switches).WaitAsync(TimeSpan.FromSeconds(30));
@@ -129,7 +184,7 @@ internal static class GalleryViewerChecks
         finally { await viewer.StopAsync(); window.Content = content; Directory.Delete(directory, true); }
     }
     private static T GalleryControl<T>(GalleryViewer viewer, string name) where T : Control =>
-        viewer.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
+        viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

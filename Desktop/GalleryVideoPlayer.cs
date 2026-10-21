@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
+using MeowChan.Desktop.Commands;
 using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
@@ -21,7 +22,7 @@ namespace MeowChan.Desktop;
 internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
-    private readonly Image _macVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
+    private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _time = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _play = new() { Name = "GalleryVideoPlay" };
@@ -29,6 +30,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly Button _stop = new() { Name = "GalleryVideoStop" };
     private readonly Slider _seek = new() { Name = "GalleryVideoSeek", Minimum = 0, Maximum = 1000, MinWidth = 140 };
     private readonly Slider _volume = new() { Name = "GalleryVideoVolume", Minimum = 0, Maximum = 100, Value = 70, Width = 100 };
+    private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
     private readonly SemaphoreSlim _operations = new(1, 1);
     private CancellationTokenSource? _loading;
     private LibVLC? _engine;
@@ -42,8 +44,38 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _autoplay = true;
     private bool _startMuted;
     private bool _settingVolume;
+    private readonly bool _traceCleanup = Environment.GetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE") == "1";
+
+    private void TraceCleanup(long generation, string phase)
+    {
+        if (_traceCleanup)
+            Console.Error.WriteLine($"VIDEO CLEANUP {DateTime.UtcNow:O} generation={generation} current={Volatile.Read(ref _generation)} thread={Environment.CurrentManagedThreadId} phase={phase}");
+    }
 
     internal event Action<int>? VolumeChanged;
+
+    // Query after layout so wrapped transport controls, DPI and theme spacing
+    // are reflected without duplicating their dimensions in the viewer.
+    internal double TransportBottomInset
+    {
+        get
+        {
+            Control surface = UsesSoftwareVideo ? _softwareVideo : _video;
+            Point? bottom = surface.TranslatePoint(new Point(0, surface.Bounds.Height), this);
+            return bottom.HasValue ? Math.Max(0, Bounds.Height - bottom.Value.Y) : 0;
+        }
+    }
+
+    // Native video occupies its own OS surface. VideoView.Content hosts chrome
+    // in LibVLCSharp's owned overlay window above that surface. Install the
+    // initial overlay before attaching this player to the visual tree, since
+    // VideoView creates that window during attachment. macOS and Linux use an
+    // Avalonia Image and keep chrome in the viewer's ordinary visual tree.
+    internal void SetNativeOverlay(Control? overlay)
+    {
+        if (OperatingSystem.IsWindows()) _video.Content = overlay;
+    }
+
     internal void Configure(bool autoplay, bool startMuted, int volume)
     {
         _autoplay = autoplay;
@@ -60,7 +92,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         else player.Play();
     });
 
-    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, MacVideoSurface? Surface);
+    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, SoftwareVideoSurface? Surface);
 
     // Acceptance observes the real player under its normal native-operation lock.
     // No alternate decoder, dummy video output or synthetic clock is used.
@@ -88,17 +120,16 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     internal GalleryVideoPlayer()
     {
-        _play.Content = Text("Play", "Abspielen"); _pause.Content = Text("Pause", "Pause"); _stop.Content = Text("Stop", "Stopp");
-        AutomationProperties.SetName(_play, Text("Play video", "Video abspielen"));
-        AutomationProperties.SetName(_pause, Text("Pause video", "Video pausieren"));
-        AutomationProperties.SetName(_stop, Text("Stop video", "Video stoppen"));
+        CommandBindings.Apply(_play, "video.play", iconWithLabel: true);
+        CommandBindings.Apply(_pause, "video.pause", iconWithLabel: true);
+        CommandBindings.Apply(_stop, "video.stop", iconWithLabel: true);
         AutomationProperties.SetName(_seek, Text("Video position", "Videoposition"));
         AutomationProperties.SetName(_volume, Text("Volume", "Lautstärke"));
         WrapPanel buttons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         foreach (Control control in new Control[] { _play, _pause, _stop, _time, _volume })
         { control.Margin = new Thickness(4); buttons.Children.Add(control); }
         Grid root = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 6 };
-        Control videoSurface = OperatingSystem.IsMacOS() ? _macVideo : _video;
+        Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
         root.Children.Add(_status); root.Children.Add(videoSurface); Grid.SetRow(videoSurface, 1);
         root.Children.Add(_seek); Grid.SetRow(_seek, 2);
         root.Children.Add(buttons); Grid.SetRow(buttons, 3); Content = root;
@@ -146,7 +177,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         await Task.Run(async () =>
         {
             await _operations.WaitAsync().ConfigureAwait(false);
-            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null; MacVideoSurface? surface = null;
+            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null; SoftwareVideoSurface? surface = null;
             try
             {
                 await ClearPlaybackAsync(generation).ConfigureAwait(false);
@@ -155,11 +186,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 NativeVideoRuntime.EnsureInitialized();
-                _engine ??= OperatingSystem.IsMacOS()
+                _engine ??= UsesSoftwareVideo
                     ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none")
                     : new LibVLC("--no-video-title-show", "--no-media-library");
                 player = new MediaPlayer(_engine) { Volume = volume, Mute = _startMuted, EnableKeyInput = false, EnableMouseInput = false };
-                if (OperatingSystem.IsMacOS()) surface = new MacVideoSurface(_macVideo, player);
+                if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
                 input = new StreamMediaInput(stream);
                 media = new Media(_engine, input);
                 player.Playing += (_, _) => Post(generation, () =>
@@ -177,7 +208,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 player = null; media = null; input = null; stream = null; surface = null;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    if (IsCurrent(generation) && !OperatingSystem.IsMacOS()) _video.MediaPlayer = _playback.Player;
+                    if (IsCurrent(generation) && !UsesSoftwareVideo) _video.MediaPlayer = _playback.Player;
                 });
                 token.ThrowIfCancellationRequested();
                 if (!IsCurrent(generation)) { await ClearPlaybackAsync(generation).ConfigureAwait(false); return; }
@@ -252,29 +283,60 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal async Task StopAsync()
     {
         long generation = Interlocked.Increment(ref _generation);
+        TraceCleanup(generation, "stop requested");
         CancellationTokenSource? loading = Interlocked.Exchange(ref _loading, null);
         loading?.Cancel(); loading?.Dispose();
-        await Dispatcher.UIThread.InvokeAsync(() => { if (generation == Volatile.Read(ref _generation)) { EnableTransport(false); _video.MediaPlayer = null; } });
+        TraceCleanup(generation, "stop dispatch transport disable");
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (generation == Volatile.Read(ref _generation))
+                EnableTransport(false);
+        });
+        TraceCleanup(generation, "stop queue worker");
         await Task.Run(async () =>
         {
+            TraceCleanup(generation, "stop waiting operations");
             await _operations.WaitAsync().ConfigureAwait(false);
+            TraceCleanup(generation, "stop acquired operations");
             try { await ClearPlaybackAsync(generation).ConfigureAwait(false); }
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
+        TraceCleanup(generation, "stop complete");
     }
 
     // Caller holds _operations on a worker. Stop may wait for native callbacks, never the UI thread.
     private async Task ClearPlaybackAsync(long notNewerThan)
     {
         Playback? playback = _playback;
-        if (playback == null || playback.Generation > notNewerThan) return;
+        if (playback == null || playback.Generation > notNewerThan)
+        {
+            TraceCleanup(notNewerThan, "clear no matching playback");
+            return;
+        }
         _playback = null;
-        await Dispatcher.UIThread.InvokeAsync(() => { if (ReferenceEquals(_video.MediaPlayer, playback.Player)) _video.MediaPlayer = null; });
-        // Cleanup must release the verified file even when a backend operation fails.
+        // LibVLC requires the drawable to remain valid until Stop has joined its
+        // decoder/output threads. Detaching VideoView first changes the live
+        // player's output settings; destroying its native child is also unsafe.
+        // The gallery owner keeps the visual host attached until cleanup finishes.
+        // Keep both Stop and output detachment under the native-operation lock.
+        TraceCleanup(notNewerThan, "native Stop begin");
         try { playback.Player.Stop(); } catch (Exception) { _cleanupFailures++; }
+        TraceCleanup(notNewerThan, "native Stop complete");
+        TraceCleanup(notNewerThan, $"clear playback={playback.Generation} dispatch drawable detach");
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            TraceCleanup(notNewerThan, "clear drawable detach begin");
+            if (ReferenceEquals(_video.MediaPlayer, playback.Player)) _video.MediaPlayer = null;
+            TraceCleanup(notNewerThan, "clear drawable detach complete");
+        });
+        // Cleanup must release the verified file even when a backend operation fails.
+        TraceCleanup(notNewerThan, "player Dispose begin");
         try { playback.Player.Dispose(); playback.Surface?.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        TraceCleanup(notNewerThan, "player Dispose complete; media Dispose begin");
         try { playback.Media.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        TraceCleanup(notNewerThan, "media Dispose complete; input Dispose begin");
         try { playback.Input.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        TraceCleanup(notNewerThan, "input Dispose complete; stream Dispose begin");
         try
         {
             playback.Stream.Dispose();
@@ -282,17 +344,30 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             else _cleanupFailures++;
         }
         catch (Exception) { _cleanupFailures++; }
+        TraceCleanup(notNewerThan, "clear complete");
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            TraceCleanup(Volatile.Read(ref _generation), "dispose already requested");
+            return;
+        }
+        TraceCleanup(Volatile.Read(ref _generation), "dispose begin");
         await StopAsync();
         await Task.Run(async () =>
         {
+            TraceCleanup(Volatile.Read(ref _generation), "engine waiting operations");
             await _operations.WaitAsync().ConfigureAwait(false);
-            try { _engine?.Dispose(); _engine = null; }
+            try
+            {
+                TraceCleanup(Volatile.Read(ref _generation), "engine Dispose begin");
+                _engine?.Dispose(); _engine = null;
+                TraceCleanup(Volatile.Read(ref _generation), "engine Dispose complete");
+            }
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
+        TraceCleanup(Volatile.Read(ref _generation), "dispose complete");
     }
 }

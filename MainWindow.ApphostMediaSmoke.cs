@@ -98,12 +98,12 @@ public partial class MainWindow
             checks.Add("video-poster-cache"); SaveEvidence();
             await OpenMediaGalleryAsync(entries, entries[0].EntryKey);
             GalleryViewer viewer = _gallery ?? throw new InvalidOperationException("Gallery did not open.");
-            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetVisualDescendants().OfType<Image>()
+            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<Image>()
                 .Any(control => control.Name == "GalleryImage" && control.IsEffectivelyVisible && control.Source is Bitmap)), "initial image");
             checks.Add("initial-image");
             ClickMediaSmoke(viewer, "GalleryNext");
-            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "native video player");
-            GalleryVideoPlayer player = viewer.GetVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "native video player");
+            GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
             async Task<GalleryVideoPlayer.PlaybackEvidence> PlayingSampleAsync()
             {
                 GalleryVideoPlayer.PlaybackEvidence? result = null;
@@ -111,7 +111,7 @@ public partial class MainWindow
                 {
                     result = await player.InspectPlaybackAsync();
                     return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
-                        && (!OperatingSystem.IsMacOS() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
+                        && (OperatingSystem.IsWindows() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
                         && MediaSmokeControl<Button>(viewer, "GalleryVideoPause").IsEffectivelyEnabled
                         && player.IsEffectivelyVisible && player.Bounds.Width > 0 && player.Bounds.Height > 0;
                 }, "native decoded/displayed frames and enabled transport");
@@ -122,7 +122,7 @@ public partial class MainWindow
             {
                 var current = await player.InspectPlaybackAsync();
                 if (current.Time < first.Time + 250 || current.DecodedFrames <= first.DecodedFrames || current.DisplayedFrames <= first.DisplayedFrames) return false;
-                if (OperatingSystem.IsMacOS() && current.SurfaceFrames <= first.SurfaceFrames) return false;
+                if (!OperatingSystem.IsWindows() && current.SurfaceFrames <= first.SurfaceFrames) return false;
                 samples.Add(current); return true;
             }, "native clock and frame progression");
             checks.Add("native-time-and-frame-progress");
@@ -153,7 +153,7 @@ public partial class MainWindow
             await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Time > stillPaused.Time + 200,
                 "resumed native clock");
             checks.Add("play-resumed");
-            if (OperatingSystem.IsMacOS())
+            if (!OperatingSystem.IsWindows())
             {
                 for (int restart = 0; restart < 6; restart++)
                 {
@@ -189,8 +189,8 @@ public partial class MainWindow
             // Also exercise ordinary app shutdown while a fresh native player is actively playing.
             await OpenMediaGalleryAsync(entries, entries[1].EntryKey);
             viewer = _gallery ?? throw new InvalidOperationException("Gallery did not reopen.");
-            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "shutdown player");
-            player = viewer.GetVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+            await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "shutdown player");
+            player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
             await PlayingSampleAsync();
             await CloseApplicationAsync();
             shutdownCleanup = await player.InspectPlaybackAsync();
@@ -214,7 +214,7 @@ public partial class MainWindow
         }
     }
     private static T MediaSmokeControl<T>(GalleryViewer viewer, string name) where T : Control =>
-        viewer.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
+        viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
     private static void ClickMediaSmoke(GalleryViewer viewer, string name) =>
         MediaSmokeControl<Button>(viewer, name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void RequireMediaSmoke(bool condition, string message)

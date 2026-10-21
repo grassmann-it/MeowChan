@@ -31,7 +31,7 @@ internal static class NativeVideoRuntime
     {
         EnsureInitialized();
         IntPtr library = OperatingSystem.IsMacOS() ? MacLibVlc.Value : OperatingSystem.IsLinux()
-            ? LinuxLibVlc.Value : throw new PlatformNotSupportedException("The Mac software video surface is tested on macOS and Linux.");
+            ? LinuxLibVlc.Value : throw new PlatformNotSupportedException("The software video surface supports macOS and Linux.");
         return library != IntPtr.Zero ? library : throw new DllNotFoundException("The LibVLC 3 runtime could not be loaded.");
     }
 

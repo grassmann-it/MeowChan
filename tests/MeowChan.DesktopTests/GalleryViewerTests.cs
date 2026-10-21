@@ -5,6 +5,31 @@ namespace MeowChan.DesktopTests;
 
 public sealed class GalleryViewerTests
 {
+    [Theory]
+    [InlineData(224, 255, 1000, 700, 1)]
+    [InlineData(224, 255, 1000, 700, 1.5)]
+    [InlineData(224, 255, 1000, 700, 2)]
+    public void FitUpscalesSmallImagesToOneViewportAxisWithoutCropping(
+        int width, int height, double viewportWidth, double viewportHeight, double displayScale)
+    {
+        double fit = GalleryGeometry.Fit(width, height, viewportWidth, viewportHeight, displayScale);
+        double fittedWidth = width * fit / displayScale;
+        double fittedHeight = height * fit / displayScale;
+        Assert.True(fit > 1);
+        Assert.True(fittedWidth <= viewportWidth + 1e-8);
+        Assert.True(fittedHeight <= viewportHeight + 1e-8);
+        Assert.True(Math.Abs(fittedWidth - viewportWidth) < 1e-8 ||
+            Math.Abs(fittedHeight - viewportHeight) < 1e-8);
+    }
+
+    [Fact]
+    public void FitCanExceedTheManualZoomCeilingForVerySmallImages()
+    {
+        double fit = GalleryGeometry.Fit(17, 11, 1200, 800, 1);
+        Assert.True(fit > 16);
+        Assert.Equal(fit, GalleryGeometry.ClampZoom(fit / 2, fit));
+    }
+
     [Fact]
     public void FractionalWheelZoomIsSmoothReversibleAndNeverSmallerThanFit()
     {

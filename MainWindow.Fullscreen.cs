@@ -109,7 +109,7 @@ public partial class MainWindow
     internal void ToggleFullscreen()
     {
         TraceFullscreen("toggle requested");
-        if (_isClosing || _restoringFullscreen || !IsEnabled || OwnedWindows.Any(window => window.IsVisible))
+        if (_isClosing || _restoringFullscreen || !IsEnabled || HasVisibleShellDialog())
         {
             TraceFullscreen("toggle blocked");
             return;
@@ -562,7 +562,11 @@ public partial class MainWindow
             if (target != null)
             {
                 ids.InsertRange(0, new[] { "thread.details", "selection.copy-links", "location.open-folder", "location.open-source", "rules.edit-scope", "watch.remove" });
-                if (!boards) ids.InsertRange(0, new[] { "thread.read", "gallery.open", "export.open-html-dialog" });
+                if (!boards)
+                {
+                    ids.InsertRange(0, new[] { "gallery.open", "export.open-html-dialog" });
+                    if (target.Threads.Length == 1) ids.Insert(0, "thread.read");
+                }
                 else ids.Insert(0, "board.filters");
                 if (target.Checkable.Length > 0) ids.Insert(0, "watch.check");
                 if (target.Retriable.Length > 0) ids.Insert(0, "watch.retry-media");
@@ -593,7 +597,7 @@ public partial class MainWindow
 
     private void OnShellKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _isClosing || !IsEnabled || OwnedWindows.Any(window => window.IsVisible)) return;
+        if (e.Handled || _isClosing || !IsEnabled || HasVisibleShellDialog()) return;
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
             // Popups/editors own their first Escape; never cascade a handled key.
@@ -639,6 +643,9 @@ public partial class MainWindow
         else if (e.Key == Key.F && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
     }
+
+    private bool HasVisibleShellDialog() => OwnedWindows.Any(window => window.IsVisible
+        && !(_gallery?.OwnsOverlayWindow(window) ?? false));
 
     private void RefreshShellCommands()
     {

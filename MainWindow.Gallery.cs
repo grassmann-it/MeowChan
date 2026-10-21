@@ -94,6 +94,10 @@ public partial class MainWindow
         WorkspacePage originPage = _selectedPage;
         CloseGallery(restoreOrigin: false);
         int request = ++_galleryRequest;
+        // Keep a retiring video's native drawable attached until VLC has
+        // stopped. A new viewer must not replace that host prematurely.
+        await _galleryCleanupTask;
+        if (_isClosing || request != _galleryRequest) return;
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
         _galleryReaderOrigin = readerOrigin;
@@ -119,6 +123,7 @@ public partial class MainWindow
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
+        _gallery.ShellKeyRequested += OnShellKeyDown;
         _gallery.ContextOpenChanged += open => QueueGalleryPreference(open, null);
         _gallery.VideoVolumeChanged += volume => QueueGalleryPreference(null, volume);
         _gallery.CloseRequested += () => CloseGallery();
@@ -349,10 +354,11 @@ public partial class MainWindow
         if (_archivePage != null) { _archivePage.ShowGalleryReturn(false); _archivePage.GalleryReturn = null; }
         ++_galleryRequest;
         _galleryCancellation?.Cancel(); _galleryCancellation?.Dispose(); _galleryCancellation = null;
-        if (_gallery != null) TrackGalleryCleanup(_gallery.StopAsync());
+        GalleryViewer? retiring = _gallery;
         _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
-        if (host != null) { host.IsVisible = false; host.Content = null; }
+        if (host != null) host.IsVisible = false;
+        if (retiring != null) TrackGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
         _galleryRestoreOrigin = null;
         if (followReader)
         {
@@ -370,6 +376,15 @@ public partial class MainWindow
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
     }
+
+    private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)
+    {
+        // VLC requires its drawable to remain valid until native Stop returns.
+        // Hiding preserves it; removing the viewer destroys its native child.
+        await retiring.StopAsync();
+        if (host != null && ReferenceEquals(host.Content, retiring)) host.Content = null;
+    }
+
     private async Task FollowGalleryPostAsync(GalleryEntry entry)
     {
         int request = _galleryRequest;

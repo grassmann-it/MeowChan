@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
@@ -34,6 +35,7 @@ internal static class SelectionChecks
             .Single(item => item.Tag as string == "thread.read");
         Require(!read.IsEnabled, "Read posts must be disabled for multiple selected watches.");
         grid.ContextMenu.Close();
+        await CheckReadHelpAsync(window, grid, expected: false);
         PressKey(grid, Key.Enter);
         await Task.Delay(80);
         Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible, "Enter opened an ambiguous multiple-watch reader.");
@@ -44,6 +46,7 @@ internal static class SelectionChecks
         Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItem, rows[4]), "Right-click unselected watch did not replace selection.");
         Require(grid.ContextMenu.IsOpen, "Right-click on an unselected watch did not open its context menu.");
         grid.ContextMenu.Close();
+        await CheckReadHelpAsync(window, grid, expected: true);
         await Task.Delay(80);
         Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 24), window)!.Value;
         PressAt(window, blank, KeyModifiers.None, right: true);
@@ -284,6 +287,18 @@ internal static class SelectionChecks
     }
     private static void PressKey(Control control, Key key, KeyModifiers modifiers = KeyModifiers.None)
     { control.Focus(); control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers }); }
+    private static async Task CheckReadHelpAsync(MainWindow window, DataGrid grid, bool expected)
+    {
+        PressKey(grid, Key.F1);
+        Border help = window.FindControl<Border>("ShellHelpOverlay")!;
+        await Program.WaitUntilAsync(() => help.IsEffectivelyVisible);
+        string text = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
+        Require(text.Contains(CommandCatalog.Label("thread.read"), StringComparison.Ordinal) == expected,
+            "Shortcut help advertised Read posts for an unavailable selection or hid it for one thread.");
+        Click(window.FindControl<Button>("ShellHelpClose")!);
+        await Program.WaitUntilAsync(() => !help.IsVisible);
+    }
+
     private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }
