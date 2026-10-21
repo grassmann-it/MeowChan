@@ -48,6 +48,25 @@ internal static class ShellPresentationChecks
         }
         catch { TraceGeometry(window, "ordinary resize return failure"); throw; }
         TraceGeometry(window, "ordinary resize returned");
+
+        // Two user commands may arrive before Cocoa acknowledges native entry.
+        // A delayed native FullScreen report must not undo the requested exit.
+        if (OperatingSystem.IsMacOS())
+        {
+            Button fullscreen = window.FindControl<Button>("FullscreenButton")!;
+            fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
+                && Math.Abs(window.ClientSize.Width - size.Width) <= 2
+                && Math.Abs(window.ClientSize.Height - size.Height) <= 2, "rapid enter-exit restored");
+            window.Width = size.Width + 11;
+            await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
+                && Math.Abs(window.ClientSize.Width - size.Width - 11) <= 2, "rapid enter-exit ordinary resize");
+            window.Width = size.Width;
+            await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
+                && Math.Abs(window.ClientSize.Width - size.Width) <= 2, "rapid enter-exit resize returned");
+        }
+
         window.WindowState = WindowState.Maximized;
         // The requested managed state precedes the Cocoa zoom animation. Do not
         // send the next command while native resize/state acknowledgements from

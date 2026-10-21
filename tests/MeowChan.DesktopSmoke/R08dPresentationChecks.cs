@@ -111,7 +111,7 @@ internal static class R08dPresentationChecks
                     new Size(desired.Width + Math.Max(0, frame.Width - client.Width),
                         desired.Height + Math.Max(0, frame.Height - client.Height)),
                     new Size(window.MinWidth, window.MinHeight), screen.WorkingArea,
-                    window.RenderScaling, window.Position);
+                    window.RenderScaling, window.Position, WindowStartupGeometry.NormalFrameInsetPixels);
                 window.Width = wide.Client.Width;
                 window.Height = wide.Client.Height;
                 window.Position = wide.Position;

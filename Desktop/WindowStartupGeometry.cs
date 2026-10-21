@@ -7,17 +7,25 @@ internal readonly record struct WindowStartupFit(Size Client, Size Minimum, Pixe
 
 internal static class WindowStartupGeometry
 {
+    // Avalonia.Native 12.1.4 identifies a border-only frame equal to the working
+    // area as maximized, even when no zoom command saved a restore frame. Keep
+    // normal macOS fits one physical pixel narrower; explicit maximization and
+    // fullscreen still use their native state transitions.
+    internal static int NormalFrameInsetPixels => OperatingSystem.IsMacOS() ? 1 : 0;
+
     // WorkingArea and Position use physical pixels; client/frame sizes use DIPs.
     // Reserve the measured native decorations instead of assuming that the OS
     // clamps the complete frame to the usable desktop.
     internal static WindowStartupFit Fit(Size client, Size? frame, Size minimum,
-        PixelRect workingArea, double scaling, PixelPoint position)
+        PixelRect workingArea, double scaling, PixelPoint position, int normalFrameInsetPixels = 0)
     {
         if (!double.IsFinite(scaling) || scaling <= 0) throw new ArgumentOutOfRangeException(nameof(scaling));
+        if (normalFrameInsetPixels < 0) throw new ArgumentOutOfRangeException(nameof(normalFrameInsetPixels));
         if (workingArea.Width <= 0 || workingArea.Height <= 0) return new(client, minimum, position);
         double borderWidth = Math.Max(0, (frame?.Width ?? client.Width) - client.Width);
         double borderHeight = Math.Max(0, (frame?.Height ?? client.Height) - client.Height);
-        double availableWidth = Math.Max(1, Math.Floor(workingArea.Width / scaling - borderWidth));
+        int usableWidth = Math.Max(1, workingArea.Width - normalFrameInsetPixels);
+        double availableWidth = Math.Max(1, Math.Floor(usableWidth / scaling - borderWidth));
         double availableHeight = Math.Max(1, Math.Floor(workingArea.Height / scaling - borderHeight));
         Size fittedMinimum = new(Math.Min(minimum.Width, availableWidth), Math.Min(minimum.Height, availableHeight));
         Size fittedClient = new(Math.Clamp(client.Width, fittedMinimum.Width, availableWidth),

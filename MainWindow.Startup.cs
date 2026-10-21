@@ -40,7 +40,7 @@ public partial class MainWindow
         Screen? screen = Screens.ScreenFromWindow(this);
         if (screen == null) return;
         WindowStartupFit fit = WindowStartupGeometry.Fit(ClientSize, FrameSize, new Size(MinWidth, MinHeight),
-            screen.WorkingArea, RenderScaling, Position);
+            screen.WorkingArea, RenderScaling, Position, WindowStartupGeometry.NormalFrameInsetPixels);
         MinWidth = fit.Minimum.Width;
         MinHeight = fit.Minimum.Height;
         Width = fit.Client.Width;
@@ -65,7 +65,7 @@ public partial class MainWindow
             ? new Size(width + System.Math.Max(0, frame.Width - ClientSize.Width),
                 height + System.Math.Max(0, frame.Height - ClientSize.Height)) : null;
         WindowStartupFit fit = WindowStartupGeometry.Fit(desired, desiredFrame, new Size(MinWidth, MinHeight),
-            screen.WorkingArea, RenderScaling, Position);
+            screen.WorkingArea, RenderScaling, Position, WindowStartupGeometry.NormalFrameInsetPixels);
         MinWidth = fit.Minimum.Width;
         MinHeight = fit.Minimum.Height;
         Width = fit.Client.Width;

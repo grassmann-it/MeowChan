@@ -49,7 +49,7 @@ public partial class MainWindow
         {
             var desired = new Size(Width, Height);
             var fit = WindowStartupGeometry.Fit(desired, desired, new Size(MinWidth, MinHeight),
-                screen.WorkingArea, screen.Scaling, Position);
+                screen.WorkingArea, screen.Scaling, Position, WindowStartupGeometry.NormalFrameInsetPixels);
             MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
             Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
         }

@@ -23,6 +23,12 @@ public partial class MainWindow
     private Size? _fullscreenRestoreClient;
     private Size _fullscreenRestoreFromClient;
     private bool _fullscreenCorrectionQueued;
+    // Cocoa can acknowledge an Enter after Avalonia has accepted an early Exit.
+    // Keep the intended destination until a later native FullScreen report can be corrected.
+    private FullscreenOrigin? _fullscreenExitIntent;
+    private string? _fullscreenExitMode;
+    private bool _fullscreenExitRepairQueued;
+    private int _fullscreenExitGeneration;
 
     internal static Avalonia.Styling.ThemeVariant ThemeForPreference(string theme) => theme switch
     {
@@ -36,6 +42,7 @@ public partial class MainWindow
         AddHandler(KeyDownEvent, OnShellKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         PositionChanged += OnShellPositionChanged;
         Resized += OnFullscreenRestoreResized;
+        PropertyChanged += OnFullscreenStateChanged;
         Screens.Changed += OnShellScreensChanged;
         WorkspaceControl<Button>("FullscreenButton").Click += (_, _) => ToggleFullscreen();
         WorkspaceControl<Button>("ShellHelpClose").Click += (_, _) => DismissShellHelp();
@@ -48,7 +55,9 @@ public partial class MainWindow
         RemoveHandler(KeyDownEvent, OnShellKeyDown);
         PositionChanged -= OnShellPositionChanged;
         Resized -= OnFullscreenRestoreResized;
+        PropertyChanged -= OnFullscreenStateChanged;
         Screens.Changed -= OnShellScreensChanged;
+        ClearFullscreenExitIntent();
     }
 
     private void OnShellPositionChanged(object? sender, PixelPointEventArgs e)
@@ -78,6 +87,7 @@ public partial class MainWindow
         if (WindowState == WindowState.FullScreen) LeaveFullscreen();
         else
         {
+            ClearFullscreenExitIntent();
             RememberNormalGeometry();
             _fullscreenRestoreClient = null;
             _fullscreenOrigin = new(WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal,
@@ -89,7 +99,13 @@ public partial class MainWindow
 
     private void LeaveFullscreen()
     {
-        FullscreenOrigin origin = _fullscreenOrigin ?? new(WindowState.Normal, _lastNormalClient, _lastNormalPosition, null, _normalDecoration);
+        FullscreenOrigin origin = _fullscreenOrigin ?? _fullscreenExitIntent
+            ?? new(WindowState.Normal, _lastNormalClient, _lastNormalPosition, null, _normalDecoration);
+        if (OperatingSystem.IsMacOS() && _fullscreenExitIntent == null)
+        {
+            _fullscreenExitIntent = origin;
+            _fullscreenExitMode = _config.WorkspaceMode;
+        }
         _fullscreenOrigin = null;
         _fullscreenRestoreFromClient = ClientSize;
         _restoringFullscreen = true;
@@ -104,7 +120,8 @@ public partial class MainWindow
             if (screen != null)
             {
                 WindowStartupFit fit = WindowStartupGeometry.Fit(origin.Client, new Size(origin.Client.Width + origin.Decoration.Width, origin.Client.Height + origin.Decoration.Height),
-                    new Size(MinWidth, MinHeight), screen.WorkingArea, screen.Scaling, origin.Position);
+                    new Size(MinWidth, MinHeight), screen.WorkingArea, screen.Scaling, origin.Position,
+                    WindowStartupGeometry.NormalFrameInsetPixels);
                 MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
                 Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
                 _lastNormalClient = fit.Client; _lastNormalPosition = fit.Position;
@@ -125,8 +142,63 @@ public partial class MainWindow
 
     private void OnFullscreenRestoreResized(object? sender, WindowResizedEventArgs e)
     {
-        if (e.Reason == WindowResizeReason.User) _fullscreenRestoreClient = null;
+        if (e.Reason == WindowResizeReason.User)
+        {
+            _fullscreenRestoreClient = null;
+            if (WindowState == WindowState.Normal && !_restoringFullscreen)
+                ClearFullscreenExitIntent();
+        }
         else ContinueFullscreenRestore();
+    }
+
+    private void OnFullscreenStateChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (!OperatingSystem.IsMacOS() || e.Property != WindowStateProperty || _fullscreenExitIntent == null) return;
+        if (_config.WorkspaceMode != _fullscreenExitMode)
+        {
+            ClearFullscreenExitIntent();
+            return;
+        }
+        if (WindowState == WindowState.FullScreen)
+            QueueFullscreenExitRepair();
+        else if (WindowState == WindowState.Maximized && !_restoringFullscreen)
+            ClearFullscreenExitIntent();
+    }
+
+    private void ClearFullscreenExitIntent()
+    {
+        _fullscreenExitIntent = null;
+        _fullscreenExitMode = null;
+        _fullscreenExitRepairQueued = false;
+        ++_fullscreenExitGeneration;
+    }
+
+    private void QueueFullscreenExitRepair()
+    {
+        if (_fullscreenExitRepairQueued || _fullscreenExitIntent == null || _isClosing) return;
+        _fullscreenExitRepairQueued = true;
+        int generation = _fullscreenExitGeneration;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _fullscreenExitRepairQueued = false;
+            if (_isClosing || generation != _fullscreenExitGeneration || _fullscreenExitIntent == null
+                || WindowState != WindowState.FullScreen) return;
+            if (_config.WorkspaceMode != _fullscreenExitMode)
+            {
+                ClearFullscreenExitIntent();
+                return;
+            }
+            if (_restoringFullscreen)
+            {
+                // The original restore callback was posted before this late native report.
+                QueueFullscreenExitRepair();
+                return;
+            }
+            LeaveFullscreen();
+            // One correction is enough for the late native entry report. A later
+            // intentional OS fullscreen transition must remain available.
+            ClearFullscreenExitIntent();
+        }, DispatcherPriority.Loaded);
     }
 
     private void ContinueFullscreenRestore()

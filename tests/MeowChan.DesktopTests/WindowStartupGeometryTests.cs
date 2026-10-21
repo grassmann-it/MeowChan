@@ -6,6 +6,38 @@ namespace MeowChan.DesktopTests;
 public sealed class WindowStartupGeometryTests
 {
     [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void NormalMacFitCannotBecomeExactWorkingAreaRectangle(double scale)
+    {
+        PixelRect area = new(-1024, 25, 1024, 684);
+        WindowStartupFit fit = WindowStartupGeometry.Fit(new Size(1380, 850), null,
+            new Size(760, 500), area, scale, area.Position, normalFrameInsetPixels: 1);
+        Assert.True(Math.Ceiling(fit.Client.Width * scale) <= area.Width - 1);
+        Assert.True(fit.Client.Height * scale <= area.Height);
+        Assert.True(fit.Minimum.Width <= fit.Client.Width && fit.Minimum.Height <= fit.Client.Height);
+        Assert.True(fit.Position.X >= area.X && fit.Position.X + Math.Ceiling(fit.Client.Width * scale) <= area.Right);
+    }
+
+    [Fact]
+    public void DefaultFitRetainsFullWorkingAreaForOtherPlatforms()
+    {
+        WindowStartupFit fit = WindowStartupGeometry.Fit(new Size(1380, 850), null,
+            new Size(760, 500), new PixelRect(0, 25, 1024, 684), 1, new PixelPoint(0, 25));
+        Assert.Equal(new Size(1024, 684), fit.Client);
+    }
+
+    [Fact]
+    public void NormalMacInsetPreservesAnAlreadySmallerRequestedWindow()
+    {
+        WindowStartupFit fit = WindowStartupGeometry.Fit(new Size(850, 530), null,
+            new Size(640, 480), new PixelRect(0, 25, 1024, 684), 1, new PixelPoint(40, 40), normalFrameInsetPixels: 1);
+        Assert.Equal(new Size(850, 530), fit.Client);
+        Assert.Equal(new PixelPoint(40, 40), fit.Position);
+    }
+
+    [Theory]
     [InlineData(1, 1024, 728)]
     [InlineData(2, 2048, 1456)]
     public void WindowsRunnerFrameFitsWorkingAreaIncludingNativeDecorations(double scale, int width, int height)

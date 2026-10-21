@@ -2,24 +2,26 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## 0.9.0 candidate: native validation at `226af46`
+## 0.9.0 candidate: final native revalidation pending
 
-The frozen product source is `226af46bd834238162e4fd627f3801894c4da923`.
-[Full validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560402)
-and [native package/media validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560567)
-are in progress. Local validation passed 259 desktop tests with one expected
-opt-in native-media skip, 154 script tests with one native Mac skip, and the
-isolated normal graphical workflow including per-mode column choices/reset,
-header-logo About and labeled navigation. This does not yet attest to the final
-native delivery matrix or user acceptance.
+The [native package/media run at source `226af46`](https://github.com/tfgrass/MeowChan/actions/runs/39662560567)
+passed all six jobs: Windows x64, macOS Intel/Apple Silicon, all three Linux
+formats on both CPUs, and macOS source pairing. The Mac checks mounted each
+signed DMG, verified its app and Applications shortcut, copied the app out, and
+ran startup, playback and the packaged desktop workflow.
 
-The [native package/media run at source `1159543`](https://github.com/tfgrass/MeowChan/actions/runs/39658276164)
-passed Windows x64, macOS Intel/Apple Silicon, all three Linux formats on both
-CPUs, and macOS source pairing. That checkpoint predates the final per-mode
-layout settings, navigation icons and macOS DMG delivery. It is not the final
-user-test candidate. The separate earlier validation run exposed viewport/transition
-fixture timing and a fake Linux tray-host protocol error; the frozen source
-includes those harness fixes.
+The separate [full validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560402)
+and [diagnostic rerun](https://github.com/tfgrass/MeowChan/actions/runs/39664171342)
+exposed two macOS product defects: an exact-working-area normal window could be
+misclassified as maximized, and a delayed Cocoa fullscreen entry could undo an
+early exit. The current source includes corrections and a rapid enter/exit
+regression. Windows checks also required fitting resize-test canvases to the
+runner's actual desktop without weakening the resize assertions.
+
+Local integrated validation passed 264 desktop tests with one expected opt-in
+native-media skip. Final native validation and rebuilt packages for these
+corrections remain pending; the earlier green package run does not validate the
+changed product source. No release or user acceptance is claimed.
 
 The [screenshot provenance](screenshots/README.md) identifies the captured UI
 checkpoint. A fresh local NuGet consumer and bounded 4chan/8kun
