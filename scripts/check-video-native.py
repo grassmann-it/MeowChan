@@ -4,14 +4,52 @@ import argparse
 import json
 from pathlib import Path
 import struct
+import hashlib
 
 
 def validate(root: Path, rid: str) -> dict:
     native = root / 'libvlc'
     if rid.startswith('linux-'):
-        if native.exists():
-            raise ValueError('Linux uses system LibVLC; unexpected app-local native tree')
-        return {'rid': rid, 'backend': 'system LibVLC (runtime prerequisite)'}
+        marker = root / 'linux-video-runtime.json'
+        if not marker.is_file():
+            raise ValueError('Official Linux packages require linux-video-runtime.json')
+        policy = json.loads(marker.read_text())
+        if policy.get('SchemaVersion') != 1 or policy.get('RuntimeIdentifier') != rid or policy.get('Mode') not in ('system', 'bundled'):
+            raise ValueError('Invalid Linux video runtime policy')
+        if policy['Mode'] == 'system':
+            if native.exists():
+                raise ValueError('System VLC package unexpectedly contains a private runtime')
+            return {'rid': rid, 'backend': 'system LibVLC (runtime prerequisite)'}
+        tree = native / rid
+        if not tree.is_dir() or sorted(p.name for p in native.iterdir()) != [rid]:
+            raise ValueError('Missing selected Linux native tree or extra architectures')
+        expected_files = policy.get('Files', {})
+        if not isinstance(expected_files, dict) or not {'lib/libvlc.so.5', 'lib/libvlccore.so.9'} <= expected_files.keys():
+            raise ValueError('Missing Linux LibVLC/core manifest entries')
+        if not (tree / 'lib/vlc/share').is_dir() or not any(p.startswith('lib/vlc/plugins/') and p.endswith('.so') for p in expected_files):
+            raise ValueError('Linux bundle lacks private data or plugins')
+        actual = {}
+        libraries = 0
+        for path in tree.rglob('*'):
+            if path.is_symlink():
+                raise ValueError('Linux distribution payload must materialize symlinks')
+            if path.is_file():
+                relative = path.relative_to(tree).as_posix()
+                digest = hashlib.sha256()
+                with path.open('rb') as stream:
+                    header = stream.read(20)
+                    digest.update(header)
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(chunk)
+                actual[relative] = digest.hexdigest()
+                if header.startswith(b'\x7fELF'):
+                    machine = 62 if rid == 'linux-x64' else 183
+                    if len(header) < 20 or header[:6] != b'\x7fELF\x02\x01' or struct.unpack_from('<H', header, 18)[0] != machine:
+                        raise ValueError('Linux native ELF architecture mismatch')
+                    libraries += 1
+        if actual != expected_files:
+            raise ValueError('Linux native payload file inventory/hash mismatch')
+        return {'rid': rid, 'backend': 'bundled LibVLC', 'native_libraries': libraries, 'native_files': len(actual)}
     tree = native / rid
     if not tree.is_dir() or sorted(p.name for p in native.iterdir()) != [rid]:
         raise ValueError('Missing selected native tree or extra native architectures')

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Full validation, package-media playback, native macOS ZIP packaging, offline diagnosis, or optional Homebrew
+        description: Full validation, package-media playback, Linux distributions, native macOS ZIP packaging, offline diagnosis, or optional Homebrew
         type: choice
         required: true
         default: validate
@@ -19,6 +19,7 @@ on:
           - macos-diagnose
           - macos-package
           - package-media
+          - linux-distribution
           - homebrew-macos
 
 permissions:
@@ -62,6 +63,7 @@ jobs:
       - name: Build all production and test projects
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
+        timeout-minutes: 8
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Check package layout fixtures
         run: |
@@ -164,10 +166,6 @@ jobs:
         include:
           - runtime: win-x64
             os: windows-2022
-          - runtime: linux-x64
-            os: ubuntu-24.04
-          - runtime: linux-arm64
-            os: ubuntu-24.04
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -223,26 +221,11 @@ jobs:
           Expand-Archive -Path $archive -DestinationPath extracted
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           "$hash  $(Split-Path -Leaf $archive)" | Set-Content -LiteralPath "$archive.sha256" -Encoding utf8
-      - name: Package and re-extract Unix output with executable permissions
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          mkdir -p packages extracted
-          archive="packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.tar.gz"
-          tar -czf "$archive" -C "publish-output/${{ matrix.runtime }}" .
-          tar -xzf "$archive" -C extracted
-          test -x extracted/MeowChan
-          (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
-          file extracted/MeowChan
       - name: Validate extracted external video runtime
         shell: bash
         run: |
-          app_directory=extracted
-          if [[ "$RUNNER_OS" == macOS ]]; then
-            app_directory=extracted/MeowChan.app/Contents/MacOS
-          fi
-          python scripts/check-desktop-package.py "$app_directory" ${{ matrix.runtime }}
-          python scripts/check-video-native.py "$app_directory" ${{ matrix.runtime }}
+          python scripts/check-desktop-package.py extracted ${{ matrix.runtime }}
+          python scripts/check-video-native.py extracted ${{ matrix.runtime }}
       - name: Document package-check boundary
         shell: bash
         run: |
@@ -368,12 +351,6 @@ jobs:
           - runtime: win-x64
             os: windows-2022
             cpu: X64
-          - runtime: linux-x64
-            os: ubuntu-24.04
-            cpu: X64
-          - runtime: linux-arm64
-            os: ubuntu-24.04-arm
-            cpu: ARM64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -413,21 +390,6 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           "$hash  $(Split-Path -Leaf $archive)" | Set-Content artifacts/media-evidence/archive.sha256 -Encoding utf8
           if (-not (Test-Path artifacts/media-extracted/MeowChan.exe -PathType Leaf)) { throw "Missing extracted apphost" }
-      - name: Archive and extract the Linux package
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          mkdir -p artifacts/media-packages artifacts/media-extracted
-          archive="artifacts/media-packages/MeowChan-${{ matrix.runtime }}.tar.gz"
-          tar -czf "$archive" -C artifacts/media-publish .
-          tar -xzf "$archive" -C artifacts/media-extracted
-          test -x artifacts/media-extracted/MeowChan
-          sha256sum "$archive" > artifacts/media-evidence/archive.sha256
-      - name: Install system VLC and isolated Linux desktop
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
       - name: Check extracted distribution and native video layout
         run: |
           python scripts/check-desktop-package.py artifacts/media-extracted ${{ matrix.runtime }}
@@ -435,16 +397,10 @@ jobs:
       - name: Play both WebM codecs through the extracted Windows apphost
         if: runner.os == 'Windows'
         run: python scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan.exe --allow-native-desktop --evidence-dir artifacts/media-evidence/playback
-      - name: Play both WebM codecs through the extracted Linux apphost
-        if: runner.os == 'Linux'
-        run: python3 scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan --evidence-dir artifacts/media-evidence/playback
       - name: Exercise the extracted Windows apphost workflow
         if: runner.os == 'Windows'
         run: python scripts/apphost-workflow-smoke.py artifacts/media-extracted/MeowChan.exe --archive artifacts/media-packages/MeowChan-${{ matrix.runtime }}.zip --archive-member MeowChan.exe --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/media-evidence/workflow
-      - name: Exercise the extracted Linux apphost workflow at normal and HiDPI scale
-        if: runner.os == 'Linux'
-        run: python3 scripts/apphost-workflow-smoke.py artifacts/media-extracted/MeowChan --archive artifacts/media-packages/MeowChan-${{ matrix.runtime }}.tar.gz --archive-member ./MeowChan --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/media-evidence/workflow
-      - name: Retain playback-verified Windows or Linux archive and evidence
+      - name: Retain playback-verified Windows archive and evidence
         uses: actions/upload-artifact@v7
         with:
           name: native-media-candidate-${{ matrix.runtime }}
@@ -462,9 +418,118 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  linux-distribution:
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: linux-x64
+            os: ubuntu-24.04
+            cpu: X64
+          - runtime: linux-arm64
+            os: ubuntu-24.04-arm
+            cpu: ARM64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Record native distribution host and exact source
+        shell: bash
+        run: |
+          test "$RUNNER_ARCH" = "${{ matrix.cpu }}"
+          mkdir -p artifacts/linux-evidence
+          git rev-parse HEAD > artifacts/linux-evidence/source.txt
+          dotnet --info > artifacts/linux-evidence/sdk.txt
+          uname -a > artifacts/linux-evidence/host.txt
+          cat /etc/os-release >> artifacts/linux-evidence/host.txt
+      - name: Enable matching Ubuntu source repositories
+        shell: bash
+        run: |
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          import re
+          files = list(Path('/etc/apt/sources.list.d').glob('*.sources'))
+          updated = 0
+          for path in files:
+              text = path.read_text()
+              if 'ubuntu' not in text.lower():
+                  continue
+              text, count = re.subn(r'^Types: deb\s*$', 'Types: deb deb-src', text, flags=re.MULTILINE)
+              if count:
+                  path.write_text(text)
+              if re.search(r'^Types:.*\bdeb-src\b', text, flags=re.MULTILINE):
+                  updated += 1
+          if not updated:
+              raise SystemExit('Native Ubuntu runner has no enabled deb-src repository')
+          PY
+      - name: Install native packaging inputs
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libvlc5 libvlccore9 vlc-plugin-base vlc-plugin-video-output vlc-data patchelf binutils gcc dpkg-dev squashfs-tools
+          dpkg-query -W > artifacts/linux-evidence/host-packages.txt
+      - name: Check Linux packaging, provenance and isolated runner contracts
+        shell: bash
+        run: |
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_linux*.py' -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_apphost*runner.py' -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_desktop_package.py -v
+      - name: Read product version
+        id: metadata
+        shell: bash
+        run: |
+          version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "$version" > artifacts/linux-evidence/version.txt
+      - name: Restore and publish the native self-contained apphost
+        shell: bash
+        run: |
+          dotnet restore MeowChan.csproj --artifacts-path artifacts/linux-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
+          dotnet publish MeowChan.csproj --artifacts-path artifacts/linux-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/linux-publish
+          python3 scripts/check-desktop-package.py artifacts/linux-publish ${{ matrix.runtime }}
+      - name: Prepare the selected private VLC runtime and pinned AppImage tools
+        shell: bash
+        run: |
+          python3 scripts/package-linux.py prepare-runtime --runtime ${{ matrix.runtime }} --output-dir artifacts/linux-runtime/${{ matrix.runtime }}
+          python3 scripts/package-linux.py download-tools --runtime ${{ matrix.runtime }} --output-dir artifacts/appimage-tools/${{ matrix.runtime }}
+      - name: Build bundled VLC, system VLC and AppImage distributions
+        run: python3 scripts/package-linux.py package --publish-dir artifacts/linux-publish --runtime ${{ matrix.runtime }} --version ${{ steps.metadata.outputs.version }} --source-commit ${{ github.sha }} --runtime-dir artifacts/linux-runtime/${{ matrix.runtime }}/runtime --runtime-manifest artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --tools-dir artifacts/appimage-tools/${{ matrix.runtime }} --output-dir artifacts/linux-packages
+      - name: Gather exact corresponding Linux and AppImage runtime sources
+        run: python3 scripts/package-linux-sources.py --manifest ${{ matrix.runtime }}=artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --source-commit ${{ github.sha }} --output artifacts/linux-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}-video-sources.tar.gz --download-dir artifacts/linux-source-inputs
+      - name: Build separate disposable desktops with and without system VLC
+        shell: bash
+        run: |
+          docker build --pull --target no-vlc --tag meowchan-gates:no-vlc - < scripts/linux-distribution-gates.Dockerfile
+          docker build --target system-vlc --tag meowchan-gates:system-vlc - < scripts/linux-distribution-gates.Dockerfile
+          docker image inspect meowchan-gates:no-vlc meowchan-gates:system-vlc > artifacts/linux-evidence/desktop-images.json
+      - name: Accept all three exact distributions on native CPU without network or host desktop
+        run: python3 scripts/linux-distribution-gates.py --package-dir artifacts/linux-packages --manifest artifacts/linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/distributions
+      - name: Retain accepted Linux archives, AppImage and corresponding sources
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-distribution-candidate-${{ matrix.runtime }}
+          path: |
+            artifacts/linux-packages/*
+            artifacts/linux-evidence/**
+            artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain Linux distribution failure evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-distribution-evidence-${{ matrix.runtime }}
+          path: artifacts/linux-evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+
   macos-source-candidate:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
-    needs: [macos-package, package-media]
+    needs: [macos-package, package-media, linux-distribution]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

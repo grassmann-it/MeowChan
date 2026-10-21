@@ -5,8 +5,10 @@ Pass a flat publish directory or a macOS Contents/MacOS alias view. Bundle
 signatures, native architectures and symlink confinement are checked separately.
 """
 import argparse
+import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 
 
 LEGAL_DOCS = (
@@ -57,7 +59,75 @@ def validate(root: Path, runtime: str) -> dict:
     result = validate_payload(root)
     executable = 'MeowChan.exe' if runtime.startswith('win-') else 'MeowChan'
     result.update(rid=runtime, apphost=executable, apphost_bytes=require_file(Path(result['root']), executable))
+    if runtime.startswith('linux-'):
+        result.update(validate_linux_notices(Path(result['root']), runtime))
     return result
+
+
+def bounded_json(path: Path) -> dict:
+    if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= 8 * 1024 * 1024:
+        raise ValueError('Linux package metadata must be a bounded regular file: ' + path.name)
+    value = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(value, dict):
+        raise ValueError('Linux package metadata must be an object: ' + path.name)
+    return value
+
+
+def validate_linux_notices(root: Path, runtime: str) -> dict:
+    marker_path = root / 'linux-video-runtime.json'
+    inventory_path = root / 'linux-video-runtime-inventory.json'
+    legal_root = root / 'linux-video-licenses'
+    if not marker_path.exists() and not marker_path.is_symlink():
+        if any(path.exists() or path.is_symlink() for path in (inventory_path, legal_root)):
+            raise ValueError('Linux bundled notices require package metadata')
+        return {'linux_video_mode': 'system (source publish)'}
+    marker = bounded_json(marker_path)
+    mode = marker.get('Mode')
+    if type(marker.get('SchemaVersion')) is not int or marker['SchemaVersion'] != 1 or marker.get('RuntimeIdentifier') != runtime or mode not in ('bundled', 'system'):
+        raise ValueError('Linux package metadata does not match the selected runtime/mode')
+    if mode == 'system':
+        if any(path.exists() or path.is_symlink() for path in (inventory_path, legal_root)):
+            raise ValueError('System VLC package unexpectedly contains bundled runtime notices')
+        return {'linux_video_mode': mode}
+
+    inventory = bounded_json(inventory_path)
+    licenses = inventory.get('license_files')
+    if not isinstance(licenses, dict) or not 0 < len(licenses) <= 10000:
+        raise ValueError('Bundled Linux runtime lacks its license inventory')
+    if legal_root.is_symlink() or not legal_root.is_dir():
+        raise ValueError('Bundled Linux runtime lacks its regular license directory')
+    total = 0
+    for name, expected in licenses.items():
+        if not isinstance(name, str):
+            raise ValueError('Invalid bundled Linux license path/hash')
+        path = PurePosixPath(name)
+        if (not name or '\\' in name or path.is_absolute()
+                or any(part in ('', '.', '..') for part in name.split('/')) or str(path) != name
+                or not isinstance(expected, str) or not re.fullmatch('[0-9a-fA-F]{64}', expected)):
+            raise ValueError('Invalid bundled Linux license path/hash')
+        current = legal_root
+        for part in path.parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError('Bundled Linux license path cannot contain symlinks')
+        size = require_file(legal_root, name)
+        total += size
+        if size > 64 * 1024 * 1024 or total > 256 * 1024 * 1024:
+            raise ValueError('Bundled Linux license inventory exceeds its byte limit')
+        with current.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != expected.lower():
+                raise ValueError('Bundled Linux license checksum differs: ' + name)
+    actual = set()
+    for path in legal_root.rglob('*'):
+        if path.is_symlink():
+            raise ValueError('Bundled Linux license tree cannot contain symlinks')
+        if path.is_file():
+            actual.add(path.relative_to(legal_root).as_posix())
+        elif not path.is_dir():
+            raise ValueError('Bundled Linux license tree contains a special file')
+    if actual != set(licenses):
+        raise ValueError('Bundled Linux license files differ from their inventory')
+    return {'linux_video_mode': mode, 'linux_license_files': len(licenses), 'linux_license_bytes': total}
 
 
 def main(argv=None):

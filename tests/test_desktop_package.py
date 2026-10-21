@@ -1,5 +1,7 @@
 """Read-only desktop distribution inventory checks; no publish/build is performed."""
 import importlib.util
+import hashlib
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -24,6 +26,84 @@ def payload(root, runtime='linux-x64'):
 
 
 class DesktopPackageTests(unittest.TestCase):
+    def bundled_linux(self, root):
+        payload(root)
+        marker = {'SchemaVersion': 1, 'RuntimeIdentifier': 'linux-x64', 'Mode': 'bundled', 'Files': {}}
+        (root / 'linux-video-runtime.json').write_text(json.dumps(marker))
+        files = {}
+        for name in ('copyright/libvlc5', 'AppImage-runtime-LICENSE'):
+            path = root / 'linux-video-licenses' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'unchanged upstream legal text')
+            files[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        (root / 'linux-video-runtime-inventory.json').write_text(json.dumps({'license_files': files}))
+        return root
+
+    def test_bundled_linux_notices_are_hash_bound_outside_the_six_document_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.bundled_linux(Path(temporary) / 'publish')
+            result = package.validate(root, 'linux-x64')
+            self.assertEqual(result['linux_video_mode'], 'bundled')
+            self.assertEqual(result['linux_license_files'], 2)
+            self.assertEqual(result['documentation_files'], 6)
+            for mutation in ('tampered', 'missing', 'extra', 'escape'):
+                with self.subTest(mutation=mutation):
+                    changed = self.bundled_linux(Path(temporary) / mutation)
+                    notice = changed / 'linux-video-licenses/copyright/libvlc5'
+                    if mutation == 'tampered':
+                        notice.write_bytes(b'modified')
+                    elif mutation == 'missing':
+                        notice.unlink()
+                    elif mutation == 'extra':
+                        (changed / 'linux-video-licenses/unlisted').write_bytes(b'unlisted')
+                    else:
+                        (changed / 'linux-video-runtime-inventory.json').write_text(json.dumps({'license_files': {'../LICENSE': '0' * 64}}))
+                    with self.assertRaises(ValueError):
+                        package.validate(changed, 'linux-x64')
+
+    def test_system_linux_has_no_private_runtime_notices_and_marker_matches_runtime(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'system')
+            marker = {'SchemaVersion': 1, 'RuntimeIdentifier': 'linux-x64', 'Mode': 'system'}
+            path = root / 'linux-video-runtime.json'
+            path.write_text(json.dumps(marker))
+            self.assertEqual(package.validate(root, 'linux-x64')['linux_video_mode'], 'system')
+            for field, value in (('RuntimeIdentifier', 'linux-arm64'), ('Mode', 'unexpected'), ('SchemaVersion', True)):
+                path.write_text(json.dumps(dict(marker, **{field: value})))
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    package.validate(root, 'linux-x64')
+            path.write_text(json.dumps(marker))
+            (root / 'linux-video-licenses').mkdir()
+            with self.assertRaisesRegex(ValueError, 'unexpectedly'):
+                package.validate(root, 'linux-x64')
+            path.unlink()
+            with self.assertRaisesRegex(ValueError, 'require package metadata'):
+                package.validate(root, 'linux-x64')
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX legal-link fixture')
+    def test_linux_license_symlinks_are_rejected_without_following_external_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.bundled_linux(Path(temporary) / 'publish')
+            notice = root / 'linux-video-licenses/copyright/libvlc5'
+            notice.unlink()
+            notice.symlink_to(root / 'LICENSE')
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                package.validate(root, 'linux-x64')
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX dangling-link fixture')
+    def test_system_linux_rejects_dangling_bundled_notice_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for mode in ('source', 'system'):
+                for name in ('linux-video-runtime-inventory.json', 'linux-video-licenses'):
+                    with self.subTest(mode=mode, name=name):
+                        root = payload(Path(temporary) / mode / name)
+                        if mode == 'system':
+                            (root / 'linux-video-runtime.json').write_text(json.dumps({
+                                'SchemaVersion': 1, 'RuntimeIdentifier': 'linux-x64', 'Mode': 'system'}))
+                        (root / name).symlink_to(root / 'absent')
+                        with self.assertRaises(ValueError):
+                            package.validate(root, 'linux-x64')
+
     def test_minimal_payload_has_legal_files_icon_and_correct_apphost(self):
         with tempfile.TemporaryDirectory() as temporary:
             for runtime in package.RUNTIMES:
