@@ -4,6 +4,43 @@ namespace MeowChan.DesktopTests;
 
 public sealed class ConfigTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyTrayPreferenceRetainsCloseBehaviorOnly(bool enabled)
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json"),
+            "{\"MinimizeToTray\":" + enabled.ToString().ToLowerInvariant() + "}");
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Equal(enabled, config.CloseToTray);
+        Assert.False(config.MinimizeToTray);
+        config.SaveConfig(directory.Path);
+        using JsonDocument saved = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.Path, "settings.json")));
+        Assert.Equal(enabled, saved.RootElement.GetProperty("CloseToTray").GetBoolean());
+        Assert.Equal(enabled, Config.LoadConfig(directory.Path).CloseToTray);
+        Assert.False(Config.LoadConfig(directory.Path).MinimizeToTray);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void TrayPreferencesAreIndependentThroughCloneCopyAndReload(bool close, bool minimize)
+    {
+        using TempDirectory directory = new();
+        Config original = new() { CloseToTray = close, MinimizeToTray = minimize };
+        Config copy = new();
+        copy.CopyFrom(original.Clone());
+        copy.SaveConfig(directory.Path);
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal(close, loaded.CloseToTray);
+        Assert.Equal(minimize, loaded.MinimizeToTray);
+        Assert.False(new Config().CloseToTray);
+        Assert.False(new Config().MinimizeToTray);
+    }
+
     [Fact]
     public void BoardWizardPreferenceDefaultsOnAndSurvivesCloneCopyAndPersistence()
     {

@@ -147,6 +147,7 @@ internal static class BuiltInCatalog
         ("settings.parallelDownloads", "Parallel downloads", "Parallele Downloads"),
         ("settings.parallelLabel", "Parallel downloads", "Parallele Downloads"),
         ("settings.restoreSession", "Restore session on startup", "Sitzung beim Start wiederherstellen"),
+        ("settings.closeToTray", "Close to tray", "Beim Schließen in den Infobereich"),
         ("settings.minimizeToTray", "Minimize to tray", "In den Infobereich minimieren"),
         ("settings.save", "Save", "Speichern"),
         ("settings.saved", "Settings saved.", "Einstellungen gespeichert."),

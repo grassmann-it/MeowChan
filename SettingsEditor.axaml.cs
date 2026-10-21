@@ -25,6 +25,7 @@ namespace MeowChan
         private bool _saveUrlsOnExit;
         private bool _showBoardAdmissionWizard;
         private bool _minimizeToTray;
+        private bool _closeToTray;
         private bool _isBusy;
         private bool _isClosed;
         private bool _errorRevealPending;
@@ -78,6 +79,7 @@ namespace MeowChan
             SaveUrlsOnExit = config.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = config.ShowBoardAdmissionWizard;
             MinimizeToTray = config.MinimizeToTray;
+            CloseToTray = config.CloseToTray;
             BandwidthLimiterMB = config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = config.CompactDensity;
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
@@ -101,6 +103,7 @@ namespace MeowChan
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
         public string RestoreSessionLabel => Texts.T("settings.restoreSession");
         public string BoardAdmissionWizardLabel => Texts.T("settings.boardAdmissionWizard");
+        public string CloseToTrayLabel => Texts.T("settings.closeToTray");
         public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
         public string ThemeLabel => Texts.T("settings.theme");
         public string LanguageLabel => Texts.T("settings.language");
@@ -172,6 +175,12 @@ namespace MeowChan
         {
             get => _showBoardAdmissionWizard;
             set => SetField(ref _showBoardAdmissionWizard, value, nameof(ShowBoardAdmissionWizard));
+        }
+
+        public bool CloseToTray
+        {
+            get => _closeToTray;
+            set => SetField(ref _closeToTray, value, nameof(CloseToTray));
         }
 
         public bool MinimizeToTray
@@ -263,6 +272,7 @@ namespace MeowChan
             SaveUrlsOnExit = _config.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = _config.ShowBoardAdmissionWizard;
             MinimizeToTray = _config.MinimizeToTray;
+            CloseToTray = _config.CloseToTray;
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = _config.CompactDensity;
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
@@ -432,6 +442,7 @@ namespace MeowChan
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
                 candidate.ShowBoardAdmissionWizard = ShowBoardAdmissionWizard;
                 candidate.MinimizeToTray = MinimizeToTray;
+                candidate.CloseToTray = CloseToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;

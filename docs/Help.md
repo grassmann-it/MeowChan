@@ -24,6 +24,21 @@ invalid view preferences also fall back to Barebones. Saved **Barebones**,
 to switch. Published Windows Preview 3 (`a98759e`) still defaults to **Simple**;
 Barebones can be selected manually there.
 
+### Close and minimize to tray
+
+Settings provides independent **Close to tray** and **Minimize to tray** checkboxes
+(German: **Beim Schließen in den Infobereich** and **In den Infobereich minimieren**).
+Close controls X; Minimize controls the minimize button. Both start off in new
+profiles. With an available tray, the enabled action hides the window and removes
+its taskbar entry. Click the tray icon or choose Open to restore it. Exit ends the
+application even when Close to tray is enabled.
+
+On Linux, hiding waits for a registered StatusNotifier host and this process's
+registered icon. A missing or unresponsive tray keeps taskbar access. Losing the
+host while hidden restores the window automatically. Existing profiles migrate
+the old Minimize to tray setting to Close to tray and leave the new Minimize to
+tray preference off, preserving the previous close behavior.
+
 ### Board admission and exclusions
 
 The board-admission wizard is enabled by default. Before adding a pasted batch,

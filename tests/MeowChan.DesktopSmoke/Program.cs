@@ -30,6 +30,7 @@ internal static class Program
     private static bool _trayFailureMode;
     private static bool _downloadSessionMode;
     private static bool _trayLifecycleMode;
+    private static bool _trayHostMode;
     private static bool _visualMode;
     private static bool _readerUxMode;
     private static bool _selectionMode;
@@ -37,9 +38,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host]");
             return 2;
         }
 
@@ -59,6 +60,7 @@ internal static class Program
         _noTrayMode = args.Contains("--no-tray", StringComparer.Ordinal);
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
         _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
+        _trayHostMode = args.Contains("--tray-host", StringComparer.Ordinal);
         _trayLifecycleMode = args.Contains("--tray-lifecycle", StringComparer.Ordinal);
         bool xvfbEnvironment = OperatingSystem.IsLinux()
             && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1";
@@ -71,7 +73,8 @@ internal static class Program
             Config config = new Config
             {
                 DownloadPath = Path.Combine(profile, "Downloads"),
-                MinimizeToTray = _noTrayMode || _trayFailureMode,
+                MinimizeToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
+                CloseToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
                 DownloadsPaused = _selectionMode,
                 SaveUrlsOnExit = true
             };
@@ -93,7 +96,7 @@ internal static class Program
                 .WithInterFont();
             if (xvfbEnvironment)
             {
-                Console.WriteLine("SMOKE Xvfb environment: X11 software rendering; no native tray host (tray fixture installed).");
+                Console.WriteLine("SMOKE Xvfb environment: X11 software rendering; tray fixture=" + (_trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
                 appBuilder.With(new X11PlatformOptions
                 {
                     RenderingMode = new X11RenderingMode[] { X11RenderingMode.Software }
@@ -104,7 +107,7 @@ internal static class Program
                 {
                     if (!_lockedProfileMode)
                         ClipboardChecks.Install();
-                    if (xvfbEnvironment || _noTrayMode || _trayFailureMode)
+                    if ((xvfbEnvironment && !_trayHostMode) || _noTrayMode || _trayFailureMode)
                     {
                         IWindowingPlatform platform = AvaloniaLocator.Current.GetRequiredService<IWindowingPlatform>();
                         AvaloniaLocator.CurrentMutable.Bind<IWindowingPlatform>()
@@ -131,6 +134,7 @@ internal static class Program
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
+                : _trayHostMode ? "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
                 : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
                 : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
@@ -209,6 +213,14 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (_trayHostMode)
+            {
+                await TrayHostChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                // Exit, rather than the close-to-tray path.
+                mainWindow.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                return;
+            }
             if (_trayLifecycleMode)
             {
                 await TrayLifecycleChecks.RunAsync(mainWindow);
@@ -225,6 +237,13 @@ internal static class Program
             }
             if (_noTrayMode || _trayFailureMode)
             {
+                mainWindow.FindControl<Button>("WindowMinimizeButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitUntilAsync(() => mainWindow.WindowState == WindowState.Minimized);
+                if (!mainWindow.IsVisible || !mainWindow.ShowInTaskbar || _closed)
+                    throw new InvalidOperationException("Minimize without a tray stranded or closed the window.");
+                mainWindow.WindowState = WindowState.Normal;
+                mainWindow.Activate();
+                await WaitUntilAsync(() => mainWindow.WindowState == WindowState.Normal);
                 Func<WindowCloseReason, bool> requestClose = mainWindow.PlatformImpl?.Closing
                     ?? throw new InvalidOperationException("The native close callback is missing.");
                 bool cancelled = requestClose(WindowCloseReason.WindowClosing);
@@ -238,7 +257,7 @@ internal static class Program
                 mainWindow.FindControl<Button>("WindowCloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await WaitUntilAsync(() => mainWindow.WindowState == WindowState.Minimized);
                 if (!mainWindow.IsVisible || !mainWindow.ShowInTaskbar || _closed)
-                    throw new InvalidOperationException("The custom close caption bypassed MinimizeToTray.");
+                    throw new InvalidOperationException("The custom close caption bypassed CloseToTray.");
                 mainWindow.WindowState = WindowState.Normal;
                 mainWindow.Activate();
                 await WaitUntilAsync(() => mainWindow.IsVisible && mainWindow.WindowState == WindowState.Normal);

@@ -396,3 +396,23 @@ The restore deliberately sets the singular `RuntimeIdentifier` property. `dotnet
 SDK and dependency upgrades deliberately regenerate locks. After changing the version, run the corresponding restore command with `-p:RestoreLockedMode=false --force-evaluate` instead of `--locked-mode`, first for the solution and smoke project, then for every supported publish RID with the same `SelfContained` and `PublishSingleFile` properties. Review the lock diffs, repeat all seven restores in locked mode, and run the relevant tests before committing the upgrade. CI also treats an unavailable vulnerability-data query (`NU1900`) as an error.
 
 The package-only sample is outside this policy: it restores the just-built candidate into a fresh package cache and verifies its exact package hash. A fixed sample lock would otherwise reject intentional new contents of a local candidate at the same version. The SDK and package locks fix the selected inputs; they do not claim byte-for-byte identical archives. CI retains the resolved graph, SDK details and artifact hashes as evidence.
+
+### Tray preference correction — 2026-10-21 source checkpoint
+
+Close to tray and Minimize to tray are now separate settings. New profiles default
+both off; profiles without the new CloseToTray field migrate the old
+MinimizeToTray value to CloseToTray and start the new minimize preference off.
+Linux hiding requires a registered StatusNotifier host and this process's
+registered native icon. While hidden, bounded non-overlapping host checks restore
+the window if the host or watcher becomes unavailable. Tray failure preserves
+taskbar access and logs the fallback once per requested action.
+
+The private DBus/Xvfb/Openbox `tray-host`, `no-tray` and `tray-failure` scenarios
+passed at measured scale 1 in `artifacts/tray-split-freeze-20261021`. The host fixture
+uses Avalonia's actual native DBus registration and activation, and checks
+independent settings Save/Cancel, first minimize/close, another process's icon
+being insufficient, host loss, watcher restart and watcher loss. All 75 targeted
+configuration/host tests and 11 runner safety tests passed. Default Release and
+five RID lock graphs restored with their CI flags; the package versions did not
+change. This source evidence does not claim native shell presentation or final
+extracted-package acceptance on every supported platform.

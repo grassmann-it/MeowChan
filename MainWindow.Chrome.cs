@@ -30,7 +30,7 @@ public partial class MainWindow
 
     private void OnWindowMinimizeClick(object? sender, RoutedEventArgs e)
     {
-        if (CanMinimize) WindowState = WindowState.Minimized;
+        if (CanMinimize) MinimizeWindow(_config.MinimizeToTray);
     }
 
     private void OnWindowMaximizeClick(object? sender, RoutedEventArgs e) => ToggleWindowMaximized();
@@ -58,7 +58,7 @@ public partial class MainWindow
         }
     }
 
-    // Use the same close path as the former OS caption, including MinimizeToTray
+    // Use the same close path as the former OS caption, including CloseToTray
     // and the existing asynchronous session shutdown.
     private void OnWindowCloseClick(object? sender, RoutedEventArgs e) => Close();
 

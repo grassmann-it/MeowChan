@@ -58,7 +58,7 @@ python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/R
 
 Use that stress case only on a disposable test desktop/CI. CI invokes it as a
 separate step after the standard checks. Linux's no-tray Xvfb fixture cannot prove
-native DBus registration behavior; that needs a disposable desktop with a tray host.
+native DBus registration behavior; use the separate private `tray-host` fixture below.
 On Linux, `--native-display` requires exactly one explicitly selected `--mode` and
 also requires `--allow-native-desktop` and is intended for such a dedicated
 desktop. Do not run native suites or stress tests
@@ -75,7 +75,7 @@ area; a missing or different measurement fails any run with an explicit scale re
 Captures flush layout and use the observed density, excluding native decorations.
 
 `MEOWCHAN_DESKTOP_SMOKE_XVFB=1` selects X11 software rendering and installs the
-no-tray fixture before Avalonia initializes. Openbox readiness is checked before
+no-tray fixture before Avalonia initializes, except for `tray-host`, which retains the native DBus implementation. Openbox readiness is checked before
 the harness starts. This environment is recorded in logs and `results.json`; it
 does not validate GPU rendering or the user's window manager. Avalonia errors and
 binding warnings still fail the checks. The real application has no test flags.
@@ -94,13 +94,13 @@ The `--locked-profile` case holds a conflicting lease before application startup
 
 The `--download-session` case uses the real session host, provider parsing, queue, media storage and durable profile behind the native window. An injected in-process HTTP handler supplies fixture responses; no requests reach a live imageboard. It admits a URL through the UI, verifies downloaded media at the assigned path, closes the native window, creates a fresh host/window for the same isolated profile and verifies restoration before closing again. Its explicit application lifetime allows this restart without ending the process after the first window closes.
 
-The `--no-tray` and `--tray-failure` cases keep native windows and rendering, but replace tray creation with a null result or an exception. With `MinimizeToTray` enabled, they invoke the native user-close callback and verify that the window remains minimized with taskbar access. They restore the window and use its visible Exit menu item to finish shutdown. Unknown or combined arguments fail with exit code 2. Only this non-packable harness opts into Avalonia's unstable windowing-platform service API; production code uses public tray APIs.
+The `--no-tray` and `--tray-failure` cases keep native windows and rendering, but replace tray creation with a null result or an exception. With both `CloseToTray` and `MinimizeToTray` enabled, they exercise the minimize caption, native user-close callback and close caption and verify that the window remains minimized with taskbar access. They restore the window and use its visible Exit menu item to finish shutdown. Unknown or combined arguments fail with exit code 2. Only this non-packable harness opts into Avalonia's unstable windowing-platform service API; production code uses public tray APIs.
 
 Avalonia 12 tray icons create their native implementation when attached to the application's `TrayIcons` collection. Each window owns its entry and removes/disposes it at shutdown. The `--tray-lifecycle` mode creates and closes 16 additional native windows as soon as restoration permits, checks the collection and reacquires the isolated profile lease after every close. It logs whether native tray attachment was actually exercised; the Xvfb no-tray fixture does not establish DBus registration behavior. There are no sleeps to let registration settle and no exception suppression. The other modes, including real download/restore, still run in separate processes.
 
-Avalonia 12.1.4 includes [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980) for late DBus tray registration after disposal. Its FreeDesktop dependency selects Tmds.DBus.Protocol 0.94.1 through the reviewed locks; the former direct 0.92.0 pin is removed. Source checks now distinguish the native collection from the no-tray fallback. These tests supplement the upstream state guards; a stress pass alone does not prove every asynchronous interleaving.
+Avalonia 12.1.4 includes [upstream fix #21980](https://github.com/AvaloniaUI/Avalonia/pull/21980) for late DBus tray registration after disposal. The application directly references Tmds.DBus.Protocol 0.94.1, matching Avalonia FreeDesktop and the reviewed locks; the former 0.92.0 pin remains removed. Source checks now distinguish the native collection from the no-tray fallback. These tests supplement the upstream state guards; a stress pass alone does not prove every asynchronous interleaving.
 
-The application keeps taskbar access until a real tray activation demonstrates a route back to a hidden window. A later host loss is not reliably observable through the public API. Tray setup failures do not prevent startup. The Linux-only menu detach/dispatcher drain is retained for existing menu callbacks; it does not fix late registration by itself and is not applied to macOS.
+The application checks Linux StatusNotifier host registration and its own registered icon before hiding. Requested icon visibility and a native menu exporter alone are insufficient. A bounded host check runs while hidden; losing the host or watcher restores taskbar access. Tray setup failures do not prevent startup. The Linux-only menu detach/dispatcher drain is retained for existing menu callbacks; it does not fix late registration by itself and is not applied to macOS.
 
 Settings are tested as retained pages in the real shell: invalid text survives navigation/language refresh, footer commits synchronize only their affected field, failures preserve the draft, Save/Cancel stay on the page, and a pending commit/picker gates navigation. Accepted saves drain during app shutdown, late results do not update the ended editor, returned picker folders are disposed, and leases are released. Small EN/DE pages are captured with reachable actions. The compatibility dialog exercises the same editor; it is no longer the product's Settings navigation.
 
@@ -132,3 +132,23 @@ access disabled. It checks decoded copied images, own CSS, real internal quote
 anchors, retained posts, missing/external target explanations and absence of active
 source content. Requests must remain within the exported folder. JSON evidence and
 a full-page screenshot are written to the chosen output directory.
+
+### Private Linux tray host fixture
+
+```sh
+python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode tray-host --output artifacts/desktop-tray-host
+```
+
+This Linux-only mode requires `/usr/bin/python3` with `dbus` and `gi` modules
+(`python3-dbus python3-gi` on Ubuntu), plus the runner's normal Xvfb/Openbox tools.
+The runner launches `with-fake-tray-host.py` inside its private session bus. It
+keeps Avalonia's actual native DBus tray implementation enabled; the fixture
+implements the watcher/host protocol and invokes the exported item's Activate
+method. Production never starts or depends on this script.
+
+Checks cover independent Save/Cancel preferences, disabled minimize with a host,
+first minimize and close without a prior tray interaction, removal from the
+taskbar, native DBus activation restoring the window, missing host fallback,
+host loss, watcher restart/re-registration and watcher loss while hidden. This
+proves these protocol paths, while final native shell presentation on KDE,
+GNOME extensions, Windows and macOS remains a separate package acceptance check.

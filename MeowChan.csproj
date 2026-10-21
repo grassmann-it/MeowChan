@@ -29,6 +29,7 @@
     <PackageReference Include="ActiproSoftware.Controls.Avalonia" Version="26.2.0" />
     <PackageReference Include="ActiproSoftware.Controls.Avalonia.Themes.DataGrid" Version="26.2.0" />
     <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />

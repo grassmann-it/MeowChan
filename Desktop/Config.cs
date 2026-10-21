@@ -25,6 +25,7 @@ namespace MeowChan
         public bool ShowBoardAdmissionWizard { get; set; } = true;
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
+        public bool CloseToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         public int MaxParallelDownloads { get; set; } = 5;
 
@@ -203,6 +204,7 @@ namespace MeowChan
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
+                CloseToTray = CloseToTray,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
                 Theme = Theme,
@@ -230,6 +232,7 @@ namespace MeowChan
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
+            CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
             Theme = source.Theme;
@@ -268,7 +271,7 @@ namespace MeowChan
             Log.Information("Download Path: {DownloadPath}", DownloadPath);
             Log.Information("Recheck Timer: {RecheckTimer} seconds", RecheckTimer);
             Log.Information("Save URLs on Exit: {SaveUrlsOnExit}", SaveUrlsOnExit);
-            Log.Information("Minimize to Tray: {MinimizeToTray}", MinimizeToTray);
+            Log.Information("Minimize to Tray: {MinimizeToTray}; Close to Tray: {CloseToTray}", MinimizeToTray, CloseToTray);
             Log.Information("Bandwidth Limiter: {BandwidthLimiter} bytes per second", BandwidthLimiter);
             Log.Information("Parallel downloads: {MaxParallelDownloads}", MaxParallelDownloads);
         }
@@ -363,6 +366,13 @@ namespace MeowChan
 
                 using (JsonDocument document = JsonDocument.Parse(json))
                 {
+                    // The old MinimizeToTray preference controlled close only.
+                    // An explicit CloseToTray field marks the independent preferences.
+                    if (!document.RootElement.TryGetProperty(nameof(CloseToTray), out _))
+                    {
+                        config.CloseToTray = config.MinimizeToTray;
+                        config.MinimizeToTray = false;
+                    }
                     if (!document.RootElement.TryGetProperty(nameof(DownloadPath), out _))
                         config.DownloadPath = GetDefaultDownloadPath("oChan");
                 }

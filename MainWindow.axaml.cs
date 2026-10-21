@@ -19,6 +19,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace MeowChan;
 
@@ -36,7 +37,10 @@ public partial class MainWindow : Window
     private TrayIcon? _trayIcon;
     private TrayIcons? _applicationTrayIcons;
     private NativeMenuItem? _clipboardMenuItem;
-    private bool _trayInteractionObserved;
+    private DispatcherTimer? _trayHostMonitor;
+    private CancellationTokenSource? _trayHostLifetime = new();
+    private int _trayMinimizeRequest;
+    private bool _trayHostCheckRunning;
     private bool _hasOpened;
     private bool _restoreCompleted;
     private bool _isClosing;
@@ -428,6 +432,7 @@ public partial class MainWindow : Window
 
     private void SetupTrayIcon()
     {
+        PropertyChanged += OnTrayWindowPropertyChanged;
         try
         {
             _trayIcon = new TrayIcon();
@@ -466,7 +471,6 @@ public partial class MainWindow : Window
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
         {
-            _trayInteractionObserved = true;
             RestoreWindow();
         };
         menu.Items.Add(openItem);
@@ -484,15 +488,7 @@ public partial class MainWindow : Window
         trayIcon.Menu = menu;
         trayIcon.Clicked += (sender, e) =>
         {
-            _trayInteractionObserved = true;
-            if (IsVisible && WindowState != WindowState.Minimized)
-            {
-                Hide();
-            }
-            else
-            {
-                RestoreWindow();
-            }
+            RestoreWindow();
         };
         trayIcon.IsVisible = true;
         if (_trayPlatformSettings != null)
@@ -501,6 +497,9 @@ public partial class MainWindow : Window
 
     private void RestoreWindow()
     {
+        _trayMinimizeRequest++;
+        _trayHostMonitor?.Stop();
+        ShowInTaskbar = true;
         Show();
         if (WindowState == WindowState.Minimized)
         {
@@ -510,23 +509,58 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private void MinimizeWindow()
+    private async void MinimizeWindow(bool toTray = true)
     {
-        // Avalonia 11 exposes requested visibility, not whether a shell hosts the icon.
-        // Only a real tray interaction proves there is a route back to a hidden window.
-        if (_trayInteractionObserved && _trayIcon?.IsVisible == true)
+        int request = ++_trayMinimizeRequest;
+        // Keep a taskbar route while the asynchronous Linux host check runs.
+        ShowInTaskbar = true;
+        WindowState = WindowState.Minimized;
+        if (!toTray) return;
+        if (_trayIcon?.IsVisible != true)
         {
-            Hide();
+            Log.Information("Tray minimization requested, but no native tray icon is available; keeping taskbar access.");
+            return;
         }
-        else
+        bool available = !OperatingSystem.IsLinux() || await LinuxTrayHost.IsAvailableAsync(_trayHostLifetime?.Token ?? new CancellationToken(true));
+        if (request != _trayMinimizeRequest || _isClosing || _trayIcon?.IsVisible != true) return;
+        if (!available)
         {
-            ShowInTaskbar = true;
-            WindowState = WindowState.Minimized;
+            Log.Information("Tray minimization requested, but the Linux StatusNotifier host or registered application icon is unavailable; keeping taskbar access.");
+            return;
         }
+        Hide();
+        ShowInTaskbar = false;
+        if (OperatingSystem.IsLinux())
+        {
+            _trayHostMonitor ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background,
+                OnTrayHostMonitorTick);
+            _trayHostMonitor.Start();
+        }
+    }
+
+    private async void OnTrayHostMonitorTick(object? sender, EventArgs e)
+    {
+        if (_trayHostCheckRunning || IsVisible || _isClosing) return;
+        _trayHostCheckRunning = true;
+        try
+        {
+            bool available = await LinuxTrayHost.IsAvailableAsync(_trayHostLifetime?.Token ?? new CancellationToken(true));
+            if (!available && !IsVisible && !_isClosing) RestoreWindow();
+        }
+        finally { _trayHostCheckRunning = false; }
+    }
+
+    private void OnTrayWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        // A user can restore from the taskbar while the host check is pending.
+        if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)
+            && WindowState != WindowState.Minimized && IsVisible)
+            _trayMinimizeRequest++;
     }
 
     private void DisposeTrayIcon()
     {
+        PropertyChanged -= OnTrayWindowPropertyChanged;
         if (_trayPlatformSettings != null)
             _trayPlatformSettings.ColorValuesChanged -= OnTrayColorValuesChanged;
         _trayPlatformSettings = null;
@@ -536,7 +570,12 @@ public partial class MainWindow : Window
         _trayOpenItem = null;
         _trayFolderItem = null;
         _trayExitItem = null;
-        _trayInteractionObserved = false;
+        _trayMinimizeRequest++;
+        _trayHostMonitor?.Stop();
+        _trayHostMonitor = null;
+        _trayHostLifetime?.Cancel();
+        _trayHostLifetime?.Dispose();
+        _trayHostLifetime = null;
         try
         {
             if (trayIcon != null)
@@ -608,7 +647,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_config.MinimizeToTray && e.CloseReason == WindowCloseReason.WindowClosing)
+        if (_config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             MinimizeWindow();
             return;

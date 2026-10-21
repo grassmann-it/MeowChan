@@ -34,7 +34,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", STRESS_MODE),
+    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", STRESS_MODE),
                         help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
                         help="Use a dedicated Linux desktop for one explicitly selected scenario.")
@@ -47,6 +47,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
     if STRESS_MODE in args.modes and len(args.modes) != 1:
         parser.error("tray-lifecycle must run separately with --mode tray-lifecycle")
+    if "tray-host" in args.modes and (not sys.platform.startswith("linux") or args.native_display):
+        parser.error("tray-host requires Linux with the isolated DBus/Xvfb runner")
     if args.native_display:
         if not sys.platform.startswith("linux"):
             parser.error("--native-display is only supported on Linux")
@@ -144,6 +146,9 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         if isolated:
+            if mode == "tray-host":
+                host = Path(__file__).with_name("with-fake-tray-host.py").resolve()
+                command = ["/usr/bin/python3", str(host), "--", *command]
             manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()
             command = ["dbus-run-session", "--config-file=" + str(Path(working_directory) / "bus.conf"),
                        "--", "xvfb-run", "--auto-servernum",
@@ -229,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     (output / "results.json").write_text(json.dumps({
         "kind": "source-built Avalonia harness; not published apphost",
         "platform": sys.platform,
-        "environment": "isolated Xvfb (3200x2000), Openbox, private DBus/runtime, software rendering, no native tray host"
+        "environment": "isolated Xvfb (3200x2000), Openbox, private DBus/runtime, software rendering, optional private tray-host fixture"
             if isolated else "explicit native graphical session; desktop isolation is not verified by this runner",
         "native_desktop_opt_in": args.allow_native_desktop and not isolated,
         "selected_modes": args.modes,

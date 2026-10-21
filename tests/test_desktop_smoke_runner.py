@@ -35,6 +35,15 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             runner.parse_args(self.args + ["--mode", "normal", "--mode", "tray-lifecycle"])
 
+    def test_tray_host_cannot_run_on_a_personal_native_desktop(self):
+        with mock.patch.object(runner.sys, "platform", "linux"):
+            self.assertEqual(("tray-host",), runner.parse_args(self.args + ["--mode", "tray-host"]).modes)
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--mode", "tray-host", "--native-display", "--allow-native-desktop"])
+        for platform in ("win32", "darwin"):
+            with mock.patch.object(runner.sys, "platform", platform), self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--mode", "tray-host", "--allow-native-desktop"])
+
     def test_native_desktop_requires_one_explicit_scenario(self):
         with mock.patch.object(runner.sys, "platform", "linux"), mock.patch.dict(os.environ, {"DISPLAY": ":999"}):
             with self.assertRaises(SystemExit):
