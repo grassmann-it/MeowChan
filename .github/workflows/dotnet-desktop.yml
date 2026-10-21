@@ -70,10 +70,13 @@ jobs:
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
       - name: Check default development restore and build
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: dotnet build MeowChan.csproj -warnaserror:NU1900
       - name: Restore dependencies and require audit availability
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact restored Release graphs
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         shell: bash
         run: |
           cp obj/project.assets.json artifacts/build-evidence/desktop-assets.json
@@ -81,22 +84,26 @@ jobs:
           cp tests/MeowChan.Tests/obj/project.assets.json artifacts/build-evidence/core-tests-assets.json
           cp tests/MeowChan.DesktopTests/obj/project.assets.json artifacts/build-evidence/desktop-tests-assets.json
       - name: Build all production and test projects
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
-        if: runner.os != 'macOS'
+        if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
         timeout-minutes: 8
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Run both complete macOS offline suites with bounded diagnostics
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
         timeout-minutes: 10
         run: python3 scripts/macos-test-watchdog.py --timeout 240
       - name: Check package layout fixtures
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: |
           python -m unittest discover -s tests -p test_macos_packaging.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
       - name: Check local library package contract fixtures
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: python -m unittest discover -s tests -p test_local_package.py -v
       - name: Check GUI runner isolation and cleanup fixtures
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
       - name: Restore graphical harness with reviewed dependencies
         run: dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
@@ -158,10 +165,10 @@ jobs:
             artifacts/build-evidence/**
             artifacts/macos-test-diagnosis/**
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   library-package:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection')
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -182,10 +189,10 @@ jobs:
           name: library-package-candidate
           path: artifacts/packages/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
   package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && (!inputs.platform || inputs.platform == 'all'))
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all'))
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -264,7 +271,7 @@ jobs:
           name: package-${{ matrix.runtime }}
           path: packages/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
       - name: Retain publish evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -272,10 +279,10 @@ jobs:
           name: publish-evidence-${{ matrix.runtime }}
           path: artifacts/build-evidence/**
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
   macos-package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media'
     strategy:
       fail-fast: false
       matrix:
@@ -360,7 +367,7 @@ jobs:
             artifacts/macos-packages/*.zip
             artifacts/macos-evidence/**
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
       - name: Retain native macOS evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -368,7 +375,7 @@ jobs:
           name: macos-package-evidence-${{ matrix.runtime }}
           path: artifacts/macos-evidence/**
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
   package-media:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
@@ -436,7 +443,7 @@ jobs:
             artifacts/media-packages/*
             artifacts/media-evidence/**
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
       - name: Retain native package playback evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -444,7 +451,7 @@ jobs:
           name: package-media-evidence-${{ matrix.runtime }}
           path: artifacts/media-evidence/**
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
   linux-distribution:
     if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution')
@@ -546,7 +553,7 @@ jobs:
             artifacts/linux-evidence/**
             artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
       - name: Retain Linux distribution failure evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -554,7 +561,7 @@ jobs:
           name: linux-distribution-evidence-${{ matrix.runtime }}
           path: artifacts/linux-evidence/**
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
   macos-source-candidate:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
@@ -706,7 +713,7 @@ jobs:
           name: macos-paired-candidate-${{ github.sha }}
           path: artifacts/macos-candidate/**
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
   # Diagnostic evidence only: this mode does not run or satisfy release validation.
   macos-diagnose:
