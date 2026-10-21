@@ -14,6 +14,7 @@ import re
 LEGAL_DOCS = (
     'native-video-licenses.txt',
     'native-video-sources.md',
+    'native-video-linux-sources.md',
     'native-video-source-manifest.json',
     'native-video-macos-sources.md',
     'native-video-macos-source-manifest.json',
@@ -46,7 +47,7 @@ def validate_payload(root: Path) -> dict:
     documentation = root / 'docs'
     actual = {entry.name for entry in documentation.iterdir()}
     if actual != set(LEGAL_DOCS):
-        raise ValueError('Desktop docs must contain only the six legal files; unexpected entries: '
+        raise ValueError('Desktop docs must contain only the approved legal files; unexpected entries: '
                          + ', '.join(sorted(actual - set(LEGAL_DOCS))))
     icon_bytes = require_file(root, 'Assets/meowchan.png')
     return {'root': str(root), 'legal_files': len(LEGAL_FILES), 'legal_bytes': legal_bytes,

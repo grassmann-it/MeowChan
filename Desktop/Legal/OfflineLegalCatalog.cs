@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace MeowChan.Desktop.Legal;
@@ -79,6 +80,9 @@ public sealed class OfflineLegalCatalog
                 if (cells.Length < 4 || cells[1].Trim() is not ("LibVLCSharp" or "LibVLCSharp.Avalonia" or "VideoLAN.LibVLC.Windows" or "VideoLAN.LibVLC.Mac"))
                     continue;
                 string name = cells[1].Trim();
+                if (name == "VideoLAN.LibVLC.Windows" && !OperatingSystem.IsWindows() ||
+                    name == "VideoLAN.LibVLC.Mac" && !OperatingSystem.IsMacOS())
+                    continue;
                 entries.Add(new Entry(name, cells[2].Trim(), name == "VideoLAN.LibVLC.Mac" ?
                     "LGPL-2.1-or-later core; retained GPL-2.0-or-later plugins" : "LGPL-2.1-or-later",
                     "VideoLAN and LibVLCSharp contributors",
@@ -92,18 +96,16 @@ public sealed class OfflineLegalCatalog
 
             // The collected native component texts and exact source manifests are
             // separate shipped documents, not replaced by a generic upstream URL.
-            entries.Add(new Entry("VLC native component notices", "3.0.24", "Various; see component texts",
-                "VideoLAN and component contributors", "docs/native-video-licenses.txt · docs/native-video-source-manifest.json",
-                ReadOptional(directory, "docs/native-video-licenses.txt")));
+            if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+                entries.Add(new Entry("VLC native component notices (Windows/macOS)", "3.0.24", "Various; see component texts",
+                    "VideoLAN and component contributors", "docs/native-video-licenses.txt · docs/native-video-source-manifest.json",
+                    ReadOptional(directory, "docs/native-video-licenses.txt")));
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                entries.Add(new Entry("Linux LibVLC runtime", "See packaged linux-video-runtime-inventory.json",
-                    "Per-component distribution licenses", "VideoLAN, Ubuntu and component contributors",
-                    "docs/native-video-linux-sources.md · linux-video-runtime-inventory.json · linux-video-licenses/",
-                    ReadOptional(directory, "docs/native-video-linux-sources.md") + "\n\n" +
-                    ReadOptional(directory, "linux-video-runtime-inventory.json")));
+                AddLinuxRuntime(entries, directory);
             return new OfflineLegalCatalog(entries.AsReadOnly(), notices, null);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException
+            or InvalidOperationException or ArgumentException)
         {
             return new OfflineLegalCatalog(Array.Empty<Entry>(), "", exception.Message);
         }
@@ -126,6 +128,94 @@ public sealed class OfflineLegalCatalog
     {
         string path = Path.Combine(root, relative);
         return File.Exists(path) ? File.ReadAllText(path) : $"Local document missing: {relative}";
+    }
+
+    private static void AddLinuxRuntime(List<Entry> entries, string directory)
+    {
+        const string modeFile = "linux-video-runtime.json";
+        string modePath = Path.Combine(directory, modeFile);
+        string guidance = ReadOptional(directory, "docs/native-video-linux-sources.md");
+        if (!File.Exists(modePath))
+        {
+            entries.Add(new Entry("Linux LibVLC package mode", "Not recorded", "See package inventory",
+                "VideoLAN and distribution contributors", modeFile,
+                "This local build has no Linux package mode file. Bundled native components cannot be inferred.\n\n" + guidance));
+            return;
+        }
+        using JsonDocument mode = JsonDocument.Parse(File.ReadAllText(modePath));
+        string? value = mode.RootElement.TryGetProperty("Mode", out JsonElement property) ? property.GetString() : null;
+        if (value == "system")
+        {
+            entries.Add(new Entry("Linux LibVLC (host required)", "Host-installed VLC 3", "Host distribution terms",
+                "VideoLAN and host distribution contributors", "linux-video-runtime.json · docs/native-video-linux-sources.md",
+                "This package does not ship a native VLC tree or its distribution copyright inventory. Install compatible VLC 3 and consult the host distribution's license files.\n\n" + guidance));
+            return;
+        }
+        if (value != "bundled")
+        {
+            entries.Add(new Entry("Linux LibVLC package mode", "Invalid package metadata", "See package inventory",
+                "VideoLAN and distribution contributors", modeFile, "Unknown Linux package mode: " + value));
+            return;
+        }
+
+        string inventoryPath = Path.Combine(directory, "linux-video-runtime-inventory.json");
+        string licensesRoot = Path.Combine(directory, "linux-video-licenses");
+        if (!File.Exists(inventoryPath) || !Directory.Exists(licensesRoot))
+        {
+            entries.Add(new Entry("Linux LibVLC (bundled)", "Inventory missing", "Per-component distribution licenses",
+                "VideoLAN, Ubuntu and component contributors", "linux-video-runtime-inventory.json · linux-video-licenses/",
+                "Bundled VLC license inventory or full local texts are missing from this package.\n\n" + guidance));
+            return;
+        }
+
+        using JsonDocument inventory = JsonDocument.Parse(File.ReadAllText(inventoryPath));
+        string version = inventory.RootElement.TryGetProperty("vlc_version", out JsonElement vlcVersion)
+            ? vlcVersion.GetString() ?? "See inventory" : "See inventory";
+        entries.Add(new Entry("Linux LibVLC (bundled)", version, "Per-component distribution licenses",
+            "VideoLAN, Ubuntu and component contributors",
+            "linux-video-runtime-inventory.json · docs/native-video-linux-sources.md · matching same-release source companion",
+            guidance + "\n\n" + File.ReadAllText(inventoryPath)));
+
+        // Packaging copies Debian copyright records and common license texts.
+        // Bound file count/size, reject symlinks, and never follow paths outside
+        // this packaged directory. A missing record remains visible as such.
+        const int maxFiles = 512;
+        const long maxTotalBytes = 16L * 1024 * 1024;
+        const long maxFileBytes = 2L * 1024 * 1024;
+        List<string> files = Directory.EnumerateFiles(licensesRoot, "*", new EnumerationOptions
+            { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint })
+            .Take(maxFiles + 1).ToList();
+        if (files.Count > maxFiles)
+            throw new InvalidDataException("Linux license inventory exceeds 512 files.");
+        long total = 0;
+        var content = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string path in files)
+        {
+            FileInfo file = new(path);
+            if (file.LinkTarget != null || file.Length > maxFileBytes || (total += file.Length) > maxTotalBytes)
+                throw new InvalidDataException("Linux license inventory is not a bounded set of regular local files.");
+            string relative = Path.GetRelativePath(licensesRoot, path).Replace('\\', '/');
+            content.Add(relative, File.ReadAllText(path));
+        }
+        if (inventory.RootElement.TryGetProperty("packages", out JsonElement packages))
+            foreach (JsonElement package in packages.EnumerateArray())
+            {
+                string name = package.GetProperty("package").GetString()!;
+                string packageVersion = package.GetProperty("version").GetString()!;
+                string source = package.GetProperty("source").GetString()!;
+                string sourceVersion = package.GetProperty("source_version").GetString()!;
+                string relative = name.Replace(':', '_') + ".copyright";
+                string fullText = content.TryGetValue(relative, out string? valueText)
+                    ? valueText : "Local copyright record missing: " + relative;
+                entries.Add(new Entry(name + " (bundled Linux)", packageVersion,
+                    "See Debian copyright record", "See full Debian copyright record",
+                    $"linux-video-licenses/{relative} · {source} {sourceVersion} · matching same-release source companion",
+                    fullText));
+            }
+        foreach (KeyValuePair<string, string> file in content.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            if (!file.Key.EndsWith(".copyright", StringComparison.Ordinal))
+                entries.Add(new Entry("Linux license text: " + file.Key, "packaged", "See full text",
+                    "See full text", "linux-video-licenses/" + file.Key, file.Value));
     }
 
     private static string SectionsFor(string name, string notices)

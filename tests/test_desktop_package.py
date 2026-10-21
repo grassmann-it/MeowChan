@@ -45,7 +45,7 @@ class DesktopPackageTests(unittest.TestCase):
             result = package.validate(root, 'linux-x64')
             self.assertEqual(result['linux_video_mode'], 'bundled')
             self.assertEqual(result['linux_license_files'], 2)
-            self.assertEqual(result['documentation_files'], 6)
+            self.assertEqual(result['documentation_files'], len(package.LEGAL_DOCS))
             for mutation in ('tampered', 'missing', 'extra', 'escape'):
                 with self.subTest(mutation=mutation):
                     changed = self.bundled_linux(Path(temporary) / mutation)
@@ -111,8 +111,8 @@ class DesktopPackageTests(unittest.TestCase):
                     root = payload(Path(temporary) / runtime, runtime)
                     result = package.validate(root, runtime)
                     self.assertEqual(result['rid'], runtime)
-                    self.assertEqual(result['legal_files'], 8)
-                    self.assertEqual(result['documentation_files'], 6)
+                    self.assertEqual(result['legal_files'], len(package.LEGAL_FILES))
+                    self.assertEqual(result['documentation_files'], len(package.LEGAL_DOCS))
                     self.assertGreater(result['legal_bytes'], 0)
                     self.assertGreater(result['icon_bytes'], 0)
                     (root / result['apphost']).unlink()
@@ -178,9 +178,9 @@ class DesktopPackageTests(unittest.TestCase):
                 if entry.name != 'MeowChan':
                     (aliases / entry.name).symlink_to(Path('../Resources/application') / entry.name,
                                                    target_is_directory=entry.is_dir())
-            self.assertEqual(package.validate(aliases, 'osx-arm64')['documentation_files'], 6)
+            self.assertEqual(package.validate(aliases, 'osx-arm64')['documentation_files'], len(package.LEGAL_DOCS))
             (physical / 'docs/Help.md').write_text('must stay in source repository')
-            with self.assertRaisesRegex(ValueError, 'only the six legal files'):
+            with self.assertRaisesRegex(ValueError, 'only the approved legal files'):
                 package.validate_payload(aliases)
 
     def test_project_publish_inventory_keeps_only_the_legal_documentation(self):
