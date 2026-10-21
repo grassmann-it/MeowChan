@@ -112,8 +112,13 @@ internal static class PresentationChecks
             window.Width = width;
             window.Height = height;
             await WaitForLayoutAsync(window, () => window.WindowState == WindowState.Normal
-                && Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1
+                && MatchesRequestedSize(window, width, height)
                 && InViewport(window, input) && InViewport(window, add));
+            if (window.Screens.ScreenFromWindow(window) is { } screen && window.FrameSize is Size frame)
+                Require(frame.Width * window.RenderScaling <= screen.WorkingArea.Width + 1
+                    && frame.Height * window.RenderScaling <= screen.WorkingArea.Height + 1,
+                    "The small native window frame exceeds the working area.");
+            Console.WriteLine($"SMOKE {scenario} native size: requested={width}×{height}; actual={window.Bounds.Size}; frame={window.FrameSize}; scale={window.RenderScaling}.");
             Require(!inspector.IsVisible, "A small window reserved table space for the initially closed inspector.");
             await WindowChromeChecks.CheckReachableAsync(window);
 
@@ -219,6 +224,23 @@ internal static class PresentationChecks
         return condition();
     });
 
+    private static bool MatchesRequestedSize(Window window, double width, double height)
+    {
+        // Win32's BorderOnly minimum-track calculation includes the top resize
+        // border even when the extended client area occupies most of that border.
+        // At MinHeight/MinWidth Windows can therefore clamp a request slightly
+        // above the logical minimum. Bound that allowance by the measured native
+        // frame inset; ordinary resizes and every non-Windows size stay exact.
+        Size client = window.Bounds.Size;
+        Size frame = window.FrameSize ?? client;
+        bool Matches(double actual, double requested, double minimum, double inset) =>
+            Math.Abs(actual - requested) <= 1
+            || (OperatingSystem.IsWindows() && Math.Abs(requested - minimum) <= 0.01
+                && actual >= requested && actual - requested <= Math.Max(0, inset) + 1);
+        return Matches(client.Width, width, window.MinWidth, frame.Width - client.Width)
+            && Matches(client.Height, height, window.MinHeight, frame.Height - client.Height);
+    }
+
     internal static async Task CheckDetailsAsync(MainWindow window, ThreadRow thread)
     {
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
@@ -268,10 +290,18 @@ internal static class PresentationChecks
     internal static async Task SwitchModeAsync(MainWindow window, string mode)
     {
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+        bool changed = Mode(modes) != mode;
         modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
         await Program.WaitUntilAsync(() => Config.LoadConfig().WorkspaceMode == mode && Mode(modes) == mode
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
         window.UpdateLayout();
+        if (changed)
+            await WaitForLayoutAsync(window, () => window.WindowState != WindowState.Normal
+                || (MatchesRequestedSize(window, window.Width, window.Height)
+                    && window.Screens.ScreenFromWindow(window) is { } screen
+                    && window.FrameSize is Size frame
+                    && frame.Width * window.RenderScaling <= screen.WorkingArea.Width + 1
+                    && frame.Height * window.RenderScaling <= screen.WorkingArea.Height + 1));
     }
 
     private static async Task ChangeLanguageAsync(MainWindow window, string code)

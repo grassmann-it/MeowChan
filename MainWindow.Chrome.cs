@@ -51,8 +51,13 @@ public partial class MainWindow
         {
             if (WindowState == WindowState.Normal)
             {
-                _captionRestoreSize = Bounds.Size;
-                _captionRestoreMode = _config.WorkspaceMode;
+                // A queued X11 ConfigureNotify can briefly report the old maximum
+                // after Normal was acknowledged. Preserve the real normal snapshot.
+                if (!_captionRestorePending || Bounds.Size != _captionRestoreFromSize)
+                {
+                    _captionRestoreSize = Bounds.Size;
+                    _captionRestoreMode = _config.WorkspaceMode;
+                }
             }
             WindowState = WindowState.Maximized;
         }
@@ -67,6 +72,8 @@ public partial class MainWindow
         // X11 can report the same state while a request awaits the window manager.
         // Keep the restore snapshot until an actual state transition arrives.
         if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)) CompleteCaptionRestore();
+        else if (e.Property == BoundsProperty || e.Property == WidthProperty || e.Property == HeightProperty)
+            ContinueCaptionRestore();
         if (e.Property == WindowStateProperty || e.Property == CanMinimizeProperty
             || e.Property == CanMaximizeProperty || e.Property == CanResizeProperty)
             UpdateWindowControls();

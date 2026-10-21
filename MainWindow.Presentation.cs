@@ -129,8 +129,7 @@ public partial class MainWindow
                     WindowState = WindowState.Normal;
                     MinWidth = 640;
                     MinHeight = 480;
-                    Width = 850;
-                    Height = 530;
+                    SetWorkspaceWindowSize(850, 530);
                     _workspaceInspectorVisible = false;
                     _workspaceNarrowInspectorVisible = false;
                 }
@@ -138,8 +137,8 @@ public partial class MainWindow
                 {
                     MinWidth = 760;
                     MinHeight = 500;
-                    Width = Math.Max(MinWidth, _normalWorkspaceWidth);
-                    Height = Math.Max(MinHeight, _normalWorkspaceHeight);
+                    SetWorkspaceWindowSize(Math.Max(MinWidth, _normalWorkspaceWidth),
+                        Math.Max(MinHeight, _normalWorkspaceHeight));
                     WindowState = _normalWorkspaceState;
                     _workspaceInspectorVisible = _normalWorkspaceInspectorVisible;
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;

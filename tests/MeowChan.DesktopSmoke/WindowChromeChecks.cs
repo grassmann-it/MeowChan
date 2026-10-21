@@ -41,6 +41,16 @@ internal static class WindowChromeChecks
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
             await WaitForNormalBoundsAsync(window, originalBounds);
             await CheckReachableAsync(window);
+            // A completed custom-caption restore must not constrain later normal
+            // resizes. Exercise actual native geometry before minimizing.
+            Size resizedBounds = new(originalBounds.Width + 17, originalBounds.Height + 13);
+            window.Width = resizedBounds.Width;
+            window.Height = resizedBounds.Height;
+            await WaitForNormalBoundsAsync(window, resizedBounds);
+            window.Width = originalBounds.Width;
+            window.Height = originalBounds.Height;
+            await WaitForNormalBoundsAsync(window, originalBounds);
+            await CheckReachableAsync(window);
             Click(window.FindControl<Button>("WindowMinimizeButton")!);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
             Require(window.IsVisible && window.ShowInTaskbar, "The minimize caption stranded the window.");
