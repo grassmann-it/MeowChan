@@ -33,6 +33,7 @@ internal static class Program
     private static bool _trayHostMode;
     private static bool _visualMode;
     private static bool _readerUxMode;
+    private static bool _galleryCloseOnly;
     private static bool _selectionMode;
 
     [STAThread]
@@ -47,6 +48,7 @@ internal static class Program
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
+        _galleryCloseOnly = _readerUxMode && Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_ONLY") == "1";
         _visualMode = args.Contains("--visual", StringComparer.Ordinal);
         string? showcaseRoot = _visualMode ? Path.Combine(TemporaryWorkspacePaths.TempRoot, "MeowChan-showcase") : null;
         if (showcaseRoot != null && Directory.Exists(showcaseRoot))
@@ -74,11 +76,12 @@ internal static class Program
             Config config = new Config
             {
                 DownloadPath = Path.Combine(profile, "Downloads"),
-                MinimizeToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
+                MinimizeToTray = _galleryCloseOnly || _noTrayMode || _trayFailureMode || _trayHostMode,
                 CloseToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
                 DownloadsPaused = _selectionMode,
                 SaveUrlsOnExit = true
             };
+            if (_galleryCloseOnly) config.WorkspaceMode = "Advanced";
             config.SaveConfig();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
@@ -204,11 +207,15 @@ internal static class Program
             }
             if (_readerUxMode)
             {
-                await ReaderUxChecks.RunAsync(mainWindow);
-                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")))
-                    await VideoGalleryChecks.RunAsync(mainWindow);
-                _checksPassed = true;
-                mainWindow.Close();
+                bool videoFixture = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE"));
+                if (!_galleryCloseOnly)
+                {
+                    await WindowMinimumChecks.RunAsync(mainWindow);
+                    await ReaderUxChecks.RunAsync(mainWindow);
+                    if (videoFixture) await VideoGalleryChecks.RunAsync(mainWindow);
+                }
+                await GalleryCloseChecks.RunAsync(mainWindow, videoFixture,
+                    () => _checksPassed = true, () => _closed);
                 return;
             }
             if (_visualMode)
@@ -396,7 +403,8 @@ internal static class Program
         {
             _failure = exception;
             Console.Error.WriteLine("SMOKE check failed: " + exception);
-            if (_downloadSessionMode && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime fixtureDesktop)
+            if ((_downloadSessionMode || _galleryCloseOnly)
+                && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime fixtureDesktop)
                 fixtureDesktop.Shutdown(1);
             else if (window is MainWindow mainWindow && mainWindow.FindControl<MenuItem>("ExitMenuItem") is MenuItem exit)
                 exit.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

@@ -40,13 +40,15 @@ public partial class MainWindow
     private bool _fullscreenMaximizeRestoreQueued;
     private bool _fullscreenMaximizeSizeCorrectionQueued;
     private bool _fullscreenMaximizeRestoreCancelled;
+    private (FullscreenOrigin Origin, int Generation)? _linuxFullscreenNormalRestore;
+    private Size _fullscreenMaximizeRestoreDecoration;
     private readonly bool _traceFullscreen = Environment.GetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE") == "1";
     private int _fullscreenTraceCount;
 
     private void TraceFullscreen(string step)
     {
         if (!_traceFullscreen || _fullscreenTraceCount++ >= 256) return;
-        Console.Error.WriteLine($"FULLSCREEN TRACE {DateTime.UtcNow:HH:mm:ss.fff} {step}; state={WindowState}; client={ClientSize}; requested={Width}x{Height}; "
+        Console.Error.WriteLine($"FULLSCREEN TRACE {DateTime.UtcNow:HH:mm:ss.fff} {step}; state={WindowState}; client={ClientSize}; frame={FrameSize}; requested={Width}x{Height}; "
             + $"origin={_fullscreenOrigin?.State}/{_fullscreenOrigin?.Client}; intent={_fullscreenExitIntent?.State}/{_fullscreenExitIntent?.Client}; "
             + $"restore={_restoringFullscreen}/{_fullscreenRestoreGeneration}; requested-restore={_fullscreenRestoreRequestedClient}; "
             + $"expected={_fullscreenRestoreClient}; from={_fullscreenRestoreFromClient}; pending-max={_fullscreenMaximizeRestoreClient}/{_fullscreenMaximizeRestoreQueued}/{_fullscreenMaximizeSizeCorrectionQueued}/{_fullscreenMaximizeRestoreCancelled}; repair={_fullscreenExitRepairQueued}/{_fullscreenExitRepairConsumed}/{_fullscreenExitSizeCorrectionQueued}; exit-generation={_fullscreenExitGeneration}; mode={_config.WorkspaceMode}.");
@@ -79,6 +81,7 @@ public partial class MainWindow
         Resized -= OnFullscreenRestoreResized;
         PropertyChanged -= OnFullscreenStateChanged;
         Screens.Changed -= OnShellScreensChanged;
+        _linuxFullscreenNormalRestore = null;
         ClearFullscreenExitIntent();
     }
 
@@ -149,59 +152,84 @@ public partial class MainWindow
         _fullscreenMaximizeSizeCorrectionQueued = false;
         _fullscreenMaximizeRestoreCancelled = false;
         int restoreGeneration = ++_fullscreenRestoreGeneration;
+        _linuxFullscreenNormalRestore = null;
         WindowState = WindowState.Normal;
         TraceFullscreen("leave normal requested");
-        // Apply only after the native state transition returns to the dispatcher.
-        // The saved workspace/Reader/Gallery objects are never re-created here.
-        Dispatcher.UIThread.Post(() =>
+        // KWin/XWayland can retain FullScreen past this dispatcher turn. Wait for
+        // its Normal acknowledgement before asking for saved normal geometry.
+        if (OperatingSystem.IsLinux())
         {
-            TraceFullscreen($"restore callback start generation={restoreGeneration}");
-            if (restoreGeneration != _fullscreenRestoreGeneration) return;
-            if (_isClosing) { _restoringFullscreen = false; return; }
-            FullscreenOrigin destination = OperatingSystem.IsMacOS() ? _fullscreenExitIntent ?? origin : origin;
-            TraceFullscreen($"restore destination={destination.State}/{destination.Client}");
-            _applyingFullscreenRestoreGeometry = true;
-            try
+            _linuxFullscreenNormalRestore = (origin, restoreGeneration);
+            ContinueLinuxFullscreenNormalRestore();
+        }
+        else Dispatcher.UIThread.Post(() => ApplyFullscreenRestore(origin, restoreGeneration), DispatcherPriority.Loaded);
+    }
+
+    private void ContinueLinuxFullscreenNormalRestore()
+    {
+        if (!OperatingSystem.IsLinux() || _linuxFullscreenNormalRestore is not { } pending
+            || WindowState != WindowState.Normal || _isClosing) return;
+        _linuxFullscreenNormalRestore = null;
+        TraceFullscreen($"native normal acknowledged generation={pending.Generation}");
+        Dispatcher.UIThread.Post(() => ApplyFullscreenRestore(pending.Origin, pending.Generation), DispatcherPriority.Loaded);
+    }
+
+    private void ApplyFullscreenRestore(FullscreenOrigin origin, int restoreGeneration)
+    {
+        TraceFullscreen($"restore callback start generation={restoreGeneration}");
+        if (restoreGeneration != _fullscreenRestoreGeneration) return;
+        if (_isClosing) { _restoringFullscreen = false; return; }
+        if (OperatingSystem.IsLinux() && WindowState != WindowState.Normal)
+        {
+            _linuxFullscreenNormalRestore = (origin, restoreGeneration);
+            return;
+        }
+        FullscreenOrigin destination = OperatingSystem.IsMacOS() ? _fullscreenExitIntent ?? origin : origin;
+        TraceFullscreen($"restore destination={destination.State}/{destination.Client}");
+        _applyingFullscreenRestoreGeometry = true;
+        try
+        {
+            Screen? screen = Screens.All.FirstOrDefault(candidate => candidate.Bounds == destination.Monitor)
+                ?? Screens.ScreenFromPoint(destination.Position) ?? Screens.Primary;
+            if (screen != null)
             {
-                Screen? screen = Screens.All.FirstOrDefault(candidate => candidate.Bounds == destination.Monitor)
-                    ?? Screens.ScreenFromPoint(destination.Position) ?? Screens.Primary;
-                if (screen != null)
-                {
-                    WindowStartupFit fit = WindowStartupGeometry.Fit(destination.Client, new Size(destination.Client.Width + destination.Decoration.Width, destination.Client.Height + destination.Decoration.Height),
-                        new Size(MinWidth, MinHeight), screen.WorkingArea, screen.Scaling, destination.Position,
-                        WindowStartupGeometry.NormalFrameInsetPixels);
-                    MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
-                    Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
-                    _lastNormalClient = fit.Client; _lastNormalPosition = fit.Position;
-                    // Keep the known normal frame even when returning to Maximized.
-                    // X11 may otherwise use the fullscreen-sized frame when a later
-                    // native restore requests Normal.
-                    _fullscreenRestoreClient = fit.Client;
-                }
-                else { Width = destination.Client.Width; Height = destination.Client.Height; Position = destination.Position; }
-                // A normal resize can arrive after the managed state changes but
-                // before this queued native restore applies its saved geometry.
-                // Keep that explicit request instead of restoring the old size.
-                if (_fullscreenRestoreRequestedClient is Size requested)
-                {
-                    Width = requested.Width; Height = requested.Height;
-                    _lastNormalClient = requested;
-                    _fullscreenRestoreClient = requested;
-                }
-                if (destination.State == WindowState.Maximized && !_fullscreenMaximizeRestoreCancelled)
-                {
-                    if (OperatingSystem.IsMacOS())
-                        _fullscreenMaximizeRestoreClient = _fullscreenRestoreClient ?? destination.Client;
-                    else WindowState = WindowState.Maximized;
-                }
+                WindowStartupFit fit = WindowStartupGeometry.Fit(destination.Client, new Size(destination.Client.Width + destination.Decoration.Width, destination.Client.Height + destination.Decoration.Height),
+                    new Size(MinWidth, MinHeight), screen.WorkingArea, screen.Scaling, destination.Position,
+                    WindowStartupGeometry.NormalFrameInsetPixels);
+                MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
+                Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
+                _lastNormalClient = fit.Client; _lastNormalPosition = fit.Position;
+                // Keep the known normal frame even when returning to Maximized.
+                // X11 may otherwise use the fullscreen-sized frame when a later
+                // native restore requests Normal.
+                _fullscreenRestoreClient = fit.Client;
             }
-            finally { _fullscreenRestoreRequestedClient = null; _applyingFullscreenRestoreGeometry = false; _restoringFullscreen = false; }
-            ContinueFullscreenRestore();
-            ContinuePendingFullscreenExitSizeRepair();
-            ContinueFullscreenMaximizeRestore();
-            TraceFullscreen("restore callback completed");
-            RefreshShellCommands();
-        }, DispatcherPriority.Loaded);
+            else { Width = destination.Client.Width; Height = destination.Client.Height; Position = destination.Position; }
+            // A normal resize can arrive after the managed state changes but
+            // before this queued native restore applies its saved geometry.
+            // Keep that explicit request instead of restoring the old size.
+            if (_fullscreenRestoreRequestedClient is Size requested)
+            {
+                Width = requested.Width; Height = requested.Height;
+                _lastNormalClient = requested;
+                _fullscreenRestoreClient = requested;
+            }
+            if (destination.State == WindowState.Maximized && !_fullscreenMaximizeRestoreCancelled)
+            {
+                if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+                {
+                    _fullscreenMaximizeRestoreClient = _fullscreenRestoreClient ?? destination.Client;
+                    _fullscreenMaximizeRestoreDecoration = destination.Decoration;
+                }
+                else WindowState = WindowState.Maximized;
+            }
+        }
+        finally { _fullscreenRestoreRequestedClient = null; _applyingFullscreenRestoreGeometry = false; _restoringFullscreen = false; }
+        ContinueFullscreenRestore();
+        ContinuePendingFullscreenExitSizeRepair();
+        ContinueFullscreenMaximizeRestore();
+        TraceFullscreen("restore callback completed");
+        RefreshShellCommands();
     }
 
     private bool IsFullscreenRestoreStale(Size size) => _fullscreenRestoreClient is Size expected
@@ -263,6 +291,7 @@ public partial class MainWindow
             TraceFullscreen($"size property changed {e.Property.Name} old={e.OldValue} new={e.NewValue}");
         if (e.Property == WindowStateProperty)
         {
+            ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
             ContinuePendingFullscreenExitSizeRepair();
             ContinueFullscreenMaximizeRestore();
@@ -386,7 +415,7 @@ public partial class MainWindow
 
     private void ContinueFullscreenMaximizeRestore()
     {
-        if (!OperatingSystem.IsMacOS() || _fullscreenMaximizeRestoreClient is not Size expected
+        if (!(OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) || _fullscreenMaximizeRestoreClient is not Size expected
             || _fullscreenMaximizeRestoreCancelled || _restoringFullscreen || _isClosing
             || WindowState != WindowState.Normal) return;
         if (Math.Abs(ClientSize.Width - expected.Width) > 1
@@ -397,8 +426,7 @@ public partial class MainWindow
         }
         if (_fullscreenMaximizeRestoreQueued
             || FrameSize is not Size frame
-            || Math.Abs(frame.Width - expected.Width) > 1
-            || Math.Abs(frame.Height - expected.Height) > 1) return;
+            || !FullscreenNormalFrameMatches(frame, expected)) return;
         _fullscreenMaximizeRestoreQueued = true;
         int generation = _fullscreenRestoreGeneration;
         TraceFullscreen($"maximize after native normal frame queued={expected}");
@@ -411,12 +439,22 @@ public partial class MainWindow
                 || Math.Abs(ClientSize.Width - expected.Width) > 1
                 || Math.Abs(ClientSize.Height - expected.Height) > 1
                 || FrameSize is not Size currentFrame
-                || Math.Abs(currentFrame.Width - expected.Width) > 1
-                || Math.Abs(currentFrame.Height - expected.Height) > 1) return;
+                || !FullscreenNormalFrameMatches(currentFrame, expected)) return;
             _fullscreenMaximizeRestoreClient = null;
             TraceFullscreen("maximize after native normal frame applied");
             WindowState = WindowState.Maximized;
         }, DispatcherPriority.Loaded);
+    }
+
+    private bool FullscreenNormalFrameMatches(Size frame, Size client)
+    {
+        Size decoration = OperatingSystem.IsLinux() ? _fullscreenMaximizeRestoreDecoration : default;
+        // X11 can report the normal client frame with or without its saved WM
+        // border; both are a settled normal size, unlike the fullscreen frame.
+        return (Math.Abs(frame.Width - client.Width - decoration.Width) <= 1
+                || OperatingSystem.IsLinux() && Math.Abs(frame.Width - client.Width) <= 1)
+            && (Math.Abs(frame.Height - client.Height - decoration.Height) <= 1
+                || OperatingSystem.IsLinux() && Math.Abs(frame.Height - client.Height) <= 1);
     }
 
     private void QueueFullscreenMaximizeSizeCorrection(Size expected)
