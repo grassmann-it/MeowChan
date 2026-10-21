@@ -23,7 +23,8 @@ public sealed class ArchiveAttachmentView : UserControl
         {
             double maximumWidth = Large ? 1040 : 240;
             double width = double.IsFinite(availableSize.Width) ? Math.Clamp(availableSize.Width, 1, maximumWidth) : maximumWidth;
-            Size reserved = new(width, width * (Large ? 720d / 1040 : 180d / 240));
+            // Keep room for the post text; full-size media remains available in the gallery.
+            Size reserved = new(width, Large ? Math.Min(480, width * 720d / 1040) : width * 180d / 240);
             base.MeasureOverride(reserved);
             return reserved;
         }

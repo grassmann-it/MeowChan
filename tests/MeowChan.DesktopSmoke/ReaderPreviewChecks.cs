@@ -71,6 +71,11 @@ internal static class ReaderPreviewChecks
             await WaitPreviewAsync(posts, "110125033"); await FlushAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - before) <= 2,
                 $"Completing delayed previews moved the focused post: {before} → {PostTop(posts, "110125033")}.");
+            ArchiveAttachmentView preview = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .First(view => view.Thumbnail.Source is Bitmap && view.GetVisualAncestors().OfType<ListBoxItem>()
+                    .Any(item => item.DataContext is ArchivePostRow row && row.Id == "110125033"));
+            Require(preview.Thumbnail.Bounds.Height <= 480 && preview.Thumbnail.Bounds.Height >= 280,
+                "The large inline image must leave room for post text within a bounded, useful preview.");
             Program.CaptureWindow(window, "smoke-reader-preview-stable.png");
             await page.FocusPostAsync("110125035"); await WaitPreviewAsync(posts, "110125035");
             await page.FocusPostAsync("110125033"); await WaitPreviewAsync(posts, "110125033");
