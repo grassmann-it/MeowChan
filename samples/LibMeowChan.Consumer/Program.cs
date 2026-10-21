@@ -209,8 +209,11 @@ internal static class Program
                 || snapshot.Downloads.Queued != 0 || snapshot.Downloads.Active != 0)
                 throw new InvalidOperationException("The exposed progress does not match the saved medium.");
 
+            long expectedReceivedBytes = run == 1 ? DemoPayload.Bytes.Length : 0;
+            if (queue.ReceivedMediaBytes != expectedReceivedBytes || session.ReceivedMediaBytes != expectedReceivedBytes)
+                throw new InvalidOperationException("Public transfer counters must count received payload bytes and exclude restored media.");
             CheckSavedWork(work, directory, generation: run);
-            ConsumerProgress progress = new ConsumerProgress(run, snapshot, saved.Length, handler.RequestCount);
+            ConsumerProgress progress = new ConsumerProgress(run, snapshot, saved.Length, handler.RequestCount, session.ReceivedMediaBytes);
             JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
             jsonOptions.Converters.Add(new JsonStringEnumConverter());
             Console.WriteLine(JsonSerializer.Serialize(progress, jsonOptions));
@@ -240,7 +243,7 @@ internal static class Program
             throw new InvalidOperationException("The durable intent or retry descriptor did not survive with its verified outcome.");
     }
 
-    private sealed record ConsumerProgress(int Run, ThreadSnapshot Thread, int SavedBytes, int MediaRequests);
+    private sealed record ConsumerProgress(int Run, ThreadSnapshot Thread, int SavedBytes, int MediaRequests, long ReceivedMediaBytes);
 }
 
 internal static class DemoPayload

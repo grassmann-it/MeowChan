@@ -57,6 +57,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="scripts/**/*.cs" />
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <Compile Include="Shared/AtomicJsonFile.cs" Link="Persistence/AtomicJsonFile.cs" />
   </ItemGroup>
