@@ -60,16 +60,34 @@ Save URLs on exit.
 ### Selection and shortcuts
 
 Use mouse selection with Shift for a range and Ctrl (Command on macOS) to add or
-remove individual entries. Context menus expose actions for the selection,
-including copying URLs, removing watches and exporting selected threads. Delete
-removes selected watches. Enter opens the actually focused lead thread in the
-reader; Shift+Enter opens that thread’s gallery. These open actions target one
-focused thread, while batch commands act on the selection. Text fields and embedded controls keep their own
-keys. Removing a watch preserves the archive; removed board threads stay excluded
-from discovery until reactivated. In the Board
-list only, **Ctrl/Cmd+Shift+R** opens **Filter / exclusions…**
-(**Filter / Ausschlüsse…**) for the focused board. Text fields and modal dialogs
-keep their own keyboard input.
+remove individual entries. **Read posts** and Enter require exactly one selected
+thread in Downloads or Archive. Shift+Enter opens the focused lead thread's gallery;
+copy, removal and HTML export use the selection. Board entries open their details.
+Removing a watch preserves its archive; removed board threads stay excluded from
+discovery until reactivated. Disabled context actions explain why they are
+unavailable; Archive also provides **Why are actions unavailable?**.
+
+These shortcuts apply when the relevant list has focus. Ctrl means Command on macOS:
+
+| Key | Action |
+| --- | --- |
+| Enter / Shift+Enter | Read the single selected thread / open the lead thread's gallery |
+| Alt+Enter | Show details |
+| Ctrl+C / Ctrl+E | Copy selected links / export selected threads as HTML |
+| Delete | Remove selected watches |
+| F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
+| Ctrl+R | Edit the lead entry's media rules |
+| Ctrl+Shift+R | Open the focused board's **Thread filters…** wizard (Board list only) |
+| Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / source in the browser |
+| Shift+F10 | Open the list context menu |
+
+Text fields and embedded controls retain their own keys. Across the workspace,
+Ctrl+L focuses URL input, Ctrl+, opens Settings, Ctrl+F focuses Archive search,
+and F1 shows context-sensitive keyboard help. F11 toggles real window fullscreen
+in Downloads, Archive, reader and gallery; it preserves the current workspace and
+returns to the previous normal or maximized window. Escape dismisses the active
+menu, help or dialog first, then leaves fullscreen before closing a gallery or
+reader. Modal dialogs retain their own input.
 
 ## Linux packages and startup
 
@@ -87,8 +105,9 @@ Desktop packages contain the application, runtime, icon and legal notices. This 
 
 ## Images, search and navigation
 
-The [interface screenshots](screenshots/README.md) show the reader, gallery and
-archive. The controls below describe the current 0.9.0 interface.
+The [interface screenshots](screenshots/README.md) record an earlier 0.9.0 interface.
+Updated captures of the integrated layouts and favorites are pending CI. The controls
+below describe the current source; the earlier captures do not verify these changes.
 
 Choose **Read posts** to open the large thread reader across the work area, with
 readable posts and embedded media. Up/Down moves exactly one post. Left/Right
@@ -107,7 +126,11 @@ move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
 the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
 Show context to read the associated saved post and available local references.
-A media-only item can have no captured post.
+A media-only item can have no captured post. In the gallery, **P** toggles saved-post
+context, **0** selects Fit, **1** selects 1:1, **F** toggles the current media favorite,
+and F1 or ? opens keyboard help. Space plays or pauses an active local video.
+Settings controls default context visibility, shortcut hints, video autoplay,
+initial mute and volume.
 
 When you open from reader post A, navigate to a medium associated with saved post
 D and close the gallery, return to the large reader at D. If the current medium
@@ -115,13 +138,17 @@ has no saved post association, keep the previous reader anchor; do not infer a
 post from its filename. Opening from a search/media list keeps a separate return
 path: closing restores its query, filters, page, scroll and focus.
 
-Archive offers thread cards/table and saved-media rows/tiles. Double-click or
+Archive offers separate **List** and **Table** thread layouts, plus
+saved-media rows/tiles. Its chosen thread layout and draggable list/reader split
+are saved. Wide windows show list and reader beside each other; narrower windows
+switch between them, with a back action to return to the list. Table needs more
+horizontal room before showing both panes. Double-click or
 Enter on a focused media row/tile opens that exact item, using the current media
 sort and version filter. Text fields and action buttons retain their own keyboard
 actions. Historical versions are labelled; they need not match the latest post.
 
 Search operates on retained local titles, post text and identities. Source/board
-filters work even without search text. **Images of results** freezes the found
+filters work even without search text. **Media from matching threads** freezes the found
 threads in their current sort order across **all result pages**, then opens their
 available images, including images from posts that did not match the text.
 Double-clicking one result thread opens only that thread. Changing filters or
@@ -134,6 +161,23 @@ or 80 million source pixels are refused by the gallery. Fit decoding is bounded 
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
+
+### Favorites and original-file export
+
+Use the star on reader attachments, saved-media items or the gallery to mark a
+saved original. Favorites persist in the profile and identify that exact media
+revision; a later replacement does not inherit the mark. **Favorites only** filters
+thread media. **Show favorites** opens a searchable overview scoped to the current
+thread, selected threads, matching threads or all favorites. Missing originals
+remain identified as unavailable.
+
+Choose **Export original…** for one item, or **Export favorite originals…** for the
+favorites in the chosen scope. Choose a local destination folder and start the
+copy. It uses verified saved originals and fetches nothing remotely. Files are
+organized by source, board and thread; existing files are not overwritten. The
+result reports copied, already-existing, missing, failed and cancelled items.
+This copies media files; use HTML export below when you want posts and a browser
+reading interface too.
 
 ### Local video
 

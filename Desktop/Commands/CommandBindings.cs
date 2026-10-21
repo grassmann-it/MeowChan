@@ -4,10 +4,11 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using SkiaSharp;
@@ -22,6 +23,7 @@ public static class CommandBindings
     {
         var item = new MenuItem { Command = new DelegateCommand(execute, canExecute) };
         Apply(item, id, unavailableReason);
+        item.IsEnabled = canExecute?.Invoke() ?? true;
         return item;
     }
 
@@ -33,10 +35,11 @@ public static class CommandBindings
     }
 
     public static Button CreateButton(string id, Action execute, Func<bool>? canExecute = null,
-        Func<string?>? unavailableReason = null, bool iconOnly = false, int iconSize = 16)
+        Func<string?>? unavailableReason = null, bool iconOnly = false, int iconSize = 16,
+        bool iconWithLabel = false)
     {
         var button = new Button { Command = new DelegateCommand(execute, canExecute) };
-        Apply(button, id, unavailableReason, iconOnly, iconSize);
+        Apply(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel);
         return button;
     }
 
@@ -61,18 +64,58 @@ public static class CommandBindings
     }
 
     public static void Apply(Button button, string id, Func<string?>? unavailableReason = null,
-        bool iconOnly = false, int iconSize = 16)
+        bool iconOnly = false, int iconSize = 16, bool iconWithLabel = false)
     {
         string label = CommandCatalog.Label(id);
-        button.Content = iconOnly ? Icon(id, iconSize) : label;
+        button.Classes.Set("command-icon", iconOnly || iconWithLabel);
+        if (iconWithLabel)
+        {
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children =
+                {
+                    Icon(id, iconSize),
+                    new TextBlock { Text = CompactLabel(id), VerticalAlignment = VerticalAlignment.Center }
+                }
+            };
+            button.Content = content;
+        }
+        else button.Content = iconOnly ? Icon(id, iconSize) : label;
         string tip = Tooltip(id, unavailableReason?.Invoke());
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, label);
         AutomationProperties.SetHelpText(button, tip);
     }
 
-    public static void Refresh(MenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
-    public static void Refresh(Button button) => (button.Command as DelegateCommand)?.RaiseCanExecuteChanged();
+    private static string CompactLabel(string id)
+    {
+        bool german = MeowChan.Desktop.Localization.Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);
+        return id switch
+        {
+            "reader.close" => german ? "Schließen" : "Close",
+            "reader.expand" => german ? "Lesen" : "Read",
+            "gallery.open" => german ? "Galerie" : "Gallery",
+            "window.fullscreen" => german ? "Vollbild" : "Full screen",
+            "export.open-html-dialog" => "Export",
+            _ => CommandCatalog.Label(id)
+        };
+    }
+
+    public static void Refresh(MenuItem item)
+    {
+        if (item.Command is not DelegateCommand command) return;
+        item.IsEnabled = command.CanExecute(null);
+        command.RaiseCanExecuteChanged();
+    }
+    public static void Refresh(Button button)
+    {
+        if (button.Command is not DelegateCommand command) return;
+        button.IsEnabled = command.CanExecute(null);
+        command.RaiseCanExecuteChanged();
+    }
     public static void Refresh(NativeMenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
 
     public static string Tooltip(string id, string? unavailableReason = null)
@@ -91,13 +134,7 @@ public static class CommandBindings
         {
             Width = size,
             Height = size,
-            [!Border.BackgroundProperty] = new Avalonia.Data.Binding("Foreground")
-            {
-                RelativeSource = new Avalonia.Data.RelativeSource(Avalonia.Data.RelativeSourceMode.FindAncestor)
-                {
-                    AncestorType = typeof(TemplatedControl)
-                }
-            },
+            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
             OpacityMask = new ImageBrush
             {
                 Source = new Bitmap(stream),

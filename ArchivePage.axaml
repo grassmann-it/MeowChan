@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
-    <Grid x:Name="ArchiveRoot" Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+    <Grid x:Name="ArchiveRoot" Margin="12" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="5">
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
@@ -9,10 +9,13 @@
             <Button x:Name="RefreshArchiveButton" Grid.Column="1" VerticalAlignment="Top" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
         </Grid>
         <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6">
-            <Grid x:Name="ArchiveListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                <StackPanel Spacing="6">
-                    <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
-                    <Expander x:Name="ArchiveFilters" HorizontalAlignment="Stretch">
+            <Grid x:Name="ArchiveListPane" RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                        <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
+                        <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
+                    </Grid>
+                    <Expander x:Name="ArchiveFilters" Grid.Row="1" HorizontalAlignment="Stretch">
                         <StackPanel Spacing="5">
                             <TextBox x:Name="ArchiveSourceFilter" />
                             <TextBox x:Name="ArchiveBoardFilter" />
@@ -23,22 +26,21 @@
                             <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
                         </StackPanel>
                     </Expander>
-                    <Button x:Name="SearchArchiveButton" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
-                    <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" Click="OnResultsGalleryClick" />
-                    <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" Click="OnFavoritesOverviewClick" />
-                    <StackPanel Orientation="Horizontal" Spacing="4">
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
                         <Button x:Name="ArchiveLayoutList" Content="List" Click="OnArchiveLayoutClick" />
-                        <Button x:Name="ArchiveLayoutTiles" Content="Tiles" Click="OnArchiveLayoutClick" />
                         <Button x:Name="ArchiveLayoutTable" Content="Table" Click="OnArchiveLayoutClick" />
+                        <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" Click="OnResultsGalleryClick" />
+                        <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" Click="OnFavoritesOverviewClick" />
                     </StackPanel>
-                </StackPanel>
+                </Grid>
                 <Border Grid.Row="1" Classes="panel">
                     <Grid>
-                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped">
+                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="5,6">
-                                        <StackPanel.ContextMenu>
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="5,4">
+                                        <Grid.ContextMenu>
                                             <ContextMenu Opened="OnArchiveSelectionMenuOpened">
                                                 <MenuItem Header="{Binding GalleryLabel}" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
                                                 <MenuItem Header="{Binding ReadLabel}" InputGesture="Enter" Click="OnThreadReadMenu" />
@@ -52,33 +54,19 @@
                                                 <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" InputGesture="Ctrl+C" Click="OnArchiveCopySelection" />
                                                 <MenuItem Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnArchiveRemoveSelection" />
                                             </ContextMenu>
-                                        </StackPanel.ContextMenu>
+                                        </Grid.ContextMenu>
                                         <Panel x:DataType="desktop:ArchiveThreadRow" IsVisible="{Binding HasPreviewAttachment}">
-                                            <desktop:ArchiveAttachmentView DataContext="{Binding PreviewAttachment}" Width="100" />
+                                            <desktop:ArchiveAttachmentView DataContext="{Binding PreviewAttachment}" Width="76" />
                                         </Panel>
-                                        <StackPanel Spacing="3">
+                                        <StackPanel Grid.Column="1" Spacing="2">
                                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
-                                            <TextBlock Text="{Binding PreviewText}" TextTrimming="CharacterEllipsis" MaxWidth="330" Classes="muted" FontSize="12" />
-                                            <TextBlock Text="{Binding Identity}" Classes="muted" FontSize="12" />
-                                            <TextBlock Text="{Binding Status}" Classes="muted" FontSize="12" />
+                                            <TextBlock Text="{Binding PreviewText}" TextTrimming="CharacterEllipsis" Classes="muted" FontSize="12" />
+                                            <TextBlock Text="{Binding Identity}" TextTrimming="CharacterEllipsis" Classes="muted" FontSize="12" />
+                                            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" Classes="muted" FontSize="12" />
                                         </StackPanel>
-                                    </StackPanel>
+                                    </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
-                        </ListBox>
-                        <ListBox x:Name="ArchiveThreadTiles" IsVisible="False" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped">
-                            <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow">
-                                <StackPanel Width="185" Margin="6" Spacing="5">
-                                    <Panel x:DataType="desktop:ArchiveThreadRow" IsVisible="{Binding HasPreviewAttachment}">
-                                        <desktop:ArchiveAttachmentView DataContext="{Binding PreviewAttachment}" Height="116" />
-                                    </Panel>
-                                    <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding PreviewText}" Classes="muted" FontSize="12" TextWrapping="Wrap" MaxHeight="44" />
-                                    <TextBlock Text="{Binding Identity}" Classes="muted" FontSize="12" />
-                                    <TextBlock Text="{Binding Status}" Classes="muted" FontSize="12" />
-                                </StackPanel>
-                            </DataTemplate></ListBox.ItemTemplate>
                         </ListBox>
                         <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
                                   PointerReleased="OnArchiveColumnsReleased"
@@ -117,27 +105,31 @@
                 </Grid>
             </Grid>
             <GridSplitter x:Name="ArchiveSplitter" Grid.Column="1" Width="6" ResizeDirection="Columns" PointerReleased="OnArchiveSplitReleased" KeyUp="OnArchiveSplitKeyUp" />
-            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                <StackPanel Spacing="6">
+            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Button x:Name="ArchiveBackButton" Tag="archive.back" Classes="localized" Click="OnBackClick" />
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
-                    <WrapPanel HorizontalAlignment="Center">
-                    <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" Margin="0,0,8,0" />
-                    <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" Margin="0,0,8,0" />
-                    <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" Margin="0,0,8,0" />
-                    <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" Margin="0,0,8,0" />
-                    <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" Margin="0,0,8,0" />
-                    <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" HorizontalAlignment="Left" Margin="0,0,8,0" />
-                    <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" HorizontalAlignment="Left" IsVisible="False" />
+                    <WrapPanel HorizontalAlignment="Left">
+                        <WrapPanel.Styles><Style Selector="Button"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /></Style></WrapPanel.Styles>
+                    <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                    <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
+                    <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                    <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Left" Margin="12,0,0,0">
+                        <Grid ColumnDefinitions="38,38,38" RowDefinitions="32,32" ColumnSpacing="2" RowSpacing="2">
+                            <Grid.Styles><Style Selector="Button"><Setter Property="Width" Value="38" /><Setter Property="Height" Value="32" /></Style></Grid.Styles>
+                            <Button x:Name="ReaderPreviousPost" Grid.Column="1" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" />
+                            <Button x:Name="ReaderPreviousThread" Grid.Row="1" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
+                            <Button x:Name="ReaderNextPost" Grid.Row="1" Grid.Column="1" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" />
+                            <Button x:Name="ReaderNextThread" Grid.Row="1" Grid.Column="2" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
+                        </Grid>
                     </WrapPanel>
-                    <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Center">
-                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
-                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
-                        <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" Margin="0,0,8,0" />
-                        <Button x:Name="ReaderNextThread" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
                     </WrapPanel>
                     <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
@@ -151,6 +143,23 @@
                                         <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                             <ListBox.Styles>
                                                 <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
+                                                <Style Selector="ListBoxItem:selected">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+                                                    <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+                                                    <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                </Style>
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">

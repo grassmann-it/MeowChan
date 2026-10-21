@@ -58,7 +58,7 @@ class MacosPackagingTests(unittest.TestCase):
         (self.publish / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
         (self.publish / "LICENSE").write_text("application license", encoding="utf-8")
         (self.publish / "docs").mkdir()
-        for name in ("native-video-licenses.txt", "native-video-sources.md", "native-video-source-manifest.json",
+        for name in ("native-video-licenses.txt", "native-video-sources.md", "native-video-linux-sources.md", "native-video-source-manifest.json",
                      "native-video-macos-sources.md", "native-video-macos-source-manifest.json", "native-video-macos-COPYING"):
             (self.publish / "docs" / name).write_text("legal/source fixture", encoding="utf-8")
         self.png = make_png()

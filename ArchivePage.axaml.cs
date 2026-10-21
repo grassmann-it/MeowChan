@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -13,6 +14,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Gallery;
@@ -65,7 +67,7 @@ public partial class ArchivePage : UserControl
     internal string ArchiveLayoutPreference
     {
         get => _archiveLayout;
-        set { _archiveLayout = value is "Tiles" or "Table" ? value : "List"; _threadTable = _archiveLayout == "Table"; UpdateLayoutMode(); }
+        set { _archiveLayout = value == "Table" ? "Table" : "List"; _threadTable = _archiveLayout == "Table"; UpdateLayoutMode(); }
     }
     internal double ArchiveSplitPreference
     {
@@ -184,7 +186,6 @@ public partial class ArchivePage : UserControl
                 ListBox list = Control<ListBox>("ArchiveThreads");
                 list.ItemsSource = rows;
                 list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
-                Control<ListBox>("ArchiveThreadTiles").ItemsSource = rows;
                 DataGrid table = Control<DataGrid>("ArchiveThreadTable");
                 table.ItemsSource = rows;
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
@@ -425,8 +426,21 @@ public partial class ArchivePage : UserControl
         Control<Button>("NextPostsButton").IsEnabled = ready && _thread != null && _postOffset + PageSize < _thread.PostCount;
         Control<Grid>("ArchivePostNavigation").IsVisible = _thread?.PostCount > PageSize;
         Control<Button>("CapturePostsButton").IsEnabled = ready && _thread != null;
-        Control<Button>("CapturePostsButton").Content = Texts.T(_thread?.Summary.CaptureEnabled == true ? "archive.captureOff" : "archive.captureOn");
-        ToolTip.SetTip(Control<Button>("CapturePostsButton"), Texts.T("archive.captureHint"));
+        Button capture = Control<Button>("CapturePostsButton");
+        string captureAction = Texts.T(_thread?.Summary.CaptureEnabled == true ? "archive.captureOff" : "archive.captureOn");
+        capture.Content = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 5,
+            Children =
+            {
+                CommandBindings.Icon("archive.capture-toggle", 16, _thread?.Summary.CaptureEnabled == true ? "capturing" : "stopped"),
+                new TextBlock { Text = captureAction, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }
+            }
+        };
+        string captureTip = captureAction + " · " + Texts.T("archive.captureHint");
+        ToolTip.SetTip(capture, captureTip);
+        AutomationProperties.SetName(capture, captureAction);
+        AutomationProperties.SetHelpText(capture, captureTip);
         Control<Button>("PreviewArchiveMediaButton").IsEnabled = ready && SelectedMediaRow() != null;
         Control<Button>("ArchiveOpenGallery").IsEnabled = ready && _selectedThread != null;
         Control<Button>("ArchiveReadPosts").IsEnabled = ready && _selectedThread != null
@@ -643,11 +657,11 @@ public partial class ArchivePage : UserControl
     private void OnPostLayoutChanged(object? sender, SizeChangedEventArgs e)
     {
         if (sender is not Grid grid || grid.Children.Count < 2) return;
-        bool beside = !_largeReader && grid.Bounds.Width >= 600;
+        bool beside = grid.Bounds.Width >= (_largeReader ? 760 : 600);
         if (grid.Children[0] is Control media)
         {
-            media.MaxWidth = _largeReader ? 1040 : 268;
-            media.HorizontalAlignment = _largeReader ? Avalonia.Layout.HorizontalAlignment.Center : Avalonia.Layout.HorizontalAlignment.Left;
+            media.MaxWidth = _largeReader ? 376 : 268;
+            media.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
         }
         // SizeChanged can run while an ancestor Grid is measuring. Keep its
         // definition collections intact so cached cell ranges remain valid.
@@ -660,6 +674,7 @@ public partial class ArchivePage : UserControl
         Grid.SetRow(grid.Children[1], beside ? 0 : 1);
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateLayoutMode();
+    private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
     private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
     {
         _archiveFavoritesOnly = !_archiveFavoritesOnly;
@@ -669,8 +684,7 @@ public partial class ArchivePage : UserControl
     }
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
     {
-        string layout = sender == Control<Button>("ArchiveLayoutTiles") ? "Tiles"
-            : sender == Control<Button>("ArchiveLayoutTable") ? "Table" : "List";
+        string layout = sender == Control<Button>("ArchiveLayoutTable") ? "Table" : "List";
         if (_archiveLayout == layout) return;
         ArchiveLayoutPreference = layout;
         RestoreArchiveSelection(ArchiveVisibleRows);
@@ -694,15 +708,18 @@ public partial class ArchivePage : UserControl
     private void UpdateLayoutMode()
     {
         if (!IsInitialized && !_largeReader) return;
-        bool narrow = Bounds.Width < (_archiveLayout == "Table" ? 1450 : 1000);
+        bool narrow = !CanShowArchivePreviewBesideList;
         bool compact = Bounds.Height > 0 && Bounds.Height < 500;
-        Control<Grid>("ArchiveRoot").Margin = new Thickness(compact ? 12 : 20);
-        Control<Grid>("ArchiveRoot").RowSpacing = compact ? 8 : 12;
-        Control<TextBlock>("ArchiveSubtitle").IsVisible = !compact;
+        Control<Grid>("ArchivePageHeader").IsVisible = !(_showReader && narrow);
+        Control<Grid>("ArchiveRoot").Margin = new Thickness(compact ? 8 : 12);
+        Control<Grid>("ArchiveRoot").RowSpacing = compact ? 6 : 8;
+        Control<TextBlock>("ArchiveSubtitle").IsVisible = Bounds.Height >= 650;
         Control<TextBlock>("ArchivePartialHint").IsVisible = !compact;
         ToolTip.SetTip(Control<TextBlock>("ArchiveReaderStatus"), Texts.T("archive.partial"));
         Grid split = Control<Grid>("ArchiveSplit");
-        bool beside = _showReader && !narrow;
+        // Keep the wide split stable before the first selection. Reflowing the list
+        // after a click moves rows under the pointer and breaks rapid Ctrl selection.
+        bool beside = !narrow;
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
         split.ColumnDefinitions[0].Width = new GridLength(beside
@@ -711,13 +728,11 @@ public partial class ArchivePage : UserControl
         split.ColumnSpacing = beside ? 6 : 0;
         Grid.SetColumn(Control<Grid>("ArchiveListPane"), beside ? 0 : 2);
         Control<GridSplitter>("ArchiveSplitter").IsVisible = beside;
-        Control<Grid>("ArchiveReaderPane").IsVisible = _largeReader || _showReader;
+        Control<Grid>("ArchiveReaderPane").IsVisible = _largeReader || !narrow || _showReader;
         Control<Grid>("ArchiveListPane").IsVisible = !narrow || !_showReader;
         Control<ListBox>("ArchiveThreads").IsVisible = _archiveLayout == "List";
-        Control<ListBox>("ArchiveThreadTiles").IsVisible = _archiveLayout == "Tiles";
         Control<DataGrid>("ArchiveThreadTable").IsVisible = _archiveLayout == "Table";
         Control<Button>("ArchiveLayoutList").IsEnabled = _archiveLayout != "List";
-        Control<Button>("ArchiveLayoutTiles").IsEnabled = _archiveLayout != "Tiles";
         Control<Button>("ArchiveLayoutTable").IsEnabled = _archiveLayout != "Table";
         Control<Button>("ArchiveBackButton").IsVisible = narrow && !_largeReader;
     }
@@ -740,7 +755,6 @@ public partial class ArchivePage : UserControl
             try
             {
                 list.ItemsSource = localized;
-                Control<ListBox>("ArchiveThreadTiles").ItemsSource = localized;
                 Control<DataGrid>("ArchiveThreadTable").ItemsSource = localized;
                 RestoreArchiveSelection(localized, _selectedThread);
             }
@@ -751,19 +765,43 @@ public partial class ArchivePage : UserControl
     {
         foreach (Control control in this.GetLogicalDescendants().Concat(Control<Grid>("ArchiveReaderPane").GetLogicalDescendants()).OfType<Control>().Distinct())
         {
-            if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
+            if (control.Tag is not string key || !control.Classes.Contains("localized")
+                || control.Classes.Contains("command-icon")) continue;
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeExport();
         LocalizeSearch();
+        Control<Button>("ArchiveLayoutList").Content = Texts.T("gallery.list");
+        Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");
+        CommandBindings.Apply(Control<Button>("RefreshArchiveButton"), "archive.refresh", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("SearchArchiveButton"), "archive.search", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveBackButton"), "archive.back-to-list");
+        CommandBindings.Apply(Control<Button>("PreviousThreadsButton"), "pagination.previous", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("NextThreadsButton"), "pagination.next", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("PreviousPostsButton"), "pagination.previous", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("NextPostsButton"), "pagination.next", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("PreviousReferences"), "pagination.previous", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("NextReferences"), "pagination.next", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveHistoryBack"), "reader.history-back", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveReaderFullscreen"), "window.fullscreen", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ArchiveCloseReader"), "reader.close", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ArchiveOpenGallery"), "gallery.open", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ArchiveReadPosts"), "reader.expand", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ArchiveGalleryReturn"), "gallery.return", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ExportArchiveButton"), "export.open-html-dialog", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ReaderPreviousThread"), "reader.previous-thread", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ReaderPreviousPost"), "reader.previous-post", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ReaderNextPost"), "reader.next-post", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ReaderNextThread"), "reader.next-thread", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveResultsGallery"), "gallery.open-results", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveFavoritesOverview"), "favorites.open", iconOnly: true);
         Control<TabItem>("ArchiveReferencesTab").Header = Texts.T("archive.references");
         Control<TabItem>("ArchivePostsTab").Header = Texts.T("archive.posts");
         Control<TabItem>("ArchiveMediaTab").Header = Texts.T("archive.media");
         Control<Button>("ArchiveMediaMode").Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
         Control<Button>("ArchiveFavoritesFilter").Content = Texts.T(
             _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
-        Control<Button>("ArchiveGalleryReturn").Content = Texts.T("gallery.return");
         Control<ComboBox>("ArchiveVersionScope").ItemsSource = new[] { Texts.T("gallery.latestVersions"), Texts.T("gallery.allVersions") };
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = _allVersions ? 1 : 0;
         Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion") };

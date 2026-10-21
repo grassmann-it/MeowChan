@@ -74,7 +74,7 @@ internal static class ReaderPreviewChecks
             ArchiveAttachmentView preview = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                 .First(view => view.Thumbnail.Source is Bitmap && view.GetVisualAncestors().OfType<ListBoxItem>()
                     .Any(item => item.DataContext is ArchivePostRow row && row.Id == "110125033"));
-            Require(preview.Thumbnail.Bounds.Height <= 480 && preview.Thumbnail.Bounds.Height >= 280,
+            Require(preview.Thumbnail.Bounds.Height <= posts.Bounds.Height * 0.6 && preview.Thumbnail.Bounds.Height >= 120,
                 "The large inline image must leave room for post text within a bounded, useful preview.");
             Program.CaptureWindow(window, "smoke-reader-preview-stable.png");
             await page.FocusPostAsync("110125035"); await WaitPreviewAsync(posts, "110125035");
@@ -129,6 +129,18 @@ internal static class ReaderPreviewChecks
         slow.SetResult(NewBitmap()); await FlushAsync();
         Require(view.Thumbnail.Source == null && Math.Abs(view.Bounds.Height - height) <= 2,
             "Timeout/late completion changed the stable preview or displayed obsolete pixels.");
+        view.DataContext = new ArchiveAttachmentRow(new CapturedAttachment(0, "video-poster", OriginalFileName: "saved-video.webm"))
+        { LoadThumbnail = _ => Task.FromResult<Bitmap?>(NewBitmap()) };
+        await Program.WaitUntilAsync(() => view.Thumbnail.Source is Bitmap);
+        await FlushAsync();
+        Border play = view.GetVisualDescendants().OfType<Border>().Single(control => control.Name == "VideoPlayOverlay");
+        Point center = play.TranslatePoint(new Point(play.Bounds.Width / 2, play.Bounds.Height / 2), view.Thumbnail)
+            ?? throw new InvalidOperationException("Video play overlay has no thumbnail position.");
+        Require(play.IsEffectivelyVisible && play.Bounds.Width >= 32 && play.Bounds.Width <= 48
+            && Math.Abs(center.X - view.Thumbnail.Bounds.Width / 2) <= 2
+            && Math.Abs(center.Y - view.Thumbnail.Bounds.Height / 2) <= 2,
+            "Video preview play affordance is not centered and bounded over the poster.");
+        Program.CaptureWindow(window, "smoke-video-poster-play-overlay.png");
         window.Content = null; await FlushAsync();
         Require(view.Thumbnail.Source == null, "Detached attachment retained pixels.");
     }

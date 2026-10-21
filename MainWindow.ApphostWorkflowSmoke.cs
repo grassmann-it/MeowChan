@@ -106,7 +106,13 @@ public partial class MainWindow
 
                     IClipboard clipboard = Clipboard ?? throw new InvalidOperationException("The packaged native clipboard is unavailable.");
                     await clipboard.SetTextAsync("meowchan-workflow-owned-sentinel");
-                    this.FindControl<MenuItem>("ThreadCopyUrlMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    DataGrid selectedThreads = this.FindControl<DataGrid>("ThreadsDataGrid")!;
+                    selectedThreads.ContextMenu!.Open(selectedThreads);
+                    MenuItem copyLinks = selectedThreads.ContextMenu.Items.OfType<MenuItem>()
+                        .Single(item => item.Tag as string == "selection.copy-links");
+                    RequireWorkflow(copyLinks.IsEffectivelyEnabled, "The selected-thread Copy command is unavailable.");
+                    copyLinks.Command!.Execute(null);
+                    selectedThreads.ContextMenu.Close();
                     await WaitWorkflowAsync(async () => await clipboard.TryGetTextAsync() == ApphostWorkflowSmoke.ThreadUrl,
                         "native clipboard round trip through the Copy command");
                     checks.Add("native-clipboard-roundtrip");

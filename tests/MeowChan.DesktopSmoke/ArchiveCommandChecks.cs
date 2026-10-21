@@ -38,7 +38,7 @@ internal static class ArchiveCommandChecks
             {
                 "thread.read", "gallery.open", "thread.details", "export.open-html-dialog", "selection.copy-links",
                 "location.open-folder", "location.open-source", "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove"
-            }), "Archive context menu action order differs from the common thread menu.");
+            }), "Archive context menu action order differs from the common thread menu: " + string.Join(", ", items.Select(item => item.Tag)));
             MenuItem Find(string id) => items.Single(item => (string)item.Tag! == id);
             Require(Find("thread.read").Command?.CanExecute(null) == false, "Archive batch selection offered the single-thread reader action.");
             Require(Find("thread.details").Command?.CanExecute(null) == true, "Archive without watch has no local metadata details.");

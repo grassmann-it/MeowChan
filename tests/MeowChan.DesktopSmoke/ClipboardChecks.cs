@@ -42,9 +42,10 @@ internal static class ClipboardChecks
         tabs.SelectedIndex = 0;
         await GridChecks.OpenContextForAsync(window, threads, thread);
         int writes = clipboard.WriteCount;
-        MenuItem threadCopy = window.FindControl<MenuItem>("ThreadCopyUrlMenuItem")!;
+        MenuItem threadCopy = threads.ContextMenu.Items.OfType<MenuItem>()
+            .Single(item => item.Tag as string == "selection.copy-links");
         await WaitUntilAsync(() => threadCopy.IsEffectivelyVisible && threadCopy.IsEffectivelyEnabled);
-        threadCopy.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        threadCopy.Command!.Execute(null);
         await WaitUntilAsync(() => clipboard.WriteCount == writes + 1);
         if (clipboard.WrittenText != thread.Url)
             throw new InvalidOperationException("Thread copy did not use the selected watch's canonical URL.");
@@ -52,9 +53,10 @@ internal static class ClipboardChecks
 
         tabs.SelectedIndex = 1;
         await GridChecks.OpenContextForAsync(window, boards, board);
-        MenuItem boardCopy = window.FindControl<MenuItem>("BoardCopyUrlMenuItem")!;
+        MenuItem boardCopy = boards.ContextMenu.Items.OfType<MenuItem>()
+            .Single(item => item.Tag as string == "selection.copy-links");
         await WaitUntilAsync(() => boardCopy.IsEffectivelyVisible && boardCopy.IsEffectivelyEnabled);
-        boardCopy.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        boardCopy.Command!.Execute(null);
         await WaitUntilAsync(() => clipboard.WriteCount == writes + 2);
         if (clipboard.WrittenText != board.Url)
             throw new InvalidOperationException("Board copy did not use the selected watch's canonical URL.");

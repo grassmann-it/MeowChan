@@ -30,7 +30,8 @@ internal static class SelectionChecks
         await PressAsync(window, Row(grid, rows[2]), right: true);
         Require(grid.SelectedItems.Count == 2, "Right-click collapsed the existing multiple selection.");
         Require(grid.ContextMenu!.IsOpen, "Right-click on a selected watch did not open its context menu.");
-        MenuItem read = grid.ContextMenu.Items.OfType<MenuItem>().First();
+        MenuItem read = grid.ContextMenu.Items.OfType<MenuItem>()
+            .Single(item => item.Tag as string == "thread.read");
         Require(!read.IsEnabled, "Read posts must be disabled for multiple selected watches.");
         grid.ContextMenu.Close();
         PressKey(grid, Key.Enter);
@@ -105,18 +106,18 @@ internal static class SelectionChecks
         Require(grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds), "Export close lost the original watch set.");
         await Program.WaitUntilAsync(() => ReferenceEquals(window.FocusManager!.GetFocusedElement(), grid));
 
-        // Enter opens only the lead row; the original multiple selection survives return.
+        // Enter has no unambiguous reader target while multiple watches are selected.
         PressKey(grid, Key.Enter);
-        await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible && !page.IsBusy);
-        Require(page.CurrentThread != null && grid.SelectedItems.Count == 5, "Enter collapsed the selection or failed to open one reader.");
-        Click(page.FindControl<Button>("ArchiveCloseReader")!);
-        await Program.WaitUntilAsync(() => !window.FindControl<ContentControl>("ReaderHost")!.IsVisible);
+        await Task.Delay(80);
+        Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+            && grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds),
+            "Enter opened an ambiguous multiple-watch reader or changed the selection.");
         PressKey(grid, Key.Delete);
         await Program.WaitUntilAsync(() => window.UrlList.Count == 0);
         await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
             Require((await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count == 52,
                 "Removing watches deleted archived posts.");
-        Console.WriteLine("SMOKE selection watches: native Ctrl/Shift range+arrow, selected/unselected right-click, EN/DE/modes, narrow logo, input shielding, frozen batch-export return, Enter reader and non-destructive batch Delete passed.");
+        Console.WriteLine("SMOKE selection watches: native Ctrl/Shift range+arrow, selected/unselected right-click, EN/DE/modes, narrow logo, input shielding, frozen batch-export return, single-watch Enter, ambiguous multi-watch Enter blocked and non-destructive batch Delete passed.");
 
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource.Cast<object>().Count() == 50);
@@ -129,7 +130,11 @@ internal static class SelectionChecks
         await Task.Delay(80);
         await PressAsync(window, Row(table, archived[0]));
         await Task.Delay(80);
+        Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
+            "Selecting a narrow archive table row hid the list before an explicit reader action.");
         await PressAsync(window, Row(table, archived[3]), KeyModifiers.Shift);
+        Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
+            "Selecting a narrow archive table range hid the list before an explicit reader action.");
         Program.CaptureWindow(window, "smoke-selection-archive-range.png");
         Require(table.SelectedItems.Count == 4, "Archive native Shift range did not work.");
         await PressAsync(window, Row(table, archived[3]), right: true);
@@ -151,8 +156,17 @@ internal static class SelectionChecks
             return visible.Length == 3 && visible.All(item => CardPointerReady(window, item));
         });
         ListBoxItem[] cardRows = cards.GetVisualDescendants().OfType<ListBoxItem>().Where(item => item.IsEffectivelyVisible).Take(3).ToArray();
-        await PressAsync(window, cardRows[0]); await PressAsync(window, cardRows[2], CommandModifier);
-        Require(cards.SelectedItems!.Count == 2, "Archive cards Command-click did not preserve native multiple selection.");
+        string CardId(ListBoxItem item) => (item.DataContext as ArchiveThreadRow)?.Summary.Id.Thread ?? "<none>";
+        string CardSelection() => string.Join(",", cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread));
+        await PressAsync(window, cardRows[0]);
+        await PressAsync(window, cardRows[2], CommandModifier);
+        if (cards.SelectedItems!.Count != 2)
+        {
+            Program.CaptureWindow(window, "smoke-selection-archive-command-click-failed.png");
+            throw new InvalidOperationException("Archive cards Command-click did not preserve native multiple selection: count=" +
+                cards.SelectedItems.Count + "; selected=" + CardSelection() + "; row contexts=" +
+                string.Join(',', cardRows.Select(CardId)));
+        }
         await PressAsync(window, cardRows[2], right: true);
         ContextMenu cardMenu = cardRows[2].GetVisualDescendants().OfType<Control>()
             .Select(control => control.ContextMenu).First(menu => menu != null)!;
@@ -165,7 +179,9 @@ internal static class SelectionChecks
         Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         PressKey(table, Key.A, CommandModifier);
         Require(table.SelectedItems.Count == 50, "Archive Select All escaped the current page.");
-        Click(page.FindControl<Button>("NextThreadsButton")!);
+        Button nextPage = page.FindControl<Button>("NextThreadsButton")!;
+        await Program.WaitUntilAsync(() => !page.IsBusy && nextPage.IsEffectivelyEnabled);
+        Click(nextPage);
         await Program.WaitUntilAsync(() => !page.IsBusy && table.ItemsSource.Cast<object>().Count() == 2);
         Require(table.SelectedItems.Count == 0 && cards.SelectedItems!.Count == 0, "Archive retained invisible IDs across paging.");
         PressKey(table, Key.Delete);
@@ -194,10 +210,13 @@ internal static class SelectionChecks
     private static bool CardPointerReady(MainWindow window, ListBoxItem row)
     {
         if (row.Bounds.Width <= 0 || row.Bounds.Height <= 0) return false;
-        Point? point = row.TranslatePoint(new Point(Math.Min(20, row.Bounds.Width / 2), row.Bounds.Height / 2), window);
+        Point? point = row.TranslatePoint(CardSelectionPoint(row), window);
         return point.HasValue && window.InputHitTest(point.Value) is Visual hit
-            && hit.GetSelfAndVisualAncestors().Contains(row);
+            && hit.GetSelfAndVisualAncestors().Contains(row)
+            && !hit.GetSelfAndVisualAncestors().OfType<Button>().Any();
     }
+    private static Point CardSelectionPoint(ListBoxItem row) => new(
+        Math.Min(Math.Max(112, row.Bounds.Width / 2), Math.Max(8, row.Bounds.Width - 8)), row.Bounds.Height / 2);
     private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu)
     {
         // Avalonia translates ContextMenu/Shift+F10 into a positionless request.
@@ -217,7 +236,8 @@ internal static class SelectionChecks
             await Program.WaitUntilAsync(() =>
             {
                 if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return false;
-                Point? translated = target.TranslatePoint(new Point(Math.Min(20, target.Bounds.Width / 2), target.Bounds.Height / 2), window);
+                Point? translated = target.TranslatePoint(target is ListBoxItem card ? CardSelectionPoint(card)
+                    : new Point(Math.Min(20, target.Bounds.Width / 2), target.Bounds.Height / 2), window);
                 if (!translated.HasValue) return false;
                 point = translated.Value;
                 return window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(row);

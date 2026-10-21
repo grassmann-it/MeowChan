@@ -21,10 +21,10 @@ public sealed class ArchiveAttachmentView : UserControl
         internal bool Large { get; set; }
         protected override Size MeasureOverride(Size availableSize)
         {
-            double maximumWidth = Large ? 1040 : 240;
+            double maximumWidth = Large ? 360 : 240;
             double width = double.IsFinite(availableSize.Width) ? Math.Clamp(availableSize.Width, 1, maximumWidth) : maximumWidth;
             // Keep room for the post text; full-size media remains available in the gallery.
-            Size reserved = new(width, Large ? Math.Min(480, width * 720d / 1040) : width * 180d / 240);
+            Size reserved = new(width, Large ? Math.Min(280, width * 280d / 360) : width * 180d / 240);
             base.MeasureOverride(reserved);
             return reserved;
         }
@@ -34,9 +34,20 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly TextBlock _play = new() { Text = "▶", FontSize = 28, Foreground = Brushes.White,
-        Background = Brushes.Black, Padding = new Thickness(8, 0), Margin = new Thickness(8),
-        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, IsVisible = false };
+    private readonly Border _play = new()
+    {
+        Name = "VideoPlayOverlay", Width = 44, Height = 44, CornerRadius = new CornerRadius(22),
+        Background = new SolidColorBrush(Color.FromArgb(205, 13, 16, 22)),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)), BorderThickness = new Thickness(1),
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        IsHitTestVisible = false, IsVisible = false,
+        Child = new Avalonia.Controls.Shapes.Path
+        {
+            Data = Geometry.Parse("M 0,0 L 0,18 L 14,9 Z"), Fill = Brushes.White,
+            Width = 14, Height = 18, Stretch = Stretch.Uniform, Margin = new Thickness(3, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+        }
+    };
     private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
@@ -81,8 +92,8 @@ public sealed class ArchiveAttachmentView : UserControl
         bool large = row?.LargePreview == true;
         _slot.Large = large;
         _slot.InvalidateMeasure();
-        _label.MaxWidth = _status.MaxWidth = large ? 1040 : 240;
-        _button.MaxWidth = large ? 1056 : 256;
+        _label.MaxWidth = _status.MaxWidth = large ? 360 : 240;
+        _button.MaxWidth = large ? 376 : 256;
         _button.HorizontalAlignment = large ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
         _label.Text = row?.Label ?? string.Empty;
         _play.IsVisible = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)

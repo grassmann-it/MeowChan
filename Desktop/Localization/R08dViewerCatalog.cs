@@ -6,6 +6,8 @@ internal static class R08dViewerCatalog
     {
         ("viewer.favorite.add", "Add to favorites · F", "Als Favorit markieren · F"),
         ("viewer.favorite.remove", "Remove from favorites · F", "Favorit entfernen · F"),
+        ("viewer.context.show", "Show post context · P", "Beitragskontext anzeigen · P"),
+        ("viewer.context.hide", "Hide post context · P", "Beitragskontext ausblenden · P"),
         ("viewer.fullscreen", "Full screen · F11", "Vollbild · F11"),
         ("viewer.help", "Shortcuts · F1", "Tastenkürzel · F1"),
         ("viewer.help.hint", "F1 shortcuts · F favorite · P post", "F1 Tastenkürzel · F Favorit · P Beitrag"),

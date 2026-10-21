@@ -168,7 +168,7 @@ public partial class MainWindow
             else if (LeadThread is ThreadRow row)
             {
                 if (mods == KeyModifiers.Shift) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
-                else if (SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
+                else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
             }
             return;
         }

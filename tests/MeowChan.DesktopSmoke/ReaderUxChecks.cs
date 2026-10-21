@@ -7,9 +7,11 @@ using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using Texts = MeowChan.Desktop.Localization.Texts;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -74,7 +76,8 @@ internal static class ReaderUxChecks
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
         await page.MediaLoadTask;
-                await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+        await CheckDetachedReaderIconsAsync(window, page, reader);
+        await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);
         Require(page.FindControl<Grid>("ArchiveReaderPane")!.Parent == reader, "Reader pane has the wrong owner.");
@@ -151,11 +154,12 @@ internal static class ReaderUxChecks
         GalleryEntry unassigned = new(new GalleryAssetKey(Hero, savedAsset.Manifest.Directory, savedAsset.Asset.AssetId),
             savedAsset.Manifest, savedAsset.Asset, null, null, false, true);
         string? retainedAnchor = TopPost(page);
+        string? retainedSelection = SelectedPost(page);
         await window.OpenMediaGalleryAsync(new[] { unassigned }, unassigned.EntryKey);
         viewer = (GalleryViewer)gallery.Content!;
         Require(viewer.CaptureState().PostId == null, "Unassigned medium acquired an invented post association.");
         Click(GalleryButton(viewer, "GalleryClose"));
-        await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == retainedAnchor
+        await Program.WaitUntilAsync(() => reader.IsVisible && TopPost(page) == retainedAnchor && SelectedPost(page) == retainedSelection
             && window.FocusManager!.GetFocusedElement() is Visual anchorFocus
             && anchorFocus.GetVisualAncestors().Contains(page.FindControl<ListBox>("ArchivePosts")!));
         page.FindControl<Button>("ArchiveCloseReader")!.Focus();
@@ -200,6 +204,52 @@ internal static class ReaderUxChecks
                 && Math.Abs(origin.Y + overlay.Bounds.Height - window.ClientSize.Height) <= 1;
         });
         await WindowChromeChecks.CheckReachableAsync(window);
+    }
+
+    private static async Task CheckDetachedReaderIconsAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
+        string originalLanguage = Texts.Language;
+        string[] names =
+        {
+            "ArchiveCloseReader", "ArchiveOpenGallery", "ArchiveReadPosts",
+            "ArchiveReaderFullscreen", "ExportArchiveButton", "ArchiveHistoryBack",
+            "ReaderPreviousThread", "ReaderPreviousPost", "ReaderNextPost", "ReaderNextThread"
+        };
+        string[] labeled = { "ArchiveCloseReader", "ArchiveOpenGallery", "ArchiveReaderFullscreen", "ExportArchiveButton" };
+        try
+        {
+            foreach (string language in new[] { "de", "en" })
+            {
+                Texts.SetLanguage(language);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                window.UpdateLayout();
+                Require(ReferenceEquals(page.FindControl<Grid>("ArchiveReaderPane")!.Parent, reader),
+                    "Language change reattached the large reader.");
+                foreach (string name in names)
+                {
+                    Button button = page.FindControl<Button>(name)!;
+                    if (button.Content is not Control icon)
+                        throw new InvalidOperationException(name + " lost its compact icon after language change.");
+                    if (labeled.Contains(name))
+                        Require(icon is StackPanel panel && panel.Children.OfType<TextBlock>().Any(text => !string.IsNullOrWhiteSpace(text.Text)),
+                            name + " lost its visible action label.");
+                    if (!button.IsEffectivelyVisible) continue;
+                    Point? position = icon.TranslatePoint(default, button);
+                    Require(button.Bounds.Width > 0 && (labeled.Contains(name) || button.Bounds.Width <= 40)
+                        && icon.Bounds.Width > 0 && icon.Bounds.Width <= button.Bounds.Width
+                        && position is Point p && p.X >= -1 && p.Y >= -1
+                        && p.X + icon.Bounds.Width <= button.Bounds.Width + 1
+                        && p.Y + icon.Bounds.Height <= button.Bounds.Height + 1,
+                        name + " icon overflows its compact reader button.");
+                }
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage(originalLanguage);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            window.UpdateLayout();
+        }
     }
 
     private static async Task CheckSmallOverlayChromeAsync(MainWindow window, ContentControl overlay)

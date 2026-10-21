@@ -51,6 +51,7 @@ public partial class MainWindow
         {
             var item = CommandBindings.CreateMenuItem(id, action, () => ready && available && !WorkspaceCommandBusy && !_selectionCommandRunning,
                 () => ready && available ? null : unavailable);
+            item.Tag = id;
             if (count is { } number && number != 1) item.Header = CommandCatalog.Label(id) + " (" + number + ")";
             menu.Items.Add(item);
             if (!ready || !available)
@@ -72,7 +73,8 @@ public partial class MainWindow
         }
         if (!frozen.Boards)
         {
-            Add("thread.read", async () => await OpenFrozenReaderAsync(frozen, grid), frozen.Threads.Length == 1);
+            Add("thread.read", async () => await OpenFrozenReaderAsync(frozen, grid),
+                frozen.Threads.Length == 1 && grid.SelectedItems.Count == 1);
             Add("gallery.open", async () => await OpenGalleryAsync(frozen.Lead, origin: grid));
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));

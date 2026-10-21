@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -7,6 +8,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Downloader;
 using MeowChan.Http;
@@ -175,20 +177,36 @@ internal static class ComparisonCaptures
         try
         {
             await GridChecks.OpenContextForAsync(window, grid, row);
-            Border[] icons = menu.Items.OfType<MenuItem>().Select(item => item.Icon).OfType<Border>().ToArray();
+            string[] requiredActions = { "thread.read", "gallery.open", "thread.details", "export.open-html-dialog",
+                "selection.copy-links", "location.open-folder", "location.open-source", "watch.check",
+                "watch.retry-media", "rules.edit-scope", "watch.remove" };
+            MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
+            foreach (string action in requiredActions)
+                if (items.Count(item => AutomationProperties.GetName(item) == CommandCatalog.Label(action)) != 1)
+                    throw new InvalidOperationException("Context menu did not expose exactly one required action: " + action);
+            if (items.Any(item => item.Icon is not Border))
+                throw new InvalidOperationException("A context action or availability explanation is missing its shared icon.");
+            Border[] icons = items.Select(item => (Border)item.Icon!).ToArray();
             await Program.WaitUntilAsync(() => menu.IsEffectivelyVisible && menu.Bounds.Width > 0 && menu.Bounds.Height > 0
-                && icons.Length == 3 && icons.All(icon => icon.IsEffectivelyVisible && icon.Bounds.Width > 0));
-            Color expected = Application.Current?.RequestedThemeVariant == ThemeVariant.Dark
-                ? Color.Parse("#EEF1F4") : Color.Parse("#18212C");
-            if (icons.Any(icon => icon.Background is not ISolidColorBrush brush || brush.Color != expected))
-                throw new InvalidOperationException("Context menu icons did not resolve the active theme's text color.");
+                && icons.All(icon => icon.IsEffectivelyVisible && icon.Bounds.Width > 0));
+            bool dark = window.ActualThemeVariant == ThemeVariant.Dark;
+            Color expected = dark ? Color.Parse("#EEF1F4") : Color.Parse("#18212C");
+            foreach (MenuItem item in items)
+            {
+                // Shared masks use Workspace.Text, independently of ModernTheme's menu text brushes.
+                if (((Border)item.Icon!).Background is not ISolidColorBrush ink || ink.Color != expected)
+                    throw new InvalidOperationException("Context icon does not match the active Workspace.Text palette: " + item.Header);
+                if (item.IsEnabled && (dark ? Luminance(ink.Color) < 0.5 : Luminance(ink.Color) > 0.2))
+                    throw new InvalidOperationException("Enabled context icon did not resolve readable ink for the active theme: " + item.Header);
+            }
+            string colors = string.Join(",", icons.Select(icon => ((ISolidColorBrush)icon.Background!).Color).Distinct());
             double scale = TopLevel.GetTopLevel(menu)?.RenderScaling ?? window.RenderScaling;
             using RenderTargetBitmap screenshot = new RenderTargetBitmap(
                 new PixelSize((int)Math.Ceiling(menu.Bounds.Width * scale), (int)Math.Ceiling(menu.Bounds.Height * scale)),
                 new Vector(96 * scale, 96 * scale));
             screenshot.Render(menu);
             screenshot.Save(Path.Combine(AppContext.BaseDirectory, fileName), PngBitmapEncoderOptions.Default);
-            Console.WriteLine("SMOKE context menu render: " + fileName + "; icon color=" + expected + "; scale=" + scale);
+            Console.WriteLine("SMOKE context menu render: " + fileName + "; icons=" + icons.Length + "; Workspace.Text inks=" + colors + "; scale=" + scale);
         }
         finally
         {

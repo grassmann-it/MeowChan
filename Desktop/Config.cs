@@ -89,8 +89,7 @@ namespace MeowChan
         public string ArchiveThreadLayout
         {
             get => _archiveThreadLayout;
-            set => _archiveThreadLayout = string.Equals(value?.Trim(), "Tiles", StringComparison.OrdinalIgnoreCase) ? "Tiles"
-                : string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
+            set => _archiveThreadLayout = string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
         }
 
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]

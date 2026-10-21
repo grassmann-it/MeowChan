@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -30,7 +31,7 @@ internal sealed class GalleryViewer : UserControl
     private readonly TextBlock _scope = new() { Name = "GalleryScope", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
     private readonly Button _readPosts;
-    private readonly TextBlock _position = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _position = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _quality = new() { Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _context = new() { Spacing = 12 };
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Padding = new Thickness(18), IsVisible = false, Background = new SolidColorBrush(Color.FromRgb(32, 35, 42)) };
@@ -42,9 +43,10 @@ internal sealed class GalleryViewer : UserControl
     private readonly Button _fit;
     private readonly Button _zoomIn;
     private readonly Button _zoomOut;
-    private readonly Button _favorite;
+    private readonly ToggleButton _favorite;
+    private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
-    private readonly TextBlock _shortcutHint = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _shortcutHint = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Padding = new Thickness(12), Background = new SolidColorBrush(Color.FromRgb(32, 35, 42)), IsVisible = false };
     private readonly StackPanel _helpContent = new() { Spacing = 6 };
     private GalleryVideoPlayer? _video;
@@ -120,7 +122,7 @@ internal sealed class GalleryViewer : UserControl
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         Background = new SolidColorBrush(Color.FromRgb(13, 16, 22));
-        Grid root = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,*"), Margin = new Thickness(12), RowSpacing = 8 };
+        Grid root = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,*"), Margin = new Thickness(12), RowSpacing = 8 };
         WrapPanel toolbar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         _close = Command(toolbar, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         _previous = Command(toolbar, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
@@ -129,26 +131,28 @@ internal sealed class GalleryViewer : UserControl
         _actual = Command(toolbar, "GalleryActual", "1:1", ActualPixels);
         _zoomOut = Command(toolbar, "GalleryMinus", "−", () => Zoom(1 / 1.1));
         _zoomIn = Command(toolbar, "GalleryPlus", "+", () => Zoom(1.1));
-        Command(toolbar, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
-        _favorite = Command(toolbar, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
+        _contextToggle = (ToggleButton)Command(toolbar, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
+        _favorite = (ToggleButton)Command(toolbar, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
         Command(toolbar, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
         _helpButton = Command(toolbar, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(toolbar, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
         _shortcutHint.Text = Texts.T("viewer.help.hint");
-        toolbar.Children.Add(_shortcutHint);
-        toolbar.Children.Add(_position);
         root.Children.Add(toolbar);
-        root.Children.Add(_quality); Grid.SetRow(_quality, 1);
-        root.Children.Add(_scope); Grid.SetRow(_scope, 2);
-        root.Children.Add(_warnings); Grid.SetRow(_warnings, 3);
+        Grid meta = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        meta.Children.Add(_shortcutHint);
+        meta.Children.Add(_position); Grid.SetColumn(_position, 1);
+        root.Children.Add(meta); Grid.SetRow(meta, 1);
+        root.Children.Add(_quality); Grid.SetRow(_quality, 2);
+        root.Children.Add(_scope); Grid.SetRow(_scope, 3);
+        root.Children.Add(_warnings); Grid.SetRow(_warnings, 4);
         _helpPanel.Child = _helpContent;
-        root.Children.Add(_helpPanel); Grid.SetRow(_helpPanel, 4);
+        root.Children.Add(_helpPanel); Grid.SetRow(_helpPanel, 5);
         _viewport.Children.Add(_image); _viewport.Children.Add(_status);
         _body.Children.Add(_viewport);
         _contextPanel.Child = new ScrollViewer { Content = _context, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
-        root.Children.Add(_body); Grid.SetRow(_body, 5); Content = root;
+        root.Children.Add(_body); Grid.SetRow(_body, 6); Content = root;
         SizeChanged += (_, _) => LayoutContext();
         _viewport.SizeChanged += (_, _) => FitIfAutomatic();
         _viewport.PointerWheelChanged += (_, e) => { Focus(); Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), e.GetPosition(_viewport)); e.Handled = true; };
@@ -176,6 +180,7 @@ internal sealed class GalleryViewer : UserControl
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
         UpdateFavorite();
+        UpdateContextButton();
         UpdateHelp();
         SetImageCommands(false);
     }
@@ -200,7 +205,7 @@ internal sealed class GalleryViewer : UserControl
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
         _shortcutHint.Text = Texts.T("viewer.help.hint");
-        UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateHelp();
+        UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp();
     }
 
     private static string? CommandId(string name) => name switch
@@ -216,12 +221,15 @@ internal sealed class GalleryViewer : UserControl
     };
 
     private static bool IsIconOnly(string name) => name is "GalleryPrevious" or "GalleryNext" or "GalleryFit" or
-        "GalleryMinus" or "GalleryPlus" or "GalleryFullscreen" or "GalleryHelp";
+        "GalleryMinus" or "GalleryPlus" or "GalleryFullscreen" or "GalleryHelp" or
+        "GalleryToggleContext" or "GalleryFavorite";
 
     private static Button Command(Panel panel, string name, string label, Action action)
     {
         string? id = CommandId(name);
-        Button button = new() { Name = name, Margin = new Thickness(0, 0, 6, 6) };
+        Button button = name is "GalleryToggleContext" or "GalleryFavorite"
+            ? new ToggleButton { Name = name, Margin = new Thickness(0, 0, 6, 6) }
+            : new Button { Name = name, Margin = new Thickness(0, 0, 6, 6) };
         if (id == null) { button.Content = label; AutomationProperties.SetName(button, label); }
         else CommandBindings.Apply(button, id, iconOnly: IsIconOnly(name));
         button.Click += (_, _) => action();
@@ -241,22 +249,32 @@ internal sealed class GalleryViewer : UserControl
         if (_contextOpen == open) return;
         _contextOpen = open;
         LayoutContext();
+        UpdateContextButton();
         if (!open) Focus();
         if (notify) ContextOpenChanged?.Invoke(open);
     }
 
     private void ToggleFavorite()
     {
+        _favorite.IsChecked = _favoriteSelected;
         if (_entry != null) FavoriteToggleRequested?.Invoke(_entry);
     }
 
     private void UpdateFavorite()
     {
         string label = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
-        _favorite.Content = (_favoriteSelected ? "★ " : "☆ ") + label;
+        _favorite.IsChecked = _favoriteSelected;
         AutomationProperties.SetName(_favorite, label);
         ToolTip.SetTip(_favorite, label);
         _favorite.IsEnabled = _entry != null;
+    }
+
+    private void UpdateContextButton()
+    {
+        string label = Texts.T(_contextOpen ? "viewer.context.hide" : "viewer.context.show");
+        _contextToggle.IsChecked = _contextOpen;
+        AutomationProperties.SetName(_contextToggle, label);
+        ToolTip.SetTip(_contextToggle, label);
     }
 
     private void SetHelp(bool open, bool expanded = false)
@@ -321,7 +339,7 @@ internal sealed class GalleryViewer : UserControl
     {
         if (_restore is not { } state || _entry == null || state.Key != _entry.Key || state.PostId != _entry.Post?.PostId
             || state.AttachmentPosition != _entry.Attachment?.Position) return;
-        _restore = null; _contextOpen = state.ContextOpen; LayoutContext();
+        _restore = null; _contextOpen = state.ContextOpen; LayoutContext(); UpdateContextButton();
         UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
         _manualZoom = state.ManualZoom; _zoom = GalleryGeometry.ClampZoom(state.PhysicalZoom, CurrentFit); _panX = state.PanX; _panY = state.PanY;
         FitIfAutomatic(); if (_manualZoom) _ = EnsureDetailAsync();
@@ -534,7 +552,7 @@ internal sealed class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
-        _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext();
+        _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
     }
 }

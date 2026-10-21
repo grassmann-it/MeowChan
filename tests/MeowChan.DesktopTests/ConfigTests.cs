@@ -754,4 +754,15 @@ public sealed class ConfigTests
         Assert.Equal(config.LastExportDirectory, loaded.LastExportDirectory);
         Assert.False(Directory.Exists(config.LastExportDirectory));
     }
+
+    [Theory]
+    [InlineData("Tiles", "List")]
+    [InlineData("Table", "Table")]
+    [InlineData("List", "List")]
+    public void ArchivedThreadLayoutMigratesToSupportedViews(string stored, string expected)
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory), "{\"ArchiveThreadLayout\":\"" + stored + "\"}");
+        Assert.Equal(expected, Config.LoadConfig(directory.Path).ArchiveThreadLayout);
+    }
 }

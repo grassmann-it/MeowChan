@@ -29,8 +29,7 @@ public partial class ArchivePage
     internal Action<ResourceId, string>? SelectionLeadAction { get; set; }
 
     private ArchiveThreadRow[] ArchiveVisibleRows => Control<DataGrid>("ArchiveThreadTable").ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
-    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable")
-        : _archiveLayout == "Tiles" ? Control<ListBox>("ArchiveThreadTiles") : Control<ListBox>("ArchiveThreads");
+    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable") : Control<ListBox>("ArchiveThreads");
     private ArchiveThreadRow? ArchiveLead => _archiveSelectionIds.Count == 0 ? null
         : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == _archiveLeadId)
             ?? ArchiveVisibleRows.FirstOrDefault(row => _archiveSelectionIds.Contains(row.Summary.Id));
@@ -40,10 +39,7 @@ public partial class ArchivePage
 
     private void InitializeArchiveSelection()
     {
-        var tilesMenu = new ContextMenu();
-        tilesMenu.Opened += OnArchiveSelectionMenuOpened;
-        Control<ListBox>("ArchiveThreadTiles").ContextMenu = tilesMenu;
-        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<ListBox>("ArchiveThreadTiles"), Control<DataGrid>("ArchiveThreadTable") })
+        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<DataGrid>("ArchiveThreadTable") })
         {
             list.AddHandler(KeyDownEvent, OnArchiveListKeyDown, RoutingStrategies.Tunnel);
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
@@ -70,15 +66,12 @@ public partial class ArchivePage
         try
         {
             ListBox cards = Control<ListBox>("ArchiveThreads");
-            ListBox tiles = Control<ListBox>("ArchiveThreadTiles");
             DataGrid table = Control<DataGrid>("ArchiveThreadTable");
             if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Clear();
-            if (!ReferenceEquals(source, tiles)) tiles.SelectedItems!.Clear();
             if (!ReferenceEquals(source, table)) table.SelectedItems.Clear();
             foreach (ArchiveThreadRow row in rows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)))
             {
                 if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Add(row);
-                if (!ReferenceEquals(source, tiles)) tiles.SelectedItems!.Add(row);
                 if (!ReferenceEquals(source, table)) table.SelectedItems.Add(row);
             }
         }
@@ -102,7 +95,8 @@ public partial class ArchivePage
         _showReader = false;
         SynchronizeArchiveSelection(ArchiveVisibleRows, sender);
         UpdateLayoutMode(); UpdateActions();
-        if (ArchiveLead is ArchiveThreadRow lead) await LoadThreadAsync(lead.Summary.Id);
+        if (CanShowArchivePreviewBesideList && ArchiveLead is ArchiveThreadRow lead)
+            await LoadThreadAsync(lead.Summary.Id);
     }
 
     private void UpdateArchiveSelectionActions()
@@ -122,7 +116,8 @@ public partial class ArchivePage
         {
             if (row != null) Dispatcher.UIThread.Post(async () =>
             {
-                if (!_ended && _available && _selectedThread != row.Summary.Id) await LoadThreadAsync(row.Summary.Id);
+                if (!_ended && _available && CanShowArchivePreviewBesideList && _selectedThread != row.Summary.Id)
+                    await LoadThreadAsync(row.Summary.Id);
             }, DispatcherPriority.Background);
             return;
         }
@@ -179,7 +174,9 @@ public partial class ArchivePage
                 if (row != null)
                 {
                     _archiveLeadId = row.Summary.Id; _contextThread = row;
-                    if (_selectedThread != row.Summary.Id || (!_busy && _thread?.Summary.Id != row.Summary.Id)) await LoadThreadAsync(row.Summary.Id);
+                    if (CanShowArchivePreviewBesideList &&
+                        (_selectedThread != row.Summary.Id || (!_busy && _thread?.Summary.Id != row.Summary.Id)))
+                        await LoadThreadAsync(row.Summary.Id);
                 }
             }, DispatcherPriority.Background);
             return;

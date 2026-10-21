@@ -74,6 +74,9 @@ internal static class R08dPresentationChecks
         string profile = Path.Combine(Path.GetTempPath(), "meowchan-r08d-presentation-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         ResourceId id = new("4chan", "g", "808");
+        double originalWidth = window.Width;
+        double originalHeight = window.Height;
+        WindowState originalState = window.WindowState;
         try
         {
             using (ProfileLease lease = ProfileLease.Acquire(profile))
@@ -91,20 +94,20 @@ internal static class R08dPresentationChecks
             host.Content = fixture;
             try
             {
+                window.WindowState = WindowState.Normal;
+                window.Width = 1360;
+                window.Height = 820;
                 fixture.IsAvailable = true;
+                await fixture.ActivateAsync();
                 ListBox threads = fixture.FindControl<ListBox>("ArchiveThreads")!;
                 await Program.WaitUntilAsync(() => !fixture.IsBusy && threads.ItemCount == 1);
                 Button list = fixture.FindControl<Button>("ArchiveLayoutList")!;
-                Button tiles = fixture.FindControl<Button>("ArchiveLayoutTiles")!;
                 Button table = fixture.FindControl<Button>("ArchiveLayoutTable")!;
                 Button favorites = fixture.FindControl<Button>("ArchiveFavoritesOverview")!;
-                Require(threads.IsEffectivelyVisible && tiles.IsEffectivelyVisible && table.IsEffectivelyVisible
+                Require(threads.IsEffectivelyVisible && list.IsEffectivelyVisible && table.IsEffectivelyVisible
                     && favorites.IsEffectivelyVisible && favorites.Bounds.Width > 0,
                     "Archive layout choices or favorites entry were absent from the real page.");
                 Program.CaptureWindow(window, "smoke-r08d-archive-list.png");
-                Click(tiles);
-                await Program.WaitUntilAsync(() => fixture.FindControl<ListBox>("ArchiveThreadTiles")!.IsEffectivelyVisible);
-                Program.CaptureWindow(window, "smoke-r08d-archive-tiles.png");
                 Click(table);
                 await Program.WaitUntilAsync(() => fixture.FindControl<DataGrid>("ArchiveThreadTable")!.IsEffectivelyVisible);
                 Program.CaptureWindow(window, "smoke-r08d-archive-table.png");
@@ -119,9 +122,30 @@ internal static class R08dPresentationChecks
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
                 Require(full.IsEnabled && full.Bounds.Width > 0 && full.Content?.ToString()?.Length > 0,
                     "The reader's visible OS full-screen action is missing.");
-                Program.CaptureWindow(window, "smoke-r08d-reader-fullscreen-action.png");
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1360, 820));
+                Program.CaptureWindow(window, "smoke-r08d-reader-wide.png");
+
+                window.Width = 760;
+                window.Height = 500;
+                await Program.WaitUntilAsync(() =>
+                {
+                    window.UpdateLayout();
+                    return PresentationChecks.MatchesRequestedSize(window, 760, 500)
+                        && full.IsEffectivelyVisible
+                        && fixture.FindControl<Button>("ArchiveBackButton")!.IsEffectivelyVisible;
+                });
+                Program.CaptureWindow(window, "smoke-r08d-reader-narrow.png");
+                Click(fixture.FindControl<Button>("ArchiveBackButton")!);
+                await Program.WaitUntilAsync(() => threads.IsEffectivelyVisible);
+                Program.CaptureWindow(window, "smoke-r08d-archive-narrow-list.png");
             }
-            finally { fixture.EndLifetime(); host.Content = retained; }
+            finally
+            {
+                fixture.EndLifetime(); host.Content = retained;
+                window.Width = originalWidth;
+                window.Height = originalHeight;
+                window.WindowState = originalState;
+            }
             Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         }
         finally { Directory.Delete(profile, recursive: true); }

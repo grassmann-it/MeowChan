@@ -63,7 +63,7 @@ public sealed class DesktopSessionHostTests
             draft.RecheckTimer = 120;
             await host.SaveViewPreferencesAsync(config =>
             {
-                config.ArchiveThreadLayout = "Tiles";
+                config.ArchiveThreadLayout = "Table";
                 config.ArchiveSplitWidth = 430;
                 config.GalleryContextOpen = true;
                 config.CompactDensity = true;
@@ -80,7 +80,7 @@ public sealed class DesktopSessionHostTests
 
             Config saved = Config.LoadConfig(directory.Path);
             Assert.Equal(120, saved.RecheckTimer);
-            Assert.Equal("Tiles", saved.ArchiveThreadLayout);
+            Assert.Equal("Table", saved.ArchiveThreadLayout);
             Assert.Equal(430, saved.ArchiveSplitWidth);
             Assert.True(saved.GalleryContextOpen);
             Assert.True(saved.CompactDensity);

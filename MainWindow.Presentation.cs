@@ -241,7 +241,8 @@ public partial class MainWindow
 
     private static void LocalizeWorkspaceControl(Control control)
     {
-        if (!control.Classes.Contains("localized") || control.Tag is not string key) return;
+        if (!control.Classes.Contains("localized") || control.Classes.Contains("command-icon")
+            || control.Tag is not string key) return;
         string label = Texts.T(key);
         switch (control)
         {

@@ -74,6 +74,17 @@ public partial class ArchivePage
     private void OnArchiveSelectionMenuOpened(object? sender, RoutedEventArgs e)
     {
         if (sender is not ContextMenu menu) return;
+        // The table's current selection is authoritative when its menu opens.
+        // Freeze these IDs before building commands, including an empty selection.
+        DataGrid table = Control<DataGrid>("ArchiveThreadTable");
+        if (ReferenceEquals(menu, table.ContextMenu))
+        {
+            ArchiveThreadRow[] selected = table.SelectedItems.OfType<ArchiveThreadRow>().ToArray();
+            _archiveSelectionIds.Clear();
+            foreach (ArchiveThreadRow row in selected) _archiveSelectionIds.Add(row.Summary.Id);
+            if (_archiveLeadId == null || !_archiveSelectionIds.Contains(_archiveLeadId))
+                _archiveLeadId = selected.FirstOrDefault()?.Summary.Id;
+        }
         ArchiveThreadRow[] targets = ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).ToArray();
         ArchiveThreadRow? lead = ArchiveLead;
         menu.Items.Clear();

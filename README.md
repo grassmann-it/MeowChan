@@ -57,17 +57,19 @@ Read captured posts at full window size, with large local media and navigation b
 
 Find retained threads and media offline. Open images from all matching threads across every results page.
 
-These scenes show the integrated interface using original offline demo artwork and synthetic posts, captured through an isolated Linux Xvfb/Openbox harness at 100% scaling with software rendering. Downloads uses passive example states; archive, gallery, reader and export use persisted local data. The captures do not demonstrate live source availability or native package acceptance. Supplementary captures show [repeat HTML export](docs/screenshots/v0.9.0-export.png) and [About with the MeowChan cat](docs/screenshots/v0.9.0-about.png). See the [image provenance](docs/screenshots/README.md).
+These scenes record the earlier `becd9b38` interface using original offline demo artwork and synthetic posts, captured through an isolated Linux Xvfb/Openbox harness at 100% scaling with software rendering. Downloads uses passive example states; archive, gallery, reader and export use persisted local data. Updated captures for the integrated archive layouts, favorites and shared commands are pending CI. These earlier captures do not verify the new UI, live source availability or native package acceptance. Supplementary captures show [repeat HTML export](docs/screenshots/v0.9.0-export.png) and [About with the MeowChan cat](docs/screenshots/v0.9.0-about.png). See the [image provenance](docs/screenshots/README.md).
 
 ## What's new in 0.9.0
 
 - A redesigned Avalonia interface with Barebones (default in builds after Preview 3), Simple and Advanced views of the same running session.
 - Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
-- Dark and Light themes, normal or compact density, English and German, and optional JSON language packs.
+- Dark, Light and System theme preferences, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
 - Thread and board details with their assigned folders, source state, current errors and media progress.
 - Single-URL and whole-session copying in a format that can be imported again.
-- An offline archive with local search, saved-media tiles and a shared gallery with navigation, zoom/pan and captured post context.
+- An offline archive with saved List/Table layouts, a resizable reader split, local search and a shared gallery with zoom/pan and captured post context.
+- Persistent favorites for exact saved-media revisions, scoped favorite browsing and verified original-file export.
+- Shared context commands and keyboard help, with F11 fullscreen across the workspace, reader and gallery.
 - Portable HTML export to a new folder or an explicit update of a recognized previous result, with backup protection.
 - Durable missing-media retries and a bounded source-end follow-up, with a separate manual repair action.
 - Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
@@ -128,10 +130,10 @@ Completed media is verified and recorded in a manifest. Files are published atom
 ### Selection, board intake and full pause
 
 Use Shift/Ctrl (Command on macOS) multi-selection and
-context actions for selected watches/exports. Delete removes the selection. Enter reads the actually focused lead thread and
-Shift+Enter opens that thread’s gallery; these open actions do not process the
-whole selection. Inputs retain their own keys. In the Board list only,
-Ctrl/Cmd+Shift+R opens **Filter / exclusions** for the focused board.
+context actions for selected watches/exports. Delete removes the selection. Enter
+and **Read posts** require exactly one selected thread. Shift+Enter opens the
+focused lead thread’s gallery. Inputs retain their own keys. In the Board list only,
+Ctrl/Cmd+Shift+R opens **Thread filters…** for the focused board.
 Board intake previews catalog threads by default, with literal title/opening-post
 filters, reasons and per-thread choices. Cancel leaves the whole pasted batch
 unadded. Removed board threads stay durably excluded until reactivated; filter
@@ -147,11 +149,13 @@ The Archive page lists locally registered threads and reads captured posts and m
 
 ### Gallery and local search
 
-Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Images of results** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
+Choose List or Table for Archive threads; the layout and list/reader split are saved, with a separate-pane view in narrow windows. **Read posts** and Enter require exactly one selected thread in Downloads or Archive; Shift+Enter opens the lead thread’s gallery. Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Media from matching threads** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
 
-A large reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys.
+A large reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys. F11 enters/exits fullscreen while preserving the active workspace; Escape dismisses active overlays before leaving fullscreen. F1 shows keyboard help. See the [shortcut guide](docs/Help.md#selection-and-shortcuts).
 
 In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the large reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
+
+**F** toggles the current gallery favorite; **P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
 
 PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still first frame. Image previews refuse files above 64 MiB or 80 million source pixels; Fit buffers are bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
 
