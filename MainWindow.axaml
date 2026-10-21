@@ -421,7 +421,7 @@
             </ComboBox>
             </Grid>
         </Border>
-        <ContentControl x:Name="ReaderHost" Grid.RowSpan="4" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
-        <ContentControl x:Name="GalleryHost" Grid.RowSpan="4" IsVisible="False" />
+        <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
+        <ContentControl x:Name="GalleryHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" />
     </Grid>
 </Window>
