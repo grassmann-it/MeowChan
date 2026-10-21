@@ -11,6 +11,9 @@
     <RepositoryType>git</RepositoryType>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishTrimmed>false</PublishTrimmed>
+    <!-- Desktop archives contain runtime files and notices; API docs/symbols stay in developer builds. -->
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <PublishDocumentationFiles>false</PublishDocumentationFiles>
     <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;samples/**;libmeowchan/**;Shared/**;artifacts/**</DefaultItemExcludes>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
@@ -45,16 +48,10 @@
 
     <AvaloniaResource Include="Assets/**" />
     <None Update="Assets/meowchan.png" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="LICENSE;README.md;CHANGELOG.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/native-video-licenses.txt;docs/native-video-sources.md;docs/native-video-source-manifest.json;docs/macos-signing.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="LICENSE" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/native-video-licenses.txt;docs/native-video-sources.md;docs/native-video-source-manifest.json" CopyToPublishDirectory="PreserveNewest" />
     <None Update="docs/native-video-macos-sources.md;docs/native-video-macos-source-manifest.json;docs/native-video-macos-COPYING" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/Help.md;docs/platform-support.md;docs/Registry.md;docs/Downloader.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="Desktop/Localization/README.md;docs/releases/v0.9.0.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/screenshots/v0.9.0-downloads.png;docs/screenshots/v0.9.0-gallery.png;docs/screenshots/v0.9.0-reader.png;docs/screenshots/v0.9.0-archive.png;docs/screenshots/v0.9.0-export.png;docs/screenshots/v0.9.0-about.png;docs/screenshots/README.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="tests/MeowChan.DesktopSmoke/README.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="libmeowchan/README.md" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="samples/LibMeowChan.Consumer/README.md" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,6 +59,12 @@
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <Compile Include="Shared/AtomicJsonFile.cs" Link="Persistence/AtomicJsonFile.cs" />
   </ItemGroup>
+  <Target Name="ExcludeDesktopSymbolsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <!-- Referenced project PDBs can arrive separately from the app's own symbols. -->
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
   <!-- Plugin trees must remain beside the executable, including single-file publishes. -->
   <Target Name="KeepVlcNativeTreesExternal" AfterTargets="CollectVlcFilesToCopyWindows" BeforeTargets="AssignTargetPaths">
     <ItemGroup>

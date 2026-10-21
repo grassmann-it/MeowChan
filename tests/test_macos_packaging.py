@@ -56,7 +56,14 @@ class MacosPackagingTests(unittest.TestCase):
         notices.mkdir()
         (notices / "Avalonia.txt").write_text("upstream license", encoding="utf-8")
         (self.publish / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
+        (self.publish / "LICENSE").write_text("application license", encoding="utf-8")
+        (self.publish / "docs").mkdir()
+        for name in ("native-video-licenses.txt", "native-video-sources.md", "native-video-source-manifest.json",
+                     "native-video-macos-sources.md", "native-video-macos-source-manifest.json", "native-video-macos-COPYING"):
+            (self.publish / "docs" / name).write_text("legal/source fixture", encoding="utf-8")
         self.png = make_png()
+        (self.publish / "Assets").mkdir()
+        (self.publish / "Assets/meowchan.png").write_bytes(self.png)
         self.icon = self.root / "source icon.ico"
         self.icon.write_bytes(make_ico(self.png))
         self.output = self.root / "artifact output"
@@ -137,6 +144,28 @@ class MacosPackagingTests(unittest.TestCase):
             self.package(publish_directory=self.root / "missing")
         (self.publish / "MeowChan").unlink()
         with self.assertRaisesRegex(packaging.PackagingError, "executable"):
+            self.package()
+        self.assert_no_bundle()
+
+    def test_missing_license_is_rejected_before_packaging(self):
+        (self.publish / "LICENSE").unlink()
+        with self.assertRaisesRegex(packaging.PackagingError, "LICENSE"):
+            self.package()
+        self.assert_no_bundle()
+
+    def test_stale_repository_readme_is_rejected_without_changing_input(self):
+        readme = self.publish / "README.md"
+        readme.write_text("keep in repository", encoding="utf-8")
+        with self.assertRaisesRegex(packaging.PackagingError, "README"):
+            self.package()
+        self.assertEqual("keep in repository", readme.read_text(encoding="utf-8"))
+        self.assert_no_bundle()
+
+    def test_stale_showcase_screenshots_are_rejected(self):
+        screenshots = self.publish / "docs/screenshots"
+        screenshots.mkdir()
+        (screenshots / "v0.9.0-gallery.png").write_bytes(self.png)
+        with self.assertRaisesRegex(packaging.PackagingError, "screenshots"):
             self.package()
         self.assert_no_bundle()
 

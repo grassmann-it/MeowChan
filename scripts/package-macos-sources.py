@@ -26,7 +26,7 @@ REQUIRED = (
     "docs/native-video-macos-COPYING", "docs/native-video-licenses.txt",
     "docs/native-video-macos-overlay.schema.json",
     "docs/native-video-source-manifest.json", "THIRD-PARTY-NOTICES.md", "LICENSE",
-    "scripts/package-macos.py", "scripts/macos-signing.py",
+    "scripts/package-macos.py", "scripts/macos-signing.py", "scripts/check-desktop-package.py",
     "scripts/package-macos-sources.py", "global.json", "MeowChan.csproj",
     "packages.release.osx-arm64.lock.json", "packages.release.osx-x64.lock.json",
     "scripts/native-video/package-nuget-mac.sh", "scripts/native-video/README.md",

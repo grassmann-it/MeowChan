@@ -156,6 +156,19 @@ def validate_publish_tree(publish_directory: Path) -> None:
             raise PackagingError(f"Publish output contains an unsupported reparse point: {path}")
         elif not path.is_dir() and not path.is_file():
             raise PackagingError(f"Publish output contains an unsupported special file: {path}")
+    validate_distribution_payload(publish_directory)
+
+
+def validate_distribution_payload(directory: Path) -> None:
+    # Reject stale publish directories instead of silently dropping arbitrary
+    # files while constructing the signed/hashed complete application bundle.
+    spec = importlib.util.spec_from_file_location("meowchan_desktop_package", Path(__file__).with_name("check-desktop-package.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        module.validate_payload(directory)
+    except ValueError as error:
+        raise PackagingError(str(error)) from error
 
 
 def validate_bundle(bundle: Path, metadata: dict[str, object], original_png: bytes) -> None:
@@ -167,6 +180,7 @@ def validate_bundle(bundle: Path, metadata: dict[str, object], original_png: byt
     executable = bundle / "Contents" / "MacOS" / "MeowChan"
     if not executable.is_file() or (os.name != "nt" and not executable.stat().st_mode & stat.S_IXUSR):
         raise PackagingError("The bundled MeowChan executable is missing or not executable.")
+    validate_distribution_payload(executable.parent)
     if sys.platform == "darwin" and shutil.which("plutil"):
         result = subprocess.run(["plutil", "-lint", str(plist_path)], capture_output=True, text=True, check=False)
         if result.returncode:

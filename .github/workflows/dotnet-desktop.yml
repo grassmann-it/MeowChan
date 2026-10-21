@@ -64,7 +64,9 @@ jobs:
       - name: Run core and desktop offline tests
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Check package layout fixtures
-        run: python -m unittest discover -s tests -p test_macos_packaging.py -v
+        run: |
+          python -m unittest discover -s tests -p test_macos_packaging.py -v
+          python -m unittest discover -s tests -p test_desktop_package.py -v
       - name: Check local library package contract fixtures
         run: python -m unittest discover -s tests -p test_local_package.py -v
       - name: Check GUI runner isolation and cleanup fixtures
@@ -80,7 +82,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
+          sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
       - name: Exercise native graphical startup and fallback paths
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection --output artifacts/desktop-smoke
       - name: Exercise tray lifecycle separately on the disposable runner
@@ -202,8 +204,10 @@ jobs:
         run: dotnet restore MeowChan.csproj -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained application
         run: dotnet publish MeowChan.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output publish-output/${{ matrix.runtime }}
-      - name: Validate selected external video runtime
-        run: python scripts/check-video-native.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
+      - name: Validate slim distribution and selected external video runtime
+        run: |
+          python scripts/check-desktop-package.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
+          python scripts/check-video-native.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
       - name: Retain resolved publish dependency and runtime packs
         shell: bash
         run: |
@@ -217,9 +221,6 @@ jobs:
           $archive = "packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           Compress-Archive -Path "publish-output/${{ matrix.runtime }}/*" -DestinationPath $archive
           Expand-Archive -Path $archive -DestinationPath extracted
-          foreach ($name in @('MeowChan.exe', 'LICENSE', 'README.md', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', 'docs/platform-support.md', 'docs/Registry.md', 'docs/Downloader.md', 'Desktop/Localization/README.md', 'docs/releases/v0.9.0.md', 'Assets/meowchan.png', 'docs/Help.md', 'libmeowchan/README.md', 'tests/MeowChan.DesktopSmoke/README.md', 'docs/screenshots/README.md', 'docs/screenshots/v0.9.0-downloads.png', 'docs/screenshots/v0.9.0-gallery.png', 'docs/screenshots/v0.9.0-reader.png', 'docs/native-video-licenses.txt', 'docs/native-video-sources.md', 'docs/native-video-source-manifest.json', 'docs/macos-signing.md', 'docs/screenshots/v0.9.0-archive.png', 'docs/screenshots/v0.9.0-export.png', 'docs/screenshots/v0.9.0-about.png', 'samples/LibMeowChan.Consumer/README.md')) {
-            if (-not (Test-Path -LiteralPath "extracted/$name" -PathType Leaf)) { throw "Archive is missing $name" }
-          }
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           "$hash  $(Split-Path -Leaf $archive)" | Set-Content -LiteralPath "$archive.sha256" -Encoding utf8
       - name: Package and re-extract Unix output with executable permissions
@@ -231,31 +232,6 @@ jobs:
           tar -czf "$archive" -C "publish-output/${{ matrix.runtime }}" .
           tar -xzf "$archive" -C extracted
           test -x extracted/MeowChan
-          test -f extracted/LICENSE
-          test -f extracted/README.md
-          test -f extracted/CHANGELOG.md
-          test -f extracted/THIRD-PARTY-NOTICES.md
-          test -f extracted/docs/platform-support.md
-          test -f extracted/docs/Registry.md
-          test -f extracted/docs/Downloader.md
-          test -f extracted/Desktop/Localization/README.md
-          test -f extracted/docs/releases/v0.9.0.md
-          test -f extracted/Assets/meowchan.png
-          test -f extracted/docs/Help.md
-          test -f extracted/libmeowchan/README.md
-          test -f extracted/tests/MeowChan.DesktopSmoke/README.md
-          test -f extracted/docs/screenshots/README.md
-          test -f extracted/docs/screenshots/v0.9.0-downloads.png
-          test -f extracted/docs/screenshots/v0.9.0-gallery.png
-          test -f extracted/docs/screenshots/v0.9.0-reader.png
-          test -f extracted/docs/native-video-licenses.txt
-          test -f extracted/docs/native-video-sources.md
-          test -f extracted/docs/native-video-source-manifest.json
-          test -f extracted/docs/macos-signing.md
-          test -f extracted/docs/screenshots/v0.9.0-archive.png
-          test -f extracted/docs/screenshots/v0.9.0-export.png
-          test -f extracted/docs/screenshots/v0.9.0-about.png
-          test -f extracted/samples/LibMeowChan.Consumer/README.md
           (cd packages && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
           file extracted/MeowChan
       - name: Validate extracted external video runtime
@@ -265,6 +241,7 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             app_directory=extracted/MeowChan.app/Contents/MacOS
           fi
+          python scripts/check-desktop-package.py "$app_directory" ${{ matrix.runtime }}
           python scripts/check-video-native.py "$app_directory" ${{ matrix.runtime }}
       - name: Document package-check boundary
         shell: bash
@@ -318,7 +295,9 @@ jobs:
           git rev-parse HEAD > artifacts/macos-evidence/source.txt
           dotnet --info > artifacts/macos-evidence/sdk.txt
       - name: Test packager and signing contracts
-        run: python3 -m unittest discover -s tests -p 'test_macos*.py' -v
+        run: |
+          python3 -m unittest discover -s tests -p 'test_macos*.py' -v
+          python3 -m unittest discover -s tests -p test_desktop_package.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -337,6 +316,7 @@ jobs:
           for library in libcoreclr.dylib libclrjit.dylib libhostfxr.dylib libhostpolicy.dylib; do
             test -f "artifacts/macos-publish/$library"
           done
+          python3 scripts/check-desktop-package.py artifacts/macos-publish ${{ matrix.runtime }}
           python3 scripts/check-video-native.py artifacts/macos-publish ${{ matrix.runtime }}
       - name: Sign app inside-out and verify ZIP round trip
         run: python3 scripts/package-macos.py --publish-dir artifacts/macos-publish --output-dir artifacts/macos-bundle --version ${{ steps.metadata.outputs.version }} --runtime ${{ matrix.runtime }} --sign-adhoc --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip
@@ -346,6 +326,7 @@ jobs:
           mkdir -p artifacts/macos-extracted
           archive="artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
           ditto -x -k "$archive" artifacts/macos-extracted
+          python3 scripts/check-desktop-package.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/macos-evidence/contents.json
           python3 scripts/macos-signing.py artifacts/macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/signatures.json
           python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/Resources/application ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
           shasum -a 256 "$archive" > "$archive.sha256"
@@ -412,12 +393,15 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_apphost_playback_runner.py -v
           python -m unittest discover -s tests -p test_apphost_workflow_runner.py -v
+          python -m unittest discover -s tests -p test_desktop_package.py -v
       - name: Restore the actual release package contract
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained single-file application
         run: dotnet publish MeowChan.csproj --artifacts-path artifacts/media-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/media-publish
-      - name: Validate selected native video runtime
-        run: python scripts/check-video-native.py artifacts/media-publish ${{ matrix.runtime }}
+      - name: Validate slim distribution and selected native video runtime
+        run: |
+          python scripts/check-desktop-package.py artifacts/media-publish ${{ matrix.runtime }}
+          python scripts/check-video-native.py artifacts/media-publish ${{ matrix.runtime }}
       - name: ZIP and extract the Windows package
         if: runner.os == 'Windows'
         shell: pwsh
@@ -444,8 +428,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
-      - name: Check extracted native video layout
-        run: python scripts/check-video-native.py artifacts/media-extracted ${{ matrix.runtime }}
+      - name: Check extracted distribution and native video layout
+        run: |
+          python scripts/check-desktop-package.py artifacts/media-extracted ${{ matrix.runtime }}
+          python scripts/check-video-native.py artifacts/media-extracted ${{ matrix.runtime }}
       - name: Play both WebM codecs through the extracted Windows apphost
         if: runner.os == 'Windows'
         run: python scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan.exe --allow-native-desktop --evidence-dir artifacts/media-evidence/playback
