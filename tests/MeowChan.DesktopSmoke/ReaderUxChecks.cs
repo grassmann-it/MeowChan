@@ -330,7 +330,41 @@ internal static class ReaderUxChecks
     private static async Task CheckZoomAsync(MainWindow window, GalleryViewer viewer)
     {
         Grid viewport = viewer.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "GalleryViewport");
+        Size originalSize = window.ClientSize;
+        PixelPoint originalPosition = window.Position;
+        double ExpectedFit() => Math.Min(1, Math.Min(viewport.Bounds.Width * window.RenderScaling / 1800,
+            viewport.Bounds.Height * window.RenderScaling / 1000));
+        bool MatchesFit() => viewport.Bounds.Width > 0 && viewport.Bounds.Height > 0
+            && Math.Abs(viewer.CaptureState().PhysicalZoom - ExpectedFit()) < 1e-8;
+        void TraceZoom(string stage) => Console.WriteLine($"SMOKE gallery zoom {stage}: requested={window.Width}x{window.Height}; "
+            + $"client={window.ClientSize}; frame={window.FrameSize}; viewport={viewport.Bounds.Size}; scale={window.RenderScaling}; "
+            + $"expected-fit={ExpectedFit()}; actual={viewer.CaptureState().PhysicalZoom}; context={viewer.CaptureState().ContextOpen}.");
+        async Task ResizeGalleryAsync(Size desired, string stage)
+        {
+            Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+                ?? throw new InvalidOperationException("Gallery zoom fixture has no native screen.");
+            Size client = window.ClientSize;
+            Size frame = window.FrameSize ?? client;
+            WindowStartupFit target = WindowStartupGeometry.Fit(desired,
+                new Size(desired.Width + Math.Max(0, frame.Width - client.Width),
+                    desired.Height + Math.Max(0, frame.Height - client.Height)),
+                new Size(window.MinWidth, window.MinHeight), screen.WorkingArea, window.RenderScaling,
+                window.Position, WindowStartupGeometry.NormalFrameInsetPixels);
+            window.Width = target.Client.Width; window.Height = target.Client.Height;
+            window.Position = target.Position;
+            try
+            {
+                // A clamped request can retain the current native size. Still
+                // drain the pending context layout before checking its Fit.
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
+                    target.Client.Width, target.Client.Height) && MatchesFit());
+            }
+            finally { TraceZoom(stage); }
+        }
+        if (viewer.CaptureState().ContextOpen) Click(GalleryButton(viewer, "GalleryToggleContext"));
         Click(GalleryButton(viewer, "GalleryFit"));
+        await ResizeGalleryAsync(new Size(850, 530), "baseline");
         GalleryViewerState fit = viewer.CaptureState();
         for (int i = 0; i < 40; i++) Click(GalleryButton(viewer, "GalleryMinus"));
         Require(viewer.CaptureState().PhysicalZoom == fit.PhysicalZoom, "Minus shrank below Fit.");
@@ -352,12 +386,25 @@ internal static class ReaderUxChecks
         GalleryViewerState floor = viewer.CaptureState();
         Require(!floor.ManualZoom && floor.PhysicalZoom == fit.PhysicalZoom && floor.PanX == 0 && floor.PanY == 0,
             "Wheel Fit floor did not center and reset pan.");
-        window.Width = 1600; window.Height = 1100;
-        await Program.WaitUntilAsync(() => viewer.CaptureState().PhysicalZoom > fit.PhysicalZoom);
+        Size baselineViewport = viewport.Bounds.Size;
+        await ResizeGalleryAsync(new Size(1600, 1100), "bounded growth");
         GalleryViewerState resized = viewer.CaptureState();
+        Size resizedViewport = viewport.Bounds.Size;
+        Require(resizedViewport.Width > baselineViewport.Width || resizedViewport.Height > baselineViewport.Height,
+            "The bounded gallery resize did not enlarge the actual viewport.");
+        Require(resized.PhysicalZoom >= fit.PhysicalZoom
+            && (fit.PhysicalZoom == 1 || resized.PhysicalZoom > fit.PhysicalZoom),
+            "Fit did not increase when the actual gallery viewport grew.");
         Click(GalleryButton(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.CaptureState().PhysicalZoom < resized.PhysicalZoom);
+        try
+        {
+            await Program.WaitUntilAsync(() => viewer.CaptureState().ContextOpen
+                && viewport.Bounds.Width < resizedViewport.Width - 1 && MatchesFit());
+        }
+        finally { TraceZoom("context narrowed viewport"); }
         GalleryViewerState contextFit = viewer.CaptureState();
+        Require(contextFit.PhysicalZoom <= resized.PhysicalZoom,
+            "Opening context increased Fit despite narrowing the viewport.");
         await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<SelectableTextBlock>().Any());
         viewer.GetVisualDescendants().OfType<SelectableTextBlock>().First().Focus();
         Wheel(window, viewport, -100000);
@@ -374,13 +421,15 @@ internal static class ReaderUxChecks
             && viewer.CaptureState().ContextOpen, "Restoring context used the stale full-width Fit and lost manual zoom.");
         Click(GalleryButton(viewer, "GalleryToggleContext"));
         Click(GalleryButton(viewer, "GalleryFit"));
-        window.Width = 2200; window.Height = 1500;
-        await Program.WaitUntilAsync(() => viewer.CaptureState().PhysicalZoom == 1);
+        await ResizeGalleryAsync(new Size(2200, 1500), "bounded maximum fit");
+        Require(viewer.CaptureState().PhysicalZoom <= 1, "Fit upscaled the original image above 1:1.");
         Click(GalleryButton(viewer, "GalleryActual"));
-        await Program.WaitUntilAsync(() => viewer.GetVisualDescendants().OfType<Image>().Any(image => image.Name == "GalleryImage"
+        await Program.WaitUntilAsync(() => viewer.CaptureState().PhysicalZoom == 1
+            && viewer.GetVisualDescendants().OfType<Image>().Any(image => image.Name == "GalleryImage"
             && image.Source is Bitmap bitmap && bitmap.PixelSize.Width == 1800));
-        window.Width = 1440; window.Height = 920;
-        await Program.WaitUntilAsync(() => Math.Abs(viewer.CaptureState().PhysicalZoom - fit.PhysicalZoom) < 1e-8);
+        Click(GalleryButton(viewer, "GalleryFit"));
+        await ResizeGalleryAsync(originalSize, "original viewport restored");
+        window.Position = originalPosition;
         Program.CaptureWindow(window, "smoke-gallery-fit-floor.png");
     }
     private static void Wheel(MainWindow window, Control viewport, double delta)

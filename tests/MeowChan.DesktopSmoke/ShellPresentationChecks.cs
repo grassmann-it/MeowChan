@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -56,13 +57,14 @@ internal static class ShellPresentationChecks
             Button fullscreen = window.FindControl<Button>("FullscreenButton")!;
             fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // Let the queued managed restore run, then resize before Cocoa's
+            // asynchronous entry acknowledgement has necessarily arrived.
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            window.Width = size.Width + 11; window.Height = size.Height + 9;
             await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
-                && Math.Abs(window.ClientSize.Width - size.Width) <= 2
-                && Math.Abs(window.ClientSize.Height - size.Height) <= 2, "rapid enter-exit restored");
-            window.Width = size.Width + 11;
-            await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
-                && Math.Abs(window.ClientSize.Width - size.Width - 11) <= 2, "rapid enter-exit ordinary resize");
-            window.Width = size.Width;
+                && Math.Abs(window.ClientSize.Width - size.Width - 11) <= 2
+                && Math.Abs(window.ClientSize.Height - size.Height - 9) <= 2, "rapid enter-exit ordinary resize");
+            window.Width = size.Width; window.Height = size.Height;
             await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
                 && Math.Abs(window.ClientSize.Width - size.Width) <= 2, "rapid enter-exit resize returned");
         }
