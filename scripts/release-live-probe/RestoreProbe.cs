@@ -23,9 +23,13 @@ foreach (string source in new[] { "4chan", "8kun" })
     await content.InitializeAsync();
     IImageBoard provider = source == "4chan" ? new FourChanImageBoard(client) : new EightKunImageBoard(client);
     DownloadQueue queue = new(2, 1_048_576, new MediaStore());
+    // Restored Watching intents normally resume polling immediately. This probe
+    // verifies offline reopening, so pause before any restored monitor can run.
+    queue.SetPaused(true);
     await using Registry session = new(new[] { provider }, queue, Path.Combine(root, source, "downloads"), TimeSpan.FromHours(1), 3600,
         new SessionStore(profile, lease), true, contentRuntime: content, workStore: new WorkStateStore(profile, lease));
     await session.RestoreAsync();
+    if (!session.IsPaused) throw new InvalidOperationException("Offline restore must remain paused.");
     DateTime deadline = DateTime.UtcNow.AddSeconds(90);
     bool passed = false;
     while (DateTime.UtcNow < deadline)
@@ -35,6 +39,8 @@ foreach (string source in new[] { "4chan", "8kun" })
         if (state != null && state.KnownMedia > 0 && state.CompletedMedia == state.SelectedMedia
             && state.Downloads.Active == 0 && state.Downloads.Queued == 0 && state.RequestProgress == null && state.Activity != ThreadActivity.Checking)
         {
+            if (state.Work is not { Intent: WorkIntent.Watching, SavedMedia: 1 })
+                throw new InvalidOperationException("Offline restore lost its active intent or saved media state.");
             if (handler.Requests.Count != 0 || handler.MediaRequests != 0 || state.SelectedMedia != 1 || state.CompletedMedia != 1) throw new InvalidOperationException("A fresh process fetched saved media again.");
             await using ArchiveReader reader = await content.OpenReaderAsync();
             ArchivedThreadView view = (await reader.ReadThreadAsync(state.Id))!;
@@ -53,7 +59,8 @@ foreach (string source in new[] { "4chan", "8kun" })
             }
             if (files != 1 || bytes == 0) throw new InvalidOperationException("Restored media verification failed.");
             object result = new { Source = source, Passed = true, Process = Environment.ProcessId, FreshProcess = true, Files = files, Bytes = bytes,
-                state.CompletedMedia, Posts = view.PostCount, MediaHTTPRequests = handler.MediaRequests, Requests = handler.Requests };
+                state.CompletedMedia, Posts = view.PostCount, Paused = session.IsPaused, Intent = state.Work.Intent.ToString(),
+                SavedMedia = state.Work.SavedMedia, MediaHTTPRequests = handler.MediaRequests, Requests = handler.Requests };
             results.Add(result);
             Console.WriteLine(JsonSerializer.Serialize(result));
             passed = true;

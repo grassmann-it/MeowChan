@@ -122,7 +122,8 @@ def main():
         if len(initial) != 2 or not all(r['Passed'] and r['Detail']['Files'] == 1 and r['Detail']['HTTPMediaRequests'] == 1
                 and r['Detail']['HTTPThreadRequests'] == 1 and r['Detail']['HTTPBoardMetadataRequests'] <= 1 for r in initial):
             raise RuntimeError('Expected one verified original per provider.')
-        if len(restored) != 2 or not all(r['Passed'] and r['Requests'] == [] and r['MediaHTTPRequests'] == 0 for r in restored):
+        if len(restored) != 2 or not all(r['Passed'] and r['Paused'] and r['Intent'] == 'Watching' and r['SavedMedia'] == 1
+                and r['Requests'] == [] and r['MediaHTTPRequests'] == 0 for r in restored):
             raise RuntimeError('Fresh restore attempted HTTP.')
         if {r['Source'] for r in initial} != {'4chan', '8kun'} or {r['Source'] for r in restored} != {'4chan', '8kun'}:
             raise RuntimeError('Missing provider evidence.')
