@@ -22,9 +22,10 @@ copy. The run also paired both DMGs with their corresponding-source overlay.
 See [the platform evidence](platform-support.md#090-candidate-targeted-native-checks-and-final-packages).
 This evidence belongs to that exact source. The targeted
 [Intel Mac run at `b76e2f1`](https://github.com/tfgrass/MeowChan/actions/runs/39682508602)
-passed native source checks after the window corrections. Apple Silicon
-selection passed at test-only source `6ae6008`; the optimized targeted ARM
-run and rebuilt final DMG checks remain pending. An ad-hoc signature does not
+passed native source checks at that checkpoint. The subsequent focused Apple
+Silicon check at `b1dc9f8` passed final normal restoration but failed later
+intentional resizing. Correction `e4374dd` passed isolated Linux selection; native
+macOS confirmation and rebuilt final DMG checks remain pending. An ad-hoc signature does not
 establish developer identity or automatic Gatekeeper approval; physical
 audio/hardware and downloaded/quarantined-copy approval remain unvalidated.
 

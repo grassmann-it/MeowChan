@@ -26,8 +26,14 @@ at `161a8b0`, alongside the offline suites above. The targeted
 [Windows run at `6d6c3fb`](https://github.com/tfgrass/MeowChan/actions/runs/39681449053)
 and [Intel Mac run at `b76e2f1`](https://github.com/tfgrass/MeowChan/actions/runs/39682508602)
 passed their respective native source checks after the window corrections.
-Apple Silicon selection passed at test-only source `6ae6008`; the targeted
-optimized ARM run is still pending. These are not final package results.
+The subsequent focused Apple Silicon runs
+[`d3c741f`](https://github.com/tfgrass/MeowChan/actions/runs/39684198944) and
+[`b1dc9f8`](https://github.com/tfgrass/MeowChan/actions/runs/39684831339) failed.
+The latter passed final normal-window restoration but then overwrote later
+intended resizes. `e4374dd` restricts that repair to recorded stale native frames;
+its isolated Linux selection check passed, but native macOS confirmation remains
+open. No successful ARM selection run at `6ae6008` is claimed. These are not
+final package results.
 Public stable publication is authorized once technical checks and final package
 validation pass. No final native acceptance or published stable release is claimed yet.
 
@@ -319,7 +325,7 @@ acceptance, and it does not establish native Intel execution.
 | `linux-x64` | Bundled/system-VLC tar and bundled AppImage | Eight isolated source-built GUI scenarios passed at `161a8b0`; final extracted formats remain separate. |
 | `linux-arm64` | Bundled/system-VLC tar and bundled AppImage | Earlier package matrix passed at `6e750ec`; final extracted formats remain separate. |
 | `osx-x64` | Ad-hoc-signed DMG | Targeted Intel source checks passed at `b76e2f1`; final DMG remains separate. |
-| `osx-arm64` | Ad-hoc-signed DMG | Test-only selection passed at `6ae6008`; targeted optimized run and final DMG remain open. |
+| `osx-arm64` | Ad-hoc-signed DMG | Focused ARM check failed at `b1dc9f8`; correction `e4374dd` passed local Linux selection, with native confirmation and final DMG still open. |
 
 These are candidate evidence boundaries, not completed platform certifications. Actual OS versions, source commits and archive hashes belong to the final package records.
 
