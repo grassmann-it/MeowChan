@@ -45,6 +45,7 @@ internal static class Program
         }
 
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
+        if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _visualMode = args.Contains("--visual", StringComparer.Ordinal);
         string? showcaseRoot = _visualMode ? Path.Combine(TemporaryWorkspacePaths.TempRoot, "MeowChan-showcase") : null;

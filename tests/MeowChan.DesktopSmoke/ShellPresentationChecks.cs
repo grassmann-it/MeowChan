@@ -116,8 +116,24 @@ internal static class ShellPresentationChecks
     private static bool IsNativeMaximized(MainWindow window)
     {
         Size frame = window.FrameSize ?? window.ClientSize;
-        return window.WindowState == WindowState.Maximized && window.Screens.ScreenFromWindow(window) is { } screen
-            && Math.Abs(frame.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
+        if (window.WindowState != WindowState.Maximized || window.Screens.ScreenFromWindow(window) is not { } screen)
+            return false;
+        if (OperatingSystem.IsWindows())
+        {
+            // Windows maximizes the client to the work area while its invisible
+            // resize borders extend equally beyond each edge of that area.
+            double scale = window.RenderScaling;
+            double insetX = (frame.Width - window.ClientSize.Width) * scale / 2;
+            double insetY = (frame.Height - window.ClientSize.Height) * scale / 2;
+            return insetX >= 0 && insetY >= 0
+                && Math.Abs(window.ClientSize.Width * scale - screen.WorkingArea.Width) <= 2
+                && Math.Abs(window.ClientSize.Height * scale - screen.WorkingArea.Height) <= 2
+                && Math.Abs(window.Bounds.Width * scale - screen.WorkingArea.Width) <= 2
+                && Math.Abs(window.Bounds.Height * scale - screen.WorkingArea.Height) <= 2
+                && Math.Abs(window.Position.X + insetX - screen.WorkingArea.X) <= 2
+                && Math.Abs(window.Position.Y + insetY - screen.WorkingArea.Y) <= 2;
+        }
+        return Math.Abs(frame.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
             && Math.Abs(frame.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
     }
 
