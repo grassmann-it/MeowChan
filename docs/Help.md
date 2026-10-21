@@ -2,12 +2,12 @@
 
 MeowChan watches 4chan and 8kun boards or threads, saves selected original media,
 and optionally captures posts for local reading and search. The library and
-local archive work independently of the desktop interface. Version 0.9.0 is in
-preparation; see the [release notes](releases/v0.9.0.md) for acceptance limits.
+local archive work independently of the desktop interface. See the
+[0.9.0 release notes](releases/v0.9.0.md) for downloads and upgrade details.
 
 ## From a package to an offline picture
 
-1. Choose the package for your OS and CPU on the [releases page](https://github.com/tfgrass/MeowChan/releases). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, the executable Linux AppImage, or `MeowChan.app` on macOS. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. Planned macOS packages are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. Final native package validation remains open. See [platform requirements](platform-support.md).
+1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -18,11 +18,9 @@ a compact speed-history graph. This is separate from saved/selected media progre
 
 ### Desktop view defaults
 
-Builds after Windows Preview 3 start new profiles in **Barebones**; missing or
-invalid view preferences also fall back to Barebones. Saved **Barebones**,
-**Simple** and **Advanced** choices remain unchanged. Use the footer view selector
-to switch. Published Windows Preview 3 (`a98759e`) still defaults to **Simple**;
-Barebones can be selected manually there.
+MeowChan 0.9.0 starts new profiles in **Barebones**; missing or invalid view
+preferences also fall back to Barebones. Saved **Barebones**, **Simple** and
+**Advanced** choices remain unchanged. Use the footer view selector to switch.
 
 ### Close and minimize to tray
 
@@ -92,7 +90,7 @@ reader. Modal dialogs retain their own input.
 
 ## Linux packages and startup
 
-The new 0.9.0 delivery variants are not yet final native-validated downloads. For either `linux-x64` or `linux-arm64`, choose:
+For either `linux-x64` or `linux-arm64`, choose a package from the [0.9.0 release](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0):
 
 - `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
 - `MeowChan-0.9.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
@@ -106,9 +104,9 @@ Desktop packages contain the application, runtime, icon and legal notices. This 
 
 ## Images, search and navigation
 
-The [interface screenshots](screenshots/README.md) record an earlier 0.9.0 interface.
-Updated captures of the integrated layouts and favorites are pending CI. The controls
-below describe the current source; the earlier captures do not verify these changes.
+The [14 interface screenshots](screenshots/README.md) show the integrated 0.9.0
+interface captured from source commit `b8e1291`. Their provenance and limits
+are recorded with the images.
 
 Choose **Read posts** to open the large thread reader across the work area, with
 readable posts and embedded media. Up/Down moves exactly one post. Left/Right
