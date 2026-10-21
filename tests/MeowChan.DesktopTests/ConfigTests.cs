@@ -765,4 +765,115 @@ public sealed class ConfigTests
         File.WriteAllText(SettingsPath(directory), "{\"ArchiveThreadLayout\":\"" + stored + "\"}");
         Assert.Equal(expected, Config.LoadConfig(directory.Path).ArchiveThreadLayout);
     }
+
+    [Fact]
+    public void PresentationProfilesRemainIndependentAcrossModeSwitchAndRestart()
+    {
+        using TempDirectory directory = new();
+        Config config = Config.LoadConfig(directory.Path);
+        config.WorkspaceMode = "Barebones";
+        config.ColumnWidths["ThreadsDataGrid.Title"] = 260;
+        config.ColumnVisibility["ThreadsDataGrid.Status"] = false;
+        config.ColumnOrder["ThreadsDataGrid.Title"] = 2;
+        config.ArchiveThreadLayout = "Table";
+        config.ArchiveSplitWidth = 380;
+        config.ArchiveMediaTiles = false;
+        config.CompactDensity = true;
+        config.ReadingFontSize = "Large";
+        config.WorkspaceMode = "Simple";
+        Assert.Empty(config.ColumnWidths);
+        Assert.Empty(config.ColumnVisibility);
+        Assert.Empty(config.ColumnOrder);
+        Assert.Equal("List", config.ArchiveThreadLayout);
+        Assert.Equal(270, config.ArchiveSplitWidth);
+        Assert.True(config.ArchiveMediaTiles);
+        Assert.False(config.CompactDensity);
+        Assert.Equal("Normal", config.ReadingFontSize);
+        config.ColumnWidths["ThreadsDataGrid.Title"] = 420;
+        config.SaveConfig();
+
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal("Simple", loaded.WorkspaceMode);
+        Assert.Equal(420, loaded.ColumnWidths["ThreadsDataGrid.Title"]);
+        loaded.WorkspaceMode = "Barebones";
+        Assert.Equal(260, loaded.ColumnWidths["ThreadsDataGrid.Title"]);
+        Assert.False(loaded.ColumnVisibility["ThreadsDataGrid.Status"]);
+        Assert.Equal(2, loaded.ColumnOrder["ThreadsDataGrid.Title"]);
+        Assert.Equal("Table", loaded.ArchiveThreadLayout);
+        Assert.Equal(380, loaded.ArchiveSplitWidth);
+        Assert.False(loaded.ArchiveMediaTiles);
+        Assert.True(loaded.CompactDensity);
+        Assert.Equal("Large", loaded.ReadingFontSize);
+        loaded.WorkspaceMode = "Advanced";
+        Assert.Empty(loaded.ColumnWidths);
+    }
+
+    [Fact]
+    public void OldPresentationSettingsMigrateOnlyIntoSelectedMode()
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory),
+            "{\"WorkspaceMode\":\"Advanced\",\"CompactDensity\":true,\"ArchiveThreadLayout\":\"Table\"," +
+            "\"ColumnWidths\":{\"ThreadsDataGrid.Title\":333}}");
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.True(loaded.CompactDensity);
+        Assert.Equal("Table", loaded.ArchiveThreadLayout);
+        Assert.Equal(333, loaded.ColumnWidths["ThreadsDataGrid.Title"]);
+        loaded.WorkspaceMode = "Simple";
+        Assert.False(loaded.CompactDensity);
+        Assert.Equal("List", loaded.ArchiveThreadLayout);
+        Assert.Empty(loaded.ColumnWidths);
+    }
+
+    [Fact]
+    public void SettingsMergePreservesDirectProfileChangesInSelectedAndOtherModes()
+    {
+        Config current = new();
+        Config draft = current.Clone();
+        current.ColumnWidths["ThreadsDataGrid.Title"] = 320;
+        current.WorkspaceMode = "Advanced";
+        current.ColumnWidths["ThreadsDataGrid.Title"] = 600;
+        draft.WorkspaceMode = "Simple";
+        current.CopySettingsFieldsFrom(draft);
+        Assert.Equal("Simple", current.WorkspaceMode);
+        current.WorkspaceMode = "Barebones";
+        Assert.Equal(320, current.ColumnWidths["ThreadsDataGrid.Title"]);
+        current.WorkspaceMode = "Advanced";
+        Assert.Equal(600, current.ColumnWidths["ThreadsDataGrid.Title"]);
+    }
+
+    [Fact]
+    public void ProfileDataWinsOverLegacyFieldsRegardlessOfJsonOrderAndNullMapsRecover()
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory),
+            "{\"WorkspaceMode\":\"Simple\",\"LayoutProfiles\":{\"Simple\":{" +
+            "\"ColumnWidths\":null,\"ColumnVisibility\":null,\"ColumnOrder\":null," +
+            "\"ArchiveThreadLayout\":\"Table\",\"CompactDensity\":true}}," +
+            "\"ArchiveThreadLayout\":\"List\",\"CompactDensity\":false}");
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Null(loaded.LoadWarning);
+        Assert.Equal("Table", loaded.ArchiveThreadLayout);
+        Assert.True(loaded.CompactDensity);
+        Assert.Empty(loaded.ColumnWidths);
+        Assert.Empty(loaded.ColumnVisibility);
+        Assert.Empty(loaded.ColumnOrder);
+    }
+
+    [Fact]
+    public void SettingsDraftAppliesPresentationEditsToTheModeActuallyEdited()
+    {
+        Config current = new();
+        Config draft = current.Clone();
+        draft.WorkspaceMode = "Advanced";
+        draft.CompactDensity = true;
+        draft.ReadingFontSize = "Large";
+        current.CopySettingsFieldsFrom(draft);
+        Assert.Equal("Advanced", current.WorkspaceMode);
+        Assert.True(current.CompactDensity);
+        Assert.Equal("Large", current.ReadingFontSize);
+        current.WorkspaceMode = "Barebones";
+        Assert.False(current.CompactDensity);
+        Assert.Equal("Normal", current.ReadingFontSize);
+    }
 }

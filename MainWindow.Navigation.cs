@@ -51,17 +51,49 @@ public partial class MainWindow
         _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
         _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
+        _archivePage.ArchiveColumnModePreference = _config.WorkspaceMode;
         _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;
+        _archivePage.ArchiveColumnVisibilityPreference = _config.ColumnVisibility;
+        _archivePage.ArchiveColumnOrderPreference = _config.ColumnOrder;
         _archivePage.SaveArchiveColumnWidthsAsync = widths =>
         {
+            string mode = _config.WorkspaceMode;
             var frozen = new System.Collections.Generic.Dictionary<string, double>(widths);
             return _session.SaveViewPreferencesAsync(current =>
             {
-                foreach (var pair in frozen) current.ColumnWidths[pair.Key] = pair.Value;
+                var saved = current.GetLayoutProfile(mode).ColumnWidths;
+                foreach (string key in saved.Keys.Where(IsArchiveColumnKey).ToArray()) saved.Remove(key);
+                foreach (var pair in frozen.Where(pair => IsArchiveColumnKey(pair.Key))) saved[pair.Key] = pair.Value;
+            });
+        };
+        _archivePage.SaveArchiveColumnVisibilityAsync = visibility =>
+        {
+            string mode = _config.WorkspaceMode;
+            var frozen = new System.Collections.Generic.Dictionary<string, bool>(visibility);
+            return _session.SaveViewPreferencesAsync(current =>
+            {
+                var saved = current.GetLayoutProfile(mode).ColumnVisibility;
+                foreach (string key in saved.Keys.Where(IsArchiveColumnKey).ToArray()) saved.Remove(key);
+                foreach (var pair in frozen.Where(pair => IsArchiveColumnKey(pair.Key))) saved[pair.Key] = pair.Value;
+            });
+        };
+        _archivePage.SaveArchiveColumnOrderAsync = order =>
+        {
+            string mode = _config.WorkspaceMode;
+            var frozen = new System.Collections.Generic.Dictionary<string, int>(order);
+            return _session.SaveViewPreferencesAsync(current =>
+            {
+                var saved = current.GetLayoutProfile(mode).ColumnOrder;
+                foreach (string key in saved.Keys.Where(IsArchiveColumnKey).ToArray()) saved.Remove(key);
+                foreach (var pair in frozen.Where(pair => IsArchiveColumnKey(pair.Key))) saved[pair.Key] = pair.Value;
             });
         };
         _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
-        _archivePage.SaveMediaTiles = tiles => _session.SaveViewPreferencesAsync(current => current.ArchiveMediaTiles = tiles);
+        _archivePage.SaveMediaTiles = tiles =>
+        {
+            string mode = _config.WorkspaceMode;
+            return _session.SaveViewPreferencesAsync(current => current.GetLayoutProfile(mode).ArchiveMediaTiles = tiles);
+        };
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
         _archivePage.GetFavorites = _session.GetFavorites;
@@ -74,11 +106,16 @@ public partial class MainWindow
         _archivePage.ResolveFavoriteAssets = _session.ResolveFavoriteAssetsAsync;
         _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
         _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
-        _archivePage.SaveViewPreferencesAsync = (layout, split) => _session.SaveViewPreferencesAsync(current =>
+        _archivePage.SaveViewPreferencesAsync = (layout, split) =>
         {
-            current.ArchiveThreadLayout = layout;
-            current.ArchiveSplitWidth = split;
-        });
+            string mode = _config.WorkspaceMode;
+            return _session.SaveViewPreferencesAsync(current =>
+            {
+                PresentationProfile profile = current.GetLayoutProfile(mode);
+                profile.ArchiveThreadLayout = layout;
+                profile.ArchiveSplitWidth = split;
+            });
+        };
         _archivePage.OpenReaderRequested = OpenLargeReader;
         _archivePage.CloseReaderRequested = () => CloseLargeReader();
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
@@ -92,6 +129,23 @@ public partial class MainWindow
         _sourcesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("SourcesPageHost")!.Content = _sourcesPage;
     }
+
+    private void ApplyArchiveModePreferences()
+    {
+        if (_archivePage == null) return;
+        _archivePage.ArchiveColumnModePreference = _config.WorkspaceMode;
+        _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;
+        _archivePage.ArchiveColumnVisibilityPreference = _config.ColumnVisibility;
+        _archivePage.ArchiveColumnOrderPreference = _config.ColumnOrder;
+        _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
+        _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
+        _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
+        _archivePage.ReadingFontSizePreference = ReadingFontSize();
+    }
+
+    private static bool IsArchiveColumnKey(string key) =>
+        key.StartsWith("ArchiveThreadTable.", StringComparison.Ordinal) ||
+        key.StartsWith("ArchiveMediaGrid.", StringComparison.Ordinal);
 
     private void OnSettingsBusyChanged(object? sender, EventArgs e)
     {

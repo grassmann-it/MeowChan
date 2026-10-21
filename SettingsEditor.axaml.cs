@@ -35,6 +35,8 @@ namespace MeowChan
         private LanguageInfo? _selectedLanguage;
         private bool _compactDensity;
         private bool _initialCompactDensity;
+        private string _initialReadingFontSize = "Normal";
+        private string _initialWorkspaceMode = "Barebones";
         private SettingsChoice? _selectedReadingFontSize;
         private bool _videoAutoplay;
         private bool _videoStartMuted;
@@ -80,6 +82,8 @@ namespace MeowChan
             InitializeComponent();
             _config = config;
             _initialCompactDensity = config.CompactDensity;
+            _initialReadingFontSize = config.ReadingFontSize;
+            _initialWorkspaceMode = config.WorkspaceMode;
             _applySettings = applySettings;
             DownloadPath = config.DownloadPath;
             RecheckTimer = config.RecheckTimer;
@@ -499,11 +503,16 @@ namespace MeowChan
                 candidate.MinimizeToTray = MinimizeToTray;
                 candidate.CloseToTray = CloseToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
-                candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
-                candidate.CompactDensity = CompactDensity;
+                candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
+                if (CompactDensity != _initialCompactDensity)
+                    candidate.CompactDensity = CompactDensity;
                 candidate.SettingsBaselineCompactDensity = _initialCompactDensity;
-                candidate.ReadingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+                string selectedReadingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+                if (selectedReadingFontSize != _initialReadingFontSize)
+                    candidate.ReadingFontSize = selectedReadingFontSize;
+                candidate.SettingsBaselineReadingFontSize = _initialReadingFontSize;
+                candidate.SettingsBaselineWorkspaceMode = _initialWorkspaceMode;
                 candidate.VideoAutoplay = VideoAutoplay;
                 candidate.VideoStartMuted = VideoStartMuted;
                 candidate.VideoVolume = VideoVolume;
@@ -529,6 +538,8 @@ namespace MeowChan
                 else
                     _config.CopySettingsFieldsFrom(candidate);
                 _initialCompactDensity = _config.CompactDensity;
+                _initialReadingFontSize = _config.ReadingFontSize;
+                _initialWorkspaceMode = _config.WorkspaceMode;
                 if (!_isClosed)
                 {
                     CancelChangesAfterSave();

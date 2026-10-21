@@ -36,6 +36,8 @@ internal static class PresentationChecks
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         grid.SelectedItem = retained;
 
+        await CheckModeColumnProfilesAsync(window, grid);
+
         await SwitchModeAsync(window, "Advanced");
         double advancedWidth = window.Bounds.Width;
         await SwitchModeAsync(window, "Barebones");
@@ -85,6 +87,40 @@ internal static class PresentationChecks
         window.BoardsList.Remove(board);
         await R08dPresentationChecks.RunAsync(window);
         Console.WriteLine("SMOKE presentation: Barebones default; Simple/Advanced/Barebones persisted; compact controls reachable; Light/Dark and EN/DE roundtrip retained pending input and selected passive row.");
+    }
+
+    private static async Task CheckModeColumnProfilesAsync(MainWindow window, DataGrid grid)
+    {
+        Button columnsButton = window.FindControl<Button>("DownloadsColumnsButton")!;
+        DataGridColumn completion = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Completion));
+        Require(completion.IsVisible && !grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Status)).IsVisible,
+            "Barebones download columns did not start with compact defaults.");
+        Click(columnsButton);
+        ContextMenu menu = columnsButton.ContextMenu ?? throw new InvalidOperationException("Download columns menu did not open.");
+        MenuItem completionItem = menu.Items.OfType<MenuItem>().ElementAt(grid.Columns.IndexOf(completion));
+        Require(completionItem.IsChecked && completionItem.ToggleType == MenuItemToggleType.CheckBox,
+            "Download columns menu did not expose checked native items.");
+        completionItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => !completion.IsVisible &&
+            Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.TryGetValue("ThreadsDataGrid.Completion", out bool visible) && !visible);
+        menu.Close();
+
+        await SwitchModeAsync(window, "Advanced");
+        Require(completion.IsVisible && grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Status)).IsVisible,
+            "The Advanced table inherited Barebones column visibility.");
+        await SwitchModeAsync(window, "Barebones");
+        Require(!completion.IsVisible, "The Barebones column choice did not return after switching modes.");
+
+        Click(columnsButton);
+        MenuItem reset = columnsButton.ContextMenu!.Items.OfType<MenuItem>().Last();
+        reset.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => completion.IsVisible &&
+            !Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"));
+        columnsButton.ContextMenu?.Close();
+        Config restarted = Config.LoadConfig();
+        Require(restarted.WorkspaceMode == "Barebones" &&
+            !restarted.GetLayoutProfile("Advanced").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"),
+            "A reset or mode switch leaked download columns into another profile on restart.");
     }
 
     private static async Task CheckSmallWindowAsync(MainWindow window, ThreadRow selected, double width, double height, string scenario)

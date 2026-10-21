@@ -12,22 +12,43 @@ using Serilog;
 
 namespace MeowChan
 {
-    public class Config
+    public sealed class PresentationProfile
+    {
+        public bool CompactDensity { get; set; }
+        public bool ArchiveMediaTiles { get; set; } = true;
+        public string ReadingFontSize { get; set; } = "Normal";
+        public string ArchiveThreadLayout { get; set; } = "List";
+        public double ArchiveSplitWidth { get; set; } = 270;
+        [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
+        public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> ColumnOrder { get; set; } = new(StringComparer.Ordinal);
+
+        public PresentationProfile Clone() => new()
+        {
+            CompactDensity = CompactDensity, ArchiveMediaTiles = ArchiveMediaTiles,
+            ReadingFontSize = ReadingFontSize, ArchiveThreadLayout = ArchiveThreadLayout,
+            ArchiveSplitWidth = ArchiveSplitWidth,
+            ColumnWidths = ColumnWidths == null ? new(StringComparer.Ordinal) : new(ColumnWidths, StringComparer.Ordinal),
+            ColumnVisibility = ColumnVisibility == null ? new(StringComparer.Ordinal) : new(ColumnVisibility, StringComparer.Ordinal),
+            ColumnOrder = ColumnOrder == null ? new(StringComparer.Ordinal) : new(ColumnOrder, StringComparer.Ordinal)
+        };
+    }
+
+    public class Config : IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private string _relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
         private string _theme = "Dark";
         private string _language = "en";
         private string _workspaceMode = "Barebones";
-        private string _readingFontSize = "Normal";
-        private string _archiveThreadLayout = "List";
         private int _videoVolume = 70;
-        private double _archiveSplitWidth = 270;
         private double _windowWidth = 1380;
         private double _windowHeight = 850;
         private double? _windowPositionX;
         private double? _windowPositionY;
-        private Dictionary<string, double> _columnWidths = new(StringComparer.Ordinal);
+        private Dictionary<string, PresentationProfile> _layoutProfiles = new(StringComparer.Ordinal);
+        private Dictionary<string, PresentationProfile>? _deserializedLayoutProfiles;
         private string _lastExportDirectory = string.Empty;
 
         public int SchemaVersion { get; set; } = 1;
@@ -68,28 +89,85 @@ namespace MeowChan
             }
         }
 
+        [JsonPropertyOrder(100)]
+        public Dictionary<string, PresentationProfile> LayoutProfiles
+        {
+            get => _layoutProfiles;
+            set
+            {
+                if (value == null) return;
+                _deserializedLayoutProfiles = value
+                    .Where(pair => pair.Value != null)
+                    .ToDictionary(pair => pair.Key, pair => NormalizeProfile(pair.Value), StringComparer.Ordinal);
+                foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
+                    if (value.TryGetValue(mode, out PresentationProfile? profile) && profile != null)
+                        _layoutProfiles[mode] = NormalizeProfile(profile);
+            }
+        }
+
+        void IJsonOnDeserialized.OnDeserialized()
+        {
+            // The new profiles win even if a hand-edited file places legacy active
+            // preference fields after LayoutProfiles.
+            if (_deserializedLayoutProfiles == null) return;
+            foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
+                if (_deserializedLayoutProfiles.TryGetValue(mode, out PresentationProfile? profile))
+                    _layoutProfiles[mode] = profile;
+            _deserializedLayoutProfiles = null;
+        }
+
+        public PresentationProfile GetLayoutProfile(string mode)
+        {
+            mode = NormalizeWorkspaceMode(mode);
+            if (!_layoutProfiles.TryGetValue(mode, out PresentationProfile? profile))
+                _layoutProfiles[mode] = profile = new PresentationProfile();
+            return profile;
+        }
+
+        private PresentationProfile ActiveProfile => GetLayoutProfile(WorkspaceMode);
+
+        private static string NormalizeWorkspaceMode(string? mode) =>
+            string.Equals(mode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase) ? "Advanced" :
+            string.Equals(mode?.Trim(), "Simple", StringComparison.OrdinalIgnoreCase) ? "Simple" : "Barebones";
+
+        private static PresentationProfile NormalizeProfile(PresentationProfile profile)
+        {
+            PresentationProfile result = profile.Clone();
+            result.ReadingFontSize = string.Equals(profile.ReadingFontSize?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
+                : string.Equals(profile.ReadingFontSize?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
+            result.ArchiveThreadLayout = string.Equals(profile.ArchiveThreadLayout?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
+            result.ArchiveSplitWidth = double.IsFinite(profile.ArchiveSplitWidth) ? Math.Clamp(profile.ArchiveSplitWidth, 180, 1200) : 270;
+            return result;
+        }
+
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
-        public bool CompactDensity { get; set; }
+        public bool CompactDensity { get => ActiveProfile.CompactDensity; set => ActiveProfile.CompactDensity = value; }
 
         [JsonIgnore]
         internal bool? SettingsBaselineCompactDensity { get; set; }
+        [JsonIgnore]
+        internal string? SettingsBaselineReadingFontSize { get; set; }
+        [JsonIgnore]
+        internal string? SettingsBaselineWorkspaceMode { get; set; }
+        [JsonIgnore]
+        internal Dictionary<string, PresentationProfile>? SettingsBaselineProfiles { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
-        public bool ArchiveMediaTiles { get; set; } = true;
+        public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string ReadingFontSize
         {
-            get => _readingFontSize;
-            set => _readingFontSize = string.Equals(value?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
+            get => ActiveProfile.ReadingFontSize;
+            set => ActiveProfile.ReadingFontSize = string.Equals(value?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
                 : string.Equals(value?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
         }
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string ArchiveThreadLayout
         {
-            get => _archiveThreadLayout;
-            set => _archiveThreadLayout = string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
+            get => ActiveProfile.ArchiveThreadLayout;
+            set => ActiveProfile.ArchiveThreadLayout = string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
         }
 
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
@@ -105,8 +183,8 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
         public double ArchiveSplitWidth
         {
-            get => _archiveSplitWidth;
-            set => _archiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270;
+            get => ActiveProfile.ArchiveSplitWidth;
+            set => ActiveProfile.ArchiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270;
         }
 
         [JsonConverter(typeof(DesktopPreferenceWindowWidthConverter))]
@@ -122,8 +200,18 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths
         {
-            get => _columnWidths;
-            set => _columnWidths = value == null ? new(StringComparer.Ordinal) : new(value, StringComparer.Ordinal);
+            get => ActiveProfile.ColumnWidths;
+            set => ActiveProfile.ColumnWidths = value == null ? new(StringComparer.Ordinal) : new(value, StringComparer.Ordinal);
+        }
+        public Dictionary<string, bool> ColumnVisibility
+        {
+            get => ActiveProfile.ColumnVisibility;
+            set => ActiveProfile.ColumnVisibility = value == null ? new(StringComparer.Ordinal) : new(value, StringComparer.Ordinal);
+        }
+        public Dictionary<string, int> ColumnOrder
+        {
+            get => ActiveProfile.ColumnOrder;
+            set => ActiveProfile.ColumnOrder = value == null ? new(StringComparer.Ordinal) : new(value, StringComparer.Ordinal);
         }
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
@@ -260,9 +348,20 @@ namespace MeowChan
             _ = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
             if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
                 throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
-            if (ColumnWidths.Count > 64 || ColumnWidths.Any(entry => string.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 100 ||
-                entry.Key.Any(char.IsControl) || !double.IsFinite(entry.Value) || entry.Value < 24 || entry.Value > 2000))
-                throw new ArgumentException("Saved column widths are invalid.", nameof(ColumnWidths));
+            foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
+            {
+                PresentationProfile profile = GetLayoutProfile(mode);
+                if (profile.ColumnWidths.Count > 64 || profile.ColumnWidths.Any(entry => string.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 100 ||
+                    entry.Key.Any(char.IsControl) || !double.IsFinite(entry.Value) || entry.Value < 24 || entry.Value > 2000))
+                    throw new ArgumentException("Saved column widths are invalid.", nameof(ColumnWidths));
+                if (profile.ColumnVisibility.Count > 64 || profile.ColumnVisibility.Keys.Any(key =>
+                    string.IsNullOrWhiteSpace(key) || key.Length > 100 || key.Any(char.IsControl)))
+                    throw new ArgumentException("Saved column visibility is invalid.", nameof(ColumnVisibility));
+                if (profile.ColumnOrder.Count > 64 || profile.ColumnOrder.Any(entry =>
+                    string.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 100 || entry.Key.Any(char.IsControl)
+                    || entry.Value < 0 || entry.Value > 63))
+                    throw new ArgumentException("Saved column order is invalid.", nameof(ColumnOrder));
+            }
         }
 
         public Config Clone()
@@ -284,6 +383,10 @@ namespace MeowChan
                 WorkspaceMode = WorkspaceMode,
                 CompactDensity = CompactDensity,
                 SettingsBaselineCompactDensity = CompactDensity,
+                SettingsBaselineReadingFontSize = ReadingFontSize,
+                SettingsBaselineWorkspaceMode = WorkspaceMode,
+                SettingsBaselineProfiles = new[] { "Barebones", "Simple", "Advanced" }
+                    .ToDictionary(mode => mode, mode => GetLayoutProfile(mode).Clone(), StringComparer.Ordinal),
                 ArchiveMediaTiles = ArchiveMediaTiles,
                 ArchiveThreadLayout = ArchiveThreadLayout,
                 ReadingFontSize = ReadingFontSize,
@@ -299,6 +402,7 @@ namespace MeowChan
                 WindowPositionY = WindowPositionY,
                 WindowMaximized = WindowMaximized,
                 ColumnWidths = ColumnWidths,
+                LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
                 LoadWarning = LoadWarning,
                 _profileDirectory = _profileDirectory,
@@ -342,6 +446,7 @@ namespace MeowChan
             WindowPositionY = source.WindowPositionY;
             WindowMaximized = source.WindowMaximized;
             ColumnWidths = source.ColumnWidths;
+            LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
             LoadWarning = source.LoadWarning;
         }
@@ -361,15 +466,23 @@ namespace MeowChan
             MaxParallelDownloads = source.MaxParallelDownloads;
             Theme = source.Theme;
             Language = source.Language;
+            foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
+            {
+                PresentationProfile edited = source.GetLayoutProfile(mode);
+                PresentationProfile baseline = source.SettingsBaselineProfiles != null &&
+                    source.SettingsBaselineProfiles.TryGetValue(mode, out PresentationProfile? captured)
+                    ? captured : new PresentationProfile();
+                PresentationProfile liveEdited = GetLayoutProfile(mode);
+                if (baseline.ReadingFontSize != edited.ReadingFontSize)
+                    liveEdited.ReadingFontSize = edited.ReadingFontSize;
+                if (baseline.CompactDensity != edited.CompactDensity)
+                    liveEdited.CompactDensity = edited.CompactDensity;
+            }
             WorkspaceMode = source.WorkspaceMode;
-            ReadingFontSize = source.ReadingFontSize;
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
             VideoVolume = source.VideoVolume;
             ShowShortcutHelp = source.ShowShortcutHelp;
-            if (source.SettingsBaselineCompactDensity.HasValue &&
-                source.SettingsBaselineCompactDensity.Value != source.CompactDensity)
-                CompactDensity = source.CompactDensity;
         }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());

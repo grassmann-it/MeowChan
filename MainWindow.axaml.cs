@@ -830,7 +830,7 @@ public partial class MainWindow : Window
         try
         {
             await _session.ApplySettingsAsync(candidate);
-            _config.CopyFrom(candidate);
+            _config.CopyFrom(_session.Config);
             ApplyAppearance();
         }
         finally

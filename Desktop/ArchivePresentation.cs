@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
@@ -18,11 +19,14 @@ internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWork
     public ArchiveAttachmentRow? PreviewAttachment { get; init; }
     public bool HasPreviewAttachment => PreviewAttachment != null;
     public string Title => Summary.Title;
+    public string TitleOrId => string.IsNullOrWhiteSpace(Title) ? "#" + Summary.Id.Thread : Title;
     public string Identity => Summary.Id.Source + " /" + Summary.Id.Board + "/ · " + Summary.Id.Thread;
     public string Status => Summary.LastCapturedAt == null ? Texts.T("archive.mediaOnly")
         : Texts.T("archive.postsCount", Summary.PostCount);
     public int Posts => Summary.PostCount;
     public string MediaStatus => Work == null ? Texts.T("gallery.unknown") : WorkStatusFormatter.Format(Work).Progress;
+    public string CompactMedia => Work == null ? "—" : Work.SavedMedia.ToString(Texts.Culture) + "/" + Work.Media.Count.ToString(Texts.Culture);
+    public int SavedMediaCount => Work?.SavedMedia ?? -1;
     public string SourceStatus => Texts.T(Summary.SourceState switch
     {
         ThreadSourceState.Archived => "archive.sourceArchived",
@@ -30,6 +34,20 @@ internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWork
         _ => "archive.sourceActive"
     });
     public string WorkStatus => Work == null ? Texts.T("gallery.unknown") : WorkStatusFormatter.Format(Work).Status;
+    public string CompactSource => Texts.T(Summary.SourceState switch
+    {
+        ThreadSourceState.Archived => "archive.columns.sourceArchived",
+        ThreadSourceState.NotFound => "archive.columns.sourceMissing",
+        _ => "archive.columns.sourceActive"
+    });
+    public string CompactWork => Work == null ? "—" : Texts.T(Work.Intent switch
+    {
+        WorkIntent.Suppressed => "archive.columns.workStopped",
+        WorkIntent.Completed => "archive.columns.workDone",
+        WorkIntent.Repairing => "archive.columns.workRepair",
+        _ when Work.CapturePending || Work.Media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention) => "archive.columns.workAttention",
+        _ => "archive.columns.workWatching"
+    });
     public string LastCapture => Summary.LastCapturedAt?.ToLocalTime().ToString("g", Texts.Culture) ?? Texts.T("gallery.unknown");
     public string GalleryLabel => Texts.T("gallery.open");
     public string ReadLabel => Texts.T("gallery.read");

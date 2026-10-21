@@ -14,7 +14,7 @@ Download published builds from the [MeowChan releases page](https://github.com/t
 
 ## Quick start
 
-Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. All planned desktop packages include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives, and bundled AppImages for both CPUs. It still requires glibc and X11/XWayland. The macOS standard is separate self-contained Intel/Apple Silicon `.app` ZIPs with ad-hoc signatures and no notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
+Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. All planned desktop packages include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives, and bundled AppImages for both CPUs. It still requires glibc and X11/XWayland. The macOS standard is separate self-contained Intel/Apple Silicon DMGs containing an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
 
 The steps below describe the 0.9.0 interface and candidate launchers. Published older builds retain their original launcher names and controls.
 
@@ -87,9 +87,9 @@ Builds after Windows Preview 3 use **Barebones** for new profiles and missing or
 | **Simple** | Combined source/board, title with inline thread ID, and status with media progress. |
 | **Advanced** | Adds separate sortable columns for thread ID, status, queued media and active media downloads. |
 
-Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. The view, theme, language and density are saved preferences. Window size, column layout and details-panel width are not saved across restarts.
+Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. Theme and language are shared preferences. Each view retains its own density, reading size, archive layout and table column visibility, widths and order. Use **Columns** above a table to choose the fields or reset that table for the current view. Window geometry is also retained.
 
-Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. About remains in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
+Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. Click the cat in the upper-left header to open About; it is also available in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
 
 ## Build and run
 
@@ -101,7 +101,7 @@ dotnet build MeowChan.sln -c Release --no-restore
 dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. The planned macOS ZIPs contain an ad-hoc-signed `MeowChan.app` bundle for Intel or Apple Silicon; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native results must be bound to the exact delivery candidate; physical hardware and Gatekeeper behavior remain separate checks. See [platform requirements and package checks](docs/platform-support.md).
+Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. On macOS, open the DMG and drag the ad-hoc-signed `MeowChan.app` to Applications; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native results must be bound to the exact delivery candidate; physical hardware and Gatekeeper behavior remain separate checks. See [platform requirements and package checks](docs/platform-support.md).
 
 ## Downloading
 

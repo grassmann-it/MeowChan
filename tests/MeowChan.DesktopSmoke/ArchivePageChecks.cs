@@ -22,6 +22,7 @@ internal static class ArchivePageChecks
         OpenArchive(window);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
+        await CheckArchiveColumnsAsync(page);
         ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
         threads.SelectedIndex = 0;
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
@@ -253,5 +254,75 @@ internal static class ArchivePageChecks
     private static T GalleryControl<T>(GalleryViewer viewer, string name) where T : Control =>
         viewer.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    private static async Task CheckArchiveColumnsAsync(ArchivePage page)
+    {
+        string oldMode = page.ArchiveColumnModePreference;
+        string oldLayout = page.ArchiveLayoutPreference;
+        var oldVisibility = page.ArchiveColumnVisibilityPreference.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var oldWidths = page.ArchiveColumnWidthsPreference.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var oldOrder = page.ArchiveColumnOrderPreference.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var saveVisibility = page.SaveArchiveColumnVisibilityAsync;
+        var saveWidths = page.SaveArchiveColumnWidthsAsync;
+        var saveOrder = page.SaveArchiveColumnOrderAsync;
+        try
+        {
+            page.SaveArchiveColumnVisibilityAsync = _ => Task.CompletedTask;
+            page.SaveArchiveColumnWidthsAsync = _ => Task.CompletedTask;
+            page.SaveArchiveColumnOrderAsync = _ => Task.CompletedTask;
+            DataGrid threads = page.FindControl<DataGrid>("ArchiveThreadTable")!;
+            DataGrid media = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
+            page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>();
+            page.ArchiveColumnModePreference = "Barebones";
+            Require(threads.Columns[0].IsVisible && threads.Columns[1].IsVisible && threads.Columns[2].IsVisible
+                && threads.Columns[3].IsVisible && !threads.Columns[4].IsVisible && !threads.Columns[5].IsVisible
+                && !threads.Columns[6].IsVisible && media.Columns[0].IsVisible && !media.Columns[2].IsVisible,
+                "Barebones archive table did not use compact, identifying default columns.");
+            page.ArchiveColumnVisibilityPreference = new Dictionary<string, bool>
+            {
+                ["ArchiveThreadTable.identity"] = false,
+                ["ArchiveThreadTable.title"] = false,
+                ["ArchiveMediaGrid.name"] = false,
+                ["ArchiveThreadTable.work"] = true
+            };
+            Require(threads.Columns[0].IsVisible && media.Columns[0].IsVisible && threads.Columns[5].IsVisible,
+                "Archive column preferences hid every identifier or ignored a custom selection.");
+            page.ArchiveColumnModePreference = "Advanced";
+            Require(threads.Columns[5].IsVisible && threads.Columns[6].IsVisible && media.Columns[2].IsVisible,
+                "Advanced archive defaults did not restore richer columns.");
+            page.ArchiveColumnOrderPreference = new Dictionary<string, int>
+            {
+                ["ArchiveThreadTable.title"] = 0,
+                ["ArchiveThreadTable.identity"] = 1
+            };
+            Require(threads.Columns[1].DisplayIndex == 0 && threads.Columns[0].DisplayIndex == 1,
+                "Archive column order did not apply semantic preferences.");
+            Button editor = page.FindControl<Button>("ArchiveThreadColumnsButton")!;
+            page.ArchiveLayoutPreference = "Table";
+            Require(editor.IsVisible, "The thread table has no visible Columns editor.");
+            Click(editor);
+            ContextMenu menu = editor.ContextMenu!;
+            Require(menu.Items.OfType<MenuItem>().Count() == 8 &&
+                menu.Items.OfType<MenuItem>().First().ToggleType == MenuItemToggleType.CheckBox,
+                "The thread Columns editor lacks keyboard-friendly checked items and reset.");
+            MenuItem reset = menu.Items.OfType<MenuItem>().Last();
+            reset.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Program.WaitUntilAsync(() => !page.ArchiveColumnVisibilityPreference.Keys.Any(
+                key => key.StartsWith("ArchiveThreadTable.", StringComparison.Ordinal)));
+            Require(threads.Columns[0].IsVisible && threads.Columns[1].IsVisible,
+                "Reset did not restore identifying archive columns.");
+        }
+        finally
+        {
+            page.ArchiveColumnModePreference = oldMode;
+            page.ArchiveColumnVisibilityPreference = oldVisibility;
+            page.ArchiveColumnWidthsPreference = oldWidths;
+            page.ArchiveColumnOrderPreference = oldOrder;
+            page.ArchiveLayoutPreference = oldLayout;
+            page.SaveArchiveColumnVisibilityAsync = saveVisibility;
+            page.SaveArchiveColumnWidthsAsync = saveWidths;
+            page.SaveArchiveColumnOrderAsync = saveOrder;
+        }
+    }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

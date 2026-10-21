@@ -158,10 +158,13 @@ internal static class WindowChromeChecks
 
     private static void DoublePressHeader(MainWindow window)
     {
-        Control logo = window.FindControl<Image>("WorkspaceLogo")!;
-        Point point = logo.TranslatePoint(new Point(15, 15), window)!.Value;
+        // The logo is now an About button. Exercise caption double-click on the
+        // noninteractive title text, as a user would without activating About.
+        Control title = window.FindControl<Grid>("WorkspaceTitleBar")!.GetVisualDescendants()
+            .OfType<TextBlock>().Single(text => text.Classes.Contains("brand"));
+        Point point = title.TranslatePoint(new Point(15, 10), window)!.Value;
         using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
-        logo.RaiseEvent(new PointerPressedEventArgs(logo, pointer, window, point, 0,
+        title.RaiseEvent(new PointerPressedEventArgs(title, pointer, window, point, 0,
             new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
             KeyModifiers.None, clickCount: 2));
     }

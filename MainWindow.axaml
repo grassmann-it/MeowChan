@@ -11,8 +11,11 @@
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
                 <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
-                               Stretch="Uniform" VerticalAlignment="Center" AutomationProperties.Name="MeowChan" />
+                        <Button x:Name="BrandAboutButton" Classes="subtle" Padding="0" Width="34" Height="34"
+                                Background="Transparent" BorderThickness="0" Click="OnBrandAboutClick">
+                            <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
+                                   Stretch="Uniform" VerticalAlignment="Center" />
+                        </Button>
                         <TextBlock Text="MeowChan" Classes="brand" VerticalAlignment="Center" />
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
@@ -238,6 +241,7 @@
                         </TabControl>
                         <StackPanel x:Name="WorkspaceListActions" Orientation="Horizontal" Spacing="6"
                                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,4,8,0">
+                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" Click="OnDownloadsColumnsClick" FontSize="12" />
                             <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
                             <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
                         </StackPanel>

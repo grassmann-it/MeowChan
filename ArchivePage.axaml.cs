@@ -85,6 +85,7 @@ public partial class ArchivePage : UserControl
             {
                 Control<DataGrid>("ArchiveMediaGrid").IsVisible = !value;
                 Control<ListBox>("ArchiveMediaTiles").IsVisible = value;
+                Control<Button>("ArchiveMediaColumnsButton").IsVisible = !value;
                 Control<Button>("ArchiveMediaMode").Content = Texts.T(value ? "gallery.list" : "gallery.tiles");
             }
         }
@@ -114,6 +115,7 @@ public partial class ArchivePage : UserControl
         UpdateLayoutMode();
         Control<DataGrid>("ArchiveMediaGrid").IsVisible = false;
         Control<ListBox>("ArchiveMediaTiles").IsVisible = true;
+        Control<Button>("ArchiveMediaColumnsButton").IsVisible = false;
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = 1;
     }
     internal bool IsAvailable { set { _available = value; UpdateActions(); } }
@@ -728,7 +730,7 @@ public partial class ArchivePage : UserControl
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
         split.ColumnDefinitions[0].Width = new GridLength(beside
-            ? (_archiveLayout == "Table" ? Math.Max(650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
+            ? (_archiveLayout == "Table" ? Math.Max(_archiveColumnMode == "Advanced" ? 900 : 650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
         split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
         split.ColumnSpacing = beside ? 6 : 0;
         Grid.SetColumn(Control<Grid>("ArchiveListPane"), beside ? 0 : 2);
@@ -737,6 +739,7 @@ public partial class ArchivePage : UserControl
         Control<Grid>("ArchiveListPane").IsVisible = !narrow || !_showReader;
         Control<ListBox>("ArchiveThreads").IsVisible = _archiveLayout == "List";
         Control<DataGrid>("ArchiveThreadTable").IsVisible = _archiveLayout == "Table";
+        Control<Button>("ArchiveThreadColumnsButton").IsVisible = _archiveLayout == "Table";
         Control<Button>("ArchiveLayoutList").IsEnabled = _archiveLayout != "List";
         Control<Button>("ArchiveLayoutTable").IsEnabled = _archiveLayout != "Table";
         Control<Button>("ArchiveBackButton").IsVisible = narrow && !_largeReader;
@@ -780,6 +783,7 @@ public partial class ArchivePage : UserControl
         LocalizeSearch();
         Control<Button>("ArchiveLayoutList").Content = Texts.T("gallery.list");
         Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");
+        LocalizeArchiveColumns();
         CommandBindings.Apply(Control<Button>("RefreshArchiveButton"), "archive.refresh", iconOnly: true);
         CommandBindings.Apply(Control<Button>("SearchArchiveButton"), "archive.search", iconOnly: true);
         CommandBindings.Apply(Control<Button>("ArchiveBackButton"), "archive.back-to-list");

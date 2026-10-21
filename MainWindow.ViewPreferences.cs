@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,16 +14,22 @@ public partial class MainWindow
 {
     private DispatcherTimer? _windowPreferenceTimer;
     private bool _windowPreferencesReady;
-    private readonly Dictionary<string, double> _pendingColumnWidths = new();
+    private readonly Dictionary<string, Dictionary<string, double>> _pendingColumnWidths = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, int>> _pendingColumnOrder = new(StringComparer.Ordinal);
+    private bool _applyingColumnProfile;
+    private readonly Dictionary<string, DataGridLength> _defaultColumnWidths = new(StringComparer.Ordinal);
     private Task _windowPreferenceSave = Task.CompletedTask;
 
     private void InitializeWindowPreferences()
     {
         foreach (string name in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
         {
-            foreach (DataGridColumn column in WorkspaceControl<DataGrid>(name).Columns)
+            DataGrid grid = WorkspaceControl<DataGrid>(name);
+            grid.ColumnDisplayIndexChanged += (_, _) => OnDownloadColumnOrderChanged(name);
+            foreach (DataGridColumn column in grid.Columns)
             {
                 string key = name + "." + column.SortMemberPath;
+                _defaultColumnWidths[key] = column.Width;
                 if (_config.ColumnWidths.TryGetValue(key, out double width) && double.IsFinite(width) && width >= 32)
                     column.Width = new DataGridLength(width);
                 column.PropertyChanged += OnDownloadColumnWidthChanged;
@@ -60,11 +67,31 @@ public partial class MainWindow
 
     private void OnDownloadColumnWidthChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (!_windowPreferencesReady || e.Property != DataGridColumn.WidthProperty || sender is not DataGridColumn column
-            || !column.Width.IsAbsolute) return;
+        if (!_windowPreferencesReady || _applyingColumnProfile || sender is not DataGridColumn column) return;
+        if (e.Property != DataGridColumn.WidthProperty || !column.Width.IsAbsolute) return;
+        string mode = _config.WorkspaceMode;
         foreach (string name in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
             if (WorkspaceControl<DataGrid>(name).Columns.Contains(column))
-                _pendingColumnWidths[name + "." + column.SortMemberPath] = column.Width.Value;
+            {
+                    if (!_pendingColumnWidths.TryGetValue(mode, out Dictionary<string, double>? pending))
+                        _pendingColumnWidths[mode] = pending = new(StringComparer.Ordinal);
+                    pending[name + "." + column.SortMemberPath] = column.Width.Value;
+                _config.GetLayoutProfile(mode).ColumnWidths[name + "." + column.SortMemberPath] = column.Width.Value;
+            }
+        QueueWindowPreferences();
+    }
+
+    private void OnDownloadColumnOrderChanged(string name)
+    {
+        if (!_windowPreferencesReady || _applyingColumnProfile) return;
+        string mode = _config.WorkspaceMode;
+        if (!_pendingColumnOrder.TryGetValue(mode, out Dictionary<string, int>? pending))
+            _pendingColumnOrder[mode] = pending = new(StringComparer.Ordinal);
+        foreach (DataGridColumn column in WorkspaceControl<DataGrid>(name).Columns)
+        {
+            pending[name + "." + column.SortMemberPath] = column.DisplayIndex;
+            _config.GetLayoutProfile(mode).ColumnOrder[name + "." + column.SortMemberPath] = column.DisplayIndex;
+        }
         QueueWindowPreferences();
     }
 
@@ -90,8 +117,12 @@ public partial class MainWindow
         Size client = _fullscreenOrigin?.Client ?? _lastNormalClient;
         PixelPoint position = _fullscreenOrigin?.Position ?? _lastNormalPosition;
         bool maximized = (_fullscreenOrigin?.State ?? WindowState) == WindowState.Maximized;
-        var columns = new Dictionary<string, double>(_pendingColumnWidths);
+        var columns = _pendingColumnWidths.ToDictionary(pair => pair.Key,
+            pair => new Dictionary<string, double>(pair.Value, StringComparer.Ordinal), StringComparer.Ordinal);
+        var order = _pendingColumnOrder.ToDictionary(pair => pair.Key,
+            pair => new Dictionary<string, int>(pair.Value, StringComparer.Ordinal), StringComparer.Ordinal);
         _pendingColumnWidths.Clear();
+        _pendingColumnOrder.Clear();
         async Task SaveAsync()
         {
             try
@@ -102,7 +133,10 @@ public partial class MainWindow
                     current.WindowWidth = client.Width; current.WindowHeight = client.Height;
                     current.WindowPositionX = position.X; current.WindowPositionY = position.Y;
                     current.WindowMaximized = maximized;
-                    foreach (var pair in columns) current.ColumnWidths[pair.Key] = pair.Value;
+                    foreach (var mode in columns)
+                        foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnWidths[pair.Key] = pair.Value;
+                    foreach (var mode in order)
+                        foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnOrder[pair.Key] = pair.Value;
                 });
             }
             catch (Exception error) { Log.Warning(error, "Could not save window preferences."); }

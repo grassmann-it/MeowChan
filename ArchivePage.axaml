@@ -29,6 +29,7 @@
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
                         <Button x:Name="ArchiveLayoutList" Content="List" Click="OnArchiveLayoutClick" />
                         <Button x:Name="ArchiveLayoutTable" Content="Table" Click="OnArchiveLayoutClick" />
+                        <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" Click="OnResultsGalleryClick" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" Click="OnFavoritesOverviewClick" />
                     </StackPanel>
@@ -72,13 +73,13 @@
                                   PointerReleased="OnArchiveColumnsReleased"
                                   SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Source / board" Width="125" Binding="{Binding Identity, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Title / ID" Width="*" Binding="{Binding Title, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Posts" Width="65" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Media" Width="135" Binding="{Binding MediaStatus, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Source" Width="125" Binding="{Binding SourceStatus, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Work" Width="150" Binding="{Binding WorkStatus, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTextColumn Header="Last capture" Width="150" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTemplateColumn Header="Source / board" SortMemberPath="Identity" Width="150" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding Identity}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Identity}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitleOrId}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Posts" Width="65" MinWidth="55" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTemplateColumn Header="Media" SortMemberPath="SavedMediaCount" Width="80" MinWidth="65"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Last capture" Width="145" MinWidth="125" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
                             </DataGrid.Columns>
                             <DataGrid.ContextMenu><ContextMenu Opened="OnArchiveSelectionMenuOpened">
                                 <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
@@ -225,6 +226,7 @@
                                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button x:Name="ArchiveMediaMode" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
+                                        <Button x:Name="ArchiveMediaColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <Button x:Name="ArchiveFavoritesFilter" Content="☆ Favorites only" Click="OnArchiveFavoritesFilterClick" />
                                         <ComboBox x:Name="ArchiveMediaSort" Width="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
                                         <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" Width="210" />
@@ -232,9 +234,9 @@
                                     <Grid Grid.Row="1">
                                         <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Single" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Width="*" Binding="{Binding Name, DataType=desktop:ArchiveAssetRow}" />
-                                                <DataGridTextColumn Width="85" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
-                                                <DataGridTextColumn Width="125" Binding="{Binding Version, DataType=desktop:ArchiveAssetRow}" />
+                                                <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                <DataGridTextColumn Width="85" MinWidth="70" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
+                                                <DataGridTextColumn Width="125" MinWidth="100" Binding="{Binding Version, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">

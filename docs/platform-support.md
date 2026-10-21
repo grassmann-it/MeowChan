@@ -2,9 +2,22 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## Current delivery contract: changes awaiting native validation
+## 0.9.0 candidate: final layout and DMG changes awaiting native validation
 
-The next public release is planned as **stable 0.9.0** after completion, native checks and one Windows package for user testing. No further intermediate release is planned. All desktop variants are self-contained for .NET. Windows x64 and macOS Intel/Apple Silicon retain their ZIP formats; Linux x64 and ARM64 each have three planned choices:
+The [native package/media run at source `1159543`](https://github.com/tfgrass/MeowChan/actions/runs/39658276164)
+passed Windows x64, macOS Intel/Apple Silicon, all three Linux formats on both
+CPUs, and macOS source pairing. That checkpoint predates the final per-mode
+layout settings, navigation icons and macOS DMG delivery. It is not the final
+user-test candidate. The separate validation run exposed viewport/transition
+fixture timing and a fake Linux tray-host protocol error; their harness fixes
+also need a fresh native run.
+
+The [screenshot provenance](screenshots/README.md) identifies the captured UI
+checkpoint. A fresh local NuGet consumer and bounded 4chan/8kun
+download/search/export/restore checks passed at `3a47804`; subsequent changes
+have not modified the library or providers.
+
+The next public release is planned as **stable 0.9.0** after completion, native checks and one Windows package for user testing. No further intermediate release is planned. All desktop variants are self-contained for .NET. Windows x64 retains its ZIP. macOS Intel/Apple Silicon use separate DMGs with `MeowChan.app` and an Applications shortcut; Linux x64 and ARM64 each have three planned choices:
 
 | Planned Linux artifact | Native VLC delivery |
 | --- | --- |
@@ -83,7 +96,7 @@ still require their own evidence. Windows redistribution uses the
 source asset published alongside the binary ZIP. macOS source/signing acceptance
 remains separate, as recorded in [third-party notices](../THIRD-PARTY-NOTICES.md).
 
-The macOS 0.9.0 standard is separate self-contained ARM/Intel `.app` ZIPs with
+The macOS 0.9.0 standard is separate self-contained ARM/Intel DMGs with
 ad-hoc signatures without Apple Developer ID or notarization; certificate acquisition is not a
 release prerequisite. The [macOS package guidance](macos-signing.md) explains
 manual approval in Privacy & Security and keeps Developer ID/plugin signing,
@@ -92,19 +105,18 @@ Historical Mac package/startup checks passed at `672b45d` below; the later
 `6354f94` five-target package matrix also passed. Those results retain their
 source/package boundaries and do not validate the new delivery/preflight contract.
 
-## Current 0.9.0 preparation
+## Historical preparation checkpoints
 
-**Current integration checks:** the delivery contract and latest evidence boundary
+**Earlier integration checks:** the delivery contract and evidence boundary
 are recorded above. Window, Linux runtime-resolution, macOS software-video and
 selection corrections have been integrated; the preceding `6354f94` native package
 matrix passed. New Linux variants, mandatory startup preflight and slim payloads
-need their own native checks. Validation is not fully green while the macOS ARM
-hang remains unexplained. One exact tested Windows package comes before the next
+need their own native checks. This checkpoint predates the separately passing macOS ARM diagnostic recorded above. One exact tested Windows package comes before the next
 public release, stable 0.9.0.
 
 [Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3)
 remains the existing historical compatibility-test download, with .NET 10 and VLC.
-It does not contain current source changes. The six current interface screenshots
+It does not contain current source changes. The current interface screenshots
 are documented in the [screenshot provenance](screenshots/README.md); they are
 separate from package acceptance.
 
@@ -298,7 +310,7 @@ Windows candidates contain a self-contained executable directory in a zip archiv
 
 The planned macOS bundle has an ad-hoc signature and is not notarized. Its revised signed ZIP layout puts the physical .NET main executable at `Contents/MacOS/MeowChan` with the four CoreCLR entitlements. All other publish entries reside in `Contents/Resources/application`, with relative top-level symlinks from `Contents/MacOS`; `Resources/application/MeowChan` links back to the physical main. No C launcher is used. All Mach-O code is explicitly signed and validated; native-fixture CFBundle identity/icon lookups and separate actual extracted .NET startup/shutdown passed at `672b45d`, while full media/desktop acceptance remains open. The icon remains under `Contents/Resources`, with generated `Info.plist` metadata. Legacy unsigned/Homebrew bundles retain the earlier `Contents/MacOS` payload layout. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
-Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app ZIPs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native extracted-app startup/shutdown passed at the checkpoint above; bundled-plugin playback and full desktop workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
+Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app DMGs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native extracted-app startup/shutdown passed at the checkpoint above; bundled-plugin playback and full desktop workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
 
 Native packaging targets `macos-15` (ARM) and `macos-15-intel` (Intel), with
 inside-out Mach-O/bundle signing, main-apphost CoreCLR entitlements, and ZIP

@@ -153,6 +153,7 @@ public partial class MainWindow
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;
                 }
                 _appliedWorkspaceMode = mode;
+                ApplyArchiveModePreferences();
             }
 
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
@@ -165,19 +166,51 @@ public partial class MainWindow
             body.RowSpacing = barebones ? 8 : 10;
 
             DataGrid threads = WorkspaceControl<DataGrid>("ThreadsDataGrid");
+            _applyingColumnProfile = true;
+            try
+            {
             foreach (DataGridColumn column in threads.Columns)
             {
                 // Simple keeps task truth visible; Advanced adds independently sortable technical columns.
-                column.IsVisible = column.SortMemberPath switch
+                bool defaultVisible = column.SortMemberPath switch
                 {
                     nameof(ThreadRow.SourceBoard) => !barebones,
                     nameof(ThreadRow.ThreadNumber) or nameof(ThreadRow.Status)
                         or nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
                     _ => true
                 };
-                if (modeChanged && column.SortMemberPath == nameof(ThreadRow.Completion))
-                    column.Width = new DataGridLength(advanced ? 140 : 300);
+                string key = "ThreadsDataGrid." + column.SortMemberPath;
+                column.IsVisible = _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : defaultVisible;
             }
+            foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+            {
+                foreach (DataGridColumn column in WorkspaceControl<DataGrid>(gridName).Columns)
+                {
+                    string key = gridName + "." + column.SortMemberPath;
+                    if (gridName == "BoardsDataGrid")
+                        column.IsVisible = !_config.ColumnVisibility.TryGetValue(key, out bool visible) || visible;
+                    if (modeChanged)
+                    {
+                        if (_config.ColumnWidths.TryGetValue(key, out double width) && double.IsFinite(width) && width >= 32)
+                            column.Width = new DataGridLength(width);
+                        else if (column.SortMemberPath == nameof(ThreadRow.Completion) && gridName == "ThreadsDataGrid")
+                            column.Width = new DataGridLength(advanced ? 140 : 300);
+                        else if (_defaultColumnWidths.TryGetValue(key, out DataGridLength defaultWidth))
+                            column.Width = defaultWidth;
+                    }
+                }
+                if (modeChanged)
+                {
+                    DataGrid grid = WorkspaceControl<DataGrid>(gridName);
+                    DataGridColumn[] ordered = grid.Columns
+                        .OrderBy(column => _config.ColumnOrder.TryGetValue(gridName + "." + column.SortMemberPath,
+                            out int index) ? index : grid.Columns.IndexOf(column)).ToArray();
+                    for (int index = 0; index < ordered.Length; index++)
+                        ordered[index].DisplayIndex = index;
+                }
+            }
+            }
+            finally { _applyingColumnProfile = false; }
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
             threads.RowHeight = rowHeight;
             WorkspaceControl<DataGrid>("BoardsDataGrid").RowHeight = rowHeight;
@@ -228,6 +261,8 @@ public partial class MainWindow
         AutomationProperties.SetName(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         ToolTip.SetTip(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         UpdateThemeIcon();
+        RefreshBrandNavigation();
+        LocalizeDownloadsColumnsButton();
         RefreshShellCommands();
         RefreshSpeedLabel();
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceSubtitle"), Texts.T("shell.subtitle"));
