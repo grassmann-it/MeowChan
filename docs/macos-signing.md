@@ -19,13 +19,14 @@ passed on ARM (`macos-15`) and Intel (`macos-15-intel`). Each job mounted its
 signed DMG, verified the app and Applications shortcut, copied the app out, and
 ran startup, bundled-VLC playback and the packaged desktop workflow from that
 copy. The run also paired both DMGs with their corresponding-source overlay.
-See [the platform evidence](platform-support.md#090-candidate-final-native-revalidation-pending).
-This evidence belongs to that exact source. The current `d854684` normal-window
-and delayed-fullscreen corrections still await final native validation and
-rebuilt-package checks. An ad-hoc signature does not establish developer
-identity or automatic Gatekeeper approval; physical audio/hardware and
-downloaded/quarantined-copy approval remain unvalidated. This is not a public
-Mac release or a final readiness claim.
+See [the platform evidence](platform-support.md#090-candidate-targeted-native-checks-and-final-packages).
+This evidence belongs to that exact source. The targeted
+[Intel Mac run at `b76e2f1`](https://github.com/tfgrass/MeowChan/actions/runs/39682508602)
+passed native source checks after the window corrections. Apple Silicon
+selection passed at test-only source `6ae6008`; the optimized targeted ARM
+run and rebuilt final DMG checks remain pending. An ad-hoc signature does not
+establish developer identity or automatic Gatekeeper approval; physical
+audio/hardware and downloaded/quarantined-copy approval remain unvalidated.
 
 Open the DMG in Finder, drag `MeowChan.app` to the **Applications** shortcut, then
 open the installed app. Keep the whole app bundle intact. If macOS blocks
@@ -53,7 +54,7 @@ library. The ad-hoc route does not enable hardened runtime.
 The current signed bundle implementation places the real .NET executable physically
 at `MeowChan.app/Contents/MacOS/MeowChan`, where it carries the four CoreCLR
 entitlements and serves as the bundle's main executable. All other publish entries
-(runtime dylibs, VLC tree, licenses and documentation) live under
+(runtime dylibs, VLC tree and required legal notices) live under
 `Contents/Resources/application`. Relative top-level symlinks in `Contents/MacOS`
 point to these payload entries; `Contents/Resources/application/MeowChan` links
 back to the physical main executable. There is no C launcher or launcher compiler
@@ -75,8 +76,9 @@ checks plus native startup; package-media validation also runs playback and the
 desktop workflow from that copy. Signature validation alone does not prove .NET
 JIT startup, VLC plugin loading/playback or shutdown. The `6e750ec` package/media
 run exercised those runtime paths from the copied DMG app on both architectures.
-A fresh native run for the current source, and a downloaded/quarantined-copy
-check of the manual approval flow, still require separate evidence.
+The later Intel source checks passed at `b76e2f1`; targeted optimized ARM
+checks and final copied-DMG validation still require separate evidence.
+Downloaded/quarantined-copy approval remains a separate operating-system check.
 
 ## Optional later Developer ID and notarized distribution
 

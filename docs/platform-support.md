@@ -2,16 +2,16 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## 0.9.0 candidate: final native revalidation pending
+## 0.9.0 candidate: targeted native checks and final packages
 
-Product checkpoint `161a8b0` contains the final fullscreen lifecycle corrections:
+Product checkpoint `161a8b0` contains fullscreen lifecycle corrections:
 explicit app resize requests are separate from native resize reports, normal
 geometry survives a maximized fullscreen round-trip, and the native resize probe
 reserves actual desktop space. The Release build and repeated isolated Linux
 selection scenarios pass. The current Linux source passed 644 core and 269
 desktop tests, with one expected native-media skip. Earlier native reader/gallery
-scenarios passed on Windows, both Macs and both Linux CPUs. The final Mac rapid-transition corrections still
-require native confirmation.
+scenarios passed on Windows, both Macs and both Linux CPUs. Later targeted native
+checks and their source boundaries are recorded below.
 
 The [complete package/media matrix at `6e750ec`](https://github.com/tfgrass/MeowChan/actions/runs/39667959802)
 passed Windows x64, both Mac DMGs, all three Linux formats on both CPUs, and the
@@ -22,12 +22,14 @@ last window corrections and do not attest to the changed product.
 The [newer matrix run](https://github.com/tfgrass/MeowChan/actions/runs/39670053190)
 was deliberately canceled to stop repeated all-platform builds. The Linux
 functional checkpoint is complete: all eight isolated graphical scenarios passed
-at `161a8b0`, alongside the offline suites above. Source `d854684` adds a narrow
-macOS correction that preserves an explicit normal-size request during a delayed
-native fullscreen report. Targeted Windows, macOS ARM and macOS Intel validation
-follows that checkpoint; delivery packaging remains separate. Public stable
-publication is authorized once technical checks and final package validation pass.
-No final native acceptance or published stable release is claimed yet.
+at `161a8b0`, alongside the offline suites above. The targeted
+[Windows run at `6d6c3fb`](https://github.com/tfgrass/MeowChan/actions/runs/39681449053)
+and [Intel Mac run at `b76e2f1`](https://github.com/tfgrass/MeowChan/actions/runs/39682508602)
+passed their respective native source checks after the window corrections.
+Apple Silicon selection passed at test-only source `6ae6008`; the targeted
+optimized ARM run is still pending. These are not final package results.
+Public stable publication is authorized once technical checks and final package
+validation pass. No final native acceptance or published stable release is claimed yet.
 
 The [screenshot provenance](screenshots/README.md) identifies the captured UI
 checkpoint. A fresh local NuGet consumer and bounded 4chan/8kun
@@ -49,7 +51,7 @@ This is the agreed delivery matrix, not a claim that these artifacts are already
 
 Linux preflight runs **before session startup**: load the selected backend, require VLC major version 3 at least 3.0.20, and initialize an engine. The minimum includes the distro-maintained Ubuntu 24.04 runtime; no API used by MeowChan requires 3.0.21. Native packaged playback remains a separate acceptance gate. Missing, unsupported or unusable system VLC produces a dismissible installation hint, then exit code **2**. Bundled runtime integrity/metadata or load failures require re-extracting the complete package; they never trigger a system-VLC fallback. This check does not guarantee that every media file decodes: unsupported/corrupt files remain per-file preview/playback errors. Linux accepts the runtime ABI `libvlc.so.5`, without development symlinks.
 
-Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The six screenshots remain valid interface evidence because these delivery/startup changes do not change the running UI.
+Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The 14 [interface screenshots](screenshots/README.md) were captured later at `b8e1291` and remain source-built UI evidence, not package acceptance.
 
 **Evidence boundary:** [package-media run 39630125624](https://github.com/tfgrass/MeowChan/actions/runs/39630125624) passed all five native OS/CPU package jobs at source `6354f94`, including the macOS collector. Libraryconsumer and bounded live checks also passed for that earlier candidate. It predates the slim payload and new Linux delivery/preflight contract and does **not** validate those changes. Local startup-fix Debug and Release-analyzer builds completed with zero warnings/errors and 44 focused tests passed. The corresponding new native delivery results remain open.
 
@@ -311,23 +313,23 @@ acceptance, and it does not establish native Intel execution.
 
 ## Candidate package matrix
 
-| Runtime identifier | Archive | Intended native validation baseline | Evidence still required |
-| --- | --- | --- | --- |
-| `win-x64` | `.zip` | Maintained Windows 11 x64 | Final 0.9.0 source-built and extracted-package workflows; the historical Server 2022 harness covers an earlier UI, a different OS and executable. |
-| `linux-x64` | `.tar.gz` | Ubuntu 24.04 x64 | Full 0.9.0 workflows in the final extracted package; current isolated source-built checks and historical package startup/exit are recorded below. |
-| `linux-arm64` | `.tar.gz` | Ubuntu 24.04 Arm64 | Native Arm64 package and desktop run; x64 cross-publish is insufficient. |
-| `osx-x64` | `.zip` | macOS 15 x64 | Native package/startup passed at `672b45d`; playback, audio/hardware, full desktop and Gatekeeper/manual approval remain open. |
-| `osx-arm64` | `.zip` | macOS 15 Arm64 | Offline source tests passed at `5a7ca8d`; native package/startup passed at `672b45d`. Playback, audio/hardware, full desktop and Gatekeeper/manual approval remain open. |
+| Runtime identifier | Delivery | Native evidence boundary |
+| --- | --- | --- |
+| `win-x64` | Self-contained ZIP | Targeted native source checks passed at `6d6c3fb`; final extracted ZIP remains separate. |
+| `linux-x64` | Bundled/system-VLC tar and bundled AppImage | Eight isolated source-built GUI scenarios passed at `161a8b0`; final extracted formats remain separate. |
+| `linux-arm64` | Bundled/system-VLC tar and bundled AppImage | Earlier package matrix passed at `6e750ec`; final extracted formats remain separate. |
+| `osx-x64` | Ad-hoc-signed DMG | Targeted Intel source checks passed at `b76e2f1`; final DMG remains separate. |
+| `osx-arm64` | Ad-hoc-signed DMG | Test-only selection passed at `6ae6008`; targeted optimized run and final DMG remain open. |
 
-These are candidate validation baselines, not completed platform certifications. Exact supported OS releases will be recorded with the tested artifacts. Microsoft/Avalonia support policies can change with OS end-of-life; consult the linked current policy before expanding the product matrix.
+These are candidate evidence boundaries, not completed platform certifications. Actual OS versions, source commits and archive hashes belong to the final package records.
 
 ## Planned MeowChan distribution form
 
-Windows candidates contain a self-contained executable directory in a zip archive; Linux candidates contain the equivalent directory in tar.gz. Extract every file and launch `MeowChan.exe` on Windows or `./MeowChan` on Linux. Keep the accompanying native libraries and notices beside the executable. The standard macOS archives are `MeowChan-<version>-osx-arm64.zip` and `MeowChan-<version>-osx-x64.zip`, each containing a self-contained ad-hoc-signed `MeowChan.app`; open that bundle in Finder or with `open MeowChan.app`.
+Windows candidates contain a self-contained executable directory in a ZIP; Linux has bundled/system-VLC tar archives and bundled AppImages for each CPU. Extract the complete Windows ZIP or Linux tar archive and launch `MeowChan.exe` or `./MeowChan`, respectively. Keep the accompanying native libraries and notices beside the executable. The standard macOS downloads are `MeowChan-<version>-osx-arm64.dmg` and `MeowChan-<version>-osx-x64.dmg`, each containing a self-contained ad-hoc-signed `MeowChan.app` and an Applications shortcut. Drag the app to Applications before launching.
 
 The planned macOS bundle has an ad-hoc signature and is not notarized. Its revised signed ZIP layout puts the physical .NET main executable at `Contents/MacOS/MeowChan` with the four CoreCLR entitlements. All other publish entries reside in `Contents/Resources/application`, with relative top-level symlinks from `Contents/MacOS`; `Resources/application/MeowChan` links back to the physical main. No C launcher is used. All Mach-O code is explicitly signed and validated; native-fixture CFBundle identity/icon lookups and separate actual extracted .NET startup/shutdown passed at `672b45d`, while full media/desktop acceptance remains open. The icon remains under `Contents/Resources`, with generated `Info.plist` metadata. Legacy unsigned/Homebrew bundles retain the earlier `Contents/MacOS` payload layout. The bundle identifier is `org.meowchan.desktop`, executable name `MeowChan`, and candidate deployment baseline macOS 15.0. Local structural checks do not establish native launch or Gatekeeper acceptance. The [official Avalonia macOS deployment guide](https://docs.avaloniaui.net/docs/deployment/macos) describes that structure. Its example `LSMinimumSystemVersion` is an example, not this application's supported minimum.
 
-Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app DMGs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Native extracted-app startup/shutdown passed at the checkpoint above; bundled-plugin playback and full desktop workflows still require validation. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
+Standard 0.9.0 macOS distribution uses complete ad-hoc-signed app DMGs without Apple Developer ID or notarization; obtaining a certificate is not a release gate. Copied-app startup, bundled-plugin playback and desktop workflows passed at `6e750ec` on both CPUs, before the final window corrections. Targeted Intel source checks passed at `b76e2f1`; optimized ARM and final DMG checks remain open. For a trusted app blocked as an unidentified developer, use System Settings → Privacy & Security → Open Anyway (older macOS: System Preferences → Security & Privacy → General). Keep Gatekeeper and quarantine metadata intact. See [manual approval and optional future signing](macos-signing.md).
 
 Native packaging targets `macos-15` (ARM) and `macos-15-intel` (Intel), with
 inside-out Mach-O/bundle signing, main-apphost CoreCLR entitlements, and ZIP
@@ -444,7 +446,7 @@ For every platform promised as supported, record the source commit, SDK/runtime 
 4. Clipboard, two-row context menus, folder picker and folder opening operate on the intended data.
 5. Normal Exit works; unavailable/failing tray support leaves an accessible application.
 6. Simple/Advanced/Barebones, Dark/Light and English/German remain usable in small windows and at the tested display scales; input, selection and active downloads survive presentation changes.
-7. `LICENSE`, `README.md`, `CHANGELOG.md`, `THIRD-PARTY-NOTICES.md`, the release notes and language-pack instructions accompany the complete package; Unix executable permissions survive extraction.
+7. The complete package retains its native dependency tree, `LICENSE`, `THIRD-PARTY-NOTICES.md` and required native-component notices/source information; Unix executable permissions survive extraction. README, changelog, release notes, screenshots and developer documentation remain on GitHub rather than inside desktop downloads.
 
 The local 0.9.0 source-built checks, package round-trips, Linux apphost startup/exit and historical 0.8.0 runs establish only their stated coverage. Full native workflow acceptance of the 0.9.0 extracted package matrix remains open, including Windows 11, Linux Arm64 and both Mac architectures. Archive construction, a passing source-built harness and apphost startup alone do not complete that acceptance.
 
