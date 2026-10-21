@@ -134,7 +134,10 @@ public partial class MainWindow
                     MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
                     Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
                     _lastNormalClient = fit.Client; _lastNormalPosition = fit.Position;
-                    if (destination.State == WindowState.Normal) _fullscreenRestoreClient = fit.Client;
+                    // Keep the known normal frame even when returning to Maximized.
+                    // X11 may otherwise use the fullscreen-sized frame when a later
+                    // native restore requests Normal.
+                    _fullscreenRestoreClient = fit.Client;
                 }
                 else { Width = destination.Client.Width; Height = destination.Client.Height; Position = destination.Position; }
                 if (destination.State == WindowState.Maximized) WindowState = WindowState.Maximized;
@@ -147,9 +150,13 @@ public partial class MainWindow
     }
 
     private bool IsFullscreenRestoreStale(Size size) => _fullscreenRestoreClient is Size expected
-        && (_normalDecoration.Width > 0 || _normalDecoration.Height > 0)
-        && Math.Abs(size.Width - (expected.Width - _normalDecoration.Width)) <= 1
-        && Math.Abs(size.Height - (expected.Height - _normalDecoration.Height)) <= 1;
+        && ((Math.Abs(size.Width - _fullscreenRestoreFromClient.Width) <= 1
+                && Math.Abs(size.Height - _fullscreenRestoreFromClient.Height) <= 1)
+            || (_normalDecoration.Width > 0 || _normalDecoration.Height > 0)
+                && ((Math.Abs(size.Width - (expected.Width - _normalDecoration.Width)) <= 1
+                        && Math.Abs(size.Height - (expected.Height - _normalDecoration.Height)) <= 1)
+                    || (Math.Abs(size.Width - (_fullscreenRestoreFromClient.Width - _normalDecoration.Width)) <= 1
+                        && Math.Abs(size.Height - (_fullscreenRestoreFromClient.Height - _normalDecoration.Height)) <= 1)));
 
     private void OnFullscreenRestoreResized(object? sender, WindowResizedEventArgs e)
     {
@@ -164,15 +171,8 @@ public partial class MainWindow
 
     private void OnFullscreenStateChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        if (e.Property == WindowStateProperty) ContinueFullscreenRestore();
         if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent == null) return;
-        if (e.Property == WidthProperty || e.Property == HeightProperty)
-        {
-            // An application resize can arrive after the managed Normal request but
-            // before Cocoa finally reports its earlier fullscreen entry. Keep that
-            // newer normal size as the destination of a corrective exit.
-            CapturePendingFullscreenExitSize(new Size(Width, Height));
-            return;
-        }
         if (e.Property != WindowStateProperty) return;
         if (_config.WorkspaceMode != _fullscreenExitMode)
         {
@@ -185,20 +185,23 @@ public partial class MainWindow
             ClearFullscreenExitIntent();
     }
 
+    internal void RequestNormalWindowSize(Size requested)
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            CapturePendingFullscreenExitSize(requested);
+            if (!_restoringFullscreen) _fullscreenRestoreClient = null;
+        }
+        Width = requested.Width;
+        Height = requested.Height;
+    }
+
     private void CapturePendingFullscreenExitSize(Size requested)
     {
         FullscreenOrigin? intent = _fullscreenExitIntent;
         if (!OperatingSystem.IsMacOS() || intent == null || WindowState != WindowState.Normal
             || _applyingFullscreenRestoreGeometry || !double.IsFinite(requested.Width) || !double.IsFinite(requested.Height)
             || requested.Width <= 0 || requested.Height <= 0) return;
-        if (intent.Monitor is PixelRect monitor)
-        {
-            double scale = RenderScaling > 0 ? RenderScaling : 1;
-            // Cocoa's late fullscreen geometry may reach Width/Height before its
-            // late FullScreen state event. It is not a new normal resize request.
-            if (requested.Width * scale >= monitor.Width - 2
-                || requested.Height * scale >= monitor.Height - 2) return;
-        }
         _fullscreenExitIntent = intent with { Client = requested };
     }
 

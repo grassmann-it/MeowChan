@@ -43,8 +43,7 @@ public partial class MainWindow
             screen.WorkingArea, RenderScaling, Position, WindowStartupGeometry.NormalFrameInsetPixels);
         MinWidth = fit.Minimum.Width;
         MinHeight = fit.Minimum.Height;
-        Width = fit.Client.Width;
-        Height = fit.Client.Height;
+        RequestNormalWindowSize(fit.Client);
         Position = fit.Position;
     }
 
@@ -56,8 +55,7 @@ public partial class MainWindow
         Screen? screen = Screens.ScreenFromWindow(this);
         if (screen == null)
         {
-            Width = width;
-            Height = height;
+            RequestNormalWindowSize(new Size(width, height));
             return;
         }
         Size desired = new(width, height);
@@ -68,8 +66,7 @@ public partial class MainWindow
             screen.WorkingArea, RenderScaling, Position, WindowStartupGeometry.NormalFrameInsetPixels);
         MinWidth = fit.Minimum.Width;
         MinHeight = fit.Minimum.Height;
-        Width = fit.Client.Width;
-        Height = fit.Client.Height;
+        RequestNormalWindowSize(fit.Client);
         Position = fit.Position;
     }
 }

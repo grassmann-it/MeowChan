@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -11,8 +12,29 @@ internal static class ShellPresentationChecks
     internal static async Task RunAsync(MainWindow window)
     {
         window.WindowState = WindowState.Normal;
-        window.Width = 1000; window.Height = 700;
-        await Task.Delay(150);
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
+        Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+            ?? throw new InvalidOperationException("Fullscreen resize probe has no native screen.");
+        Size currentClient = window.ClientSize;
+        Size currentFrame = window.FrameSize ?? currentClient;
+        Size desired = new(1000, 700);
+        PixelRect reservedArea = new(screen.WorkingArea.X, screen.WorkingArea.Y,
+            screen.WorkingArea.Width - (int)Math.Ceiling(17 * window.RenderScaling),
+            screen.WorkingArea.Height - (int)Math.Ceiling(13 * window.RenderScaling));
+        WindowStartupFit baseline = WindowStartupGeometry.Fit(desired,
+            new Size(desired.Width + Math.Max(0, currentFrame.Width - currentClient.Width),
+                desired.Height + Math.Max(0, currentFrame.Height - currentClient.Height)),
+            new Size(window.MinWidth, window.MinHeight), reservedArea, window.RenderScaling, window.Position,
+            WindowStartupGeometry.NormalFrameInsetPixels);
+        window.Width = baseline.Client.Width; window.Height = baseline.Client.Height;
+        window.Position = baseline.Position;
+        await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
+            && Math.Abs(window.ClientSize.Width - baseline.Client.Width) <= 2
+            && Math.Abs(window.ClientSize.Height - baseline.Client.Height) <= 2
+            && window.FrameSize is Size frame
+            && (frame.Width + 17) * window.RenderScaling <= screen.WorkingArea.Width + 1
+            && (frame.Height + 13) * window.RenderScaling <= screen.WorkingArea.Height + 1,
+            "normal baseline settled");
         Size size = window.ClientSize;
         TraceGeometry(window, "normal baseline");
         PixelPoint position = window.Position;
@@ -33,7 +55,7 @@ internal static class ShellPresentationChecks
         Require(Math.Abs(window.ClientSize.Height - size.Height) <= 2 && Math.Abs(window.Position.X - position.X) <= 2
             && Math.Abs(window.Position.Y - position.Y) <= 2, "Fullscreen did not restore normal window geometry.");
         // A completed transition must also release ordinary resize behavior.
-        window.Width = size.Width + 17; window.Height = size.Height + 13;
+        window.RequestNormalWindowSize(new Size(size.Width + 17, size.Height + 13));
         try
         {
             await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width - 17) <= 2
@@ -41,7 +63,7 @@ internal static class ShellPresentationChecks
         }
         catch { TraceGeometry(window, "ordinary resize growth failure"); throw; }
         TraceGeometry(window, "ordinary resize grown");
-        window.Width = size.Width; window.Height = size.Height;
+        window.RequestNormalWindowSize(size);
         try
         {
             await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width) <= 2
@@ -60,11 +82,11 @@ internal static class ShellPresentationChecks
             // Let the queued managed restore run, then resize before Cocoa's
             // asynchronous entry acknowledgement has necessarily arrived.
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-            window.Width = size.Width + 11; window.Height = size.Height + 9;
+            window.RequestNormalWindowSize(new Size(size.Width + 11, size.Height + 9));
             await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
                 && Math.Abs(window.ClientSize.Width - size.Width - 11) <= 2
                 && Math.Abs(window.ClientSize.Height - size.Height - 9) <= 2, "rapid enter-exit ordinary resize");
-            window.Width = size.Width; window.Height = size.Height;
+            window.RequestNormalWindowSize(size);
             await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
                 && Math.Abs(window.ClientSize.Width - size.Width) <= 2, "rapid enter-exit resize returned");
         }
