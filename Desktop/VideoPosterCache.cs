@@ -8,6 +8,7 @@ using Avalonia.Media.Imaging;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using SkiaSharp;
+using Serilog;
 
 namespace MeowChan.Desktop;
 
@@ -98,6 +99,7 @@ internal static class VideoPosterCache
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
+                Log.Warning(exception, "Could not generate the local video poster; the video remains available without a poster.");
                 // A terminal placeholder stays stable during this view. A later request can retry;
                 // cancellation never records a negative result and failed generations publish no PNG.
                 lock (FailuresLock)

@@ -62,6 +62,7 @@ internal static class VideoPosterDecoder
             {
                 if (Volatile.Read(ref _nativeReleaseFailed) != 0)
                     throw new InvalidOperationException("Video poster decoding is unavailable after a native cleanup failure.");
+                NativeVideoRuntime.EnsureInitialized();
                 _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
                 _input = new StreamMediaInput(stream);
                 _media = new Media(_engine, _input);

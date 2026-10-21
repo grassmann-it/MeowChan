@@ -20,6 +20,9 @@ public sealed class VideoPosterNativeTests
     [NativeVideoPosterFact]
     public async Task ShippedVp8AndVp9FixturesProduceRealFramesAndPersistentOfflinePostersWithoutAnyDisplay()
     {
+        // Poster and gallery construction can race. Resolver installation must be
+        // process-wide and idempotent before either starts its first native call.
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => Task.Run(NativeVideoRuntime.EnsureInitialized)));
         foreach (string codec in new[] { "vp8", "vp9" })
         {
             using TempDirectory temp = new();
