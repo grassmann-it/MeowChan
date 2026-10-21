@@ -17,6 +17,8 @@ internal static class ExportReaderSizingChecks
             {
                 await PresentationChecks.SwitchModeAsync(window, size.Mode);
                 window.WindowState = WindowState.Normal; window.Width = size.Width; window.Height = size.Height;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, size.Width, size.Height));
+                Console.WriteLine($"SMOKE download reader export geometry: mode={size.Mode}, requested={size.Width}x{size.Height}, actual={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}.");
                 page.FindControl<Button>("ExportArchiveButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() =>
                 {
@@ -24,7 +26,7 @@ internal static class ExportReaderSizingChecks
                     Border overlay = page.FindControl<Border>("ArchiveExportDialog")!;
                     if (!overlay.IsEffectivelyVisible || overlay.Child is not Border card) return false;
                     ScrollViewer body = card.GetVisualDescendants().OfType<ScrollViewer>().First();
-                    return Math.Abs(window.Bounds.Width - size.Width) < 2 && Math.Abs(window.Bounds.Height - size.Height) < 2
+                    return PresentationChecks.MatchesRequestedSize(window, size.Width, size.Height)
                         && overlay.GetVisualAncestors().Contains(window.FindControl<ContentControl>("ReaderHost")!)
                         && card.Bounds.Height > 200 && card.MaxHeight > 200 && body.Viewport.Height > 80
                         && body.Extent.Width <= body.Viewport.Width + 1
