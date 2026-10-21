@@ -11,6 +11,15 @@ internal static class ShellPresentationChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        Size target = new(1000, 668);
+        Size stale = new(850, 530);
+        Size[] staleFrames = [stale];
+        Require(MainWindow.ShouldRepairKnownMaximizedExitFrame(stale, target, staleFrames),
+            "A known native exit frame was not marked for repair after unmaximize.");
+        Require(!MainWindow.ShouldRepairKnownMaximizedExitFrame(target, target, staleFrames)
+            && !MainWindow.ShouldRepairKnownMaximizedExitFrame(new Size(1280, 684), target, staleFrames)
+            && !MainWindow.ShouldRepairKnownMaximizedExitFrame(new Size(640, 480), target, staleFrames),
+            "Normal or later deliberate window sizes were marked as stale exit frames.");
         window.WindowState = WindowState.Normal;
         await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
         Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)

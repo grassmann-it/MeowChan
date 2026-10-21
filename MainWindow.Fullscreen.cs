@@ -343,14 +343,19 @@ public partial class MainWindow
         TraceFullscreen($"prior exit frame remembered={client}");
     }
 
+    internal static bool ShouldRepairKnownMaximizedExitFrame(Size client, Size target, IReadOnlyCollection<Size> staleClients) =>
+        client != target && staleClients.Contains(client);
+
     private void ContinuePendingFullscreenExitSizeRepair()
     {
         // After a Maximized exit has been restaged and the caller unmaximizes,
-        // its retained client is again the normal-frame target. Keep the
-        // maximize staging itself free to resize before that transition.
+        // only a frame observed during the exit is stale. Other native Layout
+        // sizes can be later, deliberate normal-window resizes.
         if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { } intent
             || _fullscreenOrigin != null || _restoringFullscreen || _applyingFullscreenRestoreGeometry
-            || intent.State == WindowState.Maximized && _fullscreenMaximizeRestoreClient != null
+            || intent.State == WindowState.Maximized
+                && (_fullscreenMaximizeRestoreClient != null
+                    || !ShouldRepairKnownMaximizedExitFrame(ClientSize, intent.Client, _fullscreenExitStaleNativeClients))
             || WindowState != WindowState.Normal || _isClosing
             || Math.Abs(ClientSize.Width - intent.Client.Width) <= 1
                 && Math.Abs(ClientSize.Height - intent.Client.Height) <= 1
@@ -368,7 +373,9 @@ public partial class MainWindow
             _fullscreenExitSizeCorrectionQueued = false;
             if (_fullscreenExitIntent is not { } target
                 || _fullscreenOrigin != null || _restoringFullscreen || WindowState != WindowState.Normal || _isClosing
-                || target.State == WindowState.Maximized && _fullscreenMaximizeRestoreClient != null
+                || target.State == WindowState.Maximized
+                    && (_fullscreenMaximizeRestoreClient != null
+                        || !ShouldRepairKnownMaximizedExitFrame(ClientSize, target.Client, _fullscreenExitStaleNativeClients))
                 || Math.Abs(ClientSize.Width - target.Client.Width) <= 1
                     && Math.Abs(ClientSize.Height - target.Client.Height) <= 1) return;
             TraceFullscreen($"normal size correction applied={target.Client}");
