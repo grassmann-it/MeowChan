@@ -37,10 +37,9 @@ internal static class ArchiveMediaCommandChecks
             Require(current.DataContext is ArchiveAttachmentRow, "Current inline media has no attachment context.");
             Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
             Require(current.GetVisualAncestors().Contains(readerPane), "Current inline media is not in the reader pane.");
-            // The large reader reparents its pane outside ArchivePage. Raise at the registered
-            // tunnel owner for that visual route with the actual media source.
-            Control routeOwner = current.GetVisualAncestors().Contains(page) ? page : readerPane;
-            routeOwner.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = current });
+            // Native context input originates on the attachment. The detached reader pane is
+            // now in that route; raising at the pane itself would replace Source with Grid.
+            current.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             ContextMenu menu = page.ArchiveMediaMenu!;
             Require(menu.IsOpen, "Inline keyboard context request did not open a media menu.");
