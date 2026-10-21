@@ -64,7 +64,13 @@ moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
 thread sequence. Input fields keep their native arrow-key behavior.
 
-The gallery uses the window's full work area. Left/Right or its navigation buttons
+The reader reserves space for previews so loading images do not keep shifting posts. Refreshing the same thread
+retains the current reading position. If a preview cannot finish loading, it reports “The preview could not be loaded.”
+instead of remaining at Loading.
+
+The app header and window controls remain available above the large reader
+and gallery.
+The gallery uses the window's remaining work area. Left/Right or its navigation buttons
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
 the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
@@ -98,6 +104,13 @@ The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
 
 ### Local video
+
+Video attachments in captured posts can show an offline
+still preview generated from the verified saved video. These previews are reused
+across restarts without fetching remote thumbnails. If a preview cannot be made,
+the original stays available to open in the gallery; playback remains a gallery
+action rather than starting inside the reader. Preview generation needs a working
+local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
 Linux uses system LibVLC and suitable plugins; missing libraries/codecs should
