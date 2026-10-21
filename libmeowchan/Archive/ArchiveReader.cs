@@ -12,7 +12,7 @@ namespace MeowChan.Archive;
 /// Passive local catalog reader. It needs no provider, session, writer or network connection, and
 /// never creates a database, acquires a profile lease, migrates a schema or repairs stored content.
 /// </summary>
-public sealed class ArchiveReader : IAsyncDisposable
+public sealed partial class ArchiveReader : IAsyncDisposable
 {
     private int _disposed;
     private ArchiveReader(string path) { DatabasePath = path; }

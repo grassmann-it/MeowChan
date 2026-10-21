@@ -206,7 +206,17 @@ Source: [LICENSE](https://raw.githubusercontent.com/feathericons/feather/1b00239
 
 Original SHA-256: `308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee`.
 
-Applies to Assets/icons/*.png. The existing About window identifies Feather as the source. The original PNG export revision is not recorded; v4.29.2 is the verified upstream license source, not a claim about the exporter version.
+Applies to `Assets/icons/*.png`, `Assets/icons/feather/*.svg`, and the derived
+`Assets/icons/feather/masks/*.png`. The new `feather/` SVGs are unchanged originals
+from Feather v4.29.2, commit `1b002399e8758fb2bccea4d07312dc9e0f43dcb8`; their
+48 × 48 PNG alpha masks are local raster derivatives. The original MIT license
+also accompanies those assets as `Assets/icons/feather/LICENSE`.
+
+The existing About window identifies Feather as the source of the older
+`Assets/icons/*.png`. Their original PNG export revision is not recorded;
+v4.29.2 is the verified upstream license source, not a claim about their exporter
+version. The pinned source of the new `feather/` assets does not change that
+historical limitation.
 
 ````text
 The MIT License (MIT)
