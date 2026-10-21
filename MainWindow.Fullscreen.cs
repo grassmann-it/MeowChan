@@ -187,9 +187,15 @@ public partial class MainWindow
 
     internal void RequestNormalWindowSize(Size requested)
     {
-        if (WindowState == WindowState.Normal)
+        // Cocoa can report its earlier fullscreen entry after an exit request.
+        // Keep an explicit normal resize in that pending exit even if the native
+        // report has temporarily changed the managed state back to FullScreen.
+        bool pendingFullscreenExit = OperatingSystem.IsMacOS() && _fullscreenExitIntent != null
+            && _fullscreenOrigin == null;
+        if (WindowState == WindowState.Normal || (pendingFullscreenExit && WindowState == WindowState.FullScreen))
         {
             CapturePendingFullscreenExitSize(requested);
+            if (WindowState == WindowState.FullScreen) return;
             if (!_restoringFullscreen) _fullscreenRestoreClient = null;
         }
         Width = requested.Width;
@@ -199,7 +205,9 @@ public partial class MainWindow
     private void CapturePendingFullscreenExitSize(Size requested)
     {
         FullscreenOrigin? intent = _fullscreenExitIntent;
-        if (!OperatingSystem.IsMacOS() || intent == null || WindowState != WindowState.Normal
+        if (!OperatingSystem.IsMacOS() || intent == null
+            || (WindowState != WindowState.Normal
+                && (WindowState != WindowState.FullScreen || _fullscreenOrigin != null))
             || _applyingFullscreenRestoreGeometry || !double.IsFinite(requested.Width) || !double.IsFinite(requested.Height)
             || requested.Width <= 0 || requested.Height <= 0) return;
         _fullscreenExitIntent = intent with { Client = requested };

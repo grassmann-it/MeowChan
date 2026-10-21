@@ -21,12 +21,24 @@ on:
           - package-media
           - linux-distribution
           - homebrew-macos
+      platform:
+        description: Native validation platform (all keeps the full validation and packaging checks)
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2022
+          - macos-15
+          - macos-15-intel
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2022, macos-15, macos-15-intel]
+        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '["ubuntu-24.04","ubuntu-24.04-arm","windows-2022","macos-15","macos-15-intel"]' || format('["{0}"]', inputs.platform)) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -164,7 +176,7 @@ jobs:
           retention-days: 30
 
   package:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && (!inputs.platform || inputs.platform == 'all'))
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -254,7 +266,7 @@ jobs:
           retention-days: 30
 
   macos-package:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'macos-package' || inputs.mode == 'package-media'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media'
     strategy:
       fail-fast: false
       matrix:
