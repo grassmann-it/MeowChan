@@ -77,7 +77,13 @@ public partial class ArchivePage : UserControl
     private bool _allVersions = true;
     private int _mediaSort;
 
-    public ArchivePage() { InitializeComponent(); InitializeArchiveSelection(); }
+    public ArchivePage()
+    {
+        InitializeComponent(); InitializeArchiveSelection();
+        // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
+        Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
+        InitializeReaderInteraction();
+    }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openMedia = null) : this()
@@ -186,6 +192,7 @@ public partial class ArchivePage : UserControl
     internal async Task LoadThreadAsync(ResourceId id, bool resetPage = true)
     {
         if (_ended || !_available || _openReader == null) return;
+        ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
         int request = ++_contentRequest;
         _contentCancellation?.Cancel();
@@ -228,7 +235,8 @@ public partial class ArchivePage : UserControl
             if (thread != null)
             {
                 MediaLoadTask = LoadMediaAsync(thread);
-                if (_largeReader && thread.PostCount > 0)
+                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor);
+                else if (_largeReader && thread.PostCount > 0)
                     await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId);
                 else if (_largeReader) Control<Button>("ArchiveCloseReader").Focus();
             }
@@ -431,7 +439,14 @@ public partial class ArchivePage : UserControl
                 return await Task.Run(async () =>
                 {
                     await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
-                    try { return await DecodeThumbnailAsync(match, loading.Token, large ? 1040 : 240, large ? 720 : 180).ConfigureAwait(false); }
+                    try
+                    {
+                        if (SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video)
+                            return await VideoPosterCache.LoadAsync(match.Manifest, match.Asset,
+                                Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
+                                large ? 1040 : 240, large ? 720 : 180, loading.Token).ConfigureAwait(false);
+                        return await DecodeThumbnailAsync(match, loading.Token, large ? 1040 : 240, large ? 720 : 180).ConfigureAwait(false);
+                    }
                     finally { _thumbnailGate.Release(); }
                 }, loading.Token);
             },
@@ -599,9 +614,11 @@ public partial class ArchivePage : UserControl
         if (_ended) return;
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
         // Refresh computed labels without losing the chosen manifest version or thread.
+        ReaderAnchor? anchor = _showReader ? CaptureReaderAnchor() : null;
         _assets = Array.AsReadOnly(_assets.Select(row => new ArchiveAssetRow(row.Manifest, row.Asset)).ToArray());
         Localize();
         RenderThread();
+        if (anchor != null) _ = RestoreReaderAnchorAsync(anchor);
         ListBox list = Control<ListBox>("ArchiveThreads");
         if (list.ItemsSource is IEnumerable<ArchiveThreadRow> rows)
         {

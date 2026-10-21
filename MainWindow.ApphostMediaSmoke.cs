@@ -30,10 +30,11 @@ public partial class MainWindow
         bool completed = false;
         string? failure = null;
         GalleryVideoPlayer.PlaybackEvidence? imageCleanup = null, closeCleanup = null, shutdownCleanup = null;
+        object? poster = null;
         void SaveEvidence() => File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
         {
             schemaVersion = 1, completed, failure, fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))),
-            samples, checks, imageCleanup, closeCleanup, shutdownCleanup,
+            samples, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
             scope = "actual apphost, production verified gallery/native video output; no audio-device, screen-pixel or hardware-acceleration claim"
         }, new JsonSerializerOptions { WriteIndented = true }));
         try
@@ -71,6 +72,30 @@ public partial class MainWindow
                 manifest, asset, null, null, false, true);
             GalleryEntry[] entries = manifest.GetPage().OrderBy(asset => asset.Path.EndsWith(".webm", StringComparison.Ordinal) ? 1 : 0)
                 .Select(MakeEntry).ToArray();
+            string posterCache = Path.Combine(profile, "cache", "video-posters-v1");
+            byte[] posterBytes = await VideoPosterCache.GetPngAsync(manifest, entries[1].Asset, posterCache, default)
+                ?? throw new InvalidOperationException("The native video-poster decoder produced no PNG.");
+            using (SKBitmap? decodedPoster = SKBitmap.Decode(posterBytes))
+            {
+                RequireMediaSmoke(decodedPoster != null && decodedPoster.Width is > 0 and <= 960 && decodedPoster.Height is > 0 and <= 640,
+                    "The generated video poster is not a bounded image.");
+                bool varied = decodedPoster!.Pixels.Distinct().Take(2).Count() == 2;
+                RequireMediaSmoke(varied, "The generated video poster contains no varied fixture pixels.");
+                string cacheFile = Path.Combine(posterCache, entries[1].Asset.Sha256.ToLowerInvariant() + ".png");
+                RequireMediaSmoke(File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0,
+                    "The video poster was not published to the persistent cache.");
+                DateTime originalWrite = File.GetLastWriteTimeUtc(cacheFile);
+                MediaAssetSnapshot reopened = await MediaAssetReader.OpenAsync(mediaDirectory);
+                MediaAssetReference videoAgain = reopened.GetPage().Single(asset => asset.AssetId == entries[1].Asset.AssetId);
+                byte[]? cached = await VideoPosterCache.GetPngAsync(reopened, videoAgain, posterCache, default);
+                RequireMediaSmoke(cached != null && File.Exists(cacheFile) && posterBytes.SequenceEqual(cached)
+                    && originalWrite == File.GetLastWriteTimeUtc(cacheFile),
+                    "Reopening the manifest did not reuse the persistent video-poster cache unchanged.");
+                await File.WriteAllBytesAsync(Path.Combine(profile, "apphost-playback-poster.png"), posterBytes);
+                poster = new { Generated = true, PersistentCacheHit = true, NonUniform = varied, decodedPoster.Width,
+                    decodedPoster.Height, Sha256 = Convert.ToHexString(SHA256.HashData(posterBytes)) };
+            }
+            checks.Add("video-poster-cache"); SaveEvidence();
             await OpenMediaGalleryAsync(entries, entries[0].EntryKey);
             GalleryViewer viewer = _gallery ?? throw new InvalidOperationException("Gallery did not open.");
             await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetVisualDescendants().OfType<Image>()
@@ -100,12 +125,18 @@ public partial class MainWindow
             }, "native clock and frame progression");
             checks.Add("native-time-and-frame-progress");
             await player.InspectPlaybackAsync(framePath);
-            await WaitMediaSmokeAsync(() => Task.FromResult(File.Exists(framePath) && new FileInfo(framePath).Length > 0), "native frame snapshot");
-            using (FileStream frame = File.OpenRead(framePath))
+            await WaitMediaSmokeAsync(() =>
             {
-                var info = GalleryImageDecoder.Inspect(frame);
-                RequireMediaSmoke(info.Width > 0 && info.Height > 0, "The native output snapshot contained no image.");
-            }
+                try
+                {
+                    if (!File.Exists(framePath) || new FileInfo(framePath).Length == 0) return Task.FromResult(false);
+                    using FileStream frame = File.OpenRead(framePath);
+                    var info = GalleryImageDecoder.Inspect(frame);
+                    return Task.FromResult(info.Width > 0 && info.Height > 0);
+                }
+                catch (IOException) { return Task.FromResult(false); }
+                catch (InvalidDataException) { return Task.FromResult(false); }
+            }, "complete native frame snapshot");
             checks.Add("native-output-snapshot");
             ClickMediaSmoke(viewer, "GalleryVideoPause");
             await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "pause state");

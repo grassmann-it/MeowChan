@@ -191,6 +191,7 @@ internal static class ArchivePageChecks
         Program.CaptureWindow(window, "smoke-archive-dark-compact.png");
         await ArchiveExportChecks.RunAsync(window, page.CurrentThread!);
         await CheckSlowMediaAsync(window, id);
+        await ReaderPreviewChecks.RunAsync(window);
         await ArchiveNavigationChecks.RunAsync(window);
         await GalleryViewerChecks.RunAsync(window);
         Console.WriteLine("SMOKE archive: real post capture, restart, watch removal, plain offline reader, verified image preview, independent media loading and compact EN/DE pages passed.");

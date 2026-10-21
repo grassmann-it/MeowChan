@@ -21,6 +21,18 @@ public partial class ArchivePage
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
     private string? _readerPostId;
+    private int _readerFocusRequest;
+    private int _readerInteractionRevision;
+    private void InitializeReaderInteraction()
+    {
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
+        posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space) ++_readerInteractionRevision;
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
     internal bool ReaderShowsPosts => _showReader && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
     internal Action? CloseReaderRequested { get; set; }
@@ -28,6 +40,7 @@ public partial class ArchivePage
 
     internal Control DetachReader()
     {
+        ++_readerFocusRequest;
         Grid pane = Control<Grid>("ArchiveReaderPane");
         Control<Grid>("ArchiveSplit").Children.Remove(pane);
         Border export = Control<Border>("ArchiveExportDialog");
@@ -47,6 +60,7 @@ public partial class ArchivePage
 
     internal void AttachReader(Control pane)
     {
+        ++_readerFocusRequest;
         _largeReader = false;
         Border export = Control<Border>("ArchiveExportDialog");
         ((Grid)pane).Children.Remove(export);
@@ -63,8 +77,10 @@ public partial class ArchivePage
         if (_thread != null) RenderThread();
     }
 
-    internal async Task FocusPostAsync(string postId)
+    internal Task FocusPostAsync(string postId) => FocusPostAsync(postId, null);
+    private async Task FocusPostAsync(string postId, int? interactionRevision)
     {
+        int focusRequest = ++_readerFocusRequest;
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
@@ -72,7 +88,9 @@ public partial class ArchivePage
         UpdateReaderNavigation();
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            if (_ended || request != _contentRequest || _thread?.Summary.Id != threadId || _thread?.FindPostIndex(postId) is not >= 0) return;
+            if (_ended || focusRequest != _readerFocusRequest || request != _contentRequest || _thread?.Summary.Id != threadId
+                || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)
+                || _thread?.FindPostIndex(postId) is not >= 0) return;
             ListBox posts = Control<ListBox>("ArchivePosts");
             if (posts.ItemsSource is not System.Collections.Generic.IEnumerable<ArchivePostRow> rows) return;
             ArchivePostRow? row = rows.FirstOrDefault(post => post.Id == postId);
@@ -195,30 +213,44 @@ public partial class ArchivePage
         UpdateReaderNavigation();
     }
 
-    private sealed record ReaderAnchor(ResourceId Thread, string PostId, double Offset);
+    private sealed record ReaderAnchor(ResourceId Thread, string PostId, double Top, string? SelectedPostId);
     private ReaderAnchor? CaptureReaderAnchor()
     {
         if (_thread == null) return null;
         ListBox list = Control<ListBox>("ArchivePosts");
+        string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         var visible = list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
             .Where(item => item.Item.DataContext is ArchivePostRow && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
-            return new ReaderAnchor(_thread.Summary.Id, row.Id, Math.Max(0, -visible.Top));
+            return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
         string? post = (list.SelectedItem as ArchivePostRow)?.Id ?? _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId;
-        return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0);
+        return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0, selected);
     }
 
     private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor)
     {
         if (_thread?.Summary.Id != anchor.Thread) return;
-        await FocusPostAsync(anchor.PostId);
+        int request = _contentRequest;
+        int interactionRevision = _readerInteractionRevision;
+        int focusRequest = _readerFocusRequest + 1;
+        await FocusPostAsync(anchor.PostId, interactionRevision);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            if (_ended || _thread?.Summary.Id != anchor.Thread) return;
-            ScrollViewer? scroll = Control<ListBox>("ArchivePosts").GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scroll != null) scroll.Offset = new Vector(scroll.Offset.X, scroll.Offset.Y + anchor.Offset);
+            if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest
+                || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
+            ListBox list = Control<ListBox>("ArchivePosts");
+            if (anchor.SelectedPostId != null && list.ItemsSource is IEnumerable<ArchivePostRow> rows)
+            {
+                ArchivePostRow? selected = rows.FirstOrDefault(row => row.Id == anchor.SelectedPostId);
+                if (selected != null) { list.SelectedItem = selected; _readerPostId = selected.Id; }
+            }
+            ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            ArchivePostRow? anchored = list.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(row => row.Id == anchor.PostId);
+            if (scroll != null && anchored != null && list.ContainerFromItem(anchored) is Control container
+                && container.TranslatePoint(default, list) is Point position)
+                scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + position.Y - anchor.Top));
         }, DispatcherPriority.Loaded);
     }
 

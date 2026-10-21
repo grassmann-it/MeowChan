@@ -292,8 +292,14 @@ public partial class ArchivePage
         if (_thread == null) return;
         int index = _thread.FindPostIndex(postId);
         if (index < 0) return;
-        _postOffset = index / PageSize * PageSize;
-        RenderThread();
+        int offset = index / PageSize * PageSize;
+        // Moving within a page keeps realized controls, pending previews and their geometry.
+        if (offset != _postOffset || Control<ListBox>("ArchivePosts").ItemsSource is not IEnumerable<ArchivePostRow> current
+            || !current.Any(post => post.Id == postId))
+        {
+            _postOffset = offset;
+            RenderThread();
+        }
         Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
         ListBox list = Control<ListBox>("ArchivePosts");
         if (list.ItemsSource is System.Collections.Generic.IEnumerable<ArchivePostRow> posts)

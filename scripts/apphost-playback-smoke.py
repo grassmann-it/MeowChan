@@ -19,7 +19,7 @@ import zlib
 spec = importlib.util.spec_from_file_location('desktop_runner', Path(__file__).with_name('run-desktop-smoke.py'))
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)
-CHECKS = {'initial-image', 'native-time-and-frame-progress', 'native-output-snapshot', 'pause-clock-held', 'play-resumed',
+CHECKS = {'video-poster-cache', 'initial-image', 'native-time-and-frame-progress', 'native-output-snapshot', 'pause-clock-held', 'play-resumed',
           'video-image-stream-released', 'back-to-video', 'gallery-close-disposed', 'playing-shutdown-disposed'}
 
 
@@ -77,6 +77,11 @@ def validate_metrics(metrics, fixture_hash):
         raise ValueError('Product fixture hash mismatch')
     if not CHECKS.issubset(set(metrics.get('checks', []))):
         raise ValueError('Product omitted required playback checks')
+    poster = metrics['poster']
+    if any(poster[field] is not True for field in ('Generated', 'PersistentCacheHit', 'NonUniform')):
+        raise ValueError('Native poster generation/cache proof incomplete')
+    if not (0 < poster['Width'] <= 960 and 0 < poster['Height'] <= 640):
+        raise ValueError('Native poster dimensions out of bounds')
     samples = metrics.get('samples', [])
     if len(samples) < 2:
         raise ValueError('Missing native playback progress samples')
@@ -91,6 +96,16 @@ def validate_metrics(metrics, fixture_hash):
             raise ValueError(name + ' did not release playback streams cleanly')
         if disposed and (evidence['Disposed'] is not True or evidence['HasEngine'] is not False):
             raise ValueError(name + ' did not dispose the native engine')
+
+
+def validate_poster(metrics, path):
+    image = validate_png(path)
+    poster = metrics['poster']
+    if image['sha256'].lower() != str(poster['Sha256']).lower():
+        raise ValueError('Native poster hash mismatch')
+    if image['width'] != poster['Width'] or image['height'] != poster['Height']:
+        raise ValueError('Native poster dimensions mismatch')
+    return image
 
 
 def run_fixture(apphost, fixture, destination, timeout, isolated):
@@ -122,14 +137,17 @@ def run_fixture(apphost, fixture, destination, timeout, isolated):
                         if process is not None:
                             desktop.stop_owned_processes(process)
                     finally:
-                        for source, target in [('apphost-playback.json', 'metrics.json'), ('apphost-playback-frame.png', 'frame.png')]:
+                        for source, target in [('apphost-playback.json', 'metrics.json'), ('apphost-playback-frame.png', 'frame.png'),
+                                               ('apphost-playback-poster.png', 'poster.png')]:
                             if (profile / source).is_file():
                                 shutil.copy2(profile / source, destination / target)
         if result['timedOut'] or result.get('exitCode') != 0:
             raise ValueError('Apphost timed out or exited unsuccessfully')
         if 'APPHOST PLAYBACK PASS' not in (destination / 'output.log').read_text(encoding='utf-8', errors='replace'):
             raise ValueError('Apphost completion marker missing')
-        validate_metrics(json.loads((destination / 'metrics.json').read_text(encoding='utf-8')), result['fixtureSha256'])
+        metrics = json.loads((destination / 'metrics.json').read_text(encoding='utf-8'))
+        validate_metrics(metrics, result['fixtureSha256'])
+        result['poster'] = validate_poster(metrics, destination / 'poster.png')
         result['snapshot'] = validate_png(destination / 'frame.png')
         result['passed'] = True
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:

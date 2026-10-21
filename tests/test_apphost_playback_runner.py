@@ -19,6 +19,7 @@ def metrics():
     return dict(schemaVersion=1, completed=True, failure=None, fixtureSha256='AB', checks=list(runner.CHECKS),
                 samples=[dict(State='Playing', Time=300, DecodedFrames=3, DisplayedFrames=2),
                          dict(State='Playing', Time=600, DecodedFrames=7, DisplayedFrames=4)],
+                poster=dict(Generated=True, PersistentCacheHit=True, NonUniform=True, Width=1, Height=1, Sha256='00' * 32),
                 imageCleanup=clean.copy(), closeCleanup=clean.copy(), shutdownCleanup=clean.copy())
 
 
@@ -47,6 +48,20 @@ class PlaybackRunnerTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 runner.validate_metrics(bad, 'ab')
 
+    def test_requires_video_poster_cache_proof(self):
+        evidence = metrics()
+        evidence['checks'].remove('video-poster-cache')
+        with self.assertRaisesRegex(ValueError, 'required playback checks'):
+            runner.validate_metrics(evidence, 'ab')
+
+    def test_requires_poster_generation_cache_and_bounded_dimensions(self):
+        for key, value in [('Generated', False), ('PersistentCacheHit', False), ('NonUniform', False),
+                           ('Width', 0), ('Width', 961), ('Height', 0), ('Height', 641)]:
+            evidence = metrics()
+            evidence['poster'][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                runner.validate_metrics(evidence, 'ab')
+
     def test_png_integrity(self):
         def chunk(kind, payload):
             return struct.pack('>I', len(payload)) + kind + payload + struct.pack('>I', zlib.crc32(kind + payload))
@@ -55,6 +70,16 @@ class PlaybackRunnerTests(unittest.TestCase):
             path = Path(temporary) / 'frame.png'
             path.write_bytes(png)
             self.assertEqual(runner.validate_png(path)['width'], 1)
+            evidence = metrics()
+            evidence['poster']['Sha256'] = runner.sha256(path).upper()
+            self.assertEqual(runner.validate_poster(evidence, path)['width'], 1)
+            evidence['poster']['Sha256'] = '00' * 32
+            with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+                runner.validate_poster(evidence, path)
+            evidence['poster']['Sha256'] = runner.sha256(path)
+            evidence['poster']['Width'] = 2
+            with self.assertRaisesRegex(ValueError, 'dimensions mismatch'):
+                runner.validate_poster(evidence, path)
             path.write_bytes(png[:-1] + b'X')
             with self.assertRaises(ValueError):
                 runner.validate_png(path)
@@ -64,12 +89,13 @@ class PlaybackRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             app = base / 'fake-apphost'
-            app.write_text('#!' + sys.executable + '\nimport os,time\nfrom pathlib import Path\np=Path(os.environ["MEOWCHAN_PROFILE"])\nassert not p.exists()\nassert "OCHAN_PROFILE" not in os.environ\nprint(str(p),flush=True)\ntime.sleep(30)\n')
+            app.write_text('#!' + sys.executable + '\nimport os,time\nfrom pathlib import Path\np=Path(os.environ["MEOWCHAN_PROFILE"])\nassert not p.exists()\nassert "OCHAN_PROFILE" not in os.environ\np.mkdir()\n(p/"apphost-playback-poster.png").write_bytes(b"retained-poster-evidence")\nprint(str(p),flush=True)\ntime.sleep(30)\n')
             app.chmod(0o755)
             fixture = ROOT / 'tests/Fixtures/gallery-playback-vp8.webm'
             result = runner.run_fixture(app, fixture, base / 'evidence', .2, False)
             self.assertFalse(result['passed'])
             self.assertTrue(result['timedOut'])
+            self.assertEqual((base / 'evidence/poster.png').read_bytes(), b'retained-poster-evidence')
             profile = (base / 'evidence/output.log').read_text().strip()
             self.assertTrue(profile)
             self.assertFalse(Path(profile).parent.exists())
