@@ -494,6 +494,7 @@ jobs:
       - name: Prepare the selected private VLC runtime and pinned AppImage tools
         shell: bash
         run: |
+          python3 scripts/package-linux.py refresh-runtime-packages --runtime ${{ matrix.runtime }}
           python3 scripts/package-linux.py prepare-runtime --runtime ${{ matrix.runtime }} --output-dir artifacts/linux-runtime/${{ matrix.runtime }}
           python3 scripts/package-linux.py download-tools --runtime ${{ matrix.runtime }} --output-dir artifacts/appimage-tools/${{ matrix.runtime }}
       - name: Build bundled VLC, system VLC and AppImage distributions

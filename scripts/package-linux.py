@@ -293,26 +293,60 @@ def check_vlc_version(version: str) -> None:
         raise ValueError(f"Installed VLC is below required 3.0.20 or outside the supported LibVLC 3 ABI: {version}; update the baseline packages.")
 
 
-def prepare_runtime(rid: str, output: Path) -> dict:
-    native_host(rid)
-    if output.exists():
-        raise ValueError("Runtime output must be fresh; never merge native inventories.")
+def runtime_inputs() -> tuple[list[tuple[Path, Path]], list[Path]]:
     triple = run("dpkg-architecture", "-qDEB_HOST_MULTIARCH").strip()
     system_lib = Path("/usr/lib") / triple
     plugin_root = system_lib / "vlc/plugins"
     inputs = [(system_lib / "libvlc.so.5", Path("lib/libvlc.so.5")),
               (system_lib / "libvlccore.so.9", Path("lib/libvlccore.so.9"))]
+    inputs += [(p, Path("lib/vlc/plugins") / p.relative_to(plugin_root)) for p in selected_plugins(plugin_root)]
+    data_root = Path("/usr/share/vlc")
+    if not data_root.is_dir():
+        raise ValueError("vlc-data is required.")
+    return inputs, [p for p in data_root.rglob("*") if p.is_file()]
+
+
+def refresh_runtime_packages(rid: str) -> dict:
+    """Update stale runner packages before a separate process loads/copies VLC.
+
+    Runner images can retain superseded binaries whose exact archives vanished
+    from current APT indices. Never attribute those bytes to a newer archive.
+    """
+    native_host(rid)
+    updates = []
+    for attempt in range(3):
+        inputs, data_files = runtime_inputs()
+        sources, _ = collect_closure(inputs, rid)
+        owners = sorted({package_owner(path) for path in [*sources.values(), *data_files]})
+        unavailable = []
+        for owner in owners:
+            try:
+                package_metadata(owner)
+            except (ValueError, subprocess.CalledProcessError):
+                unavailable.append(owner)
+        if not unavailable:
+            return {"runtime": rid, "updated_packages": updates, "verified_packages": owners}
+        if attempt == 2:
+            raise ValueError(f"Runtime packages still lack exact repository provenance after refresh: {unavailable}")
+        # APT must actually install its available candidate; no inventory version
+        # substitution, downgrade, whole-host upgrade or removal is permitted.
+        run("sudo", "apt-get", "install", "--yes", "--only-upgrade", "--no-remove", *unavailable)
+        updates.append(unavailable)
+    raise AssertionError("Unreachable runtime refresh state")
+
+
+def prepare_runtime(rid: str, output: Path) -> dict:
+    native_host(rid)
+    if output.exists():
+        raise ValueError("Runtime output must be fresh; never merge native inventories.")
+    inputs, data_files = runtime_inputs()
     library = ctypes.CDLL(str(inputs[0][0]))
     library.libvlc_get_version.restype = ctypes.c_char_p
     version = library.libvlc_get_version().decode()
     check_vlc_version(version)
-    inputs += [(p, Path("lib/vlc/plugins") / p.relative_to(plugin_root)) for p in selected_plugins(plugin_root)]
     sources, edges = collect_closure(inputs, rid)
     mappings = []
     data_root = Path("/usr/share/vlc")
-    if not data_root.is_dir():
-        raise ValueError("vlc-data is required.")
-    data_files = [p for p in data_root.rglob("*") if p.is_file()]
     reserve(output, sum(p.stat().st_size for p in sources.values()) + sum(p.stat().st_size for p in data_files) + 64 * 1024 ** 2)
     runtime = output / "runtime"
     runtime.mkdir(parents=True)
@@ -539,17 +573,20 @@ def package(publish: Path, rid: str, version: str, commit: str, runtime_dir: Pat
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare-runtime", "download-tools", "package"):
+    for name in ("refresh-runtime-packages", "prepare-runtime", "download-tools", "package"):
         sub = actions.add_parser(name)
         sub.add_argument("--runtime", required=True, choices=RIDS)
-        sub.add_argument("--output-dir", type=Path, required=True)
+        if name != "refresh-runtime-packages":
+            sub.add_argument("--output-dir", type=Path, required=True)
         if name == "package":
             for flag in ("publish-dir", "runtime-dir", "runtime-manifest", "tools-dir"):
                 sub.add_argument("--" + flag, type=Path, required=True)
             sub.add_argument("--version", required=True)
             sub.add_argument("--source-commit", required=True)
     args = parser.parse_args()
-    if args.command == "prepare-runtime":
+    if args.command == "refresh-runtime-packages":
+        print(json.dumps(refresh_runtime_packages(args.runtime)))
+    elif args.command == "prepare-runtime":
         result = prepare_runtime(args.runtime, args.output_dir)
         print(json.dumps({"manifest": str(args.output_dir / "runtime-manifest.json"), "files": len(result["files"])}))
     elif args.command == "download-tools":

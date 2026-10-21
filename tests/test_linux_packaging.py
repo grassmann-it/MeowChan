@@ -47,6 +47,27 @@ class LinuxPackagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pack.check_vlc_version(version)
 
+    def test_refresh_installs_only_stale_closure_owner_and_rediscovers_before_metadata(self):
+        library = self.root / "library"
+        data = self.root / "data"
+        calls = []
+        def metadata(owner):
+            if owner == "stale:amd64" and not calls:
+                raise ValueError("Missing Filename provenance")
+            return {"package": owner}
+        with mock.patch.object(pack, "native_host"), mock.patch.object(pack, "runtime_inputs", return_value=([], [data])) as discover, mock.patch.object(pack, "collect_closure", return_value=({"lib/libfixture.so": library}, [])), mock.patch.object(pack, "package_owner", side_effect=lambda p: "stale:amd64" if p == library else "current:amd64"), mock.patch.object(pack, "package_metadata", side_effect=metadata), mock.patch.object(pack, "run", side_effect=lambda *args: calls.append(args)), mock.patch.object(pack.ctypes, "CDLL") as load:
+            result = pack.refresh_runtime_packages("linux-x64")
+        self.assertEqual(calls, [("sudo", "apt-get", "install", "--yes", "--only-upgrade", "--no-remove", "stale:amd64")])
+        self.assertEqual(discover.call_count, 2)
+        self.assertEqual(result["verified_packages"], ["current:amd64", "stale:amd64"])
+        load.assert_not_called()
+
+    def test_refresh_never_accepts_unavailable_exact_metadata_after_update(self):
+        with mock.patch.object(pack, "native_host"), mock.patch.object(pack, "runtime_inputs", return_value=([], [])), mock.patch.object(pack, "collect_closure", return_value=({"lib/file": self.root / "library"}, [])), mock.patch.object(pack, "package_owner", return_value="stale:amd64"), mock.patch.object(pack, "package_metadata", side_effect=ValueError("Missing SHA256")), mock.patch.object(pack, "run") as update:
+            with self.assertRaisesRegex(ValueError, "still lack exact repository provenance"):
+                pack.refresh_runtime_packages("linux-x64")
+        self.assertEqual(update.call_count, 2)
+
     def test_architecture_checked_from_real_header_not_filename(self):
         path = self.root / "misleading-aarch64.so"
         path.write_bytes(elf())
