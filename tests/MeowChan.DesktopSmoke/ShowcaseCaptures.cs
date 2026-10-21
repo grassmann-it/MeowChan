@@ -159,10 +159,12 @@ internal static class ShowcaseCaptures
 
     private static async Task CaptureReaderAsync(MainWindow window, ArchivePage page)
     {
+        await ResizeAsync(window, 1440, 960);
         page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 0;
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == ShowcaseData.Hero);
+        await ReaderUxChecks.CheckOverlayChromeAsync(window, reader);
         await page.MediaLoadTask;
         await page.FocusPostAsync(ShowcaseData.Hero.Thread!);
         Rect? previousImage = null;
@@ -172,14 +174,14 @@ internal static class ShowcaseCaptures
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             ArchiveAttachmentView? first = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                 .FirstOrDefault(view => view.IsEffectivelyVisible && view.DataContext is ArchiveAttachmentRow);
+            ScrollViewer viewport = posts.GetVisualDescendants().OfType<ScrollViewer>().Single();
             ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
             SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
-            if (reader.Bounds.Width < window.ClientSize.Width - 1 || reader.Bounds.Height < window.ClientSize.Height - 1
-                || page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
+            if (page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
                 || first?.Thumbnail.Source is not Bitmap bitmap || bitmap.PixelSize.Width <= 240
                 || first.Thumbnail.Bounds.Width < 640 || first.Thumbnail.Bounds.Height < 280 || body == null
-                || !FitsInReader(first.Thumbnail, reader) || !FitsInReader(body, reader)
+                || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)
                 || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
                 || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled)
             { previousImage = null; return false; }
@@ -194,14 +196,15 @@ internal static class ShowcaseCaptures
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         await Program.WaitUntilAsync(() => !reader.IsVisible
             && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"));
+        await ResizeAsync(window, 1440, 920);
     }
 
-    private static bool FitsInReader(Control control, ContentControl reader)
+    private static bool FitsInViewport(Control control, ScrollViewer viewport)
     {
-        Point? point = control.TranslatePoint(default, reader);
+        Point? point = control.TranslatePoint(default, viewport);
         return point.HasValue && point.Value.X >= 0 && point.Value.Y >= 0
-            && point.Value.X + control.Bounds.Width <= reader.Bounds.Width + 1
-            && point.Value.Y + control.Bounds.Height <= reader.Bounds.Height + 1;
+            && point.Value.X + control.Bounds.Width <= viewport.Viewport.Width + 1
+            && point.Value.Y + control.Bounds.Height <= viewport.Viewport.Height + 1;
     }
 
     private static async Task WaitForArchiveTilesAsync(MainWindow window, ArchivePage page)
@@ -271,6 +274,27 @@ internal static class ShowcaseCaptures
     private static async Task CaptureAsync(Window window, string name)
     {
         await Dispatcher.UIThread.InvokeAsync(() => window.UpdateLayout(), DispatcherPriority.Background);
+        if (window is MainWindow main)
+        {
+            if (Config.LoadConfig().WorkspaceMode != "Simple" || Texts.Language != "en"
+                || Application.Current!.RequestedThemeVariant != ThemeVariant.Dark)
+                throw new InvalidOperationException("Release showcase captures require Simple/Dark/English.");
+            await WindowChromeChecks.CheckReachableAsync(main);
+            foreach (string hostName in new[] { "ReaderHost", "GalleryHost" })
+            {
+                ContentControl overlay = main.FindControl<ContentControl>(hostName)!;
+                if (overlay.IsEffectivelyVisible) await ReaderUxChecks.CheckOverlayChromeAsync(main, overlay);
+            }
+            await Program.WaitUntilAsync(() =>
+            {
+                Image logo = main.FindControl<Image>("WorkspaceLogo")!;
+                Point? origin = logo.TranslatePoint(default, main);
+                return logo.IsEffectivelyVisible && logo.Source != null && logo.Bounds.Width >= 24
+                    && logo.Bounds.Height >= 24 && origin is Point position && position.X >= 0 && position.Y >= 0
+                    && position.X + logo.Bounds.Width <= main.Bounds.Width + 1
+                    && position.Y + logo.Bounds.Height <= main.FindControl<Grid>("WorkspaceTitleBar")!.Bounds.Height + 1;
+            });
+        }
         Program.CaptureWindow(window, name);
         Console.WriteLine($"SHOWCASE {name}; OS={System.Runtime.InteropServices.RuntimeInformation.OSDescription}; client={window.Bounds.Size}; scale={window.RenderScaling}; style=Simple/Dark/en; content=original synthetic demo, Skia procedural artwork.");
     }
