@@ -4,31 +4,37 @@ This record separates upstream platform support, candidate MeowChan packages, an
 
 ## 0.9.0 candidate: final native revalidation pending
 
-The [native package/media run at source `226af46`](https://github.com/tfgrass/MeowChan/actions/runs/39662560567)
-passed all six jobs: Windows x64, macOS Intel/Apple Silicon, all three Linux
-formats on both CPUs, and macOS source pairing. The Mac checks mounted each
-signed DMG, verified its app and Applications shortcut, copied the app out, and
-ran startup, playback and the packaged desktop workflow.
+Product checkpoint `161a8b0` contains the final fullscreen lifecycle corrections:
+explicit app resize requests are separate from native resize reports, normal
+geometry survives a maximized fullscreen round-trip, and the native resize probe
+reserves actual desktop space. The Release build and repeated isolated Linux
+selection scenarios pass. The current Linux source passed 644 core and 269
+desktop tests, with one expected native-media skip. Earlier native reader/gallery
+scenarios passed on Windows, both Macs and both Linux CPUs. The final Mac rapid-transition corrections still
+require native confirmation.
 
-The separate [full validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560402)
-and [diagnostic rerun](https://github.com/tfgrass/MeowChan/actions/runs/39664171342)
-exposed two macOS product defects: an exact-working-area normal window could be
-misclassified as maximized, and a delayed Cocoa fullscreen entry could undo an
-early exit. The current source includes corrections and a rapid enter/exit
-regression. Windows checks also required fitting resize-test canvases to the
-runner's actual desktop without weakening the resize assertions.
+The [complete package/media matrix at `6e750ec`](https://github.com/tfgrass/MeowChan/actions/runs/39667959802)
+passed Windows x64, both Mac DMGs, all three Linux formats on both CPUs, and the
+corresponding-source collector. Each DMG was mounted, signature-checked and its
+app copied out for startup/playback/workflow tests. These packages predate the
+last window corrections and do not attest to the changed product.
 
-Local integrated validation passed 264 desktop tests with one expected opt-in
-native-media skip. Final native validation and rebuilt packages for these
-corrections remain pending; the earlier green package run does not validate the
-changed product source. No release or user acceptance is claimed.
+The [newer matrix run](https://github.com/tfgrass/MeowChan/actions/runs/39670053190)
+was deliberately canceled to stop repeated all-platform builds. The Linux
+functional checkpoint is complete: all eight isolated graphical scenarios passed
+at `161a8b0`, alongside the offline suites above. Source `d854684` adds a narrow
+macOS correction that preserves an explicit normal-size request during a delayed
+native fullscreen report. Targeted Windows, macOS ARM and macOS Intel validation
+follows that checkpoint; delivery packaging remains separate. Public stable
+publication is authorized once technical checks and final package validation pass.
+No final native acceptance or published stable release is claimed yet.
 
 The [screenshot provenance](screenshots/README.md) identifies the captured UI
 checkpoint. A fresh local NuGet consumer and bounded 4chan/8kun
 download/search/export/restore checks passed at `3a47804`; subsequent changes
 have not modified the library or providers.
 
-The next public release is planned as **stable 0.9.0** after completion, native checks and one Windows package for user testing. No further intermediate release is planned. All desktop variants are self-contained for .NET. Windows x64 retains its ZIP. macOS Intel/Apple Silicon use separate DMGs with `MeowChan.app` and an Applications shortcut; Linux x64 and ARM64 each have three planned choices:
+The next public release is planned as **stable 0.9.0** after completion and native package checks. No further intermediate release is planned. All desktop variants are self-contained for .NET. Windows x64 retains its ZIP. macOS Intel/Apple Silicon use separate DMGs with `MeowChan.app` and an Applications shortcut; Linux x64 and ARM64 each have three planned choices:
 
 | Planned Linux artifact | Native VLC delivery |
 | --- | --- |

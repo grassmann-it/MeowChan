@@ -4,30 +4,30 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>0.9.0 · In preparation</strong></p>
+<p align="center"><strong>0.9.0</strong></p>
 
 <p align="center">oChan is now MeowChan.<br>Save threads. Browse your archive. Keep it offline.</p>
 
 MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
-Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Stable **0.9.0 is in preparation**. It is the next planned public release, after native checks and one Windows package for user testing; no further intermediate releases are planned. The published Windows x64 compatibility preview is [0.9.0 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3), with .NET 10 and VLC included. Extract the whole ZIP and launch `MeowChan.exe`. It carries fixes for profile database handles retained after host shutdown and a start window larger than the available work area. Full desktop and hardware acceptance remains open. Older releases retain their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
+Download **MeowChan 0.9.0** from the [stable release](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). The [release notes](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
 
 ## Quick start
 
-Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. All planned desktop packages include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives, and bundled AppImages for both CPUs. It still requires glibc and X11/XWayland. The macOS standard is separate self-contained Intel/Apple Silicon DMGs containing an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
+Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
 
-The steps below describe the 0.9.0 interface and candidate launchers. Published older builds retain their original launcher names and controls.
+The steps below describe the 0.9.0 interface and launchers.
 
-1. [Download a published build](https://github.com/tfgrass/MeowChan/releases) and extract the **whole archive**. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+1. [Download MeowChan 0.9.0](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-The new delivery variants below are planned for 0.9.0 and still require their final native checks. For each of `linux-x64` and `linux-arm64`:
+For each of `linux-x64` and `linux-arm64`, choose a package on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0):
 
-| Planned filename | VLC requirement |
+| Filename | VLC requirement |
 | --- | --- |
 | `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
 | `MeowChan-0.9.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
@@ -75,15 +75,15 @@ These scenes show the integrated interface at source commit `b8e1291`, using ori
 - Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
 - Diagnostics for current request cooldowns, download/storage errors and session warnings.
 
-The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libmeowchan` continues to work independently of the UI. Final native package acceptance for 0.9.0 is still open.
+The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libmeowchan` continues to work independently of the UI.
 
 ## Desktop views
 
-Builds after Windows Preview 3 use **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Published Windows Preview 3 (`a98759e`) still defaults to Simple; choose Barebones manually there. Switch views without restarting downloads or losing the current selection and URL input:
+MeowChan 0.9.0 uses **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Switch views without restarting downloads or losing the current selection and URL input:
 
 | View | Presentation |
 | --- | --- |
-| **Barebones** | The default in following builds: a smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
+| **Barebones** | The default: a smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
 | **Simple** | Combined source/board, title with inline thread ID, and status with media progress. |
 | **Advanced** | Adds separate sortable columns for thread ID, status, queued media and active media downloads. |
 
@@ -101,7 +101,7 @@ dotnet build MeowChan.sln -c Release --no-restore
 dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. On macOS, open the DMG and drag the ad-hoc-signed `MeowChan.app` to Applications; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native results must be bound to the exact delivery candidate; physical hardware and Gatekeeper behavior remain separate checks. See [platform requirements and package checks](docs/platform-support.md).
+Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. On macOS, open the DMG and drag the ad-hoc-signed `MeowChan.app` to Applications; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. See [platform requirements and package checks](docs/platform-support.md) for the recorded evidence and its limits.
 
 ## Downloading
 
@@ -161,7 +161,7 @@ PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still 
 
 Video attachments in captured posts can reuse persistent still previews offline, generated from verified saved originals. If a preview is unavailable, open the original in the gallery for playback.
 
-The current source includes a bounded LibVLC player for local media. Linux uses the chosen bundled or system VLC backend and checks it before session startup; Windows/macOS use official VideoLAN native assets. All desktop variants include .NET; only the Linux system-VLC variant needs a separate VLC installation. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
+MeowChan includes a bounded LibVLC player for local media. Linux uses the chosen bundled or system VLC backend and checks it before session startup; Windows/macOS use official VideoLAN native assets. All desktop variants include .NET; only the Linux system-VLC variant needs a separate VLC installation. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
 
 ### Portable HTML export
 
@@ -215,7 +215,7 @@ python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/R
 
 On Linux, the runner requires Xvfb, Openbox and a private session bus; missing tools fail without falling back to your desktop. Windows/macOS require a dedicated test desktop and `--allow-native-desktop`. Standard scenarios run serially and stop at the first failure. Rapid tray/window stress is a separate opt-in; do not run it on a personal workstation. See the [harness instructions](tests/MeowChan.DesktopSmoke/README.md) for prerequisites and targeted visual checks.
 
-The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for evidence and remaining native checks.
+The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for package evidence and its limits.
 
 ## Support MeowChan
 

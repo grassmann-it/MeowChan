@@ -1,14 +1,17 @@
 # Changelog
 
-## 0.9.0 (unreleased)
+## 0.9.0
 
-This update replaces the desktop interface while keeping the 4chan/8kun download engine, durable sessions and independently usable `libmeowchan` library.
+oChan becomes **MeowChan** with a redesigned Avalonia desktop interface. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
 
 ### What's new
 
-- **Shared local gallery.** Thread rows/cards, saved-media tables/tiles and inline images open one viewer with Left/Right, Fit/1:1, zoom/pan and saved-post context. Images of results freezes every found thread in current sort order across result pages, including nonmatching posts; saved-media navigation follows its sort/version filter. Animated images show a first frame. Preview safety limits are 64 MiB and 80 million source pixels.
+- **Shared local gallery.** Thread context actions, saved-media tables/tiles and inline images open one viewer with Left/Right, Fit/1:1, zoom/pan and saved-post context. Gallery navigation from search includes every found thread in current sort order across result pages, including images from nonmatching posts; saved-media navigation follows its sort/version filter. Animated images show a first frame. Preview safety limits are 64 MiB and 80 million source pixels.
+- **Full-window reader and video.** Double-click a thread row/card to read captured posts; Shift+Enter or the context menu opens its gallery. Reader/gallery navigation retains the originating selection and search. Closing the gallery returns to the post associated with the currently shown medium. Saved videos have offline poster previews and play through LibVLC in the gallery. F11 toggles fullscreen across the workspace, reader and gallery.
 - **Durable media follow-up.** Consecutive 404s pause 15/30/60/120/240 minutes, then at least 240. A terminal source gets a fixed 12-hour follow-up from its first durably recorded end. Restart/pause do not extend it; completion can retain missing 404 media. Other exhausted/capture/storage failures require intervention. Check-now respects media pauses; manual retry grants one outer attempt, including after completion, without a new watch or end window.
 - **Compact repeat export.** Known export targets survive restart. Choose a new folder or explicitly update an inspected earlier export; Open folder opens the current successful result. Modified or reduced output preserves the previous folder after confirmation.
+- **Selection and archive cleanup.** Multi-select watches and archived threads for copy, removal and portable combined HTML export. Permanent archive deletion previews the files and requires confirmation; ordinary Delete removes watches while keeping their archive. Favorites track exact saved-media revisions and verified originals can be exported without a new download.
+- **Board admission.** A preview wizard filters discovered threads by literal title/opening-post text and shows reasons and individual choices before adding a batch. Removed board threads remain excluded until reactivated; filter changes affect future admissions.
 
 - **Check now and separate media retry.** Downloads and Diagnostics can request a check on the exact watch. Checks coalesce, obey provider limits and respect media due times. The separate media retry grants one outer attempt without changing previous rule decisions; completed-thread repair does not restart source monitoring.
 - **Persistent Pause/Resume.** Header and menu stop running transfers and source requests as well as queued work; completed files remain intact, and interrupted transfers restart after Resume. Pause survives desktop restarts.
@@ -30,18 +33,18 @@ This update replaces the desktop interface while keeping the 4chan/8kun download
 ### Upgrade and behavior notes
 
 - Existing profiles, watched URLs and assigned download paths remain usable. Stop all older application/library writers and back up the full profile and media manifests before upgrading. New profile/media leases do not coordinate with older writers; concurrent old/new access and downgrades are unsupported. Fresh profiles use the MeowChan name, while an existing installation's selected profile/destinations remain in place. `MEOWCHAN_PROFILE` selects an absolute profile path. New profiles default to **Barebones, Dark and English**, with the view’s default density. Main-window theme/view changes save immediately; pending Settings changes require a successful **Save**. Cancel reloads confirmed settings; neither action leaves the page.
-- **Double-click a thread row/card to open its gallery**; right-click offers reading, gallery and HTML export in Archive. Board double-click retains details. Open folder and thread details remain explicit actions. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
+- **Double-click a thread row/card to open its reader**; Shift+Enter or the context menu opens its gallery. Archive context actions also include HTML export. Board double-click retains details. Open folder and thread details remain explicit actions. Escape closes details; Ctrl+L/Cmd+L switches to Downloads and focuses URL input, and Shift+Enter inserts a newline.
 - Progress is **saved / selected media**, with rule exclusions shown separately; it is not bytes or a final thread size. Monitoring continues at 100%. “Archived” describes the source, not a local HTML archive. The import report describes the latest import, not a persistent history.
-- View/theme/language preferences and window geometry persist. Density, reading size, column visibility/width/order, archive layout and reader split are saved separately for Barebones, Simple and Advanced.
+- View/theme/language preferences and normal/maximized window geometry persist. Startup fits the default window to the available work area; leaving fullscreen restores the previous window state. Density, reading size, column visibility/width/order, archive layout and reader split are saved separately for Barebones, Simple and Advanced.
 - .NET 10 and the existing platform targets are retained. Library consumers must use the `libmeowchan` package/assembly and `MeowChan.*` namespaces. No binary redirect is provided. Durable retry/lifecycle state requires explicitly passing `WorkStateStore`; the default is in memory.
 
 ### Release status
 
-0.9.0 is in preparation. Final native checks of the current candidate and a Windows user test remain open. Windows ships as a self-contained ZIP with VLC; macOS Intel/Apple Silicon use self-contained, ad-hoc-signed DMGs with VLC, without notarization. Linux x64/Arm64 each have bundled-VLC and system-VLC tar archives plus a bundled AppImage. See the [package-to-offline guide](docs/Help.md), [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
+Windows ships as a self-contained ZIP with VLC; macOS Intel/Apple Silicon use self-contained, ad-hoc-signed DMGs with VLC, without notarization. Linux x64/Arm64 each have bundled-VLC and system-VLC tar archives plus a bundled AppImage. See the [package-to-offline guide](docs/Help.md), [0.9.0 release notes](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
 
-### Additional work on the current branch
+### Download engine and archive
 
-The branch now also contains live Diagnostics, a persistent Archive with an offline post/media reader, and basic inherited media rules. Publishing and final release acceptance remain separate decisions.
+The desktop also contains live Diagnostics, a persistent Archive with an offline post/media reader, and inherited media rules.
 
 - Media admission is bounded (256 pending reservations by default), cancellable and fair between manual and board-discovered work; revision successors share that pending budget. Board origins survive restart, and explicit URL admission promotes a tracked thread to manual priority.
 - Sources shows registered adapter capabilities and actual watch observations, with shared URL admission, canonical source rules and exact-watch navigation. Registration does not indicate site availability; external providers may optionally declare capabilities without an interface-breaking change.
@@ -53,7 +56,7 @@ The branch now also contains live Diagnostics, a persistent Archive with an offl
 
 Progress now uses **saved / selected media**, with exclusions shown separately. The additive `ThreadContentRuntime`, `ArchiveReader`, rules and media-reader APIs remain independent of Avalonia. Back up the profile and media manifests before upgrading: v1 manifests are accepted, but the new v2 history is not a downgrade format for older binaries. The writer also migrates schema-1 archive catalogs atomically to schema 2 for indexed search and quotes; old schema-1-only readers cannot read the upgraded catalog. The current passive reader can still read schema 1 without migrating it.
 
-Sources, persistent pause, local search/quote navigation and single-thread HTML export are implemented. Collection exports, structured packages/import, TUI/daemon clients and dynamic plugin loading remain later work.
+Sources, persistent pause, local search/quote navigation and both single-thread and combined HTML export are implemented. Structured packages/import, TUI/daemon clients and dynamic plugin loading remain later work.
 
 ## 0.8.0 (released as oChan)
 
