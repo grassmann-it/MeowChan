@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -96,8 +97,26 @@ internal static class R08dPresentationChecks
             try
             {
                 window.WindowState = WindowState.Normal;
-                window.Width = 1360;
-                window.Height = 820;
+                await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
+                Size desired = new(1360, 820);
+                Size client = window.Bounds.Size;
+                Size frame = window.FrameSize ?? client;
+                Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+                    ?? throw new InvalidOperationException("The archive fixture has no native screen.");
+                // Hosted macOS desktops can be shorter than the intended wide
+                // viewport. Request a real client size that fits this desktop,
+                // reserving measured native frame insets; keep the size assertion
+                // exact rather than accepting an OS-clamped 820-DIP request.
+                WindowStartupFit wide = WindowStartupGeometry.Fit(desired,
+                    new Size(desired.Width + Math.Max(0, frame.Width - client.Width),
+                        desired.Height + Math.Max(0, frame.Height - client.Height)),
+                    new Size(window.MinWidth, window.MinHeight), screen.WorkingArea,
+                    window.RenderScaling, window.Position);
+                window.Width = wide.Client.Width;
+                window.Height = wide.Client.Height;
+                window.Position = wide.Position;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
+                    wide.Client.Width, wide.Client.Height));
                 fixture.IsAvailable = true;
                 await fixture.ActivateAsync();
                 ListBox threads = fixture.FindControl<ListBox>("ArchiveThreads")!;
@@ -123,7 +142,14 @@ internal static class R08dPresentationChecks
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
                 Require(full.IsEnabled && full.Bounds.Width > 0 && full.Content?.ToString()?.Length > 0,
                     "The reader's visible OS full-screen action is missing.");
-                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1360, 820));
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
+                    wide.Client.Width, wide.Client.Height));
+                Button back = fixture.FindControl<Button>("ArchiveBackButton")!;
+                Require(FitsWindow(window, full) && (!back.IsVisible || FitsWindow(window, back)),
+                    "The reader's native full-screen or back action overflows the fitted wide viewport.");
+                Console.WriteLine($"SMOKE archive native viewport: requested={wide.Client}; actual={window.Bounds.Size}; "
+                    + $"workingArea={screen.WorkingArea}; scale={window.RenderScaling}; "
+                    + $"readerLayout={(fixture.FindControl<GridSplitter>("ArchiveSplitter")!.IsEffectivelyVisible ? "split" : "narrow on this desktop")}.");
                 Program.CaptureWindow(window, "smoke-r08d-reader-wide.png");
 
                 window.Width = 760;
@@ -132,8 +158,7 @@ internal static class R08dPresentationChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, 760, 500)
-                        && full.IsEffectivelyVisible
-                        && fixture.FindControl<Button>("ArchiveBackButton")!.IsEffectivelyVisible;
+                        && FitsWindow(window, full) && FitsWindow(window, back);
                 });
                 Program.CaptureWindow(window, "smoke-r08d-reader-narrow.png");
                 Click(fixture.FindControl<Button>("ArchiveBackButton")!);
@@ -154,6 +179,14 @@ internal static class R08dPresentationChecks
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static bool FitsWindow(Window window, Control control)
+    {
+        Point? origin = control.TranslatePoint(default, window);
+        return control.IsEffectivelyVisible && origin.HasValue && control.Bounds.Width > 0 && control.Bounds.Height > 0
+            && origin.Value.X >= -1 && origin.Value.Y >= -1
+            && origin.Value.X + control.Bounds.Width <= window.Bounds.Width + 1
+            && origin.Value.Y + control.Bounds.Height <= window.Bounds.Height + 1;
+    }
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);

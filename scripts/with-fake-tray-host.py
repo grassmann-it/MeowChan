@@ -71,7 +71,9 @@ class Host(dbus.service.Object):
                                            dbus_interface='com.canonical.dbusmenu')
                 # The application's first native menu action is its explicit Open item.
                 open_id = layout[2][0][0]
-                menu.Event(dbus.Int32(open_id), 'clicked', dbus.Int32(0), dbus.UInt32(0),
+                # With introspection disabled, dbus-python infers each wire type.
+                # Event's data argument is a variant even when its payload is zero.
+                menu.Event(dbus.Int32(open_id), 'clicked', dbus.Int32(0, variant_level=1), dbus.UInt32(0),
                            dbus_interface='com.canonical.dbusmenu')
         else:
             raise dbus.exceptions.DBusException('Unknown command')
