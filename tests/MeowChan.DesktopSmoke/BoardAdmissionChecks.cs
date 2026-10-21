@@ -78,10 +78,14 @@ internal static class BoardAdmissionChecks
             throw new InvalidOperationException("Matching removed threads were hidden behind unrelated catalog entries.");
         rows[0].IsChecked = true;
         await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 1));
+        Button reinclude = modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionReinclude");
+        if (!reinclude.IsEnabled) throw new InvalidOperationException("Matching excluded threads cannot be reactivated together.");
+        Click(reinclude);
+        await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 0) && !reinclude.IsEnabled);
         Program.CaptureWindow(modal, "smoke-board-admission-removed-matches.png");
         Click(modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionApply"));
         var accepted = await result ?? throw new InvalidOperationException("Explicit reactivation was not accepted.");
-        if (accepted.Reactivations == null || accepted.Reactivations[board].Length != 1)
+        if (accepted.Reactivations == null || accepted.Reactivations[board].Length != 2)
             throw new InvalidOperationException("Matching removed thread did not retain its explicit reactivation.");
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
