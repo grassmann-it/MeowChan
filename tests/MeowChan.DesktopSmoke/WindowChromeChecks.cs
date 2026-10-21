@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using System.Runtime.InteropServices;
+using MeowChan.Desktop;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -16,6 +17,32 @@ internal static class WindowChromeChecks
     {
         Require(window.WindowDecorations == WindowDecorations.BorderOnly,
             "The shell still requests an OS title bar.");
+        Size entryBounds = window.Bounds.Size;
+        // Reader fixtures can request a canvas larger than a hosted native
+        // desktop. Start the caption resize probe from a size with room for its
+        // subsequent +17/+13 request rather than testing native desktop clamps.
+        window.WindowState = WindowState.Normal;
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
+        Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+            ?? throw new InvalidOperationException("Caption resize probe has no native screen.");
+        Size client = window.Bounds.Size;
+        Size frame = window.FrameSize ?? client;
+        Size desired = new(850, 530);
+        PixelRect reservedArea = new(screen.WorkingArea.X, screen.WorkingArea.Y,
+            screen.WorkingArea.Width - (int)Math.Ceiling(17 * window.RenderScaling),
+            screen.WorkingArea.Height - (int)Math.Ceiling(13 * window.RenderScaling));
+        WindowStartupFit baseline = WindowStartupGeometry.Fit(desired,
+            new Size(desired.Width + Math.Max(0, frame.Width - client.Width),
+                desired.Height + Math.Max(0, frame.Height - client.Height)),
+            new Size(window.MinWidth, window.MinHeight), reservedArea, window.RenderScaling, window.Position);
+        window.Width = baseline.Client.Width;
+        window.Height = baseline.Client.Height;
+        window.Position = baseline.Position;
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, baseline.Client.Width, baseline.Client.Height));
+        await Program.WaitUntilAsync(() => window.FrameSize is Size fittedFrame
+            && (fittedFrame.Width + 17) * window.RenderScaling <= screen.WorkingArea.Width + 1
+            && (fittedFrame.Height + 13) * window.RenderScaling <= screen.WorkingArea.Height + 1);
+        Console.WriteLine($"SMOKE caption baseline: requested={baseline.Client}; actual={window.Bounds.Size}; frame={window.FrameSize}; area={screen.WorkingArea}; growth-reserve=17x13.");
         await CheckReachableAsync(window);
         WindowState original = window.WindowState;
         Size originalBounds = window.Bounds.Size;
@@ -85,6 +112,9 @@ internal static class WindowChromeChecks
                 throw;
             }
         }
+        window.Width = entryBounds.Width;
+        window.Height = entryBounds.Height;
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, entryBounds.Width, entryBounds.Height));
         Console.WriteLine("SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed.");
     }
 
