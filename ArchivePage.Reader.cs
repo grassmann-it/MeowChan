@@ -17,6 +17,21 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
+    internal Action? FullscreenRequested { get; set; }
+    internal bool IsReaderDialogOpen => Control<Border>("ArchiveExportDialog").IsVisible;
+    internal bool TryDismissOverlay()
+    {
+        if (!IsReaderDialogOpen) return false;
+        OnExportClose(this, new RoutedEventArgs());
+        return true;
+    }
+    private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) => FullscreenRequested?.Invoke();
+    private double _readingFontSizePreference = 15;
+    internal double ReadingFontSizePreference
+    {
+        get => _readingFontSizePreference;
+        set { _readingFontSizePreference = value; Control<ListBox>("ArchivePosts").FontSize = value; }
+    }
     private bool _largeReader;
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
@@ -174,7 +189,7 @@ public partial class ArchivePage
 
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!_largeReader || e.KeyModifiers != KeyModifiers.None || Control<Border>("ArchiveExportDialog").IsVisible) return;
+        if (e.Handled || !_largeReader || e.KeyModifiers != KeyModifiers.None || Control<Border>("ArchiveExportDialog").IsVisible) return;
         if (e.Source is Visual source)
         {
             if (source.GetVisualAncestors().Prepend(source).Any(control => control is TextBox or ComboBox)) return;

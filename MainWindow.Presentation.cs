@@ -43,10 +43,12 @@ public partial class MainWindow
         SizeChanged += OnWorkspaceSizeChanged;
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
+        InitializeShellPresentation();
         WorkspaceControl<TextBlock>("WorkspaceVersion").Text = "v" + (typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
             ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? string.Empty);
         ApplyWorkspacePreferences();
+        InitializeWindowPreferences();
         StartSpeedSampling();
     }
 
@@ -68,6 +70,8 @@ public partial class MainWindow
         SizeChanged -= OnWorkspaceSizeChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
         KeyDown -= OnWorkspaceKeyDown;
+        DisposeShellPresentation();
+        DisposeWindowPreferences();
     }
 
     private T WorkspaceControl<T>(string name) where T : Control => this.FindControl<T>(name)
@@ -77,6 +81,11 @@ public partial class MainWindow
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         WorkspaceControl<DownloadSpeedGraph>("TransferSpeedGraph").IsVisible = Bounds.Width >= 1000;
+        WorkspaceControl<Grid>("TransferSpeed").IsVisible = Bounds.Width >= 760;
+        if (WorkspaceControl<Border>("ShellHelpOverlay").IsVisible)
+            WorkspaceControl<Border>("ShellHelpOverlay").MaxHeight = Math.Max(180, ClientSize.Height - 40);
+        RememberNormalGeometry();
+        QueueWindowPreferences();
         UpdateWorkspaceLayout();
     }
 
@@ -219,6 +228,7 @@ public partial class MainWindow
         AutomationProperties.SetName(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         ToolTip.SetTip(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         UpdateThemeIcon();
+        RefreshShellCommands();
         RefreshSpeedLabel();
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceSubtitle"), Texts.T("shell.subtitle"));
         ToolTip.SetTip(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails") + " · Esc");

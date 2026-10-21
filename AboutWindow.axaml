@@ -3,68 +3,73 @@
         x:Class="MeowChan.AboutWindow"
         Title="About MeowChan"
         Icon="avares://MeowChan/Assets/meowchan.png"
-        Width="560" Height="570" MinWidth="340" MinHeight="280"
+        Width="800" Height="660" MinWidth="440" MinHeight="400"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Workspace.Background}"
         Foreground="{DynamicResource Workspace.Text}">
     <Window.Styles>
-        <Style Selector="TextBlock">
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
+        <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
         <Style Selector="Button.link">
             <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="0,0,4,4"/>
-            <Setter Property="FontSize" Value="13"/>
         </Style>
     </Window.Styles>
-    <Grid RowDefinitions="*,Auto">
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="24" Spacing="18">
-                <Grid ColumnDefinitions="96,*" ColumnSpacing="16">
-                    <Image x:Name="CatLogo" Grid.Column="0" Width="96" Height="96"
-                           Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"
-                           Focusable="False"/>
-                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Text="MeowChan" FontSize="30" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="VersionText" Foreground="{DynamicResource Workspace.Muted}"/>
-                    </StackPanel>
-                </Grid>
-                <TextBlock x:Name="DescriptionText" FontSize="15"/>
-                <Border Background="{DynamicResource Workspace.Panel}" BorderBrush="{DynamicResource Workspace.Border}"
-                        BorderThickness="1" CornerRadius="8" Padding="16">
-                    <StackPanel Spacing="12">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+        <Grid ColumnDefinitions="72,*,Auto" ColumnSpacing="14" Margin="0,0,0,14">
+            <Image x:Name="CatLogo" Width="72" Height="72" Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"/>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                <TextBlock Text="MeowChan" FontSize="26" FontWeight="SemiBold"/>
+                <SelectableTextBlock x:Name="VersionText"/>
+            </StackPanel>
+            <Button x:Name="CopyVersionButton" Grid.Column="2" VerticalAlignment="Center" Click="OnCopyVersionClick"/>
+        </Grid>
+        <TabControl x:Name="AboutTabs" Grid.Row="1">
+            <TabItem x:Name="AboutTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14" Margin="12">
+                        <TextBlock x:Name="DescriptionText" FontSize="15"/>
                         <TextBlock x:Name="AuthorText"/>
                         <WrapPanel>
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/tfgrass/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
                         </WrapPanel>
+                        <TextBlock x:Name="LicenseText"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem x:Name="CreditsTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14" Margin="12">
                         <TextBlock x:Name="HistoryText"/>
                         <WrapPanel>
                             <Button Content="YChan" Classes="link" Tag="https://sourceforge.net/projects/ychan/" Click="OnLinkClick"/>
                             <Button Content="Issung / GChan" Classes="link" Tag="https://github.com/Issung/GChan" Click="OnLinkClick"/>
                         </WrapPanel>
+                        <TextBlock x:Name="VideoCreditsText"/>
+                        <TextBlock x:Name="UICreditsText"/>
+                        <TextBlock x:Name="IconsText"/>
                     </StackPanel>
-                </Border>
-                <StackPanel Spacing="8">
-                    <TextBlock x:Name="IconsText" Foreground="{DynamicResource Workspace.Muted}"/>
-                    <Button Content="Feather Icons" Classes="link" HorizontalAlignment="Left"
-                            Tag="https://github.com/feathericons/feather" Click="OnLinkClick"/>
-                    <TextBlock x:Name="LicenseText" Foreground="{DynamicResource Workspace.Muted}" FontSize="12"/>
-                    <Button Content="Artistic License 2.0" Classes="link" HorizontalAlignment="Left"
-                            Tag="https://github.com/tfgrass/MeowChan/blob/main/LICENSE" Click="OnLinkClick"/>
-                </StackPanel>
-                <Border x:Name="LinkErrorPanel" IsVisible="False" Background="{DynamicResource Workspace.Raised}"
-                        BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="1" CornerRadius="6" Padding="12">
-                    <SelectableTextBlock x:Name="LinkErrorText" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}"/>
-                </Border>
-            </StackPanel>
-        </ScrollViewer>
-        <Border Grid.Row="1" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0"
-                Background="{DynamicResource Workspace.Panel}" Padding="16,12">
-            <Button x:Name="CloseButton" HorizontalAlignment="Right" MinWidth="96" IsCancel="True"
-                    Click="OnCloseButtonClick"/>
-        </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem x:Name="LicensesTab">
+                <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="8">
+                    <TextBox x:Name="LicenseSearchBox" Grid.Row="0" TextChanged="OnLicenseSearchChanged"/>
+                    <TextBlock x:Name="LicenseHintText" Grid.Row="1" Foreground="{DynamicResource Workspace.Muted}"/>
+                    <Grid Grid.Row="2" ColumnDefinitions="230,*" ColumnSpacing="8">
+                        <ListBox x:Name="LicenseList" SelectionChanged="OnLicenseSelectionChanged"/>
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+                            <SelectableTextBlock x:Name="LicenseMetadataText" TextWrapping="Wrap"/>
+                            <TextBox x:Name="LicenseFullText" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True"
+                                     TextWrapping="Wrap" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+            <SelectableTextBlock x:Name="LinkErrorText" Foreground="{DynamicResource Workspace.Error}" TextWrapping="Wrap"/>
+            <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
+        </Grid>
     </Grid>
 </Window>

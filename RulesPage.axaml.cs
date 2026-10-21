@@ -173,7 +173,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string MegabytesHint => Texts.T("rules.megabytesHint");
     public string FutureHint => Texts.T("rules.futureHint");
     public string UnknownHint => Texts.T("rules.unknownHint");
-    public string PreviewTitle => Texts.T("rules.preview");
+    public string PreviewTitle => Texts.T("r08d.rules.preview");
     public string DiscardLabel => Texts.T("rules.discard");
     public string SaveLabel => Texts.T("rules.save");
     public string EffectiveTypesLabel => _preview == null ? string.Empty : _preview.Types.Mode == MediaTypeSelectionMode.All
@@ -464,6 +464,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60));
         RulesContent.Width = width;
+        RulesHeader.Width = width;
         bool narrow = width < 700;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
         {

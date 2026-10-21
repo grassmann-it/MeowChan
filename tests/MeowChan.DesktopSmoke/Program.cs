@@ -118,7 +118,11 @@ internal static class Program
                 .StartWithClassicDesktopLifetime(Array.Empty<string>(),
                     _downloadSessionMode ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
 
-            if (exitCode != 0 || !_checksPassed || !_closed || _failure != null || !sink.Errors.IsEmpty)
+            // StartupErrorWindow acknowledges an initialization failure by shutting
+            // down with 2. Only this scenario deliberately creates that failure;
+            // its readable conflict dialog, Exit action and close are checked below.
+            int expectedExitCode = _lockedProfileMode ? 2 : 0;
+            if (exitCode != expectedExitCode || !_checksPassed || !_closed || _failure != null || !sink.Errors.IsEmpty)
             {
                 Console.Error.WriteLine($"SMOKE FAILED: exit={exitCode}, checks={_checksPassed}, closed={_closed}, errors={sink.Errors.Count}; {_failure}");
                 return 1;
@@ -190,6 +194,7 @@ internal static class Program
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
             if (_selectionMode)
             {
+                await ShellPresentationChecks.RunAsync(mainWindow);
                 await SelectionChecks.RunAsync(mainWindow);
                 await BoardAdmissionChecks.RunAsync(mainWindow);
                 _checksPassed = true;

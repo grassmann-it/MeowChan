@@ -6,6 +6,7 @@ using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using System.Runtime.InteropServices;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -92,10 +93,68 @@ internal static class WindowChromeChecks
 
     private static Task WaitForMaximizedBoundsAsync(MainWindow window) => Program.WaitUntilAsync(() =>
     {
+        if (OperatingSystem.IsMacOS()) return MacMaximizedBoundsMatch(window);
         Avalonia.Platform.Screen? screen = window.Screens.ScreenFromWindow(window);
         return screen != null && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
             && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
     });
+
+    private static bool MacMaximizedBoundsMatch(MainWindow window)
+    {
+        // Avalonia.Native 12.1.4 DoZoom sets NSWindow.frame to its NSScreen's
+        // current visibleFrame. Screens.WorkingArea is a separate cached snapshot
+        // and can lag menu/Dock changes on the hosted desktop. Compare those same
+        // live AppKit rectangles, including position, rather than widening the
+        // geometry tolerance to accommodate a stale screen snapshot.
+        var handle = window.TryGetPlatformHandle();
+        Require(handle?.HandleDescriptor == "NSWindow" && handle.Handle != IntPtr.Zero,
+            "The macOS caption fixture has no NSWindow handle.");
+        IntPtr nativeWindow = handle!.Handle;
+        IntPtr screen = SendObject(nativeWindow, Selector("screen"));
+        if (screen == IntPtr.Zero) return false;
+        NativeRect frame = ReadRect(nativeWindow, "frame");
+        NativeRect available = ReadRect(screen, "visibleFrame");
+        bool matches = Math.Abs(frame.X - available.X) <= 1
+            && Math.Abs(frame.Y - available.Y) <= 1
+            && Math.Abs(frame.Width - available.Width) <= 1
+            && Math.Abs(frame.Height - available.Height) <= 1
+            && Math.Abs(window.Bounds.Width - frame.Width) <= 1
+            && Math.Abs(window.Bounds.Height - frame.Height) <= 1;
+        if (matches)
+            Console.WriteLine($"SMOKE native macOS maximize: frame={frame}; visibleFrame={available}; cachedWorkingArea={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+        return matches;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public double X, Y, Width, Height;
+        public override readonly string ToString() => $"{X},{Y},{Width},{Height}";
+    }
+
+    private static NativeRect ReadRect(IntPtr receiver, string selector)
+    {
+        // NSRect is a 32-byte return value: Intel uses objc_msgSend_stret,
+        // while Apple Silicon returns it through the ordinary message ABI.
+        if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
+        {
+            SendRectIntel(out NativeRect result, receiver, Selector(selector));
+            return result;
+        }
+        return SendRectArm(receiver, Selector(selector));
+    }
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "sel_registerName")]
+    private static extern IntPtr Selector(string name);
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    private static extern IntPtr SendObject(IntPtr receiver, IntPtr selector);
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    private static extern NativeRect SendRectArm(IntPtr receiver, IntPtr selector);
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend_stret")]
+    private static extern void SendRectIntel(out NativeRect result, IntPtr receiver, IntPtr selector);
 
     private static void DoublePressHeader(MainWindow window)
     {

@@ -37,6 +37,7 @@ internal static class ArchivePageChecks
         ArchiveAttachmentView inline = window.GetVisualDescendants().OfType<ArchiveAttachmentView>().Single();
         Require(inline.Thumbnail.Bounds.Width <= 1040 && inline.Thumbnail.Bounds.Height <= 720,
             "An inline reader image exceeded its bounded preview dimensions.");
+        await ArchiveMediaCommandChecks.RunAsync(page, inline);
         await FlushAsync();
         Program.CaptureWindow(window, "smoke-archive-restored-posts.png");
         Click(inline.PreviewButton);

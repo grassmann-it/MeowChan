@@ -51,6 +51,51 @@ public sealed class DesktopSessionHostTests
     }
 
     [Fact]
+    public async Task OldSettingsDraftPreservesDirectViewPreferences()
+    {
+        using TempDirectory directory = new();
+        new Config().SaveConfig(directory.Path);
+        DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>(), (_, _) => new ControlledStore());
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            Config draft = host.Config.Clone();
+            draft.RecheckTimer = 120;
+            await host.SaveViewPreferencesAsync(config =>
+            {
+                config.ArchiveThreadLayout = "Tiles";
+                config.ArchiveSplitWidth = 430;
+                config.GalleryContextOpen = true;
+                config.CompactDensity = true;
+                config.WindowWidth = 1120;
+                config.WindowHeight = 740;
+                config.WindowPositionX = 35;
+                config.WindowPositionY = 60;
+                config.WindowMaximized = true;
+                config.ColumnWidths["archive.title"] = 340;
+                config.LastExportDirectory = Path.Combine(directory.Path, "exports");
+            }).WaitAsync(Timeout);
+
+            await host.ApplySettingsAsync(draft).WaitAsync(Timeout);
+
+            Config saved = Config.LoadConfig(directory.Path);
+            Assert.Equal(120, saved.RecheckTimer);
+            Assert.Equal("Tiles", saved.ArchiveThreadLayout);
+            Assert.Equal(430, saved.ArchiveSplitWidth);
+            Assert.True(saved.GalleryContextOpen);
+            Assert.True(saved.CompactDensity);
+            Assert.Equal(1120, saved.WindowWidth);
+            Assert.Equal(740, saved.WindowHeight);
+            Assert.Equal(35, saved.WindowPositionX);
+            Assert.Equal(60, saved.WindowPositionY);
+            Assert.True(saved.WindowMaximized);
+            Assert.Equal(340, saved.ColumnWidths["archive.title"]);
+            Assert.Equal(Path.Combine(directory.Path, "exports"), saved.LastExportDirectory);
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    [Fact]
     public async Task ManualCheckUsesExactWatchLifetimeAndRespectsPause()
     {
         using TempDirectory directory = new TempDirectory();

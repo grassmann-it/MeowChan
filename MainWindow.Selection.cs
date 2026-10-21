@@ -17,7 +17,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
-        .Any(node => node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem);
+        .Any(node => node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem or Slider or TabItem);
 
     private long? _threadLeadId;
     private long? _boardLeadId;
@@ -32,7 +32,7 @@ public partial class MainWindow
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
             if (ReferenceEquals(node, list)) return true;
-            if (node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem
+            if (node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem or Slider or TabItem
                 or DataGridColumnHeader) return false;
         }
         return false;
@@ -45,7 +45,7 @@ public partial class MainWindow
             DataGrid grid = this.FindControl<DataGrid>(name)!;
             grid.AddHandler(KeyDownEvent, OnDownloadListKeyDown, RoutingStrategies.Tunnel);
             grid.AddHandler(ContextRequestedEvent, OnDownloadContextRequested, RoutingStrategies.Tunnel);
-            if (grid.ContextMenu is ContextMenu menu) menu.Opened += (_, _) => NormalizeSelectionMenu(menu);
+            if (grid.ContextMenu is ContextMenu menu) menu.Opened += (_, _) => BuildDownloadMenu(grid, menu);
             grid.CurrentCellChanged += (_, _) =>
             {
                 if (grid.CollectionView?.CurrentItem is ThreadRow thread) _threadLeadId = thread.WatchId;
@@ -87,9 +87,9 @@ public partial class MainWindow
     private BoardRow[] SelectedBoards() => DownloadList(true).SelectedItems.Cast<object>().OfType<BoardRow>()
         .Where(BoardsList.Contains).ToArray();
     private ThreadRow? LeadThread => SelectedThreads().Length == 0 ? null
-        : UrlList.FirstOrDefault(row => row.WatchId == _threadLeadId) ?? SelectedThreads().FirstOrDefault();
+        : SelectedThreads().FirstOrDefault(row => row.WatchId == _threadLeadId) ?? SelectedThreads().FirstOrDefault();
     private BoardRow? LeadBoard => SelectedBoards().Length == 0 ? null
-        : BoardsList.FirstOrDefault(row => row.WatchId == _boardLeadId) ?? SelectedBoards().FirstOrDefault();
+        : SelectedBoards().FirstOrDefault(row => row.WatchId == _boardLeadId) ?? SelectedBoards().FirstOrDefault();
 
     private void SelectDownloadContextRow(object? sender, PointerPressedEventArgs e)
     {
@@ -121,6 +121,8 @@ public partial class MainWindow
 
     private void OnDownloadContextRequested(object? sender, ContextRequestedEventArgs e)
     {
+        if (sender is DataGrid emptyGrid && emptyGrid.SelectedItems.Count == 0)
+        { e.Handled = true; return; }
         if (sender is Control list && e.TryGetPosition(list, out _)
             && _downloadPointerContextHandled.Remove(list))
             e.Handled = true;
@@ -166,7 +168,7 @@ public partial class MainWindow
             else if (LeadThread is ThreadRow row)
             {
                 if (mods == KeyModifiers.Shift) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
-                else await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
+                else if (SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
             }
             return;
         }
@@ -209,8 +211,10 @@ public partial class MainWindow
     private Task CheckDownloadSelectionAsync(bool boards, bool retry)
     {
         DiagnosticTarget[] targets = boards
-            ? SelectedBoards().Select(row => new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)).ToArray()
-            : SelectedThreads().Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray();
+            ? SelectedBoards().Where(row => _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)))
+                .Select(row => new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)).ToArray()
+            : SelectedThreads().Where(row => retry ? row.CanRetryMedia : _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)))
+                .Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray();
         return RunCheckTargetsAsync(targets, retry);
     }
 
@@ -297,7 +301,7 @@ public partial class MainWindow
 
     private async void OnExportDownloadSelection(object? sender, RoutedEventArgs e) => await ExportDownloadSelectionAsync(DownloadList(false));
     private async void OnReadDownloadSelection(object? sender, RoutedEventArgs e)
-    { if (LeadThread is ThreadRow row) await OpenDownloadReaderAsync(row.Snapshot.Id, DownloadList(false)); }
+    { if (SelectedThreads().Length == 1 && LeadThread is ThreadRow row) await OpenDownloadReaderAsync(row.Snapshot.Id, DownloadList(false)); }
     private async void OnGalleryDownloadSelection(object? sender, RoutedEventArgs e)
     { if (LeadThread is ThreadRow row) await OpenGalleryAsync(row.Snapshot.Id, origin: DownloadList(false)); }
     private async void OnBoardAdmissionSelection(object? sender, RoutedEventArgs e)

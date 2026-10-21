@@ -45,6 +45,6 @@ public partial class MainWindow
         bool enabled = _restoreCompleted && !WorkspaceCommandBusy && GetWorkspaceSelection() is ThreadRow row
             && row.CanRetryMedia && !_mediaRetryCommands.Contains(row.WatchId);
         if (this.FindControl<Button>("InspectorMediaRetryButton") is Button button) button.IsEnabled = enabled;
-        if (this.FindControl<MenuItem>("ThreadMediaRetryMenuItem") is MenuItem item) item.IsEnabled = enabled;
+
     }
 }

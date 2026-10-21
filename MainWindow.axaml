@@ -28,6 +28,7 @@
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
                             <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
                         </Button>
+                        <Button x:Name="FullscreenButton" Classes="subtle header-icon" />
                         <Button x:Name="ThemeToggleButton" Classes="subtle header-icon">
                             <Path x:Name="ThemeToggleIcon" Classes="header-icon" />
                         </Button>
@@ -41,6 +42,7 @@
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                             <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
+                            <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" />
                             <Separator />
                             <MenuItem x:Name="ExitMenuItem" Tag="action.exit" Classes="localized" Header="Exit" />
                         </MenuItem>
@@ -183,42 +185,7 @@
                         </DataGrid.Columns>
 
                         <!-- ContextMenu for right-clicking on a row -->
-                        <DataGrid.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Tag="gallery.read" Classes="localized" Header="Read posts" InputGesture="Enter" Click="OnReadDownloadSelection" />
-                                <MenuItem Tag="gallery.open" Classes="localized" Header="Open in gallery" InputGesture="Shift+Enter" Click="OnGalleryDownloadSelection" />
-                                <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" InputGesture="Ctrl+E" Click="OnExportDownloadSelection" />
-                                <Separator />
-                                <MenuItem Tag="check.action" Classes="localized" Header="Check now / retry missing" InputGesture="F5" Click="OnCheckSelectionClick" />
-                                <MenuItem Tag="action.details" Classes="localized" Header="Details" InputGesture="Alt+Enter" Click="OnOpenWorkspaceDetailsClick" />
-                                <MenuItem x:Name="ThreadMediaRetryMenuItem" Tag="work.retry" Classes="localized" Header="Retry missing media" InputGesture="Shift+F5" Click="OnRetryMissingMediaClick" />
-                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" InputGesture="Ctrl+R" Click="OnEditSelectionRules" />
-                                <Separator />
-                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" InputGesture="Ctrl+O" Click="OnOpenThreadDirectoryClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" InputGesture="Ctrl+Shift+O" Click="OnOpenThreadInBrowserClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem x:Name="ThreadCopyUrlMenuItem" Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" InputGesture="Ctrl+C" />
-                                <Separator />
-                                <MenuItem Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnRemoveThreadMenuItemClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
+                        <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
                                     <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized muted"
                                                VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
@@ -261,38 +228,7 @@
                         </DataGrid.Columns>
 
                         <!-- ContextMenu for right-clicking on a row -->
-                        <DataGrid.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Tag="selection.boardPolicy" Classes="localized" Header="Filter / exclusions…" InputGesture="Ctrl+Shift+R" Click="OnBoardAdmissionSelection" />
-                                <MenuItem Tag="check.boardAction" Classes="localized" Header="Check now / retry missing" InputGesture="F5" Click="OnCheckSelectionClick" />
-                                <MenuItem Tag="action.details" Classes="localized" Header="Details" InputGesture="Alt+Enter" Click="OnOpenWorkspaceDetailsClick" />
-                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" InputGesture="Ctrl+R" Click="OnEditSelectionRules" />
-                                <Separator />
-                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" InputGesture="Ctrl+O" Click="OnOpenBoardDirectoryClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/folder.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" InputGesture="Ctrl+Shift+O" Click="OnOpenBoardInBrowserClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/external-link.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem x:Name="BoardCopyUrlMenuItem" Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" InputGesture="Ctrl+C" />
-                                <Separator />
-                                <MenuItem Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnRemoveBoardMenuItemClick">
-                                    <MenuItem.Icon>
-                                        <Border Width="16" Height="16" Background="{DynamicResource Workspace.Text}">
-                                            <Border.OpacityMask><ImageBrush Source="avares://MeowChan/Assets/icons/delete.png" Stretch="Uniform" /></Border.OpacityMask>
-                                        </Border>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
+                        <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </DataGrid>
                                     <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized muted"
                                                VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
@@ -423,5 +359,14 @@
         </Border>
         <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
         <ContentControl x:Name="GalleryHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" />
+        <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
+                Background="{DynamicResource Workspace.Panel}" BorderBrush="{DynamicResource Workspace.Border}"
+                BorderThickness="1" CornerRadius="10" Padding="24" Margin="20" MaxWidth="620"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Grid RowDefinitions="*,Auto" RowSpacing="18">
+                <ScrollViewer><TextBlock x:Name="ShellHelpText" TextWrapping="Wrap" /></ScrollViewer>
+                <Button x:Name="ShellHelpClose" Grid.Row="1" HorizontalAlignment="Right" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

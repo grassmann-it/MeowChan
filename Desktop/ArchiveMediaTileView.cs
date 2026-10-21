@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Layout;
 using Avalonia.Media.Imaging;
 using MeowChan.Desktop.Localization;
 
@@ -12,6 +13,7 @@ namespace MeowChan.Desktop;
 public sealed class ArchiveMediaTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
+    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock _message = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11 };
     private Bitmap? _bitmap;
@@ -21,8 +23,8 @@ public sealed class ArchiveMediaTileView : UserControl
 
     public ArchiveMediaTileView()
     {
-        Grid grid = new(); grid.Children.Add(_image); grid.Children.Add(_message); Content = grid;
-        DataContextChanged += (_, _) => { Reset(); if (_visible) _ = LoadAsync(); };
+        Grid grid = new(); grid.Children.Add(_image); grid.Children.Add(_message); grid.Children.Add(_favorite); Content = grid;
+        DataContextChanged += (_, _) => { RefreshFavorite(); Reset(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             bool visible = new Rect(Bounds.Size).Intersects(e.EffectiveViewport) && IsEffectivelyVisible;
@@ -31,6 +33,12 @@ public sealed class ArchiveMediaTileView : UserControl
             if (visible) _ = LoadAsync(); else Reset();
         };
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
+    }
+
+    internal void RefreshFavorite()
+    {
+        ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
     }
 
     private async Task LoadAsync()

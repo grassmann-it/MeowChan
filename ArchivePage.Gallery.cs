@@ -177,7 +177,7 @@ public partial class ArchivePage
         if (e.Source is Avalonia.Visual tapped &&
             (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         ArchiveThreadRow? row = EventThread(sender, e.Source);
-        if (row == null || OpenGallery == null) return;
+        if (row == null || OpenGallery == null || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
         OpenReaderRequested?.Invoke(e.Source as Control);
         await LoadThreadAsync(row.Summary.Id);
@@ -191,7 +191,8 @@ public partial class ArchivePage
         if (e.Source is Avalonia.Visual tapped &&
             (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         DataGridRow? target = (e.Source as Avalonia.Visual)?.FindAncestorOfType<DataGridRow>();
-        if (target?.DataContext is not ArchiveThreadRow row || OpenGallery == null) return;
+        if (target?.DataContext is not ArchiveThreadRow row || OpenGallery == null
+            || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
         OpenReaderRequested?.Invoke(target);
         await LoadThreadAsync(row.Summary.Id);
@@ -253,7 +254,7 @@ public partial class ArchivePage
 
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedThread == null) return;
+        if (_selectedThread == null || FrozenArchiveSelection().Length != 1) return;
         OpenReaderRequested?.Invoke(sender as Control);
         await LoadThreadAsync(_selectedThread);
         Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;

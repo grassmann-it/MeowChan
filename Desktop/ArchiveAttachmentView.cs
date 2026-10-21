@@ -39,6 +39,7 @@ public sealed class ArchiveAttachmentView : UserControl
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, IsVisible = false };
     private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
     private readonly Button _button;
+    private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
     private CancellationTokenSource? _loading;
     private Bitmap? _bitmap;
     private bool _visible;
@@ -53,12 +54,20 @@ public sealed class ArchiveAttachmentView : UserControl
         _button = new Button { Content = content, Padding = new Thickness(8),
             HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
-        Content = _button;
+        StackPanel actions = new() { Spacing = 4 };
+        actions.Children.Add(_favorite); actions.Children.Add(_button);
+        Content = actions;
         DataContextChanged += (_, _) => { Reset(); UpdateLabel(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) => SetViewportVisible(new Rect(Bounds.Size).Intersects(e.EffectiveViewport) && IsEffectivelyVisible);
         AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(RefreshViewport, DispatcherPriority.Loaded);
         SizeChanged += (_, _) => RefreshViewport();
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
+    }
+
+    internal void RefreshFavorite()
+    {
+        ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
     }
 
     internal Image Thumbnail => _image;
@@ -68,6 +77,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private void UpdateLabel()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
         bool large = row?.LargePreview == true;
         _slot.Large = large;
         _slot.InvalidateMeasure();

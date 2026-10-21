@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using MeowChan.Desktop;
+using Serilog;
+
+namespace MeowChan;
+
+public partial class MainWindow
+{
+    private DispatcherTimer? _windowPreferenceTimer;
+    private bool _windowPreferencesReady;
+    private readonly Dictionary<string, double> _pendingColumnWidths = new();
+    private Task _windowPreferenceSave = Task.CompletedTask;
+
+    private void InitializeWindowPreferences()
+    {
+        foreach (string name in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+        {
+            foreach (DataGridColumn column in WorkspaceControl<DataGrid>(name).Columns)
+            {
+                string key = name + "." + column.SortMemberPath;
+                if (_config.ColumnWidths.TryGetValue(key, out double width) && double.IsFinite(width) && width >= 32)
+                    column.Width = new DataGridLength(width);
+                column.PropertyChanged += OnDownloadColumnWidthChanged;
+            }
+        }
+        PropertyChanged += OnWindowPreferenceChanged;
+    }
+
+    private void RestoreWindowPreferences()
+    {
+        Width = _config.WindowWidth;
+        Height = _config.WindowHeight;
+        if (_config.WindowPositionX is double x && _config.WindowPositionY is double y)
+            Position = new PixelPoint((int)x, (int)y);
+        var screen = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
+        if (screen != null)
+        {
+            var desired = new Size(Width, Height);
+            var fit = WindowStartupGeometry.Fit(desired, desired, new Size(MinWidth, MinHeight),
+                screen.WorkingArea, screen.Scaling, Position);
+            MinWidth = fit.Minimum.Width; MinHeight = fit.Minimum.Height;
+            Width = fit.Client.Width; Height = fit.Client.Height; Position = fit.Position;
+        }
+        RememberNormalGeometry();
+        // Wait for native frame measurement before restoring maximization.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosing) return;
+            FitStartupWindowToWorkingArea();
+            RememberNormalGeometry();
+            if (_config.WindowMaximized) WindowState = WindowState.Maximized;
+            _windowPreferencesReady = true;
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void OnDownloadColumnWidthChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (!_windowPreferencesReady || e.Property != DataGridColumn.WidthProperty || sender is not DataGridColumn column
+            || !column.Width.IsAbsolute) return;
+        foreach (string name in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+            if (WorkspaceControl<DataGrid>(name).Columns.Contains(column))
+                _pendingColumnWidths[name + "." + column.SortMemberPath] = column.Width.Value;
+        QueueWindowPreferences();
+    }
+
+    private void OnWindowPreferenceChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == WindowStateProperty) QueueWindowPreferences();
+    }
+
+    private void QueueWindowPreferences()
+    {
+        if (!_windowPreferencesReady || _isClosing || _fullscreenOrigin != null || _restoringFullscreen
+            || WindowState == WindowState.FullScreen) return;
+        _windowPreferenceTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
+            async (_, _) => await FlushWindowPreferencesAsync());
+        _windowPreferenceTimer.Stop(); _windowPreferenceTimer.Start();
+    }
+
+    private async Task FlushWindowPreferencesAsync()
+    {
+        _windowPreferenceTimer?.Stop();
+        Task previous = _windowPreferenceSave;
+        if (!_windowPreferencesReady) { await previous; return; }
+        Size client = _fullscreenOrigin?.Client ?? _lastNormalClient;
+        PixelPoint position = _fullscreenOrigin?.Position ?? _lastNormalPosition;
+        bool maximized = (_fullscreenOrigin?.State ?? WindowState) == WindowState.Maximized;
+        var columns = new Dictionary<string, double>(_pendingColumnWidths);
+        _pendingColumnWidths.Clear();
+        async Task SaveAsync()
+        {
+            try
+            {
+                await previous;
+                await _session.SaveViewPreferencesAsync(current =>
+                {
+                    current.WindowWidth = client.Width; current.WindowHeight = client.Height;
+                    current.WindowPositionX = position.X; current.WindowPositionY = position.Y;
+                    current.WindowMaximized = maximized;
+                    foreach (var pair in columns) current.ColumnWidths[pair.Key] = pair.Value;
+                });
+            }
+            catch (Exception error) { Log.Warning(error, "Could not save window preferences."); }
+        }
+        _windowPreferenceSave = SaveAsync();
+        await _windowPreferenceSave;
+    }
+
+    private void DisposeWindowPreferences()
+    {
+        _windowPreferenceTimer?.Stop();
+        PropertyChanged -= OnWindowPreferenceChanged;
+        foreach (string name in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+            foreach (DataGridColumn column in WorkspaceControl<DataGrid>(name).Columns)
+                column.PropertyChanged -= OnDownloadColumnWidthChanged;
+    }
+}

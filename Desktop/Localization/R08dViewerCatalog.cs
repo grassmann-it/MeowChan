@@ -1,0 +1,44 @@
+namespace MeowChan.Desktop.Localization;
+
+internal static class R08dViewerCatalog
+{
+    internal static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("viewer.favorite.add", "Add to favorites · F", "Als Favorit markieren · F"),
+        ("viewer.favorite.remove", "Remove from favorites · F", "Favorit entfernen · F"),
+        ("viewer.fullscreen", "Full screen · F11", "Vollbild · F11"),
+        ("viewer.help", "Shortcuts · F1", "Tastenkürzel · F1"),
+        ("viewer.help.hint", "F1 shortcuts · F favorite · P post", "F1 Tastenkürzel · F Favorit · P Beitrag"),
+        ("viewer.help.title", "Gallery shortcuts", "Galerie-Tastenkürzel"),
+        ("viewer.help.move", "← / →  Previous / next medium", "← / →  Vorheriges / nächstes Medium"),
+        ("viewer.help.zoom", "+ / −  Zoom · 0  Fit · 1  Actual pixels", "+ / −  Zoom · 0  Einpassen · 1  Originalpixel"),
+        ("viewer.help.favorite", "F  Add or remove favorite", "F  Favorit hinzufügen oder entfernen"),
+        ("viewer.help.context", "P  Show or hide post context", "P  Beitragskontext zeigen oder verbergen"),
+        ("viewer.help.video", "Space on video  Play or pause", "Leertaste auf Video  Abspielen oder pausieren"),
+        ("viewer.help.fullscreen", "F11  Full screen", "F11  Vollbild"),
+        ("viewer.help.escape", "Esc  Close help or context, leave full screen, then gallery", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann Galerie"),
+        ("viewer.help.more", "All shortcuts", "Alle Tastenkürzel"),
+        ("viewer.menu.gallery", "Gallery", "Galerie"),
+        ("viewer.menu.exportOriginal", "Export original…", "Original exportieren …"),
+        ("viewer.menu.showFolder", "Show in folder", "Im Ordner anzeigen"),
+        ("viewer.favorites.title", "Media favorites", "Medienfavoriten"),
+        ("viewer.favorites.current", "Current thread", "Aktueller Thread"),
+        ("viewer.favorites.selected", "Selected threads", "Ausgewählte Threads"),
+        ("viewer.favorites.filtered", "Matching threads", "Threads der Treffer"),
+        ("viewer.favorites.all", "All favorites", "Alle Favoriten"),
+        ("viewer.favorites.search", "Filter favorites…", "Favoriten filtern …"),
+        ("viewer.favorites.searchApplied", "Search results", "Suchergebnisse"),
+        ("viewer.favorites.count", "{0} favorites in scope · {1} shown", "{0} Favoriten im Umfang · {1} angezeigt"),
+        ("viewer.favorites.loading", "Checking saved originals…", "Gespeicherte Originale werden geprüft …"),
+        ("viewer.favorites.missing", "Original unavailable", "Original nicht verfügbar"),
+        ("viewer.favorites.unavailable", "{0} originals are currently unavailable.", "{0} Originale sind derzeit nicht verfügbar."),
+        ("viewer.export.title", "Export originals", "Originale exportieren"),
+        ("viewer.export.scope", "{0} · {1} originals", "{0} · {1} Originale"),
+        ("viewer.export.single", "Current medium", "Aktuelles Medium"),
+        ("viewer.export.destination", "Choose a local destination folder", "Lokalen Zielordner wählen"),
+        ("viewer.export.running", "Copying verified originals…", "Verifizierte Originale werden kopiert …"),
+        ("viewer.export.result", "Copied {0} · Already present {1} · Missing {2} · Failed {3} · Cancelled {4}", "Kopiert {0} · Bereits vorhanden {1} · Fehlend {2} · Fehlgeschlagen {3} · Abgebrochen {4}"),
+        ("viewer.export.cancelled", "Export cancelled. Completed files remain available.", "Export abgebrochen. Fertige Dateien bleiben erhalten."),
+        ("viewer.export.empty", "No originals in this scope.", "Keine Originale in diesem Umfang."),
+    };
+}

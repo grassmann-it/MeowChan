@@ -15,10 +15,6 @@ public partial class MainWindow
     private DispatcherTimer? _speedTimer;
     private DownloadRateHistory? _downloadRate;
     private long _speedTimestamp;
-    private static readonly Geometry PauseGeometry = Geometry.Parse("M 5,3 L 5,13 M 11,3 L 11,13");
-    private static readonly Geometry ResumeGeometry = Geometry.Parse("M 5,3 L 12,8 L 5,13 Z");
-    private static readonly Geometry SunGeometry = Geometry.Parse("M 11,8 A 3,3 0 1 1 5,8 A 3,3 0 1 1 11,8 M 8,0 L 8,2 M 8,14 L 8,16 M 0,8 L 2,8 M 14,8 L 16,8 M 2.3,2.3 L 3.7,3.7 M 12.3,12.3 L 13.7,13.7 M 2.3,13.7 L 3.7,12.3 M 12.3,3.7 L 13.7,2.3");
-    private static readonly Geometry MoonGeometry = Geometry.Parse("M 13,10 A 6,6 0 1 1 6,2 A 5,5 0 0 0 13,10 Z");
 
     private void StartSpeedSampling()
     {
@@ -50,10 +46,17 @@ public partial class MainWindow
         AutomationProperties.SetName(WorkspaceControl<Grid>("TransferSpeed"), description);
     }
 
+    private bool? _lastDarkThemeIcon;
+
     private void UpdateThemeIcon()
     {
-        bool dark = _config.Theme == "Dark";
-        WorkspaceControl<Path>("ThemeToggleIcon").Data = dark ? SunGeometry : MoonGeometry;
+        bool dark = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+        if (_lastDarkThemeIcon != dark)
+        {
+            _lastDarkThemeIcon = dark;
+            WorkspaceControl<Button>("ThemeToggleButton").Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", 16,
+                dark ? "choose_light" : "choose_dark");
+        }
         string label = Texts.T(dark ? "shell.switchToLight" : "shell.switchToDark");
         Button button = WorkspaceControl<Button>("ThemeToggleButton");
         AutomationProperties.SetName(button, label);

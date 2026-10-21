@@ -32,7 +32,7 @@ public partial class SourcesPage : UserControl
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
-    public SourcesPage() { InitializeComponent(); }
+    public SourcesPage() { InitializeComponent(); InitializeContextMenus(); }
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
         Action openDiagnostics, Action openDownloads, Func<string, Task<bool>> submit) : this()
     {
@@ -77,6 +77,7 @@ public partial class SourcesPage : UserControl
                     RenderDetails();
                 };
                 select.Content = labels;
+                AttachSourceContextMenu(select, sourceId);
                 card = new SourceCard(select, name, address, observation);
                 _sourceCards.Add(row.Id, card); cards.Children.Add(select);
             }

@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 using Avalonia.Styling;
 using Avalonia.Media;
 using Serilog;
@@ -79,7 +80,7 @@ public partial class MainWindow : Window
             Texts.SetLanguage(_config.Language);
             if (Application.Current != null)
             {
-                Application.Current.RequestedThemeVariant = _config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+                Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
             }
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession);
             _session.StateChanged += OnSessionChanged;
@@ -130,6 +131,7 @@ public partial class MainWindow : Window
     {
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
+        RestoreWindowPreferences();
         BeginStartupWindowFit();
         if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
         {
@@ -467,21 +469,21 @@ public partial class MainWindow : Window
         trayIcon.Icon = new WindowIcon(iconStream);
         trayIcon.ToolTipText = "MeowChan - Image Downloader";
         NativeMenu menu = new NativeMenu();
-        NativeMenuItem openItem = CreateTrayMenuItem(Texts.T("tray.open"), "list");
+        NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
         {
             RestoreWindow();
         };
         menu.Items.Add(openItem);
-        NativeMenuItem folderItem = CreateTrayMenuItem(Texts.T("tray.folder"), "folder");
+        NativeMenuItem folderItem = CreateTrayCommandItem("location.open-folder");
         _trayFolderItem = folderItem;
         folderItem.Click += (sender, e) => OpenDirectory(_config.DownloadPath);
         menu.Items.Add(folderItem);
-        _clipboardMenuItem = CreateTrayMenuItem(Texts.T("tray.clipboard"), "clipboard");
+        _clipboardMenuItem = CreateTrayCommandItem("watch.import-clipboard");
         _clipboardMenuItem.Click += async (sender, e) => await ImportClipboardAsync();
         menu.Items.Add(_clipboardMenuItem);
-        NativeMenuItem exitItem = CreateTrayMenuItem(Texts.T("tray.exit"), "power");
+        NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
         exitItem.Click += async (sender, e) => await CloseApplicationAsync();
         menu.Items.Add(exitItem);
@@ -597,27 +599,37 @@ public partial class MainWindow : Window
         _trayMenuIcons.Clear();
     }
 
-    private NativeMenuItem CreateTrayMenuItem(string header, string icon)
+    private NativeMenuItem CreateTrayCommandItem(string command)
     {
-        return new NativeMenuItem
-        {
-            Header = header,
-            Icon = GetTrayMenuIcon(icon)
-        };
+        NativeMenuItem item = new();
+        ApplyTrayCommandItem(item, command);
+        return item;
     }
 
-    private Bitmap GetTrayMenuIcon(string name)
+    private void ApplyTrayCommandItem(NativeMenuItem item, string command)
     {
-        // Windows uses an Avalonia popup; Linux/macOS menus follow the desktop theme.
-        bool dark = OperatingSystem.IsWindows() ? _config.Theme != "Light"
+        CommandBindings.Apply(item, command);
+        // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
+        (item.Icon as Bitmap)?.Dispose();
+        string icon = CommandCatalog.Get(command).Icon;
+        bool dark = OperatingSystem.IsWindows() ? ActualThemeVariant == ThemeVariant.Dark
             : _trayPlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark;
-        string asset = (dark ? "light/" : string.Empty) + name;
-        if (_trayMenuIcons.TryGetValue(asset, out Bitmap? cached))
-            return cached;
-        using Stream stream = AssetLoader.Open(new Uri($"avares://MeowChan/Assets/icons/{asset}.png"));
-        Bitmap bitmap = new Bitmap(stream);
-        _trayMenuIcons.Add(asset, bitmap);
-        return bitmap;
+        string cacheKey = icon + (dark ? ":light" : ":dark");
+        if (!_trayMenuIcons.TryGetValue(cacheKey, out Bitmap? bitmap))
+        {
+            using Stream source = AssetLoader.Open(new Uri(CommandBindings.IconUri(icon)));
+            using SkiaSharp.SKBitmap mask = SkiaSharp.SKBitmap.Decode(source);
+            byte tone = dark ? (byte)240 : (byte)30;
+            for (int y = 0; y < mask.Height; y++)
+                for (int x = 0; x < mask.Width; x++)
+                    mask.SetPixel(x, y, new SkiaSharp.SKColor(tone, tone, tone, mask.GetPixel(x, y).Alpha));
+            using SkiaSharp.SKImage image = SkiaSharp.SKImage.FromBitmap(mask);
+            using SkiaSharp.SKData png = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using Stream stream = png.AsStream();
+            bitmap = new Bitmap(stream);
+            _trayMenuIcons.Add(cacheKey, bitmap);
+        }
+        item.Icon = bitmap;
     }
 
     private void OnTrayColorValuesChanged(object? sender, PlatformColorValues values)
@@ -628,10 +640,10 @@ public partial class MainWindow : Window
     private void RefreshTrayMenuIcons()
     {
         if (_isClosing || _trayIcon == null) return;
-        if (_trayOpenItem != null) _trayOpenItem.Icon = GetTrayMenuIcon("list");
-        if (_trayFolderItem != null) _trayFolderItem.Icon = GetTrayMenuIcon("folder");
-        if (_clipboardMenuItem != null) _clipboardMenuItem.Icon = GetTrayMenuIcon("clipboard");
-        if (_trayExitItem != null) _trayExitItem.Icon = GetTrayMenuIcon("power");
+        if (_trayOpenItem != null) ApplyTrayCommandItem(_trayOpenItem, "app.show");
+        if (_trayFolderItem != null) ApplyTrayCommandItem(_trayFolderItem, "location.open-folder");
+        if (_clipboardMenuItem != null) ApplyTrayCommandItem(_clipboardMenuItem, "watch.import-clipboard");
+        if (_trayExitItem != null) ApplyTrayCommandItem(_trayExitItem, "app.quit");
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
@@ -677,6 +689,7 @@ public partial class MainWindow : Window
             await _restoreTask;
             CloseGallery(restoreOrigin: false);
             await _galleryCleanupTask;
+            await FlushWindowPreferencesAsync();
             Log.Debug("Shutdown: gallery media released; stopping the session.");
             await _session.StopAsync();
             Log.Debug("Shutdown: session stopped; disposing the session.");
@@ -800,7 +813,7 @@ public partial class MainWindow : Window
     {
         if (e.Source is Visual tapped && (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
-        if (target?.DataContext is not ThreadRow row) return;
+        if (target?.DataContext is not ThreadRow row || SelectedThreads().Length != 1) return;
         e.Handled = true;
         await OpenDownloadReaderAsync(row.Snapshot.Id, target);
     }
@@ -831,10 +844,11 @@ public partial class MainWindow : Window
     {
         if (_isClosing) return;
         if (Application.Current != null)
-            Application.Current.RequestedThemeVariant = _config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+            Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
+        ApplyGalleryPreferences();
     }
 
     private void WireWorkspaceCommands()
@@ -858,15 +872,11 @@ public partial class MainWindow : Window
         {
             if (!_restoreCompleted || WorkspaceCommandBusy) return;
             Config candidate = _config.Clone();
-            candidate.Theme = _config.Theme == "Dark" ? "Light" : "Dark";
+            candidate.Theme = ActualThemeVariant == ThemeVariant.Dark ? "Light" : "Dark";
             await SaveAppearanceAsync(candidate);
         };
         this.FindControl<Button>("CopyAllUrlsButton")!.Click += async (sender, e) =>
             await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url)));
-        this.FindControl<MenuItem>("ThreadCopyUrlMenuItem")!.Click += async (sender, e) =>
-            await CopyUrlsAsync(SelectedThreads().Select(row => row.Url).ToArray());
-        this.FindControl<MenuItem>("BoardCopyUrlMenuItem")!.Click += async (sender, e) =>
-            await CopyUrlsAsync(SelectedBoards().Select(row => row.Url).ToArray());
         this.FindControl<Button>("InspectorCopyUrlButton")!.Click += async (sender, e) =>
             await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
@@ -877,7 +887,12 @@ public partial class MainWindow : Window
         bool modeChanged = candidate.WorkspaceMode != _config.WorkspaceMode;
         try
         {
-            await ApplySettingsAsync(candidate);
+            await _session.SaveViewPreferencesAsync(current =>
+            {
+                if (themeChanged) current.Theme = candidate.Theme;
+                if (modeChanged) current.WorkspaceMode = candidate.WorkspaceMode;
+            });
+            ApplyAppearance();
             _settingsEditor?.RefreshConfirmedAppearance(themeChanged, modeChanged);
         }
         catch (Exception exception)
@@ -914,11 +929,10 @@ public partial class MainWindow : Window
         if (_isClosing) return;
         _sessionRefresh.Request();
         RefreshAdmissionResults();
-        if (_trayOpenItem != null) _trayOpenItem.Header = Texts.T("tray.open");
-        if (_trayFolderItem != null) _trayFolderItem.Header = Texts.T("tray.folder");
-        if (_clipboardMenuItem != null) _clipboardMenuItem.Header = Texts.T("tray.clipboard");
-        if (_trayExitItem != null) _trayExitItem.Header = Texts.T("tray.exit");
+        RefreshTrayMenuIcons();
     }
+
+    private bool? _lastPauseIcon;
 
     private void UpdatePauseControls(bool enabled)
     {
@@ -928,7 +942,12 @@ public partial class MainWindow : Window
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
         Button button = this.FindControl<Button>("PauseButton")!;
         button.IsEnabled = enabled && !_session.IsPauseTransitioning;
-        this.FindControl<Avalonia.Controls.Shapes.Path>("PauseIcon")!.Data = paused ? ResumeGeometry : PauseGeometry;
+        if (_lastPauseIcon != paused)
+        {
+            _lastPauseIcon = paused;
+            button.Content = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
+            menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
+        }
         string label = Texts.T(_session.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resume" : "action.pause");
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         button.Classes.Set("selected", paused);

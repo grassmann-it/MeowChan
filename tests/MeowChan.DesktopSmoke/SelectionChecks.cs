@@ -30,6 +30,12 @@ internal static class SelectionChecks
         await PressAsync(window, Row(grid, rows[2]), right: true);
         Require(grid.SelectedItems.Count == 2, "Right-click collapsed the existing multiple selection.");
         Require(grid.ContextMenu!.IsOpen, "Right-click on a selected watch did not open its context menu.");
+        MenuItem read = grid.ContextMenu.Items.OfType<MenuItem>().First();
+        Require(!read.IsEnabled, "Read posts must be disabled for multiple selected watches.");
+        grid.ContextMenu.Close();
+        PressKey(grid, Key.Enter);
+        await Task.Delay(80);
+        Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible, "Enter opened an ambiguous multiple-watch reader.");
         grid.ContextMenu!.Close();
         await Task.Delay(80);
         await CheckKeyboardContextAsync(grid, grid.ContextMenu);
@@ -59,9 +65,9 @@ internal static class SelectionChecks
         await Task.Delay(50);
         PressKey(grid, Key.Enter);
         await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
-            && !window.ArchivePage.IsBusy && window.ArchivePage.CurrentThread?.Summary.Id == focusedAfterMove.Snapshot.Id);
+            && !window.ArchivePage.IsBusy && window.ArchivePage.CurrentThread?.Summary.Id == selectedBeforeFocusMove.Snapshot.Id);
         Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItems[0], selectedBeforeFocusMove),
-            "Command-toggle/Enter changed the selection instead of opening only the focused unselected lead.");
+            "Command-toggle/Enter did not retain and open the one selected watch.");
         Click(window.ArchivePage.FindControl<Button>("ArchiveCloseReader")!);
         await Program.WaitUntilAsync(() => !window.FindControl<ContentControl>("ReaderHost")!.IsVisible);
         PressKey(grid, Key.A, CommandModifier);
@@ -114,8 +120,11 @@ internal static class SelectionChecks
 
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource.Cast<object>().Count() == 50);
+        Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
         ArchiveThreadRow[] archived = table.ItemsSource.Cast<ArchiveThreadRow>().ToArray();
+        await ArchiveCommandChecks.RunAsync(page, table);
+        archived = table.ItemsSource.Cast<ArchiveThreadRow>().ToArray();
         await WaitRow(table, archived[3]);
         await Task.Delay(80);
         await PressAsync(window, Row(table, archived[0]));
@@ -132,7 +141,7 @@ internal static class SelectionChecks
         ResourceId[] archiveIds = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
         Texts.SetLanguage("de"); await Task.Delay(80);
         Require(table.SelectedItems.Count == 4, "Archive language refresh collapsed the set.");
-        Click(page.FindControl<Button>("ArchiveThreadMode")!);
+        Click(page.FindControl<Button>("ArchiveLayoutList")!);
         ListBox cards = page.FindControl<ListBox>("ArchiveThreads")!;
         Require(cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToHashSet().SetEquals(archiveIds), "Table-to-card selection lost resource IDs.");
         await Program.WaitUntilAsync(() =>
@@ -153,7 +162,7 @@ internal static class SelectionChecks
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         await PressAsync(window, cardRows[0]); await PressAsync(window, cardRows[2], KeyModifiers.Shift);
         Require(cards.SelectedItems!.Count == 3 && table.SelectedItems.Count == 3, "Archive card Shift range or table synchronization failed.");
-        Click(page.FindControl<Button>("ArchiveThreadMode")!);
+        Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         PressKey(table, Key.A, CommandModifier);
         Require(table.SelectedItems.Count == 50, "Archive Select All escaped the current page.");
         Click(page.FindControl<Button>("NextThreadsButton")!);

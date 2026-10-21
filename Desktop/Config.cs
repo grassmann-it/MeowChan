@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,6 +19,16 @@ namespace MeowChan
         private string _theme = "Dark";
         private string _language = "en";
         private string _workspaceMode = "Barebones";
+        private string _readingFontSize = "Normal";
+        private string _archiveThreadLayout = "List";
+        private int _videoVolume = 70;
+        private double _archiveSplitWidth = 270;
+        private double _windowWidth = 1380;
+        private double _windowHeight = 850;
+        private double? _windowPositionX;
+        private double? _windowPositionY;
+        private Dictionary<string, double> _columnWidths = new(StringComparer.Ordinal);
+        private string _lastExportDirectory = string.Empty;
 
         public int SchemaVersion { get; set; } = 1;
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
@@ -33,7 +45,8 @@ namespace MeowChan
         public string Theme
         {
             get => _theme;
-            set => _theme = string.Equals(value?.Trim(), "Light", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark";
+            set => _theme = string.Equals(value?.Trim(), "Light", StringComparison.OrdinalIgnoreCase) ? "Light"
+                : string.Equals(value?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ? "System" : "Dark";
         }
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -58,8 +71,63 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool CompactDensity { get; set; }
 
+        [JsonIgnore]
+        internal bool? SettingsBaselineCompactDensity { get; set; }
+
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get; set; } = true;
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReadingFontSize
+        {
+            get => _readingFontSize;
+            set => _readingFontSize = string.Equals(value?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
+                : string.Equals(value?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ArchiveThreadLayout
+        {
+            get => _archiveThreadLayout;
+            set => _archiveThreadLayout = string.Equals(value?.Trim(), "Tiles", StringComparison.OrdinalIgnoreCase) ? "Tiles"
+                : string.Equals(value?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool VideoAutoplay { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool VideoStartMuted { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceVolumeConverter))]
+        public int VideoVolume { get => _videoVolume; set => _videoVolume = Math.Clamp(value, 0, 100); }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowShortcutHelp { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryContextOpen { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
+        public double ArchiveSplitWidth
+        {
+            get => _archiveSplitWidth;
+            set => _archiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270;
+        }
+
+        [JsonConverter(typeof(DesktopPreferenceWindowWidthConverter))]
+        public double WindowWidth { get => _windowWidth; set => _windowWidth = double.IsFinite(value) ? Math.Clamp(value, 320, 10000) : 1380; }
+        [JsonConverter(typeof(DesktopPreferenceWindowHeightConverter))]
+        public double WindowHeight { get => _windowHeight; set => _windowHeight = double.IsFinite(value) ? Math.Clamp(value, 240, 10000) : 850; }
+        [JsonConverter(typeof(DesktopPreferenceWindowPositionConverter))]
+        public double? WindowPositionX { get => _windowPositionX; set => _windowPositionX = value.HasValue && double.IsFinite(value.Value) && Math.Abs(value.Value) <= 100000 ? value : null; }
+        [JsonConverter(typeof(DesktopPreferenceWindowPositionConverter))]
+        public double? WindowPositionY { get => _windowPositionY; set => _windowPositionY = value.HasValue && double.IsFinite(value.Value) && Math.Abs(value.Value) <= 100000 ? value : null; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool WindowMaximized { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
+        public Dictionary<string, double> ColumnWidths
+        {
+            get => _columnWidths;
+            set => _columnWidths = value == null ? new(StringComparer.Ordinal) : new(value, StringComparer.Ordinal);
+        }
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
 
         [JsonIgnore]
         public string? LoadWarning { get; private set; }
@@ -191,6 +259,11 @@ namespace MeowChan
                 throw new ArgumentException("A download directory is required.", nameof(DownloadPath));
 
             _ = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
+            if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
+                throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
+            if (ColumnWidths.Count > 64 || ColumnWidths.Any(entry => string.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 100 ||
+                entry.Key.Any(char.IsControl) || !double.IsFinite(entry.Value) || entry.Value < 24 || entry.Value > 2000))
+                throw new ArgumentException("Saved column widths are invalid.", nameof(ColumnWidths));
         }
 
         public Config Clone()
@@ -211,7 +284,23 @@ namespace MeowChan
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
                 CompactDensity = CompactDensity,
+                SettingsBaselineCompactDensity = CompactDensity,
                 ArchiveMediaTiles = ArchiveMediaTiles,
+                ArchiveThreadLayout = ArchiveThreadLayout,
+                ReadingFontSize = ReadingFontSize,
+                VideoAutoplay = VideoAutoplay,
+                VideoStartMuted = VideoStartMuted,
+                VideoVolume = VideoVolume,
+                ShowShortcutHelp = ShowShortcutHelp,
+                GalleryContextOpen = GalleryContextOpen,
+                ArchiveSplitWidth = ArchiveSplitWidth,
+                WindowWidth = WindowWidth,
+                WindowHeight = WindowHeight,
+                WindowPositionX = WindowPositionX,
+                WindowPositionY = WindowPositionY,
+                WindowMaximized = WindowMaximized,
+                ColumnWidths = ColumnWidths,
+                LastExportDirectory = LastExportDirectory,
                 LoadWarning = LoadWarning,
                 _profileDirectory = _profileDirectory,
                 _relativePathBaseDirectory = _relativePathBaseDirectory
@@ -240,7 +329,48 @@ namespace MeowChan
             WorkspaceMode = source.WorkspaceMode;
             CompactDensity = source.CompactDensity;
             ArchiveMediaTiles = source.ArchiveMediaTiles;
+            ArchiveThreadLayout = source.ArchiveThreadLayout;
+            ReadingFontSize = source.ReadingFontSize;
+            VideoAutoplay = source.VideoAutoplay;
+            VideoStartMuted = source.VideoStartMuted;
+            VideoVolume = source.VideoVolume;
+            ShowShortcutHelp = source.ShowShortcutHelp;
+            GalleryContextOpen = source.GalleryContextOpen;
+            ArchiveSplitWidth = source.ArchiveSplitWidth;
+            WindowWidth = source.WindowWidth;
+            WindowHeight = source.WindowHeight;
+            WindowPositionX = source.WindowPositionX;
+            WindowPositionY = source.WindowPositionY;
+            WindowMaximized = source.WindowMaximized;
+            ColumnWidths = source.ColumnWidths;
+            LastExportDirectory = source.LastExportDirectory;
             LoadWarning = source.LoadWarning;
+        }
+
+        /// <summary>Copies only fields edited by Settings, preserving direct view preferences.</summary>
+        internal void CopySettingsFieldsFrom(Config source)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            source.Validate();
+            DownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
+            RecheckTimer = source.RecheckTimer;
+            SaveUrlsOnExit = source.SaveUrlsOnExit;
+            ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            MinimizeToTray = source.MinimizeToTray;
+            CloseToTray = source.CloseToTray;
+            BandwidthLimiter = source.BandwidthLimiter;
+            MaxParallelDownloads = source.MaxParallelDownloads;
+            Theme = source.Theme;
+            Language = source.Language;
+            WorkspaceMode = source.WorkspaceMode;
+            ReadingFontSize = source.ReadingFontSize;
+            VideoAutoplay = source.VideoAutoplay;
+            VideoStartMuted = source.VideoStartMuted;
+            VideoVolume = source.VideoVolume;
+            ShowShortcutHelp = source.ShowShortcutHelp;
+            if (source.SettingsBaselineCompactDensity.HasValue &&
+                source.SettingsBaselineCompactDensity.Value != source.CompactDensity)
+                CompactDensity = source.CompactDensity;
         }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());
@@ -426,6 +556,127 @@ namespace MeowChan
         }
 
         public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options) => writer.WriteBooleanValue(value);
+    }
+
+    internal sealed class DesktopPreferenceTrueBooleanConverter : JsonConverter<bool>
+    {
+        public DesktopPreferenceTrueBooleanConverter() { }
+        public override bool HandleNull => true;
+        public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType is JsonTokenType.True or JsonTokenType.False)
+                return reader.GetBoolean();
+            reader.Skip();
+            return true;
+        }
+        public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options) => writer.WriteBooleanValue(value);
+    }
+
+    internal sealed class DesktopPreferenceVolumeConverter : JsonConverter<int>
+    {
+        public DesktopPreferenceVolumeConverter() { }
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, 0, 100);
+            reader.Skip();
+            return 70;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSplitWidthConverter : JsonConverter<double>
+    {
+        public DesktopPreferenceSplitWidthConverter() { }
+        public override bool HandleNull => true;
+        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
+                return Math.Clamp(value, 180, 1200);
+            reader.Skip();
+            return 270;
+        }
+        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceWindowWidthConverter : JsonConverter<double>
+    {
+        public DesktopPreferenceWindowWidthConverter() { }
+        public override bool HandleNull => true;
+        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
+                return Math.Clamp(value, 320, 10000);
+            reader.Skip();
+            return 1380;
+        }
+        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceWindowHeightConverter : JsonConverter<double>
+    {
+        public DesktopPreferenceWindowHeightConverter() { }
+        public override bool HandleNull => true;
+        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
+                return Math.Clamp(value, 240, 10000);
+            reader.Skip();
+            return 850;
+        }
+        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceWindowPositionConverter : JsonConverter<double?>
+    {
+        public DesktopPreferenceWindowPositionConverter() { }
+        public override bool HandleNull => true;
+        public override double? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) &&
+                double.IsFinite(value) && Math.Abs(value) <= 100000)
+                return value;
+            reader.Skip();
+            return null;
+        }
+        public override void Write(Utf8JsonWriter writer, double? value, JsonSerializerOptions options)
+        {
+            if (value.HasValue) writer.WriteNumberValue(value.Value);
+            else writer.WriteNullValue();
+        }
+    }
+
+    internal sealed class DesktopPreferenceColumnWidthsConverter : JsonConverter<Dictionary<string, double>>
+    {
+        public DesktopPreferenceColumnWidthsConverter() { }
+        public override bool HandleNull => true;
+        public override Dictionary<string, double> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            Dictionary<string, double> result = new(StringComparer.Ordinal);
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                reader.Skip();
+                return result;
+            }
+            using JsonDocument document = JsonDocument.ParseValue(ref reader);
+            foreach (JsonProperty property in document.RootElement.EnumerateObject())
+            {
+                if (result.Count >= 64) break;
+                if (string.IsNullOrWhiteSpace(property.Name) || property.Name.Length > 100 || property.Name.Any(char.IsControl) ||
+                    property.Value.ValueKind != JsonValueKind.Number || !property.Value.TryGetDouble(out double width) ||
+                    !double.IsFinite(width)) continue;
+                result[property.Name] = Math.Clamp(width, 24, 2000);
+            }
+            return result;
+        }
+        public override void Write(Utf8JsonWriter writer, Dictionary<string, double> value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            foreach (KeyValuePair<string, double> entry in value.OrderBy(item => item.Key, StringComparer.Ordinal))
+                writer.WriteNumber(entry.Key, entry.Value);
+            writer.WriteEndObject();
+        }
     }
 
     [JsonSerializable(typeof(Config))]

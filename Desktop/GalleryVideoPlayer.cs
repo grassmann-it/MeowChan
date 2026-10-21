@@ -39,6 +39,26 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private int _disposed;
     private int _releasedStreams;
     private int _cleanupFailures;
+    private bool _autoplay = true;
+    private bool _startMuted;
+    private bool _settingVolume;
+
+    internal event Action<int>? VolumeChanged;
+    internal void Configure(bool autoplay, bool startMuted, int volume)
+    {
+        _autoplay = autoplay;
+        _startMuted = startMuted;
+        _settingVolume = true;
+        try { _volume.Value = Math.Clamp(volume, 0, 100); }
+        finally { _settingVolume = false; }
+    }
+
+    internal Task TogglePlaybackAsync() => CommandAsync(player =>
+    {
+        if (player.IsPlaying) player.SetPause(true);
+        else if (player.State == VLCState.Paused) player.SetPause(false);
+        else player.Play();
+    });
 
     private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, MacVideoSurface? Surface);
 
@@ -93,7 +113,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _volume.PropertyChanged += async (_, args) =>
         {
             if (args.Property == Slider.ValueProperty)
-            { int volume = (int)_volume.Value; await CommandAsync(player => player.Volume = volume); }
+            {
+                int volume = (int)_volume.Value;
+                bool userChange = !_settingVolume;
+                await CommandAsync(player => { player.Volume = volume; if (volume > 0) player.Mute = false; });
+                if (userChange) VolumeChanged?.Invoke(volume);
+            }
         };
         _seek.PropertyChanged += async (_, args) =>
         {
@@ -133,7 +158,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 _engine ??= OperatingSystem.IsMacOS()
                     ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none")
                     : new LibVLC("--no-video-title-show", "--no-media-library");
-                player = new MediaPlayer(_engine) { Volume = volume, EnableKeyInput = false, EnableMouseInput = false };
+                player = new MediaPlayer(_engine) { Volume = volume, Mute = _startMuted, EnableKeyInput = false, EnableMouseInput = false };
                 if (OperatingSystem.IsMacOS()) surface = new MacVideoSurface(_macVideo, player);
                 input = new StreamMediaInput(stream);
                 media = new Media(_engine, input);
@@ -156,7 +181,15 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 });
                 token.ThrowIfCancellationRequested();
                 if (!IsCurrent(generation)) { await ClearPlaybackAsync(generation).ConfigureAwait(false); return; }
-                if (!_playback.Player.Play(_playback.Media)) throw new InvalidOperationException("The video backend rejected this media.");
+                if (_autoplay)
+                {
+                    if (!_playback.Player.Play(_playback.Media)) throw new InvalidOperationException("The video backend rejected this media.");
+                }
+                else
+                {
+                    _playback.Player.Media = _playback.Media;
+                    Post(generation, () => { EnableTransport(true); _status.Text = Text("Ready to play.", "Bereit zur Wiedergabe."); });
+                }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             { await ClearPlaybackAsync(generation).ConfigureAwait(false); }

@@ -312,17 +312,17 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     public async Task ApplySettingsAsync(Config settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        Config candidate = Config.Clone();
-        // CopyFrom resolves relative paths using the edit's original loading directory,
-        // before both the durable settings write and the session options see the value.
-        candidate.CopyFrom(settings);
-        candidate.Validate();
+        settings.Validate();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            // Settings drafts must not overwrite the separately controlled live pause state.
-            candidate.DownloadsPaused = Config.DownloadsPaused;
+            // Merge the edited fields into the latest live configuration. Layout,
+            // density, gallery context and pause are direct preferences and may have
+            // changed while a settings draft was open.
+            Config candidate = Config.Clone();
+            candidate.CopySettingsFieldsFrom(settings);
+            candidate.Validate();
             SessionOptions options = new SessionOptions
             {
                 DownloadPath = candidate.DownloadPath,

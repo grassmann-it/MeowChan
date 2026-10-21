@@ -637,7 +637,7 @@ public sealed class ConfigTests
     [InlineData(" light ", " advanced ", " DE-de ", "Light", "Advanced", "de-DE")]
     [InlineData("DARK", "bareBONES", "en-US", "Dark", "Barebones", "en-US")]
     [InlineData("DARK", " simple ", "en-US", "Dark", "Simple", "en-US")]
-    [InlineData("system", "unknown", "not_a_language", "Dark", "Barebones", "en")]
+    [InlineData("system", "unknown", "not_a_language", "System", "Barebones", "en")]
     public void PresentationPreferenceValuesNormalizeConservatively(string theme, string mode, string language,
         string expectedTheme, string expectedMode, string expectedLanguage)
     {
@@ -668,5 +668,90 @@ public sealed class ConfigTests
         Assert.Equal(mode, loaded.WorkspaceMode);
         Assert.Equal(mode, copied.WorkspaceMode);
         Assert.Equal(mode, Config.LoadConfig(directory.Path).WorkspaceMode);
+    }
+
+    [Fact]
+    public void ReadingAndMediaPreferencesUseMigrationDefaultsAndRoundTrip()
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory), "{\"RecheckTimer\":120}");
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal("Normal", loaded.ReadingFontSize);
+        Assert.True(loaded.VideoAutoplay);
+        Assert.False(loaded.VideoStartMuted);
+        Assert.Equal(70, loaded.VideoVolume);
+        Assert.True(loaded.ShowShortcutHelp);
+        Assert.False(loaded.GalleryContextOpen);
+        Assert.Equal("List", loaded.ArchiveThreadLayout);
+        Assert.Equal(270, loaded.ArchiveSplitWidth);
+
+        Config changed = loaded.Clone();
+        changed.Theme = "System";
+        changed.ReadingFontSize = "Large";
+        changed.VideoAutoplay = false;
+        changed.VideoStartMuted = true;
+        changed.VideoVolume = 42;
+        changed.ShowShortcutHelp = false;
+        changed.GalleryContextOpen = true;
+        changed.ArchiveThreadLayout = "Table";
+        changed.ArchiveSplitWidth = 360;
+        changed.SaveConfig();
+        Config roundTrip = Config.LoadConfig(directory.Path);
+        Assert.Equal("System", roundTrip.Theme);
+        Assert.Equal("Large", roundTrip.ReadingFontSize);
+        Assert.False(roundTrip.VideoAutoplay);
+        Assert.True(roundTrip.VideoStartMuted);
+        Assert.Equal(42, roundTrip.VideoVolume);
+        Assert.False(roundTrip.ShowShortcutHelp);
+        Assert.True(roundTrip.GalleryContextOpen);
+        Assert.Equal("Table", roundTrip.ArchiveThreadLayout);
+        Assert.Equal(360, roundTrip.ArchiveSplitWidth);
+    }
+
+    [Fact]
+    public void MalformedNewPresentationPreferencesDoNotDiscardDownloadSettings()
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(SettingsPath(directory),
+            "{\"RecheckTimer\":120,\"ReadingFontSize\":{},\"ArchiveThreadLayout\":null," +
+            "\"VideoAutoplay\":null,\"ShowShortcutHelp\":[],\"VideoVolume\":\"loud\",\"ArchiveSplitWidth\":false}");
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Null(loaded.LoadWarning);
+        Assert.Equal(120, loaded.RecheckTimer);
+        Assert.Equal("Normal", loaded.ReadingFontSize);
+        Assert.Equal("List", loaded.ArchiveThreadLayout);
+        Assert.True(loaded.VideoAutoplay);
+        Assert.True(loaded.ShowShortcutHelp);
+        Assert.Equal(70, loaded.VideoVolume);
+        Assert.Equal(270, loaded.ArchiveSplitWidth);
+    }
+
+    [Fact]
+    public void DirectViewGeometryColumnsAndExportFolderRoundTripWithoutEnteringSettingsDraft()
+    {
+        using TempDirectory directory = new();
+        Config config = Config.LoadConfig(directory.Path);
+        config.WindowWidth = 1100;
+        config.WindowHeight = 720;
+        config.WindowPositionX = -200;
+        config.WindowPositionY = 80;
+        config.WindowMaximized = true;
+        config.ColumnWidths["archive.title"] = 320;
+        config.LastExportDirectory = Path.Combine(directory.Path, "exports");
+        Config draft = config.Clone();
+        draft.WindowWidth = 900;
+        draft.ColumnWidths["archive.title"] = 240;
+        Assert.Equal(320, config.ColumnWidths["archive.title"]);
+        config.SaveConfig();
+
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal(1100, loaded.WindowWidth);
+        Assert.Equal(720, loaded.WindowHeight);
+        Assert.Equal(-200, loaded.WindowPositionX);
+        Assert.Equal(80, loaded.WindowPositionY);
+        Assert.True(loaded.WindowMaximized);
+        Assert.Equal(320, loaded.ColumnWidths["archive.title"]);
+        Assert.Equal(config.LastExportDirectory, loaded.LastExportDirectory);
+        Assert.False(Directory.Exists(config.LastExportDirectory));
     }
 }

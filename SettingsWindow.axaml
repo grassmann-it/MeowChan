@@ -3,6 +3,6 @@
         xmlns:local="clr-namespace:MeowChan"
         x:Class="MeowChan.SettingsWindow" x:DataType="local:SettingsEditor"
         Title="{Binding SettingsTitle}" Icon="avares://MeowChan/Assets/meowchan.png"
-        Width="660" Height="760" MinWidth="480" MinHeight="480" WindowStartupLocation="CenterOwner">
+        Width="940" Height="760" MinWidth="480" MinHeight="480" WindowStartupLocation="CenterOwner">
     <ContentControl x:Name="EditorHost" />
 </Window>

@@ -38,6 +38,13 @@ public partial class ArchivePage
         ResourceId? id = _selectedThread ?? _thread?.Summary.Id;
         if (id != null) await OpenExportForThreadAsync(id, sender as Control);
     }
+    internal string LastExportDirectoryPreference { get; set; } = string.Empty;
+    internal Func<string, Task>? SaveExportDirectory { get; set; }
+    private async Task RememberExportDirectoryAsync(string directory)
+    {
+        if (SaveExportDirectory != null) await SaveExportDirectory(directory);
+        LastExportDirectoryPreference = directory;
+    }
     internal Task OpenExportForThreadAsync(ResourceId id, Control? origin) => OpenExportCoreAsync(id, origin, null, null);
     private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed)
     {
@@ -69,7 +76,8 @@ public partial class ArchivePage
         {
             string destination = await Task.Run(() =>
             {
-                string parent = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string parent = LastExportDirectoryPreference;
+                if (!Directory.Exists(parent)) parent = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 if (!Directory.Exists(parent)) parent = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 return FreshSelectedExportDestination(parent, id);
             });
@@ -155,6 +163,7 @@ public partial class ArchivePage
                 if (_ended || request != _exportRequest || folders.Count == 0) return;
                 string? parent = folders[0].TryGetLocalPath();
                 if (parent == null) { ExportStatus(Texts.T("settings.pickerLocalOnly")); return; }
+                await RememberExportDirectoryAsync(parent);
                 if (associate && HasSelectedExportHistory)
                 {
                     if (IsCollectionExport) await Task.Run(() => CollectionExportHistory!.AssociateAsync(parent, _exportMembers!, _lifetime.Token));

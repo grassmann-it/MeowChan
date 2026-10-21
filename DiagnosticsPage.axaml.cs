@@ -22,7 +22,7 @@ public partial class DiagnosticsPage : UserControl
     private readonly Func<DiagnosticTarget, bool>? _canRetry;
     private bool _ended;
 
-    public DiagnosticsPage() { InitializeComponent(); }
+    public DiagnosticsPage() { InitializeComponent(); InitializeContextMenu(); }
     internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy,
         Func<DiagnosticTarget, Task<CheckRequestStatus>>? retry = null, Func<DiagnosticTarget, bool>? canRetry = null) : this()
     {

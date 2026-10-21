@@ -116,6 +116,11 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         _gallery = new GalleryViewer();
+        ApplyGalleryPreferences();
+        WireGalleryActions();
+        _gallery.FullscreenRequested += ToggleFullscreen;
+        _gallery.ContextOpenChanged += open => QueueGalleryPreference(open, null);
+        _gallery.VideoVolumeChanged += volume => QueueGalleryPreference(null, volume);
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
         _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
@@ -274,7 +279,10 @@ public partial class MainWindow
             ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
             _galleryIndex > 0, _galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count);
         viewer.SetAssociations(_galleryEntries);
-        await viewer.ShowAsync(_galleryEntries[_galleryIndex], _galleryCancellation.Token);
+        GalleryEntry entry = _galleryEntries[_galleryIndex];
+        await viewer.ShowAsync(entry, _galleryCancellation.Token);
+        if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
+            RefreshGalleryFavorite();
     }
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)
@@ -324,12 +332,14 @@ public partial class MainWindow
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
         TrackGalleryCleanup(_gallery.ResumeMediaAsync());
+        RefreshGalleryFavorite();
         _gallery.Focus();
     }
 
     private void CloseGallery(bool restoreOrigin = true)
     {
         _archivePage?.CancelPendingGalleryOpen();
+        TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         bool followReader = restoreOrigin && _galleryReaderOrigin;
         bool restorePage = restoreOrigin && _galleryVisitedReader;

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -57,7 +58,20 @@ public partial class ArchivePage : UserControl
     internal Func<ArchiveThreadQuery, int, Control?, Task>? OpenResultsGallery { get; set; }
     internal Func<IReadOnlyList<ThreadWorkSnapshot>>? GetWorkSnapshots { get; set; }
     private int _workFilter;
-    private bool _threadTable = true;
+    private bool _threadTable;
+    private string _archiveLayout = "List";
+    private double _archiveSplitWidth = 270;
+    internal Func<string, double, Task>? SaveViewPreferencesAsync { get; set; }
+    internal string ArchiveLayoutPreference
+    {
+        get => _archiveLayout;
+        set { _archiveLayout = value is "Tiles" or "Table" ? value : "List"; _threadTable = _archiveLayout == "Table"; UpdateLayoutMode(); }
+    }
+    internal double ArchiveSplitPreference
+    {
+        get => _archiveSplitWidth;
+        set { _archiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270; UpdateLayoutMode(); }
+    }
     private bool _mediaTiles = true;
     internal bool MediaTilesPreference
     {
@@ -76,10 +90,11 @@ public partial class ArchivePage : UserControl
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
     private bool _allVersions = true;
     private int _mediaSort;
+    private bool _archiveFavoritesOnly;
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeArchiveSelection();
+        InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         InitializeReaderInteraction();
@@ -147,6 +162,8 @@ public partial class ArchivePage : UserControl
                 _listOffset = 0;
                 result = await reader.SearchThreadsAsync(_query, _listOffset, PageSize, cancellationToken);
             }
+            IReadOnlyDictionary<ResourceId, ArchiveThreadPreview> previews = await reader.ReadThreadPreviewsAsync(
+                result.Items.Select(summary => summary.Id).ToArray(), cancellationToken);
             if (_ended || request != _contentRequest) return;
             _listTotal = result.TotalCount;
             _updatingList = true;
@@ -154,10 +171,20 @@ public partial class ArchivePage : UserControl
             {
                 IReadOnlyDictionary<string, ThreadWorkSnapshot> work = (GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>())
                     .GroupBy(item => item.Url, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-                ArchiveThreadRow[] rows = result.Items.Select(summary => new ArchiveThreadRow(summary, work.GetValueOrDefault(summary.Url))).ToArray();
+                ArchiveThreadRow[] rows = result.Items.Select(summary =>
+                {
+                    previews.TryGetValue(summary.Id, out ArchiveThreadPreview? preview);
+                    return new ArchiveThreadRow(summary, work.GetValueOrDefault(summary.Url))
+                    {
+                        PreviewText = preview?.FirstCapturedText ?? string.Empty,
+                        PreviewAttachment = preview?.FirstAttachment is CapturedAttachment attachment
+                            ? CreateListAttachmentRow(summary, attachment) : null
+                    };
+                }).ToArray();
                 ListBox list = Control<ListBox>("ArchiveThreads");
                 list.ItemsSource = rows;
                 list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
+                Control<ListBox>("ArchiveThreadTiles").ItemsSource = rows;
                 DataGrid table = Control<DataGrid>("ArchiveThreadTable");
                 table.ItemsSource = rows;
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
@@ -211,7 +238,7 @@ public partial class ArchivePage : UserControl
         try
         {
             ArchiveThreadRow[] rows = ArchiveVisibleRows;
-            if (rows.Any(row => row.Summary.Id == id) && !_archiveSelectionIds.Contains(id))
+            if (rows.Any(row => row.Summary.Id == id) && _archiveSelectionIds.Count == 0)
             {
                 _archiveSelectionIds.Clear(); _archiveSelectionIds.Add(id); _archiveLeadId = id;
             }
@@ -348,6 +375,7 @@ public partial class ArchivePage : UserControl
 
     private void RenderMedia()
     {
+        ConfigureArchiveMediaFavorites();
         DataGrid grid = Control<DataGrid>("ArchiveMediaGrid");
         ListBox tiles = Control<ListBox>("ArchiveMediaTiles");
         ArchiveAssetRow? selected = (grid.SelectedItem ?? tiles.SelectedItem) as ArchiveAssetRow;
@@ -362,7 +390,8 @@ public partial class ArchivePage : UserControl
             tiles.SelectedItem = rebound;
         }
         TextBlock empty = Control<TextBlock>("ArchiveNoMedia");
-        empty.Text = Texts.T(_mediaLoading ? "archive.loadingMedia" : "archive.noMedia");
+        empty.Text = Texts.T(_mediaLoading ? "archive.loadingMedia"
+            : _archiveFavoritesOnly ? "archive.noFavorites" : "archive.noMedia");
         empty.IsVisible = shown.Count == 0;
         UpdateActions();
     }
@@ -370,6 +399,7 @@ public partial class ArchivePage : UserControl
     private IReadOnlyList<ArchiveAssetRow> VisibleAssets()
     {
         IEnumerable<ArchiveAssetRow> rows = _allVersions ? _assets : _assets.Where(row => row.Asset.IsCurrent);
+        if (_archiveFavoritesOnly) rows = rows.Where(row => row.IsFavorite?.Invoke() == true);
         IOrderedEnumerable<ArchiveAssetRow> ordered = _mediaSort switch
         {
             1 => rows.OrderBy(row => row.Asset.Length),
@@ -399,7 +429,8 @@ public partial class ArchivePage : UserControl
         ToolTip.SetTip(Control<Button>("CapturePostsButton"), Texts.T("archive.captureHint"));
         Control<Button>("PreviewArchiveMediaButton").IsEnabled = ready && SelectedMediaRow() != null;
         Control<Button>("ArchiveOpenGallery").IsEnabled = ready && _selectedThread != null;
-        Control<Button>("ArchiveReadPosts").IsEnabled = ready && _selectedThread != null;
+        Control<Button>("ArchiveReadPosts").IsEnabled = ready && _selectedThread != null
+            && FrozenArchiveSelection().Length == 1;
         Control<Button>("ArchiveResultsGallery").IsEnabled = ready && _listTotal > 0;
         Control<TextBlock>("ArchiveThreadPage").Text = PageLabel(_listOffset, _listTotal);
         Control<TextBlock>("ArchivePostPage").Text = PageLabel(_postOffset, _thread?.PostCount ?? 0);
@@ -461,6 +492,50 @@ public partial class ArchivePage : UserControl
                 else Message(Texts.T("archive.notSaved"));
             }
         };
+    }
+
+    // A list thumbnail starts only when ArchiveAttachmentView enters the viewport. It uses
+    // the captured local path and never opens a thread view, manifest, or media directory.
+    private ArchiveAttachmentRow CreateListAttachmentRow(ArchiveThreadSummary summary, CapturedAttachment attachment)
+        => new(attachment)
+        {
+            LoadThumbnail = token => LoadListThumbnailAsync(summary, attachment, token),
+            OpenPreview = async () =>
+            {
+                if (OpenGallery != null) await OpenGallery(summary.Id, null, this);
+            }
+        };
+
+    private async Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary,
+        CapturedAttachment attachment, CancellationToken cancellationToken)
+    {
+        string? path = attachment.PlannedPath;
+        if (attachment.IsDeleted || string.IsNullOrEmpty(path) ||
+            SavedMediaTypes.Classify(attachment.OriginalFileName ?? path) != SavedMediaKind.Image)
+            return null;
+        string relative = Path.GetRelativePath(summary.MediaDirectory, path);
+        if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return null;
+        await _thumbnailGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (stream.Length > 64L * 1024 * 1024) return null;
+            using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
+            if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0 ||
+                (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
+            int width = Math.Min(codec.Info.Width, Math.Min(160,
+                Math.Max(1, (int)(120L * codec.Info.Width / codec.Info.Height))));
+            stream.Position = 0;
+            cancellationToken.ThrowIfCancellationRequested();
+            Bitmap bitmap = Bitmap.DecodeToWidth(stream, width);
+            if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
+            return bitmap;
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+        finally { _thumbnailGate.Release(); }
     }
 
     internal static ArchiveAssetRow? FindMatchingAsset(CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)
@@ -585,10 +660,41 @@ public partial class ArchivePage : UserControl
         Grid.SetRow(grid.Children[1], beside ? 0 : 1);
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateLayoutMode();
+    private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
+    {
+        _archiveFavoritesOnly = !_archiveFavoritesOnly;
+        Control<Button>("ArchiveFavoritesFilter").Content = Texts.T(
+            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        RenderMedia();
+    }
+    private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
+    {
+        string layout = sender == Control<Button>("ArchiveLayoutTiles") ? "Tiles"
+            : sender == Control<Button>("ArchiveLayoutTable") ? "Table" : "List";
+        if (_archiveLayout == layout) return;
+        ArchiveLayoutPreference = layout;
+        RestoreArchiveSelection(ArchiveVisibleRows);
+        await PersistArchiveViewAsync();
+    }
+    private async void OnArchiveSplitReleased(object? sender, PointerReleasedEventArgs e) => await SaveArchiveSplitAsync();
+    private async void OnArchiveSplitKeyUp(object? sender, KeyEventArgs e) => await SaveArchiveSplitAsync();
+    private async Task SaveArchiveSplitAsync()
+    {
+        if (Control<Grid>("ArchiveSplit").ColumnDefinitions[0].ActualWidth <= 0) return;
+        _archiveSplitWidth = Math.Clamp(Control<Grid>("ArchiveSplit").ColumnDefinitions[0].ActualWidth, 180, 1200);
+        await PersistArchiveViewAsync();
+    }
+    private async Task PersistArchiveViewAsync()
+    {
+        if (SaveViewPreferencesAsync == null) return;
+        try { await SaveViewPreferencesAsync(_archiveLayout, _archiveSplitWidth); }
+        catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
+    }
+    private async void OnFavoritesOverviewClick(object? sender, RoutedEventArgs e) => await OpenFavoritesOverviewAsync();
     private void UpdateLayoutMode()
     {
         if (!IsInitialized && !_largeReader) return;
-        bool narrow = Bounds.Width < 1000;
+        bool narrow = Bounds.Width < (_archiveLayout == "Table" ? 1450 : 1000);
         bool compact = Bounds.Height > 0 && Bounds.Height < 500;
         Control<Grid>("ArchiveRoot").Margin = new Thickness(compact ? 12 : 20);
         Control<Grid>("ArchiveRoot").RowSpacing = compact ? 8 : 12;
@@ -599,14 +705,20 @@ public partial class ArchivePage : UserControl
         bool beside = _showReader && !narrow;
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
-        split.ColumnDefinitions[0].Width = new GridLength(beside ? 270 : 0);
-        split.ColumnSpacing = beside ? 12 : 0;
-        Grid.SetColumn(Control<Grid>("ArchiveListPane"), beside ? 0 : 1);
+        split.ColumnDefinitions[0].Width = new GridLength(beside
+            ? (_archiveLayout == "Table" ? Math.Max(650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
+        split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
+        split.ColumnSpacing = beside ? 6 : 0;
+        Grid.SetColumn(Control<Grid>("ArchiveListPane"), beside ? 0 : 2);
+        Control<GridSplitter>("ArchiveSplitter").IsVisible = beside;
         Control<Grid>("ArchiveReaderPane").IsVisible = _largeReader || _showReader;
         Control<Grid>("ArchiveListPane").IsVisible = !narrow || !_showReader;
-        Control<ListBox>("ArchiveThreads").IsVisible = !_threadTable || _showReader;
-        Control<DataGrid>("ArchiveThreadTable").IsVisible = _threadTable && !_showReader;
-        Control<Button>("ArchiveThreadMode").Content = Texts.T(_threadTable ? "gallery.cards" : "gallery.table");
+        Control<ListBox>("ArchiveThreads").IsVisible = _archiveLayout == "List";
+        Control<ListBox>("ArchiveThreadTiles").IsVisible = _archiveLayout == "Tiles";
+        Control<DataGrid>("ArchiveThreadTable").IsVisible = _archiveLayout == "Table";
+        Control<Button>("ArchiveLayoutList").IsEnabled = _archiveLayout != "List";
+        Control<Button>("ArchiveLayoutTiles").IsEnabled = _archiveLayout != "Tiles";
+        Control<Button>("ArchiveLayoutTable").IsEnabled = _archiveLayout != "Table";
         Control<Button>("ArchiveBackButton").IsVisible = narrow && !_largeReader;
     }
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -622,11 +734,13 @@ public partial class ArchivePage : UserControl
         ListBox list = Control<ListBox>("ArchiveThreads");
         if (list.ItemsSource is IEnumerable<ArchiveThreadRow> rows)
         {
-            ArchiveThreadRow[] localized = rows.Select(row => new ArchiveThreadRow(row.Summary, row.Work)).ToArray();
+            ArchiveThreadRow[] localized = rows.Select(row => new ArchiveThreadRow(row.Summary, row.Work)
+            { PreviewText = row.PreviewText, PreviewAttachment = row.PreviewAttachment }).ToArray();
             _updatingList = true;
             try
             {
                 list.ItemsSource = localized;
+                Control<ListBox>("ArchiveThreadTiles").ItemsSource = localized;
                 Control<DataGrid>("ArchiveThreadTable").ItemsSource = localized;
                 RestoreArchiveSelection(localized, _selectedThread);
             }
@@ -647,17 +761,16 @@ public partial class ArchivePage : UserControl
         Control<TabItem>("ArchivePostsTab").Header = Texts.T("archive.posts");
         Control<TabItem>("ArchiveMediaTab").Header = Texts.T("archive.media");
         Control<Button>("ArchiveMediaMode").Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
+        Control<Button>("ArchiveFavoritesFilter").Content = Texts.T(
+            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
         Control<Button>("ArchiveGalleryReturn").Content = Texts.T("gallery.return");
         Control<ComboBox>("ArchiveVersionScope").ItemsSource = new[] { Texts.T("gallery.latestVersions"), Texts.T("gallery.allVersions") };
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = _allVersions ? 1 : 0;
         Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion") };
         Control<ComboBox>("ArchiveMediaSort").SelectedIndex = _mediaSort;
-        if (Control<DataGrid>("ArchiveThreadTable").ContextMenu is ContextMenu menu)
-        {
-            MenuItem[] actions = menu.Items.OfType<MenuItem>().ToArray();
-            if (actions.Length >= 3)
-            { actions[0].Header = Texts.T("gallery.open"); actions[1].Header = Texts.T("gallery.read"); actions[2].Header = Texts.T("gallery.export"); }
-        }
+        if (this.FindControl<MenuItem>("ArchiveTableGalleryMenu") is MenuItem gallery) gallery.Header = Texts.T("gallery.open");
+        if (this.FindControl<MenuItem>("ArchiveTableReadMenu") is MenuItem read) read.Header = Texts.T("gallery.read");
+        if (this.FindControl<MenuItem>("ArchiveTableExportMenu") is MenuItem export) export.Header = Texts.T("gallery.export");
         DataGrid media = Control<DataGrid>("ArchiveMediaGrid");
         media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();

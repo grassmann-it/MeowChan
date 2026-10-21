@@ -74,6 +74,11 @@ public partial class MainWindow
         if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)) CompleteCaptionRestore();
         else if (e.Property == BoundsProperty || e.Property == WidthProperty || e.Property == HeightProperty)
             ContinueCaptionRestore();
+        if (e.Property == ActualThemeVariantProperty)
+        {
+            UpdateThemeIcon();
+            RefreshTrayMenuIcons();
+        }
         if (e.Property == WindowStateProperty || e.Property == CanMinimizeProperty
             || e.Property == CanMaximizeProperty || e.Property == CanResizeProperty)
             UpdateWindowControls();

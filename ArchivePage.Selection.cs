@@ -20,23 +20,30 @@ public partial class ArchivePage
     private ResourceId? _archiveLeadId;
     internal Func<IReadOnlyList<ResourceId>, Task>? RemoveSelectedWatches { get; set; }
     internal Func<ResourceId, bool>? CanRemoveWatch { get; set; }
+    internal Func<ResourceId, bool>? CanCheckWatch { get; set; }
+    internal Func<ResourceId, bool>? CanRetryWatch { get; set; }
+    private ArchiveThreadRow? _archiveCommandLead;
     internal Func<IReadOnlyList<ResourceId>, bool, Task>? CheckSelectedWatches { get; set; }
     internal Func<System.Collections.Generic.IEnumerable<string>, Task>? CopySelectedUrls { get; set; }
     internal Action<ResourceId>? SelectionDetailsRequested { get; set; }
     internal Action<ResourceId, string>? SelectionLeadAction { get; set; }
 
     private ArchiveThreadRow[] ArchiveVisibleRows => Control<DataGrid>("ArchiveThreadTable").ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
-    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable") : Control<ListBox>("ArchiveThreads");
+    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable")
+        : _archiveLayout == "Tiles" ? Control<ListBox>("ArchiveThreadTiles") : Control<ListBox>("ArchiveThreads");
     private ArchiveThreadRow? ArchiveLead => _archiveSelectionIds.Count == 0 ? null
         : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == _archiveLeadId)
             ?? ArchiveVisibleRows.FirstOrDefault(row => _archiveSelectionIds.Contains(row.Summary.Id));
-    internal string? ArchiveDirectoryFor(ResourceId id) => ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id)?.Summary.MediaDirectory;
-    internal string ArchiveUrlFor(ResourceId id) => ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id)?.Summary.Url ?? string.Empty;
+    internal string? ArchiveDirectoryFor(ResourceId id) => (_archiveCommandLead?.Summary.Id == id ? _archiveCommandLead : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id))?.Summary.MediaDirectory;
+    internal string ArchiveUrlFor(ResourceId id) => (_archiveCommandLead?.Summary.Id == id ? _archiveCommandLead : ArchiveVisibleRows.FirstOrDefault(row => row.Summary.Id == id))?.Summary.Url ?? string.Empty;
     private ResourceId[] FrozenArchiveSelection() => ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).Select(row => row.Summary.Id).ToArray();
 
     private void InitializeArchiveSelection()
     {
-        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<DataGrid>("ArchiveThreadTable") })
+        var tilesMenu = new ContextMenu();
+        tilesMenu.Opened += OnArchiveSelectionMenuOpened;
+        Control<ListBox>("ArchiveThreadTiles").ContextMenu = tilesMenu;
+        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<ListBox>("ArchiveThreadTiles"), Control<DataGrid>("ArchiveThreadTable") })
         {
             list.AddHandler(KeyDownEvent, OnArchiveListKeyDown, RoutingStrategies.Tunnel);
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
@@ -63,12 +70,15 @@ public partial class ArchivePage
         try
         {
             ListBox cards = Control<ListBox>("ArchiveThreads");
+            ListBox tiles = Control<ListBox>("ArchiveThreadTiles");
             DataGrid table = Control<DataGrid>("ArchiveThreadTable");
             if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Clear();
+            if (!ReferenceEquals(source, tiles)) tiles.SelectedItems!.Clear();
             if (!ReferenceEquals(source, table)) table.SelectedItems.Clear();
             foreach (ArchiveThreadRow row in rows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)))
             {
                 if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Add(row);
+                if (!ReferenceEquals(source, tiles)) tiles.SelectedItems!.Add(row);
                 if (!ReferenceEquals(source, table)) table.SelectedItems.Add(row);
             }
         }
@@ -77,14 +87,14 @@ public partial class ArchivePage
         UpdateArchiveSelectionActions();
     }
 
-    private void ArchiveSelectionChanged(object? sender)
+    private async void ArchiveSelectionChanged(object? sender)
     {
         if (_updatingList || _ended || !_available) return;
         IEnumerable<ArchiveThreadRow> selected = sender is DataGrid table ? table.SelectedItems.Cast<ArchiveThreadRow>()
-            : Control<ListBox>("ArchiveThreads").SelectedItems!.Cast<ArchiveThreadRow>();
+            : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItems!.Cast<ArchiveThreadRow>();
         _archiveSelectionIds.Clear();
         foreach (ArchiveThreadRow row in selected) _archiveSelectionIds.Add(row.Summary.Id);
-        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : Control<ListBox>("ArchiveThreads").SelectedItem as ArchiveThreadRow;
+        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItem as ArchiveThreadRow;
         if (_archiveLeadId == null || !ArchiveVisibleRows.Any(row => row.Summary.Id == _archiveLeadId))
             _archiveLeadId = current?.Summary.Id;
         _history.Clear();
@@ -92,6 +102,7 @@ public partial class ArchivePage
         _showReader = false;
         SynchronizeArchiveSelection(ArchiveVisibleRows, sender);
         UpdateLayoutMode(); UpdateActions();
+        if (ArchiveLead is ArchiveThreadRow lead) await LoadThreadAsync(lead.Summary.Id);
     }
 
     private void UpdateArchiveSelectionActions()
@@ -107,7 +118,14 @@ public partial class ArchivePage
         Control? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => control is DataGridRow or ListBoxItem);
         ArchiveThreadRow? row = hit?.DataContext as ArchiveThreadRow;
         if (row != null) _archiveLeadId = row.Summary.Id;
-        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed) return;
+        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed)
+        {
+            if (row != null) Dispatcher.UIThread.Post(async () =>
+            {
+                if (!_ended && _available && _selectedThread != row.Summary.Id) await LoadThreadAsync(row.Summary.Id);
+            }, DispatcherPriority.Background);
+            return;
+        }
         _archivePointerContextHandled.Add(list);
         if (row == null)
         {
@@ -130,26 +148,43 @@ public partial class ArchivePage
 
     private void OnArchiveContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is Control list && e.TryGetPosition(list, out _)
-            && _archivePointerContextHandled.Remove(list))
+        if (sender is not Control list) return;
+        if (e.TryGetPosition(list, out _))
+        {
+            // Pointer menus are opened explicitly only after resolving an actual row.
+            _archivePointerContextHandled.Remove(list);
             e.Handled = true;
+            return;
+        }
+        e.Handled = true;
+        if (ArchiveLead is not ArchiveThreadRow lead) return;
+        Control? owner = list.ContextMenu != null ? list : list.GetVisualDescendants().OfType<Control>()
+            .FirstOrDefault(control => control.ContextMenu != null && control.DataContext is ArchiveThreadRow row && row.Summary.Id == lead.Summary.Id);
+        owner?.ContextMenu?.Open(owner);
     }
 
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
-            || _ended || !_available || _busy || _largeReader || _exportCard?.IsVisible == true) return;
+            || _ended || !_available || _largeReader || _exportCard?.IsVisible == true) return;
         KeyModifiers command = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        if (MatchesArchiveCommand(e, "input.focus-search"))
+        { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
         if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
         {
-            Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(async () =>
             {
                 ArchiveThreadRow? row = list is DataGrid table ? table.CollectionView?.CurrentItem as ArchiveThreadRow
                     : (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext as ArchiveThreadRow;
-                if (row != null) { _archiveLeadId = row.Summary.Id; _selectedThread = row.Summary.Id; _contextThread = row; }
+                if (row != null)
+                {
+                    _archiveLeadId = row.Summary.Id; _contextThread = row;
+                    if (_selectedThread != row.Summary.Id || (!_busy && _thread?.Summary.Id != row.Summary.Id)) await LoadThreadAsync(row.Summary.Id);
+                }
             }, DispatcherPriority.Background);
             return;
         }
+        if (_busy) return;
         if (e.Key == Key.A && e.KeyModifiers == command)
         {
             e.Handled = true;
@@ -157,30 +192,37 @@ public partial class ArchivePage
             _archiveLeadId ??= ArchiveVisibleRows.FirstOrDefault()?.Summary.Id;
             SynchronizeArchiveSelection(ArchiveVisibleRows); return;
         }
-        if (e.Key == Key.C && e.KeyModifiers == command)
+        if (MatchesArchiveCommand(e, "selection.copy-links"))
         { e.Handled = true; await CopyArchiveSelectionAsync(); return; }
-        if (e.Key == Key.E && e.KeyModifiers == command)
+        if (MatchesArchiveCommand(e, "export.open-html-dialog"))
         { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list); return; }
-        if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None)
+        if (MatchesArchiveCommand(e, "watch.remove"))
         { e.Handled = true; await RemoveArchiveSelectionAsync(); return; }
-        if (e.Key == Key.F5 && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
-        { e.Handled = true; if (CheckSelectedWatches != null) await CheckSelectedWatches(FrozenArchiveSelection(), e.KeyModifiers == KeyModifiers.Shift); return; }
-        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Alt)
-        { e.Handled = true; if (ArchiveLead is ArchiveThreadRow row) SelectionDetailsRequested?.Invoke(row.Summary.Id); return; }
-        if (e.Key == Key.Enter && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+        if (MatchesArchiveCommand(e, "watch.check") || MatchesArchiveCommand(e, "watch.retry-media"))
+        { e.Handled = true; if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(e.KeyModifiers == KeyModifiers.Shift); return; }
+        if (MatchesArchiveCommand(e, "thread.details"))
+        { e.Handled = true; if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); return; }
+        if (MatchesArchiveCommand(e, "thread.read") || MatchesArchiveCommand(e, "gallery.open"))
         {
             e.Handled = true;
             if (ArchiveLead is not ArchiveThreadRow row) return;
             ResourceId id = row.Summary.Id;
             if (e.KeyModifiers == KeyModifiers.Shift) { if (OpenGallery != null) await OpenGallery(id, null, list); }
+            else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
             else { OpenReaderRequested?.Invoke(list); await LoadThreadAsync(id); }
             return;
         }
-        string? action = e.Key == Key.R && e.KeyModifiers == command ? "rules"
-            : e.Key == Key.O && e.KeyModifiers == command ? "folder"
-            : e.Key == Key.O && e.KeyModifiers == (command | KeyModifiers.Shift) ? "browser" : null;
+        string? action = MatchesArchiveCommand(e, "rules.edit-scope") ? "rules"
+            : MatchesArchiveCommand(e, "location.open-folder") ? "folder"
+            : MatchesArchiveCommand(e, "location.open-source") ? "browser" : null;
         if (action != null && ArchiveLead is ArchiveThreadRow lead)
-        { e.Handled = true; SelectionLeadAction?.Invoke(lead.Summary.Id, action); }
+        {
+            e.Handled = true;
+            if (action == "rules" && CanRemoveWatch?.Invoke(lead.Summary.Id) != true) Message(Texts.T("archive.command.noWatch"));
+            else if (action == "folder" && string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory)) Message(Texts.T("archive.command.noFolder"));
+            else if (action == "browser" && string.IsNullOrWhiteSpace(lead.Summary.Url)) Message(Texts.T("archive.command.noSource"));
+            else RunArchiveLeadAction(lead, action);
+        }
     }
 
     private Task CopyArchiveSelectionAsync()
@@ -191,24 +233,16 @@ public partial class ArchivePage
     private Task RemoveArchiveSelectionAsync()
     {
         ResourceId[] ids = FrozenArchiveSelection().Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
-        return RemoveSelectedWatches?.Invoke(ids) ?? Task.CompletedTask;
-    }
-    private void OnArchiveSelectionMenuOpened(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not ContextMenu menu) return;
-        MainWindow.NormalizeSelectionMenu(menu);
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-            if (item.Tag as string == "selection.remove")
-                item.IsEnabled = _available && !_busy && FrozenArchiveSelection().Any(id => CanRemoveWatch?.Invoke(id) == true);
+        return ids.Length > 0 ? RemoveSelectedWatches?.Invoke(ids) ?? Task.CompletedTask : Task.CompletedTask;
     }
     private async void OnArchiveRemoveSelection(object? sender, RoutedEventArgs e) => await RemoveArchiveSelectionAsync();
     private async void OnArchiveCopySelection(object? sender, RoutedEventArgs e) => await CopyArchiveSelectionAsync();
     private async void OnArchiveCheckSelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckSelectedWatches(FrozenArchiveSelection(), false); }
+    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(false); }
     private async void OnArchiveRetrySelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckSelectedWatches(FrozenArchiveSelection(), true); }
-    private void OnArchiveSelectionDetails(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row) SelectionDetailsRequested?.Invoke(row.Summary.Id); }
+    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(true); }
+    private async void OnArchiveSelectionDetails(object? sender, RoutedEventArgs e)
+    { if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); }
     private void OnArchiveLeadAction(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row && sender is MenuItem { CommandParameter: string action }) SelectionLeadAction?.Invoke(row.Summary.Id, action); }
+    { if (ArchiveLead is ArchiveThreadRow row && sender is MenuItem { CommandParameter: string action }) RunArchiveLeadAction(row, action); }
 }

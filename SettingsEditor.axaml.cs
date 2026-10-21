@@ -34,8 +34,15 @@ namespace MeowChan
         private SettingsChoice? _selectedWorkspaceMode;
         private LanguageInfo? _selectedLanguage;
         private bool _compactDensity;
+        private bool _initialCompactDensity;
+        private SettingsChoice? _selectedReadingFontSize;
+        private bool _videoAutoplay;
+        private bool _videoStartMuted;
+        private int _videoVolume;
+        private bool _showShortcutHelp;
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<LanguageInfo> LanguageChoices { get; private set; } = Array.Empty<LanguageInfo>();
 
@@ -72,6 +79,7 @@ namespace MeowChan
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
             _config = config;
+            _initialCompactDensity = config.CompactDensity;
             _applySettings = applySettings;
             DownloadPath = config.DownloadPath;
             RecheckTimer = config.RecheckTimer;
@@ -82,6 +90,10 @@ namespace MeowChan
             CloseToTray = config.CloseToTray;
             BandwidthLimiterMB = config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = config.CompactDensity;
+            VideoAutoplay = config.VideoAutoplay;
+            VideoStartMuted = config.VideoStartMuted;
+            VideoVolume = config.VideoVolume;
+            ShowShortcutHelp = config.ShowShortcutHelp;
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -94,6 +106,13 @@ namespace MeowChan
         public string SettingsSubtitle => Texts.T("settings.subtitle");
         public string DownloadsTitle => Texts.T("settings.downloads");
         public string InterfaceTitle => Texts.T("settings.interface");
+        public string ReadingMediaTitle => Texts.T("r08d.settings.readingMedia");
+        public string ReadingFontSizeLabel => Texts.T("r08d.settings.readingFontSize");
+        public string VideoAutoplayLabel => Texts.T("r08d.settings.videoAutoplay");
+        public string VideoStartMutedLabel => Texts.T("r08d.settings.videoStartMuted");
+        public string VideoVolumeLabel => Texts.T("r08d.settings.videoVolume");
+        public string ShowShortcutHelpLabel => Texts.T("r08d.settings.shortcutHelp");
+        public string AboutLabel => Texts.T("r08d.settings.about");
         public string BehaviorTitle => Texts.T("settings.behavior");
         public string DownloadPathLabel => Texts.T("settings.downloadPath");
         public string BrowseLabel => Texts.T("settings.browse");
@@ -122,6 +141,16 @@ namespace MeowChan
             get => _selectedTheme;
             set => SetField(ref _selectedTheme, value, nameof(SelectedTheme));
         }
+
+        public SettingsChoice? SelectedReadingFontSize
+        {
+            get => _selectedReadingFontSize;
+            set => SetField(ref _selectedReadingFontSize, value, nameof(SelectedReadingFontSize));
+        }
+        public bool VideoAutoplay { get => _videoAutoplay; set => SetField(ref _videoAutoplay, value, nameof(VideoAutoplay)); }
+        public bool VideoStartMuted { get => _videoStartMuted; set => SetField(ref _videoStartMuted, value, nameof(VideoStartMuted)); }
+        public int VideoVolume { get => _videoVolume; set => SetField(ref _videoVolume, value, nameof(VideoVolume)); }
+        public bool ShowShortcutHelp { get => _showShortcutHelp; set => SetField(ref _showShortcutHelp, value, nameof(ShowShortcutHelp)); }
 
         public SettingsChoice? SelectedWorkspaceMode
         {
@@ -275,6 +304,10 @@ namespace MeowChan
             CloseToTray = _config.CloseToTray;
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
             CompactDensity = _config.CompactDensity;
+            VideoAutoplay = _config.VideoAutoplay;
+            VideoStartMuted = _config.VideoStartMuted;
+            VideoVolume = _config.VideoVolume;
+            ShowShortcutHelp = _config.ShowShortcutHelp;
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -293,6 +326,7 @@ namespace MeowChan
         {
             double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60));
             SettingsContent.Width = width;
+            SettingsHeader.Width = width;
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
@@ -304,6 +338,10 @@ namespace MeowChan
                 Grid.SetRow(editor, narrow ? 1 : 0);
                 row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
             }
+            Grid.SetColumn(SettingsFooterActions, narrow ? 0 : 1);
+            Grid.SetRow(SettingsFooterActions, narrow ? 1 : 0);
+            Grid.SetColumnSpan(SettingsFooterActions, narrow ? 2 : 1);
+            Grid.SetColumnSpan(SettingsFooter.Children[0], narrow ? 2 : 1);
             RevealErrorAfterLayout();
         }
 
@@ -313,9 +351,11 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+                string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
                 RefreshChoices(SelectedTheme?.Value ?? _config.Theme,
                     SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
                     SelectedLanguage?.Code ?? _config.Language);
+                SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
             }
 
@@ -330,7 +370,14 @@ namespace MeowChan
             ThemeChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Dark", Texts.T("theme.dark")),
-                new SettingsChoice("Light", Texts.T("theme.light"))
+                new SettingsChoice("Light", Texts.T("theme.light")),
+                new SettingsChoice("System", Texts.T("r08d.settings.systemTheme"))
+            };
+            ReadingFontSizeChoices = new SettingsChoice[]
+            {
+                new SettingsChoice("Small", Texts.T("r08d.settings.fontSmall")),
+                new SettingsChoice("Normal", Texts.T("r08d.settings.fontNormal")),
+                new SettingsChoice("Large", Texts.T("r08d.settings.fontLarge"))
             };
             WorkspaceChoices = new SettingsChoice[]
             {
@@ -343,9 +390,11 @@ namespace MeowChan
                 languages.Add(new LanguageInfo(language, Texts.T("settings.unavailableLanguage", language)));
             LanguageChoices = languages;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThemeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReadingFontSizeChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
             SelectedTheme = ThemeChoices.First(item => item.Value == theme);
+            SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == _config.ReadingFontSize);
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
         }
@@ -355,6 +404,12 @@ namespace MeowChan
             if (IsBusy || !IsAvailable || _isClosed) return;
             CancelChanges();
             Cancelled?.Invoke(this, EventArgs.Empty);
+        }
+
+        private async void OnAboutButtonClick(object? sender, RoutedEventArgs e)
+        {
+            if (TopLevel.GetTopLevel(this) is Window owner)
+                await new AboutWindow().ShowDialog(owner);
         }
 
         private async void OnBrowseButtonClick(object? sender, RoutedEventArgs e)
@@ -447,6 +502,12 @@ namespace MeowChan
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
                 candidate.CompactDensity = CompactDensity;
+                candidate.SettingsBaselineCompactDensity = _initialCompactDensity;
+                candidate.ReadingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+                candidate.VideoAutoplay = VideoAutoplay;
+                candidate.VideoStartMuted = VideoStartMuted;
+                candidate.VideoVolume = VideoVolume;
+                candidate.ShowShortcutHelp = ShowShortcutHelp;
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
                     throw new ArgumentException(Texts.T("settings.bandwidthPositive"));
@@ -463,7 +524,11 @@ namespace MeowChan
                     candidate.SaveConfig();
                 }
 
-                _config.CopyFrom(candidate);
+                if (_applySettings == null)
+                    _config.CopyFrom(candidate);
+                else
+                    _config.CopySettingsFieldsFrom(candidate);
+                _initialCompactDensity = _config.CompactDensity;
                 if (!_isClosed)
                 {
                     CancelChangesAfterSave();
@@ -488,6 +553,10 @@ namespace MeowChan
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
+            VideoAutoplay = _config.VideoAutoplay;
+            VideoStartMuted = _config.VideoStartMuted;
+            VideoVolume = _config.VideoVolume;
+            ShowShortcutHelp = _config.ShowShortcutHelp;
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);

@@ -46,13 +46,36 @@ public partial class MainWindow
         _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
         _archivePage.GetWorkSnapshots = _session.GetThreadWorkSnapshots;
-        _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
-        _archivePage.SaveMediaTiles = async tiles =>
+        _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
+        _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
+        _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;
+        _archivePage.SaveArchiveColumnWidthsAsync = widths =>
         {
-            Config candidate = _config.Clone();
-            candidate.ArchiveMediaTiles = tiles;
-            await _session.ApplySettingsAsync(candidate);
+            var frozen = new System.Collections.Generic.Dictionary<string, double>(widths);
+            return _session.SaveViewPreferencesAsync(current =>
+            {
+                foreach (var pair in frozen) current.ColumnWidths[pair.Key] = pair.Value;
+            });
         };
+        _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
+        _archivePage.SaveMediaTiles = tiles => _session.SaveViewPreferencesAsync(current => current.ArchiveMediaTiles = tiles);
+        _archivePage.FullscreenRequested = ToggleFullscreen;
+        _archivePage.ReadingFontSizePreference = ReadingFontSize();
+        _archivePage.GetFavorites = _session.GetFavorites;
+        _archivePage.IsArchiveFavorite = _session.IsFavorite;
+        _archivePage.ToggleArchiveFavoriteAsync = async entry =>
+        {
+            await _session.SetFavoriteAsync(entry, !_session.IsFavorite(entry));
+            RefreshGalleryFavorite();
+        };
+        _archivePage.ResolveFavoriteAssets = _session.ResolveFavoriteAssetsAsync;
+        _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
+        _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
+        _archivePage.SaveViewPreferencesAsync = (layout, split) => _session.SaveViewPreferencesAsync(current =>
+        {
+            current.ArchiveThreadLayout = layout;
+            current.ArchiveSplitWidth = split;
+        });
         _archivePage.OpenReaderRequested = OpenLargeReader;
         _archivePage.CloseReaderRequested = () => CloseLargeReader();
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
