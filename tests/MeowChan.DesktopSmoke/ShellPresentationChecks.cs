@@ -33,11 +33,21 @@ internal static class ShellPresentationChecks
             && Math.Abs(window.Position.Y - position.Y) <= 2, "Fullscreen did not restore normal window geometry.");
         // A completed transition must also release ordinary resize behavior.
         window.Width = size.Width + 17; window.Height = size.Height + 13;
-        await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width - 17) <= 2
-            && Math.Abs(window.ClientSize.Height - size.Height - 13) <= 2);
+        try
+        {
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width - 17) <= 2
+                && Math.Abs(window.ClientSize.Height - size.Height - 13) <= 2);
+        }
+        catch { TraceGeometry(window, "ordinary resize growth failure"); throw; }
+        TraceGeometry(window, "ordinary resize grown");
         window.Width = size.Width; window.Height = size.Height;
-        await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width) <= 2
-            && Math.Abs(window.ClientSize.Height - size.Height) <= 2);
+        try
+        {
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - size.Width) <= 2
+                && Math.Abs(window.ClientSize.Height - size.Height) <= 2);
+        }
+        catch { TraceGeometry(window, "ordinary resize return failure"); throw; }
+        TraceGeometry(window, "ordinary resize returned");
         window.WindowState = WindowState.Maximized;
         // The requested managed state precedes the Cocoa zoom animation. Do not
         // send the next command while native resize/state acknowledgements from

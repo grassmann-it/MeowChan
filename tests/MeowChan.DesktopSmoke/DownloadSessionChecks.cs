@@ -51,6 +51,22 @@ internal static class DownloadSessionChecks
         DownloadSessionSmokeApp app = Application.Current as DownloadSessionSmokeApp
             ?? throw new InvalidOperationException("The offline download fixture application was not selected.");
         MainWindow current = initial;
+        int geometryChanges = 0;
+        void TraceGeometryChange(object? sender, AvaloniaPropertyChangedEventArgs change)
+        {
+            if (change.Property != Window.WidthProperty && change.Property != Window.HeightProperty
+                && change.Property != Window.BoundsProperty && change.Property != Window.FrameSizeProperty
+                && change.Property != Window.WindowStateProperty) return;
+            if (++geometryChanges <= 32 && sender is MainWindow window)
+                TraceLayout(window, $"native/property change {geometryChanges}: {change.Property.Name}");
+        }
+        void TraceSizeChange(object? sender, SizeChangedEventArgs change)
+        {
+            if (++geometryChanges <= 32 && sender is MainWindow window)
+                TraceLayout(window, $"native size change {geometryChanges}: {change.PreviousSize} to {change.NewSize}");
+        }
+        initial.PropertyChanged += TraceGeometryChange;
+        initial.SizeChanged += TraceSizeChange;
         string profile = Config.GetConfigDirectory();
         string downloadRoot = Config.LoadConfig(profile).DownloadPath;
         string savedFile = StorageLayout.GetMediaPath(downloadRoot, "4chan", "g", "123", "777", ".png");
@@ -60,7 +76,9 @@ internal static class DownloadSessionChecks
                 && (initial.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Barebones",
                 "The new download profile did not start in Barebones view.");
             // Exercise the existing Simple-to-Barebones transition explicitly.
+            TraceLayout(initial, "before Simple mode");
             await PresentationChecks.SwitchModeAsync(initial, "Simple");
+            TraceLayout(initial, "after Simple mode");
             TextBox input = initial.FindControl<TextBox>("UrlInput")!;
             Button add = initial.FindControl<Button>("AddUrlButton")!;
             DataGrid grid = initial.FindControl<DataGrid>("ThreadsDataGrid")!;
@@ -92,7 +110,9 @@ internal static class DownloadSessionChecks
             const string draft = "https://unsupported.invalid/keep-this-draft";
             input.Text = draft;
             double simpleWidth = initial.Bounds.Width;
+            TraceLayout(initial, "before Barebones mode with selected active row");
             await PresentationChecks.SwitchModeAsync(initial, "Barebones");
+            TraceLayout(initial, "after Barebones mode with selected active row");
             await Program.WaitUntilAsync(() => initial.Bounds.Width < simpleWidth && grid.GetVisualDescendants().OfType<DataGridRow>()
                 .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, retained)));
             Require(input.Text == draft && initial.UrlList.Count == 1 && ReferenceEquals(initial.UrlList[0], retained)
@@ -100,7 +120,9 @@ internal static class DownloadSessionChecks
                 && app.Transport.MediaRequests == 1 && !File.Exists(savedFile),
                 "Barebones changed the pending input, selected watch or real in-flight media download.");
             Program.CaptureWindow(initial, "smoke-download-barebones.png");
+            TraceLayout(initial, "before Advanced mode");
             await PresentationChecks.SwitchModeAsync(initial, "Advanced");
+            TraceLayout(initial, "after Advanced mode");
             Click(initial.FindControl<Button>("ThemeToggleButton")!);
             await Program.WaitUntilAsync(() => Config.LoadConfig(profile).Theme == "Light" && add.IsEnabled
                 && Application.Current?.RequestedThemeVariant == ThemeVariant.Light);
@@ -158,6 +180,8 @@ internal static class DownloadSessionChecks
                 Console.WriteLine("SMOKE download session: first native close released the profile lease.");
 
             MainWindow restored = app.CreateRestoredWindow();
+            restored.PropertyChanged += TraceGeometryChange;
+            restored.SizeChanged += TraceSizeChange;
             current = restored;
             desktop.MainWindow = restored;
             restored.Show();
@@ -197,6 +221,13 @@ internal static class DownloadSessionChecks
         }
         finally
         {
+            initial.PropertyChanged -= TraceGeometryChange;
+            initial.SizeChanged -= TraceSizeChange;
+            if (!ReferenceEquals(current, initial))
+            {
+                current.PropertyChanged -= TraceGeometryChange;
+                current.SizeChanged -= TraceSizeChange;
+            }
             // Release the fixture gate even if an assertion failed before media admission was allowed.
             app.Transport.AllowMedia();
             try
@@ -205,6 +236,19 @@ internal static class DownloadSessionChecks
             }
             finally { app.DisposeFixture(); }
         }
+    }
+
+    private static void TraceLayout(MainWindow window, string stage)
+    {
+        DataGrid? grid = window.FindControl<DataGrid>("ThreadsDataGrid");
+        string columns = grid == null ? "unavailable" : string.Join(";", grid.Columns.Select(column =>
+            $"{column.SortMemberPath}:visible={column.IsVisible},width={column.Width.Value}/{column.Width.UnitType},actual={column.ActualWidth},min={column.MinWidth}"));
+        string? mode = (window.FindControl<ComboBox>("WorkspaceModeComboBox")?.SelectedItem as ComboBoxItem)?.Tag as string;
+        Console.WriteLine($"SMOKE download layout {stage}: mode={mode}; "
+            + $"state={window.WindowState}; requested={window.Width}x{window.Height}; minimum={window.MinWidth}x{window.MinHeight}; "
+            + $"bounds={window.Bounds}; client={window.ClientSize}; frame={window.FrameSize}; desired={window.DesiredSize}; "
+            + $"position={window.Position}; scale={window.RenderScaling}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}; "
+            + $"grid-bounds={grid?.Bounds}; grid-desired={grid?.DesiredSize}; columns=[{columns}].");
     }
 
     private static async Task CloseNormallyAsync(MainWindow window)
