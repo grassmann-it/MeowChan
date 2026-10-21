@@ -40,12 +40,14 @@ PLUGIN_FILES = {
     "access": ("access_imem", "imem", "filesystem", "attachment"),
     "demux": ("mkv", "mp4", "avi", "ogg", "asf", "wav", "aiff", "au", "rawvid", "image", "es", "h26x"),
     "codec": ("avcodec", "vpx", "vorbis", "opus", "png", "jpeg", "rawvideo", "araw", "flac", "theora", "a52", "faad"),
-    "video_output": ("vmem", "xcb_x11", "xcb_xv"),
+    # xcb_window supplies the separate "vout window" / embed-xid capability;
+    # xcb_x11 alone is only a display and cannot embed into Avalonia's XID.
+    "video_output": ("vmem", "xcb_window", "xcb_x11", "xcb_xv"),
     "audio_output": ("alsa", "pulse", "amem"),
     "video_filter": ("swscale", "scale", "transform", "croppadd", "deinterlace", "blend"),
 }
 PLUGIN_CATEGORIES = ("audio_filter", "audio_mixer", "video_chroma", "packetizer")
-REQUIRED_PLUGINS = ("access_imem", "mkv", "mp4", "avi", "avcodec", "vorbis", "opus", "png", "vmem", "xcb_x11", "alsa", "pulse")
+REQUIRED_PLUGINS = ("access_imem", "mkv", "mp4", "avi", "avcodec", "vorbis", "opus", "png", "vmem", "xcb_window", "xcb_x11", "alsa", "pulse")
 
 
 def run(*args: str, cwd: Path | None = None) -> str:

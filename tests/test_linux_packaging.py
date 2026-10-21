@@ -145,6 +145,23 @@ class LinuxPackagingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pack.selected_plugins(root)
 
+    def test_embedded_x11_requires_window_provider_in_addition_to_display_plugin(self):
+        self.assertIn("xcb_window", pack.PLUGIN_FILES["video_output"])
+        self.assertIn("xcb_window", pack.REQUIRED_PLUGINS)
+        root = self.root / "plugins"
+        for name in pack.REQUIRED_PLUGINS:
+            if name == "xcb_window":
+                continue
+            category = next(category for category, names in pack.PLUGIN_FILES.items() if name in names)
+            path = root / category / ("lib" + name + "_plugin.so")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(elf())
+        self.assertTrue((root / "video_output/libxcb_x11_plugin.so").is_file())
+        with self.assertRaisesRegex(ValueError, "xcb_window"):
+            pack.selected_plugins(root)
+        (root / "video_output/libxcb_window_plugin.so").write_bytes(elf())
+        self.assertEqual(len(pack.selected_plugins(root)), len(pack.REQUIRED_PLUGINS))
+
     def fixture(self):
         publish = self.root / "publish"
         (publish / "Assets").mkdir(parents=True)
