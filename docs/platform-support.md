@@ -2,6 +2,29 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
+## Current delivery contract: changes awaiting native validation
+
+The next public release is planned as **stable 0.9.0** after completion, native checks and one Windows package for user testing. No further intermediate release is planned. All desktop variants are self-contained for .NET. Windows x64 and macOS Intel/Apple Silicon retain their ZIP formats; Linux x64 and ARM64 each have three planned choices:
+
+| Planned Linux artifact | Native VLC delivery |
+| --- | --- |
+| `MeowChan-0.9.0-linux-x64-bundled-vlc.tar.gz` | Private bundled VLC |
+| `MeowChan-0.9.0-linux-x64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.21 or newer |
+| `MeowChan-0.9.0-linux-x64.AppImage` | Private bundled VLC |
+| `MeowChan-0.9.0-linux-arm64-bundled-vlc.tar.gz` | Private bundled VLC |
+| `MeowChan-0.9.0-linux-arm64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.21 or newer |
+| `MeowChan-0.9.0-linux-arm64.AppImage` | Private bundled VLC |
+
+This is the agreed delivery matrix, not a claim that these artifacts are already built, published or accepted. Bundled tar archives and AppImages avoid a separate VLC installation; system-VLC tar archives are smaller. All still require a compatible native Linux desktop. The tar root contains `MeowChan`; AppImages launch through AppRun. See [startup and AppImage instructions](Help.md#linux-packages-and-startup).
+
+Source `21c2813` adds mandatory Linux preflight **before session startup**: load the selected backend, require VLC major version 3 at least 3.0.21, and initialize an engine. Missing, unsupported or unusable system VLC produces a dismissible installation hint, then exit code **2**. Bundled runtime integrity/metadata or load failures require re-extracting the complete package; they never trigger a system-VLC fallback. This check does not guarantee that every media file decodes: unsupported/corrupt files remain per-file preview/playback errors. Linux accepts the runtime ABI `libvlc.so.5`, without development symlinks.
+
+Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The six screenshots remain valid interface evidence because these delivery/startup changes do not change the running UI.
+
+**Evidence boundary:** [package-media run 39630125624](https://github.com/tfgrass/MeowChan/actions/runs/39630125624) passed all five native OS/CPU package jobs at source `6354f94`, including the macOS collector. Libraryconsumer and bounded live checks also passed for that earlier candidate. It predates the slim payload and new Linux delivery/preflight contract and does **not** validate those changes. Local startup-fix Debug and Release-analyzer builds completed with zero warnings/errors and 44 focused tests passed. The corresponding new native delivery results remain open.
+
+The separate [validate run 39630120998](https://github.com/tfgrass/MeowChan/actions/runs/39630120998) was not fully green: its Windows fixture finding is addressed by `c6a9fb4`; the macOS ARM hang is unresolved. The final CI owner is investigating it. Neither the earlier package pass nor source tests establish full current release readiness, physical audio/hardware, or user acceptance.
+
 ## Integrated local video playback
 
 Gallery WebM playback uses LibVLCSharp.Avalonia 3.10.2. The video surface and
@@ -15,7 +38,7 @@ before disposal completes. This does not download external media or install VLC.
 
 | Target | Native video runtime |
 | --- | --- |
-| Linux x64 / Arm64 | System LibVLC 3.0.21 or newer, plus Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins |
+| Linux x64 / Arm64 | Private bundled VLC in bundled tar/AppImage variants, or system LibVLC **3**, version **3.0.21 or newer**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins in system variants |
 | Windows x64 | Official VideoLAN.LibVLC.Windows 3.0.24, selected `libvlc/win-x64` tree |
 | macOS x64 / Arm64 | Official VideoLAN.LibVLC.Mac 3.1.3.2, selected `libvlc/<RID>/lib` tree |
 
@@ -23,12 +46,14 @@ On Debian-derived systems the relevant package families include `libvlc5`,
 `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; package versions and
 names vary by distribution. The Linux loader accepts the runtime ABI name
 `libvlc.so.5`; development-package symlinks are not required. Use supported
-distribution packages. An unavailable
-backend, missing codec/plugin or unreadable/corrupt file produces an in-gallery
-status and leaves navigation available. No native library is automatically installed.
+distribution packages for the system-VLC variant. A required Linux backend failure
+is reported before session startup; after startup, individual missing codecs or
+unreadable/corrupt files produce per-file gallery/preview errors. No native library
+is automatically installed.
 
-A self-contained application bundles the .NET runtime. On Linux it still requires
-system VLC and the usual native desktop dependencies. Windows/macOS publishes keep
+All delivery variants bundle the .NET runtime. Only the Linux system-VLC variant
+requires a separately installed VLC runtime; the bundled variants still need the
+usual native desktop dependencies. Windows/macOS publishes keep
 the complete selected VLC plugin/data hierarchy external to the .NET single file.
 `scripts/check-video-native.py` verifies architecture and essential plugin presence
 in publishes or extracted packages; it does not prove playback on that OS.
@@ -57,23 +82,25 @@ ad-hoc signatures without Apple Developer ID or notarization; certificate acquis
 release prerequisite. The [macOS package guidance](macos-signing.md) explains
 manual approval in Privacy & Security and keeps Developer ID/plugin signing,
 hardened runtime and notarization as an optional later distribution route.
-Native Mac package/startup checks passed at `672b45d` below; bundled VLC playback
-and full desktop acceptance still require validation.
+Historical Mac package/startup checks passed at `672b45d` below; the later
+`6354f94` five-target package matrix also passed. Those results retain their
+source/package boundaries and do not validate the new delivery/preflight contract.
 
 ## Current 0.9.0 preparation
 
-**Current integration checks:** the first native candidate at `5e5e64bc` did
-not pass the complete matrix. Its Windows extracted-package VP8/VP9 playback
-passed; Linux poster loading and macOS accelerated video output failed. Current
-source corrects Linux runtime-library resolution and adds the macOS software
-surface. The Linux fix has produced real VP8/VP9 posters in an isolated Ubuntu
-runtime-only environment. Window restore, minimum-size and platform-keyboard
-findings are also being integrated. Final native package checks must run again
-on the next complete candidate; none of these findings authorizes a release.
-No further intermediate preview release is planned. One tested self-contained
-Windows archive will be provided after the remaining work and checks.
+**Current integration checks:** the delivery contract and latest evidence boundary
+are recorded above. Window, Linux runtime-resolution, macOS software-video and
+selection corrections have been integrated; the preceding `6354f94` native package
+matrix passed. New Linux variants, mandatory startup preflight and slim payloads
+need their own native checks. Validation is not fully green while the macOS ARM
+hang remains unexplained. One exact tested Windows package comes before the next
+public release, stable 0.9.0.
 
-Stable MeowChan 0.9.0 is in preparation. [Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3) is the published compatibility-test preview, with .NET 10 and VLC bundled. Extract the whole ZIP and launch `MeowChan.exe`. Direct Windows hardware, real audio, bundled native VLC playback and full desktop workflow acceptance remain open. The six current UI screenshots are captured from the integrated source and documented in the [screenshot provenance](screenshots/README.md).
+[Windows x64 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3)
+remains the existing historical compatibility-test download, with .NET 10 and VLC.
+It does not contain current source changes. The six current interface screenshots
+are documented in the [screenshot provenance](screenshots/README.md); they are
+separate from package acceptance.
 
 **Published Preview 3:** release source/tag `a98759e819f233bee0de806cb4f0b9fbd535d2cd`, prerelease, not latest stable. ZIP 128546741 bytes, SHA-256 `c8b099897adb0041f5f7bd3914c0f355ea8e7db0e64474864a991aa4f104c66c`. Its required native-video source companion and checksums are included in the release.
 

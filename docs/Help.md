@@ -7,7 +7,7 @@ preparation; see the [release notes](releases/v0.9.0.md) for acceptance limits.
 
 ## From a package to an offline picture
 
-1. Choose the archive for your OS and CPU on the [releases page](https://github.com/tfgrass/MeowChan/releases). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` on Linux, or `MeowChan.app` on macOS. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. Planned macOS packages are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. Final native package validation remains open. See [platform requirements](platform-support.md).
+1. Choose the package for your OS and CPU on the [releases page](https://github.com/tfgrass/MeowChan/releases). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, the executable Linux AppImage, or `MeowChan.app` on macOS. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. Planned macOS packages are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. Final native package validation remains open. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -71,6 +71,20 @@ list only, **Ctrl/Cmd+Shift+R** opens **Filter / exclusions…**
 (**Filter / Ausschlüsse…**) for the focused board. Text fields and modal dialogs
 keep their own keyboard input.
 
+## Linux packages and startup
+
+The new 0.9.0 delivery variants are not yet final native-validated downloads. For either `linux-x64` or `linux-arm64`, choose:
+
+- `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
+- `MeowChan-0.9.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.21**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
+- `MeowChan-0.9.0-<RID>.AppImage`: VLC and .NET included. For example on x64, run `chmod +x MeowChan-0.9.0-linux-x64.AppImage`, then `./MeowChan-0.9.0-linux-x64.AppImage`. If FUSE is unavailable, use `./MeowChan-0.9.0-linux-x64.AppImage --appimage-extract-and-run`. Use the `linux-arm64` filename on ARM64.
+
+Bundled archives and AppImages avoid a separate VLC installation. Linux still needs a compatible glibc desktop with X11/XWayland and native graphics/font dependencies. Before any session starts, the application checks the selected VLC backend. Missing, unsupported or unusable system VLC opens a dismissible installation hint; closing it exits with code **2**. Install a supported VLC 3 runtime and plugins, then start again. On Debian-derived distributions, relevant package families include `libvlc5`, `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; distribution versions must meet the minimum. Development-package symlinks are not required.
+
+A damaged bundled runtime or invalid package metadata shows a package repair hint instead: re-extract the complete archive or obtain a fresh AppImage. Bundled packages never silently switch to system VLC. Corrupt, unreadable or unsupported media files remain individual preview/playback errors and leave their originals intact.
+
+Desktop packages contain the application, runtime, icon and legal notices. This guide, screenshots, release notes and developer documentation stay on GitHub; they are not extra files to look for inside the download.
+
 ## Images, search and navigation
 
 The [interface screenshots](screenshots/README.md) show the reader, gallery and
@@ -131,10 +145,10 @@ action rather than starting inside the reader. Preview generation needs a workin
 local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
-Linux uses system LibVLC and suitable plugins; missing libraries/codecs should
-produce a clear diagnostic instead of a bitmap error. Windows/macOS use official
-VideoLAN native assets. A self-contained .NET package includes .NET, and does not
-by itself supply the native VLC libraries/plugins. See the [platform record](platform-support.md) for native package/playback
+Linux uses either the selected private bundled VLC or the supported system VLC
+runtime, checked before startup as described above. Windows/macOS use official
+VideoLAN native assets. All desktop variants include .NET; bundled Linux archives
+and AppImages also include VLC. Individual decode failures remain per-file errors. See the [platform record](platform-support.md) for native package/playback
 evidence and limits; audio, GPU and other OS coverage must be assessed there.
 
 ## Missing media and finished threads

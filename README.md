@@ -10,11 +10,11 @@
 
 MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
-Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Stable **0.9.0 is in preparation**. The published Windows x64 compatibility preview is [0.9.0 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3), with .NET 10 and VLC included. Extract the whole ZIP and launch `MeowChan.exe`. It carries fixes for profile database handles retained after host shutdown and a start window larger than the available work area. Full desktop and hardware acceptance remains open. Older releases retain their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
+Download published builds from the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases). Stable **0.9.0 is in preparation**. It is the next planned public release, after native checks and one Windows package for user testing; no further intermediate releases are planned. The published Windows x64 compatibility preview is [0.9.0 Preview 3](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0-preview.3), with .NET 10 and VLC included. Extract the whole ZIP and launch `MeowChan.exe`. It carries fixes for profile database handles retained after host shutdown and a start window larger than the available work area. Full desktop and hardware acceptance remains open. Older releases retain their original artifact names. The [0.9.0 release-notes draft](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe changes and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a build, or [build from source](#build-and-run).
 
 ## Quick start
 
-Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. Self-contained archives include .NET. Linux requires glibc and X11/XWayland; the macOS standard is separate self-contained Intel/Apple Silicon `.app` ZIPs with ad-hoc signatures and no notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
+Planned desktop package targets are **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon**. All planned desktop packages include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives, and bundled AppImages for both CPUs. It still requires glibc and X11/XWayland. The macOS standard is separate self-contained Intel/Apple Silicon `.app` ZIPs with ad-hoc signatures and no notarization, with Homebrew source builds optional. Final native acceptance remains open; check the [platform requirements](docs/platform-support.md) for current evidence.
 
 The steps below describe the 0.9.0 interface and candidate launchers. Published older builds retain their original launcher names and controls.
 
@@ -22,6 +22,20 @@ The steps below describe the 0.9.0 interface and candidate launchers. Published 
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
+
+### Choosing a Linux package
+
+The new delivery variants below are planned for 0.9.0 and still require their final native checks. For each of `linux-x64` and `linux-arm64`:
+
+| Planned filename | VLC requirement |
+| --- | --- |
+| `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
+| `MeowChan-0.9.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.21 or newer, and its media/output plugins first. |
+| `MeowChan-0.9.0-<RID>.AppImage` | Includes VLC; make executable and run. |
+
+Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
+
+Downloads contain the application, runtime, icon and required legal notices only. The user guide, release notes, screenshots and developer documentation remain on GitHub; SDK samples, debug symbols and XML documentation are not shipped in the desktop archives.
 
 The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
 
@@ -85,7 +99,7 @@ dotnet build MeowChan.sln -c Release --no-restore
 dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. The planned macOS ZIPs contain an ad-hoc-signed `MeowChan.app` bundle for Intel or Apple Silicon; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native macOS launch and Gatekeeper behavior still require release validation. See [platform requirements and package checks](docs/platform-support.md).
+Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. The planned macOS ZIPs contain an ad-hoc-signed `MeowChan.app` bundle for Intel or Apple Silicon; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. Native results must be bound to the exact delivery candidate; physical hardware and Gatekeeper behavior remain separate checks. See [platform requirements and package checks](docs/platform-support.md).
 
 ## Downloading
 
@@ -143,7 +157,7 @@ PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still 
 
 Video attachments in captured posts can reuse persistent still previews offline, generated from verified saved originals. If a preview is unavailable, open the original in the gallery for playback.
 
-The preview includes a bounded LibVLC player for local media. Linux uses system LibVLC with library/plugin diagnostics; Windows/macOS use official VideoLAN native assets. The self-contained .NET runtime is separate from these native requirements. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
+The current source includes a bounded LibVLC player for local media. Linux uses the chosen bundled or system VLC backend and checks it before session startup; Windows/macOS use official VideoLAN native assets. All desktop variants include .NET; only the Linux system-VLC variant needs a separate VLC installation. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
 
 ### Portable HTML export
 
