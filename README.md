@@ -217,6 +217,10 @@ On Linux, the runner requires Xvfb, Openbox and a private session bus; missing t
 
 The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for evidence and remaining native checks.
 
+## Support MeowChan
+
+If MeowChan helps you, you can voluntarily [support its development via PayPal](https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ). The same link is available in the app's About window.
+
 ## License
 
 The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

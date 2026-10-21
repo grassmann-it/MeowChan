@@ -35,6 +35,12 @@
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>
+                        <StackPanel Spacing="6" Margin="0,8,0,0">
+                            <TextBlock x:Name="SupportTitle" FontSize="17" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="SupportDescription"/>
+                            <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
+                                    Tag="https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ" Click="OnLinkClick"/>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

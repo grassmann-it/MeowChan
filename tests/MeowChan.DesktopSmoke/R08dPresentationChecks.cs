@@ -44,6 +44,7 @@ internal static class R08dPresentationChecks
             TabControl tabs = about.FindControl<TabControl>("AboutTabs")!;
             Require(tabs.ItemCount == 3 && about.FindControl<SelectableTextBlock>("VersionText")!.Text?.Contains("Version") == true,
                 "About did not show three tabs and a readable version.");
+            Program.CaptureWindow(about, "smoke-r08d-about-overview.png");
             tabs.SelectedIndex = 1;
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("VideoCreditsText")!.IsEffectivelyVisible);
             Require(about.FindControl<TextBlock>("IconsText")!.Text?.Contains("Cole Bemis") == true,

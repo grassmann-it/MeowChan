@@ -52,6 +52,9 @@ public partial class AboutWindow : Window
         AuthorText.Text = Texts.T("about.author");
         ProjectLink.Content = Texts.T("about.project");
         AuthorLink.Content = Texts.T("about.authorLink");
+        SupportTitle.Text = Texts.T("about.supportTitle");
+        SupportDescription.Text = Texts.T("about.supportDescription");
+        DonationLink.Content = Texts.T("about.donate");
         HistoryText.Text = Texts.T("about.history");
         VideoCreditsText.Text = Texts.T("about.videoCredits");
         UICreditsText.Text = Texts.T("about.uiCredits");
