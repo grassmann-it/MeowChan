@@ -1,9 +1,12 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using Serilog;
 using System;
+using System.Globalization;
 
 namespace MeowChan;
 
@@ -23,16 +26,34 @@ public partial class App : Application
         {
             try
             {
-                desktop.MainWindow = CreateMainWindow();
+                LinuxVideoPreflightResult video = LinuxVideoPreflight.Check();
+                if (!video.Success)
+                {
+                    // No session or watches exist yet. Bootstrap messages use the OS
+                    // language because opening the profile is deliberately deferred.
+                    Texts.SetLanguage(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? "de" : "en");
+                    Log.Error("Video runtime startup check failed: {Kind}: {Diagnostic}", video.Kind, video.Diagnostic);
+                    ShowStartupFailure(desktop, Texts.T(video.MessageKey));
+                }
+                else desktop.MainWindow = CreateMainWindow();
             }
             catch (Exception exception)
             {
                 Log.Error(exception, "Desktop startup failed.");
-                desktop.MainWindow = new StartupErrorWindow(exception.Message);
+                ShowStartupFailure(desktop, exception.Message);
             }
-            Program.StartupSmoke?.Attach(desktop, desktop.MainWindow);
+            if (desktop.MainWindow is Window window)
+                Program.StartupSmoke?.Attach(desktop, window);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void ShowStartupFailure(IClassicDesktopStyleApplicationLifetime desktop, string message)
+    {
+        desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        StartupErrorWindow error = new(message);
+        error.Closed += (_, _) => desktop.Shutdown(2);
+        desktop.MainWindow = error;
     }
 }

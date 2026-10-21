@@ -29,6 +29,21 @@ public sealed class LocalizationTests : IDisposable
         Assert.Equal("Barebones", Texts.T("mode.barebones"));
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void EveryLinuxStartupFailureHasLocalizedGuidance(string language)
+    {
+        Texts.SetLanguage(language);
+        foreach (var kind in Enum.GetValues<MeowChan.Desktop.LinuxVideoPreflightErrorKind>())
+        {
+            if (kind == MeowChan.Desktop.LinuxVideoPreflightErrorKind.None) continue;
+            var result = new MeowChan.Desktop.LinuxVideoPreflightResult(kind);
+            Assert.NotEqual(result.MessageKey, Texts.T(result.MessageKey));
+            Assert.Contains("MeowChan", Texts.T(result.MessageKey));
+        }
+    }
+
     [Fact]
     public void SwitchingLanguageFormatsNumbersWithoutChangingProcessCulture()
     {
