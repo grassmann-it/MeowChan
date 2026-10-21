@@ -23,7 +23,13 @@ Source `20bc022` limits application archives to the app, runtime, icon and requi
 
 **Evidence boundary:** [package-media run 39630125624](https://github.com/tfgrass/MeowChan/actions/runs/39630125624) passed all five native OS/CPU package jobs at source `6354f94`, including the macOS collector. Libraryconsumer and bounded live checks also passed for that earlier candidate. It predates the slim payload and new Linux delivery/preflight contract and does **not** validate those changes. Local startup-fix Debug and Release-analyzer builds completed with zero warnings/errors and 44 focused tests passed. The corresponding new native delivery results remain open.
 
-The separate [validate run 39630120998](https://github.com/tfgrass/MeowChan/actions/runs/39630120998) was not fully green: its Windows fixture finding is addressed by `c6a9fb4`; the macOS ARM hang is unresolved. The final CI owner is investigating it. Neither the earlier package pass nor source tests establish full current release readiness, physical audio/hardware, or user acceptance.
+The separate [validate run 39630120998](https://github.com/tfgrass/MeowChan/actions/runs/39630120998) was not fully green: its Windows fixture finding is addressed by `c6a9fb4`; the macOS ARM combined test invocation hung. A dedicated diagnostic run is recorded below. Neither the earlier package pass nor source tests establish full current release readiness, physical audio/hardware, or user acceptance.
+
+## macOS ARM offline-test invocation diagnosis
+
+[Diagnostic run 39640686897](https://github.com/tfgrass/MeowChan/actions/runs/39640686897) passed on native macOS ARM at source `1c34e25`: all 633 core tests and 232 desktop tests passed, with one expected opt-in native-poster test skipped. The two complete suites ran independently using `scripts/macos-test-watchdog.py`, without test filters, and completed in 15.59 and 2.96 seconds. Their logs, TRX and VSTest diagnostics are retained in artifact `12364832695`.
+
+The earlier solution-level invocation with the blame collector hung; this comparison does not distinguish solution-level concurrency from collector behavior. macOS validation now uses the independently bounded project invocations and retains their diagnostics. This is source-test evidence, separate from final graphical/package acceptance.
 
 ## Integrated local video playback
 

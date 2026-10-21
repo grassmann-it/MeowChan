@@ -63,8 +63,13 @@ jobs:
       - name: Build all production and test projects
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
+        if: runner.os != 'macOS'
         timeout-minutes: 8
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
+      - name: Run both complete macOS offline suites with bounded diagnostics
+        if: runner.os == 'macOS'
+        timeout-minutes: 10
+        run: python3 scripts/macos-test-watchdog.py --timeout 240
       - name: Check package layout fixtures
         run: |
           python -m unittest discover -s tests -p test_macos_packaging.py -v
@@ -130,6 +135,7 @@ jobs:
             artifacts/desktop-tray-host/**
             artifacts/desktop-tray-stress/**
             artifacts/build-evidence/**
+            artifacts/macos-test-diagnosis/**
           if-no-files-found: warn
           retention-days: 14
 
