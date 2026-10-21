@@ -16,11 +16,12 @@ namespace MeowChan.Desktop;
 
 /// <summary>
 /// Owns one local, verified media handle. Native calls are serialized off the UI thread;
-/// the native video surface and the Avalonia transport toolbar occupy separate rows.
+/// the video surface and the Avalonia transport toolbar occupy separate rows.
 /// </summary>
 internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
+    private readonly Image _macVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _time = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _play = new() { Name = "GalleryVideoPlay" };
@@ -39,12 +40,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private int _releasedStreams;
     private int _cleanupFailures;
 
-    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream);
+    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, MacVideoSurface? Surface);
 
     // Acceptance observes the real player under its normal native-operation lock.
     // No alternate decoder, dummy video output or synthetic clock is used.
     internal sealed record PlaybackEvidence(string State, long Time, int DecodedFrames, int DisplayedFrames,
-        bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures);
+        bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures,
+        int SurfaceFrames = 0, bool SurfaceNonUniform = false);
 
     internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
     {
@@ -59,7 +61,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 throw new InvalidOperationException("The native video output rejected the frame snapshot.");
             return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
                 stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, _disposed != 0,
-                _releasedStreams, _cleanupFailures);
+                _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false);
         }
         finally { _operations.Release(); }
     });
@@ -76,7 +78,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         foreach (Control control in new Control[] { _play, _pause, _stop, _time, _volume })
         { control.Margin = new Thickness(4); buttons.Children.Add(control); }
         Grid root = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 6 };
-        root.Children.Add(_status); root.Children.Add(_video); Grid.SetRow(_video, 1);
+        Control videoSurface = OperatingSystem.IsMacOS() ? _macVideo : _video;
+        root.Children.Add(_status); root.Children.Add(videoSurface); Grid.SetRow(videoSurface, 1);
         root.Children.Add(_seek); Grid.SetRow(_seek, 2);
         root.Children.Add(buttons); Grid.SetRow(buttons, 3); Content = root;
         EnableTransport(false);
@@ -118,7 +121,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         await Task.Run(async () =>
         {
             await _operations.WaitAsync().ConfigureAwait(false);
-            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null;
+            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null; MacVideoSurface? surface = null;
             try
             {
                 await ClearPlaybackAsync(generation).ConfigureAwait(false);
@@ -126,8 +129,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!IsCurrent(generation)) return;
                 stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
-                _engine ??= new LibVLC("--no-video-title-show", "--no-media-library");
+                NativeVideoRuntime.EnsureInitialized();
+                _engine ??= OperatingSystem.IsMacOS()
+                    ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none")
+                    : new LibVLC("--no-video-title-show", "--no-media-library");
                 player = new MediaPlayer(_engine) { Volume = volume, EnableKeyInput = false, EnableMouseInput = false };
+                if (OperatingSystem.IsMacOS()) surface = new MacVideoSurface(_macVideo, player);
                 input = new StreamMediaInput(stream);
                 media = new Media(_engine, input);
                 player.Playing += (_, _) => Post(generation, () =>
@@ -141,11 +148,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 });
                 player.EncounteredError += (_, _) => Post(generation, () => _ = FailAsync(generation));
                 token.ThrowIfCancellationRequested();
-                _playback = new Playback(generation, player, media, input, stream);
-                player = null; media = null; input = null; stream = null;
+                _playback = new Playback(generation, player, media, input, stream, surface);
+                player = null; media = null; input = null; stream = null; surface = null;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    if (IsCurrent(generation)) _video.MediaPlayer = _playback.Player;
+                    if (IsCurrent(generation) && !OperatingSystem.IsMacOS()) _video.MediaPlayer = _playback.Player;
                 });
                 token.ThrowIfCancellationRequested();
                 if (!IsCurrent(generation)) { await ClearPlaybackAsync(generation).ConfigureAwait(false); return; }
@@ -160,7 +167,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             }
             finally
             {
-                player?.Dispose(); media?.Dispose(); input?.Dispose(); stream?.Dispose();
+                player?.Dispose(); surface?.Dispose(); media?.Dispose(); input?.Dispose(); stream?.Dispose();
                 _operations.Release();
             }
         }).ConfigureAwait(true);
@@ -232,7 +239,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         await Dispatcher.UIThread.InvokeAsync(() => { if (ReferenceEquals(_video.MediaPlayer, playback.Player)) _video.MediaPlayer = null; });
         // Cleanup must release the verified file even when a backend operation fails.
         try { playback.Player.Stop(); } catch (Exception) { _cleanupFailures++; }
-        try { playback.Player.Dispose(); } catch (Exception) { _cleanupFailures++; }
+        try { playback.Player.Dispose(); playback.Surface?.Dispose(); } catch (Exception) { _cleanupFailures++; }
         try { playback.Media.Dispose(); } catch (Exception) { _cleanupFailures++; }
         try { playback.Input.Dispose(); } catch (Exception) { _cleanupFailures++; }
         try

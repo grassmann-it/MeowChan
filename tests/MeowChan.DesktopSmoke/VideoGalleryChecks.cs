@@ -39,6 +39,7 @@ internal static class VideoGalleryChecks
     }
     internal static async Task RunAsync(MainWindow window)
     {
+        await CheckMacSoftwareSurfaceAsync(window);
         await window.OpenGalleryAsync(Id);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         GalleryViewer viewer = (GalleryViewer)host.Content!;
@@ -78,6 +79,60 @@ internal static class VideoGalleryChecks
         await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPause").IsEnabled);
         // Shutdown with a playing native video must await the verified stream and engine cleanup.
         Console.WriteLine("SMOKE production video: verified WebM clock, pause/play/seek, native frame capture, slider arrows, image switch and reader suspend/resume passed; leaving playback active for awaited shutdown.");
+    }
+
+    private static async Task CheckMacSoftwareSurfaceAsync(Window owner)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        // Exercise the exact production Mac surface on Mac and Linux test hosts,
+        // without changing the production platform selection or faking frame counts.
+        string fixture = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")!;
+        Image image = new() { Stretch = Avalonia.Media.Stretch.Uniform };
+        Window surfaceWindow = new() { Width = 400, Height = 260, Content = image, Title = "Software video surface proof" };
+        surfaceWindow.Show(owner);
+        NativeVideoRuntime.EnsureInitialized();
+        var engine = new LibVLCSharp.Shared.LibVLC("--no-audio", "--avcodec-hw=none", "--no-video-title-show");
+        var player = new LibVLCSharp.Shared.MediaPlayer(engine);
+        var media = new LibVLCSharp.Shared.Media(engine, fixture, LibVLCSharp.Shared.FromType.FromPath);
+        var surface = new MacVideoSurface(image, player);
+        try
+        {
+            Require(player.Play(media), "Software video fixture was rejected.");
+            await Program.WaitUntilAsync(() => surface.PresentedFrames >= 3 && surface.NonUniform && media.Statistics.DisplayedPictures >= 2);
+            int first = surface.PresentedFrames;
+            await Program.WaitUntilAsync(() => surface.PresentedFrames > first + 2);
+            player.SetPause(true);
+            await Program.WaitUntilAsync(() => player.State == LibVLCSharp.Shared.VLCState.Paused);
+            await Task.Delay(200);
+            long paused = player.Time;
+            await Task.Delay(250);
+            Require(Math.Abs(player.Time - paused) <= 100, "Software surface Pause did not hold its native clock.");
+            string snapshot = Path.Combine(Path.GetTempPath(), "meowchan-software-video-" + Guid.NewGuid().ToString("N") + ".png");
+            try
+            {
+                Require(player.TakeSnapshot(0, snapshot, 0, 0), "Software surface rejected native snapshot.");
+                await Program.WaitUntilAsync(() => File.Exists(snapshot) && new FileInfo(snapshot).Length > 0);
+            }
+            finally { File.Delete(snapshot); }
+            player.SetPause(false);
+            first = surface.PresentedFrames;
+            await Program.WaitUntilAsync(() => surface.PresentedFrames > first + 2);
+            for (int restart = 0; restart < 6; restart++)
+            {
+                await Task.Run(() => player.Stop());
+                await Program.WaitUntilAsync(() => image.Source == null);
+                first = surface.PresentedFrames;
+                Require(player.Play(media), "Software surface restart was rejected.");
+                await Program.WaitUntilAsync(() => surface.PresentedFrames > first + 2);
+            }
+            Console.WriteLine($"SMOKE Mac production software surface: real frames={surface.PresentedFrames}, native displayed={media.Statistics.DisplayedPictures}, varied pixels, pause/resume and native snapshot passed.");
+        }
+        finally
+        {
+            await Task.Run(() => { player.Stop(); player.Dispose(); surface.Dispose(); media.Dispose(); engine.Dispose(); });
+            await Program.WaitUntilAsync(() => image.Source == null);
+            surfaceWindow.Close();
+        }
     }
     private static T Control<T>(GalleryViewer viewer, string name) where T : Control => viewer.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

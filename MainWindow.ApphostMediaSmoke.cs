@@ -111,6 +111,7 @@ public partial class MainWindow
                 {
                     result = await player.InspectPlaybackAsync();
                     return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
+                        && (!OperatingSystem.IsMacOS() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
                         && MediaSmokeControl<Button>(viewer, "GalleryVideoPause").IsEffectivelyEnabled
                         && player.IsEffectivelyVisible && player.Bounds.Width > 0 && player.Bounds.Height > 0;
                 }, "native decoded/displayed frames and enabled transport");
@@ -121,6 +122,7 @@ public partial class MainWindow
             {
                 var current = await player.InspectPlaybackAsync();
                 if (current.Time < first.Time + 250 || current.DecodedFrames <= first.DecodedFrames || current.DisplayedFrames <= first.DisplayedFrames) return false;
+                if (OperatingSystem.IsMacOS() && current.SurfaceFrames <= first.SurfaceFrames) return false;
                 samples.Add(current); return true;
             }, "native clock and frame progression");
             checks.Add("native-time-and-frame-progress");
@@ -151,6 +153,20 @@ public partial class MainWindow
             await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Time > stillPaused.Time + 200,
                 "resumed native clock");
             checks.Add("play-resumed");
+            if (OperatingSystem.IsMacOS())
+            {
+                for (int restart = 0; restart < 6; restart++)
+                {
+                    int framesBefore = (await player.InspectPlaybackAsync()).SurfaceFrames;
+                    ClickMediaSmoke(viewer, "GalleryVideoStop");
+                    await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).State == "Stopped", "software-output stop");
+                    ClickMediaSmoke(viewer, "GalleryVideoPlay");
+                    await PlayingSampleAsync();
+                    await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).SurfaceFrames > framesBefore + 2,
+                        "software-output frame progression after restart");
+                }
+                checks.Add("software-output-six-stop-play-cycles");
+            }
             ClickMediaSmoke(viewer, "GalleryPrevious");
             await WaitMediaSmokeAsync(async () =>
             {
