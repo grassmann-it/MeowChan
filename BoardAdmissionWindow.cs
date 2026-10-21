@@ -33,6 +33,7 @@ internal sealed class BoardAdmissionWindow : Window
         public List<PreviewRow> Rows = new();
         public required StackPanel RulePanel;
         public required TextBlock Summary;
+        public required TextBlock Matches;
         public required TextBlock Status;
         public required ListBox List;
         public bool Loaded;
@@ -84,10 +85,11 @@ internal sealed class BoardAdmissionWindow : Window
         {
             var rulePanel = new StackPanel { Spacing = 6 };
             var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 16 };
+            var matches = Wrapped(string.Empty); matches.Name = "BoardAdmissionMatches";
             var status = Wrapped(Texts.T("wizard.loading"));
             var list = new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate() };
             var draft = new Draft { Url = url, Initial = readPolicy(url), RulePanel = rulePanel, Summary = summary,
-                Status = status, List = list };
+                Status = status, List = list, Matches = matches };
             draft.Exceptions = new(draft.Initial.Exceptions, StringComparer.Ordinal);
             _drafts.Add(draft);
             var header = new StackPanel { Spacing = 7 };
@@ -96,7 +98,7 @@ internal sealed class BoardAdmissionWindow : Window
             add.Click += (_, _) => AddRule(draft, new(ThreadTextField.TitleAndOpeningPost, ThreadTextAction.Exclude, string.Empty));
             header.Children.Add(add);
             header.Children.Add(new ScrollViewer { Content = rulePanel, MaxHeight = 180 });
-            header.Children.Add(summary); header.Children.Add(status);
+            header.Children.Add(summary); header.Children.Add(matches); header.Children.Add(status);
             var retry = new Button { Content = Texts.T("wizard.retry") };
             retry.Click += async (_, _) => { retry.IsEnabled = false; try { await LoadAsync(draft); } finally { if (!_closing) retry.IsEnabled = true; } };
             header.Children.Add(retry);
@@ -133,7 +135,11 @@ internal sealed class BoardAdmissionWindow : Window
         var reason = Wrapped(row.Reason);
         reason.Bind(TextBlock.TextProperty, new Binding(nameof(PreviewRow.Reason)));
         panel.Children.Add(include); panel.Children.Add(reason);
-        if (!string.IsNullOrWhiteSpace(row.OpeningPost)) panel.Children.Add(Wrapped(row.OpeningPost));
+        if (!string.IsNullOrWhiteSpace(row.OpeningPost)) panel.Children.Add(new TextBlock
+        {
+            Text = row.OpeningPost, TextWrapping = TextWrapping.Wrap, MaxLines = 3,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
         var reset = new Button { Content = Texts.T("wizard.resetChoice"), FontSize = 11, Padding = new Thickness(5, 2) };
         reset.Click += (_, _) => row.Reset(); panel.Children.Add(reset);
         return panel;
@@ -160,16 +166,25 @@ internal sealed class BoardAdmissionWindow : Window
     private void Refresh(Draft draft)
     {
         bool valid = draft.Editors.All(editor => !string.IsNullOrWhiteSpace(editor.Text.Text));
-        if (!valid) draft.Summary.Text = Texts.T("wizard.invalid");
+        if (!valid) { draft.Summary.Text = Texts.T("wizard.invalid"); draft.Matches.Text = string.Empty; }
         else
         {
             var policy = Policy(draft); int included = 0;
+            // Explain text matching separately from persisted exclusions. A matching
+            // removed thread must remain visible and explicitly reactivatable.
+            var rulesOnly = new BoardAdmissionPolicy(policy.Rules);
+            bool Matches(PreviewRow row) => rulesOnly.Evaluate(row.Thread, honorSuppression: false).Included;
             foreach (var row in draft.Rows)
             {
                 var decision = policy.Evaluate(row.Thread, !draft.Reactivated.Contains(row.Thread.Url)); row.Update(decision);
                 if (decision.Included) included++;
             }
             draft.Summary.Text = Texts.T("wizard.summary", included, draft.Rows.Count - included);
+            int removedMatches = draft.Rows.Count(row => Matches(row) && row.Thread.Suppressed && !draft.Reactivated.Contains(row.Thread.Url));
+            draft.Matches.Text = Texts.T("wizard.matches", draft.Rows.Count(Matches), removedMatches);
+            PreviewRow[] ordered = draft.Rows.OrderByDescending(Matches).ThenByDescending(row => row.Included).ToArray();
+            if (draft.List.ItemsSource is not IEnumerable<PreviewRow> current || !current.SequenceEqual(ordered))
+                draft.List.ItemsSource = ordered;
         }
         _apply.IsEnabled = _drafts.All(item => item.Loaded && item.Editors.All(editor => !string.IsNullOrWhiteSpace(editor.Text.Text)));
     }

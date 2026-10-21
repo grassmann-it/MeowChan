@@ -19,6 +19,7 @@ internal static class BoardAdmissionCatalog
         ("wizard.contains", "Contains text…", "Enthält Text…"),
         ("wizard.removeRule", "Remove rule", "Regel entfernen"),
         ("wizard.summary", "Adopt: {0} · Exclude: {1}", "Übernehmen: {0} · Ausschließen: {1}"),
+        ("wizard.matches", "Text-rule matches: {0} · Previously removed matches: {1}. Matching threads appear first; select a removed thread to reactivate it.", "Textregel-Treffer: {0} · Davon zuvor entfernt: {1}. Passende Threads stehen zuerst; entfernte Threads zum Reaktivieren auswählen."),
         ("wizard.empty", "No threads in the current catalog. Saved rules will apply to future discoveries.", "Keine Threads im aktuellen Katalog. Gespeicherte Regeln gelten für künftige Entdeckungen."),
         ("wizard.invalid", "Enter search text for every rule, or remove the empty rule.", "Für jede Regel Suchtext eingeben oder die leere Regel entfernen."),
         ("wizard.apply", "Apply selection and monitor", "Auswahl übernehmen und beobachten"),

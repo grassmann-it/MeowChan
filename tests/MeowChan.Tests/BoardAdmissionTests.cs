@@ -11,6 +11,21 @@ namespace MeowChan.Tests;
 public sealed class BoardAdmissionTests
 {
     [Fact]
+    public void DptSubjectMatchesRemainDistinctFromBodyReferencesAndPreviousRemoval()
+    {
+        BoardCatalogThread[] catalog = [
+            new("1", "https://boards.4chan.org/g/thread/1", "/dpt/ - Daily Programming Thread", "What are you working on?", Suppressed: true),
+            new("2", "https://boards.4chan.org/g/thread/2", "/dpt/ - Daily Programming Thread", "Previous thread", Suppressed: true),
+            new("3", "https://boards.4chan.org/g/thread/3", "/sqt/ - Stupid Questions Thread", "Programming questions: >>>/g/dpt")];
+        var title = new BoardAdmissionPolicy([new(ThreadTextField.Title, ThreadTextAction.Include, "/dpt/")]);
+        Assert.Equal(2, catalog.Count(thread => title.Evaluate(thread, honorSuppression: false).Included));
+        Assert.DoesNotContain(catalog, thread => title.Evaluate(thread).Included);
+        var combined = new BoardAdmissionPolicy([new(ThreadTextField.TitleAndOpeningPost, ThreadTextAction.Include, "dpt")]);
+        Assert.Equal(3, catalog.Count(thread => combined.Evaluate(thread, honorSuppression: false).Included));
+        Assert.Equal("3", Assert.Single(catalog.Where(thread => combined.Evaluate(thread).Included)).Id);
+    }
+
+    [Fact]
     public void LiteralIncludesAreAnyMatchExcludesWinAndIndividualChoicesOverride()
     {
         const string url = "https://stub.test/g/thread/123";

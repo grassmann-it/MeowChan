@@ -49,6 +49,7 @@ internal static class BoardAdmissionChecks
             if (await result != null) throw new InvalidOperationException("Cancel committed a detached wizard draft.");
         }
         Texts.SetLanguage("en");
+        await CheckRemovedMatchesAsync(owner);
         var all = new BoardAdmissionWindow(urls, _ => saved, Preview, showWizard: true);
         Task<BoardAdmissionSelection?> allResult = all.ShowDialog<BoardAdmissionSelection?>(owner);
         await Program.WaitUntilAsync(() => all.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionAll"));
@@ -57,6 +58,31 @@ internal static class BoardAdmissionChecks
         if (accepted.DirectFuture || accepted.Policies.Count != 2 || accepted.Policies.Values.Any(policy => policy.Rules.Count != 0)
             || accepted.Policies[board].Exceptions[board + "thread/2"] != ThreadAdmissionException.Exclude)
             throw new InvalidOperationException("Monitor all lost exclusions or silently changed the future default.");
+    }
+    private static async Task CheckRemovedMatchesAsync(MainWindow owner)
+    {
+        const string board = "https://boards.4chan.org/g/";
+        var policy = new BoardAdmissionPolicy([new(ThreadTextField.Title, ThreadTextAction.Include, "/dpt/")]);
+        Task<BoardAdmissionPreview> Preview(string url, CancellationToken token) => Task.FromResult(new BoardAdmissionPreview(url, "Technology", policy, [
+            new("1", board + "thread/1", "Sticky", string.Join('\n', Enumerable.Repeat("Long sticky text", 30))),
+            new("2", board + "thread/2", "/dpt/ - Daily Programming Thread", "What are you working on?", Suppressed: true),
+            new("3", board + "thread/3", "/dpt/ - Daily Programming Thread", "Previous thread", Suppressed: true),
+            new("4", board + "thread/4", "/sqt/", "Programming: >>>/g/dpt")]));
+        var modal = new BoardAdmissionWindow([board], _ => policy, Preview, showWizard: true);
+        Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(owner);
+        await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionApply" && button.IsEnabled));
+        TextBlock Matches() => modal.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "BoardAdmissionMatches");
+        await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 2));
+        CheckBox[] rows = modal.GetVisualDescendants().OfType<CheckBox>().Where(check => check.Name == "BoardAdmissionInclude").ToArray();
+        if (rows.Length < 2 || rows.Take(2).Any(check => check.Content is not TextBlock text || !text.Text!.Contains("/dpt/")))
+            throw new InvalidOperationException("Matching removed threads were hidden behind unrelated catalog entries.");
+        rows[0].IsChecked = true;
+        await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 1));
+        Program.CaptureWindow(modal, "smoke-board-admission-removed-matches.png");
+        Click(modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionApply"));
+        var accepted = await result ?? throw new InvalidOperationException("Explicit reactivation was not accepted.");
+        if (accepted.Reactivations == null || accepted.Reactivations[board].Length != 1)
+            throw new InvalidOperationException("Matching removed thread did not retain its explicit reactivation.");
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }
