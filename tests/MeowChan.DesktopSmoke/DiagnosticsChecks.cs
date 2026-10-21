@@ -74,6 +74,9 @@ internal static class DiagnosticsChecks
                     Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics && settings.DownloadPath == "retained diagnosis draft",
                         "Diagnostics navigation lost the selected page or settings draft.");
                     Require(page.FindControl<TextBox>("DiagnosticDetails")!.Text!.Contains("HTTP 429"), "The complete diagnostic was not rendered.");
+                    RequireIconLabel(page.FindControl<Button>("CopyDiagnosticButton")!, Texts.T("diagnostics.copy"));
+                    RequireIconLabel(page.FindControl<Button>("OpenDiagnosticWatchButton")!, Texts.T("diagnostics.openWatch"));
+                    RequireIconLabel(page.FindControl<Button>("RetryDiagnosticButton")!, Texts.T("check.action"));
                     Program.CaptureWindow(window, $"smoke-diagnostics-{mode.ToLowerInvariant()}-{language}.png");
                     requested = null;
                     Click(page.FindControl<Button>("RetryDiagnosticButton")!);
@@ -106,6 +109,7 @@ internal static class DiagnosticsChecks
             Click(page.FindControl<Button>("RetryDiagnosticButton")!);
             Require(!page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled, "A pending retry left its action enabled.");
             delayedGrid.SelectedItem = delayedGrid.ItemsSource!.Cast<DiagnosticEntry>().Single(entry => entry.Target?.Kind == DiagnosticTargetKind.Board);
+            RequireIconLabel(page.FindControl<Button>("RetryDiagnosticButton")!, Texts.T("check.boardAction"));
             delayedRetry.TrySetResult(CheckRequestStatus.Stale);
             await Program.WaitUntilAsync(() => page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled);
             Require(string.IsNullOrEmpty(page.FindControl<TextBlock>("DiagnosticsActionError")!.Text),
@@ -127,6 +131,14 @@ internal static class DiagnosticsChecks
             Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         }
         Console.WriteLine("SMOKE diagnostics: current HTTP/storage/cooldown projection, retained drafts, stale watch protection and compact EN/DE layouts passed.");
+    }
+
+    private static void RequireIconLabel(Button button, string expected)
+    {
+        Require(button.Content is StackPanel panel && panel.Children.Count == 2
+            && panel.Children[0] is Control
+            && panel.Children[1] is TextBlock label && label.Text == expected,
+            $"{button.Name} lost its icon or translated action label.");
     }
 
     private static bool Fits(Window window, Control control)

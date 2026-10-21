@@ -31,7 +31,8 @@ internal static class PresentationChecks
             "The dark view's theme action did not display a translated Light label.");
         const string draft = "https://unsupported.invalid/draft-one\nhttps://unsupported.invalid/draft-two";
         input.Text = draft;
-        string englishAdd = add.Content?.ToString() ?? string.Empty;
+        string englishAdd = Texts.T("action.add");
+        RequireIconLabel(add, englishAdd);
         using ThreadRow retained = new ThreadRow(SnapshotFixtures.Thread(301, "301", "Presentation selection fixture", completed: 2));
         using BoardRow board = new BoardRow(SnapshotFixtures.Board(302));
         window.UrlList.Add(retained);
@@ -64,16 +65,17 @@ internal static class PresentationChecks
         Program.CaptureWindow(window, "smoke-simple-light.png");
 
         await ChangeLanguageAsync(window, "de");
-        await Program.WaitUntilAsync(() => add.Content?.ToString() != englishAdd);
+        await Program.WaitUntilAsync(() => HasIconLabel(add, Texts.T("action.add"))
+            && Avalonia.Automation.AutomationProperties.GetName(add) != englishAdd);
         Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("WindowMinimizeButton")!) == "Minimieren",
             "The caption did not update its accessible label after changing language.");
-        Require(!string.IsNullOrWhiteSpace(add.Content?.ToString()) && input.Text == draft && Mode(modes) == "Simple",
+        Require(HasIconLabel(add, Texts.T("action.add")) && input.Text == draft && Mode(modes) == "Simple",
             "Changing language did not translate intake or discarded pending view state.");
         Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Zum dunklen Design wechseln",
             "The German theme action exposed a missing translation key or an English label.");
         Program.CaptureWindow(window, "smoke-simple-german.png");
         await ChangeLanguageAsync(window, "en");
-        await Program.WaitUntilAsync(() => add.Content?.ToString() == englishAdd);
+        await Program.WaitUntilAsync(() => HasIconLabel(add, englishAdd));
 
         Click(window.FindControl<Button>("ThemeToggleButton")!);
         await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == "Dark"
@@ -358,6 +360,15 @@ internal static class PresentationChecks
     }
 
     private static string? Mode(ComboBox modes) => (modes.SelectedItem as ComboBoxItem)?.Tag as string;
+
+    private static bool HasIconLabel(Button button, string expected) =>
+        button.Content is StackPanel panel && panel.Children.Count == 2
+        && panel.Children[0] is Control
+        && panel.Children[1] is TextBlock label && label.Text == expected
+        && Avalonia.Automation.AutomationProperties.GetName(button) == expected;
+
+    private static void RequireIconLabel(Button button, string expected) =>
+        Require(HasIconLabel(button, expected), "Add URL lost its icon, translated label, or accessibility name.");
 
     private static bool InViewport(Window window, Control control)
     {

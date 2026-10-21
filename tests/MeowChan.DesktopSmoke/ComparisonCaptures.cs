@@ -146,7 +146,8 @@ internal static class ComparisonCaptures
         TextBlock? label = null;
         await Program.WaitUntilAsync(() =>
         {
-            label = add.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.Text == add.Content as string);
+            label = add.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text =>
+                text.Text == Avalonia.Automation.AutomationProperties.GetName(add));
             return label?.IsEffectivelyVisible == true;
         });
         // Check the rendered label: a global TextBlock style can override Button.Foreground.

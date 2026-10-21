@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 using MeowChan.Rules;
 
 namespace MeowChan;
@@ -56,6 +57,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RefreshChoiceLabels();
         RefreshConfirmedRules();
         DataContext = this;
+        ApplyCommandIcons();
         SynchronizeModeSelections();
         Texts.Changed += OnLanguageChanged;
     }
@@ -455,9 +457,18 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             RefreshChoiceLabels();
             UpdatePreview();
             RaiseAll();
+            ApplyCommandIcons();
         }
         if (Dispatcher.UIThread.CheckAccess()) Refresh();
         else Dispatcher.UIThread.Post(Refresh);
+    }
+
+    private void ApplyCommandIcons()
+    {
+        CommandBindings.ApplyLabeled(OpenSavedRuleButton, "rules.open-scope", OpenLabel);
+        CommandBindings.ApplyLabeled(OpenNewRuleScopeButton, "rules.open-scope", OpenLabel);
+        CommandBindings.ApplyLabeled(DiscardRuleButton, "rules.discard", DiscardLabel);
+        CommandBindings.ApplyLabeled(SaveRuleButton, "rules.save", SaveLabel);
     }
 
     private void OnRulesSizeChanged(object? sender, SizeChangedEventArgs e)

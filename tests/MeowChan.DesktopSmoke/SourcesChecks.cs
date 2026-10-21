@@ -111,9 +111,14 @@ internal static class SourcesChecks
                     Require(page.FindControl<TextBlock>("SourceWatchSummary")!.Text!.Contains("1"), "Sources lost active watch counts.");
                     Require(page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureAvailable"),
                         "Capture support and initialized session availability were not shown.");
-                    Require(page.FindControl<Button>("SourceWebsiteButton")!.Content?.ToString()
-                        == Texts.T("sources.website", "https://boards.4chan.org/"),
-                        "Selected source website is not directly reachable.");
+                    RequireIconLabel(page.FindControl<Button>("SourceBackButton")!, Texts.T("nav.sources"));
+                    RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!,
+                        Texts.T("sources.website", "https://boards.4chan.org/"));
+                    RequireIconLabel(page.FindControl<Button>("SourceRulesButton")!, Texts.T("sources.rules"));
+                    RequireIconLabel(page.FindControl<Button>("SourceDiagnosticsButton")!, Texts.T("sources.diagnostics"));
+                    RequireIconLabel(page.FindControl<Button>("SourceDownloadsButton")!, Texts.T("nav.downloads"));
+                    RequireIconLabel(page.FindControl<Button>("SourceAddButton")!, Texts.T("action.add"));
+                    RequireIconLabel(page.FindControl<Button>("SourceOpenWatchButton")!, Texts.T("diagnostics.openWatch"));
                     page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                     Program.CaptureWindow(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}.png");
@@ -205,6 +210,14 @@ internal static class SourcesChecks
             "The available Advanced navigation did not open and select the productive Sources page.");
         Console.WriteLine($"SMOKE sources navigation: {(wide ? "wide button" : "compact Tools menu")}; actual-width={window.Bounds.Width}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
     }
+    private static void RequireIconLabel(Button button, string expected)
+    {
+        Require(button.Content is StackPanel panel && panel.Children.Count == 2
+            && panel.Children[0] is Control
+            && panel.Children[1] is TextBlock label && label.Text == expected,
+            $"{button.Name} lost its icon or translated action label.");
+    }
+
     private static bool Fits(Window window, Control control)
     {
         Point? point = control.TranslatePoint(new Point(0, 0), window);

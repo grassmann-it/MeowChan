@@ -152,6 +152,10 @@ internal static class SettingsPageChecks
                         && InViewport(window, window.FindControl<Button>("SettingsNavigationButton")!)
                         && InViewport(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!)
                         && InViewport(window, editor.FindControl<ComboBox>("WorkspaceModeInput")!));
+                    RequireIconLabel(editor.FindControl<Button>("BrowseButton")!, editor.BrowseLabel);
+                    RequireIconLabel(editor.FindControl<Button>("AboutSettingsButton")!, editor.AboutLabel);
+                    RequireIconLabel(editor.FindControl<Button>("CancelSettingsButton")!, editor.CancelLabel);
+                    RequireIconLabel(editor.FindControl<Button>("SaveSettingsButton")!, editor.SaveLabel);
                     Program.CaptureWindow(window, $"smoke-settings-page-{mode.ToLowerInvariant()}-small-{language}.png");
                     editor.RecheckTimer = 0;
                     Click(editor.FindControl<Button>("SaveSettingsButton")!);
@@ -172,6 +176,14 @@ internal static class SettingsPageChecks
             editor.CancelChanges();
             Navigate(window, false);
         }
+    }
+
+    private static void RequireIconLabel(Button button, string expected)
+    {
+        Require(button.Content is StackPanel panel && panel.Children.Count == 2
+            && panel.Children[0] is Control
+            && panel.Children[1] is TextBlock label && label.Text == expected,
+            $"{button.Name} lost its icon or translated action label.");
     }
 
     private static bool InViewport(Window window, Control control)

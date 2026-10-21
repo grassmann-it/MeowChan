@@ -33,8 +33,13 @@ internal static class R08dPresentationChecks
         await Program.WaitUntilAsync(() => font.IsEffectivelyVisible && font.Bounds.Width > 0);
         Program.CaptureWindow(window, "smoke-r08d-settings-font.png");
 
-        Button aboutButton = settings.GetVisualDescendants().OfType<Button>()
-            .Single(button => button.Content?.ToString() == Texts.T("r08d.settings.about"));
+        Button aboutButton = settings.FindControl<Button>("AboutSettingsButton")!;
+        string aboutLabel = Texts.T("r08d.settings.about");
+        Require(aboutButton.Content is StackPanel panel && panel.Children.Count == 2
+            && panel.Children[0] is Control
+            && panel.Children[1] is TextBlock label && label.Text == aboutLabel
+            && Avalonia.Automation.AutomationProperties.GetName(aboutButton) == aboutLabel,
+            "Settings About lost its icon, translated label, or accessibility name.");
         aboutButton.BringIntoView();
         await Program.WaitUntilAsync(() => aboutButton.IsEffectivelyVisible && aboutButton.Bounds.Width > 0);
         Click(aboutButton);
@@ -140,7 +145,11 @@ internal static class R08dPresentationChecks
                 await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id
                     && fixture.FindControl<Button>("ArchiveReaderFullscreen")!.IsEffectivelyVisible);
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
-                Require(full.IsEnabled && full.Bounds.Width > 0 && full.Content?.ToString()?.Length > 0,
+                Require(full.IsEnabled && full.Bounds.Width > 0
+                    && full.Content is StackPanel fullPanel && fullPanel.Children.Count == 2
+                    && fullPanel.Children[0] is Control
+                    && fullPanel.Children[1] is TextBlock fullLabel && !string.IsNullOrWhiteSpace(fullLabel.Text)
+                    && !string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(full)),
                     "The reader's visible OS full-screen action is missing.");
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
                     wide.Client.Width, wide.Client.Height));

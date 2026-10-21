@@ -78,7 +78,7 @@
                         <TextBlock Text="{Binding DownloadPathLabel}" FontWeight="Medium" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <TextBox x:Name="DownloadPathInput" Text="{Binding DownloadPath, Mode=TwoWay}" />
-                            <Button x:Name="BrowseButton" Grid.Column="1" Content="{Binding BrowseLabel}" Click="OnBrowseButtonClick" />
+                            <Button x:Name="BrowseButton" Grid.Column="1" Click="OnBrowseButtonClick" />
                         </Grid>
                         <TextBlock Text="{Binding PathHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
@@ -108,7 +108,7 @@
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
                     <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
                     <TextBlock Text="{Binding SupportedSources}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
-                    <Button Content="{Binding AboutLabel}" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
+                    <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
                 </StackPanel>
                 <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" Classes="error" TextWrapping="Wrap" />
             </StackPanel>
@@ -118,8 +118,8 @@
                   Width="{Binding Bounds.Width, ElementName=SettingsContent}">
                 <TextBlock Text="{Binding StatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
                 <StackPanel x:Name="SettingsFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right">
-                    <Button x:Name="CancelSettingsButton" Content="{Binding CancelLabel}" Click="OnCancelButtonClick" />
-                    <Button x:Name="SaveSettingsButton" Content="{Binding SaveLabel}" Classes="primary" Click="OnSaveButtonClick" />
+                    <Button x:Name="CancelSettingsButton" Click="OnCancelButtonClick" />
+                    <Button x:Name="SaveSettingsButton" Classes="primary" Click="OnSaveButtonClick" />
                 </StackPanel>
             </Grid>
         </Border>

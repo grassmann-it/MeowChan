@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -102,18 +103,23 @@ public partial class SourcesPage : UserControl
         this.FindControl<Border>("SourceDetailsPanel")!.IsVisible = row != null && (!_narrow || _showDetails);
         this.FindControl<StackPanel>("SourcesListPane")!.IsVisible = !_narrow || !_showDetails || row == null;
         this.FindControl<Button>("SourceBackButton")!.IsVisible = _narrow;
-        this.FindControl<Button>("SourceBackButton")!.Content = "← " + Texts.T("nav.sources");
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
             if (control is TextBlock text) text.Text = Texts.T(key);
-            if (control is Button button) button.Content = Texts.T(key);
+            if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", Texts.T("nav.sources"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceRulesButton")!, "rules.edit-scope", Texts.T("sources.rules"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDiagnosticsButton")!, "navigation.diagnostics", Texts.T("sources.diagnostics"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDownloadsButton")!, "navigation.downloads", Texts.T("nav.downloads"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceAddButton")!, "watch.add-url", Texts.T("action.add"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         if (row == null) return;
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
-        website.Content = Texts.T("sources.website", row.Address);
+        CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website", row.Address));
         website.IsEnabled = !_busy;
         this.FindControl<TextBlock>("SourceHosts")!.Text = Texts.T("sources.hosts", row.Descriptor.SupportedHosts.Count > 0
             ? string.Join(", ", row.Descriptor.SupportedHosts) : Texts.T("sources.unspecified"));

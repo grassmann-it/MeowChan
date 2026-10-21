@@ -158,6 +158,10 @@ internal static class RulesPageChecks
                         "Rules navigation discarded a Downloads or Settings draft.");
                     Require(window.FindControl<Button>("RulesNavigationButton")!.IsVisible == (mode == "Advanced" && window.Bounds.Width >= 1120),
                         "Rules navigation was not restricted to the Advanced bar while its menu remained available.");
+                    RequireIconLabel(page.FindControl<Button>("OpenSavedRuleButton")!, page.OpenLabel);
+                    RequireIconLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, page.OpenLabel);
+                    RequireIconLabel(page.FindControl<Button>("DiscardRuleButton")!, page.DiscardLabel);
+                    RequireIconLabel(page.FindControl<Button>("SaveRuleButton")!, page.SaveLabel);
                     double width = mode == "Barebones" ? 640 : 760;
                     double height = mode == "Barebones" ? 480 : 500;
                     window.WindowState = WindowState.Normal;
@@ -348,6 +352,14 @@ internal static class RulesPageChecks
             actual.Rules.Any(candidate => candidate.Scope == rule.Scope && candidate.Enabled == rule.Enabled
                 && candidate.Types.Mode == rule.Types.Mode && candidate.Types.Extensions.SequenceEqual(rule.Types.Extensions)
                 && candidate.SizeLimit == rule.SizeLimit));
+    private static void RequireIconLabel(Button button, string expected)
+    {
+        Require(button.Content is StackPanel panel && panel.Children.Count == 2
+            && panel.Children[0] is Control
+            && panel.Children[1] is TextBlock label && label.Text == expected,
+            $"{button.Name} lost its icon or translated action label.");
+    }
+
     private static bool Fits(Window window, Control control)
     {
         Point? point = control.TranslatePoint(new Point(0, 0), window);

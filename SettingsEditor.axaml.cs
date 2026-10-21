@@ -11,6 +11,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan
 {
@@ -100,6 +101,7 @@ namespace MeowChan
             ShowShortcutHelp = config.ShowShortcutHelp;
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
+            ApplyCommandIcons();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
@@ -361,12 +363,21 @@ namespace MeowChan
                     SelectedLanguage?.Code ?? _config.Language);
                 SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+                ApplyCommandIcons();
             }
 
             if (Dispatcher.UIThread.CheckAccess())
                 Refresh();
             else
                 Dispatcher.UIThread.Post(Refresh);
+        }
+
+        private void ApplyCommandIcons()
+        {
+            CommandBindings.ApplyLabeled(BrowseButton, "settings.browse-folder", BrowseLabel);
+            CommandBindings.ApplyLabeled(AboutSettingsButton, "navigation.about", AboutLabel);
+            CommandBindings.ApplyLabeled(CancelSettingsButton, "settings.discard", CancelLabel);
+            CommandBindings.ApplyLabeled(SaveSettingsButton, "settings.save", SaveLabel);
         }
 
         private void RefreshChoices(string theme, string mode, string language)

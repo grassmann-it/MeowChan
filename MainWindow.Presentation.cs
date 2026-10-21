@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -265,6 +266,13 @@ public partial class MainWindow
         UpdateThemeIcon();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("AddUrlButton"), "watch.add-url", Texts.T("action.add"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("CopyAllUrlsButton"), "watch.copy-all-links", Texts.T("action.copyAllUrls"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenFolderButton"), "location.open-folder", Texts.T("action.openFolder"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenBrowserButton"), "location.open-source", Texts.T("action.openBrowser"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorMediaRetryButton"), "watch.retry-media", Texts.T("work.retry"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorCopyUrlButton"), "selection.copy-links", Texts.T("action.copyUrl"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorRemoveButton"), "watch.remove", Texts.T("action.remove"));
         RefreshShellCommands();
         RefreshSpeedLabel();
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceSubtitle"), Texts.T("shell.subtitle"));
@@ -305,7 +313,7 @@ public partial class MainWindow
         WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
-        WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(WorkspaceControl<Border>("WorkspaceInspector").IsVisible ? "action.hideDetails" : "action.showDetails");
+        RefreshDetailsToggleIcon();
         string stateKey = _isClosing ? "shell.stopping" : _session.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.State switch
         {
             DesktopSessionState.Ready => _session.IsPaused ? "shell.paused" : "shell.ready",
@@ -316,6 +324,14 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("WorkspaceStatus").Text = Texts.T(stateKey);
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceStatus"), _session.StartupError);
         RefreshWorkspaceInspector();
+    }
+
+    private void RefreshDetailsToggleIcon()
+    {
+        bool visible = WorkspaceControl<Border>("WorkspaceInspector").IsVisible;
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("DetailsToggleButton"),
+            visible ? "inspector.close" : "thread.details",
+            Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
     }
 
     private object? GetWorkspaceSelection()
@@ -391,7 +407,8 @@ public partial class MainWindow
         DiagnosticTarget target = selected is ThreadRow selectedThread
             ? new DiagnosticTarget(DiagnosticTargetKind.Thread, selectedThread.WatchId)
             : new DiagnosticTarget(DiagnosticTargetKind.Board, ((BoardRow)selected).WatchId);
-        WorkspaceControl<Button>("InspectorCheckButton").Content = Texts.T(isThread ? "check.action" : "check.boardAction");
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorCheckButton"), "watch.check",
+            Texts.T(isThread ? "check.action" : "check.boardAction"));
         WorkspaceControl<Button>("InspectorCheckButton").IsEnabled = _restoreCompleted && !WorkspaceCommandBusy
             && _session.CanRequestCheck(target);
     }
@@ -440,7 +457,7 @@ public partial class MainWindow
             content.ColumnDefinitions[1].Width = new GridLength(visible && !narrow ? 6 : 0);
             content.ColumnDefinitions[2].Width = new GridLength(visible && !narrow ? _workspaceInspectorWidth : 0);
             content.RowDefinitions[1].Height = new GridLength(0);
-            WorkspaceControl<Button>("DetailsToggleButton").Content = Texts.T(visible ? "action.hideDetails" : "action.showDetails");
+            RefreshDetailsToggleIcon();
         }
         finally { _updatingWorkspaceLayout = false; }
     }

@@ -90,6 +90,28 @@ public static class CommandBindings
         AutomationProperties.SetHelpText(button, tip);
     }
 
+    /// <summary>Uses a context-specific visible label while retaining the catalog icon and shortcut.</summary>
+    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
+    {
+        button.Classes.Set("command-icon", true);
+        button.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 5,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                Icon(id, iconSize),
+                new TextBlock { Text = visibleLabel, VerticalAlignment = VerticalAlignment.Center }
+            }
+        };
+        string tip = CommandCatalog.ShortcutDisplay(id) is string shortcut
+            ? visibleLabel + " · " + shortcut : visibleLabel;
+        ToolTip.SetTip(button, tip);
+        AutomationProperties.SetName(button, visibleLabel);
+        AutomationProperties.SetHelpText(button, tip);
+    }
+
     private static string CompactLabel(string id)
     {
         bool german = MeowChan.Desktop.Localization.Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);

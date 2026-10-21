@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -52,8 +53,10 @@ public partial class DiagnosticsPage : UserControl
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
             if (control is TextBlock text) text.Text = Texts.T(key);
-            if (control is Button button) button.Content = Texts.T(key);
+            if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("CopyDiagnosticButton")!, "diagnostics.copy", Texts.T("diagnostics.copy"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("OpenDiagnosticWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
@@ -67,7 +70,8 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<TextBox>("DiagnosticDetails")!.Text = Selected?.Details ?? string.Empty;
         this.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled = _available && Selected != null;
         this.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled = _available && Selected?.Target != null;
-        this.FindControl<Button>("RetryDiagnosticButton")!.Content = Texts.T(Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action");
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("RetryDiagnosticButton")!, "watch.check",
+            Texts.T(Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action"));
         this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
             && Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true;
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = string.Empty;

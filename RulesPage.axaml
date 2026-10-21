@@ -17,7 +17,7 @@
                                   ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
                             <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                         </ComboBox>
-                        <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Content="{Binding OpenLabel}" Click="OnOpenSavedScope" />
+                        <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
                     </Grid>
                     <TextBlock Text="{Binding ScopeCountLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                     <Expander x:Name="NewRuleScopeExpander" Header="{Binding NewScopeLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -39,7 +39,7 @@
                                 <TextBox x:Name="NewRuleThreadInput" Grid.Column="1" Text="{Binding NewThreadId, Mode=TwoWay}" PlaceholderText="123" />
                             </Grid>
                             <TextBlock Text="{Binding IdentityHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
-                            <Button x:Name="OpenNewRuleScopeButton" Content="{Binding OpenLabel}" Click="OnOpenNewScope" HorizontalAlignment="Right" />
+                            <Button x:Name="OpenNewRuleScopeButton" Click="OnOpenNewScope" HorizontalAlignment="Right" />
                         </StackPanel>
                     </Expander>
                 </StackPanel>
@@ -118,8 +118,8 @@
                     </StackPanel>
                 </ScrollViewer>
                 <StackPanel x:Name="RulesFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <Button x:Name="DiscardRuleButton" Content="{Binding DiscardLabel}" IsEnabled="{Binding IsEditable}" Click="OnDiscardDraft" />
-                    <Button x:Name="SaveRuleButton" Content="{Binding SaveLabel}" Classes="primary" IsEnabled="{Binding CanSave}" Click="OnSaveRule" />
+                    <Button x:Name="DiscardRuleButton" IsEnabled="{Binding IsEditable}" Click="OnDiscardDraft" />
+                    <Button x:Name="SaveRuleButton" Classes="primary" IsEnabled="{Binding CanSave}" Click="OnSaveRule" />
                 </StackPanel>
             </Grid>
         </Border>
