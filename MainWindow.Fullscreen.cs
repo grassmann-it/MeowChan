@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -30,7 +31,7 @@ public partial class MainWindow
     private bool _fullscreenExitRepairQueued;
     private bool _fullscreenExitRepairConsumed;
     private bool _fullscreenExitSizeCorrectionQueued;
-    private Size? _fullscreenExitStaleNativeClient;
+    private readonly List<Size> _fullscreenExitStaleNativeClients = new();
     private int _fullscreenExitGeneration;
     private int _fullscreenRestoreGeneration;
     private bool _applyingFullscreenRestoreGeometry;
@@ -137,7 +138,7 @@ public partial class MainWindow
         {
             _fullscreenExitIntent = origin;
             _fullscreenExitMode = _config.WorkspaceMode;
-            _fullscreenExitStaleNativeClient = null;
+            _fullscreenExitStaleNativeClients.Clear();
         }
         _fullscreenOrigin = null;
         _fullscreenRestoreFromClient = ClientSize;
@@ -224,25 +225,25 @@ public partial class MainWindow
         if (e.Reason == WindowResizeReason.User)
         {
             if (OperatingSystem.IsMacOS() && _fullscreenExitIntent is { State: WindowState.Normal } intent
-                && WindowState == WindowState.Normal && ClientSize != intent.Client)
+                && WindowState == WindowState.Normal)
             {
                 if (_restoringFullscreen)
                 {
                     // Cocoa can label its own exit animation as User. Remember
                     // this exact native frame so a delayed duplicate cannot
                     // replace a newer explicit normal resize request.
-                    _fullscreenExitStaleNativeClient = ClientSize;
-                    TraceFullscreen($"native exit frame remembered={ClientSize}");
+                    if (ClientSize != intent.Client) RememberFullscreenExitStaleClient(ClientSize);
                     return;
                 }
-                if (ClientSize == _fullscreenExitStaleNativeClient)
+                if (ClientSize != intent.Client && _fullscreenExitStaleNativeClients.Contains(ClientSize))
                 {
                     TraceFullscreen($"duplicate native exit frame ignored={ClientSize}");
                     ContinuePendingFullscreenExitSizeRepair();
                     return;
                 }
+                if (ClientSize != intent.Client)
+                    _fullscreenExitStaleNativeClients.Clear();
             }
-            _fullscreenExitStaleNativeClient = null;
             _fullscreenRestoreClient = null;
             if (WindowState == WindowState.Normal && !_restoringFullscreen)
                 CapturePendingFullscreenExitSize(ClientSize);
@@ -277,8 +278,6 @@ public partial class MainWindow
         }
         if (WindowState == WindowState.FullScreen)
             QueueFullscreenExitRepair();
-        else if (WindowState == WindowState.Maximized && !_restoringFullscreen)
-            ClearFullscreenExitIntent();
     }
 
     internal void RequestNormalWindowSize(Size requested)
@@ -298,6 +297,8 @@ public partial class MainWindow
             && _fullscreenOrigin == null;
         if (WindowState == WindowState.Normal || (pendingFullscreenExit && WindowState == WindowState.FullScreen))
         {
+            if (_fullscreenExitIntent is { State: WindowState.Normal } prior && prior.Client != requested)
+                RememberFullscreenExitStaleClient(prior.Client);
             CapturePendingFullscreenExitSize(requested);
             if (_restoringFullscreen && WindowState == WindowState.Normal)
                 _fullscreenRestoreRequestedClient = requested;
@@ -329,8 +330,17 @@ public partial class MainWindow
         _fullscreenExitRepairQueued = false;
         _fullscreenExitRepairConsumed = false;
         _fullscreenExitSizeCorrectionQueued = false;
-        _fullscreenExitStaleNativeClient = null;
+        _fullscreenExitStaleNativeClients.Clear();
         ++_fullscreenExitGeneration;
+    }
+
+    private void RememberFullscreenExitStaleClient(Size client)
+    {
+        if (_fullscreenExitStaleNativeClients.Contains(client)) return;
+        if (_fullscreenExitStaleNativeClients.Count == 4)
+            _fullscreenExitStaleNativeClients.RemoveAt(0);
+        _fullscreenExitStaleNativeClients.Add(client);
+        TraceFullscreen($"prior exit frame remembered={client}");
     }
 
     private void ContinuePendingFullscreenExitSizeRepair()
