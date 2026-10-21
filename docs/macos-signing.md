@@ -14,20 +14,18 @@ The app in the DMG includes the matching .NET runtime and selected VLC libraries
 keep the entire app bundle together. Homebrew source builds remain an optional
 route, rather than a prerequisite for installing the packaged app.
 
-Native ARM (`macos-15`) and Intel (`macos-15-intel`) package checks passed in
-[run 39515151002](https://github.com/tfgrass/MeowChan/actions/runs/39515151002),
-exact source `672b45db89b469a04904335f17b6ae3d9ec83492`: **33/33 fixtures per
-architecture**, including strict runtime CFBundle identity/icon lookups and
-direct/whole-app alias cases in the native fixtures. Separately, the actual product
-passed package metadata/icon validation, signatures, native dependency closure,
-ZIP round-trip and extracted .NET app startup/graceful shutdown. That checkpoint
-predates DMG distribution and does not validate a mounted DMG. It does not
-claim identity/icon runtime introspection inside the actual .NET process.
-See [the platform evidence](platform-support.md#native-macos-package-and-startup-checkpoint--672b45d).
-An ad-hoc signature does not establish developer identity or automatic Gatekeeper
-approval. Playback, audio, real hardware and downloaded/quarantined-copy approval
-remain unvalidated. This is not a public Mac release or a corresponding-source
-closure claim.
+At source `226af46`, the [native package/media run](https://github.com/tfgrass/MeowChan/actions/runs/39662560567)
+passed on ARM (`macos-15`) and Intel (`macos-15-intel`). Each job mounted its
+signed DMG, verified the app and Applications shortcut, copied the app out, and
+ran startup, bundled-VLC playback and the packaged desktop workflow from that
+copy. The run also paired both DMGs with their corresponding-source overlay.
+See [the platform evidence](platform-support.md#090-candidate-final-native-revalidation-pending).
+This evidence belongs to that exact source. The newer `b8e1291` normal-window
+and delayed-fullscreen corrections still await final native validation and
+rebuilt-package checks. An ad-hoc signature does not establish developer
+identity or automatic Gatekeeper approval; physical audio/hardware and
+downloaded/quarantined-copy approval remain unvalidated. This is not a public
+Mac release or a final readiness claim.
 
 Open the DMG in Finder, drag `MeowChan.app` to the **Applications** shortcut, then
 open the installed app. Keep the whole app bundle intact. If macOS blocks
@@ -60,9 +58,10 @@ entitlements and serves as the bundle's main executable. All other publish entri
 point to these payload entries; `Contents/Resources/application/MeowChan` links
 back to the physical main executable. There is no C launcher or launcher compiler
 source. Every Mach-O file in the code/payload locations is explicitly signed and
-validated. Fixture CFBundle identity/icon lookups and separate actual extracted-app
-startup/shutdown passed at the exact checkpoint above; full runtime/media
-workflows remain open.
+validated. Fixture CFBundle identity/icon lookups passed at the earlier
+[`672b45d` checkpoint](platform-support.md#native-macos-package-and-startup-checkpoint--672b45d);
+the later `226af46` run exercised actual copied-app startup, playback and desktop
+workflow. Those results do not validate subsequent product changes.
 
 Legacy unsigned/Homebrew bundles keep the publish output in `Contents/MacOS`.
 Self-contained publishing uses `PublishSingleFile=false` so native .NET libraries
@@ -73,11 +72,11 @@ signatures and bundle contents. The DMG is created with `hdiutil`, mounted read-
 and its app is checked against the signed bundle before and after copying outside
 the image. The copied app undergoes architecture, signature and dependency closure
 checks plus native startup; package-media validation also runs playback and the
-desktop workflow from that copy. Signature validation
-alone does not prove .NET JIT startup, VLC plugin loading/playback or shutdown.
-The extracted .NET startup/shutdown check passed on both architectures at the
-checkpoint above. VLC plugin playback and a downloaded/quarantined-copy check of
-the manual approval flow still require separate evidence.
+desktop workflow from that copy. Signature validation alone does not prove .NET
+JIT startup, VLC plugin loading/playback or shutdown. The `226af46` package/media
+run exercised those runtime paths from the copied DMG app on both architectures.
+A fresh native run for the current source, and a downloaded/quarantined-copy
+check of the manual approval flow, still require separate evidence.
 
 ## Optional later Developer ID and notarized distribution
 

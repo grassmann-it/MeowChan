@@ -57,11 +57,11 @@ Read captured posts at full window size, with large local media and navigation b
 
 Find retained threads and media offline. Open images from all matching threads across every results page.
 
-These scenes show the integrated interface at source commit `226af46b`, using original offline demo artwork and synthetic posts in an isolated Linux Xvfb/Openbox capture at 100% scaling. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 14-image set](docs/screenshots/README.md) describe the capture and its limits; these source-built images do not establish native package acceptance or live source availability.
+These scenes show the integrated interface at source commit `b8e1291`, using original offline demo artwork and synthetic posts in an isolated Linux Xvfb/Openbox capture at 100% scaling. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 14-image set](docs/screenshots/README.md) describe the capture and its limits; these source-built images do not establish native package acceptance or live source availability.
 
 ## What's new in 0.9.0
 
-- A redesigned Avalonia interface with Barebones (default in builds after Preview 3), Simple and Advanced views of the same running session.
+- A redesigned Avalonia interface with Barebones as the default, plus Simple and Advanced views of the same running session. Each view remembers its own layout and table columns.
 - Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
 - Dark, Light and System theme preferences, normal or compact density, English and German, and optional JSON language packs.
 - Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
