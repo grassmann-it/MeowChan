@@ -39,8 +39,14 @@ internal static class BoardAdmissionChecks
             search.Text = "cat";
             TextBlock summary = modal.GetVisualDescendants().OfType<TextBlock>().First(text => text.Name == "BoardAdmissionSummary");
             await Program.WaitUntilAsync(() => summary.Text == Texts.T("wizard.summary", 0, 3));
-            CheckBox removed = modal.GetVisualDescendants().OfType<CheckBox>().First(check => check.Name == "BoardAdmissionInclude"
+            var list = modal.GetVisualDescendants().OfType<ListBox>().Single(control => control.Name == "BoardAdmissionPreview");
+            // Catalog rows are virtualized. Scroll to the removed item and await
+            // realization instead of assuming every catalog row has a visual.
+            list.ScrollIntoView(list.Items[2]);
+            CheckBox? Removed() => modal.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(check => check.Name == "BoardAdmissionInclude"
                 && check.Content is TextBlock text && text.Text!.Contains("#3", StringComparison.Ordinal));
+            await Program.WaitUntilAsync(() => Removed() != null);
+            CheckBox removed = Removed()!;
             removed.IsChecked = true;
             await Program.WaitUntilAsync(() => summary.Text == Texts.T("wizard.summary", 1, 2));
             Program.CaptureWindow(modal, "smoke-board-admission-" + language + ".png");
@@ -73,6 +79,7 @@ internal static class BoardAdmissionChecks
         await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionApply" && button.IsEnabled));
         TextBlock Matches() => modal.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "BoardAdmissionMatches");
         await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 2));
+        await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<CheckBox>().Count(check => check.Name == "BoardAdmissionInclude") >= 2);
         CheckBox[] rows = modal.GetVisualDescendants().OfType<CheckBox>().Where(check => check.Name == "BoardAdmissionInclude").ToArray();
         if (rows.Length < 2 || rows.Take(2).Any(check => check.Content is not TextBlock text || !text.Text!.Contains("/dpt/")))
             throw new InvalidOperationException("Matching removed threads were hidden behind unrelated catalog entries.");
