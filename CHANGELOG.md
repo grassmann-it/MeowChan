@@ -2,7 +2,7 @@
 
 ## 0.9.0
 
-oChan becomes **MeowChan** with a redesigned Avalonia desktop interface. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
+**MeowChan** introduces a redesigned Avalonia desktop interface, with Barebones as the simple default for new profiles and Simple and Advanced views for more detail. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
 
 ### What's new
 
@@ -40,7 +40,7 @@ oChan becomes **MeowChan** with a redesigned Avalonia desktop interface. The 4ch
 
 ### Release status
 
-Windows ships as a self-contained ZIP with VLC; macOS Intel/Apple Silicon use self-contained, ad-hoc-signed DMGs with VLC, without notarization. Linux x64/Arm64 each have bundled-VLC and system-VLC tar archives plus a bundled AppImage. See the [package-to-offline guide](docs/Help.md), [0.9.0 release notes](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
+Release downloads are ordered as a self-contained Windows x64 ZIP with VLC; self-contained, ad-hoc-signed macOS Apple Silicon and Intel DMGs with VLC; Linux x64 and ARM64 AppImages with VLC; then Linux bundled-VLC and system-VLC tar archives and their corresponding source archives. The macOS apps have no Developer ID signature or notarization, so first launch may need manual approval in Privacy & Security. The 13 binary and source assets have a `SHA256SUMS` companion. See the [package-to-offline guide](docs/Help.md), [0.9.0 release notes](docs/releases/v0.9.0.md) and [platform validation record](docs/platform-support.md).
 
 ### Download engine and archive
 

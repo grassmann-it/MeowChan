@@ -1,14 +1,31 @@
 # MeowChan 0.9.0 screenshot provenance
 
-These 14 PNGs are unedited, byte-identical renders of the integrated MeowChan UI from source commit `b8e129146e1d8d3d26108fbee00aa881ae2ac5ea` (Git tree `9ce0630e1f649c3d1bf0b0a3e5a65f52e6743f9c`). The capture used the frozen DesktopSmoke and application Debug DLLs built at that commit. All 14 images were visually reviewed from the current capture before promotion; their promoted hashes match the capture originals.
+These 14 PNGs are unedited renders of the integrated MeowChan UI from two source-built DesktopSmoke captures. The gallery, Settings and Rules images were refreshed for the final overlay and icon-label controls using the provided Release harness binary corresponding to functional source checkpoint `be2f807eeedaf783a152de6f0501d5742beb324b`. The other 11 retain their original capture from source commit `b8e129146e1d8d3d26108fbee00aa881ae2ac5ea` (Git tree `9ce0630e1f649c3d1bf0b0a3e5a65f52e6743f9c`) and their original provenance below. All three refreshed images were visually reviewed and are byte-identical to their current capture files.
 
-The run passed on Manjaro Linux in a private 3200×2000 Xvfb display with Openbox, private DBus/runtime directories and software rendering. Requested and measured RenderScaling were **1.0**. Main-window scenes use Simple/Dark/English, showing the updated header, Feather-icon footer navigation and Downloads Columns control; captures exclude native window decorations. About, favorites and export dialogs retain their actual client sizes. The fixed temporary paths visible in some dialogs belong solely to the isolated showcase workspace; there are no personal profiles or downloaded posts.
+Both runs passed on Manjaro Linux in a private 3200×2000 Xvfb display with Openbox, private DBus/runtime directories and software rendering. Requested and measured RenderScaling were **1.0**. Main-window scenes use Simple/Dark/English; captures exclude native window decorations. About, favorites and export dialogs retain their actual client sizes. The fixed temporary paths visible in some dialogs belong solely to the isolated showcase workspace; there are no personal profiles or downloaded posts.
 
 `ShowcaseData` seeds 56 synthetic archived threads and 173 captured posts with saved, original procedural Skia illustrations. Its HTTP handler rejects network requests. Downloads shows passive demonstration projections; the gallery, reader, archive, favorites and HTML/original exports use real local application services. The gallery image is marked as a favorite in the running UI, and the original-export result reports one copied file. The Reader shows archived posts and a disabled Live-follow control as appropriate for a thread without an active watch; the separate Replies image shows locally resolved replies. About shows the configured PayPal support link, Credits and the offline Feather license inventory.
 
 This is **source-built UI evidence**. It does not establish native acceptance of extracted Windows, macOS or Linux release packages, physical-device playback, host integrations or live provider behavior.
 
-## Reproduce
+## Refreshed gallery, Settings and Rules
+
+The final capture used the existing Release DesktopSmoke binary, without a rebuild, in a fresh isolated output directory:
+
+```sh
+mkdir -p /tmp/mc-final-t
+TMPDIR=/tmp/mc-final-t \
+PATH=/tmp/meowchan-ui-tools/usr/bin:$PATH \
+LD_LIBRARY_PATH=/tmp/meowchan-ui-tools/usr/lib \
+XDG_DATA_DIRS=/tmp/meowchan-ui-tools/usr/share:/usr/share \
+python3 scripts/run-desktop-smoke.py \
+  --assembly /home/tomka/Desktop/oChan/tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
+  --mode visual --scale 1 --output artifacts/release-final-showcase --timeout 180
+```
+
+Retained local evidence: `artifacts/release-final-showcase/results.json` (SHA-256 `2284068fd8cba303c16dec45350069f48cc286d3a586b897a585954714c60af6`) and `visual/output.log` (SHA-256 `f98b97038796e652818140bc7bb56427877f035e4ee01b21cfcda4cc7d097807`). The result records PASS at 1.0 scale. The capture DLL SHA-256 values were `f07a3dbecd2c0b8b236a7358dff554994d030595ace94632be0b18720f7d6cd6` (`MeowChan.DesktopSmoke.dll`), `aa3d2c9be0d965b1d550d68feffd9bee2f940e6e85376e0f4a2f5e21fac61bcc` (`MeowChan.dll`) and `3818693674b06099ab1c1d4cea6801f8fe0251f9117ec8b5a8713f44b78c5343` (`libmeowchan.dll`). The new reader capture omitted a lower thumbnail during rendering, so the complete original reader image was retained.
+
+## Original capture for the other 11 images
 
 The source-built **Debug** DesktopSmoke DLL was prepared from commit `b8e129146e1d8d3d26108fbee00aa881ae2ac5ea` with a locked restore and build in the isolated artifacts directory:
 
@@ -40,7 +57,7 @@ The three `/tmp/meowchan-ui-tools` overrides supplied private GUI prerequisites 
 | `MeowChan.DesktopSmoke.dll` | `3e685a5bdb235f8651039e6623dbd7bb4d897cae66fbb1e0df8584de0c954993` |
 | `libmeowchan.dll` | `3b4a7324ea18fc81d7488b1f53180b514ffda6e5d5da1ebec92f55dba3baa713` |
 
-## Original files
+## Files
 
 | Image | Pixels | Capture time (UTC) | SHA-256 |
 | --- | --- | --- | --- |
@@ -53,8 +70,8 @@ The three `/tmp/meowchan-ui-tools` overrides supplied private GUI prerequisites 
 | [Favorite original-export dialog](v0.9.0-favorites-original-export.png) | 600×300 | 2026-10-21T20:00:29+00:00 | `55997bfae9f85add91e7e95074ddb30bc09488f793ffe50b6287c376549859c1` |
 | [Favorite original-export result](v0.9.0-favorites-original-result.png) | 600×300 | 2026-10-21T20:00:29+00:00 | `c181a0b20a528d2c9d1bb5d4203221474788a1f963598bc4e0e8334f40698ce0` |
 | [Favorites overview](v0.9.0-favorites.png) | 760×580 | 2026-10-21T20:00:29+00:00 | `9c03edc0c05b973b16a7e3405c47644435c2d40e442bf4a284415a7204de9567` |
-| [Gallery with saved-post context](v0.9.0-gallery.png) | 1440×920 | 2026-10-21T20:00:28+00:00 | `f529079542cf042e3885a1f542aab3b7c10c75c11540666e0025a5adf0e99f57` |
+| [Gallery with saved-post context](v0.9.0-gallery.png) | 1440×920 | 2026-10-21T23:54:27+00:00 | `fb5cbb917b0473b4a47574d810c9eb722b05c703d71a4fa88364fbb8db03e675` |
 | [Reader with expanded replies](v0.9.0-reader-replies.png) | 1440×960 | 2026-10-21T20:00:28+00:00 | `16bc570e3ea055e9af4b91e6764040f8238c347a7172aa6ecc74b51d9d7fa301` |
 | [Offline reader](v0.9.0-reader.png) | 1440×960 | 2026-10-21T20:00:28+00:00 | `5138e2a13450909951473bbfd1ce4b7817efeb6111f8f8fa222c442e7d868cef` |
-| [Rules and effective values](v0.9.0-rules.png) | 1200×700 | 2026-10-21T20:00:29+00:00 | `a425429b2d0ea498ad5c415eb3bddcd8fca80b04e15aa0ba3a24f5753605fa09` |
-| [Settings and reading preferences](v0.9.0-settings.png) | 1200×700 | 2026-10-21T20:00:29+00:00 | `c19ff5a9ac8b8044661c9e43591a01eb264dca303f51c91a4a73cba2a237f3f7` |
+| [Rules and effective values](v0.9.0-rules.png) | 1200×700 | 2026-10-21T23:54:36+00:00 | `95173a2632fc711743c27fedf95ef273abced71deb5c6aaa98b092a008b264cc` |
+| [Settings and reading preferences](v0.9.0-settings.png) | 1200×700 | 2026-10-21T23:54:35+00:00 | `310ba7077c20f389b8071562c5c1b45b240fe617bc37f82dbcdab5b73db02699` |
