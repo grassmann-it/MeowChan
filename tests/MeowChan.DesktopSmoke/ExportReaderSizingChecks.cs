@@ -32,6 +32,7 @@ internal static class ExportReaderSizingChecks
                         && Fits(window, page.FindControl<Button>("ArchiveExportOpen")!)
                         && Fits(window, page.FindControl<Button>("ArchiveExportStart")!);
                 });
+                await ReaderUxChecks.CheckOverlayChromeAsync(window, window.FindControl<ContentControl>("ReaderHost")!);
                 Program.CaptureWindow(window, "smoke-download-reader-export-" + size.Mode.ToLowerInvariant() + ".png");
                 page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 if (!window.FindControl<ContentControl>("ReaderHost")!.IsVisible)

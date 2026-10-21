@@ -76,8 +76,7 @@ internal static class ReaderUxChecks
         await page.MediaLoadTask;
                 await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
-        Require(reader.Bounds.Width >= window.ClientSize.Width - 1 && reader.Bounds.Height >= window.ClientSize.Height - 1,
-            "Reader does not cover the app client area.");
+        await CheckOverlayChromeAsync(window, reader);
         Require(page.FindControl<Grid>("ArchiveReaderPane")!.Parent == reader, "Reader pane has the wrong owner.");
         Program.CaptureWindow(window, "smoke-reader-initial.png");
         Click(page.FindControl<Button>("ExportArchiveButton")!);
@@ -114,6 +113,9 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
             .Any(image => image.Source is Bitmap));
         GalleryViewer viewer = (GalleryViewer)gallery.Content!;
+        await CheckOverlayChromeAsync(window, gallery);
+        await WindowChromeChecks.RunAsync(window);
+        await CheckSmallOverlayChromeAsync(window, gallery);
         for (int step = 0; step < 3; step++) PressKey(GalleryButton(viewer, "GalleryNext"), Key.Right);
         await Program.WaitUntilAsync(() => viewer.CaptureState().PostId == "1003");
         await Program.WaitUntilAsync(() => GalleryButton(viewer, "GalleryActual").IsEnabled);
@@ -183,6 +185,43 @@ internal static class ReaderUxChecks
             && page.FindControl<TextBox>("ArchiveSearchText")!.Text == "Reader UX", "List-origin gallery close lost search or page.");
         Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), page.FindControl<Button>("ArchiveResultsGallery")), "List-origin focus was not restored.");
         Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
+    }
+
+    internal static async Task CheckOverlayChromeAsync(MainWindow window, ContentControl overlay)
+    {
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            Control header = window.FindControl<Grid>("WorkspaceTitleBar")!;
+            Point? top = overlay.TranslatePoint(default, window);
+            return overlay.IsEffectivelyVisible && top is Point origin
+                && Math.Abs(origin.Y - header.Bounds.Height) <= 1
+                && Math.Abs(overlay.Bounds.Width - window.ClientSize.Width) <= 1
+                && Math.Abs(origin.Y + overlay.Bounds.Height - window.ClientSize.Height) <= 1;
+        });
+        await WindowChromeChecks.CheckReachableAsync(window);
+    }
+
+    private static async Task CheckSmallOverlayChromeAsync(MainWindow window, ContentControl overlay)
+    {
+        double width = window.Width, height = window.Height;
+        string mode = Config.LoadConfig().WorkspaceMode;
+        try
+        {
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            window.Width = 640; window.Height = 480;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - 640) <= 1 && Math.Abs(window.Bounds.Height - 480) <= 1);
+            await CheckOverlayChromeAsync(window, overlay);
+            Program.CaptureWindow(window, "smoke-gallery-caption-small.png");
+            await WindowChromeChecks.RunAsync(window);
+        }
+        finally
+        {
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            window.Width = width; window.Height = height;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1 && Math.Abs(window.Bounds.Height - height) <= 1);
+        }
+        await CheckOverlayChromeAsync(window, overlay);
     }
 
     private static async Task CheckDownloadOriginAsync(MainWindow window)

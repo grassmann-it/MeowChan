@@ -17,6 +17,7 @@ internal static class WindowChromeChecks
             "The shell still requests an OS title bar.");
         await CheckReachableAsync(window);
         WindowState original = window.WindowState;
+        Size originalBounds = window.Bounds.Size;
         Button maximize = window.FindControl<Button>("WindowMaximizeButton")!;
         try
         {
@@ -25,26 +26,66 @@ internal static class WindowChromeChecks
             Click(maximize);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized
                 && AutomationProperties.GetName(maximize) == Texts.T("window.restore"));
+            await WaitForMaximizedBoundsAsync(window);
             await CheckReachableAsync(window);
             Click(maximize);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
                 && AutomationProperties.GetName(maximize) == Texts.T("window.maximize"));
+            await WaitForNormalBoundsAsync(window, originalBounds);
+            await CheckReachableAsync(window);
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized);
+            await WaitForMaximizedBoundsAsync(window);
+            await CheckReachableAsync(window);
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
+            await WaitForNormalBoundsAsync(window, originalBounds);
+            await CheckReachableAsync(window);
             Click(window.FindControl<Button>("WindowMinimizeButton")!);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
             Require(window.IsVisible && window.ShowInTaskbar, "The minimize caption stranded the window.");
         }
+        catch
+        {
+            Console.WriteLine($"SMOKE caption sequence failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}; frame={window.FrameSize}; area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+            Program.CaptureWindow(window, "smoke-caption-sequence-failure.png");
+            throw;
+        }
         finally
         {
             window.WindowState = original;
+            // Preserve this fixture's input geometry even when a check fails.
+            if (original == WindowState.Normal)
+            {
+                window.Width = originalBounds.Width;
+                window.Height = originalBounds.Height;
+            }
             window.Activate();
-            await Program.WaitUntilAsync(() => window.WindowState == original);
+            try
+            {
+                await Program.WaitUntilAsync(() => window.WindowState == original
+                    && (original != WindowState.Normal || (Math.Abs(window.Bounds.Width - originalBounds.Width) <= 1
+                        && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)));
+            }
+            catch
+            {
+                Console.WriteLine($"SMOKE caption restore failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}.");
+                Program.CaptureWindow(window, "smoke-caption-restore-failure.png");
+                throw;
+            }
         }
         Console.WriteLine("SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed.");
     }
+
+    private static Task WaitForNormalBoundsAsync(MainWindow window, Size expected) => Program.WaitUntilAsync(() =>
+        Math.Abs(window.Bounds.Width - expected.Width) <= 1 && Math.Abs(window.Bounds.Height - expected.Height) <= 1);
+
+    private static Task WaitForMaximizedBoundsAsync(MainWindow window) => Program.WaitUntilAsync(() =>
+    {
+        Avalonia.Platform.Screen? screen = window.Screens.ScreenFromWindow(window);
+        return screen != null && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
+            && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
+    });
 
     private static void DoublePressHeader(MainWindow window)
     {

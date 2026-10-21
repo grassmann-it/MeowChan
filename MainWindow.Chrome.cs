@@ -40,9 +40,22 @@ public partial class MainWindow
         if (WindowState == WindowState.FullScreen) return;
         if (WindowState == WindowState.Maximized)
         {
-            if (CanResize) WindowState = WindowState.Normal;
+            if (CanResize)
+            {
+                _captionRestorePending = _captionRestoreSize.HasValue;
+                _captionRestoreFromSize = Bounds.Size;
+                WindowState = WindowState.Normal;
+            }
         }
-        else if (CanMaximize) WindowState = WindowState.Maximized;
+        else if (CanMaximize)
+        {
+            if (WindowState == WindowState.Normal)
+            {
+                _captionRestoreSize = Bounds.Size;
+                _captionRestoreMode = _config.WorkspaceMode;
+            }
+            WindowState = WindowState.Maximized;
+        }
     }
 
     // Use the same close path as the former OS caption, including MinimizeToTray
@@ -51,6 +64,9 @@ public partial class MainWindow
 
     private void OnWindowChromePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        // X11 can report the same state while a request awaits the window manager.
+        // Keep the restore snapshot until an actual state transition arrives.
+        if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)) CompleteCaptionRestore();
         if (e.Property == WindowStateProperty || e.Property == CanMinimizeProperty
             || e.Property == CanMaximizeProperty || e.Property == CanResizeProperty)
             UpdateWindowControls();
