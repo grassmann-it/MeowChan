@@ -2,15 +2,24 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## 0.9.0 candidate: final layout and DMG changes awaiting native validation
+## 0.9.0 candidate: native validation at `226af46`
+
+The frozen product source is `226af46bd834238162e4fd627f3801894c4da923`.
+[Full validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560402)
+and [native package/media validation](https://github.com/tfgrass/MeowChan/actions/runs/39662560567)
+are in progress. Local validation passed 259 desktop tests with one expected
+opt-in native-media skip, 154 script tests with one native Mac skip, and the
+isolated normal graphical workflow including per-mode column choices/reset,
+header-logo About and labeled navigation. This does not yet attest to the final
+native delivery matrix or user acceptance.
 
 The [native package/media run at source `1159543`](https://github.com/tfgrass/MeowChan/actions/runs/39658276164)
 passed Windows x64, macOS Intel/Apple Silicon, all three Linux formats on both
 CPUs, and macOS source pairing. That checkpoint predates the final per-mode
 layout settings, navigation icons and macOS DMG delivery. It is not the final
-user-test candidate. The separate validation run exposed viewport/transition
-fixture timing and a fake Linux tray-host protocol error; their harness fixes
-also need a fresh native run.
+user-test candidate. The separate earlier validation run exposed viewport/transition
+fixture timing and a fake Linux tray-host protocol error; the frozen source
+includes those harness fixes.
 
 The [screenshot provenance](screenshots/README.md) identifies the captured UI
 checkpoint. A fresh local NuGet consumer and bounded 4chan/8kun
