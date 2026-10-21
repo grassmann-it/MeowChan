@@ -24,9 +24,10 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            LinuxVideoPreflightResult? video = null;
             try
             {
-                LinuxVideoPreflightResult video = LinuxVideoPreflight.Check();
+                video = LinuxVideoPreflight.Check();
                 if (!video.Success)
                 {
                     // No session or watches exist yet. Bootstrap messages use the OS
@@ -43,7 +44,7 @@ public partial class App : Application
                 ShowStartupFailure(desktop, exception.Message);
             }
             if (desktop.MainWindow is Window window)
-                Program.StartupSmoke?.Attach(desktop, window);
+                Program.StartupSmoke?.Attach(desktop, window, video);
         }
 
         base.OnFrameworkInitializationCompleted();
