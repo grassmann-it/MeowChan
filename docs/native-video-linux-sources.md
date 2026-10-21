@@ -1,6 +1,9 @@
 # Linux video runtime and source inventory
 
 The bundled-VLC tar and AppImage contain a private Ubuntu 24.04 LibVLC 3 runtime.
+The minimum is 3.0.20, maintained with Ubuntu's distribution patches; the gallery
+does not require a 3.0.21-specific API. The version check supplements the required
+native playback gates and does not establish playback support by itself.
 The smaller system-VLC tar contains no LibVLC and requires a compatible system
 runtime before startup. Both Linux x64 and ARM64 have their own native packages.
 The AppImage contains the same bundled application payload as its bundled tar.

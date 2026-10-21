@@ -285,6 +285,14 @@ def reserve(path: Path, additional: int = 0) -> None:
         raise ValueError("Packaging requires at least 2 GiB free reserve after staging.")
 
 
+def check_vlc_version(version: str) -> None:
+    # Ubuntu 24.04 maintains 3.0.20 with distro security patches. The gallery
+    # uses the LibVLC 3 ABI and has no 3.0.21-specific API requirement.
+    number = re.match(r"3\.(\d+)\.(\d+)(?=\D|$)", version)
+    if not number or (int(number[1]), int(number[2])) < (0, 20):
+        raise ValueError(f"Installed VLC is below required 3.0.20 or outside the supported LibVLC 3 ABI: {version}; update the baseline packages.")
+
+
 def prepare_runtime(rid: str, output: Path) -> dict:
     native_host(rid)
     if output.exists():
@@ -297,9 +305,7 @@ def prepare_runtime(rid: str, output: Path) -> dict:
     library = ctypes.CDLL(str(inputs[0][0]))
     library.libvlc_get_version.restype = ctypes.c_char_p
     version = library.libvlc_get_version().decode()
-    number = re.match(r"3\.(\d+)\.(\d+)", version)
-    if not number or (int(number[1]), int(number[2])) < (0, 21):
-        raise ValueError(f"Installed VLC is below required 3.0.21: {version}; update the baseline packages.")
+    check_vlc_version(version)
     inputs += [(p, Path("lib/vlc/plugins") / p.relative_to(plugin_root)) for p in selected_plugins(plugin_root)]
     sources, edges = collect_closure(inputs, rid)
     mappings = []

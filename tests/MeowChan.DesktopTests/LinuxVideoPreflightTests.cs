@@ -12,7 +12,9 @@ public sealed class LinuxVideoPreflightTests : IDisposable
     public void Dispose() => Directory.Delete(_directory, true);
 
     [Theory]
-    [InlineData("3.0.20 Vetinari", false)]
+    [InlineData("3.0.19 Vetinari", false)]
+    [InlineData("3.0.20 Vetinari", true)]
+    [InlineData("3.0.20-3build6", true)]
     [InlineData("3.0.21 Vetinari", true)]
     [InlineData("3.0.24", true)]
     [InlineData("3.1.0", true)]
@@ -104,7 +106,7 @@ public sealed class LinuxVideoPreflightTests : IDisposable
         Marker("bundled", Payload());
         string alias = Path.Combine(_directory, "install-alias");
         Directory.CreateSymbolicLink(alias, _directory);
-        var result = LinuxVideoPreflight.Check(alias, "linux-x64", () => "3.0.21", () => { });
+        var result = LinuxVideoPreflight.Check(alias, "linux-x64", () => "3.0.20", () => { });
         Assert.True(result.Success, result.Diagnostic);
         string library = Path.Combine(Bundle, "lib/libvlc.so.5");
         File.Delete(library);
@@ -116,20 +118,20 @@ public sealed class LinuxVideoPreflightTests : IDisposable
     public void OldRuntimeAndEngineFailuresAreClassifiedWithoutFallback()
     {
         int engineCalls = 0;
-        var result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.20", () => engineCalls++);
+        var result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.19", () => engineCalls++);
         Assert.Equal(LinuxVideoPreflightErrorKind.SystemBackendUnsupportedVersion, result.Kind);
         Assert.Equal(0, engineCalls);
-        result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.21", () => throw new DllNotFoundException());
+        result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.20", () => throw new DllNotFoundException());
         Assert.Equal(LinuxVideoPreflightErrorKind.SystemBackendUnavailable, result.Kind);
         Marker("bundled", Payload());
-        result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.21", () => throw new DllNotFoundException());
+        result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.20", () => throw new DllNotFoundException());
         Assert.Equal(LinuxVideoPreflightErrorKind.BundleDamaged, result.Kind);
         result = LinuxVideoPreflight.Check(_directory, "linux-x64", () => "4.0.0", () => engineCalls++);
         Assert.Equal(LinuxVideoPreflightErrorKind.BundleDamaged, result.Kind);
         Assert.Equal(0, engineCalls);
     }
 
-    private LinuxVideoPreflightResult Check() => LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.21 Vetinari", () => { });
+    private LinuxVideoPreflightResult Check() => LinuxVideoPreflight.Check(_directory, "linux-x64", () => "3.0.20 Vetinari", () => { });
     private LinuxVideoPreflightResult CheckUntouched()
     {
         int calls = 0;

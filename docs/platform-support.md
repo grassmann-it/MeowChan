@@ -9,15 +9,15 @@ The next public release is planned as **stable 0.9.0** after completion, native 
 | Planned Linux artifact | Native VLC delivery |
 | --- | --- |
 | `MeowChan-0.9.0-linux-x64-bundled-vlc.tar.gz` | Private bundled VLC |
-| `MeowChan-0.9.0-linux-x64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.21 or newer |
+| `MeowChan-0.9.0-linux-x64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.20 or newer |
 | `MeowChan-0.9.0-linux-x64.AppImage` | Private bundled VLC |
 | `MeowChan-0.9.0-linux-arm64-bundled-vlc.tar.gz` | Private bundled VLC |
-| `MeowChan-0.9.0-linux-arm64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.21 or newer |
+| `MeowChan-0.9.0-linux-arm64-system-vlc.tar.gz` | System LibVLC 3, version 3.0.20 or newer |
 | `MeowChan-0.9.0-linux-arm64.AppImage` | Private bundled VLC |
 
 This is the agreed delivery matrix, not a claim that these artifacts are already built, published or accepted. Bundled tar archives and AppImages avoid a separate VLC installation; system-VLC tar archives are smaller. All still require a compatible native Linux desktop. The tar root contains `MeowChan`; AppImages launch through AppRun. See [startup and AppImage instructions](Help.md#linux-packages-and-startup).
 
-Source `21c2813` adds mandatory Linux preflight **before session startup**: load the selected backend, require VLC major version 3 at least 3.0.21, and initialize an engine. Missing, unsupported or unusable system VLC produces a dismissible installation hint, then exit code **2**. Bundled runtime integrity/metadata or load failures require re-extracting the complete package; they never trigger a system-VLC fallback. This check does not guarantee that every media file decodes: unsupported/corrupt files remain per-file preview/playback errors. Linux accepts the runtime ABI `libvlc.so.5`, without development symlinks.
+Linux preflight runs **before session startup**: load the selected backend, require VLC major version 3 at least 3.0.20, and initialize an engine. The minimum includes the distro-maintained Ubuntu 24.04 runtime; no API used by MeowChan requires 3.0.21. Native packaged playback remains a separate acceptance gate. Missing, unsupported or unusable system VLC produces a dismissible installation hint, then exit code **2**. Bundled runtime integrity/metadata or load failures require re-extracting the complete package; they never trigger a system-VLC fallback. This check does not guarantee that every media file decodes: unsupported/corrupt files remain per-file preview/playback errors. Linux accepts the runtime ABI `libvlc.so.5`, without development symlinks.
 
 Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The six screenshots remain valid interface evidence because these delivery/startup changes do not change the running UI.
 
@@ -38,7 +38,7 @@ before disposal completes. This does not download external media or install VLC.
 
 | Target | Native video runtime |
 | --- | --- |
-| Linux x64 / Arm64 | Private bundled VLC in bundled tar/AppImage variants, or system LibVLC **3**, version **3.0.21 or newer**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins in system variants |
+| Linux x64 / Arm64 | Private bundled VLC in bundled tar/AppImage variants, or system LibVLC **3**, version **3.0.20 or newer**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins in system variants |
 | Windows x64 | Official VideoLAN.LibVLC.Windows 3.0.24, selected `libvlc/win-x64` tree |
 | macOS x64 / Arm64 | Official VideoLAN.LibVLC.Mac 3.1.3.2, selected `libvlc/<RID>/lib` tree |
 

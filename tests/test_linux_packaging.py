@@ -40,6 +40,13 @@ class LinuxPackagingTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_ubuntu_maintained_vlc_3020_supported_without_allowing_older_or_other_abi(self):
+        for version in ("3.0.20 Vetinari", "3.0.21 Vetinari", "3.0.22", "3.1.0"):
+            pack.check_vlc_version(version)
+        for version in ("3.0.19 Vetinari", "2.2.8", "4.0.0", "not a version"):
+            with self.assertRaises(ValueError):
+                pack.check_vlc_version(version)
+
     def test_architecture_checked_from_real_header_not_filename(self):
         path = self.root / "misleading-aarch64.so"
         path.write_bytes(elf())

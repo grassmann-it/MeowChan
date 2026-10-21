@@ -33,7 +33,9 @@ internal sealed record LinuxVideoPreflightResult(
 
 internal static class LinuxVideoPreflight
 {
-    internal const string MinimumVersion = "3.0.21";
+    // Ubuntu 24.04 maintains VLC 3.0.20 with distribution patches. The APIs we
+    // use predate this release; codec/output coverage is checked by package playback gates.
+    internal const string MinimumVersion = "3.0.20";
 
     internal static LinuxVideoPreflightResult Check() => !OperatingSystem.IsLinux()
         ? new(LinuxVideoPreflightErrorKind.None)

@@ -30,7 +30,7 @@ The new delivery variants below are planned for 0.9.0 and still require their fi
 | Planned filename | VLC requirement |
 | --- | --- |
 | `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
-| `MeowChan-0.9.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.21 or newer, and its media/output plugins first. |
+| `MeowChan-0.9.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 | `MeowChan-0.9.0-<RID>.AppImage` | Includes VLC; make executable and run. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
