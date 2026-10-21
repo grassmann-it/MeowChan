@@ -129,7 +129,7 @@ internal static class WindowChromeChecks
             && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
     });
 
-    private static bool MacMaximizedBoundsMatch(MainWindow window)
+    internal static bool MacMaximizedBoundsMatch(MainWindow window)
     {
         // Avalonia.Native 12.1.4 DoZoom sets NSWindow.frame to its NSScreen's
         // current visibleFrame. Screens.WorkingArea is a separate cached snapshot

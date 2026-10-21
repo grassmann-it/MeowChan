@@ -118,6 +118,7 @@ internal static class ShellPresentationChecks
         Size frame = window.FrameSize ?? window.ClientSize;
         if (window.WindowState != WindowState.Maximized || window.Screens.ScreenFromWindow(window) is not { } screen)
             return false;
+        if (OperatingSystem.IsMacOS()) return WindowChromeChecks.MacMaximizedBoundsMatch(window);
         if (OperatingSystem.IsWindows())
         {
             // Windows maximizes the client to the work area while its invisible
