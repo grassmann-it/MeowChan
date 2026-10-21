@@ -317,6 +317,21 @@ int main(int argc, char **argv) {
                 result = subprocess.run([str(invocation / "Contents/MacOS/MeowChan"), str(invocation / "Contents/Resources/application/libvlc" / runtime / "lib/vlc/plugins/libfixture_plugin.dylib")], cwd=self.root, capture_output=True, text=True, check=False)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertIn("BUNDLE IDENTITY PASS", result.stdout)
+        dmg_spec = importlib.util.spec_from_file_location('meowchan_macos_dmg', SCRIPT.with_name('package-macos-dmg.py'))
+        dmg_module = importlib.util.module_from_spec(dmg_spec)
+        dmg_spec.loader.exec_module(dmg_module)
+        copied_root = self.root / 'installed from DMG with spaces'
+        dmg = self.root / f'MeowChan-1.0.0-{runtime}.dmg'
+        dmg_report = dmg_module.create_and_verify(bundle, dmg, copied_root, runtime)
+        self.assertTrue(dmg_report['mountedAndCopied'])
+        self.assertEqual('/Applications', dmg_report['applicationsShortcut'])
+        self.assertTrue(dmg.is_file())
+        copied_bundle = copied_root / 'MeowChan.app'
+        result = subprocess.run([str(copied_bundle / 'Contents/MacOS/MeowChan'),
+                                 str(copied_bundle / 'Contents/Resources/application/libvlc' / runtime / 'lib/vlc/plugins/libfixture_plugin.dylib')],
+                                cwd=self.root, capture_output=True, text=True, check=False)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn('BUNDLE IDENTITY PASS', result.stdout)
         self.assertIn("@rpath/libvlccore.dylib", packaging.signing_module().load_commands(packaging.signing_module().run("/usr/bin/otool", "-l", plugin))[0])
         self.assertTrue(report["signatures_verified"])
         # A sealed resource mutation must invalidate the bundle signature.

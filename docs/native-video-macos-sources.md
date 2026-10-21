@@ -33,7 +33,7 @@ linked into the selected Mac package.
 
 ## Two source assets for each binary release
 
-Offer both assets alongside the matching binary ZIPs and include all hashes in
+Offer both assets alongside the matching binary DMGs and include all hashes in
 the same release checksums. Upstream URLs alone are not the source mechanism.
 
 1. The unchanged **`MeowChan-0.9.0-video-sources.tar.gz`**, 725131331 bytes,
@@ -43,20 +43,20 @@ the same release checksums. Upstream URLs alone are not the source mechanism.
    source inputs, all upstream contrib recipes/patches and LibVLCSharp source.
    The Windows installer-only WiX binary is excluded; it is not a Mac source input.
 2. **`MeowChan-<version>-macos-video-source-overlay.tar.gz`**, generated for the
-   exact committed application source and final binary ZIPs. It contains the
+   exact committed application source and final binary DMGs. It contains the
    complete editable application source as `application-source.tar`, exact
    packaging/signing scripts and locks, these notices, original-to-packaged
-   native-file hashes per RID, binary ZIP sizes/hashes and an internal checksum
+   native-file hashes per RID, public DMG hashes, internal inventory ZIP hashes and an internal checksum
    inventory. Its generated `manifest.json` identifies the immutable base.
 
 The generator archives committed Git contents only; local or ignored files are
 not included. The base remains unchanged and is neither duplicated nor repacked.
 The overlay can cover one or both architectures; its manifest lists exactly which
-ZIPs it covers. Native validation reports can be retained alongside their hashes;
+DMGs it covers. Native validation reports can be retained alongside their hashes;
 the generator does not infer Apple signature validity, playback or Gatekeeper
 acceptance from file hashes.
 
-Example, run after the final source changes are committed and the matching ZIPs
+Example, run after the final source changes are committed and the matching DMGs
 have passed native validation (substitute an exact 40-character commit):
 
 ```sh
@@ -65,12 +65,14 @@ python3 scripts/package-macos-sources.py \
   --base /path/to/MeowChan-0.9.0-video-sources.tar.gz \
   --binary-zip osx-arm64=/path/to/MeowChan-0.9.0-osx-arm64.zip \
   --binary-zip osx-x64=/path/to/MeowChan-0.9.0-osx-x64.zip \
+  --binary-dmg osx-arm64=/path/to/MeowChan-0.9.0-osx-arm64.dmg \
+  --binary-dmg osx-x64=/path/to/MeowChan-0.9.0-osx-x64.dmg \
   --validation-report osx-arm64=/path/to/arm64-native-validation.json \
   --validation-report osx-x64=/path/to/intel-native-validation.json \
   --output /path/to/MeowChan-0.9.0-macos-video-source-overlay.tar.gz
 ```
 
-The command verifies the base hash, each final ZIP's bundle version, the complete
+The command binds each final DMG hash and verifies the base hash, each internal inventory ZIP's bundle version, the complete
 native path set (including the retained GPL plugins), unchanged native data, and
 byte-identical source notices in each ZIP. It records final library hashes after
 load-command repairs and ad-hoc signing. It rejects stale/missing notices and
@@ -160,6 +162,8 @@ dotnet publish MeowChan.csproj -c Release -r osx-arm64 --self-contained true \
   --no-restore -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true --output publish-output
 python3 scripts/package-macos.py --publish-dir publish-output --output-dir packaged \
   --runtime osx-arm64 --version 0.9.0 --sign-adhoc --archive MeowChan-0.9.0-osx-arm64.zip
+python3 scripts/package-macos-dmg.py --bundle packaged/MeowChan.app \
+  --dmg MeowChan-0.9.0-osx-arm64.dmg --copied-root installed-from-dmg --runtime osx-arm64
 ```
 
 Use the chosen source version and RID consistently. After modifying dependencies,

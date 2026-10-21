@@ -3,14 +3,14 @@
 ## Standard 0.9.0 macOS packages
 
 The standard macOS distribution is a complete self-contained `MeowChan.app` in
-one ZIP per architecture:
+one disk image per architecture:
 
-- `MeowChan-<version>-osx-arm64.zip` for Apple Silicon.
-- `MeowChan-<version>-osx-x64.zip` for Intel Macs.
+- `MeowChan-<version>-osx-arm64.dmg` for Apple Silicon.
+- `MeowChan-<version>-osx-x64.dmg` for Intel Macs.
 
 The native packaging step applies an **ad-hoc signature**, without Apple
 Developer ID, hardened runtime or notarization. No Apple certificate is required.
-The ZIP includes the matching .NET runtime and selected VLC libraries/plugins;
+The app in the DMG includes the matching .NET runtime and selected VLC libraries/plugins;
 keep the entire app bundle together. Homebrew source builds remain an optional
 route, rather than a prerequisite for installing the packaged app.
 
@@ -20,7 +20,8 @@ exact source `672b45db89b469a04904335f17b6ae3d9ec83492`: **33/33 fixtures per
 architecture**, including strict runtime CFBundle identity/icon lookups and
 direct/whole-app alias cases in the native fixtures. Separately, the actual product
 passed package metadata/icon validation, signatures, native dependency closure,
-ZIP round-trip and extracted .NET app startup/graceful shutdown. This does not
+ZIP round-trip and extracted .NET app startup/graceful shutdown. That checkpoint
+predates DMG distribution and does not validate a mounted DMG. It does not
 claim identity/icon runtime introspection inside the actual .NET process.
 See [the platform evidence](platform-support.md#native-macos-package-and-startup-checkpoint--672b45d).
 An ad-hoc signature does not establish developer identity or automatic Gatekeeper
@@ -28,7 +29,8 @@ approval. Playback, audio, real hardware and downloaded/quarantined-copy approva
 remain unvalidated. This is not a public Mac release or a corresponding-source
 closure claim.
 
-Extract the complete archive and open `MeowChan.app` in Finder. If macOS blocks
+Open the DMG in Finder, drag `MeowChan.app` to the **Applications** shortcut, then
+open the installed app. Keep the whole app bundle intact. If macOS blocks
 it because the developer cannot be verified, and you trust the downloaded source,
 open **System Settings → Privacy & Security**, find the blocked-app notice and
 choose **Open Anyway**, then confirm **Open** and authenticate if requested.
@@ -41,14 +43,16 @@ See [Apple's guidance for opening an app from an unidentified developer](https:/
 ## Ad-hoc packaging contract
 
 The packager interface is `scripts/package-macos.py --runtime osx-arm64` (or
-`osx-x64`) with `--sign-adhoc` and `--archive <output>.zip`, alongside its publish,
-output and version arguments. `scripts/macos-signing.py` provides the signing and
-validation helper. Complete binary/install-name changes first, then sign every
+`osx-x64`) with `--sign-adhoc` and an internal `--archive <output>.zip`, alongside
+its publish, output and version arguments. `scripts/package-macos-dmg.py` builds
+the public DMG from the signed bundle, mounts it read-only, checks the Applications
+shortcut and signed contents, and copies the app out for actual execution.
+`scripts/macos-signing.py` provides the signing and validation helper. Complete binary/install-name changes first, then sign every
 nested Mach-O file from inside outward and the bundle last. Apply the explicit
 CoreCLR entitlements to the actual .NET apphost; do not copy them onto every
 library. The ad-hoc route does not enable hardened runtime.
 
-The current signed ZIP implementation places the real .NET executable physically
+The current signed bundle implementation places the real .NET executable physically
 at `MeowChan.app/Contents/MacOS/MeowChan`, where it carries the four CoreCLR
 entitlements and serves as the bundle's main executable. All other publish entries
 (runtime dylibs, VLC tree, licenses and documentation) live under
@@ -64,8 +68,12 @@ Legacy unsigned/Homebrew bundles keep the publish output in `Contents/MacOS`.
 Self-contained publishing uses `PublishSingleFile=false` so native .NET libraries
 remain visible for final signing; users still need no separate .NET installation.
 
-The ZIP is created with `ditto`; a fresh extraction must revalidate signatures,
-architecture, native dependency closure and bundle contents. Signature validation
+The internal inventory ZIP is created with `ditto`; a fresh extraction revalidates
+signatures and bundle contents. The DMG is created with `hdiutil`, mounted read-only,
+and its app is checked against the signed bundle before and after copying outside
+the image. The copied app undergoes architecture, signature and dependency closure
+checks plus native startup; package-media validation also runs playback and the
+desktop workflow from that copy. Signature validation
 alone does not prove .NET JIT startup, VLC plugin loading/playback or shutdown.
 The extracted .NET startup/shutdown check passed on both architectures at the
 checkpoint above. VLC plugin playback and a downloaded/quarantined-copy check of
@@ -74,7 +82,7 @@ the manual approval flow still require separate evidence.
 ## Optional later Developer ID and notarized distribution
 
 The procedure below is a future optional distribution route, not a gate for the
-initial ad-hoc 0.9.0 ZIP packages. It requires separately provisioned Apple
+initial ad-hoc 0.9.0 DMG packages. It requires separately provisioned Apple
 credentials and native Mac validation; none of the steps is claimed as completed.
 It is independent of the Windows preview.
 

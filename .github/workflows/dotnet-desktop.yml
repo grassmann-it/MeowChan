@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Full validation, package-media playback, Linux distributions, native macOS ZIP packaging, offline diagnosis, or optional Homebrew
+        description: Full validation, package-media playback, Linux distributions, native macOS DMG packaging, offline diagnosis, or optional Homebrew
         type: choice
         required: true
         default: validate
@@ -309,32 +309,33 @@ jobs:
           python3 scripts/check-video-native.py artifacts/macos-publish ${{ matrix.runtime }}
       - name: Sign app inside-out and verify ZIP round trip
         run: python3 scripts/package-macos.py --publish-dir artifacts/macos-publish --output-dir artifacts/macos-bundle --version ${{ steps.metadata.outputs.version }} --runtime ${{ matrix.runtime }} --sign-adhoc --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip
-      - name: Retain signature and closure evidence from extracted ZIP
+      - name: Create DMG and verify mounted, copied app and Applications shortcut
+        run: python3 scripts/package-macos-dmg.py --bundle artifacts/macos-bundle/MeowChan.app --dmg artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.dmg --copied-root artifacts/macos-extracted --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/dmg.json
+      - name: Retain signature and closure evidence from DMG-installed app
         shell: bash
         run: |
-          mkdir -p artifacts/macos-extracted
-          archive="artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip"
-          ditto -x -k "$archive" artifacts/macos-extracted
+          archive="artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.dmg"
           python3 scripts/check-desktop-package.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/macos-evidence/contents.json
           python3 scripts/macos-signing.py artifacts/macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/signatures.json
           python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/Resources/application ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
           shasum -a 256 "$archive" > "$archive.sha256"
           cp "$archive.sha256" artifacts/macos-evidence/archive.sha256
-          echo "Native self-contained ad-hoc ZIP; no Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
-      - name: Start and gracefully stop the actual extracted apphost
+          echo "Native self-contained ad-hoc DMG; mounted and copied app verified. No Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
+      - name: Start and gracefully stop the actual DMG-installed apphost
         run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
-      - name: Exercise native gallery playback from the extracted apphost
+      - name: Exercise native gallery playback from the DMG-installed apphost
         if: inputs.mode == 'package-media'
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
-      - name: Exercise the extracted apphost download, restore, export and desktop workflow
+      - name: Exercise the DMG-installed apphost download, restore, export and desktop workflow
         if: inputs.mode == 'package-media'
         run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
-      - name: Retain playback-verified native ZIP candidate and evidence
+      - name: Retain playback-verified native DMG candidate, inventory ZIP and evidence
         if: inputs.mode == 'package-media'
         uses: actions/upload-artifact@v7
         with:
           name: macos-native-candidate-${{ matrix.runtime }}
           path: |
+            artifacts/macos-packages/*.dmg
             artifacts/macos-packages/*.zip
             artifacts/macos-evidence/**
           if-no-files-found: error
@@ -567,12 +568,20 @@ jobs:
               assert (evidence / 'source.txt').read_text().strip() == commit, 'Native source mismatch'
               version = (evidence / 'version.txt').read_text().strip()
               versions.add(version)
+              dmg = directory / 'macos-packages' / f'MeowChan-{version}-{rid}.dmg'
+              digest = hashlib.file_digest(dmg.open('rb'), 'sha256').hexdigest()
+              assert (evidence / 'archive.sha256').read_text().split()[0] == digest, 'Final DMG hash mismatch'
+              dmg_report = json.loads((evidence / 'dmg.json').read_text())
+              assert dmg_report['runtime'] == rid and dmg_report['dmg'] == dmg.name
+              assert dmg_report['dmgSha256'] == digest and dmg_report['mountedAndCopied'] is True
+              assert dmg_report['applicationsShortcut'] == '/Applications'
+              assert dmg_report['sourceSignatures']['files'] == dmg_report['copiedSignatures']['files']
               archive = directory / 'macos-packages' / f'MeowChan-{version}-{rid}.zip'
-              digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
-              assert (evidence / 'archive.sha256').read_text().split()[0] == digest, 'Final ZIP hash mismatch'
+              archive_digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
               signatures = json.loads((evidence / 'signatures.json').read_text())
               assert signatures['runtime'] == rid
               assert all(signatures[key] is True for key in ('signatures_verified', 'dependency_closure', 'coreclr_entitlements_verified'))
+              assert signatures['files'] == dmg_report['copiedSignatures']['files'], 'DMG-installed signature inventory mismatch'
               startup = json.loads((evidence / 'apphost-startup.json').read_text())
               assert startup['passed'] is True and startup['exit_code'] == 0 and startup['outer_timeout'] is False
               playback = json.loads((evidence / 'playback/playback.json').read_text())
@@ -580,7 +589,7 @@ jobs:
               workflow = json.loads((evidence / 'workflow/workflow.json').read_text())
               assert workflow['passed'] is True and workflow['completed'] is True
               assert workflow['declaredSourceCommit'] == commit and workflow['declaredRuntime'] == rid
-              assert workflow['archiveBinding']['sha256'] == digest
+              assert workflow['archiveBinding']['sha256'] == archive_digest
               closure = workflow['archiveClosure']
               assert closure['verifiedBeforeRun'] is True and closure['verifiedAfterRun'] is True
               archive_entries = workflow_runner.archive_entries(archive)
@@ -610,9 +619,12 @@ jobs:
                   apphost_hash = hashlib.sha256(package.read('MeowChan.app/Contents/MacOS/MeowChan')).hexdigest()
               assert playback['apphostSha256'] == apphost_hash, 'Playback apphost differs from final ZIP'
               assert workflow['apphostSha256'] == apphost_hash == workflow['archiveBinding']['memberSha256'], 'Workflow apphost differs from final ZIP'
-              shutil.copy2(archive, output / archive.name)
+              assert dmg_report['apphostSha256'] == apphost_hash, 'Mounted DMG apphost differs from inventory ZIP'
+              shutil.copy2(dmg, output / dmg.name)
               shutil.copytree(evidence, output / 'evidence' / rid)
-              report = {'source_commit': commit, 'rid': rid, 'archive_sha256': digest,
+              shutil.copy2(archive, output / 'evidence' / rid / archive.name)
+              report = {'source_commit': commit, 'rid': rid, 'dmg_sha256': digest,
+                        'inventory_zip_sha256': archive_digest, 'dmg_validation': dmg_report,
                         'signatures': signatures, 'startup': startup, 'playback': playback, 'workflow': workflow}
               (output / f'{rid}-native-validation.json').write_text(json.dumps(report, indent=2) + '\n')
           assert len(versions) == 1, 'Native versions differ'
@@ -627,7 +639,7 @@ jobs:
           curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/tfgrass/MeowChan/releases/download/v0.9.0-preview.3/MeowChan-0.9.0-video-sources.tar.gz
           test "$(stat -c %s "$base")" = 725131331
           echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
-      - name: Generate source overlay bound to both final native ZIPs
+      - name: Generate source overlay bound to both final native DMGs
         shell: bash
         run: |
           candidate=artifacts/macos-candidate
@@ -635,8 +647,10 @@ jobs:
           python3 scripts/package-macos-sources.py \
             --source-commit "$GITHUB_SHA" --version "$version" \
             --base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz \
-            --binary-zip "osx-arm64=$candidate/MeowChan-$version-osx-arm64.zip" \
-            --binary-zip "osx-x64=$candidate/MeowChan-$version-osx-x64.zip" \
+            --binary-zip "osx-arm64=$candidate/evidence/osx-arm64/MeowChan-$version-osx-arm64.zip" \
+            --binary-zip "osx-x64=$candidate/evidence/osx-x64/MeowChan-$version-osx-x64.zip" \
+            --binary-dmg "osx-arm64=$candidate/MeowChan-$version-osx-arm64.dmg" \
+            --binary-dmg "osx-x64=$candidate/MeowChan-$version-osx-x64.dmg" \
             --validation-report "osx-arm64=$candidate/osx-arm64-native-validation.json" \
             --validation-report "osx-x64=$candidate/osx-x64-native-validation.json" \
             --output "$candidate/MeowChan-$version-macos-video-source-overlay.tar.gz" \
@@ -650,13 +664,13 @@ jobs:
           assert manifest['application_source_commit'] == os.environ['GITHUB_SHA']
           assert set(manifest['architectures']) == {'osx-arm64', 'osx-x64'}
           for rid, record in manifest['architectures'].items():
-              binary = candidate / record['signed_zip']['file']
+              binary = candidate / record['signed_dmg']['file']
               with binary.open('rb') as data:
-                  assert hashlib.file_digest(data, 'sha256').hexdigest() == record['signed_zip']['sha256']
+                  assert hashlib.file_digest(data, 'sha256').hexdigest() == record['signed_dmg']['sha256']
           base = manifest['source_base']
           base['url'] = 'https://github.com/tfgrass/MeowChan/releases/download/v0.9.0-preview.3/' + base['file']
           (candidate / 'source-base.json').write_text(json.dumps(base, indent=2) + '\n')
-          (candidate / 'README.txt').write_text('CI candidates only; no public release. Both ZIPs and the source overlay bind to source.txt.\nUse the unchanged public source base identified in source-base.json together with the overlay.\nThe base is not duplicated in this CI artifact. A future release must offer both source assets.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
+          (candidate / 'README.txt').write_text('CI candidates only; no public release. Both DMGs and the source overlay bind to source.txt. ZIPs are retained only for inventory verification.\nUse the unchanged public source base identified in source-base.json together with the overlay.\nThe base is not duplicated in this CI artifact. A future release must offer both source assets.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
           lines = []
           for path in sorted(candidate.rglob('*')):
               if path.is_file() and path.name != 'SHA256SUMS':
@@ -665,7 +679,7 @@ jobs:
           (candidate / 'SHA256SUMS').write_text(''.join(lines))
           PY
           (cd "$candidate" && sha256sum --check --strict SHA256SUMS)
-      - name: Retain paired native ZIP and source-overlay candidates
+      - name: Retain paired native DMG and source-overlay candidates
         uses: actions/upload-artifact@v7
         with:
           name: macos-paired-candidate-${{ github.sha }}

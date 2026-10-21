@@ -27,9 +27,10 @@
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "architecture": {
-      "type": "object", "additionalProperties": false, "required": ["signed_zip", "inventory"],
+      "type": "object", "additionalProperties": false, "required": ["signed_dmg", "inventory_zip", "inventory"],
       "properties": {
-        "signed_zip": {"$ref": "#/$defs/asset"},
+        "signed_dmg": {"$ref": "#/$defs/asset"},
+        "inventory_zip": {"$ref": "#/$defs/asset"},
         "inventory": {"type": "string", "enum": ["binary-inventories/osx-arm64.json", "binary-inventories/osx-x64.json"]}
       }
     },

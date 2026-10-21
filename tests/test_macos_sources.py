@@ -48,6 +48,8 @@ class MacSourceOverlayTests(unittest.TestCase):
                  "commit", "--quiet", "-m", "source fixture")
         self.commit = self.git("rev-parse", "HEAD").strip()
         self.binary = self.root / "MeowChan-0.9.0-osx-arm64.zip"
+        self.dmg = self.root / "MeowChan-0.9.0-osx-arm64.dmg"
+        self.dmg.write_bytes(b"fixture dmg bytes: mounted copy is checked on native macOS")
         self.write_zip()
 
     def git(self, *arguments):
@@ -69,7 +71,7 @@ class MacSourceOverlayTests(unittest.TestCase):
     def generate(self, name):
         output = self.root / name
         result = SOURCES.generate(self.repository, self.commit, self.base,
-                                  {"osx-arm64": self.binary}, {}, "0.9.0", output)
+                                  {"osx-arm64": self.binary}, {"osx-arm64": self.dmg}, {}, "0.9.0", output)
         return output, result
 
     def test_identical_inputs_give_identical_archive_and_complete_mapping(self):
@@ -84,6 +86,8 @@ class MacSourceOverlayTests(unittest.TestCase):
             self.assertEqual(self.commit, manifest["application_source_commit"])
             inventory = json.load(archive.extractfile("binary-inventories/osx-arm64.json"))
             self.assertEqual(SOURCES.file_record(self.binary), inventory["signed_zip"])
+            self.assertEqual(SOURCES.file_record(self.dmg), inventory["signed_dmg"])
+            self.assertEqual(SOURCES.file_record(self.dmg), manifest["architectures"]["osx-arm64"]["signed_dmg"])
             self.assertEqual(4, len(inventory["native_files"]))
             self.assertEqual(3, sum(row["bytes_changed"] for row in inventory["native_files"]))
             source = archive.extractfile("application-source.tar").read()
@@ -109,6 +113,12 @@ class MacSourceOverlayTests(unittest.TestCase):
             SOURCES.committed_sources(self.repository, "HEAD")
         self.base.write_bytes(b"changed immutable source base")
         with self.assertRaisesRegex(ValueError, "base size/hash mismatch"):
+            self.generate("rejected.tar.gz")
+
+    def test_dmg_must_match_version_and_rid(self):
+        self.dmg.rename(self.root / "wrong.dmg")
+        self.dmg = self.root / "wrong.dmg"
+        with self.assertRaisesRegex(ValueError, "DMG filename"):
             self.generate("rejected.tar.gz")
 
     def test_native_data_changes_and_existing_output_are_rejected(self):
