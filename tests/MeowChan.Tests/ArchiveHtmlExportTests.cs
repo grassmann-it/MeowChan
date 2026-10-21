@@ -409,6 +409,84 @@ public sealed class ArchiveHtmlExportTests
     }
 
     [Fact]
+    public async Task ChangedLengthThenSameLengthEditInvalidatesSelectedReplacement()
+    {
+        using TempDirectory directory = new();
+        string profile = Path.Combine(directory.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.CaptureAsync(Snapshot(profile));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        string destination = Path.Combine(directory.Path, "export");
+        ArchiveHtmlExportResult first = await ArchiveHtmlExporter.ExportAsync(reader, Id, destination, new(false));
+        await File.AppendAllTextAsync(first.IndexPath, "A");
+        ArchiveExportInspection selected = await ArchiveHtmlExporter.InspectAsync(destination, Id);
+        Assert.Contains("index.html", selected.ModifiedPaths);
+        await File.WriteAllTextAsync(first.IndexPath, (await File.ReadAllTextAsync(first.IndexPath))[..^1] + "B");
+
+        await Assert.ThrowsAsync<IOException>(() => ArchiveHtmlExporter.UpdateAsync(reader, Id, destination,
+            first.Metadata!.ExportId, 1, new(false), confirmPreserveBackup: true,
+            expectedObservedFingerprint: selected.ObservedFingerprint));
+        Assert.Equal(1, (await ArchiveHtmlExporter.InspectAsync(destination, Id)).Metadata.Generation);
+    }
+
+    [Fact]
+    public async Task HistoryLoadRestoresOnlyMatchingJournaledFallbackAfterOldRename()
+    {
+        using TempDirectory directory = new();
+        string profile = Path.Combine(directory.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.CaptureAsync(Snapshot(profile));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        string destination = Path.Combine(directory.Path, "export");
+        ArchiveHtmlExportResult first = await ArchiveHtmlExporter.ExportAsync(reader, Id, destination, new(false));
+        ExportHistoryStore history = new(profile, lease);
+        Assert.True((await history.RecordPublishedAsync(first)).HistoryRecorded);
+        ArchiveExportInspection before = await ArchiveHtmlExporter.InspectAsync(destination, Id);
+        string backupName = ".meowchan-export-backup-" + Guid.NewGuid().ToString("N");
+        string backup = Path.Combine(directory.Path, backupName);
+        string journal = Path.Combine(directory.Path, ".meowchan-export-journal-" + ArchiveExportTargetLease.Key(destination) + ".json");
+        await File.WriteAllTextAsync(journal, System.Text.Json.JsonSerializer.Serialize(
+            new ArchiveExportJournal(backupName, first.Metadata!.ExportId, 2, false, before.ObservedFingerprint)));
+        Directory.Move(destination, backup);
+
+        (ExportHistoryEntry _, ArchiveExportInspection? inspection) = Assert.Single(await history.ListVerifiedAsync(Id));
+        Assert.NotNull(inspection);
+        Assert.Equal(1, inspection.Metadata.Generation);
+        Assert.True(Directory.Exists(destination));
+        Assert.False(Directory.Exists(backup));
+        Assert.False(File.Exists(journal));
+    }
+
+    [Fact]
+    public async Task HistoryLoadLeavesMismatchedFallbackAndJournalUntouched()
+    {
+        using TempDirectory directory = new();
+        string profile = Path.Combine(directory.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.CaptureAsync(Snapshot(profile));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        string destination = Path.Combine(directory.Path, "export");
+        ArchiveHtmlExportResult first = await ArchiveHtmlExporter.ExportAsync(reader, Id, destination, new(false));
+        ExportHistoryStore history = new(profile, lease);
+        Assert.True((await history.RecordPublishedAsync(first)).HistoryRecorded);
+        ArchiveExportInspection before = await ArchiveHtmlExporter.InspectAsync(destination, Id);
+        string backupName = ".meowchan-export-backup-" + Guid.NewGuid().ToString("N");
+        string backup = Path.Combine(directory.Path, backupName);
+        string journal = Path.Combine(directory.Path, ".meowchan-export-journal-" + ArchiveExportTargetLease.Key(destination) + ".json");
+        await File.WriteAllTextAsync(journal, System.Text.Json.JsonSerializer.Serialize(
+            new ArchiveExportJournal(backupName, Guid.NewGuid(), 2, false, before.ObservedFingerprint)));
+        Directory.Move(destination, backup);
+
+        Assert.Null(Assert.Single(await history.ListVerifiedAsync(Id)).Inspection);
+        Assert.False(Directory.Exists(destination));
+        Assert.True(Directory.Exists(backup));
+        Assert.True(File.Exists(journal));
+    }
+
+    [Fact]
     public async Task SymlinkedInventoryFileCannotBeUsedAsUpdateTarget()
     {
         using TempDirectory directory = new();

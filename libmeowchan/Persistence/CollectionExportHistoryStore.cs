@@ -44,6 +44,7 @@ public sealed class CollectionExportHistoryStore
             token.ThrowIfCancellationRequested();
             try
             {
+                ArchiveCollectionExportReplacement.RecoverHistory(entry.Destination, members, entry.ExportId, entry.Generation);
                 ArchiveCollectionExportInspection inspection = await ArchiveCollectionExportMetadataFile.InspectAsync(entry.Destination, members, token).ConfigureAwait(false);
                 entries.Add((entry, inspection.Metadata.ExportId == entry.ExportId &&
                     inspection.Metadata.Generation == entry.Generation ? inspection : null));

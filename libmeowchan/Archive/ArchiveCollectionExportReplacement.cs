@@ -16,6 +16,35 @@ internal static class ArchiveCollectionExportReplacement
     private static string JournalPath(string destination) => Path.Combine(Path.GetDirectoryName(destination)!,
         ".meowchan-collection-export-journal-" + ArchiveExportTargetLease.Key(destination) + ".json");
 
+    /// <summary>Restores only a missing history destination backed by its exact interrupted update.</summary>
+    internal static void RecoverHistory(string destination, System.Collections.Generic.IReadOnlyList<ResourceId> members, Guid exportId, int generation)
+    {
+        if (!Path.IsPathFullyQualified(destination) || Path.GetDirectoryName(destination) == null) return;
+        if (Directory.Exists(destination) || File.Exists(destination) || !File.Exists(JournalPath(destination))) return;
+        using ArchiveExportTargetLease lease = ArchiveExportTargetLease.Acquire(destination);
+        if (Directory.Exists(destination) || File.Exists(destination)) return;
+        string journalPath = JournalPath(destination);
+        if (!File.Exists(journalPath)) return;
+        FileInfo info = new(journalPath);
+        if (info.LinkTarget != null || info.Length > 2048) throw new InvalidDataException("Export recovery journal is unsafe.");
+        ArchiveCollectionExportJournal? journal;
+        try { journal = JsonSerializer.Deserialize<ArchiveCollectionExportJournal>(File.ReadAllText(journalPath)); }
+        catch (JsonException ex) { throw new InvalidDataException("Export recovery journal is invalid.", ex); }
+        if (journal == null || journal.ExportId != exportId || journal.Generation != (long)generation + 1 ||
+            journal.BackupFingerprint == null || journal.BackupFingerprint.Length != 64 ||
+            !journal.BackupFingerprint.All(Uri.IsHexDigit) || journal.BackupName == null ||
+            !journal.BackupName.StartsWith(".meowchan-collection-export-backup-", StringComparison.Ordinal) ||
+            journal.BackupName.Length != ".meowchan-collection-export-backup-".Length + 32 ||
+            !Guid.TryParseExact(journal.BackupName[".meowchan-collection-export-backup-".Length..], "N", out _))
+            throw new InvalidDataException("Export recovery journal does not match its history entry.");
+        string backup = Path.Combine(Path.GetDirectoryName(destination)!, journal.BackupName);
+        ArchiveCollectionExportInspection fallback = ArchiveCollectionExportMetadataFile.InspectAsync(backup, members).GetAwaiter().GetResult();
+        if (fallback.Metadata.ExportId != exportId || fallback.Metadata.Generation != generation ||
+            fallback.ObservedFingerprint != journal.BackupFingerprint)
+            throw new InvalidDataException("Export recovery backup does not match its history entry and journal.");
+        Recover(destination);
+    }
+
     internal static void Recover(string destination)
     {
         string journalPath = JournalPath(destination);

@@ -133,16 +133,18 @@ public static class ArchiveExportMetadataFile
             string path = System.IO.Path.Combine(root, file.Path.Replace('/', System.IO.Path.DirectorySeparatorChar));
             RejectLinks(path);
             FileInfo info = new(path);
-            if (!info.Exists || info.Length != file.Length)
+            if (!info.Exists)
             {
                 modified.Add(file.Path);
-                observed.Append(file.Path).Append(':').Append(info.Exists ? info.Length : -1).Append(';');
+                observed.Append(file.Path).Append(":missing;");
                 continue;
             }
+            if (info.Length > MaxFileBytes) throw new InvalidDataException("An export file exceeds its safety limit.");
+            if (info.Length != file.Length) modified.Add(file.Path);
             await using FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous);
             string hash = Convert.ToHexString(await SHA256.HashDataAsync(input, token).ConfigureAwait(false));
             observed.Append(file.Path).Append(':').Append(hash).Append(';');
-            if (!hash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase)) modified.Add(file.Path);
+            if (!hash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase) && !modified.Contains(file.Path)) modified.Add(file.Path);
         }
         List<string> extra = new();
         Stack<string> pendingDirectories = new();

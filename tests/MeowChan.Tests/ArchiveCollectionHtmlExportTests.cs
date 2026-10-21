@@ -225,6 +225,35 @@ public sealed class ArchiveCollectionHtmlExportTests
     }
 
     [Fact]
+    public async Task HistoryLoadRestoresMatchingJournaledCollectionFallback()
+    {
+        using TempDirectory dir = new();
+        string profile = Path.Combine(dir.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.CaptureAsync(Snapshot(First, profile));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        string destination = Path.Combine(dir.Path, "export");
+        ArchiveCollectionHtmlExportResult first = await ArchiveCollectionHtmlExporter.ExportAsync(reader, [First], destination, new(false));
+        CollectionExportHistoryStore history = new(profile, lease);
+        Assert.True((await history.RecordPublishedAsync(first)).HistoryRecorded);
+        ArchiveCollectionExportInspection before = await ArchiveCollectionHtmlExporter.InspectAsync(destination, [First]);
+        string backupName = ".meowchan-collection-export-backup-" + Guid.NewGuid().ToString("N");
+        string backup = Path.Combine(dir.Path, backupName);
+        string journal = Path.Combine(dir.Path, ".meowchan-collection-export-journal-" + ArchiveExportTargetLease.Key(destination) + ".json");
+        await File.WriteAllTextAsync(journal, JsonSerializer.Serialize(new ArchiveCollectionExportJournal(
+            backupName, first.Metadata!.ExportId, 2, false, before.ObservedFingerprint)));
+        Directory.Move(destination, backup);
+
+        (CollectionExportHistoryEntry _, ArchiveCollectionExportInspection? inspection) = Assert.Single(await history.ListVerifiedAsync([First]));
+        Assert.NotNull(inspection);
+        Assert.Equal(1, inspection.Metadata.Generation);
+        Assert.True(Directory.Exists(destination));
+        Assert.False(Directory.Exists(backup));
+        Assert.False(File.Exists(journal));
+    }
+
+    [Fact]
     public async Task LessCompleteUpdateRequiresAndRetainsBackupAndHistoryFailureKeepsPublishedResult()
     {
         using TempDirectory dir = new();

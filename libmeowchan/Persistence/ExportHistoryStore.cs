@@ -40,6 +40,7 @@ public sealed class ExportHistoryStore
             token.ThrowIfCancellationRequested();
             try
             {
+                ArchiveExportReplacement.RecoverHistory(entry.Destination, thread, entry.ExportId, entry.Generation);
                 ArchiveExportInspection inspection = await ArchiveExportMetadataFile.InspectAsync(entry.Destination, thread, token).ConfigureAwait(false);
                 entries.Add((entry, inspection.Metadata.ExportId == entry.ExportId &&
                     inspection.Metadata.Generation == entry.Generation ? inspection : null));
