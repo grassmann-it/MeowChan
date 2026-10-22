@@ -14,6 +14,7 @@ internal static class PresentationChecks
 {
     internal static async Task RunPreferencesAsync(MainWindow window)
     {
+        await CommandButtonContrastChecks.RunAsync(window);
         await WindowChromeChecks.RunAsync(window);
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
         TextBox input = window.FindControl<TextBox>("UrlInput")!;

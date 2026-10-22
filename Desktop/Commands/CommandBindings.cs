@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -72,6 +73,7 @@ public static class CommandBindings
         button.Classes.Set("command-icon", iconOnly || iconWithLabel);
         if (iconWithLabel)
         {
+            TextBlock text = new TextBlock { Text = CompactLabel(id), VerticalAlignment = VerticalAlignment.Center };
             var content = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -79,13 +81,13 @@ public static class CommandBindings
                 VerticalAlignment = VerticalAlignment.Center,
                 Children =
                 {
-                    Icon(id, iconSize),
-                    new TextBlock { Text = CompactLabel(id), VerticalAlignment = VerticalAlignment.Center }
+                    ButtonIcon(id, iconSize, text),
+                    text
                 }
             };
             button.Content = content;
         }
-        else button.Content = iconOnly ? Icon(id, iconSize) : label;
+        else button.Content = iconOnly ? ButtonIcon(id, iconSize) : label;
         string tip = Tooltip(id, unavailableReason?.Invoke());
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, label);
@@ -96,6 +98,7 @@ public static class CommandBindings
     public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
     {
         button.Classes.Set("command-icon", true);
+        TextBlock text = new TextBlock { Text = visibleLabel, VerticalAlignment = VerticalAlignment.Center };
         button.Content = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -103,8 +106,8 @@ public static class CommandBindings
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                Icon(id, iconSize),
-                new TextBlock { Text = visibleLabel, VerticalAlignment = VerticalAlignment.Center }
+                ButtonIcon(id, iconSize, text),
+                text
             }
         };
         string tip = CommandCatalog.ShortcutDisplay(id) is string shortcut
@@ -166,6 +169,16 @@ public static class CommandBindings
                 Stretch = Stretch.Uniform
             }
         };
+    }
+
+    private static Control ButtonIcon(string id, int size, TextBlock? label = null)
+    {
+        Border icon = (Border)Icon(id, size);
+        // Follow the rendered label, including Semi's TextBlock-specific disabled
+        // opacity. Icon-only content inherits the presenter's state foreground.
+        icon.Bind(Border.BackgroundProperty, label is null
+            ? icon.GetObservable(TextElement.ForegroundProperty) : label.GetObservable(TextBlock.ForegroundProperty));
+        return icon;
     }
 
     public static string IconUri(string icon) => "avares://MeowChan/Assets/icons/feather/masks/" + icon + ".png";

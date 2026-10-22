@@ -231,6 +231,13 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_COMMAND_CONTRAST_ONLY") == "1")
+            {
+                await CommandButtonContrastChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SEARCH_ONLY") == "1")
             {
                 await DownloadSearchChecks.RunAsync(mainWindow);
