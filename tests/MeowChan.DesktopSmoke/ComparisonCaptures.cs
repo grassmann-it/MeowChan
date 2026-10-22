@@ -74,6 +74,7 @@ internal static class ComparisonCaptures
                 await CaptureKeyboardFocusAsync(window, "smoke-comparison-focus-light.png");
                 await CaptureSettingsAsync(window, "smoke-comparison-settings-light.png");
             }
+            if (visualReview) await ThemeMigrationChecks.RunAsync(window);
             Console.WriteLine("SMOKE comparison scenes: six passive thread snapshots across Simple/Dark, Advanced/Dark, Barebones/Dark and Simple/Light; no watches admitted or network requests made.");
         }
         finally
@@ -188,13 +189,34 @@ internal static class ComparisonCaptures
             if (items.Any(item => item.Icon is not Border))
                 throw new InvalidOperationException("A context action or availability explanation is missing its shared icon.");
             Border[] icons = items.Select(item => (Border)item.Icon!).ToArray();
-            await Program.WaitUntilAsync(() => menu.IsEffectivelyVisible && menu.Bounds.Width > 0 && menu.Bounds.Height > 0
-                && icons.All(icon => icon.IsEffectivelyVisible && icon.Bounds.Width > 0));
+            // The popup can have a nonzero one-row bounds during its first layout.
+            // Wait for every item to fit before recording a full menu as evidence.
+            string menuGeometry = "";
+            try
+            {
+            await Program.WaitUntilAsync(() =>
+            {
+                menu.UpdateLayout();
+                menuGeometry = $"menu={menu.Bounds}; " + string.Join("; ", items.Select(item => $"{item.Header}: bounds={item.Bounds}, point={item.TranslatePoint(default, menu)}, visible={item.IsEffectivelyVisible}"));
+                return menu.IsEffectivelyVisible && menu.Bounds.Width > 0 && menu.Bounds.Height > 0
+                    && icons.All(icon => icon.IsEffectivelyVisible && icon.Bounds.Width > 0)
+                    && items.All(item =>
+                    {
+                        Point? origin = item.TranslatePoint(default, menu);
+                        return item.Bounds.Height > 0 && origin.HasValue && origin.Value.Y >= 0
+                            && origin.Value.Y + item.Bounds.Height <= menu.Bounds.Height + 1;
+                    });
+            });
+            }
+            catch (TimeoutException exception)
+            {
+                throw new InvalidOperationException("Full context menu was not laid out: " + menuGeometry, exception);
+            }
             bool dark = window.ActualThemeVariant == ThemeVariant.Dark;
             Color expected = dark ? Color.Parse("#EEF1F4") : Color.Parse("#18212C");
             foreach (MenuItem item in items)
             {
-                // Shared masks use Workspace.Text, independently of ModernTheme's menu text brushes.
+                // Shared masks use Workspace.Text, independently of the vendor menu text brushes.
                 if (((Border)item.Icon!).Background is not ISolidColorBrush ink || ink.Color != expected)
                     throw new InvalidOperationException("Context icon does not match the active Workspace.Text palette: " + item.Header);
                 if (item.IsEnabled && (dark ? Luminance(ink.Color) < 0.5 : Luminance(ink.Color) > 0.2))
@@ -238,7 +260,7 @@ internal static class ComparisonCaptures
             throw new InvalidOperationException("Changing the comparison view replaced its passive rows or selection.");
         DataGridRow selected = grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, rows[0]));
         Border background = selected.GetVisualDescendants().OfType<Border>()
-            .First(border => border.Name == "border" && ReferenceEquals(border.TemplatedParent, selected));
+            .First(border => border.Name == "BackgroundBorder" && ReferenceEquals(border.TemplatedParent, selected));
         Color expectedSelection = Application.Current?.RequestedThemeVariant == ThemeVariant.Dark
             ? Color.Parse("#25344A") : Color.Parse("#E0EBFC");
         if (background.Background is not ISolidColorBrush selection || selection.Color != expectedSelection)

@@ -45,7 +45,13 @@ public partial class MainWindow
             DataGrid grid = this.FindControl<DataGrid>(name)!;
             grid.AddHandler(KeyDownEvent, OnDownloadListKeyDown, RoutingStrategies.Tunnel);
             grid.AddHandler(ContextRequestedEvent, OnDownloadContextRequested, RoutingStrategies.Tunnel);
-            if (grid.ContextMenu is ContextMenu menu) menu.Opened += (_, _) => BuildDownloadMenu(grid, menu);
+            if (grid.ContextMenu is ContextMenu menu) menu.Opening += (_, args) =>
+            {
+                // Populate before the popup measures its first frame. Rebuilding in
+                // Opened can leave the native host sized for an empty menu.
+                BuildDownloadMenu(grid, menu);
+                args.Cancel = menu.ItemCount == 0;
+            };
             grid.CurrentCellChanged += (_, _) =>
             {
                 if (grid.CollectionView?.CurrentItem is ThreadRow thread) _threadLeadId = thread.WatchId;
@@ -112,7 +118,12 @@ public partial class MainWindow
         {
             if (!grid.SelectedItems.Contains(item)) grid.SelectedItem = item;
             grid.Focus();
-            grid.ContextMenu?.Open(grid);
+            if (grid.ContextMenu is ContextMenu menu)
+            {
+                // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
+                BuildDownloadMenu(grid, menu);
+                if (menu.ItemCount > 0) menu.Open(grid);
+            }
         }
         e.Handled = true;
         RefreshWorkspace();

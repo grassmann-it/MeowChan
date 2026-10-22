@@ -107,8 +107,9 @@ public partial class MainWindow
                     IClipboard clipboard = Clipboard ?? throw new InvalidOperationException("The packaged native clipboard is unavailable.");
                     await clipboard.SetTextAsync("meowchan-workflow-owned-sentinel");
                     DataGrid selectedThreads = this.FindControl<DataGrid>("ThreadsDataGrid")!;
-                    selectedThreads.ContextMenu!.Open(selectedThreads);
-                    MenuItem copyLinks = selectedThreads.ContextMenu.Items.OfType<MenuItem>()
+                    // Exercise the native keyboard path, including its pre-open menu preparation.
+                    selectedThreads.RaiseEvent(new Avalonia.Input.ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+                    MenuItem copyLinks = selectedThreads.ContextMenu!.Items.OfType<MenuItem>()
                         .Single(item => item.Tag as string == "selection.copy-links");
                     RequireWorkflow(copyLinks.IsEffectivelyEnabled, "The selected-thread Copy command is unavailable.");
                     copyLinks.Command!.Execute(null);

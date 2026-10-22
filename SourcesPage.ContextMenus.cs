@@ -19,7 +19,11 @@ public partial class SourcesPage
     {
         DataGrid grid = this.FindControl<DataGrid>("SourceWatchesGrid")!;
         grid.ContextMenu = new ContextMenu();
-        grid.ContextMenu.Opened += (_, _) => BuildWatchContextMenu(grid);
+        grid.ContextMenu.Opening += (_, args) =>
+        {
+            BuildWatchContextMenu(grid);
+            args.Cancel = grid.ContextMenu.ItemCount == 0;
+        };
         grid.AddHandler(PointerPressedEvent, OnWatchContextPointer, RoutingStrategies.Tunnel);
         grid.AddHandler(ContextRequestedEvent, OnWatchContextRequested, RoutingStrategies.Tunnel);
     }
@@ -27,12 +31,12 @@ public partial class SourcesPage
     private void AttachSourceContextMenu(Button button, string sourceId)
     {
         button.ContextMenu = new ContextMenu();
-        button.ContextMenu.Opened += (_, _) =>
+        button.ContextMenu.Opening += (_, args) =>
         {
             ContextMenu menu = button.ContextMenu!;
             menu.Items.Clear();
             SourceRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
-            if (source == null || _ended) { menu.Close(); return; }
+            if (source == null || _ended) { args.Cancel = true; return; }
             bool Ready() => !_ended && _available && !_busy;
             string reason = UnavailableReason();
             void Add(string id, Action action, bool available = true)

@@ -20,7 +20,11 @@ public partial class DiagnosticsPage
     {
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         grid.ContextMenu = new ContextMenu();
-        grid.ContextMenu.Opened += (_, _) => BuildDiagnosticContextMenu(grid);
+        grid.ContextMenu.Opening += (_, args) =>
+        {
+            BuildDiagnosticContextMenu(grid);
+            args.Cancel = grid.ContextMenu.ItemCount == 0;
+        };
         grid.AddHandler(PointerPressedEvent, OnDiagnosticContextPointer, RoutingStrategies.Tunnel);
         grid.AddHandler(ContextRequestedEvent, OnDiagnosticContextRequested, RoutingStrategies.Tunnel);
     }
