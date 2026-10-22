@@ -42,7 +42,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         RecoverOrphans();
     }
 
-    public FilterStageSnapshot Snapshot { get { lock (_state) return new(_active, _waiting, _bytes, _options.WorkerTemporaryBytes(), _recovered); } }
+    public FilterStageSnapshot Snapshot { get { lock (_state) return new(_active, _waiting, Math.Max(_bytes, DirectoryBytes()), _options.WorkerTemporaryBytes(), _recovered); } }
     public void Attach(ThreadContentRuntime content, Func<FilterBindingRequest, CancellationToken, Task<FilterPluginBinding?>> resolve)
     {
         ArgumentNullException.ThrowIfNull(content); ArgumentNullException.ThrowIfNull(resolve);
@@ -77,16 +77,25 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     private void RecoverOrphans()
     {
         _profileLease.RunExclusive(() => {
-            foreach (string journal in Directory.EnumerateFiles(_directory, "stage-*.json"))
+            int inspected = 0;
+            foreach (string journal in Directory.EnumerateFiles(_directory, "stage-*.json*"))
             {
-                if ((File.GetAttributes(journal) & FileAttributes.ReparsePoint) != 0 || new FileInfo(journal).Length > 64 * 1024) continue;
+                if (++inspected > 1024) throw new InvalidDataException("Filter recovery journal limit exceeded.");
+                bool pending = journal.EndsWith(".json.next", StringComparison.Ordinal);
+                if (!pending && !journal.EndsWith(".json", StringComparison.Ordinal)) continue;
+                string canonical = pending ? journal[..^5] : journal;
+                if (pending && File.Exists(canonical)) continue;
+                byte[]? bytes = StageRecoveryFile.ReadJournal(journal);
+                if (bytes == null) continue;
                 StageJournal? record;
-                try { record = JsonSerializer.Deserialize<StageJournal>(File.ReadAllBytes(journal)); } catch (JsonException) { continue; }
+                try { record = JsonSerializer.Deserialize<StageJournal>(bytes); } catch (JsonException) { continue; }
                 if (record?.Owner != Owner || !Guid.TryParseExact(record.Id, "N", out _)
-                    || Path.GetFileName(journal) != "stage-" + record.Id + ".json") continue;
+                    || Path.GetFileName(canonical) != "stage-" + record.Id + ".json") continue;
                 string image = Path.Combine(_directory, "stage-" + record.Id + ".bytes");
                 if (File.Exists(image) && (File.GetAttributes(image) & FileAttributes.ReparsePoint) != 0) continue;
-                File.Delete(image); File.Delete(journal + ".next"); File.Delete(journal); _recovered++;
+                if (record.TargetTemporary != null && (record.Destination == null
+                    || !MediaStore.TryRecoverFilterTemporary(record.Destination, record.TargetTemporary))) continue;
+                File.Delete(image); File.Delete(canonical + ".next"); File.Delete(canonical); _recovered++;
             }
             return true;
         });
@@ -98,10 +107,22 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     {
         lock (_state)
         {
-            if (_bytes + add + _options.WorkerTemporaryBytes() > _options.MaximumTemporaryBytes)
+            if (Math.Max(_bytes, DirectoryBytes()) + add + _options.WorkerTemporaryBytes() > _options.MaximumTemporaryBytes)
                 throw new MediaFilterOmissionException(false, "filter_temp_limit", "Filter temporary data limit exceeded.");
             _bytes += add;
         }
+    }
+
+    private long DirectoryBytes()
+    {
+        long bytes = 0; int files = 0;
+        foreach (string path in Directory.EnumerateFiles(_directory))
+        {
+            if (++files > 1024) return _options.MaximumTemporaryBytes + 1;
+            try { if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0) bytes = checked(bytes + new FileInfo(path).Length); }
+            catch (FileNotFoundException) { }
+        }
+        return bytes;
     }
 
     public async ValueTask DisposeAsync()
@@ -143,7 +164,15 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
             }
             catch (MediaFilterOmissionException exception)
             {
-                await record(exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); Release(); throw;
+                try { await record(exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); }
+                finally { Release(); }
+                throw;
+            }
+            catch (IOException exception)
+            {
+                try { await record(false, "filter_stage_io", token).ConfigureAwait(false); }
+                finally { Release(); }
+                throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message);
             }
             catch { Release(); throw; }
         }
@@ -160,6 +189,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         private readonly string _id = Guid.NewGuid().ToString("N");
         private readonly string _token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         private long _size;
+        private string? _targetTemporary;
         private bool _disposed;
         internal FilterPluginBinding Binding { get; }
         internal FileStream? Image { get; private set; }
@@ -183,6 +213,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         public async Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source, MediaStore store,
             Func<int, CancellationToken, Task> throttle, CancellationToken token)
         {
+            bool committingToStore = false;
             try
             {
                 EnsureCurrent();
@@ -205,7 +236,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 string digest = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
                 string actualMd5 = Convert.ToBase64String(md5.GetHashAndReset());
                 if (item.ExpectedSize is long expected && expected != _size || item.ExpectedMd5 is string expectedMd5 && expectedMd5 != actualMd5)
-                    throw new InvalidDataException("Filter original does not match provider integrity metadata.");
+                    throw new MediaFilterOmissionException(false, "filter_original_integrity", "Filter original does not match provider integrity metadata.");
                 await SaveJournalAsync(digest, _size, _lifetime.Token).ConfigureAwait(false);
                 Image = new FileStream(ImagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.RandomAccess);
                 (int width, int height) dimensions;
@@ -237,10 +268,19 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 // MediaStore copies into the target filesystem before atomic publication. Reserve that own temporary copy too.
                 _owner.CheckBudget(_size);
                 MediaCommitResult committed;
-                try { committed = await store.CommitVerifiedAsync(item, Image, digest, EnsureCurrent, _lifetime.Token).ConfigureAwait(false); }
+                try { committingToStore = true; committed = await store.CommitVerifiedAsync(item, Image, digest, EnsureCurrent, _lifetime.Token, async (path, cancellation) => {
+                    _targetTemporary = path;
+                    try { await SaveJournalAsync(digest, _size, cancellation).ConfigureAwait(false); }
+                    catch (IOException exception) { throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message); }
+                }).ConfigureAwait(false); }
                 finally { lock (_owner._state) _owner._bytes -= _size; }
                 await _record(null, result.ReasonCode, CancellationToken.None).ConfigureAwait(false);
                 return committed;
+            }
+            catch (IOException exception) when (!committingToStore)
+            {
+                await _record(false, "filter_stage_io", token).ConfigureAwait(false);
+                throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message);
             }
             catch (MediaFilterOmissionException exception)
             {
@@ -252,7 +292,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         {
             StageJournal journal = new(Owner, _id, _decision.Metadata.Key.Resource.ToString(), _decision.Metadata.Key.MediaId,
                 Binding.PluginId, Binding.ExecutionRevision, Binding.ConfigurationRevision, Binding.GrantRevision,
-                Binding.Operation.Generation, _decision.Selection.EffectiveRule.Revision, hash, size);
+                Binding.Operation.Generation, _decision.Selection.EffectiveRule.Revision, hash, size, _decision.Metadata.DestinationPath, _targetTemporary);
             string temporary = JournalPath + ".next";
             await using (FileStream file = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
@@ -264,9 +304,16 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         public async ValueTask DisposeAsync()
         {
             if (_disposed) return; _disposed = true; Readable = false; _owner._assets.TryRemove(_token, out _);
-            await _lifetime.CancelAsync().ConfigureAwait(false);
-            if (Image != null) await Image.DisposeAsync().ConfigureAwait(false);
-            try { File.Delete(ImagePath); File.Delete(JournalPath + ".next"); File.Delete(JournalPath); }
+            try
+            {
+                try { await _lifetime.CancelAsync().ConfigureAwait(false); }
+                finally
+                {
+                    if (Image != null) await Image.DisposeAsync().ConfigureAwait(false);
+                    File.Delete(ImagePath); File.Delete(JournalPath + ".next"); File.Delete(JournalPath);
+                }
+            }
+            catch (IOException exception) { throw new MediaFilterOmissionException(false, "filter_stage_cleanup_io", exception.Message); }
             finally
             {
                 _lifetime.Dispose();
@@ -278,5 +325,5 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
 
     private sealed record StageJournal(string Owner, string Id, string Resource, string MediaId, string PluginId,
         string ExecutionRevision, string ConfigurationRevision, string GrantRevision, long Generation,
-        string RuleRevision, string? Sha256, long Size);
+        string RuleRevision, string? Sha256, long Size, string? Destination = null, string? TargetTemporary = null);
 }
