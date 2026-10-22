@@ -30,6 +30,7 @@ internal sealed class QueueStoppingException(CancellationToken cancellationToken
 public class DownloadQueue
 {
     private readonly object _stateLock = new object();
+    private readonly MetadataAdmission _metadataAdmission = new();
     private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
     private CancellationTokenSource _transferEpoch = new();
     private TaskCompletionSource _workersDrained = CreateCompletedSource();
@@ -146,6 +147,17 @@ public class DownloadQueue
             await resumed.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
+
+    /// <summary>Acquires one of four session metadata slots, at most one per source. Release before cooldown waits.</summary>
+    public async Task<IDisposable> AcquireMetadataAsync(string sourceId, DownloadPriority priority,
+        CancellationToken cancellationToken = default)
+    {
+        await WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
+        return await _metadataAdmission.AcquireAsync(sourceId, priority, cancellationToken).ConfigureAwait(false);
+    }
+
+    public (int Active, int Waiting) GetMetadataCapacitySnapshot() => _metadataAdmission.Snapshot;
+    internal DownloadPriority GetThreadPriority(IThread thread) { lock (_stateLock) return GetPriorityLocked(thread); }
 
     public long MaxBandwidthBytesPerSecond => _bandwidthLimiter.MaxBytesPerSecond;
     /// <summary>Cumulative media response-body bytes read by this queue, including failed attempts; excludes local restoration.</summary>
@@ -735,6 +747,7 @@ public class DownloadQueue
             }
 
             _stopping = true;
+            _metadataAdmission.Close();
             _scheduleChanged.TrySetResult();
             _resumed.TrySetResult();
             stopCompletion = CreateCompletionSource();

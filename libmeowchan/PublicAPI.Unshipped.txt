@@ -5,3 +5,5 @@ MeowChan.Http.RequestPolicyDeferredException.RetryAt.get -> System.DateTimeOffse
 MeowChan.Http.RequestPolicyDeferredException.ReasonCode.get -> string!
 static readonly MeowChan.Http.RequestPolicyHandler.DeferWhenWaitingKey -> System.Net.Http.HttpRequestOptionsKey<bool>
 static readonly MeowChan.Http.RequestPolicyHandler.ObserverKey -> System.Net.Http.HttpRequestOptionsKey<System.Action<MeowChan.Http.RequestPolicyProgress!>!>
+MeowChan.Downloader.DownloadQueue.AcquireMetadataAsync(string! sourceId, MeowChan.Downloader.DownloadPriority priority, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.IDisposable!>!
+MeowChan.Downloader.DownloadQueue.GetMetadataCapacitySnapshot() -> (int Active, int Waiting)
