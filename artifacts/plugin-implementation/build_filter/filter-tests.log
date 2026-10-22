@@ -1,0 +1,15 @@
+  MeowChan.PluginSdk -> /home/tomka/Desktop/oChan-1.0-workers/filter/MeowChan.PluginSdk/bin/Release/net10.0/MeowChan.PluginSdk.dll
+  MeowChan.PluginFilters.Fixture -> /home/tomka/Desktop/oChan-1.0-workers/filter/tests/MeowChan.PluginFilters.Fixture/bin/Release/net10.0/MeowChan.PluginFilters.Fixture.dll
+  MeowChan.ImageDimensionsFilter -> /home/tomka/Desktop/oChan-1.0-workers/filter/plugins/Examples/ImageDimensionsFilter/bin/Release/net10.0/MeowChan.ImageDimensionsFilter.dll
+  libmeowchan -> /home/tomka/Desktop/oChan-1.0-workers/filter/libmeowchan/bin/Release/net10.0/libmeowchan.dll
+  MeowChan.PluginHost -> /home/tomka/Desktop/oChan-1.0-workers/filter/MeowChan.PluginHost/bin/Release/net10.0/MeowChan.PluginHost.dll
+  MeowChan.PluginFilters.Helper -> /home/tomka/Desktop/oChan-1.0-workers/filter/tests/MeowChan.PluginFilters.Helper/bin/Release/net10.0/MeowChan.PluginFilters.Helper.dll
+  MeowChan.PluginWorker -> /home/tomka/Desktop/oChan-1.0-workers/filter/MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll
+  MeowChan.PluginFilters.Tests -> /home/tomka/Desktop/oChan-1.0-workers/filter/tests/MeowChan.PluginFilters.Tests/bin/Release/net10.0/MeowChan.PluginFilters.Tests.dll
+Test run for /home/tomka/Desktop/oChan-1.0-workers/filter/tests/MeowChan.PluginFilters.Tests/bin/Release/net10.0/MeowChan.PluginFilters.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2-dev (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    30, Skipped:     0, Total:    30, Duration: 12 s - MeowChan.PluginFilters.Tests.dll (net10.0)
