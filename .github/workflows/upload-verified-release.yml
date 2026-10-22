@@ -81,16 +81,33 @@ jobs:
           order = ['win-x64.zip', 'osx-arm64.dmg', 'osx-x64.dmg', 'linux-x64.AppImage', 'linux-arm64.AppImage', 'linux-x64-bundled-vlc.tar.gz', 'linux-x64-system-vlc.tar.gz', 'linux-arm64-bundled-vlc.tar.gz', 'linux-arm64-system-vlc.tar.gz', 'video-sources.tar.gz', 'macos-video-source-overlay.tar.gz', 'linux-x64-video-sources.tar.gz', 'linux-arm64-video-sources.tar.gz']
           names = ['MeowChan-0.9.0-' + name for name in order] + ['SHA256SUMS']
           assert set(names) == {p.name for p in Path('staged').iterdir()}
+          record = {'schema': 'meowchan.verified-release-upload.v1',
+                    'releaseId': release['id'], 'sourceCommit': os.environ['SOURCE_COMMIT'],
+                    'retainedSourceCommit': os.environ['RETAINED_SOURCE'],
+                    'sourceRun': os.environ['SOURCE_RUN'], 'linuxRun': os.environ['LINUX_RUN'],
+                    'assets': []}
           existing = {a['name']: a for a in release['assets']}
           assert set(existing).issubset(names)
           for name in names:
               path = Path('staged') / name
               with path.open('rb') as f:
                   digest = 'sha256:' + hashlib.file_digest(f, 'sha256').hexdigest()
+              record['assets'].append({'name': name, 'bytes': path.stat().st_size, 'digest': digest})
               old = existing.get(name)
               if old and old['state'] == 'uploaded' and old['size'] == path.stat().st_size and old.get('digest') == digest:
                   print('Already verified:', name, flush=True)
                   continue
               subprocess.run(['gh', 'release', 'upload', 'v0.9.0', str(path), '--repo', repo, '--clobber'], check=True)
               print('Uploaded:', name, flush=True)
+          record['passed'] = True
+          Path('release-upload-record.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
           PY
+      - name: Retain the exact uploaded inventory and checksums
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-release-upload-record
+          path: |
+            release-upload-record.json
+            staged/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
