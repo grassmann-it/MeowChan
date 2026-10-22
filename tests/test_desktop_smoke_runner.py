@@ -40,6 +40,14 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertEqual(("board-admission",), runner.parse_args(self.args + ["--mode", "board-admission"]).modes)
         self.assertNotIn("board-admission", runner.parse_args(self.args).modes)
 
+    @mock.patch.object(runner.sys, "platform", "linux")
+    def test_plugin_mode_is_explicit_and_uses_isolated_runner(self):
+        arguments = runner.parse_args(self.args + ["--mode", "plugins"])
+        self.assertEqual(("plugins",), arguments.modes)
+        self.assertNotIn("plugins", runner.parse_args(self.args).modes)
+        with self.assertRaises(SystemExit):
+            runner.parse_args(self.args + ["--mode", "plugins", "--native-display"])
+
     def test_tray_host_cannot_run_on_a_personal_native_desktop(self):
         with mock.patch.object(runner.sys, "platform", "linux"):
             self.assertEqual(("tray-host",), runner.parse_args(self.args + ["--mode", "tray-host"]).modes)

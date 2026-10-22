@@ -31,6 +31,7 @@ public partial class MainWindow
             ("ArchiveMenuItem", "navigation.archive"),
             ("RulesMenuItem", "navigation.rules"),
             ("SourcesMenuItem", "navigation.sources"),
+            ("PluginsMenuItem", "navigation.plugins"),
             ("DiagnosticsMenuItem", "navigation.diagnostics"),
             ("SettingsMenuItem", "navigation.settings"),
             ("AboutMenuItem", "navigation.about")

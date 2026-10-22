@@ -10,12 +10,13 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings }
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins }
     private SettingsEditor? _settingsEditor;
     private DiagnosticsPage? _diagnosticsPage;
     private RulesPage? _rulesPage;
     private ArchivePage? _archivePage;
     private SourcesPage? _sourcesPage;
+    private PluginsPage? _pluginsPage;
     private WorkspacePage _selectedPage;
     internal SettingsEditor SettingsEditor => _settingsEditor
         ?? throw new InvalidOperationException("The settings page has not been initialized.");
@@ -29,7 +30,9 @@ public partial class MainWindow
 
     private void InitializeWorkspacePages()
     {
+        InitializeUpdates();
         _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
+        _settingsEditor.Updates = _session.Updates;
         _settingsEditor.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("SettingsPageHost")!.Content = _settingsEditor;
         _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
@@ -138,6 +141,7 @@ public partial class MainWindow
         }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads), SubmitInputAsync);
         _sourcesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("SourcesPageHost")!.Content = _sourcesPage;
+        InitializePluginPage();
     }
 
     private void ApplyArchiveModePreferences()
@@ -168,6 +172,7 @@ public partial class MainWindow
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         ++_readingResumeNavigationRevision;
+        if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         _selectedPage = page;
         this.FindControl<Grid>("WorkspaceBody")!.IsVisible = page == WorkspacePage.Downloads;
         this.FindControl<ContentControl>("SettingsPageHost")!.IsVisible = page == WorkspacePage.Settings;
@@ -175,6 +180,7 @@ public partial class MainWindow
         this.FindControl<ContentControl>("RulesPageHost")!.IsVisible = page == WorkspacePage.Rules;
         this.FindControl<ContentControl>("ArchivePageHost")!.IsVisible = page == WorkspacePage.Archive;
         this.FindControl<ContentControl>("SourcesPageHost")!.IsVisible = page == WorkspacePage.Sources;
+        this.FindControl<ContentControl>("PluginsPageHost")!.IsVisible = page == WorkspacePage.Plugins;
         this.FindControl<Button>("DownloadsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Downloads);
         this.FindControl<Button>("SettingsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Settings);
         this.FindControl<Button>("DiagnosticsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Diagnostics);
@@ -183,6 +189,7 @@ public partial class MainWindow
         this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
         UpdatePageNavigation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
+        if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();
@@ -193,7 +200,7 @@ public partial class MainWindow
             RefreshDiagnosticPage();
             _diagnosticsPage?.FindControl<DataGrid>("DiagnosticsGrid")?.Focus();
         }
-        if (page == WorkspacePage.Rules) _rulesPage?.RefreshConfirmedRules();
+        if (page == WorkspacePage.Rules) { _rulesPage?.RefreshConfirmedRules(); _ = _rulesPage?.RefreshPluginFiltersAsync(); }
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         return true;
     }
@@ -207,8 +214,8 @@ public partial class MainWindow
         this.FindControl<Button>("SourcesNavigationButton")!.IsVisible = full;
         this.FindControl<Button>("ArchiveNavigationButton")!.IsVisible = archive;
         Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
-        tools.IsVisible = !full;
-        tools.Classes.Set("selected", !full && (_selectedPage is WorkspacePage.Diagnostics or WorkspacePage.Rules or WorkspacePage.Sources
+        tools.IsVisible = true;
+        tools.Classes.Set("selected", _selectedPage == WorkspacePage.Plugins || !full && (_selectedPage is WorkspacePage.Diagnostics or WorkspacePage.Rules or WorkspacePage.Sources
             || (!archive && _selectedPage == WorkspacePage.Archive)));
     }
 
@@ -276,6 +283,8 @@ public partial class MainWindow
 
     private void DisposeWorkspacePages()
     {
+        DisposeUpdates();
+        _pluginsPage?.EndLifetime();
         _diagnosticsPage?.EndLifetime();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();

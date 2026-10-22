@@ -83,6 +83,7 @@
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
+                <StackPanel x:Name="RulePluginPanel" Spacing="8" />
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
                     <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationError}">

@@ -22,6 +22,8 @@ public partial class DiagnosticsPage : UserControl
     private readonly Func<DiagnosticTarget, Task<CheckRequestStatus>>? _retry;
     private readonly Func<DiagnosticTarget, bool>? _canRetry;
     private bool _ended;
+    internal Func<IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>>? GetTargetWaitStates { get; set; }
+    internal Func<Task>? CheckTargetsAsync { get; set; }
 
     public DiagnosticsPage() { InitializeComponent(); InitializeContextMenu(); }
     internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy,
@@ -37,7 +39,7 @@ public partial class DiagnosticsPage : UserControl
     {
         if (_ended) return;
         _available = available;
-        DiagnosticsSnapshot snapshot = DiagnosticsSnapshot.From(view);
+        DiagnosticsSnapshot snapshot = DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke());
         this.FindControl<TextBlock>("DiagnosticsSummary")!.Text = Texts.T("downloads.statusSummary",
             snapshot.Threads, snapshot.Boards, snapshot.Queued, snapshot.Active);
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
@@ -71,9 +73,10 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled = _available && Selected != null;
         this.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled = _available && Selected?.Target != null;
         CommandBindings.ApplyLabeled(this.FindControl<Button>("RetryDiagnosticButton")!, "watch.check",
-            Texts.T(Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action"));
+            Texts.T(Selected?.DownloadTargetPath != null ? "targets.check" : Selected?.Target?.Kind == DiagnosticTargetKind.Board ? "check.boardAction" : "check.action"));
         this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
-            && Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true;
+            && (Selected?.DownloadTargetPath != null && CheckTargetsAsync != null
+                || Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true);
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = string.Empty;
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", true);
     }
@@ -94,6 +97,16 @@ public partial class DiagnosticsPage : UserControl
     }
     private async void OnRetryClick(object? sender, RoutedEventArgs e)
     {
+        if (!_ended && _available && !_retryBusy && Selected?.DownloadTargetPath != null && CheckTargetsAsync != null)
+        {
+            _retryBusy = true; RefreshSelection();
+            string? error = null;
+            try { await CheckTargetsAsync(); }
+            catch (Exception exception) { error = exception.Message; }
+            finally { _retryBusy = false; if (!_ended) RefreshSelection(); }
+            if (!_ended && error != null) this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = error;
+            return;
+        }
         if (_ended || !_available || _retryBusy || Selected?.Target is not DiagnosticTarget target
             || _retry == null || _canRetry?.Invoke(target) != true) return;
         _retryBusy = true;

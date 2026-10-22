@@ -30,6 +30,7 @@ public partial class SourcesPage : UserControl
     private bool _hasUrlResult;
     private bool _showDetails;
     private bool _narrow;
+    internal Action<string>? OpenPluginSettings { get; set; }
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
@@ -116,6 +117,8 @@ public partial class SourcesPage : UserControl
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceAddButton")!, "watch.add-url", Texts.T("action.add"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         if (row == null) return;
+        this.FindControl<Button>("SourcePluginButton")!.Content = Texts.T("plugins.manageSource");
+        this.FindControl<Button>("SourcePluginButton")!.IsEnabled = OpenPluginSettings != null;
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
@@ -171,6 +174,8 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBox>("SourceWatchDetails")!.Text = SelectedWatch is SourceWatchRow watch
             ? watch.Resource + Environment.NewLine + watch.Work + Environment.NewLine + watch.Observation : string.Empty;
     }
+    private void OnPluginClick(object? sender, RoutedEventArgs e) { if (Selected is SourceRow row) OpenPluginSettings?.Invoke(row.Id); }
+    internal void SelectSource(string sourceId) { if (_rows.Any(row => row.Id == sourceId)) { _selectedId = sourceId; _showDetails = true; RenderDetails(); } }
     private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {

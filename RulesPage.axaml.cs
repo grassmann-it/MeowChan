@@ -230,8 +230,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         if (_ended) return;
         _ended = true;
+        IsEnabled = false;
         _available = false;
         Texts.Changed -= OnLanguageChanged;
+        _filterLifetime.Cancel(); _filterLifetime.Dispose();
     }
 
     /// <summary>Refreshes confirmed values while preserving dirty drafts and detecting conflicting edits.</summary>
@@ -336,7 +338,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
                 throw new RuleInputException("rules.invalidSize");
             maximum = bytes;
         }
-        return new MediaRule(_draft.Scope, _draft.Enabled, types, new MediaSizeLimit(_draft.SizeMode, maximum));
+        return new MediaRule(_draft.Scope, _draft.Enabled, types, new MediaSizeLimit(_draft.SizeMode, maximum)) { ImageFilter = BuildImageFilter() };
     }
 
     private static bool TryReadMegabytes(string text, CultureInfo culture, out long bytes)
@@ -372,6 +374,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         SetBusy(true);
         try
         {
+            if (!await ValidateRuleFilterAsync(rule)) return;
             MediaRuleSet saved = await _saveRules(proposed, revision);
             if (_ended) return;
             _drafts[scope] = new RuleDraft(scope, saved);
@@ -496,6 +499,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
                 draft.NumberCulture = Texts.Culture;
             }
             RefreshChoiceLabels();
+            _filterRenderedDraft = null;
             UpdatePreview();
             RaiseAll();
             ApplyCommandIcons();
@@ -550,6 +554,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         Raise(string.Empty);
         SynchronizeModeSelections();
         RefreshOriginActionLabels();
+        RefreshFilterEditor();
     }
     private void RefreshOriginActionLabels()
     {
@@ -590,7 +595,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private static MediaRule? FindRule(MediaRuleSet set, MediaRuleScope scope) => set.Rules.FirstOrDefault(rule => rule.Scope == scope);
     private static bool RulesEqual(MediaRule? first, MediaRule? second) => ReferenceEquals(first, second) || first != null && second != null
         && first.Enabled == second.Enabled && first.Scope == second.Scope && first.Types.Mode == second.Types.Mode
-        && first.Types.Extensions.SequenceEqual(second.Types.Extensions) && first.SizeLimit == second.SizeLimit;
+        && first.Types.Extensions.SequenceEqual(second.Types.Extensions) && first.SizeLimit == second.SizeLimit
+        && ImageFiltersEqual(first.ImageFilter, second.ImageFilter);
 
     private sealed class RuleInputException(string key) : Exception { internal string Key { get; } = key; }
 
@@ -604,6 +610,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         internal MediaSizeLimitMode SizeMode { get; set; }
         internal string Megabytes { get; set; }
         internal CultureInfo NumberCulture { get; set; }
+        internal MediaImageFilterRule ImageFilter { get; set; }
+        internal bool FilterSchemaAcknowledged { get; set; }
+        internal System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError> FilterValidationErrors { get; set; } = Array.Empty<MeowChan.PluginSdk.FieldValidationError>();
+        internal MediaImageFilterRule? LastPluginFilter { get; set; }
+        internal MeowChan.Desktop.Plugins.PluginSettingsDraft? FilterParameters { get; set; }
         internal bool Dirty { get; set; }
         internal bool Stale { get; set; }
 
@@ -613,6 +624,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             Baseline = baseline;
             MediaRule rule = FindRule(baseline, scope) ?? new MediaRule(scope);
             Enabled = rule.Enabled;
+            ImageFilter = rule.ImageFilter;
             TypesMode = rule.Types.Mode;
             Extensions = string.Join(", ", rule.Types.Extensions);
             SizeMode = rule.SizeLimit.Mode;

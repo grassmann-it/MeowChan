@@ -8,15 +8,21 @@ namespace MeowChan.Desktop;
 internal enum DiagnosticTargetKind { Thread, Board }
 internal sealed record DiagnosticTarget(DiagnosticTargetKind Kind, long WatchId);
 internal sealed record DiagnosticEntry(string Key, string Category, string Resource, string Summary,
-    string Details, DiagnosticTarget? Target);
+    string Details, DiagnosticTarget? Target, string? DownloadTargetPath = null);
 
 /// <summary>Current state only: no invented timestamps or history, and no URL-based action targets.</summary>
 internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads, int Boards,
     IReadOnlyList<DiagnosticEntry> Entries)
 {
-    internal static DiagnosticsSnapshot From(DesktopSessionView view)
+    internal static DiagnosticsSnapshot From(DesktopSessionView view, IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>? targetWaits = null)
     {
         List<DiagnosticEntry> entries = new List<DiagnosticEntry>();
+        foreach (MeowChan.Downloader.DownloadTargetWaitState waiting in targetWaits ?? Array.Empty<MeowChan.Downloader.DownloadTargetWaitState>())
+        {
+            string reason = Texts.T(waiting.Reason switch { "free-space-reserve" => "targets.freeSpace", "disk-full" => "targets.diskFull", _ => "targets.unavailable" });
+            entries.Add(new DiagnosticEntry("target:" + waiting.Path, Texts.T("targets.category"), waiting.Path, reason,
+                waiting.Path + Environment.NewLine + reason + Environment.NewLine + Texts.T("targets.nextCheck", waiting.NextCheckAt.ToLocalTime()), null, waiting.Path));
+        }
         if (view.StartupError is string startupError)
             entries.Add(new DiagnosticEntry("startup", Texts.T("diagnostics.session"), "MeowChan", startupError, startupError, null));
         foreach (string warning in view.Warnings.Distinct(StringComparer.Ordinal))

@@ -41,13 +41,15 @@ internal static class Program
     private static bool _accessibilityMode;
     private static bool _windowGeometryMode;
     private static bool _videoContrastMode;
+    private static bool _pluginsMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast")))
+        Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins]");
             return 2;
         }
 
@@ -58,6 +60,7 @@ internal static class Program
         _accessibilityMode = args.Contains("--accessibility-probe", StringComparer.Ordinal);
         _windowGeometryMode = args.Contains("--window-geometry", StringComparer.Ordinal);
         if (_windowGeometryMode) Environment.SetEnvironmentVariable("MEOWCHAN_NATIVE_GEOMETRY_TRACE", "1");
+        _pluginsMode = args.Contains("--plugins", StringComparer.Ordinal);
         _videoContrastMode = args.Contains("--video-contrast", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
@@ -263,6 +266,13 @@ internal static class Program
             if (_readingPositionMode)
             {
                 await ReadingPositionChecks.RunAsync(mainWindow, profile: Config.GetConfigDirectory());
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_pluginsMode)
+            {
+                await PluginManagementChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
