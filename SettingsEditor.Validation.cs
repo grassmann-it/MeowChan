@@ -22,10 +22,18 @@ public partial class SettingsEditor
     public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
 
+    private void NotifyFieldHelpChanged()
+    {
+        foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
+            nameof(ParallelDownloadsHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
+            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp) })
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    }
+
     private void SetFieldErrorHelp(Control input, string message)
     {
         _fieldHelpErrors[input.Name!] = message;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        NotifyFieldHelpChanged();
     }
     private string? _errorDetails;
     public string ErrorDetailsLabel => Texts.T("settings.errorDetails");
@@ -67,7 +75,7 @@ public partial class SettingsEditor
             error.Text = null;
 
         }
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        NotifyFieldHelpChanged();
     }
 
     // Parse validation runs before the existing shared Config validation/commit path.

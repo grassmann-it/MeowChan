@@ -63,9 +63,16 @@ internal static class SettingsPageChecks
             Program.CaptureWindow(window, "smoke-settings-page-dark.png");
             Texts.SetLanguage("de");
             window.UpdateLayout();
-            Require(timer.Text == raw && editor.DownloadPath == draftPath && editor.HasError
-                && editor.SelectedWorkspaceMode?.Value == "Barebones", "Language refresh lost an invalid draft.");
+            Require(timer.Text == raw, $"Language refresh changed invalid numeric draft: expected '{raw}', actual '{timer.Text}'.");
+            Require(editor.DownloadPath == draftPath, "Language refresh changed the download-path draft.");
+            Require(editor.HasError && !editor.HasErrorDetails, "Language refresh lost field validation or replaced it with a storage error.");
+            Require(editor.SelectedWorkspaceMode?.Value == "Barebones", "Language refresh changed the workspace-mode draft.");
+            await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+            TextBlock timerError = editor.FindControl<TextBlock>("RecheckTimerInputError")!;
+            Require(timerError.Text?.Contains(editor.RecheckLabel) == true, "The numeric field error was not translated with its field label.");
             Texts.SetLanguage(initial.Language);
+            Require(timer.Text == raw && editor.DownloadPath == draftPath, "Restoring the UI language changed an invalid draft.");
+            await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
 
             editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
             Click(window.FindControl<Button>("ThemeToggleButton")!);

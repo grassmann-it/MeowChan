@@ -66,7 +66,9 @@ internal static class SettingsChecks
                         Texts.SetLanguage(alternate);
                         await WaitUntilAsync(() => error.Text?.Contains(window.Editor.ReserveLabel) == true
                             && Avalonia.Automation.AutomationProperties.GetHelpText(input) == error.Text);
+                        Require(input.Text == "invalid draft", "Translating a field error changed its invalid draft text.");
                         Texts.SetLanguage(language);
+                        Require(input.Text == "invalid draft", "Restoring the UI language changed its invalid draft text.");
                     }
                     Require(Avalonia.Automation.AutomationProperties.GetHelpText(input) == error.Text,
                         "The input's accessible help did not identify its validation error.");
@@ -136,23 +138,26 @@ internal static class SettingsChecks
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original, "The dialog saved settings before its apply callback committed.");
             await AssertErrorInViewportAsync(window);
 
-            Action[] invalidEdits =
+            (string Field, Action Edit)[] invalidEdits =
             {
-                () => window.Editor.RecheckTimer = null,
-                () => window.Editor.RecheckTimer = 60.5m,
-                () => window.Editor.MaxParallelDownloads = 1.5m,
-                () => window.Editor.BandwidthLimiterMB = 0,
-                () => window.Editor.BandwidthLimiterMB = 8796093022208m
+                ("RecheckTimerInput", () => window.Editor.RecheckTimer = null),
+                ("RecheckTimerInput", () => window.Editor.RecheckTimer = 60.5m),
+                ("ParallelDownloadsInput", () => window.Editor.MaxParallelDownloads = 1.5m),
+                ("BandwidthInput", () => window.Editor.BandwidthLimiterMB = 0),
+                ("BandwidthInput", () => window.Editor.BandwidthLimiterMB = 8796093022208m)
             };
-            foreach (Action edit in invalidEdits)
+            foreach (var invalid in invalidEdits)
             {
                 window.Editor.RecheckTimer = 120;
                 window.Editor.MaxParallelDownloads = 3;
                 window.Editor.BandwidthLimiterMB = 2;
-                edit();
+                invalid.Edit();
                 Click(save);
                 await WaitUntilAsync(() => !window.Editor.IsBusy);
-                Require(window.Editor.HasError && applies == 1, "An invalid setting entered the commit callback.");
+                TextBlock fieldError = window.Editor.FindControl<TextBlock>(invalid.Field + "Error")!;
+                await WaitUntilAsync(() => fieldError.IsEffectivelyVisible);
+                Require(window.Editor.HasError && !window.Editor.HasErrorDetails && applies == 1,
+                    "An invalid setting entered the commit callback or became a technical storage error.");
                 Require(config.RecheckTimer == 60 && config.MaxParallelDownloads == 5, "An invalid setting changed the live configuration.");
             }
 

@@ -470,14 +470,21 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+                // Numeric controls keep malformed text separately from their last Value.
+                // Refreshing labels must never replace that text with the last valid value.
+                var numericDrafts = NumericFields().Select(field => (field.Input, field.Input.Text)).ToArray();
+                bool hadFieldError = _firstInvalidInput != null;
+                bool pathError = _firstInvalidInput == DownloadPathInput;
                 string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
                 RefreshChoices(SelectedTheme?.Value ?? _config.Theme,
                     SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
                     SelectedLanguage?.Code ?? _config.Language);
                 SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
-                if (_firstInvalidInput != null)
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+                foreach (var draft in numericDrafts)
+                    if (draft.Input.Text != draft.Text) draft.Input.Text = draft.Text;
+                if (hadFieldError)
                 {
-                    bool pathError = _firstInvalidInput == DownloadPathInput;
                     ClearFieldErrors();
                     if (pathError)
                     {
@@ -489,7 +496,6 @@ namespace MeowChan
                     }
                     else ValidateNumericDraft();
                 }
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
                 ApplyCommandIcons();
             }
 
