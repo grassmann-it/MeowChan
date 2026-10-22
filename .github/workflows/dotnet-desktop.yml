@@ -195,18 +195,39 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Restore the library dependency graph
-        run: dotnet restore libmeowchan/libmeowchan.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
-      - name: Pack the library locally
-        run: dotnet pack libmeowchan/libmeowchan.csproj --configuration Release --no-restore --output artifacts/packages
+      - name: Check plugin package consumer integrity fixtures
+        run: python -m unittest discover -s tests -p test_plugin_packages.py -v
+      - name: Restore the library, SDK and Host dependency graphs
+        run: |
+          dotnet restore libmeowchan/libmeowchan.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
+          dotnet restore MeowChan.PluginSdk/MeowChan.PluginSdk.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
+          dotnet restore MeowChan.PluginHost/MeowChan.PluginHost.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
+      - name: Pack the library, SDK and Host into one local feed
+        run: |
+          dotnet pack libmeowchan/libmeowchan.csproj --configuration Release --no-restore --output artifacts/packages
+          dotnet pack MeowChan.PluginSdk/MeowChan.PluginSdk.csproj --configuration Release --no-restore --output artifacts/packages
+          dotnet pack MeowChan.PluginHost/MeowChan.PluginHost.csproj --configuration Release --no-restore --output artifacts/packages
       - name: Consume the actual local package in a fresh cache
         run: python scripts/test-local-package.py --feed artifacts/packages --consumer samples/LibMeowChan.Consumer/LibMeowChan.Consumer.csproj
-      - name: Retain local package candidate
+      # PackageReference evidence only; delivered helper/product probes run separately.
+      # The plugin consumer runner owns its build lock; do not add an outer flock.
+      - name: Consume the SDK and Host packages in a fresh cache
+        run: python scripts/test-plugin-packages.py --feed artifacts/packages --output artifacts/plugin-package-consumers
+      - name: Retain local library, SDK and Host package candidates
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: library-package-candidate
           path: artifacts/packages/*
           if-no-files-found: error
+          retention-days: 7
+      - name: Retain plugin package consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-package-consumer-evidence
+          path: artifacts/plugin-package-consumers/**
+          if-no-files-found: warn
           retention-days: 7
 
   package:
