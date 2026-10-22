@@ -136,6 +136,14 @@ public sealed class TargetBudgetTests
     }
 
     [Fact]
+    public void DriveSelectionIncludesFileSystemRootButNotSiblingMountPrefixes()
+    {
+        string root = Path.GetPathRoot(Path.GetTempPath())!;
+        Assert.True(DownloadTargetGate.IsInside(Path.Combine(root, "destination"), root, StringComparison.Ordinal));
+        Assert.False(DownloadTargetGate.IsInside(Path.Combine(root, "volume-other", "x"), Path.Combine(root, "volume"), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task RealDiskProbeHonorsReserveAndExpectedSize()
     {
         using TempDirectory directory = new();
@@ -147,6 +155,7 @@ public sealed class TargetBudgetTests
         Assert.True(await gate.CheckAsync(directory.Path, 1, default, true));
         Assert.Empty(gate.Snapshot());
         Assert.False(await gate.CheckAsync(directory.Path, long.MaxValue, default, true));
+        Assert.True(await gate.CheckAsync(directory.Path, 1, default, true));
     }
 
     [Fact]
@@ -193,6 +202,44 @@ public sealed class TargetBudgetTests
         finally { await secondQueue.StopAllAsync().WaitAsync(TestWait.Timeout); }
     }
 
+    [Fact]
+    public async Task BlockedTargetDoesNotExtendTerminal404Deadline()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        WorkStateStore store = new(directory.Path, lease);
+        BudgetTime clock = new();
+        int requests = 0;
+        using StubImageBoard board = Provider(() => requests++, [1]);
+        DownloadItem item = Item(board, directory, "offline", 1);
+        DateTimeOffset ended = clock.GetUtcNow().AddHours(-12).AddSeconds(30);
+        WorkResource owner = store.CommitIntent(new WorkResource { Url = item.Thread.Url, OutputRoot = directory.Path,
+            Generation = 1, Intent = WorkIntent.Watching, IsThread = true, Source = ThreadSourceStateValue.NotFound, EndObservedAt = ended });
+        MediaWork previous = new() { ResourceUrl = owner.Url, Generation = 1, MediaIdentifier = item.MediaIdentifier,
+            DestinationPath = item.DestinationPath, DownloadUrl = item.DownloadUri.AbsoluteUri,
+            Status = MediaWorkStatus.Waiting, Attempts = 3, ConsecutiveNotFound = 3, HttpStatus = 404,
+            LastAttemptAt = clock.GetUtcNow().AddMinutes(-60), DueAt = clock.GetUtcNow().AddSeconds(-1) };
+        store.CommitMedia(previous);
+        DownloadQueue queue = new(1, 1L << 30, timeProvider: clock);
+        queue.TargetGate.ProbeOverride = (_, _, _, _) => Task.FromResult<string?>("target-unavailable");
+        queue.ConfigureWorkState(store);
+        try
+        {
+            queue.BindWork(item.Thread, owner);
+            await TestWait.UntilAsync(() => queue.TargetWaitStates.Count == 1);
+            await clock.WaitForTimerAtAsync(TimeSpan.FromSeconds(30));
+            clock.Advance(TimeSpan.FromSeconds(30));
+            await TestWait.UntilAsync(() => store.LoadMedia(owner.Url, 1).Single().Status == MediaWorkStatus.Expired);
+            MediaWork expired = Assert.Single(store.LoadMedia(owner.Url, 1));
+            Assert.Equal(previous.Attempts, expired.Attempts);
+            Assert.Equal(previous.ConsecutiveNotFound, expired.ConsecutiveNotFound);
+            Assert.Null(expired.DueAt);
+            Assert.Equal(0, requests);
+            Assert.Equal(ended, Assert.Single(store.LoadResources()).EndObservedAt);
+        }
+        finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
     [Theory]
     [InlineData(true, MediaWorkStatus.Excluded)]
     [InlineData(false, MediaWorkStatus.NeedsIntervention)]
@@ -218,7 +265,12 @@ public sealed class TargetBudgetTests
             Assert.Equal(status, work.Status);
             Assert.Null(work.DueAt);
             Assert.Equal(0, work.Attempts);
-            if (noMatch) Assert.Equal(0, queue.RequestMediaRetry(item.Thread));
+            if (noMatch)
+            {
+                Assert.Equal(0, queue.RequestMediaRetry(item.Thread));
+                Assert.Empty(item.Thread.MediaFailures);
+            }
+            else Assert.Contains(item.Thread.MediaFailures.Values, failure => failure.Contains("worker-failure"));
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
     }

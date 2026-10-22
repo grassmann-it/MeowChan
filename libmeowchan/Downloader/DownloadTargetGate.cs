@@ -65,7 +65,7 @@ internal sealed class DownloadTargetGate
         lock (_sync)
         {
             Entry entry = GetEntryLocked(path);
-            entry.ExpectedSize = Math.Max(entry.ExpectedSize ?? 0, expectedSize ?? 0);
+            entry.ExpectedSize = entry.Probe == null ? expectedSize : Math.Max(entry.ExpectedSize ?? 0, expectedSize ?? 0);
             if (entry.Probe != null) check = entry.Probe;
             else
             {
@@ -169,8 +169,11 @@ internal sealed class DownloadTargetGate
         long size = entry.ExpectedSize ?? 0;
         return available < reserve || size > available - reserve ? "free-space-reserve" : null;
     }
-    private static bool IsInside(string path, string root, StringComparison comparison) =>
-        string.Equals(path, root, comparison) || path.StartsWith(System.IO.Path.TrimEndingDirectorySeparator(root) + System.IO.Path.DirectorySeparatorChar, comparison);
+    internal static bool IsInside(string path, string root, StringComparison comparison)
+    {
+        string prefix = System.IO.Path.EndsInDirectorySeparator(root) ? root : root + System.IO.Path.DirectorySeparatorChar;
+        return string.Equals(path, root, comparison) || path.StartsWith(prefix, comparison);
+    }
 
     private Entry GetEntryLocked(string path)
     {

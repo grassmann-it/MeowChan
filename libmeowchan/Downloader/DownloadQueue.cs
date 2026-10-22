@@ -427,7 +427,7 @@ public class DownloadQueue
         {
             if (mediaIdentifier != null && media.MediaIdentifier != mediaIdentifier) continue;
             if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded || media.ManualAttempt) continue;
-            DownloadItem item = RestoreItem(thread, media);
+            DownloadItem item = RestoreItem(thread, media, explicitRetry: true);
             PreparedDownload prepared = Prepare(item);
             MediaWork manual = media with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
             lock (_stateLock)
@@ -448,9 +448,12 @@ public class DownloadQueue
         return count;
     }
 
-    private static DownloadItem RestoreItem(IThread thread, MediaWork media) => new(
-        new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
-        media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath);
+    private static DownloadItem RestoreItem(IThread thread, MediaWork media, bool explicitRetry = false)
+    {
+        DownloadItem item = new(new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
+            media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath);
+        return thread is Boards.Base.BaseThread baseThread ? baseThread.BindRestoredMediaFilter(item, explicitRetry) : item;
+    }
 
     private void SignalScheduleLocked()
     {
@@ -484,12 +487,9 @@ public class DownloadQueue
                     {
                         DateTimeOffset deadline = end.AddHours(12);
                         if (now >= deadline) { expiredKeys.Add(entry.Key); expired.Add(candidate); continue; }
-                        if (at >= deadline)
-                        {
-                            TimeSpan untilDeadline = deadline - now;
-                            if (delay == null || untilDeadline < delay) delay = untilDeadline;
-                            continue;
-                        }
+                        TimeSpan untilDeadline = deadline - now;
+                        if (delay == null || untilDeadline < delay) delay = untilDeadline;
+                        if (at >= deadline) continue;
                     }
                     if (_targets.IsBlocked(TargetPath(candidate.Item))) continue;
                     if (at <= now && due == null) due = candidate;
@@ -503,15 +503,30 @@ public class DownloadQueue
             {
                 try
                 {
+                    Cleanup cleanup = new();
                     lock (_stateLock)
                     {
                         // A manual request or new revision may have replaced this wait after the scan.
                         MediaWork? current = _workStore?.LoadMedia(item.Work.ResourceUrl, item.Work.Generation)
                             .FirstOrDefault(work => work.MediaIdentifier == item.Work.MediaIdentifier
                                 && work.DestinationPath == item.Work.DestinationPath);
-                        if (current == item.Work)
-                            _workStore?.CommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null });
+                        if (current == item.Work && _workStore!.CommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }))
+                        {
+                            JobIdentity identity = Prepare(item.Item).Job;
+                            if (_jobs.TryGetValue(identity, out QueuedDownload? job) && !job.IsActive)
+                            {
+                                _pendingDownloads.Remove(job);
+                                _interruptedDownloads.Remove(job);
+                                _jobs.Remove(identity);
+                                DetachFilter(job);
+                                job.ThreadState.OutstandingJobs--;
+                                RetireThreadIfIdleLocked(job.ThreadState, cleanup);
+                                SignalIdleIfNeededLocked(cleanup);
+                                PulseCapacityLocked();
+                            }
+                        }
                     }
+                    RunCleanup(cleanup);
                 }
                 catch (Exception error) { Quarantine(item.Item, error); }
             }
@@ -1026,7 +1041,16 @@ public class DownloadQueue
         }
         catch (MediaFilterOmissionException omission)
         {
-            try { RecordFilterOmission(job.Item, omission); }
+            try
+            {
+                if (RecordFilterOmission(job.Item, omission))
+                {
+                    if (job.Item.Thread is Boards.Base.BaseThread thread)
+                        thread.PublishMediaFilterOmission(job.Item.MediaIdentifier, job.Item.DestinationPath, omission.IsNoMatch, omission.ReasonCode);
+                    else if (!omission.IsNoMatch)
+                        job.Item.Thread.ReportMediaFailure(job.Item.MediaIdentifier, omission, job.Item.DestinationPath);
+                }
+            }
             catch (Exception persistenceFailure) { Quarantine(job.Item, persistenceFailure); }
         }
         catch (Exception exception) when (DownloadTargetGate.IsTargetFailure(exception))
@@ -1087,6 +1111,7 @@ public class DownloadQueue
                         _reservedSuccessors--;
                     }
                     _interruptedDownloads.AddLast(job);
+                    if (targetBlocked) PreserveBlockedDeadlineLocked(job.Item);
                     ready = ReserveWorkersLocked();
                 }
                 else
@@ -1116,21 +1141,39 @@ public class DownloadQueue
         }
     }
 
-    private void RecordFilterOmission(DownloadItem item, MediaFilterOmissionException omission)
+    private void PreserveBlockedDeadlineLocked(DownloadItem item)
+    {
+        if (_workStore == null || !_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return;
+        try
+        {
+            MediaWork? work = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
+                media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+            if (work is { HttpStatus: 404, ManualAttempt: false })
+            {
+                _scheduled[Prepare(item).Job] = new ScheduledWork(item, work);
+                SignalScheduleLocked();
+            }
+        }
+        catch (Exception failure) { Quarantine(item, failure); }
+    }
+
+    private bool RecordFilterOmission(DownloadItem item, MediaFilterOmissionException omission)
     {
         lock (_stateLock)
         {
-            if (_workStore == null || !_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return;
+            if (_workStore == null) return true;
+            if (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return false;
             MediaWork? previous = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
                 media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
-            if (previous == null || previous.ExpectedSize != item.ExpectedSize || previous.ExpectedMd5 != item.ExpectedMd5) return;
-            _workStore.CommitMedia(previous with
+            if (previous == null || previous.ExpectedSize != item.ExpectedSize || previous.ExpectedMd5 != item.ExpectedMd5) return false;
+            if (!_workStore.CommitMedia(previous with
             {
                 Status = omission.IsNoMatch ? MediaWorkStatus.Excluded : MediaWorkStatus.NeedsIntervention,
                 Failure = omission.ReasonCode, DueAt = null, ManualAttempt = false
-            });
+            })) return false;
         }
         _changes.Signal();
+        return true;
     }
 
     private void Quarantine(DownloadItem item, Exception failure)

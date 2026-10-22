@@ -44,6 +44,36 @@ public sealed class MetadataAdmissionTests
     }
 
     [Fact]
+    public async Task FiveHundredMixedWatchesCompleteWithinGlobalAndPerSourceBudgets()
+    {
+        MetadataAdmission admission = new();
+        int active = 0;
+        int peak = 0;
+        int[] sourceActive = new int[8];
+        int manual = 0, board = 0;
+        Task[] watches = Enumerable.Range(0, 500).Select(async i =>
+        {
+            int source = i % sourceActive.Length;
+            DownloadPriority priority = i % 3 == 0 ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
+            using IDisposable slot = await admission.AcquireAsync($"source{source}", priority, default);
+            Assert.Equal(1, Interlocked.Increment(ref sourceActive[source]));
+            int current = Interlocked.Increment(ref active);
+            int previous;
+            do { previous = Volatile.Read(ref peak); }
+            while (current > previous && Interlocked.CompareExchange(ref peak, current, previous) != previous);
+            await Task.Yield();
+            if (priority == DownloadPriority.Manual) Interlocked.Increment(ref manual); else Interlocked.Increment(ref board);
+            Interlocked.Decrement(ref active);
+            Interlocked.Decrement(ref sourceActive[source]);
+        }).ToArray();
+        await Task.WhenAll(watches).WaitAsync(TestWait.Timeout);
+        Assert.InRange(peak, 1, 4);
+        Assert.Equal(167, manual);
+        Assert.Equal(333, board);
+        Assert.Equal((0, 0), admission.Snapshot);
+    }
+
+    [Fact]
     public async Task PauseKeepsAlreadyWaitingMetadataOutOfFreedSlotsUntilResume()
     {
         DownloadQueue queue = new(1, 1024);
