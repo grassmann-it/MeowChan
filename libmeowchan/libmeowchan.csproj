@@ -32,4 +32,5 @@
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
+  <Import Project="../plugins/Official/LibraryParsing.targets" />
 </Project>

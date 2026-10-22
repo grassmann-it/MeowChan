@@ -79,6 +79,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertEqual("personal-session-endpoint", base["DISPLAY"])
         self.assertEqual("fixture-tools", prepared["PATH"])
         self.assertEqual("1", prepared["MEOWCHAN_DESKTOP_SMOKE_XVFB"])
+        self.assertEqual("1", prepared["MEOWCHAN_DISABLE_UPDATE_CHECK"])
         self.assertEqual(str(self.root / "profile"), prepared["MEOWCHAN_PROFILE"])
         self.assertNotIn("OCHAN_PROFILE", prepared)
         self.assertNotIn("servicedir", (self.root / "bus.conf").read_text())
@@ -92,11 +93,13 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             "MEOWCHAN_PROFILE": "personal-new-profile",
             "OCHAN_PROFILE": "personal-old-profile",
             "MEOWCHAN_DESKTOP_SMOKE_XVFB": "1",
+            "MEOWCHAN_DISABLE_UPDATE_CHECK": "0",
             "DISPLAY": ":99",
         }, False, self.root)
         self.assertEqual(str(self.root / "profile"), prepared["MEOWCHAN_PROFILE"])
         self.assertNotIn("OCHAN_PROFILE", prepared)
         self.assertNotIn("MEOWCHAN_DESKTOP_SMOKE_XVFB", prepared)
+        self.assertEqual("1", prepared["MEOWCHAN_DISABLE_UPDATE_CHECK"])
         self.assertEqual(":99", prepared["DISPLAY"])
 
     def test_missing_tools_fail_without_starting_any_process(self):

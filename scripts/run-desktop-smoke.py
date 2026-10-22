@@ -72,6 +72,8 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
     environment.pop("MEOWCHAN_PROFILE", None)
     environment.pop("OCHAN_PROFILE", None)
     environment["MEOWCHAN_PROFILE"] = str((directory / "profile").resolve())
+    # GUI fixtures must never schedule real update requests in their private profiles.
+    environment["MEOWCHAN_DISABLE_UPDATE_CHECK"] = "1"
     if isolated:
         for name in SESSION_VARIABLES:
             environment.pop(name, None)
