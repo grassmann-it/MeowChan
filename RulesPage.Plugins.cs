@@ -204,7 +204,7 @@ public partial class RulesPage
                 && grant.Scope.SourceId == scope.SourceId && (grant.Scope.BoardId == null || grant.Scope.BoardId == scope.BoardId)
                 && (grant.Scope.RuleId == null || grant.Scope.RuleId == scope.RuleId)))
             {
-                string origin = Texts.T("plugins.grantOrigin", grant.Scope.SourceId, grant.Scope.BoardId ?? "*", grant.Scope.RuleId ?? "*", grant.Access);
+                string origin = PluginGrantPresentation.Describe(grant, _confirmed.Rules.Select(rule => rule.Scope).Append(ruleScope), effective: true);
                 origins.Children.Add(FilterLabel(origin));
                 Button revoke = new() { Content = Texts.T("plugins.revokeGrant"), Tag = grant.Scope };
                 AutomationProperties.SetName(revoke, Texts.T("plugins.revokeGrant") + ": " + origin);

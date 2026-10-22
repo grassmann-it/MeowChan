@@ -67,6 +67,7 @@ public partial class PluginsPage : UserControl
     internal async Task ActivateAsync(string? sourceId = null)
     {
         if (_ended) return;
+        _renderedGrantsKey = null;
         _statusTimer.Start();
         await RefreshAsync();
         if (sourceId != null)
@@ -284,8 +285,8 @@ public partial class PluginsPage : UserControl
             panel.Children.Add(Label(filter.Name + ": " + Texts.T("plugins.requiredAccess", filter.RequiredAccess) + "\n" + Texts.T("plugins.grantHint")));
         foreach (PluginGrantSnapshot grant in _catalog!.Profile.Grants.Where(grant => grant.PluginId == entry.PluginId))
         {
-            panel.Children.Add(Label(grant.FilterKey + " · " + grant.Scope.SourceId + (grant.Scope.BoardId != null ? "/" + grant.Scope.BoardId : string.Empty)
-                + (grant.Scope.RuleId != null ? " · " + grant.Scope.RuleId : string.Empty) + " · " + grant.Access));
+            panel.Children.Add(Label(grant.FilterKey + " · " + PluginGrantPresentation.Describe(grant,
+                _services?.GetRuleScopes?.Invoke() ?? Array.Empty<MeowChan.Rules.MediaRuleScope>(), effective: false)));
             Button revoke = new() { Content = Texts.T("plugins.revoke"), IsEnabled = !_busy && grant.Access != FilterDataAccess.None };
             revoke.Click += async (_, _) => await CommandAsync((services, revision, token) => services.ProfileStore.SetGrantAsync(grant.PluginId, grant.FilterKey, grant.Scope, FilterDataAccess.None, revision, token));
             panel.Children.Add(revoke);

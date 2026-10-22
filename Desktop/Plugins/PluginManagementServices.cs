@@ -37,6 +37,7 @@ internal sealed class PluginManagementServices
     internal IPluginInstallationInventory Inventory { get; }
     internal string PluginDirectory { get; }
     internal Func<IReadOnlyList<PluginWorkerSnapshot>>? GetWorkerSnapshots { get; init; }
+    internal Func<IReadOnlyList<MeowChan.Rules.MediaRuleScope>>? GetRuleScopes { get; init; }
     internal Func<PluginArtifact, CancellationToken, Task<PluginDescription>> DescribeTestAsync { get; }
     internal Func<PluginArtifact, PluginConfiguration, CancellationToken, Task<IPluginWorkerClient>> StartTestWorkerAsync { get; }
     internal Func<PluginDescription, string, IPluginWorkerClient, PluginOperationContext, CancellationToken, Task<object>> ProbeAsync { get; }

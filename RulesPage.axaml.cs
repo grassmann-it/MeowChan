@@ -585,13 +585,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void Raise(string property) { if (!_ended) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property)); }
     private static string FormatMegabytes(long bytes, CultureInfo culture) => (bytes / BytesPerMegabyte).ToString("0.######", culture);
     private static string FormatOrigin(MediaRuleOrigin origin) => origin.Scope == null ? Texts.T("rules.builtin") : FormatScope(origin.Scope);
-    private static string FormatScope(MediaRuleScope scope) => scope.Kind switch
-    {
-        MediaRuleScopeKind.Global => Texts.T("rules.global"),
-        MediaRuleScopeKind.Source => Texts.T("rules.source") + " · " + scope.Source,
-        MediaRuleScopeKind.Board => Texts.T("rules.board") + " · " + scope.Source + "/" + scope.Board,
-        _ => Texts.T("rules.thread") + " · " + scope.Source + "/" + scope.Board + "/" + scope.Thread
-    };
+    private static string FormatScope(MediaRuleScope scope) => MeowChan.Desktop.Plugins.PluginGrantPresentation.ScopeLabel(scope);
     private static MediaRule? FindRule(MediaRuleSet set, MediaRuleScope scope) => set.Rules.FirstOrDefault(rule => rule.Scope == scope);
     private static bool RulesEqual(MediaRule? first, MediaRule? second) => ReferenceEquals(first, second) || first != null && second != null
         && first.Enabled == second.Enabled && first.Scope == second.Scope && first.Types.Mode == second.Types.Mode

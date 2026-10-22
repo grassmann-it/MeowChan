@@ -191,6 +191,7 @@ internal static class PluginManagementChecks
             page.GetVisualDescendants().OfType<Button>().First(button => Equals(button.Content, Texts.T("plugins.acceptSchema"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await page.SaveCurrentAsync();
             Require(store.Current.Rules.Single().ImageFilter.SchemaVersion == "2" && !store.Current.Rules.Single().ImageFilter.Parameters.ContainsKey("removed"), "Explicit schema migration did not save the new schema atomically.");
+            await CaptureKnownScopeGrantsAsync(window, page, store, management, profile);
             Console.WriteLine("PLUGIN RULE UI PASS: real worker domain rejection, persistent field errors, real Core commit, effective broader grant/revoke, retained targets and explicit schema migration.");
         }
         finally { page.EndLifetime(); host.Content = retained; }
@@ -242,8 +243,9 @@ internal static class PluginManagementChecks
                 + " and staged pending " + pending.ExecutionRevision + "; pending label=retained draft.");
         });
     }
-    private static async Task CaptureGrantStateAsync(MainWindow window, RulesPage page, bool granted)
+    private static async Task CaptureGrantStateAsync(MainWindow window, RulesPage page, bool granted, MediaRuleScope? ruleScope = null, string boardTarget = "b")
     {
+        MediaRuleScope expectedRuleScope = ruleScope ?? MediaRuleScope.Global;
         await AtBarebonesMinimumAsync(window, async () =>
         {
             foreach (string language in new[] { "en", "de" })
@@ -254,9 +256,10 @@ internal static class PluginManagementChecks
                 TextBox source = page.GetVisualDescendants().OfType<TextBox>().Single(input => Avalonia.Automation.AutomationProperties.GetName(input) == Texts.T("plugins.grantSource"));
                 TextBox board = page.GetVisualDescendants().OfType<TextBox>().Single(input => Avalonia.Automation.AutomationProperties.GetName(input) == Texts.T("plugins.grantBoard"));
                 Button allow = page.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Texts.T("plugins.grantRequired")));
-                Require(source.Text == "fixture-source" && board.Text == "b" && status.Text == Texts.T(granted ? "plugins.accessGranted" : "plugins.accessMissing"),
+                Require(source.Text == "fixture-source" && board.Text == boardTarget && status.Text == Texts.T(granted ? "plugins.accessGranted" : "plugins.accessMissing"),
                     "Grant capture does not show the verified target and effective access state.");
-                string prefix = "smoke-plugins-grant-" + (granted ? "effective" : "revoked") + "-barebones-" + language;
+                string scopeSuffix = expectedRuleScope.Kind == MediaRuleScopeKind.Global ? string.Empty : "-" + expectedRuleScope.Kind.ToString().ToLowerInvariant();
+                string prefix = "smoke-plugins-grant-" + (granted ? "effective" : "revoked") + scopeSuffix + "-barebones-" + language;
                 await RevealRangeAsync(window, source, status);
                 Require(InScrollViewport(board), "Board field is clipped between source and grant status.");
                 Program.CaptureWindow(window, prefix + "-scope.png");
@@ -265,8 +268,14 @@ internal static class PluginManagementChecks
                     Button revoke = page.GetVisualDescendants().OfType<Button>().Single(button => button.Tag is PluginGrantScope);
                     PluginGrantScope scope = (PluginGrantScope)revoke.Tag!;
                     TextBlock origin = ((StackPanel)revoke.Parent!).Children.OfType<TextBlock>().Single();
-                    Require(scope.SourceId == "fixture-source" && scope.BoardId == null && revoke.IsEnabled,
-                        "The visible revoke action does not target the actual broader source grant.");
+                    Require(scope.SourceId == "fixture-source" && scope.BoardId == expectedRuleScope.Board
+                        && scope.RuleId == MeowChan.PluginHost.Filters.FilterRuleIdentity.ForScope(expectedRuleScope) && revoke.IsEnabled,
+                        "The visible revoke action does not target the actual grant scope.");
+                    string originText = origin.Text ?? string.Empty;
+                    Require(originText.Contains(PluginGrantPresentation.ScopeLabel(expectedRuleScope), StringComparison.Ordinal)
+                        && !originText.Contains(MeowChan.PluginHost.Filters.FilterRuleIdentity.ForScope(expectedRuleScope), StringComparison.Ordinal)
+                        && (scope.BoardId != null || originText.Contains(Texts.T("plugins.allBoards"), StringComparison.Ordinal)),
+                        "The effective grant exposes an internal rule key or omits its human-readable scope.");
                     await RevealRangeAsync(window, status, revoke);
                     Require(InScrollViewport(origin), "Grant origin is clipped above the revoke action.");
                     Program.CaptureWindow(window, prefix + "-revoke.png");
@@ -280,6 +289,66 @@ internal static class PluginManagementChecks
                 Program.CaptureWindow(window, prefix + "-grant.png");
             }
         });
+    }
+    private static async Task CaptureKnownScopeGrantsAsync(MainWindow window, RulesPage page, MediaRuleStore store,
+        PluginManagementServices management, PluginProfileStore profile)
+    {
+        MediaRuleScope[] scopes = { MediaRuleScope.ForSource("fixture-source"), MediaRuleScope.ForBoard("fixture-source", "b"), MediaRuleScope.ForThread("fixture-source", "b", "42") };
+        MediaImageFilterRule filter = store.Current.Rules.Single(rule => rule.Scope == MediaRuleScope.Global).ImageFilter;
+        await store.SaveAsync(store.Current.Rules.Concat(scopes.Select(scope => new MediaRule(scope) { ImageFilter = filter })), store.Current.Revision);
+        page.RefreshConfirmedRules();
+        foreach (MediaRuleScope scope in scopes)
+        {
+            page.EditScope(scope); await page.RefreshPluginFiltersAsync();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            page.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Texts.T("plugins.grantRequired")))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => !page.IsBusy);
+            await CaptureGrantStateAsync(window, page, granted: true, ruleScope: scope, boardTarget: scope.Board ?? string.Empty);
+        }
+        const string unresolvedId = "future-rule:v9";
+        PluginProfileSnapshot snapshot = await profile.ReadAsync();
+        snapshot = await profile.SetGrantAsync("fixture.management", "fixture-filter", new("fixture-source", null, unresolvedId), FilterDataAccess.CandidateMetadata, snapshot.Revision);
+        await profile.SetGrantAsync("fixture.management", "fixture-filter", new("fixture-source", null, null), FilterDataAccess.CandidateMetadata, snapshot.Revision);
+        PluginManagementServices catalogServices = new(management.ProfileStore, management.Compiler, management.Inventory, management.PluginDirectory,
+            management.DescribeTestAsync, management.StartTestWorkerAsync, management.ProbeAsync)
+        { GetRuleScopes = () => store.Current.Rules.Select(rule => rule.Scope).ToArray() };
+        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!; object? retained = host.Content;
+        PluginsPage catalog = new(); catalog.Attach(catalogServices); host.Content = catalog;
+        try
+        {
+            OpenPlugins(window); await catalog.ActivateAsync();
+            catalog.Select((await profile.ReadAsync()).Plugins.Single().Candidates.Single().CandidateId);
+            await AtBarebonesMinimumAsync(window, async () =>
+            {
+                foreach (string language in new[] { "en", "de" })
+                {
+                    Texts.SetLanguage(language);
+                    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                    catalog.FindControl<Expander>("PluginGrantExpander")!.IsExpanded = true;
+                    StackPanel grants = catalog.FindControl<StackPanel>("PluginGrants")!;
+                    foreach (MediaRuleScope known in scopes.Prepend(MediaRuleScope.Global))
+                        Require(grants.Children.OfType<TextBlock>().Any(label => label.Text?.Contains(PluginGrantPresentation.ScopeLabel(known), StringComparison.Ordinal) == true
+                            && !label.Text.Contains(MeowChan.PluginHost.Filters.FilterRuleIdentity.ForScope(known), StringComparison.Ordinal)),
+                            "The plugin catalog did not resolve a saved rule scope.");
+                    foreach ((string state, string expected) in new[] { ("unresolved", Texts.T("plugins.unresolvedRule", unresolvedId)), ("all-rules", Texts.T("plugins.allRules")) })
+                    {
+                        TextBlock label = grants.Children.OfType<TextBlock>().Single(block => block.Text?.Contains(expected, StringComparison.Ordinal) == true);
+                        Button revoke = (Button)grants.Children[grants.Children.IndexOf(label) + 1];
+                        Require(label.Text!.Contains(Texts.T("plugins.allBoards"), StringComparison.Ordinal), "Catalog grant omitted its all-board scope.");
+                        await RevealRangeAsync(window, label, revoke);
+                        Program.CaptureWindow(window, "smoke-plugins-grant-" + state + "-barebones-" + language + ".png");
+                    }
+                }
+            });
+            Require((await profile.ReadAsync()).Grants.Any(grant => grant.Scope.RuleId == unresolvedId), "Displaying the unresolved grant changed its identity.");
+            Console.WriteLine("PLUGIN GRANT LABEL PASS: Global/Source/Board/Thread resolve from real rule scopes; all-board/all-rule and unresolved identities remain distinct.");
+        }
+        finally
+        {
+            catalog.EndLifetime(); host.Content = retained;
+            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
     }
     private static async Task AtBarebonesMinimumAsync(MainWindow window, Func<Task> capture)
     {

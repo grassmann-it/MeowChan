@@ -2,6 +2,9 @@ using System.Diagnostics;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginHost.Filters;
+using MeowChan.Rules;
 
 namespace MeowChan.DesktopTests;
 
@@ -152,6 +155,32 @@ public sealed class PluginManagementTests
         Assert.Equal("/media/fixture", entry.DownloadTargetPath); Assert.Null(entry.Target);
         Assert.Equal(Texts.T(key), entry.Summary);
         Assert.Contains(Texts.T("targets.nextCheck", next.ToLocalTime()), entry.Details);
+    }
+
+    [Theory]
+    [InlineData("en", "Source", "All boards", "All rules", "Unresolved rule")]
+    [InlineData("de", "Quelle", "Alle Boards", "Alle Regeln", "Unaufgelöste Regel")]
+    public void GrantLabelsResolveOnlyKnownRuleScopesAndPreserveUnknownIds(string language, string sourceLabel, string allBoards, string allRules, string unresolved)
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            MediaRuleScope[] scopes = { MediaRuleScope.Global, MediaRuleScope.ForSource("fixture-source"), MediaRuleScope.ForBoard("fixture-source", "b"), MediaRuleScope.ForThread("fixture-source", "b", "42") };
+            string[] labels = { "Global", sourceLabel + " · fixture-source", "Board · fixture-source/b", "Thread · fixture-source/b/42" };
+            for (int index = 0; index < scopes.Length; index++)
+                Assert.Equal(labels[index], PluginGrantPresentation.RuleLabel(FilterRuleIdentity.ForScope(scopes[index]), scopes));
+            Assert.Equal(allRules, PluginGrantPresentation.RuleLabel(null, scopes));
+            string unknown = FilterRuleIdentity.ForScope(MediaRuleScope.ForThread("missing-source", "z", "17"));
+            Assert.Equal(unresolved + " (" + unknown + ")", PluginGrantPresentation.RuleLabel(unknown, scopes));
+            Assert.Equal(unresolved + " (future-rule:v9)", PluginGrantPresentation.RuleLabel("future-rule:v9", scopes));
+            PluginGrantScope identity = new("fixture-source", null, FilterRuleIdentity.ForScope(MediaRuleScope.Global));
+            PluginGrantSnapshot grant = new("fixture.management", "fixture-filter", identity, FilterDataAccess.OriginalImage, 1);
+            string rendered = PluginGrantPresentation.Describe(grant, scopes, effective: true);
+            Assert.Contains(allBoards, rendered); Assert.Contains("Global", rendered);
+            Assert.DoesNotContain(identity.RuleId!, rendered); Assert.Same(identity, grant.Scope);
+        }
+        finally { Texts.SetLanguage(previous); }
     }
 
     [Fact]
