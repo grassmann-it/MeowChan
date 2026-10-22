@@ -8,9 +8,13 @@ This validates package architecture and integrity, not native target execution.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 import struct
 
+
+EXPECTED_OPTIONS = "net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1"
 
 TARGETS = {
     "linux-x64": ("elf", 62, "MeowChan.PluginCompiler", "libhostfxr.so", "libcoreclr.so"),
@@ -101,20 +105,42 @@ def file_set_hash(files):
     return hash_parts(*parts)
 
 
+def reject_reparse_point(path):
+    attributes = path.lstat()
+    reparse = getattr(attributes, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    require(not stat.S_ISLNK(attributes.st_mode) and not reparse, f"Symbolic links/reparse points are not permitted: {path}")
+
+
+def manifest_root(path):
+    # GetFullPath semantics: normalize lexical components without resolving away the root link.
+    root = Path(os.path.abspath(path))
+    reject_reparse_point(root)
+    return root
+
+
+def manifest_path(root, relative):
+    require(relative and not relative.startswith("/") and not any(c in relative for c in ("\\", ":")), "Invalid manifest path")
+    require(all(part not in ("", ".", "..") for part in relative.split("/")), "Unnormalized manifest path")
+    target = root
+    for component in relative.split("/"):
+        target = target / component
+        reject_reparse_point(target)
+    return target
+
+
 def inspect_manifest(root):
-    manifest = json.loads((root / "toolchain.json").read_text(encoding="utf-8"))
+    root = manifest_root(root)
+    manifest = json.loads(manifest_path(root, "toolchain.json").read_text(encoding="utf-8"))
     require(manifest["SchemaVersion"] == 1 and manifest["TargetFramework"] == "net10.0", "Unexpected toolchain schema/TFM")
+    require(manifest.get("Options") == EXPECTED_OPTIONS, "Unexpected compiler options")
     files = manifest["Files"]
     require(4 <= len(files) <= 512, "Unexpected manifest file count")
     paths = set()
     for entry in files:
         relative = entry["Path"]
-        require(relative and not relative.startswith("/") and not any(c in relative for c in ("\\", ":")), "Invalid manifest path")
-        require(all(part not in ("", ".", "..") for part in relative.split("/")), "Unnormalized manifest path")
+        target = manifest_path(root, relative)
         require(relative.casefold() not in paths, "Duplicate manifest path")
         paths.add(relative.casefold())
-        target = root / relative
-        require(target.resolve().is_relative_to(root), "Manifest file escapes delivery root")
         require(entry["Role"] in ("compiler", "framework", "sdk"), "Unknown manifest file role")
         require(file_hash(target) == entry["Sha256"], f"Delivered bytes do not match manifest: {relative}")
     compilers = [entry for entry in files if entry["Role"] == "compiler"]
@@ -137,11 +163,11 @@ def main():
     parser.add_argument("rid", choices=TARGETS)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
-    root = args.directory.resolve()
+    root = manifest_root(args.directory)
     kind, machine, *native_files = TARGETS[args.rid]
     report = {"rid": args.rid, "directory": str(root), "targetCodeExecuted": False,
-              "managedCompiler": inspect_anycpu(root / "MeowChan.PluginCompiler.dll"),
-              "nativeFiles": {name: inspect_native(root / name, kind, machine) for name in native_files},
+              "managedCompiler": inspect_anycpu(manifest_path(root, "MeowChan.PluginCompiler.dll")),
+              "nativeFiles": {name: inspect_native(manifest_path(root, name), kind, machine) for name in native_files},
               "integrity": inspect_manifest(root)}
     rendered = json.dumps(report, indent=2) + "\n"
     if args.report:

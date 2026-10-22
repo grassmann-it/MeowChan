@@ -182,3 +182,30 @@ python3 tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py <published-pl
 
 Bis diese Läufe vorliegen ist der Cross-CPU-Folgefix ein begründeter,
 prüfbarer Kandidat und noch kein bestätigter Crosspublish-PASS.
+
+## Nachtrag: Options-/Symlinkvertrag der Crosspublish-Probe
+
+Die unabhängige Gegenprüfung meldete zwei False-PASS-Fälle der neuen Probe:
+abweichendes `Options` trotz unveränderter Datei-/FileSet-Hashes sowie symbolische
+Links innerhalb des Paketbaums, die durch `resolve()` verborgen wurden.
+
+Nur Prüfcode korrigiert: `EXPECTED_OPTIONS` entspricht exakt
+`CompilerWire.Options`; abweichende/fehlende Werte werden abgewiesen.
+Rootnormalisierung erfolgt lexikalisch ohne Auflösung von Links. `lstat` prüft
+Root, `toolchain.json` und jede relative Pfadkomponente vor dem Lesen, einschließlich
+Windows-ReparsePoint-Attribut. Native Prüfdateien benutzen denselben Pfadcheck.
+Produkt-/Integritätsverträge und Compilerprojekt bleiben unverändert.
+
+Ausgeführt, ohne .NET/GUI/Build:
+
+```sh
+python3 tests/MeowChan.PluginCompiler.Tests/test_cross_publish_probe.py
+```
+
+**7/7 PASS**, 1.081 Sekunden. Belegt sind gültige Baseline, Abgleich des
+Optionsliterals mit dem tatsächlichen C#-Vertrag, Mutation zu stale/leer/null/
+fehlend bei unveränderten übrigen Manifesthashes, Rootlink inklusive CLI-Aufruf,
+Manifestlink, Verzeichnislink und Dateilink innerhalb desselben Pakets.
+Log: `artifacts/plugin-implementation/compiler/probe-contract/python-mutations.log`.
+`git diff --check` ebenfalls PASS. Dies ist ein Python-Regressionsnachweis;
+die tatsächlichen Crosspublishes bleiben bei Root.
