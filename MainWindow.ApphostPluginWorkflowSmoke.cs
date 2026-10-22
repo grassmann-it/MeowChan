@@ -34,7 +34,9 @@ public partial class MainWindow
 #pragma warning disable IL3000
         var managedAssemblies = new[] { typeof(App).Assembly, typeof(Registry).Assembly }
             .Select(assembly => new { name = assembly.GetName().Name, path = assembly.Location,
-                sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))).ToLowerInvariant() }).ToArray();
+                moduleVersionId = assembly.ManifestModule.ModuleVersionId.ToString("D"),
+                sha256 = string.IsNullOrEmpty(assembly.Location) ? null
+                    : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))).ToLowerInvariant() }).ToArray();
 #pragma warning restore IL3000
         try
         {
@@ -141,7 +143,10 @@ public partial class MainWindow
             File.WriteAllText(Path.Combine(descriptor.Profile, "apphost-workflow.json"), JsonSerializer.Serialize(new
             {
                 schemaVersion = 1, completed, failure, phase = descriptor.Phase, checks, revisions, workerPids,
-                managedAssemblies, processId = Environment.ProcessId, renderScaling = RenderScaling, appBaseDirectory = AppContext.BaseDirectory,
+                managedAssemblies, processPath = Environment.ProcessPath,
+                processSha256 = Environment.ProcessPath == null ? null
+                    : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Environment.ProcessPath))).ToLowerInvariant(),
+                processId = Environment.ProcessId, renderScaling = RenderScaling, appBaseDirectory = AppContext.BaseDirectory,
                 profile = descriptor.Profile, workingDirectory = Environment.CurrentDirectory,
                 assemblyInformationalVersion = typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
                 requests = fixture.Http.Requests.ToArray(), unexpectedRequests = fixture.Http.Unexpected,

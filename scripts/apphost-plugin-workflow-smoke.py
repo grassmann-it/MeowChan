@@ -8,6 +8,10 @@ No build, live source request or physical desktop interaction is performed.
 from __future__ import annotations
 import argparse
 import json
+import hashlib
+import struct
+import uuid
+import zlib
 import os
 from pathlib import Path
 import re
@@ -29,6 +33,247 @@ REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo
             'https://kohlchan.net/.media/landscape.png', 'https://kohlchan.net/.media/portrait.png'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
+
+
+
+BUNDLE_SIGNATURE = bytes.fromhex('8b1202b96a612038727b930214d7a03213f5b9e6efae3318ee3b2dce24b36aae')
+REQUIRED_ASSEMBLIES = {'MeowChan', 'libmeowchan'}
+
+
+def module_version_id(data):
+    """Read Module.Mvid from a PE/CLI metadata image, without executing its code."""
+    def unpack(fmt, offset):
+        size = struct.calcsize(fmt)
+        if offset < 0 or offset + size > len(data):
+            raise ValueError('PE field outside image')
+        return struct.unpack_from(fmt, data, offset)
+    if data[:2] != b'MZ':
+        raise ValueError('Managed assembly is not a PE image')
+    pe, = unpack('<I', 0x3c)
+    if data[pe:pe + 4] != b'PE\0\0':
+        raise ValueError('PE signature missing')
+    sections, = unpack('<H', pe + 6)
+    optional_size, = unpack('<H', pe + 20)
+    optional = pe + 24
+    magic, = unpack('<H', optional)
+    directory = optional + {0x10b: 96, 0x20b: 112}.get(magic, -1000000)
+    if directory < optional or directory + 15 * 8 > optional + optional_size or not 0 < sections <= 96:
+        raise ValueError('Unsupported PE optional header')
+    section_table = optional + optional_size
+
+    def rva_offset(rva, size):
+        for index in range(sections):
+            _, address, raw_size, raw = unpack('<IIII', section_table + 40 * index + 8)
+            if address <= rva and rva + size <= address + raw_size:
+                offset = raw + rva - address
+                if offset + size <= len(data):
+                    return offset
+        raise ValueError('CLI address outside PE sections')
+
+    cli_rva, cli_size = unpack('<II', directory + 14 * 8)
+    cli = rva_offset(cli_rva, cli_size)
+    metadata_rva, metadata_size = unpack('<II', cli + 8)
+    metadata = rva_offset(metadata_rva, metadata_size)
+    end = metadata + metadata_size
+    if data[metadata:metadata + 4] != b'BSJB':
+        raise ValueError('CLI metadata signature missing')
+    version_length, = unpack('<I', metadata + 12)
+    cursor = metadata + ((16 + version_length + 3) & ~3)
+    _, count = unpack('<HH', cursor)
+    cursor += 4
+    streams = {}
+    if not 1 <= count <= 64:
+        raise ValueError('CLI stream count invalid')
+    for _ in range(count):
+        offset, size = unpack('<II', cursor)
+        cursor += 8
+        name_end = data.find(b'\0', cursor, min(cursor + 32, end))
+        if name_end < 0:
+            raise ValueError('CLI stream name invalid')
+        name = data[cursor:name_end].decode('ascii')
+        cursor = (name_end + 4) & ~3
+        if name in streams or offset + size > metadata_size:
+            raise ValueError('CLI stream bounds/identity invalid')
+        streams[name] = (metadata + offset, size)
+    tables, table_size = streams.get('#~', streams.get('#-', (0, 0)))
+    guid, guid_size = streams.get('#GUID', (0, 0))
+    if table_size < 28 or not guid_size:
+        raise ValueError('Required CLI metadata streams missing')
+    heap_sizes, = unpack('<B', tables + 6)
+    valid, = unpack('<Q', tables + 8)
+    if not valid & 1:
+        raise ValueError('CLI Module table missing')
+    rows, = unpack('<I', tables + 24)
+    if rows != 1:
+        raise ValueError('CLI Module table must have one row')
+    row = tables + 24 + 4 * valid.bit_count()
+    string_index_size = 4 if heap_sizes & 1 else 2
+    guid_index_size = 4 if heap_sizes & 2 else 2
+    if row + 2 + string_index_size + guid_index_size > tables + table_size:
+        raise ValueError('CLI Module row outside table stream')
+    index, = unpack('<I' if guid_index_size == 4 else '<H', row + 2 + string_index_size)
+    if not 1 <= index <= guid_size // 16:
+        raise ValueError('CLI MVID outside GUID stream')
+    return str(uuid.UUID(bytes_le=data[guid + (index - 1) * 16:guid + index * 16]))
+
+
+def bundle_inventory(apphost):
+    """Parse supported .NET v6 bundles, including bounded raw-deflate entries.
+
+    An absent/zero bundle offset denotes unbundled delivery. Any populated but
+    unsupported or corrupt header fails closed rather than falling back to DLLs.
+    """
+    if apphost.stat().st_size > workflow.MAX_CLOSURE_FILE_BYTES:
+        raise ValueError('Apphost exceeds closure byte limit')
+    data = apphost.read_bytes()
+    marker = data.find(BUNDLE_SIGNATURE)
+    if marker < 0:
+        return None
+    if marker < 8 or data.find(BUNDLE_SIGNATURE, marker + 1) >= 0:
+        raise ValueError('Ambiguous apphost bundle marker')
+    header, = struct.unpack_from('<q', data, marker - 8)
+    if header == 0:
+        return None
+    if not marker + len(BUNDLE_SIGNATURE) <= header < len(data):
+        raise ValueError('Bundle header does not follow apphost marker')
+    cursor = header
+
+    def read(fmt):
+        nonlocal cursor
+        size = struct.calcsize(fmt)
+        if cursor < 0 or cursor + size > len(data):
+            raise ValueError('Bundle header outside apphost')
+        value = struct.unpack_from(fmt, data, cursor)
+        cursor += size
+        return value
+
+    def text():
+        nonlocal cursor
+        length = 0
+        for shift in range(0, 35, 7):
+            byte, = read('<B')
+            length |= (byte & 127) << shift
+            if not byte & 128:
+                break
+        else:
+            raise ValueError('Bundle string length invalid')
+        if not 0 < length <= 4096 or cursor + length > len(data):
+            raise ValueError('Bundle string outside header')
+        value = data[cursor:cursor + length].decode('utf-8')
+        cursor += length
+        return value
+
+    major, minor, count = read('<IIi')
+    if (major, minor) != (6, 0) or not 0 < count <= 20000:
+        raise ValueError('Unsupported .NET bundle header')
+    bundle_id = text()
+    deps_offset, deps_size, config_offset, config_size, flags = read('<qqqqQ')
+    if flags & ~1:
+        raise ValueError('Unsupported .NET bundle flags')
+    entries, spans, total_bytes = {}, [], 0
+    for _ in range(count):
+        offset, size, compressed = read('<qqq')
+        kind, = read('<B')
+        name = workflow.normalized_member(text())
+        length = compressed or size
+        if (name in entries or not 0 <= kind <= 5 or offset < 0 or size <= 0
+                or size > workflow.MAX_CLOSURE_FILE_BYTES or compressed < 0
+                or offset + length > header):
+            raise ValueError('Invalid or duplicate .NET bundle entry')
+        total_bytes += size
+        if total_bytes > workflow.MAX_CLOSURE_BYTES or offset < marker + len(BUNDLE_SIGNATURE):
+            raise ValueError('Bundle payload exceeds bounds')
+        spans.append((offset, offset + length))
+        raw = data[offset:offset + length]
+        if compressed:
+            inflater = zlib.decompressobj(-15)
+            raw = inflater.decompress(raw, size + 1)
+            if not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
+                raise ValueError('Invalid/oversized compressed bundle entry')
+        if len(raw) != size:
+            raise ValueError('Bundle entry size mismatch')
+        record = {'path': name, 'type': kind, 'offset': offset, 'bytes': size,
+                  'compressedBytes': compressed, 'sha256': hashlib.sha256(raw).hexdigest()}
+        if kind == 1 and name in {value + '.dll' for value in REQUIRED_ASSEMBLIES}:
+            record['moduleVersionId'] = module_version_id(raw)
+        entries[name] = record
+    ordered = sorted(spans)
+    if any(left[1] > right[0] for left, right in zip(ordered, ordered[1:])):
+        raise ValueError('Overlapping .NET bundle entries')
+    for name, offset, size, kind in (('MeowChan.deps.json', deps_offset, deps_size, 3),
+                                     ('MeowChan.runtimeconfig.json', config_offset, config_size, 4)):
+        entry = entries.get(name, {})
+        if entry.get('offset') != offset or entry.get('bytes') != size or entry.get('type') != kind:
+            raise ValueError('Bundle runtime metadata header/entry mismatch')
+    for name in REQUIRED_ASSEMBLIES:
+        if 'moduleVersionId' not in entries.get(name + '.dll', {}):
+            raise ValueError('Required managed assembly absent from bundle')
+    return {'majorVersion': major, 'minorVersion': minor, 'bundleId': bundle_id,
+            'entries': list(entries.values())}
+
+
+def plugin_archive_closure(archive, root, member_name, apphost):
+    root = Path(root).resolve(strict=True)
+    manifest = workflow.archive_entries(archive)
+    workflow.verify_extracted_closure(root, manifest)
+    member = workflow.normalized_member(member_name)
+    if workflow.confined_path(root / member, root) != Path(apphost).resolve(strict=True):
+        raise ValueError('Executed apphost is outside verified archive closure')
+    expected = {record['path']: record for record in manifest['entries']}
+    if expected.get(member, {}).get('kind') != 'file':
+        raise ValueError('Apphost must be a regular archive member')
+    bundle = bundle_inventory(Path(apphost))
+    if bundle is None:
+        # Keep the established external-assembly closure requirements intact.
+        workflow.archive_closure(archive, root, member, apphost)
+    return dict(manifest, root=str(root), apphostMember=member, bundle=bundle,
+                verifiedBeforeRun=True, verifiedAfterRun=False)
+
+
+def validate_assembly_bindings(metrics, closure):
+    """Bind loaded module identity to authenticated package bytes.
+
+    Empty Location is accepted only for an actual inspected bundle. MVID identifies
+    the loaded module; it is not represented as an in-memory cryptographic hash.
+    The executable/file hashes authenticate delivered bytes under the runner's
+    immutable package mount and isolated filesystem/load environment.
+    """
+    root = Path(closure['root'])
+    expected = {row['path']: row for row in closure['entries']}
+    apphost = workflow.confined_path(root / closure['apphostMember'], root)
+    apphost_record = expected[closure['apphostMember']]
+    if (metrics.get('processPath') != str(apphost) or metrics.get('processSha256') != apphost_record['sha256']
+            or workflow.sha256(apphost) != apphost_record['sha256']):
+        raise ValueError('Running executable differs from archived apphost')
+    base = workflow.confined_path(Path(metrics.get('appBaseDirectory', '')), root)
+    if base != apphost.parent:
+        raise ValueError('Application base differs from packaged apphost directory')
+    rows = metrics.get('managedAssemblies')
+    if not isinstance(rows, list) or len(rows) != len(REQUIRED_ASSEMBLIES):
+        raise ValueError('Required loaded managed assembly evidence missing')
+    names, bindings = set(), []
+    bundled = {row['path']: row for row in (closure.get('bundle') or {}).get('entries', [])}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError('Malformed loaded managed assembly evidence')
+        name = row.get('name')
+        if name not in REQUIRED_ASSEMBLIES or name in names:
+            raise ValueError('Unexpected/duplicate loaded managed assembly')
+        names.add(name)
+        if row.get('path') == '':
+            entry = bundled.get(name + '.dll')
+            if not entry or row.get('sha256') is not None or row.get('moduleVersionId') != entry.get('moduleVersionId'):
+                raise ValueError('Loaded bundled assembly identity is not proven')
+            bindings.append(dict(entry, name=name, binding='bundle-entry-mvid-and-archived-apphost', apphostSha256=apphost_record['sha256']))
+        else:
+            path = workflow.confined_path(Path(row.get('path', '')), root)
+            relative = path.relative_to(root).as_posix()
+            entry = expected.get(relative, {})
+            if (entry.get('kind') != 'file' or path.name != name + '.dll' or row.get('sha256') != entry.get('sha256')
+                    or workflow.sha256(path) != entry['sha256'] or row.get('moduleVersionId') != module_version_id(path.read_bytes())):
+                raise ValueError('Loaded external assembly differs from archived bytes/identity')
+            bindings.append(dict(name=name, path=str(path), sha256=entry['sha256'], moduleVersionId=row['moduleVersionId'], binding='archive-file-hash-and-mvid'))
+    return bindings
 
 
 def sandbox(apphost, root, working):
@@ -63,7 +308,7 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
     requests = metrics.get('requests')
     if not isinstance(requests, list) or (phase == 'download' and (len(requests) != 6 or set(requests) != REQUESTS)) or (phase == 'restore' and requests):
         raise ValueError('Terminal fixture request inventory differs')
-    return workflow.validate_loaded_assemblies(metrics, closure)
+    return validate_assembly_bindings(metrics, closure)
 
 
 def run_phase(apphost, root, phase, destination, timeout, scale, closure):
@@ -137,7 +382,7 @@ def main(argv=None):
     if missing:
         parser.error('Isolation dependencies missing: ' + ', '.join(missing))
     apphost = args.apphost.resolve(strict=True)
-    closure = workflow.archive_closure(args.archive, args.archive_root, args.archive_member, apphost)
+    closure = plugin_archive_closure(args.archive, args.archive_root, args.archive_member, apphost)
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
     report = {'schemaVersion': 1, 'passed': False, 'declaredSourceCommit': args.source_commit,
