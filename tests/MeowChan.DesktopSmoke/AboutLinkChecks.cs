@@ -51,6 +51,9 @@ internal static class AboutLinkChecks
                 "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ");
             if (!string.IsNullOrEmpty(about.FindControl<SelectableTextBlock>("LinkErrorText")!.Text))
                 throw new InvalidOperationException("About reported a launcher failure despite the successful fixture handoff.");
+            about.Close();
+            about = null;
+            await UpdateGuiChecks.RunAsync(window, capture);
             Console.WriteLine("SMOKE About project and PayPal buttons handed exact new-window URLs to the selected fake Firefox with sanitized Snap paths.");
         }
         finally

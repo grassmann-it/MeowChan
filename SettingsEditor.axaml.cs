@@ -13,6 +13,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
@@ -52,6 +53,15 @@ namespace MeowChan
         private bool _videoStartMuted;
         private int _videoVolume;
         private bool _showShortcutHelp;
+        private bool _automaticUpdateChecks;
+        private bool _includePrereleaseUpdates;
+        private decimal? _minimumFreeSpaceGiB;
+        internal UpdateSession? Updates { get; set; }
+        private decimal? _productionWorkers;
+        private decimal? _workerIdleMinutes;
+        private decimal? _sourceHeapMiB;
+        private decimal? _filterHeapMiB;
+
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
@@ -116,14 +126,51 @@ namespace MeowChan
             VideoVolume = config.VideoVolume;
             ShowShortcutHelp = config.ShowShortcutHelp;
             RememberReadingPosition = config.RememberReadingPosition;
+            AutomaticUpdateChecks = config.AutomaticUpdateChecks;
+            IncludePrereleaseUpdates = config.IncludePrereleaseUpdates;
+            MinimumFreeSpaceGiB = config.MinimumFreeSpaceGiB;
+            ProductionWorkers = config.PluginMaximumProductionWorkers;
+            WorkerIdleMinutes = config.PluginWorkerIdleMinutes;
+            SourceHeapMiB = config.PluginSourceHeapMiB;
+            FilterHeapMiB = config.PluginFilterHeapMiB;
+
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
+            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
+            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
+            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
+            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
+            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+
             Texts.Changed += OnLanguageChanged;
         }
+
+        public string UpdatesTitle => Texts.T("updates.title");
+        public string AutomaticUpdateChecksLabel => Texts.T("updates.automatic");
+        public string IncludePrereleaseUpdatesLabel => Texts.T("updates.prereleases");
+        public string UpdatePrivacyHint => Texts.T("updates.privacy");
+        public string UpdateDisabledReason => Texts.T("updates.disabled");
+        public bool UpdatesDisabled => Environment.GetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK") == "1";
+        public bool UpdatesEnabled => !UpdatesDisabled;
+        public string ReserveLabel => Texts.T("budgets.reserve");
+        public string ReserveHint => Texts.T("budgets.reserveHint");
+        public string AdvancedBudgetsLabel => Texts.T("budgets.advanced");
+        public string BudgetRestartHint => Texts.T("budgets.nextSession");
+        public bool AutomaticUpdateChecks { get => _automaticUpdateChecks; set => SetField(ref _automaticUpdateChecks, value, nameof(AutomaticUpdateChecks)); }
+        public bool IncludePrereleaseUpdates { get => _includePrereleaseUpdates; set => SetField(ref _includePrereleaseUpdates, value, nameof(IncludePrereleaseUpdates)); }
+        public decimal? MinimumFreeSpaceGiB { get => _minimumFreeSpaceGiB; set => SetField(ref _minimumFreeSpaceGiB, value, nameof(MinimumFreeSpaceGiB)); }
+        public string ProductionWorkersLabel => Texts.T("budgets.workers");
+        public decimal? ProductionWorkers { get => _productionWorkers; set => SetField(ref _productionWorkers, value, nameof(ProductionWorkers)); }
+        public string WorkerIdleMinutesLabel => Texts.T("budgets.idle");
+        public decimal? WorkerIdleMinutes { get => _workerIdleMinutes; set => SetField(ref _workerIdleMinutes, value, nameof(WorkerIdleMinutes)); }
+        public string SourceHeapMiBLabel => Texts.T("budgets.sourceHeap");
+        public decimal? SourceHeapMiB { get => _sourceHeapMiB; set => SetField(ref _sourceHeapMiB, value, nameof(SourceHeapMiB)); }
+        public string FilterHeapMiBLabel => Texts.T("budgets.filterHeap");
+        public decimal? FilterHeapMiB { get => _filterHeapMiB; set => SetField(ref _filterHeapMiB, value, nameof(FilterHeapMiB)); }
 
         public string SettingsTitle => Texts.T("settings.title");
         public string SettingsSubtitle => Texts.T("settings.subtitle");
@@ -343,10 +390,24 @@ namespace MeowChan
             VideoVolume = _config.VideoVolume;
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
+            AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
+            IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
+            MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
+            ProductionWorkers = _config.PluginMaximumProductionWorkers;
+            WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
+            SourceHeapMiB = _config.PluginSourceHeapMiB;
+            FilterHeapMiB = _config.PluginFilterHeapMiB;
+
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
+            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
+            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
+            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
+            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
+            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+
             ErrorMessage = null;
             StatusMessage = null;
         }
@@ -468,7 +529,7 @@ namespace MeowChan
         private async void OnAboutButtonClick(object? sender, RoutedEventArgs e)
         {
             if (TopLevel.GetTopLevel(this) is Window owner)
-                await new AboutWindow().ShowDialog(owner);
+                await new AboutWindow(Updates).ShowDialog(owner);
         }
 
         private async void OnBrowseButtonClick(object? sender, RoutedEventArgs e)
@@ -544,7 +605,8 @@ namespace MeowChan
                 if (HasInvalidText(RecheckTimerInput) || HasInvalidText(BandwidthInput) || HasInvalidText(ParallelDownloadsInput) ||
                     DataValidationErrors.GetHasErrors(RecheckTimerInput) ||
                     DataValidationErrors.GetHasErrors(BandwidthInput) ||
-                    DataValidationErrors.GetHasErrors(ParallelDownloadsInput))
+                    DataValidationErrors.GetHasErrors(ParallelDownloadsInput) ||
+                    new[] { ReserveInput, ProductionWorkersInput, WorkerIdleMinutesInput, SourceHeapMiBInput, FilterHeapMiBInput }.Any(input => HasInvalidText(input) || DataValidationErrors.GetHasErrors(input)))
                 {
                     throw new ArgumentException(Texts.T("settings.invalidNumbers"));
                 }
@@ -573,6 +635,14 @@ namespace MeowChan
                 candidate.VideoVolume = VideoVolume;
                 candidate.ShowShortcutHelp = ShowShortcutHelp;
                 candidate.RememberReadingPosition = RememberReadingPosition;
+                candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
+                candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
+                candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue);
+                candidate.PluginMaximumProductionWorkers = GetInteger(ProductionWorkers, ProductionWorkersLabel, 1, 8);
+                candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
+                candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
+                candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
+
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
                     throw new ArgumentException(Texts.T("settings.bandwidthPositive"));
@@ -626,10 +696,31 @@ namespace MeowChan
             VideoVolume = _config.VideoVolume;
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
+            AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
+            IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
+            MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
+            ProductionWorkers = _config.PluginMaximumProductionWorkers;
+            WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
+            SourceHeapMiB = _config.PluginSourceHeapMiB;
+            FilterHeapMiB = _config.PluginFilterHeapMiB;
+
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
+            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
+            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
+            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
+            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
+            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+
+        }
+
+        private static int GetInteger(decimal? value, string label, int minimum, int maximum)
+        {
+            if (!value.HasValue || value < minimum || value > maximum || decimal.Truncate(value.Value) != value.Value)
+                throw new ArgumentException(Texts.T("budgets.range", label, minimum, maximum));
+            return decimal.ToInt32(value.Value);
         }
 
         private static bool HasInvalidText(NumericUpDown input) => !decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out _);

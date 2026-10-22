@@ -6,6 +6,8 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Legal;
+using MeowChan.Desktop.Updates;
+using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
 using Serilog;
 using System;
@@ -15,14 +17,21 @@ namespace MeowChan;
 
 public partial class AboutWindow : Window
 {
+    private readonly UpdateSession? _updates;
+    private readonly Func<string, Task> _openBrowser;
+    private bool _updateActionFailed;
     private readonly string _version;
     private readonly OfflineLegalCatalog _legal;
     private bool _closed;
     private string? _failedLink;
     private string? _linkFailure;
 
-    public AboutWindow()
+    public AboutWindow() : this(null) { }
+
+    internal AboutWindow(UpdateSession? updates, Func<string, Task>? openBrowser = null)
     {
+        _updates = updates;
+        _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -32,10 +41,12 @@ public partial class AboutWindow : Window
         LicenseList.SelectedIndex = _legal.Entries.Count > 0 ? 0 : -1;
         ApplyTexts();
         Texts.Changed += OnTextsChanged;
+        if (_updates != null) _updates.Changed += OnUpdatesChanged;
         Closed += (_, _) =>
         {
             _closed = true;
             Texts.Changed -= OnTextsChanged;
+            if (_updates != null) _updates.Changed -= OnUpdatesChanged;
         };
     }
 
@@ -66,6 +77,7 @@ public partial class AboutWindow : Window
         if (_failedLink != null)
             LinkErrorText.Text = Texts.T("about.linkFailed", _failedLink, _linkFailure);
         UpdateSelection();
+        RefreshUpdates();
     }
 
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
@@ -145,6 +157,73 @@ public partial class AboutWindow : Window
             _linkFailure = exception.Message;
             LinkErrorText.Text = Texts.T("about.linkFailed", uri, exception.Message);
         }
+    }
+
+    private void OnUpdatesChanged() => Dispatcher.UIThread.Post(() => { if (!_closed) RefreshUpdates(); });
+
+    private void RefreshUpdates()
+    {
+        UpdateSection.IsVisible = _updates != null;
+        if (_updates == null) return;
+        UpdateView view = _updates.View;
+        UpdatesTitle.Text = Texts.T("updates.title");
+        CheckUpdatesButton.Content = Texts.T(view.IsChecking ? "updates.checking" : "updates.check");
+        CheckUpdatesButton.IsEnabled = !view.IsChecking && !view.EnvironmentDisabled;
+        UpdateStatusText.Text = UpdatePresentation.Status(view);
+        LastUpdateCheckText.Text = view.LastCheckedUtc is { } checkedAt
+            ? Texts.T("updates.lastChecked", checkedAt.ToLocalTime().ToString("g", Texts.Culture)) : string.Empty;
+        UpdateActions.IsVisible = view.Update != null && !view.EnvironmentDisabled;
+        UpdateActions.IsEnabled = !view.IsChecking;
+        UpdateReleaseButton.Content = Texts.T("updates.releaseNotes");
+        UpdateDownloadButton.Content = Texts.T("updates.download");
+        SkipUpdateButton.Content = Texts.T("updates.skip");
+        UpdateBrowserHint.Text = Texts.T("updates.browserOnly");
+        UpdatePrivacyText.Text = Texts.T("updates.privacy");
+        UpdateActionErrorText.Text = _updateActionFailed ? Texts.T("updates.error.skip") : string.Empty;
+    }
+
+    internal async Task CheckUpdatesAsync()
+    {
+        if (_closed || _updates == null || _updates.View.EnvironmentDisabled || _updates.View.IsChecking) return;
+        _updateActionFailed = false;
+        try { await _updates.CheckAsync(); }
+        catch (OperationCanceledException) { }
+        if (!_closed) RefreshUpdates();
+    }
+
+    private async void OnCheckUpdatesClick(object? sender, RoutedEventArgs e) => await CheckUpdatesAsync();
+    private async void OnUpdateReleaseClick(object? sender, RoutedEventArgs e) => await OpenUpdateAsync(download: false);
+    private async void OnUpdateDownloadClick(object? sender, RoutedEventArgs e) => await OpenUpdateAsync(download: true);
+
+    private async Task OpenUpdateAsync(bool download)
+    {
+        if (_closed || _updates?.View.Update is not { } update) return;
+        string uri = (download ? update.DownloadUri : update.ReleaseUri).AbsoluteUri;
+        try
+        {
+            await _openBrowser(uri);
+            if (_closed) return;
+            _failedLink = null;
+            _linkFailure = null;
+            LinkErrorText.Text = string.Empty;
+        }
+        catch (Exception error)
+        {
+            Log.Warning(error, "Could not open update page.");
+            if (_closed) return;
+            _failedLink = uri;
+            _linkFailure = error.Message;
+            LinkErrorText.Text = Texts.T("about.linkFailed", uri, error.Message);
+        }
+    }
+
+    private async void OnSkipUpdateClick(object? sender, RoutedEventArgs e)
+    {
+        if (_closed || _updates == null) return;
+        try { await _updates.SkipAsync(); _updateActionFailed = false; }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { Log.Warning(error, "Could not skip update."); _updateActionFailed = true; }
+        if (!_closed) RefreshUpdates();
     }
 
     private void OnCloseButtonClick(object? sender, RoutedEventArgs e) => Close();

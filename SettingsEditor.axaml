@@ -129,6 +129,45 @@
                         </Grid>
                     </Border>
                 </StackPanel>
+                <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
+                        <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
+                        <NumericUpDown x:Name="ReserveInput" Grid.Column="1" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="2147483647" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveHint}" />
+                    </Grid>
+                    <TextBlock Text="{Binding ReserveHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                    <Expander Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel Spacing="10" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
+                                <TextBlock x:Name="ProductionWorkersFieldLabel" Text="{Binding ProductionWorkersLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <NumericUpDown x:Name="ProductionWorkersInput" Grid.Column="1" Value="{Binding ProductionWorkers, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProductionWorkersFieldLabel}" AutomationProperties.Name="{Binding ProductionWorkersLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                            </Grid>
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
+                                <TextBlock x:Name="WorkerIdleMinutesFieldLabel" Text="{Binding WorkerIdleMinutesLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <NumericUpDown x:Name="WorkerIdleMinutesInput" Grid.Column="1" Value="{Binding WorkerIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=WorkerIdleMinutesFieldLabel}" AutomationProperties.Name="{Binding WorkerIdleMinutesLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                            </Grid>
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
+                                <TextBlock x:Name="SourceHeapMiBFieldLabel" Text="{Binding SourceHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <NumericUpDown x:Name="SourceHeapMiBInput" Grid.Column="1" Value="{Binding SourceHeapMiB, Mode=TwoWay}" Minimum="128" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourceHeapMiBFieldLabel}" AutomationProperties.Name="{Binding SourceHeapMiBLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                            </Grid>
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
+                                <TextBlock x:Name="FilterHeapMiBFieldLabel" Text="{Binding FilterHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <NumericUpDown x:Name="FilterHeapMiBInput" Grid.Column="1" Value="{Binding FilterHeapMiB, Mode=TwoWay}" Minimum="256" Maximum="2048" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FilterHeapMiBFieldLabel}" AutomationProperties.Name="{Binding FilterHeapMiBLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+                <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
+                    <TextBlock Text="{Binding UpdatesTitle}" Classes="section-title" />
+                    <CheckBox x:Name="AutomaticUpdatesInput" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding AutomaticUpdateChecks, Mode=TwoWay}">
+                        <TextBlock Text="{Binding AutomaticUpdateChecksLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox x:Name="PrereleaseUpdatesInput" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding IncludePrereleaseUpdates, Mode=TwoWay}">
+                        <TextBlock Text="{Binding IncludePrereleaseUpdatesLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding UpdatePrivacyHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                    <TextBlock x:Name="UpdateDisabledText" Text="{Binding UpdateDisabledReason}" IsVisible="{Binding UpdatesDisabled}" TextWrapping="Wrap" />
+                </StackPanel>
                 <StackPanel Spacing="10" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding BehaviorTitle}" Classes="section-title" />
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
