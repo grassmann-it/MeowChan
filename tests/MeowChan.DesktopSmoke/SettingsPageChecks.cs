@@ -59,7 +59,7 @@ internal static class SettingsPageChecks
             Click(editor.FindControl<Button>("SaveSettingsButton")!);
             await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
             Require(File.ReadAllText(file) == original && timer.Text == raw, "Invalid raw number was saved or discarded.");
-            await RequireErrorVisibleAsync(editor);
+            await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
             Program.CaptureWindow(window, "smoke-settings-page-dark.png");
             Texts.SetLanguage("de");
             window.UpdateLayout();
@@ -134,15 +134,22 @@ internal static class SettingsPageChecks
         Config initial = Config.LoadConfig();
         double width = window.Width;
         double height = window.Height;
+        WindowState state = window.WindowState;
         SettingsEditor editor = window.SettingsEditor;
         try
         {
             Navigate(window, true);
+            window.WindowState = WindowState.Normal;
             foreach (string mode in new[] { "Simple", "Barebones" })
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 window.Width = mode == "Barebones" ? 640 : 760;
                 window.Height = mode == "Barebones" ? 480 : 500;
+                double targetWidth = window.Width;
+                double targetHeight = window.Height;
+                await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
+                    && Math.Abs(window.Bounds.Width - targetWidth) <= 1
+                    && Math.Abs(window.Bounds.Height - targetHeight) <= 1);
                 foreach (string language in new[] { "en", "de" })
                 {
                     Texts.SetLanguage(language);
@@ -161,7 +168,8 @@ internal static class SettingsPageChecks
                     editor.RecheckTimer = 0;
                     Click(editor.FindControl<Button>("SaveSettingsButton")!);
                     await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
-                    await RequireErrorVisibleAsync(editor);
+                    await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+                    Program.CaptureWindow(window, $"smoke-settings-page-{mode.ToLowerInvariant()}-field-error-{language}.png");
                     Require(InViewport(window, editor.FindControl<Button>("SaveSettingsButton")!),
                         "Revealing an error hid the fixed Save action.");
                     Click(editor.FindControl<Button>("CancelSettingsButton")!);
@@ -174,6 +182,7 @@ internal static class SettingsPageChecks
             await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
             window.Width = width;
             window.Height = height;
+            window.WindowState = state;
             editor.CancelChanges();
             Navigate(window, false);
         }
@@ -307,14 +316,19 @@ internal static class SettingsPageChecks
         config.SaveConfig();
     }
 
-    private static async Task RequireErrorVisibleAsync(SettingsEditor editor)
+    private static async Task RequireErrorVisibleAsync(SettingsEditor editor, string? fieldName = null)
     {
-        TextBlock error = editor.FindControl<TextBlock>("SettingsError")!;
+        // Validation reveals the offending field; storage failures reveal the summary.
+        // Do not scroll the page in the assertion: this verifies the product's reveal.
+        TextBlock error = editor.FindControl<TextBlock>(fieldName == null ? "SettingsError" : fieldName + "Error")!;
+        NumericUpDown? field = fieldName == null ? null : editor.FindControl<NumericUpDown>(fieldName)!;
         ScrollViewer scroll = editor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
         await Program.WaitUntilAsync(() =>
         {
             Point? origin = error.TranslatePoint(new Point(0, 0), scroll);
             return error.IsEffectivelyVisible && error.Bounds.Height > 0 && origin.HasValue
+                && (field == null || ((field.IsFocused || field.IsKeyboardFocusWithin)
+                    && Avalonia.Automation.AutomationProperties.GetHelpText(field) == error.Text))
                 && origin.Value.Y >= -1 && origin.Value.Y + error.Bounds.Height <= scroll.Bounds.Height + 1;
         });
     }

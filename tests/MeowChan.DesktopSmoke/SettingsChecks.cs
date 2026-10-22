@@ -76,10 +76,10 @@ internal static class SettingsChecks
                 window.Editor.CancelChanges();
                 await WaitUntilAsync(() => Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>("ReserveInput")!)
                     == window.Editor.ReserveInputHelp);
-                Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>("ReserveInput")!).Contains(window.Editor.ReserveHint),
+                Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>("ReserveInput")!)?.Contains(window.Editor.ReserveHint) == true,
                     "Discard removed the reserve explanation from accessible help.");
                 foreach (string advanced in new[] { "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput" })
-                    Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>(advanced)!).Contains(window.Editor.BudgetRestartHint),
+                    Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>(advanced)!)?.Contains(window.Editor.BudgetRestartHint) == true,
                         "Discard or a language change removed the advanced budget restart explanation.");
                 Require(!window.Editor.HasError && !window.Editor.HasErrorDetails, "Discard retained validation or technical error state.");
             }
