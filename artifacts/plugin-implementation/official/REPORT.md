@@ -49,27 +49,48 @@ All dotnet operations used the global lock and disabled node reuse:
 - Release build of both official plugin projects, SDK, libmeowchan and own test
   project: PASS; zero warnings in the successful run.
 - `dotnet test tests/MeowChan.OfficialPlugins.Tests/MeowChan.OfficialPlugins.Tests.csproj -c Release --no-restore ...`:
-  **17 PASS, 0 failed, 0 skipped**. The suite compares actual library archive
+  **26 PASS, 0 failed, 0 skipped**. The suite compares actual library archive
   captures/catalogs against plugin results from the same synthetic fixtures;
   validates SDK DTOs/descriptions; covers aliases/canonical IDs, source-specific
   filename fallback, 304 baselines/validators, 404, nonterminal error statuses,
   4chan archive versus 8kun lock, extra attachments/deletion markers, HTML,
   missing/null/empty fields, deferred/failure forwarding, cancellation,
   malformed and oversized metadata, and SDK-only entry assemblies.
-  Artifact: `test-results/official-fixtures.trx`.
+  Artifact: `test-results/official-fixtures-reviewed.trx`.
 - Existing core regression run on `tests/MeowChan.Tests/MeowChan.Tests.csproj`,
   filter `ProviderHttpIntegrationTests|ProviderDescriptorTests|ContentRuntimeTests|ContentRevisionTests`:
   **50 PASS, 0 failed, 0 skipped**. Includes real library HTTP-policy deadlines,
   cancellation, 304-before-snapshot rejection, media-404 pauses/retry, final archive
   drain, 8kun lock and original capture/media revision behavior. One existing
   unrelated xUnit2031 warning in `BoardAdmissionTests.cs:25`.
-  Artifact: `test-results/core-source-parity.trx`.
+  Artifact: `test-results/core-source-parity-reviewed.trx`.
 - `git diff --check`: PASS.
 
 Fixtures are synthetic extensions of existing repository tests, with provenance
 in `tests/MeowChan.OfficialPlugins.Tests/Fixtures/README.md`. Every profile is an
 explicit fresh temporary directory. No personal profiles or displays, no live
 board crawl and no original-media request were used for the new parity checks.
+
+## Independent review corrections
+
+The independent `plugin_runtime_probe` review caught two malformed-response
+paths which could have silently omitted media. Both now reject the entire
+observation before any capture/source-end commit:
+
+- A present invalid, null or overflowing 4chan `tim` throws `InvalidDataException`
+  in the shared parser; the plugin returns `invalid_metadata`. Missing fields
+  retain the existing skip behavior. Valid timestamp strings are normalized as
+  before and explicit null filenames retain the `unknown` fallback.
+- A non-opening post without `no` cannot represent its attachment in the SDK.
+  It now rejects the response instead of discarding the post/media. The opening
+  post's existing thread-ID fallback remains. Tests exercise both providers and
+  a final archived 4chan response; the direct library remains Active on failure.
+
+The same review also confirmed/fixed numeric catalog identity normalization
+(`"000123"` becomes `"123"`, while explicitly admitted URL IDs retain their
+original identity) and UTF-8 BOM acceptance matching the existing StreamReader.
+The final 26-plugin/50-core test runs above include these fixes. No live-source
+claim is inferred from these synthetic malformed-response cases.
 
 ## Boundaries
 

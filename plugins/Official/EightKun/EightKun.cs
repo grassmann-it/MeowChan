@@ -121,7 +121,7 @@ internal static class EightKunParser
 
     internal static IReadOnlyList<CatalogEntry> ParseCatalog(string json, CancellationToken cancellationToken = default)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using JsonDocument document = JsonDocument.Parse(json.Length > 0 && json[0] == '\uFEFF' ? json[1..] : json);
         if (document.RootElement.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Catalog must be an array.");
         List<CatalogEntry> entries = new();
         HashSet<string> ids = new(StringComparer.Ordinal);
@@ -133,8 +133,10 @@ internal static class EightKunParser
             foreach (JsonElement entry in threads.EnumerateArray())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                string? id = Text(entry, "no");
-                if (id is null || !ValidId(id) || !ids.Add(id)) throw new InvalidDataException("Invalid or duplicate catalog thread ID.");
+                long? number = Number(entry, "no");
+                if (number is null or <= 0) throw new InvalidDataException("Invalid catalog thread ID.");
+                string id = number.Value.ToString(CultureInfo.InvariantCulture);
+                if (!ids.Add(id)) throw new InvalidDataException("Duplicate catalog thread ID.");
                 entries.Add(new CatalogEntry(id, WebUtility.HtmlDecode(Text(entry, "sub")), Text(entry, "com")));
             }
         }
@@ -143,7 +145,7 @@ internal static class EightKunParser
 
     internal static ThreadData ParseThread(string json, string board, string threadId, CancellationToken cancellationToken = default)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using JsonDocument document = JsonDocument.Parse(json.Length > 0 && json[0] == '\uFEFF' ? json[1..] : json);
         if (!document.RootElement.TryGetProperty("posts", out JsonElement posts) || posts.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("Thread data does not contain posts.");
         List<Post> captured = new();
@@ -171,18 +173,16 @@ internal static class EightKunParser
                     CaptureAttachment(file, position++, board, attachments);
                 }
             }
-            string? id = Text(post, "no") ?? (ordinal == 0 ? threadId : null);
-            if (id is not null)
-            {
-                if (!ValidId(id) || !ids.Add(id)) throw new InvalidDataException("Invalid or duplicate post ID.");
-                int fields = (Has(post, "time") ? 1 : 0) | (Has(post, "sub") ? 2 : 0) | (Has(post, "name") ? 4 : 0)
-                    | (Has(post, "com") ? 8 : 0) | (Has(post, "deleted") ? 16 : 0)
-                    | (attachments.Count > 0 || Has(post, "extra_files") ? 32 : 0);
-                long? seconds = Number(post, "time");
-                captured.Add(new Post(id, ordinal, fields, seconds.HasValue ? DateTimeOffset.FromUnixTimeSeconds(seconds.Value) : null,
-                    WebUtility.HtmlDecode(Text(post, "sub")), WebUtility.HtmlDecode(Text(post, "name")), Text(post, "com"),
-                    Number(post, "deleted") == 1, attachments));
-            }
+            string id = Text(post, "no") ?? (ordinal == 0 ? threadId
+                : throw new InvalidDataException("A reply does not contain a post ID."));
+            if (!ValidId(id) || !ids.Add(id)) throw new InvalidDataException("Invalid or duplicate post ID.");
+            int fields = (Has(post, "time") ? 1 : 0) | (Has(post, "sub") ? 2 : 0) | (Has(post, "name") ? 4 : 0)
+                | (Has(post, "com") ? 8 : 0) | (Has(post, "deleted") ? 16 : 0)
+                | (attachments.Count > 0 || Has(post, "extra_files") ? 32 : 0);
+            long? seconds = Number(post, "time");
+            captured.Add(new Post(id, ordinal, fields, seconds.HasValue ? DateTimeOffset.FromUnixTimeSeconds(seconds.Value) : null,
+                WebUtility.HtmlDecode(Text(post, "sub")), WebUtility.HtmlDecode(Text(post, "name")), Text(post, "com"),
+                Number(post, "deleted") == 1, attachments));
             ordinal++;
         }
         return new ThreadData(title, archived, captured);
@@ -194,7 +194,7 @@ internal static class EightKunParser
         string? id = Text(file, "tim");
         string? extension = Text(file, "ext");
         string? filename = Text(file, "filename");
-        
+
         if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(extension)) return;
         if (id.Length > 256 || id.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_' && character != '-'))
             throw new InvalidDataException("Invalid media identity.");

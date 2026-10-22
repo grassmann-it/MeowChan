@@ -82,6 +82,73 @@ public sealed class OfficialSourceTests
     }
 
     [Theory]
+    [InlineData("\"broken\"")]
+    [InlineData("9223372036854775808")]
+    [InlineData("null")]
+    public async Task InvalidFourChanMediaTimestampCannotCommitAFinalSnapshot(string timestampJson)
+    {
+        string body = "{\"posts\":[{\"no\":123,\"tim\":" + timestampJson
+            + ",\"ext\":\".jpg\",\"filename\":\"photo\",\"archived\":1}]}";
+        FourChanPlugin plugin = new();
+        ThreadFailure failure = Assert.IsType<ThreadFailure>(await plugin.ReadThreadAsync(Request(false), Context(new FixtureHttp(Response(200, body)))));
+        Assert.Equal("invalid_metadata", failure.Failure.Code);
+        using HttpClient client = new(new LibraryTransport(body, "[]"));
+        FourChanImageBoard provider = new(client);
+        IThread thread = provider.GetThread(new Uri("https://boards.4chan.org/g/thread/123"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => thread.checkThreadAsync(new DownloadQueue(1, 1024)));
+        Assert.Equal(ThreadSourceState.Active, thread.SourceState);
+        Assert.Equal(0, thread.TotalMediaCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplyMediaWithoutPostIdentityCannotBeSilentlyDropped(bool eightKun)
+    {
+        const string body = "{\"posts\":[{\"no\":123,\"archived\":1},{\"tim\":\"456\",\"ext\":\".jpg\",\"filename\":\"photo\"}]}";
+        ISourcePlugin plugin = Plugin(eightKun);
+        ThreadFailure failure = Assert.IsType<ThreadFailure>(await plugin.ReadThreadAsync(Request(eightKun), Context(new FixtureHttp(Response(200, body)))));
+        Assert.Equal("invalid_metadata", failure.Failure.Code);
+        using HttpClient client = new(new LibraryTransport(body, "[]"));
+        IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
+        IThread thread = provider.GetThread(new Uri(eightKun ? "https://8kun.top/g/res/123.html" : "https://boards.4chan.org/g/thread/123"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => thread.checkThreadAsync(new DownloadQueue(1, 1024)));
+        Assert.Equal(ThreadSourceState.Active, thread.SourceState);
+        Assert.Equal(0, thread.TotalMediaCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CatalogNumericIdentityPreservesLibraryNormalization(bool eightKun)
+    {
+        ISourcePlugin plugin = Plugin(eightKun);
+        CatalogReadRequest request = new(new SourceBoardId(eightKun ? "8kun" : "4chan", "g"));
+        const string body = "[{\"threads\":[{\"no\":\"000123\"}]}]";
+        CatalogSnapshot result = Assert.IsType<CatalogSnapshot>(await plugin.ReadCatalogAsync(request, Context(new FixtureHttp(Response(200, body)))));
+        Assert.Equal("123", Assert.Single(result.Snapshot.Threads).Id.ThreadId);
+        using HttpClient client = new(new LibraryTransport("", body));
+        IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
+        IThread legacy = Assert.Single(await provider.GetBoard(new Uri(eightKun ? "https://8kun.top/g/" : "https://boards.4chan.org/g/")).GetThreadsAsync());
+        Assert.Equal(legacy.ThreadUri, result.Snapshot.Threads.Single().Url);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Utf8BomMetadataMatchesTheLibraryReader(bool eightKun)
+    {
+        ISourcePlugin plugin = Plugin(eightKun);
+        SdkThreadSnapshot thread = Assert.IsType<SdkThreadSnapshot>(await plugin.ReadThreadAsync(Request(eightKun),
+            Context(new FixtureHttp(Response(200, "\uFEFF{\"posts\":[{\"no\":123,\"com\":\"BOM text\"}]}")))));
+        Assert.Equal("BOM text", Assert.Single(thread.Snapshot.Posts).Text);
+        CatalogReadRequest request = new(new SourceBoardId(eightKun ? "8kun" : "4chan", "g"));
+        CatalogSnapshot catalog = Assert.IsType<CatalogSnapshot>(await plugin.ReadCatalogAsync(request,
+            Context(new FixtureHttp(Response(200, "\uFEFF[{\"threads\":[{\"no\":123}]}]")))));
+        Assert.Equal("123", Assert.Single(catalog.Snapshot.Threads).Id.ThreadId);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task CapturedFixtureMatchesLibraryPostsAttachmentsAndCatalog(bool eightKun)

@@ -53,6 +53,9 @@ become source IDs or archive/export identities.
   Missing, null and empty fields remain distinguishable. Decimal post identity
   orders partial snapshots. 8kun extra files retain positions starting at 1,
   original media IDs and deleted attachment markers.
+- Malformed media timestamps or replies without a post ID reject the whole
+  response; no attachment is silently dropped from an otherwise successful
+  final snapshot. Leading UTF-8 BOMs are accepted like the library reader.
 - Catalog omission does not signal the end of a thread. Catalogs are complete
   multi-page API observations; explicit cursors/pages are unsupported.
 
