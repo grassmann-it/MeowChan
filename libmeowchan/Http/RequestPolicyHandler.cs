@@ -15,6 +15,14 @@ public enum RequestPolicyPhase { WaitingForAdmission, Cooldown, Sending }
 
 public sealed record RequestPolicyProgress(RequestPolicyPhase Phase, TimeSpan? Delay, int Attempt);
 
+/// <summary>A request can be resumed at the actual shared admission or cooldown deadline.</summary>
+public sealed class RequestPolicyDeferredException(DateTimeOffset retryAt, string reasonCode)
+    : Exception($"HTTP request deferred until {retryAt:O}: {reasonCode}.")
+{
+    public DateTimeOffset RetryAt { get; } = retryAt;
+    public string ReasonCode { get; } = reasonCode;
+}
+
 /// <summary>
 /// Shared admission and cooldown state for the HTTP clients belonging to a session.
 /// Elapsed time is monotonic; wall-clock time is used only to interpret Retry-After dates.
@@ -64,13 +72,22 @@ public sealed class RequestPolicyState
 
     internal async Task<Task<HttpResponseMessage>> DispatchAsync(HostState host, string? threadEndpoint,
         Func<Task<HttpResponseMessage>> send, Action startBudget,
-        Action<RequestPolicyPhase, TimeSpan> waiting, CancellationToken cancellationToken)
+        Action<RequestPolicyPhase, TimeSpan> waiting, CancellationToken cancellationToken, bool deferWhenWaiting = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Waiter waiter = new Waiter();
         LinkedListNode<Waiter> node;
         lock (host.DispatchLock)
         {
+            if (deferWhenWaiting)
+            {
+                long now = NowTicks;
+                long due = Math.Max(host.NextAdmission, host.CooldownUntil);
+                if (threadEndpoint != null && host.NextThreadAdmission.TryGetValue(threadEndpoint, out long threadDue))
+                    due = Math.Max(due, threadDue);
+                if (due > now || host.Pending.Count > 0)
+                    throw Deferred(host, Math.Max(1, due - now), now);
+            }
             node = host.Pending.AddLast(waiter);
             if (ReferenceEquals(host.Pending.First, node)) waiter.Turn.TrySetResult();
         }
@@ -112,6 +129,7 @@ public sealed class RequestPolicyState
                             if (host.Pending.Count == 0) host.Recovering = false;
                         }
                     }
+                    if (deferWhenWaiting) throw Deferred(host, remaining, now);
                     changed = host.Changed.Task;
                 }
 
@@ -128,6 +146,14 @@ public sealed class RequestPolicyState
         {
             lock (host.DispatchLock) { RemoveWaiterLocked(host, node); }
         }
+    }
+
+    private RequestPolicyDeferredException Deferred(HostState host, long remaining, long now)
+    {
+        DateTimeOffset utcNow = TimeProvider.GetUtcNow();
+        long boundedTicks = Math.Min(remaining, (DateTimeOffset.MaxValue - utcNow).Ticks);
+        return new RequestPolicyDeferredException(utcNow.AddTicks(boundedTicks),
+            host.CooldownUntil > now ? "cooldown" : "admission");
     }
 
     internal void RecordFailure(HostState host, RetryConditionHeaderValue? retryAfter, int attempt)
@@ -222,7 +248,9 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
     public static readonly TimeSpan HeaderTimeout = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan OverallTimeout = TimeSpan.FromSeconds(60);
     public const int MaximumAttempts = 3;
-    internal static readonly HttpRequestOptionsKey<Action<RequestPolicyProgress>> ObserverKey = new HttpRequestOptionsKey<Action<RequestPolicyProgress>>("MeowChan.RequestPolicyObserver");
+    /// <summary>Opt in to returning a deadline instead of retaining admission during provider waits.</summary>
+    public static readonly HttpRequestOptionsKey<bool> DeferWhenWaitingKey = new("MeowChan.RequestPolicyDeferWhenWaiting");
+    public static readonly HttpRequestOptionsKey<Action<RequestPolicyProgress>> ObserverKey = new HttpRequestOptionsKey<Action<RequestPolicyProgress>>("MeowChan.RequestPolicyObserver");
 
     private readonly HttpClient _transport;
     private readonly string _source;
@@ -309,7 +337,7 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
                         return _transport.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attempt.Token);
                     }, budget.Start,
                     (phase, delay) => Notify(observer, new RequestPolicyProgress(phase, delay, attemptNumber)),
-                    budget.Token).ConfigureAwait(false);
+                    budget.Token, original.Options.TryGetValue(DeferWhenWaitingKey, out bool defer) && defer).ConfigureAwait(false);
                 Notify(observer, new RequestPolicyProgress(RequestPolicyPhase.Sending, null, attemptNumber));
                 HttpResponseMessage response = await sending.ConfigureAwait(false);
                 if (budget.Token.IsCancellationRequested || headers!.IsCancellationRequested)

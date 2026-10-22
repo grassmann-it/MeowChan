@@ -1,1 +1,7 @@
 #nullable enable
+MeowChan.Http.RequestPolicyDeferredException
+MeowChan.Http.RequestPolicyDeferredException.RequestPolicyDeferredException(System.DateTimeOffset retryAt, string! reasonCode) -> void
+MeowChan.Http.RequestPolicyDeferredException.RetryAt.get -> System.DateTimeOffset
+MeowChan.Http.RequestPolicyDeferredException.ReasonCode.get -> string!
+static readonly MeowChan.Http.RequestPolicyHandler.DeferWhenWaitingKey -> System.Net.Http.HttpRequestOptionsKey<bool>
+static readonly MeowChan.Http.RequestPolicyHandler.ObserverKey -> System.Net.Http.HttpRequestOptionsKey<System.Action<MeowChan.Http.RequestPolicyProgress!>!>

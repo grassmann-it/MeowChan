@@ -7,6 +7,51 @@ namespace MeowChan.Tests;
 
 public sealed class HttpPolicyTests
 {
+    [Fact]
+    public async Task DeferredModeReturnsExactCooldownWithoutWaitingAndRemovesAdmission()
+    {
+        ManualPolicyTime clock = new();
+        RecordingTransport handler = new(clock, (_, _, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromHours(3));
+            return Task.FromResult(response);
+        });
+        using HttpClient transport = new(handler);
+        using HttpClient client = Client(transport, "4chan", new RequestPolicyState(clock, () => 0));
+        using HttpRequestMessage request = new(HttpMethod.Get, "https://a.4cdn.org/g/catalog.json");
+        request.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
+        RequestPolicyDeferredException deferred = await Assert.ThrowsAsync<RequestPolicyDeferredException>(
+            () => client.SendAsync(request));
+        Assert.Equal(clock.GetUtcNow().AddHours(3), deferred.RetryAt);
+        Assert.Equal("cooldown", deferred.ReasonCode);
+        Assert.Equal(1, handler.Count);
+        using HttpRequestMessage second = new(HttpMethod.Get, "https://a.4cdn.org/a/catalog.json");
+        second.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
+        Assert.Equal(deferred.RetryAt, (await Assert.ThrowsAsync<RequestPolicyDeferredException>(
+            () => client.SendAsync(second))).RetryAt);
+        Assert.Equal(1, handler.Count);
+    }
+
+    [Fact]
+    public async Task DeferredAdmissionReportsRemainingPacingAndDoesNotRetainFifoPlace()
+    {
+        ManualPolicyTime clock = new();
+        RecordingTransport handler = new(clock, (_, _, _) => Task.FromResult(Response(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler);
+        using HttpClient client = Client(transport, "4chan", new RequestPolicyState(clock));
+        using HttpResponseMessage first = await client.GetAsync("https://a.4cdn.org/g/catalog.json");
+        using HttpRequestMessage request = new(HttpMethod.Get, "https://a.4cdn.org/a/catalog.json");
+        request.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
+        RequestPolicyDeferredException deferred = await Assert.ThrowsAsync<RequestPolicyDeferredException>(
+            () => client.SendAsync(request));
+        Assert.Equal(clock.GetUtcNow().AddSeconds(1), deferred.RetryAt);
+        Assert.Equal("admission", deferred.ReasonCode);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        using HttpResponseMessage next = await client.GetAsync("https://a.4cdn.org/b/catalog.json").WaitAsync(TestWait.Timeout);
+        Assert.Equal(2, handler.Count);
+    }
+
     [Theory]
     [InlineData("4chan", "a.4cdn.org")]
     [InlineData("8kun", "8kun.top")]
