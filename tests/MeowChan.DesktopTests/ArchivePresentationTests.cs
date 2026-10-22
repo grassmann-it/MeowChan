@@ -41,6 +41,34 @@ public sealed class ArchivePresentationTests
     }
 
     [Fact]
+    public void RetryingPageErrorKeepsZeroCountExpanderVisibleUntilLoadingCompletes()
+    {
+        ArchivePostRow row = new("123", "#123", "", "", Array.Empty<ArchiveAttachmentRow>());
+        row.SetBacklinkCount(0);
+        row.SetRepliesError("local page unavailable");
+        List<string> changes = new();
+        row.PropertyChanged += (_, eventArgs) => changes.Add(eventArgs.PropertyName!);
+        row.SetRepliesLoading(true);
+        Assert.Contains(nameof(row.CanExpandReplies), changes);
+        Assert.Contains(nameof(row.HasConfirmedNoReplies), changes);
+        changes.Clear();
+        row.SetRepliesError(null);
+        Assert.True(row.CanExpandReplies);
+        Assert.False(row.HasConfirmedNoReplies);
+        Assert.Contains(nameof(row.CanExpandReplies), changes);
+        Assert.Contains(nameof(row.HasConfirmedNoReplies), changes);
+        changes.Clear();
+        row.SetReplies(Array.Empty<ArchiveQuoteRow>(), 0, 0);
+        Assert.True(row.CanExpandReplies);
+        changes.Clear();
+        row.SetRepliesLoading(false);
+        Assert.True(row.HasConfirmedNoReplies);
+        Assert.False(row.CanExpandReplies);
+        Assert.Contains(nameof(row.CanExpandReplies), changes);
+        Assert.Contains(nameof(row.HasConfirmedNoReplies), changes);
+    }
+
+    [Fact]
     public void CompactBacklinkKeepsFullIdentityAndDistinguishesForeignThread()
     {
         MeowChan.ResourceId thread = new("4chan", "g", "123");

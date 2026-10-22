@@ -85,7 +85,7 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
         (_backlinkCount?.ToString(Texts.Culture) ?? "…");
     // Only a confirmed, successful zero is non-interactive. Unknown/error states
     // retain the expander so a local retry remains possible.
-    public bool HasConfirmedNoReplies => _backlinkCount == 0 && !HasRepliesError;
+    public bool HasConfirmedNoReplies => _backlinkCount == 0 && !HasRepliesError && !RepliesLoading;
     public bool CanExpandReplies => !HasConfirmedNoReplies;
     public IReadOnlyList<ArchiveQuoteRow> Replies => _replies;
     public bool RepliesExpanded
@@ -117,7 +117,8 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
         Changed(nameof(Replies), nameof(RepliesOffset), nameof(RepliesLoaded), nameof(HasMoreReplies), nameof(RepliesPageLabel),
             nameof(RepliesError), nameof(HasRepliesError));
     }
-    public void SetRepliesLoading(bool loading) { _repliesLoading = loading; Changed(nameof(RepliesLoading)); }
+    public void SetRepliesLoading(bool loading)
+    { _repliesLoading = loading; Changed(nameof(RepliesLoading), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
     public void SetRepliesError(string? error)
     { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
     private void Changed(params string[] names)
