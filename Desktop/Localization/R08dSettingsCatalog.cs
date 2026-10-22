@@ -9,7 +9,7 @@ internal static class R08dSettingsCatalog
         ("settings.notSaved", "Not saved. Check the marked field.", "Nicht gespeichert. Das markierte Feld prüfen."),
         ("settings.saveProblem", "Settings could not be saved. Your draft is still here.", "Die Einstellungen konnten nicht gespeichert werden. Dein Entwurf bleibt erhalten."),
         ("settings.errorDetails", "Error details", "Fehlerdetails"),
-        ("settings.fieldNumber", "{0}: enter a valid number ({1}).", "{0}: eine gültige Zahl eingeben ({1})."),
+        ("settings.fieldNumber", "{0}: enter a valid number.", "{0}: eine gültige Zahl eingeben."),
         ("settings.fieldInteger", "{0}: enter a whole number from {1} to {2}.", "{0}: eine ganze Zahl von {1} bis {2} eingeben."),
         ("settings.bandwidthRange", "{0}: enter a value greater than zero, up to {1} MiB/s.", "{0}: einen Wert größer als null bis {1} MiB/s eingeben."),
         ("settings.unitCount", "count", "Anzahl"),

@@ -80,6 +80,17 @@ public partial class SettingsEditor
         NotifyFieldHelpChanged();
     }
 
+    private static string FieldLabelWithUnit(string label, string unit)
+    {
+        string suffix = "(" + unit + ")";
+        // Help can spell out a unit and also provide its abbreviation, e.g. MiB/s.
+        int abbreviation = unit.LastIndexOf('(');
+        if (label.Contains(suffix, StringComparison.OrdinalIgnoreCase) ||
+            (abbreviation >= 0 && label.Contains(unit[abbreviation..], StringComparison.OrdinalIgnoreCase)))
+            return label;
+        return label + " " + suffix;
+    }
+
     // Parse validation runs before the existing shared Config validation/commit path.
     // Never replace malformed text with a previous NumericUpDown.Value.
     private bool ValidateNumericDraft()
@@ -91,10 +102,10 @@ public partial class SettingsEditor
             bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||
                 (field.Integer && decimal.Truncate(value.Value) != value.Value) || (!field.Integer && value <= 0);
             if (!parsed || DataValidationErrors.GetHasErrors(field.Input))
-                message = Texts.T("settings.fieldNumber", field.Label, field.Unit);
+                message = Texts.T("settings.fieldNumber", FieldLabelWithUnit(field.Label, field.Unit));
             else if (InvalidNumber(raw) || InvalidNumber(field.Value))
                 message = field.Integer
-                    ? Texts.T("settings.fieldInteger", field.Label + " (" + field.Unit + ")", field.Min, field.Max)
+                    ? Texts.T("settings.fieldInteger", FieldLabelWithUnit(field.Label, field.Unit), field.Min, field.Max)
                     : Texts.T("settings.bandwidthRange", field.Label, decimal.Floor(field.Max));
             if (message == null) continue;
             TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
