@@ -127,7 +127,36 @@ internal static class DownloadSearchChecks
                             "A download tab or count is covered by list actions.");
                     }
                     Require(window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible, "Compact header hid the direct details action.");
-                    Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
+                    foreach (double width in new[] { window.Width, 1380d })
+                    {
+                        window.Width = width;
+                        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, window.Height));
+                        window.UpdateLayout();
+                        Button columns = window.FindControl<Button>("DownloadsColumnsButton")!;
+                        Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
+                        Button more = window.FindControl<Button>("DownloadsMoreButton")!;
+                        Require(mode != "Barebones" || more.IsEffectivelyVisible && !columns.IsVisible && !copy.IsVisible,
+                            "Barebones exposed rare actions outside More after resizing.");
+                        Require(mode == "Barebones" || width < 1380 || columns.IsEffectivelyVisible && copy.IsEffectivelyVisible && !more.IsVisible,
+                            "A wide Simple/Advanced header retained its overflow menu.");
+                        Require(window.FindControl<Button>("DownloadSearchButton")!.IsEffectivelyVisible
+                            && window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible,
+                            "Header resizing hid a primary action.");
+                        if (more.IsVisible)
+                        {
+                            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            MenuItem[] items = more.ContextMenu!.Items.OfType<MenuItem>().ToArray();
+                            Require(items.Length == 2 && items[0].Header?.ToString() == Texts.T("downloads.columns")
+                                && items[1].Header?.ToString() == Texts.T("downloads.copySessionUrls", window.UrlList.Count + window.BoardsList.Count)
+                                && items[1].IsEnabled == copy.IsEnabled, "More lost a list action, session count or command availability.");
+                            // Exercise the real nested column menu, not only its label.
+                            items[0].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                            Require(more.ContextMenu!.Items.OfType<MenuItem>().Any(), "More did not open column choices.");
+                            more.ContextMenu.Close();
+                        }
+                        Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language
+                            + "-" + theme.Key.ToString()!.ToLowerInvariant() + "-" + (width == 1380 ? "wide" : "minimum") + ".png");
+                    }
                 }
             }
             ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;

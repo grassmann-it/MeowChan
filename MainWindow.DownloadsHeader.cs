@@ -76,7 +76,9 @@ public partial class MainWindow
                 action.Measure(unconstrained);
                 actionWidth += action.DesiredSize.Width;
             }
-            bool compact = tabWidth + actionWidth + 8 > width;
+            // Barebones keeps its quiet header at every width; the other modes
+            // retain the measured overflow behavior. Both actions remain in More.
+            bool compact = _config.WorkspaceMode == "Barebones" || tabWidth + actionWidth + 8 > width;
             columns.IsVisible = !compact; copy.IsVisible = !compact; more.IsVisible = compact;
         }
         finally { _measuringDownloadsHeader = false; }

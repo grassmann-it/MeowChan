@@ -39,6 +39,8 @@ internal static class BoardAdmissionCatalog
         ("wizard.reason.includeRule", "Include rule matches", "Einschlussregel trifft zu"),
         ("wizard.reason.all", "Included by default", "Standardmäßig eingeschlossen"),
         ("wizard.resetChoice", "Use rules again", "Wieder Regeln verwenden"),
+        ("wizard.resetChoiceForThread", "Use rules again for {0}", "Wieder Regeln verwenden für {0}"),
+        ("wizard.resetChoiceHint", "Reset only this thread's individual choice and reactivation in the current board draft. Apply all boards separately below.", "Nur die Einzelentscheidung und Reaktivierung dieses Threads im aktuellen Boardentwurf zurücksetzen. Alle Boards anschließend unten gemeinsam übernehmen."),
         ("wizard.manualWatch", "Manually watched — continues", "Manuell beobachtet – läuft weiter"),
         ("wizard.existingWatch", "Already watched — continues", "Bereits beobachtet – läuft weiter"),
         ("wizard.edit", "Thread filters and exclusions…", "Threadfilter und Ausschlüsse…")

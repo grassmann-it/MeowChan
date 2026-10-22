@@ -22,6 +22,7 @@ internal static class BoardAdmissionContractChecks
         {
             Texts.SetLanguage(language);
             await CheckScopeAsync(owner);
+            await CheckCompactResetAsync(owner);
             await CheckFailureAndValidationAsync(owner);
             await CheckCancelAsync(owner, escape: false);
             await CheckCancelAsync(owner, escape: true);
@@ -88,6 +89,47 @@ internal static class BoardAdmissionContractChecks
                 && accepted.Reactivations![url].SequenceEqual([url + "thread/3"]), "Clear/apply lost individual exceptions or explicit reactivations.");
             Require(saved[url].Rules.Count == 1 && saved[url].Exceptions.Count == 2, "The dialog mutated an input policy.");
         }
+    }
+
+    private static async Task CheckCompactResetAsync(MainWindow owner)
+    {
+        BoardAdmissionPreview LongPreview(string url) => new(url, "Long-title fixture", Saved(url),
+        [new("3", url + "thread/3", string.Join(" ", Enumerable.Repeat("cat dog long title", 18)),
+            "Opening post remains readable below the decision", Suppressed: true)]);
+        BoardAdmissionWindow modal = new(Urls, Saved, (url, _) => Task.FromResult(LongPreview(url)), showWizard: true)
+            { Width = 640, Height = 600 };
+        Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(owner);
+        await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionApply").IsEnabled);
+        ListBox list = Find<ListBox>(modal, "BoardAdmissionPreview");
+        list.ScrollIntoView(list.Items[0]!);
+        await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionResetChoice"));
+        CheckBox row = Find<CheckBox>(modal, "BoardAdmissionInclude");
+        row.IsChecked = true;
+        await Program.WaitUntilAsync(() => row.IsChecked == true);
+        Button reset = Find<Button>(modal, "BoardAdmissionResetChoice");
+        reset.BringIntoView(); reset.Focus(NavigationMethod.Tab);
+        await Program.WaitUntilAsync(() => InWindow(modal, reset) && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), reset));
+        modal.UpdateLayout();
+        Require(reset.Parent is Grid decision && reset.Bounds.Width < decision.Bounds.Width / 2
+            && reset.Bounds.Height >= 32 && InWindow(modal, reset), "Board reset became a full-width or clipped action at dialog minimum.");
+        Require(AutomationProperties.GetName(reset).Contains("#3", StringComparison.Ordinal)
+            && AutomationProperties.GetHelpText(reset) == Texts.T("wizard.resetChoiceHint"), "Repeated reset actions lack their thread identity or draft scope.");
+        Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-before.png");
+        reset.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        await Program.WaitUntilAsync(() => row.IsChecked == false);
+        Require(!result.IsCompleted && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), reset), "Row reset committed the dialog or lost keyboard focus.");
+        // Reset remains reachable on an already rule-controlled row, with no new visibility rule.
+        Require(reset.IsEffectivelyVisible && reset.IsEnabled, "Reset disappeared after returning to rules.");
+        Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-after.png");
+        Click(Find<Button>(modal, "BoardAdmissionApply"));
+        BoardAdmissionSelection accepted = await result ?? throw new InvalidOperationException("Reset prevented explicit joint apply.");
+        Require(accepted.Policies[Board].Rules.SequenceEqual(Saved(Board).Rules)
+            && !accepted.Policies[Board].Exceptions.ContainsKey(Board + "thread/3")
+            && accepted.Policies[Board].Exceptions[Board + "thread/2"] == ThreadAdmissionException.Exclude
+            && accepted.Reactivations![Board].Length == 0
+            && accepted.Policies[Other].Rules.SequenceEqual(Saved(Other).Rules)
+            && accepted.Policies[Other].Exceptions.SequenceEqual(Saved(Other).Exceptions),
+            "Reset changed rules, another thread/board or retained the reset reactivation.");
     }
 
     private static async Task CheckFailureAndValidationAsync(MainWindow owner)

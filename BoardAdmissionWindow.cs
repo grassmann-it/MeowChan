@@ -150,14 +150,25 @@ internal sealed class BoardAdmissionWindow : Window
         include.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(PreviewRow.Included)) { Mode = BindingMode.TwoWay });
         var reason = Wrapped(row.Reason);
         reason.Bind(TextBlock.TextProperty, new Binding(nameof(PreviewRow.Reason)));
-        panel.Children.Add(include); panel.Children.Add(reason);
+        var decision = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        reason.VerticalAlignment = VerticalAlignment.Center;
+        decision.Children.Add(reason);
+        var reset = new Button
+        {
+            Name = "BoardAdmissionResetChoice", Content = Texts.T("wizard.resetChoice"),
+            FontSize = 11, Padding = new Thickness(8, 4), MinHeight = 32,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
+        };
+        AutomationProperties.SetName(reset, Texts.T("wizard.resetChoiceForThread", row.Title));
+        AutomationProperties.SetHelpText(reset, Texts.T("wizard.resetChoiceHint"));
+        reset.Click += (_, _) => row.Reset();
+        Grid.SetColumn(reset, 1); decision.Children.Add(reset);
+        panel.Children.Add(include); panel.Children.Add(decision);
         if (!string.IsNullOrWhiteSpace(row.OpeningPost)) panel.Children.Add(new TextBlock
         {
             Text = row.OpeningPost, TextWrapping = TextWrapping.Wrap, MaxLines = 3,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
-        var reset = new Button { Content = Texts.T("wizard.resetChoice"), FontSize = 11, Padding = new Thickness(5, 2) };
-        reset.Click += (_, _) => row.Reset(); panel.Children.Add(reset);
         return panel;
     });
     private void AddRule(Draft draft, ThreadTextRule rule)
