@@ -48,9 +48,13 @@ internal static class SettingsChecks
             foreach (var rejected in new (string Field, string Raw)[] { ("RecheckTimerInput", "invalid draft"),
                 ("RecheckTimerInput", "0"), ("RecheckTimerInput", "60.5"), ("ProductionWorkersInput", "9") })
             {
+                Console.WriteLine($"SMOKE settings blur begin: field={rejected.Field}; raw='{rejected.Raw}'.");
                 window.Editor.CancelChanges();
                 NumericUpDown number = window.Editor.FindControl<NumericUpDown>(rejected.Field)!;
-                foreach (Expander group in number.GetVisualAncestors().OfType<Expander>()) group.IsExpanded = true;
+                for (var parent = number.Parent; parent != null; parent = parent.Parent)
+                    if (parent is Expander group) group.IsExpanded = true;
+                window.UpdateLayout();
+                number.ApplyTemplate();
                 number.BringIntoView();
                 TextBox input = number.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
                 await WaitUntilAsync(() => input.IsEffectivelyVisible && input.Bounds.Height > 0);
@@ -69,6 +73,7 @@ internal static class SettingsChecks
                     "Saving/revealing an invalid raw number corrected it, committed it or produced a storage error.");
                 input.Focus();
                 Require(number.Text == rejected.Raw, "Refocusing the same numeric editor changed its invalid draft.");
+                Console.WriteLine($"SMOKE settings blur passed: field={rejected.Field}; raw='{number.Text}'; value={number.Value}; commits={commits}.");
             }
             window.Editor.CancelChanges();
             NumericUpDown timer = window.Editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
