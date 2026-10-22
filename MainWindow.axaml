@@ -83,10 +83,10 @@
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized muted" FontSize="13" TextWrapping="Wrap" />
                     <ursa:Banner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch">
-                        <ScrollViewer MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="12" /></ScrollViewer>
+                        <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="12" /></ScrollViewer>
                     </ursa:Banner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
+                        <Expander x:Name="AdmissionResultsExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />

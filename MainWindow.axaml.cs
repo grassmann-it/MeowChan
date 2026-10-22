@@ -339,7 +339,7 @@ public partial class MainWindow : Window
 
     private void RefreshAdmissionResults()
     {
-        RefreshAdmissionRepair();
+        string? repairSources = RefreshAdmissionRepair();
         Border panel = this.FindControl<Border>("AdmissionResultsPanel")!;
         StackPanel rows = this.FindControl<StackPanel>("AdmissionResultRows")!;
         panel.IsVisible = _admissionResults.Count > 0;
@@ -364,7 +364,7 @@ public partial class MainWindow : Window
                     _ => "admission.failed"
                 };
                 return Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error);
-            }))
+            })) + (repairSources == null ? string.Empty : Environment.NewLine + repairSources)
         };
         rows.Children.Add(report);
     }

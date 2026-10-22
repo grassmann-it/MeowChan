@@ -8,12 +8,12 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    private void RefreshAdmissionRepair()
+    private string? RefreshAdmissionRepair()
     {
         Control panel = WorkspaceControl<Control>("AdmissionRepairPanel");
         AdmissionFeedback? first = _admissionResults.FirstOrDefault(item => item.Status is not (AdmissionStatus.Added or AdmissionStatus.AlreadyPresent));
         panel.IsVisible = first != null;
-        if (first == null) return;
+        if (first == null) return null;
         string cause = first.Error ?? Texts.T(first.Status == AdmissionStatus.Invalid ? "admission.repairInvalid" : "admission.repairUnsupported");
         ProviderDescriptor[] providers = _session.GetProviderDescriptors().ToArray();
         string sources = providers.Length == 0 ? Texts.T("admission.repairNoSources") : Texts.T("admission.repairSources",
@@ -43,11 +43,14 @@ public partial class MainWindow
                 if (example != null) break;
             }
         }
-        string repair = first.Url + " · " + cause + Environment.NewLine + sources
+        // Keep the cause and repair example visible together in compact windows.
+        // The rejected URLs and complete source list belong to the scrollable report.
+        string repair = cause
             + (example == null ? string.Empty : Environment.NewLine + Texts.T(sessionExample ? "admission.repairExample" : "admission.repairFormat", example));
         SelectableTextBlock message = WorkspaceControl<SelectableTextBlock>("AdmissionRepairText");
         message.Text = repair;
-        AutomationProperties.SetName(message, repair);
+        AutomationProperties.SetName(message, first.Url + " · " + repair);
         AutomationProperties.SetLiveSetting(message, AutomationLiveSetting.Polite);
+        return sources;
     }
 }

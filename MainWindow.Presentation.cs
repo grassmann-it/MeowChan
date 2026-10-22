@@ -460,8 +460,22 @@ public partial class MainWindow
             // batches to push the table's header and first complete row offscreen.
             WorkspaceControl<TextBox>("UrlInput").MaxHeight = compactIntake ? 40 : 72;
             WorkspaceControl<Border>("WorkspaceIntakeCard").Padding = compactIntake ? new Thickness(8) : new Thickness(12, 10);
+            WorkspaceControl<Ursa.Controls.Banner>("AdmissionRepairPanel").Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
+            Expander admissionResults = WorkspaceControl<Expander>("AdmissionResultsExpander");
+            // Semi's expander spaces its header/content through resource keys rather
+            // than the control's Padding. Scope compact spacing to this one report.
+            if (compactIntake)
+            {
+                admissionResults.Resources["ExpanderHeaderMargin"] = new Thickness(0);
+                admissionResults.Resources["ExpanderContentPadding"] = new Thickness(8, 0, 8, 4);
+            }
+            else
+            {
+                admissionResults.Resources.Remove("ExpanderHeaderMargin");
+                admissionResults.Resources.Remove("ExpanderContentPadding");
+            }
             WorkspaceControl<StackPanel>("AdmissionResultRows").Margin = new Thickness(0, compactIntake ? 4 : 6, 0, 0);
-            WorkspaceControl<ScrollViewer>("AdmissionResultsScroll").MaxHeight = compactIntake ? 40 : 140;
+            WorkspaceControl<ScrollViewer>("AdmissionResultsScroll").MaxHeight = compactIntake ? 32 : 140;
             if (!_workspaceNarrowLayout && content.ColumnDefinitions[2].ActualWidth > 0)
                 _workspaceInspectorWidth = Math.Clamp(content.ColumnDefinitions[2].ActualWidth, 260, 520);
             _workspaceNarrowLayout = narrow;

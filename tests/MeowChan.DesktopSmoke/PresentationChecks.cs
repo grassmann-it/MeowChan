@@ -86,15 +86,44 @@ internal static class PresentationChecks
         await SwitchModeAsync(window, "Advanced");
         Require(input.Text == draft && ReferenceEquals(grid.SelectedItem, retained),
             "The presentation roundtrip discarded a pending URL batch or selection.");
-        await CheckSmallWindowAsync(window, retained, 760, 500, "small");
-        await SwitchModeAsync(window, "Barebones");
-        await CheckSmallWindowAsync(window, retained, 640, 480, "barebones-minimum");
+        await CheckCompactAdmissionMatrixAsync(window, retained);
         await SwitchModeAsync(window, "Advanced");
         input.Text = string.Empty;
         window.UrlList.Remove(retained);
         window.BoardsList.Remove(board);
         await R08dPresentationChecks.RunAsync(window);
         Console.WriteLine("SMOKE presentation: Barebones default; Simple/Advanced/Barebones persisted; compact controls reachable; Light/Dark and EN/DE roundtrip retained pending input and selected passive row.");
+    }
+
+    private static async Task CheckCompactAdmissionMatrixAsync(MainWindow window, ThreadRow selected)
+    {
+        Config original = Config.LoadConfig();
+        foreach (string theme in new[] { "Dark", "Light" })
+        {
+            if (Config.LoadConfig().Theme != theme)
+            {
+                Click(window.FindControl<Button>("ThemeToggleButton")!);
+                await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == theme);
+            }
+            foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
+            {
+                await SwitchModeAsync(window, mode);
+                foreach (string language in new[] { "en", "de" })
+                {
+                    await ChangeLanguageAsync(window, language);
+                    await CheckSmallWindowAsync(window, selected, mode == "Barebones" ? 640 : 760,
+                        mode == "Barebones" ? 480 : 500, "admission-" + theme + "-" + mode + "-" + language);
+                }
+            }
+        }
+        await SwitchModeAsync(window, original.WorkspaceMode);
+        await ChangeLanguageAsync(window, original.Language);
+        if (Config.LoadConfig().Theme != original.Theme)
+        {
+            Click(window.FindControl<Button>("ThemeToggleButton")!);
+            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == original.Theme);
+        }
+        Console.WriteLine("SMOKE compact admission matrix: six rejected URLs, cause/example and whole row visible, complete scrollable results, details and preserved input in Dark/Light × EN/DE × B/S/A minima.");
     }
 
     private static async Task CheckModeColumnProfilesAsync(MainWindow window, DataGrid grid)
@@ -167,8 +196,9 @@ internal static class PresentationChecks
             Require(!inspector.IsVisible, "A small window reserved table space for the initially closed inspector.");
             await WindowChromeChecks.CheckReachableAsync(window);
 
-            input.Text = string.Join(Environment.NewLine, Enumerable.Range(1, 6)
+            string rejectedInput = string.Join(Environment.NewLine, Enumerable.Range(1, 6)
                 .Select(index => "https://unsupported.invalid/small-window-" + index));
+            input.Text = rejectedInput;
             Expander resultExpander = results.Child as Expander
                 ?? throw new InvalidOperationException("The URL results expander is missing.");
             resultExpander.IsExpanded = true;
@@ -180,12 +210,26 @@ internal static class PresentationChecks
                 && results.GetVisualDescendants().OfType<TextBox>().Any(box => box.Name == "AdmissionReport"
                     && box.IsEffectivelyVisible && box.Bounds.Height > 0 && !string.IsNullOrWhiteSpace(box.Text)));
             Require(resultExpander.IsExpanded, "The small-window fixture did not exercise expanded URL results.");
+            SelectableTextBlock repair = window.FindControl<SelectableTextBlock>("AdmissionRepairText")!;
+            ScrollViewer repairViewport = window.FindControl<ScrollViewer>("AdmissionRepairScroll")!;
+            TextBox report = results.GetVisualDescendants().OfType<TextBox>().Single(box => box.Name == "AdmissionReport");
+            Require(input.Text == rejectedInput, "The small-window rejection discarded the editable URL batch.");
+            Require(repair.Text?.Contains(Texts.T("admission.repairUnsupported"), StringComparison.Ordinal) == true
+                && repair.Text.Contains(Texts.T("admission.repairFormat", "https://boards.4chan.org/b/thread/123456"), StringComparison.Ordinal),
+                "The small-window repair did not retain its immediate cause and matching URL example.");
+            Require(InViewport(window, repairViewport) && FitsVertically(repair, repairViewport),
+                "The small-window repair clipped the immediate cause or URL example.");
+            Require(Enumerable.Range(1, 6).All(index => report.Text?.Contains("https://unsupported.invalid/small-window-" + index, StringComparison.Ordinal) == true)
+                && report.Text?.Contains("https://boards.4chan.org/", StringComparison.Ordinal) == true
+                && report.Text.Contains("https://8kun.top/", StringComparison.Ordinal),
+                "The scrollable report lost rejected URLs or the registered source addresses.");
             await WaitForLayoutAsync(window, () => InViewport(window, input) && InViewport(window, add)
                 && grid.IsEffectivelyVisible && grid.Bounds.Height >= grid.RowHeight
                 && IsBelow(results, window.FindControl<Border>("DownloadsPanel")!, window)
                 && grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible
                     && ReferenceEquals(row.DataContext, selected) && FitsVertically(row, grid)));
             double tableHeight = grid.Bounds.Height;
+            Console.WriteLine($"SMOKE {scenario} compact admission: repair={repairViewport.Bounds.Height}; results={resultViewport.Bounds.Height}; table={tableHeight}; row={grid.GetVisualDescendants().OfType<DataGridRow>().Single(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, selected)).Bounds.Height}.");
             Program.CaptureWindow(window, "smoke-" + scenario + "-window.png");
 
             Click(window.FindControl<Button>("DetailsToggleButton")!);
