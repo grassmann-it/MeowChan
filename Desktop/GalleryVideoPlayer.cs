@@ -23,8 +23,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
-    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly TextBlock _time = new() { VerticalAlignment = VerticalAlignment.Center };
+    // The video viewport stays black in both application themes. Its text must
+    // retain bright ink instead of inheriting Light theme's dark page foreground.
+    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Avalonia.Media.Brushes.White };
+    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", VerticalAlignment = VerticalAlignment.Center, Foreground = Avalonia.Media.Brushes.White };
     private readonly Button _play = new() { Name = "GalleryVideoPlay" };
     private readonly Button _pause = new() { Name = "GalleryVideoPause" };
     private readonly Button _stop = new() { Name = "GalleryVideoStop" };
@@ -128,9 +130,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         WrapPanel buttons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         foreach (Control control in new Control[] { _play, _pause, _stop, _time, _volume })
         { control.Margin = new Thickness(4); buttons.Children.Add(control); }
-        Grid root = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 6 };
+        // Keep status outside the picture, beside the transport. Gallery chrome
+        // overlays the top of the picture and can otherwise obscure wrapped errors.
+        Grid root = new() { RowDefinitions = new RowDefinitions("*,Auto,Auto,Auto"), RowSpacing = 6 };
         Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
-        root.Children.Add(_status); root.Children.Add(videoSurface); Grid.SetRow(videoSurface, 1);
+        root.Children.Add(videoSurface);
+        root.Children.Add(_status); Grid.SetRow(_status, 1);
         root.Children.Add(_seek); Grid.SetRow(_seek, 2);
         root.Children.Add(buttons); Grid.SetRow(buttons, 3); Content = root;
         EnableTransport(false);
