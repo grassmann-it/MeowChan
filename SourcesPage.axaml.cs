@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -77,6 +78,7 @@ public partial class SourcesPage : UserControl
                     _showDetails = true;
                     this.FindControl<TextBlock>("SourcesActionError")!.Text = string.Empty;
                     RenderDetails();
+                    if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
                 };
                 select.Content = labels;
                 AttachSourceContextMenu(select, sourceId);
@@ -101,9 +103,21 @@ public partial class SourcesPage : UserControl
             source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
         }
         SourceRow? row = Selected;
-        this.FindControl<Border>("SourceDetailsPanel")!.IsVisible = row != null && (!_narrow || _showDetails);
-        this.FindControl<StackPanel>("SourcesListPane")!.IsVisible = !_narrow || !_showDetails || row == null;
-        this.FindControl<Button>("SourceBackButton")!.IsVisible = _narrow;
+        Border details = this.FindControl<Border>("SourceDetailsPanel")!;
+        StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
+        Button back = this.FindControl<Button>("SourceBackButton")!;
+        bool listHadFocus = list.IsKeyboardFocusWithin;
+        bool detailsHadFocus = details.IsKeyboardFocusWithin;
+        bool backHadFocus = back.IsKeyboardFocusWithin;
+        details.IsVisible = row != null && (!_narrow || _showDetails);
+        list.IsVisible = !_narrow || !_showDetails || row == null;
+        back.IsVisible = _narrow;
+        if (listHadFocus && !list.IsVisible)
+            FocusSourceControlAfterLayout(back);
+        else if (detailsHadFocus && !details.IsVisible && _selectedId is string id && _sourceCards.TryGetValue(id, out SourceCard? selectedCard))
+            FocusSourceControlAfterLayout(selectedCard.Control);
+        else if (backHadFocus && !back.IsVisible && details.IsVisible)
+            FocusSourceControlAfterLayout(this.FindControl<Button>("SourceWebsiteButton")!);
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
@@ -166,6 +180,16 @@ public partial class SourcesPage : UserControl
         RefreshWatchSelection();
     }
 
+    private void FocusSourceControlAfterLayout(Control target)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended || !IsEffectivelyVisible || !target.IsEffectivelyVisible || !target.IsEffectivelyEnabled) return;
+            target.BringIntoView();
+            target.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
     private SourceWatchRow? SelectedWatch => this.FindControl<DataGrid>("SourceWatchesGrid")!.SelectedItem as SourceWatchRow;
     private void OnWatchSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWatchSelection();
     private void RefreshWatchSelection()
@@ -175,7 +199,14 @@ public partial class SourcesPage : UserControl
             ? watch.Resource + Environment.NewLine + watch.Work + Environment.NewLine + watch.Observation : string.Empty;
     }
     private void OnPluginClick(object? sender, RoutedEventArgs e) { if (Selected is SourceRow row) OpenPluginSettings?.Invoke(row.Id); }
-    internal void SelectSource(string sourceId) { if (_rows.Any(row => row.Id == sourceId)) { _selectedId = sourceId; _showDetails = true; RenderDetails(); } }
+    internal void SelectSource(string sourceId)
+    {
+        if (!_rows.Any(row => row.Id == sourceId)) return;
+        _selectedId = sourceId;
+        _showDetails = true;
+        RenderDetails();
+        if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
+    }
     private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {

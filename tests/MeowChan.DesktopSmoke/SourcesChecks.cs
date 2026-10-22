@@ -114,6 +114,7 @@ internal static class SourcesChecks
                             "Narrow Sources did not start with the source list.");
                         firstSource.Focus();
                         firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsFocused);
                         Require(page.FindControl<Border>("SourceDetailsPanel")!.IsVisible
                             && !page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
                             "Narrow row activation did not open details.");
@@ -185,6 +186,27 @@ internal static class SourcesChecks
                 && page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureUnavailable")
                 && page.FindControl<TextBlock>("SourceVersion")!.Text!.Contains("fixture-version"),
                 "Thread-only provider selection or optional descriptor details were lost after refresh.");
+            if (page.Bounds.Width >= 886)
+            {
+                // Opening details retained _showDetails; shrinking must move focus out of the hidden list.
+                selectedSource.Focus();
+                window.Width = 760;
+                await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsFocused);
+                window.Width = targetWidth;
+                await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceWebsiteButton")!.IsFocused);
+                window.Width = 760;
+                await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsVisible);
+                page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Width = targetWidth;
+                await Program.WaitUntilAsync(() => page.FindControl<Border>("SourceDetailsPanel")!.IsEffectivelyVisible);
+                TextBox url = page.FindControl<TextBox>("SourceUrlInput")!;
+                url.Focus();
+                window.Width = 760;
+                await Program.WaitUntilAsync(() => selectedSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible);
+                Require(url.Text == submitted, "Responsive focus recovery changed the source URL draft.");
+                window.Width = targetWidth;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
+            }
             await CheckNavigationAsync(window, wide: targetWidth >= 1120);
             page.Refresh([], view, true);
             Require(page.FindControl<TextBlock>("SourcesEmpty")!.IsVisible && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,

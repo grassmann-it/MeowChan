@@ -105,7 +105,7 @@
                     <StackPanel Spacing="6" Margin="0,0,0,10">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" FontWeight="Medium" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <TextBox x:Name="DownloadPathInput" AutomationProperties.LabeledBy="{Binding ElementName=DownloadPathFieldLabel}" AutomationProperties.Name="{Binding DownloadPathLabel}" AutomationProperties.HelpText="{Binding PathHint}" Text="{Binding DownloadPath, Mode=TwoWay}" />
+                            <TextBox x:Name="DownloadPathInput" AutomationProperties.LabeledBy="{Binding ElementName=DownloadPathFieldLabel}" AutomationProperties.Name="{Binding DownloadPathLabel}" AutomationProperties.HelpText="{Binding DownloadPathHelp}" Text="{Binding DownloadPath, Mode=TwoWay}" />
                             <Button x:Name="BrowseButton" Grid.Column="1" Click="OnBrowseButtonClick" />
                         </Grid>
                         <TextBlock Text="{Binding PathHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
@@ -115,7 +115,7 @@
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                             <TextBlock x:Name="RecheckFieldLabel" Text="{Binding RecheckLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="RecheckTimerInput" AutomationProperties.LabeledBy="{Binding ElementName=RecheckFieldLabel}" AutomationProperties.Name="{Binding RecheckLabel}" AutomationProperties.HelpText="{Binding SecondsHelp}" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1" />
+                                <NumericUpDown x:Name="RecheckTimerInput" AutomationProperties.LabeledBy="{Binding ElementName=RecheckFieldLabel}" AutomationProperties.Name="{Binding RecheckLabel}" AutomationProperties.HelpText="{Binding RecheckTimerHelp}" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1" />
                                 <TextBlock x:Name="RecheckTimerInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
@@ -124,7 +124,7 @@
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                             <TextBlock x:Name="BandwidthFieldLabel" Text="{Binding BandwidthLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1" />
+                                <NumericUpDown x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthInputHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1" />
                                 <TextBlock x:Name="BandwidthInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
@@ -133,7 +133,7 @@
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                             <TextBlock x:Name="ParallelFieldLabel" Text="{Binding ParallelLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1" />
+                                <NumericUpDown x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsHelp}" />
                                 <TextBlock x:Name="ParallelDownloadsInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
@@ -143,7 +143,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="2147483647" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveHint}" />
+                                <NumericUpDown x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="2147483647" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveInputHelp}" />
                                 <TextBlock x:Name="ReserveInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
@@ -154,28 +154,28 @@
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock x:Name="ProductionWorkersFieldLabel" Text="{Binding ProductionWorkersLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="ProductionWorkersInput" Value="{Binding ProductionWorkers, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProductionWorkersFieldLabel}" AutomationProperties.Name="{Binding ProductionWorkersLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                                <NumericUpDown x:Name="ProductionWorkersInput" Value="{Binding ProductionWorkers, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProductionWorkersFieldLabel}" AutomationProperties.Name="{Binding ProductionWorkersLabel}" AutomationProperties.HelpText="{Binding ProductionWorkersHelp}" />
                                 <TextBlock x:Name="ProductionWorkersInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock x:Name="WorkerIdleMinutesFieldLabel" Text="{Binding WorkerIdleMinutesLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="WorkerIdleMinutesInput" Value="{Binding WorkerIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=WorkerIdleMinutesFieldLabel}" AutomationProperties.Name="{Binding WorkerIdleMinutesLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                                <NumericUpDown x:Name="WorkerIdleMinutesInput" Value="{Binding WorkerIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=WorkerIdleMinutesFieldLabel}" AutomationProperties.Name="{Binding WorkerIdleMinutesLabel}" AutomationProperties.HelpText="{Binding WorkerIdleMinutesHelp}" />
                                 <TextBlock x:Name="WorkerIdleMinutesInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock x:Name="SourceHeapMiBFieldLabel" Text="{Binding SourceHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="SourceHeapMiBInput" Value="{Binding SourceHeapMiB, Mode=TwoWay}" Minimum="128" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourceHeapMiBFieldLabel}" AutomationProperties.Name="{Binding SourceHeapMiBLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                                <NumericUpDown x:Name="SourceHeapMiBInput" Value="{Binding SourceHeapMiB, Mode=TwoWay}" Minimum="128" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourceHeapMiBFieldLabel}" AutomationProperties.Name="{Binding SourceHeapMiBLabel}" AutomationProperties.HelpText="{Binding SourceHeapMiBHelp}" />
                                 <TextBlock x:Name="SourceHeapMiBInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock x:Name="FilterHeapMiBFieldLabel" Text="{Binding FilterHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4">
-                                <NumericUpDown x:Name="FilterHeapMiBInput" Value="{Binding FilterHeapMiB, Mode=TwoWay}" Minimum="256" Maximum="2048" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FilterHeapMiBFieldLabel}" AutomationProperties.Name="{Binding FilterHeapMiBLabel}" AutomationProperties.HelpText="{Binding BudgetRestartHint}" />
+                                <NumericUpDown x:Name="FilterHeapMiBInput" Value="{Binding FilterHeapMiB, Mode=TwoWay}" Minimum="256" Maximum="2048" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FilterHeapMiBFieldLabel}" AutomationProperties.Name="{Binding FilterHeapMiBLabel}" AutomationProperties.HelpText="{Binding FilterHeapMiBHelp}" />
                                 <TextBlock x:Name="FilterHeapMiBInputError" Classes="error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>

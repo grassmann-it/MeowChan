@@ -475,6 +475,20 @@ namespace MeowChan
                     SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
                     SelectedLanguage?.Code ?? _config.Language);
                 SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
+                if (_firstInvalidInput != null)
+                {
+                    bool pathError = _firstInvalidInput == DownloadPathInput;
+                    ClearFieldErrors();
+                    if (pathError)
+                    {
+                        DownloadPathInputError.Text = Texts.T("settings.pathInvalid");
+                        DownloadPathInputError.IsVisible = true;
+                        SetFieldErrorHelp(DownloadPathInput, DownloadPathInputError.Text!);
+                        _firstInvalidInput = DownloadPathInput;
+                        FinishFieldValidation();
+                    }
+                    else ValidateNumericDraft();
+                }
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
                 ApplyCommandIcons();
             }
@@ -671,7 +685,7 @@ namespace MeowChan
                 {
                     DownloadPathInputError.Text = Texts.T("settings.pathInvalid");
                     DownloadPathInputError.IsVisible = true;
-                    Avalonia.Automation.AutomationProperties.SetHelpText(DownloadPathInput, DownloadPathInputError.Text);
+                    SetFieldErrorHelp(DownloadPathInput, DownloadPathInputError.Text!);
                     _firstInvalidInput = DownloadPathInput;
                     FinishFieldValidation();
                     return;

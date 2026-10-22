@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
@@ -11,6 +10,23 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private Control? _firstInvalidInput;
+    private readonly Dictionary<string, string> _fieldHelpErrors = new();
+    private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out string? error) ? error : baseline;
+    public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);
+    public string RecheckTimerHelp => FieldHelp(nameof(RecheckTimerInput), SecondsHelp);
+    public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp);
+    public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount"));
+    public string ReserveInputHelp => FieldHelp(nameof(ReserveInput), Texts.T("settings.unitGiB") + ". " + ReserveHint);
+    public string ProductionWorkersHelp => FieldHelp(nameof(ProductionWorkersInput), Texts.T("settings.unitCount") + ". " + BudgetRestartHint);
+    public string WorkerIdleMinutesHelp => FieldHelp(nameof(WorkerIdleMinutesInput), Texts.T("settings.unitMinutes") + ". " + BudgetRestartHint);
+    public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
+    public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
+
+    private void SetFieldErrorHelp(Control input, string message)
+    {
+        _fieldHelpErrors[input.Name!] = message;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+    }
     private string? _errorDetails;
     public string ErrorDetailsLabel => Texts.T("settings.errorDetails");
     public string? ErrorDetails
@@ -43,14 +59,15 @@ public partial class SettingsEditor
         SettingsErrorDetails.IsExpanded = false;
         DownloadPathInputError.IsVisible = false;
         DownloadPathInputError.Text = null;
-        AutomationProperties.SetHelpText(DownloadPathInput, PathHint);
+        _fieldHelpErrors.Clear();
         foreach (var field in NumericFields())
         {
             TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
             error.IsVisible = false;
             error.Text = null;
-            AutomationProperties.SetHelpText(field.Input, field.Unit);
+
         }
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 
     // Parse validation runs before the existing shared Config validation/commit path.
@@ -72,7 +89,7 @@ public partial class SettingsEditor
             TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
             error.Text = message;
             error.IsVisible = true;
-            AutomationProperties.SetHelpText(field.Input, message);
+            SetFieldErrorHelp(field.Input, message);
             _firstInvalidInput ??= field.Input;
         }
         return FinishFieldValidation();

@@ -60,12 +60,27 @@ internal static class SettingsChecks
                     Require(window.Editor.GetVisualDescendants().OfType<TextBlock>()
                         .Count(text => text.Name?.EndsWith("InputError") == true && text.IsVisible) == 1,
                         "An invalid field marked unrelated settings fields.");
+                    if (name == "ReserveInput")
+                    {
+                        string alternate = language == "en" ? "de" : "en";
+                        Texts.SetLanguage(alternate);
+                        await WaitUntilAsync(() => error.Text?.Contains(window.Editor.ReserveLabel) == true
+                            && Avalonia.Automation.AutomationProperties.GetHelpText(input) == error.Text);
+                        Texts.SetLanguage(language);
+                    }
                     Require(Avalonia.Automation.AutomationProperties.GetHelpText(input) == error.Text,
                         "The input's accessible help did not identify its validation error.");
                     Point? position = error.TranslatePoint(default, window.Editor.FindControl<ScrollViewer>("SettingsScrollViewer")!);
                     Require(position.HasValue && position.Value.Y >= -1, "The field error stayed above the scroll viewport.");
                 }
                 window.Editor.CancelChanges();
+                await WaitUntilAsync(() => Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>("ReserveInput")!)
+                    == window.Editor.ReserveInputHelp);
+                Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>("ReserveInput")!).Contains(window.Editor.ReserveHint),
+                    "Discard removed the reserve explanation from accessible help.");
+                foreach (string advanced in new[] { "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput" })
+                    Require(Avalonia.Automation.AutomationProperties.GetHelpText(window.Editor.FindControl<NumericUpDown>(advanced)!).Contains(window.Editor.BudgetRestartHint),
+                        "Discard or a language change removed the advanced budget restart explanation.");
                 Require(!window.Editor.HasError && !window.Editor.HasErrorDetails, "Discard retained validation or technical error state.");
             }
         }
