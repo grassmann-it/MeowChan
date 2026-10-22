@@ -1,0 +1,110 @@
+diff --git a/Desktop/DesktopSessionHost.cs b/Desktop/DesktopSessionHost.cs
+index f9d742e..42bf72e 100644
+--- a/Desktop/DesktopSessionHost.cs
++++ b/Desktop/DesktopSessionHost.cs
+@@ -13,6 +13,7 @@ using Serilog;
+ using MeowChan.Archive;
+ using MeowChan.Boards.Base;
+ using MeowChan.Rules;
++using MeowChan.Desktop.Updates;
+ 
+ namespace MeowChan.Desktop;
+ 
+@@ -54,6 +55,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+     private Task? _stopTask;
+     private bool _disposed;
+ 
++    internal UpdateSession Updates { get; }
+     public Config Config { get; }
+     internal long ReceivedMediaBytes => _registry.ReceivedMediaBytes;
+     internal ExportHistoryStore ExportHistory { get; }
+@@ -68,7 +70,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+ 
+     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
+     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
+-        Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null)
++        Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
++        Func<string, Config, UpdateSession>? updateSessionFactory = null)
+     {
+         _logger = logger ?? Log.Logger;
+         _profileLease = ProfileLease.Acquire(profileDirectory);
+@@ -92,6 +95,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
+             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
+             _registry.StateChanged += OnRegistryChanged;
++            Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config) ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
+         }
+         catch
+         {
+@@ -127,6 +131,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+             lock (_lifecycle)
+             {
+                 if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
++                Updates.Start();
+             }
+         }
+         catch (Exception exception)
+@@ -335,6 +340,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
+                 () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
+             Config.CopyFrom(candidate);
++            await Updates.ConfigureAsync(Config).ConfigureAwait(false);
+         }
+         finally { _commands.Release(); }
+         SignalChanged();
+@@ -432,6 +438,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
+     {
+         try
+         {
++            await Updates.DisposeAsync().ConfigureAwait(false);
+             await restoration.ConfigureAwait(false);
+             await _commands.WaitAsync().ConfigureAwait(false);
+             try
+diff --git a/Desktop/Localization/BuiltInCatalog.cs b/Desktop/Localization/BuiltInCatalog.cs
+index 6e9dd8c..f440883 100644
+--- a/Desktop/Localization/BuiltInCatalog.cs
++++ b/Desktop/Localization/BuiltInCatalog.cs
+@@ -248,7 +248,7 @@ internal static class BuiltInCatalog
+     };
+ 
+     public static IReadOnlyDictionary<string, string> English { get; } = new ReadOnlyDictionary<string, string>(
+-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).Concat(R08dAboutCatalog.Entries).Concat(R08dSettingsCatalog.Entries).Concat(R08dViewerCatalog.Entries).Concat(R08dArchiveCommandsCatalog.Entries).Concat(ReaderLiveCatalog.Entries).Concat(ArchiveColumnsCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
++        Entries.Concat(UpdateCatalog.Entries).Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).Concat(R08dAboutCatalog.Entries).Concat(R08dSettingsCatalog.Entries).Concat(R08dViewerCatalog.Entries).Concat(R08dArchiveCommandsCatalog.Entries).Concat(ReaderLiveCatalog.Entries).Concat(ArchiveColumnsCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal));
+     public static IReadOnlyDictionary<string, string> German { get; } = new ReadOnlyDictionary<string, string>(
+-        Entries.Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).Concat(R08dAboutCatalog.Entries).Concat(R08dSettingsCatalog.Entries).Concat(R08dViewerCatalog.Entries).Concat(R08dArchiveCommandsCatalog.Entries).Concat(ReaderLiveCatalog.Entries).Concat(ArchiveColumnsCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
++        Entries.Concat(UpdateCatalog.Entries).Concat(RulesCatalog.Entries).Concat(ArchiveCatalog.Entries).Concat(ExportCatalog.Entries).Concat(CollectionExportCatalog.Entries).Concat(SelectionCatalog.Entries).Concat(BoardAdmissionCatalog.Entries).Concat(WorkCatalog.Entries).Concat(SourcesCatalog.Entries).Concat(R08dAboutCatalog.Entries).Concat(R08dSettingsCatalog.Entries).Concat(R08dViewerCatalog.Entries).Concat(R08dArchiveCommandsCatalog.Entries).Concat(ReaderLiveCatalog.Entries).Concat(ArchiveColumnsCatalog.Entries).ToDictionary(entry => entry.Key, entry => entry.German, StringComparer.Ordinal));
+ }
+diff --git a/MainWindow.Navigation.cs b/MainWindow.Navigation.cs
+index 9b707fc..5e46b6e 100644
+--- a/MainWindow.Navigation.cs
++++ b/MainWindow.Navigation.cs
+@@ -30,6 +30,8 @@ public partial class MainWindow
+     private void InitializeWorkspacePages()
+     {
+         _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
++        _settingsEditor.Updates = _session.Updates;
++        InitializeUpdates();
+         _settingsEditor.BusyChanged += OnSettingsBusyChanged;
+         this.FindControl<ContentControl>("SettingsPageHost")!.Content = _settingsEditor;
+         _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
+@@ -276,6 +278,7 @@ public partial class MainWindow
+ 
+     private void DisposeWorkspacePages()
+     {
++        DisposeUpdates();
+         _diagnosticsPage?.EndLifetime();
+         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
+         _archivePage?.EndLifetime();
+diff --git a/MainWindow.axaml.cs b/MainWindow.axaml.cs
+index e20929f..93b6f88 100644
+--- a/MainWindow.axaml.cs
++++ b/MainWindow.axaml.cs
+@@ -985,7 +985,7 @@ public partial class MainWindow : Window
+     {
+         if (!_isClosing)
+         {
+-            AboutWindow aboutWindow = new AboutWindow();
++            AboutWindow aboutWindow = new AboutWindow(_session.Updates);
+             await aboutWindow.ShowDialog(this);
+         }
+     }
