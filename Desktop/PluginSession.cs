@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -100,13 +101,25 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
+        long started = Stopwatch.GetTimestamp();
+        bool succeeded = false;
+        try
+        {
+            await StartCoreAsync(cancellationToken).ConfigureAwait(false);
+            succeeded = true;
+        }
+        finally { LogStartupPhase("total", null, started, succeeded); }
+    }
+
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         CancellationToken token = linked.Token;
         Directory.CreateDirectory(PluginDirectory);
         Directory.CreateDirectory(_launch.WorkingDirectory);
-        PluginProfileSnapshot previous = await ProfileStore.ReadAsync(token).ConfigureAwait(false);
-        PluginInventory shipped = await Inventory.ScanAsync(_shippedDirectory, token).ConfigureAwait(false);
-        PluginInventory local = await Inventory.ScanAsync(PluginDirectory, token).ConfigureAwait(false);
+        PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
+        PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);
+        PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
         List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
         List<PluginCandidateObservation> observations = new();
         foreach (PluginInstallationCandidate candidate in shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
@@ -118,10 +131,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
             {
                 if (candidate.Diagnostics.Count != 0) throw new InvalidDataException(string.Join("; ", candidate.Diagnostics.Select(item => item.Message)));
                 PluginBuildResult build = candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                    ? await ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, token).ConfigureAwait(false)
-                    : await CompilationService.BuildAsync(candidate.Path, cancellationToken: token).ConfigureAwait(false);
+                    ? await MeasureStartupAsync("import", Path.GetFileName(candidate.Path),
+                        () => ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, token)).ConfigureAwait(false)
+                    : await MeasureStartupAsync("build", Path.GetFileName(candidate.Path),
+                        () => CompilationService.BuildAsync(candidate.Path, cancellationToken: token)).ConfigureAwait(false);
                 if (!build.Succeeded) throw new InvalidDataException(string.Join("; ", build.Diagnostics.Select(item => item.Message)));
-                PluginDescription description = await DescribeTestAsync(build.Artifact!, token).ConfigureAwait(false);
+                PluginDescription description = await MeasureStartupAsync("describe", Path.GetFileName(candidate.Path),
+                    () => DescribeTestAsync(build.Artifact!, token)).ConfigureAwait(false);
                 observations.Add(new PluginCandidateObservation(candidate.CandidateId, description.PluginId, build.Artifact, description, CandidatePath: candidate.Path));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -133,7 +149,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
                     null, null, problem, candidate.Path));
             }
         }
-        PluginProfileSnapshot activated = await ProfileStore.ApplyStartupAsync(observations, previous.Revision, token).ConfigureAwait(false);
+        PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
+            () => ProfileStore.ApplyStartupAsync(observations, previous.Revision, token)).ConfigureAwait(false);
+        long adaptersStarted = Stopwatch.GetTimestamp();
         lock (_state) _grants = activated;
         List<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions = activated.Plugins
             .Select(plugin => (Activation: plugin, Description: plugin.Active?.Description ?? plugin.LastGood?.Description))
@@ -174,7 +192,25 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         Sources = sources.AsReadOnly();
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
+        LogStartupPhase("adapters-routing", null, adaptersStarted, true);
     }
+
+    private async Task<T> MeasureStartupAsync<T>(string phase, string? candidate, Func<Task<T>> operation)
+    {
+        long started = Stopwatch.GetTimestamp();
+        bool succeeded = false;
+        try
+        {
+            T result = await operation().ConfigureAwait(false);
+            succeeded = true;
+            return result;
+        }
+        finally { LogStartupPhase(phase, candidate, started, succeeded); }
+    }
+
+    private void LogStartupPhase(string phase, string? candidate, long started, bool succeeded) =>
+        _logger.Debug("Plugin startup phase {PluginStartupPhase} candidate {PluginStartupCandidate} elapsed {PluginStartupElapsedMs} ms completed {PluginStartupCompleted}",
+            phase, candidate, Stopwatch.GetElapsedTime(started).TotalMilliseconds, succeeded);
 
     private static bool RouteConflict(PluginSourceImageBoard left, PluginSourceImageBoard right)
     {
