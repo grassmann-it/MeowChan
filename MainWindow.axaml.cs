@@ -364,9 +364,17 @@ public partial class MainWindow : Window
                     _ => "admission.failed"
                 };
                 return Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error);
-            })) + (repairSources == null ? string.Empty : Environment.NewLine + repairSources)
+            }))
         };
         rows.Children.Add(report);
+        if (repairSources != null)
+        {
+            rows.Children.Add(new SelectableTextBlock
+            {
+                Name = "AdmissionSourcesHelp", Text = repairSources,
+                TextWrapping = TextWrapping.Wrap, FontSize = 12
+            });
+        }
     }
 
     private async Task<string?> ReadClipboardAsync()

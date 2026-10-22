@@ -213,6 +213,8 @@ internal static class PresentationChecks
             SelectableTextBlock repair = window.FindControl<SelectableTextBlock>("AdmissionRepairText")!;
             ScrollViewer repairViewport = window.FindControl<ScrollViewer>("AdmissionRepairScroll")!;
             TextBox report = results.GetVisualDescendants().OfType<TextBox>().Single(box => box.Name == "AdmissionReport");
+            SelectableTextBlock sources = resultViewport.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Single(block => block.Name == "AdmissionSourcesHelp");
             Require(input.Text == rejectedInput, "The small-window rejection discarded the editable URL batch.");
             Require(repair.Text?.Contains(Texts.T("admission.repairUnsupported"), StringComparison.Ordinal) == true
                 && repair.Text.Contains(Texts.T("admission.repairFormat", "https://boards.4chan.org/b/thread/123456"), StringComparison.Ordinal),
@@ -220,9 +222,9 @@ internal static class PresentationChecks
             Require(InViewport(window, repairViewport) && FitsVertically(repair, repairViewport),
                 "The small-window repair clipped the immediate cause or URL example.");
             Require(Enumerable.Range(1, 6).All(index => report.Text?.Contains("https://unsupported.invalid/small-window-" + index, StringComparison.Ordinal) == true)
-                && report.Text?.Contains("https://boards.4chan.org/", StringComparison.Ordinal) == true
-                && report.Text.Contains("https://8kun.top/", StringComparison.Ordinal),
-                "The scrollable report lost rejected URLs or the registered source addresses.");
+                && sources.Text?.Contains("https://boards.4chan.org/", StringComparison.Ordinal) == true
+                && sources.Text.Contains("https://8kun.top/", StringComparison.Ordinal),
+                "The scrollable results lost rejected URLs or the separate registered-source help.");
             await WaitForLayoutAsync(window, () => InViewport(window, input) && InViewport(window, add)
                 && grid.IsEffectivelyVisible && grid.Bounds.Height >= grid.RowHeight
                 && IsBelow(results, window.FindControl<Border>("DownloadsPanel")!, window)
