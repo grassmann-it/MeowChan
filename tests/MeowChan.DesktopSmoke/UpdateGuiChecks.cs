@@ -38,7 +38,7 @@ internal static class UpdateGuiChecks
             check.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any() && host.Updates.View.Update != null);
             about = window.OwnedWindows.OfType<AboutWindow>().Single();
-            await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("UpdateStatusText")!.Text!.Contains("9.8.7"));
+            await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("AvailableUpdateText")!.Text!.Contains("9.8.7"));
             Require(handler.Requests == 1, "Help update action did not perform exactly one fixture request.");
             about.FindControl<Button>("UpdateReleaseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 21);
@@ -81,7 +81,7 @@ internal static class UpdateGuiChecks
                 await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any());
                 about = window.OwnedWindows.OfType<AboutWindow>().Single();
                 await Task.Delay(40);
-                Require(about.FindControl<TextBlock>("UpdateStatusText")!.Text == Texts.T("updates.available", "9.8.7"), "About update status is not localized.");
+                Require(about.FindControl<TextBlock>("AvailableUpdateText")!.Text == Texts.T("updates.available", "9.8.7"), "About update version is not localized.");
                 Require(about.ActualThemeVariant == expectedTheme, "About did not inherit the selected theme.");
                 Capture(about, $"smoke-updates-{language}-{theme}-{mode}-about.png");
                 about.Close();
@@ -127,12 +127,25 @@ internal static class UpdateGuiChecks
             about.FindControl<Button>("CheckUpdatesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => host.Updates.View.ManualResult?.Error == UpdateCheckError.RateLimited);
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("UpdateStatusText")!.Text == Texts.T("updates.error.rateLimited"));
+            RequireRetainedUpdateContext(about);
             Capture(about, "smoke-updates-manual-error-de.png");
+            int handoffLines = File.ReadAllLines(browserCapture).Length;
+            about.FindControl<Button>("UpdateReleaseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length == handoffLines + 7);
+            about.FindControl<Button>("UpdateDownloadButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length == handoffLines + 14);
+            string[] retainedHandoffs = File.ReadAllLines(browserCapture);
+            Require(retainedHandoffs[handoffLines + 2] == Handler.ReleaseUrl
+                && retainedHandoffs[handoffLines + 9] == Handler.DownloadUrl,
+                "A failed check changed the retained release or download action target.");
+            await CheckRetainedUpdateGeometryAsync(about);
             Texts.SetLanguage("en");
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("UpdateStatusText")!.Text == Texts.T("updates.error.rateLimited"));
             about.FindControl<Button>("SkipUpdateButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => host.Updates.View.Update == null);
             Require(new UpdateStateStore(profile).Load().SkippedVersion?.ToString() == "9.8.7", "Skip did not persist the selected version.");
+            await Program.WaitUntilAsync(() => !about.FindControl<TextBlock>("AvailableUpdateText")!.IsVisible
+                && !about.FindControl<WrapPanel>("UpdateActions")!.IsVisible);
             disabled = "1";
             await host.Updates.ConfigureAsync(host.Config);
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("UpdateStatusText")!.Text == Texts.T("updates.disabled"));
@@ -151,6 +164,60 @@ internal static class UpdateGuiChecks
             Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
         }
     }
+
+    private static void RequireRetainedUpdateContext(AboutWindow about)
+    {
+        TextBlock available = about.FindControl<TextBlock>("AvailableUpdateText")!;
+        TextBlock status = about.FindControl<TextBlock>("UpdateStatusText")!;
+        WrapPanel actions = about.FindControl<WrapPanel>("UpdateActions")!;
+        Require(available.IsVisible && available.Text == Texts.T("updates.available", "9.8.7"),
+            "The manual failure hid the known release version while retaining its actions.");
+        Require(status.IsVisible && status.Text == Texts.T("updates.error.rateLimited"),
+            "The retained release version replaced the manual check error.");
+        Require(actions.IsVisible && new[] { "UpdateReleaseButton", "UpdateDownloadButton", "SkipUpdateButton" }
+            .All(name => about.FindControl<Button>(name)!.IsEffectivelyEnabled),
+            "The known release actions were lost after a failed manual check.");
+    }
+
+    private static async Task CheckRetainedUpdateGeometryAsync(AboutWindow about)
+    {
+        foreach (string language in new[] { "en", "de" })
+        foreach (string theme in new[] { "Dark", "Light" })
+        foreach (Size size in new[] { new Size(800, 660), new Size(440, 400) })
+        {
+            Texts.SetLanguage(language);
+            ThemeVariant variant = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
+            Application.Current!.RequestedThemeVariant = variant;
+            about.Width = size.Width;
+            about.Height = size.Height;
+            await Program.WaitUntilAsync(() => Math.Abs(about.ClientSize.Width - size.Width) <= 1
+                && Math.Abs(about.ClientSize.Height - size.Height) <= 1
+                && about.ActualThemeVariant == variant
+                && about.FindControl<TextBlock>("AvailableUpdateText")!.Text == Texts.T("updates.available", "9.8.7"));
+            about.UpdateLayout();
+            RequireRetainedUpdateContext(about);
+            ScrollViewer scroll = about.FindControl<ScrollViewer>("AboutScrollViewer")!;
+            TextBlock error = about.FindControl<TextBlock>("UpdateStatusText")!;
+            error.BringIntoView();
+            await Program.WaitUntilAsync(() => FullyInViewport(error, scroll));
+            Capture(about, $"smoke-updates-retained-error-{language}-{theme}-{(int)size.Width}-error.png");
+            TextBlock available = about.FindControl<TextBlock>("AvailableUpdateText")!;
+            WrapPanel actions = about.FindControl<WrapPanel>("UpdateActions")!;
+            actions.BringIntoView();
+            await Program.WaitUntilAsync(() => FullyInViewport(available, scroll) && FullyInViewport(actions, scroll));
+            Require(new[] { "UpdateReleaseButton", "UpdateDownloadButton", "SkipUpdateButton" }
+                .All(name => FullyInViewport(about.FindControl<Button>(name)!, scroll)),
+                "A retained release action is clipped at the About minimum size.");
+            Capture(about, $"smoke-updates-retained-error-{language}-{theme}-{(int)size.Width}-actions.png");
+        }
+        about.Width = 800;
+        about.Height = 660;
+    }
+
+    private static bool FullyInViewport(Control control, ScrollViewer scroll) =>
+        control.TranslatePoint(default, scroll) is { } point && point.X >= -1 && point.Y >= -1
+        && point.X + control.Bounds.Width <= scroll.Bounds.Width + 1
+        && point.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
 
     private static async Task RevealUpdateSettingsAsync(MainWindow window)
     {

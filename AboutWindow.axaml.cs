@@ -170,9 +170,12 @@ public partial class AboutWindow : Window
         CheckUpdatesButton.Content = Texts.T(view.IsChecking ? "updates.checking" : "updates.check");
         CheckUpdatesButton.IsEnabled = !view.IsChecking && !view.EnvironmentDisabled;
         UpdateStatusText.Text = UpdatePresentation.Status(view);
+        UpdateStatusText.IsVisible = !string.IsNullOrEmpty(UpdateStatusText.Text);
         LastUpdateCheckText.Text = view.LastCheckedUtc is { } checkedAt
             ? Texts.T("updates.lastChecked", checkedAt.ToLocalTime().ToString("g", Texts.Culture)) : string.Empty;
         UpdateActions.IsVisible = view.Update != null && !view.EnvironmentDisabled;
+        AvailableUpdateText.IsVisible = UpdateActions.IsVisible;
+        AvailableUpdateText.Text = view.Update is { } available ? Texts.T("updates.available", available.Version) : string.Empty;
         UpdateActions.IsEnabled = !view.IsChecking;
         UpdateReleaseButton.Content = Texts.T("updates.releaseNotes");
         UpdateDownloadButton.Content = Texts.T("updates.download");

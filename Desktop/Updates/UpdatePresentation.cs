@@ -18,7 +18,8 @@ internal static class UpdatePresentation
                 UpdateCheckError.Persistence => "updates.error.persistence",
                 _ => "updates.error.http"
             });
-        if (view.Update is { } update) return Texts.T("updates.available", update.Version);
+        // The retained release is rendered separately beside its actions, including after a failed check.
+        if (view.Update != null) return string.Empty;
         if (view.ManualResult is { Status: UpdateCheckStatus.UpToDate }) return Texts.T("updates.current");
         return view.LastCheckedUtc.HasValue ? string.Empty : Texts.T("updates.unchecked");
     }
