@@ -36,8 +36,9 @@ internal static class StageRecoveryFile
             }
             using FileStream stream = new(handle, FileAccess.Read, 4096, isAsync: false);
             handle = null;
-            if (stream.Length > 64 * 1024) return null;
-            byte[] bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes);
+            long length = stream.Length;
+            if (length > 64 * 1024) return null;
+            byte[] bytes = new byte[checked((int)length)]; stream.ReadExactly(bytes);
             return stream.ReadByte() == -1 ? bytes : null;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
