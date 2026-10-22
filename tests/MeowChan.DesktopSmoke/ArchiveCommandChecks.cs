@@ -76,6 +76,8 @@ internal static class ArchiveCommandChecks
             await ArchiveMenuLayoutChecks.CheckBoundsAsync(menu, "en-live-eligibility");
             // A language refresh replaces row instances. The open menu must keep
             // using its captured selection after that refresh and a new selection.
+            Find("gallery.open").Focus(NavigationMethod.Tab);
+            await Program.WaitUntilAsync(() => Find("gallery.open").IsFocused);
             Texts.SetLanguage("de");
             await Program.WaitUntilAsync(() => !page.IsBusy);
             ArchiveThreadRow replacement = table.ItemsSource.Cast<ArchiveThreadRow>().First(row => row.Summary.Id == rows[2].Summary.Id);
@@ -83,6 +85,8 @@ internal static class ArchiveCommandChecks
             await Program.WaitUntilAsync(() => !page.IsBusy);
             await Program.WaitUntilAsync(() => Find("gallery.open").Header!.ToString()!.StartsWith(CommandCatalog.Label("gallery.open"), StringComparison.Ordinal));
             await ArchiveMenuLayoutChecks.CheckBoundsAsync(menu, "de-live-language-frozen-selection");
+            Require(menu.IsOpen && Find("gallery.open").IsFocused && items.All(menu.Items.Contains),
+                "Resizing the open archive menu replaced its commands or lost keyboard focus.");
             Find("archive.delete-permanently").Command!.Execute(null);
             Require(deleted.SequenceEqual(rows.Take(2).Select(row => row.Summary.Id)), "Permanent deletion retargeted the open menu selection.");
             Find("selection.copy-links").Command!.Execute(null);

@@ -8,6 +8,7 @@ using Avalonia.Automation;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -76,14 +77,21 @@ public partial class ArchivePage
         e.Cancel = menu.ItemCount == 0;
     }
 
-    private void OpenArchiveSelectionMenu(Control? owner)
+    private void OpenArchiveSelectionMenu(Control owner, Point anchor)
     {
-        if (owner?.ContextMenu is not ContextMenu menu) return;
+        if (owner.ContextMenu is not ContextMenu menu) return;
         // Explicit Open(control) bypasses Opening in Avalonia 12. Populate before
         // the native popup measures, including on the first pointer/key request.
         BuildArchiveSelectionMenu(menu);
-        if (menu.ItemCount > 0) menu.Open(owner);
-        else menu.Close();
+        if (menu.ItemCount == 0) { menu.Close(); return; }
+        // Avalonia 12 freezes both position and native size for Pointer popups.
+        // Retain this opening point while allowing live labels to resize in place.
+        menu.Placement = PlacementMode.AnchorAndGravity;
+        menu.PlacementTarget = owner;
+        menu.PlacementRect = new Rect(anchor, new Size(1, 1));
+        menu.PlacementAnchor = PopupAnchor.TopLeft;
+        menu.PlacementGravity = PopupGravity.BottomRight;
+        menu.Open(owner);
     }
 
     private void BuildArchiveSelectionMenu(ContextMenu menu)

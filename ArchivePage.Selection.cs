@@ -152,7 +152,7 @@ public partial class ArchivePage
             SynchronizeArchiveSelection(ArchiveVisibleRows);
             list.Focus();
             Control? owner = list.ContextMenu != null ? list : hit?.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.ContextMenu != null);
-            OpenArchiveSelectionMenu(owner);
+            if (owner != null) OpenArchiveSelectionMenu(owner, e.GetPosition(owner));
         }
         e.Handled = true;
     }
@@ -171,7 +171,12 @@ public partial class ArchivePage
         if (ArchiveLead is not ArchiveThreadRow lead) return;
         Control? owner = list.ContextMenu != null ? list : list.GetVisualDescendants().OfType<Control>()
             .FirstOrDefault(control => control.ContextMenu != null && control.DataContext is ArchiveThreadRow row && row.Summary.Id == lead.Summary.Id);
-        OpenArchiveSelectionMenu(owner);
+        if (owner == null) return;
+        Control? leadRow = list.GetVisualDescendants().OfType<Control>()
+            .FirstOrDefault(control => control is DataGridRow or ListBoxItem
+                && control.DataContext is ArchiveThreadRow row && row.Summary.Id == lead.Summary.Id);
+        Point anchor = leadRow?.TranslatePoint(new Point(0, leadRow.Bounds.Height), owner) ?? default;
+        OpenArchiveSelectionMenu(owner, anchor);
     }
 
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
