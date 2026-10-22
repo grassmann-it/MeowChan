@@ -1,5 +1,8 @@
 # libmeowchan
 
+The public API is not stable in 1.x; minor releases may contain breaking changes.
+Explicit `IImageBoard` registration remains available for advanced consumers.
+
 `libmeowchan` is the .NET 10 media-download library used by the MeowChan desktop application. It includes the 4chan and 8kun adapters, a shared download queue, verified file storage, optional session persistence, media-selection rules, a searchable local post archive and portable HTML export. It has no Avalonia dependency and reads no desktop configuration files. Its current namespaces are `MeowChan`, `MeowChan.Interfaces`, `MeowChan.Downloader` and `MeowChan.Boards.*`; content APIs use `MeowChan.Archive`, `MeowChan.Rules` and `MeowChan.Storage`.
 
 This branch prepares the 0.9.0 desktop update and adds optional library content services. Download-only hosts can continue without those services, but consumers of earlier releases must change their PackageReference to `libmeowchan`, using directives to `MeowChan.*`, and any explicit assembly references to `libmeowchan`. There is no automatic package redirect or binary compatibility promise. The repository can prepare the new package locally; it has not been published to NuGet. Desktop platform acceptance is also still open.

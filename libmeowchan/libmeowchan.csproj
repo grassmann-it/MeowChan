@@ -6,7 +6,7 @@
     <RootNamespace>MeowChan</RootNamespace>
     <PackageId>libmeowchan</PackageId>
     <Product>MeowChan</Product>
-    <Description>MeowChan .NET library for 4chan and 8kun media downloads, offline post archives, local search and portable HTML export, with explicit provider registration.</Description>
+    <Description>MeowChan .NET library for media downloads and offline archives with explicit provider registration. The public API is not stable in 1.x; minor releases may contain breaking changes.</Description>
     <PackageProjectUrl>https://github.com/tfgrass/MeowChan</PackageProjectUrl>
     <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -17,14 +17,19 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
-    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904;RS0016;RS0017</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Serilog" Version="4.0.2" />
     <Compile Include="../Shared/AtomicJsonFile.cs" Link="Persistence/AtomicJsonFile.cs" />
     <None Include="../LICENSE" Pack="true" PackagePath="/" />
     <None Update="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

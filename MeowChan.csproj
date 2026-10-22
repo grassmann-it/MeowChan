@@ -14,7 +14,7 @@
     <!-- Desktop archives contain runtime files and notices; API docs/symbols stay in developer builds. -->
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
     <PublishDocumentationFiles>false</PublishDocumentationFiles>
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;samples/**;libmeowchan/**;Shared/**;artifacts/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;samples/**;libmeowchan/**;MeowChan.PluginSdk/**;MeowChan.PluginHost/**;MeowChan.PluginWorker/**;MeowChan.PluginCompiler/**;Shared/**;artifacts/**</DefaultItemExcludes>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
