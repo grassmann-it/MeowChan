@@ -19,16 +19,28 @@ internal static class AccessibilityNativeChecks
             ?? throw new InvalidOperationException("Native accessibility probe requires an explicit private exchange directory.");
         if (!Path.IsPathFullyQualified(exchange) || !Directory.Exists(exchange))
             throw new InvalidOperationException("Native accessibility exchange directory must already exist at an absolute path.");
+        bool numericOnly = Environment.GetEnvironmentVariable("MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY") == "1";
         foreach (string language in new[] { "en", "de" })
         {
             Texts.SetLanguage(language);
-            await CheckpointAsync("main-" + language);
-            MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-            menu.IsSubMenuOpen = true;
-            await CheckpointAsync("menu-" + language);
-            menu.IsSubMenuOpen = false;
+            if (!numericOnly)
+            {
+                await CheckpointAsync("main-" + language);
+                MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
+                menu.IsSubMenuOpen = true;
+                await CheckpointAsync("menu-" + language);
+                menu.IsSubMenuOpen = false;
+            }
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+            if (numericOnly)
+            {
+                foreach (string field in new[] { "VideoVolumeInput", "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput" })
+                    await CheckpointAsync("numeric-" + field + "-" + language);
+                window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
+                continue;
+            }
             await CheckpointAsync("settings-" + language);
             window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
