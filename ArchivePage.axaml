@@ -43,7 +43,7 @@
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
                                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="5,4">
                                         <Grid.ContextMenu>
-                                            <ContextMenu Opened="OnArchiveSelectionMenuOpened">
+                                            <ContextMenu Opening="OnArchiveSelectionMenuOpening">
                                                 <MenuItem Header="{Binding GalleryLabel}" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
                                                 <MenuItem Header="{Binding ReadLabel}" InputGesture="Enter" Click="OnThreadReadMenu" />
                                                 <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" InputGesture="Ctrl+E" Click="OnThreadExportMenu" />
@@ -82,7 +82,7 @@
                                 <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Last capture" Width="145" MinWidth="125" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
                             </DataGrid.Columns>
-                            <DataGrid.ContextMenu><ContextMenu Opened="OnArchiveSelectionMenuOpened">
+                            <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening">
                                 <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" InputGesture="Shift+Enter" Click="OnThreadGalleryMenu" />
                                 <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" InputGesture="Enter" Click="OnThreadReadMenu" />
                                 <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection…" InputGesture="Ctrl+E" Click="OnThreadExportMenu" />

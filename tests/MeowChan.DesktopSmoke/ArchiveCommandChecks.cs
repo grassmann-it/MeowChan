@@ -13,6 +13,7 @@ internal static class ArchiveCommandChecks
 {
     internal static async Task RunAsync(ArchivePage page, DataGrid table)
     {
+        await ArchiveMenuLayoutChecks.RunAsync(page, table);
         ArchiveThreadRow[] rows = table.ItemsSource.Cast<ArchiveThreadRow>().Take(3).ToArray();
         Require(rows.Length == 3, "Archive command fixture needs three rows.");
         var oldCheck = page.CanCheckWatch;
@@ -32,13 +33,16 @@ internal static class ArchiveCommandChecks
             page.CanRemoveWatch = _ => false;
             page.CheckSelectedWatches = (ids, retry) => { checkedIds = ids.ToArray(); return Task.CompletedTask; };
             page.CopySelectedUrls = urls => { copied = urls.ToArray(); return Task.CompletedTask; };
-            table.SelectedItems.Clear();
-            table.SelectedItems.Add(rows[0]);
+            // Establish the lead explicitly after the native menu-layout matrix.
+            await SelectionChecks.WaitRow(table, rows[0]);
+            await SelectionChecks.PressAsync((MainWindow)TopLevel.GetTopLevel(page)!, SelectionChecks.Row(table, rows[0]));
             table.SelectedItems.Add(rows[1]);
             await Program.WaitUntilAsync(() => !page.IsBusy);
             Require(table.SelectedItems.Count == 2, "Loading the archive lead collapsed a batch selection.");
             ContextMenu menu = table.ContextMenu!;
-            menu.Open(table);
+            table.Focus();
+            table.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            await Program.WaitUntilAsync(() => menu.IsOpen);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             MenuItem[] items = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string).ToArray();
             Require(items.Select(item => (string)item.Tag!).SequenceEqual(new[]
@@ -69,6 +73,7 @@ internal static class ArchiveCommandChecks
             Require(checkedIds.Length == 0 && Equals(Find("watch.check").Header,
                 Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.check"), 0)),
                 "Changing eligibility did not update the count or admitted a target outside the frozen selection.");
+            await ArchiveMenuLayoutChecks.CheckBoundsAsync(menu, "en-live-eligibility");
             // A language refresh replaces row instances. The open menu must keep
             // using its captured selection after that refresh and a new selection.
             Texts.SetLanguage("de");
@@ -76,6 +81,8 @@ internal static class ArchiveCommandChecks
             ArchiveThreadRow replacement = table.ItemsSource.Cast<ArchiveThreadRow>().First(row => row.Summary.Id == rows[2].Summary.Id);
             table.SelectedItems.Clear(); table.SelectedItems.Add(replacement);
             await Program.WaitUntilAsync(() => !page.IsBusy);
+            await Program.WaitUntilAsync(() => Find("gallery.open").Header!.ToString()!.StartsWith(CommandCatalog.Label("gallery.open"), StringComparison.Ordinal));
+            await ArchiveMenuLayoutChecks.CheckBoundsAsync(menu, "de-live-language-frozen-selection");
             Find("archive.delete-permanently").Command!.Execute(null);
             Require(deleted.SequenceEqual(rows.Take(2).Select(row => row.Summary.Id)), "Permanent deletion retargeted the open menu selection.");
             Find("selection.copy-links").Command!.Execute(null);

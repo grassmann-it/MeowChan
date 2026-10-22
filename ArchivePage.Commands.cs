@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -17,6 +18,8 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
+    private readonly Dictionary<ContextMenu, DispatcherTimer> _archiveMenuRefreshTimers = new();
+
     private static bool MatchesArchiveCommand(KeyEventArgs e, string id) => CommandBindings.Matches(e, id);
 
     private ResourceId[] EligibleArchiveWatches(IEnumerable<ResourceId> ids, bool retry) =>
@@ -66,9 +69,26 @@ public partial class ArchivePage
         await dialog.ShowDialog(owner);
     }
 
-    private void OnArchiveSelectionMenuOpened(object? sender, RoutedEventArgs e)
+    private void OnArchiveSelectionMenuOpening(object? sender, CancelEventArgs e)
     {
         if (sender is not ContextMenu menu) return;
+        BuildArchiveSelectionMenu(menu);
+        e.Cancel = menu.ItemCount == 0;
+    }
+
+    private void OpenArchiveSelectionMenu(Control? owner)
+    {
+        if (owner?.ContextMenu is not ContextMenu menu) return;
+        // Explicit Open(control) bypasses Opening in Avalonia 12. Populate before
+        // the native popup measures, including on the first pointer/key request.
+        BuildArchiveSelectionMenu(menu);
+        if (menu.ItemCount > 0) menu.Open(owner);
+        else menu.Close();
+    }
+
+    private void BuildArchiveSelectionMenu(ContextMenu menu)
+    {
+        StopArchiveMenuRefresh(menu);
         // The table's current selection is authoritative when its menu opens.
         // Freeze these IDs before building commands, including an empty selection.
         DataGrid table = Control<DataGrid>("ArchiveThreadTable");
@@ -83,7 +103,7 @@ public partial class ArchivePage
         ArchiveThreadRow[] targets = ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).ToArray();
         ArchiveThreadRow? lead = ArchiveLead;
         menu.Items.Clear();
-        if (targets.Length == 0 || lead == null) { menu.Close(); return; }
+        if (targets.Length == 0 || lead == null) return;
         Control origin = ArchiveSelectionList;
         ResourceId[] ids = targets.Select(row => row.Summary.Id).ToArray();
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
@@ -150,7 +170,10 @@ public partial class ArchivePage
         {
             string count = string.Format(Texts.T("archive.command.selectionCount"), ids.Length);
             menu.Items.Add(new Separator());
-            var info = new MenuItem { Header = count, Icon = CommandBindings.Icon("thread.details") };
+            // Keep the explanatory prose compact even when the menu theme adds
+            // the shared shortcut column to this shortcut-free row.
+            MenuItem info = new() { Header = new TextBlock { Text = count, TextWrapping = TextWrapping.Wrap, MaxWidth = 280 },
+                Icon = CommandBindings.Icon("thread.details") };
             info.Click += (_, _) => Message(count);
             AutomationProperties.SetName(info, count);
             menu.Items.Add(info);
@@ -176,12 +199,19 @@ public partial class ArchivePage
             foreach (MenuItem item in commands) CommandBindings.Refresh(item);
             UpdateExplanation();
         };
-        void StopRefresh(object? source, RoutedEventArgs args)
-        {
-            refresh.Stop();
-            menu.Closed -= StopRefresh;
-        }
-        menu.Closed += StopRefresh;
+        _archiveMenuRefreshTimers.Add(menu, refresh);
+        menu.Closed += OnArchiveSelectionMenuClosed;
         refresh.Start();
+    }
+
+    private void OnArchiveSelectionMenuClosed(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu menu) StopArchiveMenuRefresh(menu);
+    }
+
+    private void StopArchiveMenuRefresh(ContextMenu menu)
+    {
+        if (_archiveMenuRefreshTimers.Remove(menu, out DispatcherTimer? refresh)) refresh.Stop();
+        menu.Closed -= OnArchiveSelectionMenuClosed;
     }
 }

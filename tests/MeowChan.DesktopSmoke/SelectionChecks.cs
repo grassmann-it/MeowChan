@@ -205,8 +205,8 @@ internal static class SelectionChecks
         }
         Program.CaptureWindow(window, image);
     }
-    private static Task WaitRow(DataGrid grid, object item) => Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item)));
-    private static DataGridRow Row(DataGrid grid, object item) => grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item));
+    internal static Task WaitRow(DataGrid grid, object item) => Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item)));
+    internal static DataGridRow Row(DataGrid grid, object item) => grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, item));
     private static bool CardPointerReady(MainWindow window, ListBoxItem row)
     {
         if (row.Bounds.Width <= 0 || row.Bounds.Height <= 0) return false;
@@ -215,7 +215,7 @@ internal static class SelectionChecks
             && hit.GetSelfAndVisualAncestors().Contains(row)
             && !hit.GetSelfAndVisualAncestors().OfType<Button>().Any();
     }
-    private static async Task<ListBoxItem> CardForAsync(MainWindow window, ListBox cards, ResourceId id)
+    internal static async Task<ListBoxItem> CardForAsync(MainWindow window, ListBox cards, ResourceId id)
     {
         await Program.WaitUntilAsync(() => cards.IsEffectivelyVisible && cards.Bounds.Height > 0);
         ArchiveThreadRow item = cards.ItemsSource!.Cast<ArchiveThreadRow>().Single(row => row.Summary.Id == id);
@@ -244,7 +244,7 @@ internal static class SelectionChecks
         menu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
-    private static async Task PressAsync(MainWindow window, Control row, KeyModifiers modifiers = KeyModifiers.None, bool right = false)
+    internal static async Task PressAsync(MainWindow window, Control row, KeyModifiers modifiers = KeyModifiers.None, bool right = false)
     {
         Control target = row is DataGridRow ? row.GetVisualDescendants().OfType<DataGridCell>().First(cell => cell.Bounds.Width > 10) : row;
         Point point = default;
