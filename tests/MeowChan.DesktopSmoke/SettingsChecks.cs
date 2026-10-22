@@ -102,6 +102,7 @@ internal static class SettingsChecks
                 foreach (string name in new[] { "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
                     "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput" })
                 {
+                    Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();
                     NumericUpDown input = window.Editor.FindControl<NumericUpDown>(name)!;
                     input.Text = "invalid draft";
@@ -114,8 +115,24 @@ internal static class SettingsChecks
                     Require(input.Text == "invalid draft", "Restoring the vendor locale replaced an unvalidated numeric draft.");
                     Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
                     TextBlock error = window.Editor.FindControl<TextBlock>(name + "Error")!;
-                    await WaitUntilAsync(() => !window.Editor.IsBusy && error.IsEffectivelyVisible
-                        && (input.IsFocused || input.IsKeyboardFocusWithin));
+                    try
+                    {
+                        await WaitUntilAsync(() => !window.Editor.IsBusy && error.IsEffectivelyVisible
+                            && (input.IsFocused || input.IsKeyboardFocusWithin));
+                    }
+                    catch
+                    {
+                        ScrollViewer scroll = window.Editor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
+                        TextBox? inner = input.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(text => text.Name == "PART_TextBox");
+                        Console.WriteLine($"SMOKE settings field failure: language={language}; field={name}; raw='{input.Text}'; value={input.Value}; busy={window.Editor.IsBusy}; error='{error.Text}'; hasError={window.Editor.HasError}; details='{window.Editor.ErrorDetails}'; commits={commits}.");
+                        Console.WriteLine($"SMOKE settings field geometry: window={window.Bounds}; input={input.Bounds}; inputVisible={input.IsEffectivelyVisible}; inputEnabled={input.IsEffectivelyEnabled}; inputOrigin={input.TranslatePoint(default, scroll)}; error={error.Bounds}; errorVisible={error.IsEffectivelyVisible}; errorOrigin={error.TranslatePoint(default, scroll)}; scroll={scroll.Bounds}; viewport={scroll.Viewport}; offset={scroll.Offset}.");
+                        Console.WriteLine($"SMOKE settings field focus: focused={window.FocusManager?.GetFocusedElement()}; rootFocused={input.IsFocused}; rootFocusWithin={input.IsKeyboardFocusWithin}; innerExists={inner != null}; innerFocused={inner?.IsFocused}; innerVisible={inner?.IsEffectivelyVisible}; innerBounds={inner?.Bounds}; innerRaw='{inner?.Text}'.");
+                        foreach (Expander group in input.GetVisualAncestors().OfType<Expander>())
+                            Console.WriteLine($"SMOKE settings field ancestor: header='{group.Header}'; expanded={group.IsExpanded}; visible={group.IsEffectivelyVisible}; bounds={group.Bounds}.");
+                        Program.CaptureWindow(window, $"smoke-settings-field-failure-{language}-{name}.png");
+                        throw;
+                    }
+                    Console.WriteLine($"SMOKE settings field passed: language={language}; field={name}; raw='{input.Text}'.");
                     Require(commits == 0 && input.Text == "invalid draft", "Invalid field text was committed or corrected automatically.");
                     Require(window.Editor.GetVisualDescendants().OfType<TextBlock>()
                         .Count(text => text.Name?.EndsWith("InputError") == true && text.IsVisible) == 1,
