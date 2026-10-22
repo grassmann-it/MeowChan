@@ -77,4 +77,5 @@
       </Content>
     </ItemGroup>
   </Target>
+  <Import Project="packaging/PluginDelivery.targets" />
 </Project>

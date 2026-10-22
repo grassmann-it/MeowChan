@@ -1,0 +1,10 @@
+<Project>
+  <!-- All opted-in projects share one Release lock convention, including external helpers. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(RestorePackagesWithLockFile)' == 'true'">
+    <MeowChanReleaseLockRuntime>$(RuntimeIdentifier)</MeowChanReleaseLockRuntime>
+    <MeowChanReleaseLockRuntime Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(RuntimeIdentifiers)</MeowChanReleaseLockRuntime>
+    <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(MSBuildProjectDirectory)/packages.release.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' != ''">$(MSBuildProjectDirectory)/packages.release.$(MeowChanReleaseLockRuntime).lock.json</NuGetLockFilePath>
+    <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
+  </PropertyGroup>
+</Project>
