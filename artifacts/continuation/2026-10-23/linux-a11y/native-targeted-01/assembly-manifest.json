@@ -1,0 +1,20 @@
+{
+  "captured_utc": "2026-10-22T22:15:47.053217+00:00",
+  "files": [
+    {
+      "file": "/home/tomka/Desktop/oChan/artifacts/plugin-implementation/2026-10-22/integration/final-01/normal-final-08/runtime/MeowChan.DesktopSmoke.dll",
+      "sha256": "dd87003359193b831a6bfc0ef7759c6078956883b730cecb8cabbbc28ce0b117",
+      "mtime_utc": "2026-10-22T21:59:45.731897+00:00"
+    },
+    {
+      "file": "/home/tomka/Desktop/oChan/artifacts/plugin-implementation/2026-10-22/integration/final-01/normal-final-08/runtime/MeowChan.dll",
+      "sha256": "787228b269259b4e22b825eb31cf4e8e34b8cb8deb4e5a37314be7866d89cfaa",
+      "mtime_utc": "2026-10-22T21:59:43.007967+00:00"
+    },
+    {
+      "file": "/home/tomka/Desktop/oChan/artifacts/plugin-implementation/2026-10-22/integration/final-01/normal-final-08/runtime/libmeowchan.dll",
+      "sha256": "7da5cdc5511b16ab254ac67e6b3c57c410db61ea9989dea252bef87ea7646de7",
+      "mtime_utc": "2026-10-22T21:59:35.328242+00:00"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "os": "NAME=\"Manjaro Linux\"\nPRETTY_NAME=\"Manjaro Linux\"\nID=manjaro\nID_LIKE=arch\nBUILD_ID=rolling\nANSI_COLOR=\"32;1;24;144;200\"\nHOME_URL=\"https://manjaro.org/\"\nDOCUMENTATION_URL=\"https://wiki.manjaro.org/\"\nSUPPORT_URL=\"https://forum.manjaro.org/\"\nBUG_REPORT_URL=\"https://manjaro.org/help/\"\nPRIVACY_POLICY_URL=\"https://manjaro.org/privacy-policy/\"\nLOGO=manjarolinux\n",
+  "kernel": "6.18.49-1-MANJARO",
+  "tools": "xorg-server-xvfb 21.1.24-1\nat-spi2-core 2.60.6-1\nopenbox 3.6.1-14\npython 3.14.7-1",
+  "bundled_orca": [
+    {
+      "name": "orca",
+      "url": "https://mirrors.cicku.me/manjaro/stable/extra/x86_64/orca-50.2-1-any.pkg.tar.zst",
+      "path": "/home/tomka/Desktop/oChan-ui-workers/boards/artifacts/ui-implementation/boards/accessibility-tools/packages/orca-50.2-1-any.pkg.tar.zst",
+      "sha256": "a7f79882e79d57cad80ff5dae590493b308650198d0a96d943433baaba3b2851",
+      "bytes": 3287119
+    }
+  ],
+  "app_backend": "X11 software rendering in Xvfb, app.log explicitly reports Xvfb/Openbox; no personal desktop",
+  "scale": 1
+}

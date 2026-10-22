@@ -1,0 +1,87 @@
+{
+  "stage": "settings-en-decrease-bridge",
+  "start": 1792707376.8266258,
+  "end": 1792707378.8422875,
+  "requested": true,
+  "target": {
+    "name": "Decrease Remembered video volume (%)",
+    "role": "button",
+    "id": "PART_DecreaseButton",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "focusable",
+      "focused",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": []
+  },
+  "focused_nodes": [
+    {
+      "name": "Decrease Remembered video volume (%)",
+      "role": "button",
+      "id": "PART_DecreaseButton",
+      "description": "",
+      "help": "",
+      "states": [
+        "enabled",
+        "focusable",
+        "focused",
+        "sensitive",
+        "showing",
+        "visible"
+      ],
+      "interfaces": [
+        "Accessible",
+        "Action",
+        "Component"
+      ],
+      "attributes": {
+        "explicit-name": "true",
+        "toolkit": "Avalonia"
+      },
+      "relations": [],
+      "path": [
+        0,
+        0,
+        1,
+        3,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        4,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1
+      ]
+    }
+  ]
+}

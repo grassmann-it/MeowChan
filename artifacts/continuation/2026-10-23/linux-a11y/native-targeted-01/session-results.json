@@ -1,0 +1,7 @@
+{
+  "app_exit": 0,
+  "inspector_exit": 0,
+  "private_accessibility_bus": "unix:path=/tmp/meowchan-a11y-11z4u7so/runtime/at-spi/bus_136",
+  "audio": "No speech server; private unavailable socket; Orca SPEECH OUTPUT logs only",
+  "assembly": "/home/tomka/Desktop/oChan/artifacts/plugin-implementation/2026-10-22/integration/final-01/normal-final-08/runtime/MeowChan.DesktopSmoke.dll"
+}

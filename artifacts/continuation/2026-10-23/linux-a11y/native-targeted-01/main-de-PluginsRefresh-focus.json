@@ -1,0 +1,75 @@
+{
+  "stage": "main-de-PluginsRefresh",
+  "start": 1792707396.8366554,
+  "end": 1792707398.850621,
+  "requested": true,
+  "target": {
+    "name": "Status aktualisieren",
+    "role": "button",
+    "id": "PluginsRefresh",
+    "description": "Status aktualisieren",
+    "help": "Status aktualisieren",
+    "states": [
+      "enabled",
+      "focusable",
+      "focused",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": []
+  },
+  "focused_nodes": [
+    {
+      "name": "Status aktualisieren",
+      "role": "button",
+      "id": "PluginsRefresh",
+      "description": "Status aktualisieren",
+      "help": "Status aktualisieren",
+      "states": [
+        "enabled",
+        "focusable",
+        "focused",
+        "sensitive",
+        "showing",
+        "visible"
+      ],
+      "interfaces": [
+        "Accessible",
+        "Action",
+        "Component"
+      ],
+      "attributes": {
+        "explicit-name": "true",
+        "toolkit": "Avalonia"
+      },
+      "relations": [],
+      "path": [
+        0,
+        0,
+        1,
+        3,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  ]
+}

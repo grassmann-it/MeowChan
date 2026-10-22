@@ -1,0 +1,2 @@
+
+(orca:1529474): dbind-WARNING **: 00:15:54.589: Attempt to enable ATSPI_DEVICE_CAP_POINTER_MONITOR, but at-spi2-core was built without libXRes

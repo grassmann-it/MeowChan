@@ -1,0 +1,2 @@
+SMOKE isolated desktop ready: private Xvfb + Openbox + DBus; display=:136
+APP EXIT 0 INSPECTOR EXIT 0

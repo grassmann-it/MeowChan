@@ -1,0 +1,267 @@
+[
+  {
+    "probe": "main-de-CloseButton",
+    "start": 1792707403.4504628,
+    "end": 1792707405.4642525,
+    "focus": true,
+    "name": "Schließen",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:43.633373 - SPEECH OUTPUT: 'Über MeowChan' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.633499 - SPEECH OUTPUT: 'Panel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.633521 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:43.633657 - SPEECH OUTPUT: 'VisualLayerManager' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.633683 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:43.633785 - SPEECH OUTPUT: 'ContentPresenter' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.633804 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:43.633957 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.633988 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:43.634109 - SPEECH OUTPUT: 'Schließen' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:43.634136 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  },
+  {
+    "probe": "main-de-PluginCategory",
+    "start": 1792707394.6606479,
+    "end": 1792707396.6725712,
+    "focus": true,
+    "name": "Pluginkategorie",
+    "direct_exact_name_spoken": false,
+    "speech": []
+  },
+  {
+    "probe": "main-de-PluginsFolder",
+    "start": 1792707398.9760332,
+    "end": 1792707400.9903355,
+    "focus": true,
+    "name": "Pluginordner öffnen",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:39.031149 - SPEECH OUTPUT: 'Pluginordner öffnen' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:39.031235 - SPEECH OUTPUT: 'button.' {'established': False}",
+      "00:16:39.031315 - SPEECH OUTPUT: 'Pluginordner öffnen' {'established': False}"
+    ]
+  },
+  {
+    "probe": "main-de-PluginsRefresh",
+    "start": 1792707396.8366554,
+    "end": 1792707398.850621,
+    "focus": true,
+    "name": "Status aktualisieren",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:37.148724 - SPEECH OUTPUT: 'ContentControl Quellen und Bildfilter dieses Profils. Beschreibungen und gespeicherter Status sagen nichts über die Erreichbarkeit einer Website aus.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.148802 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:37.148945 - SPEECH OUTPUT: 'ContentPresenter Quellen und Bildfilter dieses Profils. Beschreibungen und gespeicherter Status sagen nichts über die Erreichbarkeit einer Website aus.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.148998 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:37.149129 - SPEECH OUTPUT: 'Grid Quellen und Bildfilter dieses Profils. Beschreibungen und gespeicherter Status sagen nichts über die Erreichbarkeit einer Website aus.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.149181 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:37.149414 - SPEECH OUTPUT: 'StackPanel Quellen und Bildfilter dieses Profils. Beschreibungen und gespeicherter Status sagen nichts über die Erreichbarkeit einer Website aus.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.149486 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:37.149630 - SPEECH OUTPUT: 'WrapPanel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.149657 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:37.149779 - SPEECH OUTPUT: 'Status aktualisieren' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:37.149808 - SPEECH OUTPUT: 'button.' {'established': False}",
+      "00:16:37.149835 - SPEECH OUTPUT: 'Status aktualisieren' {'established': False}"
+    ]
+  },
+  {
+    "probe": "main-en-CloseButton",
+    "start": 1792707368.4659224,
+    "end": 1792707370.4807973,
+    "focus": true,
+    "name": "Close",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:08.642270 - SPEECH OUTPUT: 'About MeowChan' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.642444 - SPEECH OUTPUT: 'Panel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.642471 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:08.642607 - SPEECH OUTPUT: 'VisualLayerManager' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.642633 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:08.642757 - SPEECH OUTPUT: 'ContentPresenter' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.642781 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:08.642902 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.642921 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:08.643037 - SPEECH OUTPUT: 'Close' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:08.643059 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  },
+  {
+    "probe": "main-en-PluginCategory",
+    "start": 1792707359.936384,
+    "end": 1792707361.953047,
+    "focus": true,
+    "name": "Plugin category",
+    "direct_exact_name_spoken": false,
+    "speech": []
+  },
+  {
+    "probe": "main-en-PluginsFolder",
+    "start": 1792707364.2240286,
+    "end": 1792707366.2381434,
+    "focus": true,
+    "name": "Open plugin folder",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:04.289998 - SPEECH OUTPUT: 'Open plugin folder' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:04.290077 - SPEECH OUTPUT: 'button.' {'established': False}",
+      "00:16:04.290173 - SPEECH OUTPUT: 'Open plugin folder' {'established': False}"
+    ]
+  },
+  {
+    "probe": "main-en-PluginsRefresh",
+    "start": 1792707362.0860715,
+    "end": 1792707364.1013446,
+    "focus": true,
+    "name": "Refresh status",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:02.309518 - SPEECH OUTPUT: 'Panel ↓ 0 B/s Sources and image filters in this profile. Descriptions and saved status do not indicate site availability. Watching for updates 0 threads · 0 boards · 0 queued · 0 downloading' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.309654 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.309946 - SPEECH OUTPUT: 'VisualLayerManager ↓ 0 B/s Sources and image filters in this profile. Descriptions and saved status do not indicate site availability. Watching for updates 0 threads · 0 boards · 0 queued · 0 downloading' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.310066 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.310314 - SPEECH OUTPUT: 'ContentControl Sources and image filters in this profile. Descriptions and saved status do not indicate site availability.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.310408 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.310648 - SPEECH OUTPUT: 'ContentPresenter Sources and image filters in this profile. Descriptions and saved status do not indicate site availability.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.310727 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.310964 - SPEECH OUTPUT: 'Grid Sources and image filters in this profile. Descriptions and saved status do not indicate site availability.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.311040 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.311268 - SPEECH OUTPUT: 'StackPanel Sources and image filters in this profile. Descriptions and saved status do not indicate site availability.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.311353 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.311752 - SPEECH OUTPUT: 'WrapPanel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.311791 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:02.311942 - SPEECH OUTPUT: 'Refresh status' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:02.311980 - SPEECH OUTPUT: 'button.' {'established': False}",
+      "00:16:02.312011 - SPEECH OUTPUT: 'Refresh status' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-de-decrease-bridge",
+    "start": 1792707411.302429,
+    "end": 1792707413.3161364,
+    "focus": true,
+    "name": "Gemerkte Videolautstärke (%) verringern",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:51.469134 - SPEECH OUTPUT: 'Border' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:51.469280 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:51.469450 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:51.469474 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:51.469611 - SPEECH OUTPUT: 'Gemerkte Videolautstärke (%) verringern' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:51.469664 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-de-increase-first",
+    "start": 1792707408.844976,
+    "end": 1792707410.8598657,
+    "focus": false,
+    "name": "Gemerkte Videolautstärke (%) erhöhen",
+    "direct_exact_name_spoken": false,
+    "speech": [
+      "00:16:49.517308 - SPEECH OUTPUT: 'MeowChan' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.517486 - SPEECH OUTPUT: 'Panel ↓ 0 B/s Änderungen werden beim Speichern übernommen. Neue Inhalte werden beobachtet 0 Threads · 0 Boards · 0 wartend · 0 Downloads aktiv' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.517560 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.517715 - SPEECH OUTPUT: 'VisualLayerManager ↓ 0 B/s Änderungen werden beim Speichern übernommen. Neue Inhalte werden beobachtet 0 Threads · 0 Boards · 0 wartend · 0 Downloads aktiv' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.517785 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.517917 - SPEECH OUTPUT: 'ContentControl Änderungen werden beim Speichern übernommen.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.517954 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.518095 - SPEECH OUTPUT: 'ScrollContentPresenter Downloads, Boards und Einstellungen sind in allen Ansichten verfügbar. Lesen & Medien Gemerkte Videolautstärke (%) Nach dem Speichern wird eine bewusst geöffnete Readerstelle für dieses Profil gemerkt. Nach Neustart im Appmenü neben Archiv „Zuletzt gelesen fortsetzen“ wählen. Ausschalten löscht die Stelle; es werden keine Inhalte abgerufen. Pfadänderungen gelten für neu hinzugefügte Threads und Boards. Downloads warten, wenn am Ziel weniger Platz frei ist. Bei unbekannter Dateigröße kann der Platz trotzdem ausgehen; keine Dateien werden gelöscht. Automatisch nach Updates suchen Prüft GitHub höchstens alle 24 Stunden und sendet nur die MeowChan-Version als User-Agent; keine IDs oder Telemetrie. Die Updateprüfung ist für diese Installation durch MEOWCHAN_DISABLE_UPDATE_CHECK=1 deaktiviert. Sitzung und Fenster Unterstützte Quellen: 4chan und 8kun' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518305 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.518445 - SPEECH OUTPUT: 'StackPanel Lesen & Medien Gemerkte Videolautstärke (%) Nach dem Speichern wird eine bewusst geöffnete Readerstelle für dieses Profil gemerkt. Nach Neustart im Appmenü neben Archiv „Zuletzt gelesen fortsetzen“ wählen. Ausschalten löscht die Stelle; es werden keine Inhalte abgerufen.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518525 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.518555 - SPEECH OUTPUT: '70' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518671 - SPEECH OUTPUT: 'DataValidationErrors' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518694 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.518815 - SPEECH OUTPUT: 'DockPanel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518836 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.518957 - SPEECH OUTPUT: 'ButtonSpinner' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.518978 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.519097 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.519117 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.519237 - SPEECH OUTPUT: 'Border' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.519257 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.519379 - SPEECH OUTPUT: 'ContentPresenter' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.519402 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:49.519519 - SPEECH OUTPUT: 'Gemerkte Videolautstärke (%)' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.519636 - SPEECH OUTPUT: 'entry' {'established': False}",
+      "00:16:49.519667 - SPEECH OUTPUT: '70.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:49.519691 - SPEECH OUTPUT: 'Prozent, von 0 bis 100.' {'established': False}",
+      "00:16:49.519723 - SPEECH OUTPUT: 'Prozent, von 0 bis 100' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-de-increase-repeat",
+    "start": 1792707413.7730534,
+    "end": 1792707418.7822824,
+    "focus": true,
+    "name": "Gemerkte Videolautstärke (%) erhöhen",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:53.847485 - SPEECH OUTPUT: 'Gemerkte Videolautstärke (%) erhöhen' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:53.847583 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-en-decrease-bridge",
+    "start": 1792707376.8266258,
+    "end": 1792707378.8422875,
+    "focus": true,
+    "name": "Decrease Remembered video volume (%)",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:16.995880 - SPEECH OUTPUT: 'Border' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:16.995918 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:16.996098 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:16.996119 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:16.996223 - SPEECH OUTPUT: 'Decrease Remembered video volume (%)' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:16.996254 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-en-increase-first",
+    "start": 1792707374.3516755,
+    "end": 1792707376.3776674,
+    "focus": false,
+    "name": "Increase Remembered video volume (%)",
+    "direct_exact_name_spoken": false,
+    "speech": [
+      "00:16:14.963108 - SPEECH OUTPUT: 'ContentControl Changes are applied when you save.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963155 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.963291 - SPEECH OUTPUT: 'ScrollContentPresenter All views keep downloads, boards and settings available. Reading & media Reading font size Remembered video volume (%) After saving, remembers one consciously opened reader position for this profile. Use Resume last reading beside Archive in the app menu after restarting. Disabling deletes the position; no content is fetched. Path changes apply to newly added threads and boards. Recheck timer (seconds) Bandwidth limit (MiB/s) Free-space reserve (GiB) Downloads wait when a target has less free space. Unknown file sizes can still exhaust the disk; no files are deleted. Automatically check for updates Checks GitHub at most once every 24 hours, sending only the MeowChan version as User-Agent; no IDs or telemetry. Update checking is disabled by MEOWCHAN_DISABLE_UPDATE_CHECK=1 for this installation. Session and window Supported sources: 4chan and 8kun' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963463 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.963580 - SPEECH OUTPUT: 'StackPanel Reading & media Reading font size Remembered video volume (%) After saving, remembers one consciously opened reader position for this profile. Use Resume last reading beside Archive in the app menu after restarting. Disabling deletes the position; no content is fetched.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963645 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.963670 - SPEECH OUTPUT: '70' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963770 - SPEECH OUTPUT: 'DataValidationErrors' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963789 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.963889 - SPEECH OUTPUT: 'DockPanel' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.963907 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.964008 - SPEECH OUTPUT: 'ButtonSpinner' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964026 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.964143 - SPEECH OUTPUT: 'Grid' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964160 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.964258 - SPEECH OUTPUT: 'Border' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964275 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.964425 - SPEECH OUTPUT: 'ContentPresenter' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964456 - SPEECH OUTPUT: 'panel' {'established': False}",
+      "00:16:14.964580 - SPEECH OUTPUT: 'Remembered video volume (%)' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964682 - SPEECH OUTPUT: 'entry' {'established': False}",
+      "00:16:14.964710 - SPEECH OUTPUT: '70.' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:14.964731 - SPEECH OUTPUT: 'Percent, from 0 to 100.' {'established': False}",
+      "00:16:14.964759 - SPEECH OUTPUT: 'Percent, from 0 to 100' {'established': False}"
+    ]
+  },
+  {
+    "probe": "settings-en-increase-repeat",
+    "start": 1792707379.30682,
+    "end": 1792707384.3160715,
+    "focus": true,
+    "name": "Increase Remembered video volume (%)",
+    "direct_exact_name_spoken": true,
+    "speech": [
+      "00:16:19.419019 - SPEECH OUTPUT: 'Increase Remembered video volume (%)' {'established': False, 'family': {'name': '', 'gender': None, 'lang': 'en', 'dialect': 'US', 'variant': None}}",
+      "00:16:19.419107 - SPEECH OUTPUT: 'button.' {'established': False}"
+    ]
+  }
+]

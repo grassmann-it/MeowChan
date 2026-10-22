@@ -1,0 +1,6769 @@
+[
+  {
+    "name": "Avalonia Application",
+    "role": "application",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "active"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Application"
+    ],
+    "attributes": {},
+    "relations": [],
+    "path": [
+      0
+    ]
+  },
+  {
+    "name": "MeowChan",
+    "role": "frame",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "active",
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Application",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0
+    ]
+  },
+  {
+    "name": "WindowChrome",
+    "role": "panel",
+    "id": "AvaloniaWindowChrome",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "LayerWrapper",
+    "role": "panel",
+    "id": "WindowChromeOverlay",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "PART_OverlayWrapper",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "LayerWrapper",
+    "role": "panel",
+    "id": "WindowChromeUnderlay",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "PART_UnderlayWrapper",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_WindowBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_TransparencyFallback",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "name": "VisualLayerManager",
+    "role": "panel",
+    "id": "PART_VisualLayerManager",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspaceRoot",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspaceTitleBar",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspaceHeader",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "About MeowChan",
+    "role": "button",
+    "id": "BrandAboutButton",
+    "description": "About MeowChan",
+    "help": "About MeowChan",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Image",
+    "role": "image",
+    "id": "WorkspaceLogo",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component",
+      "Image"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "MeowChan",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "v1.0.0",
+    "role": "label",
+    "id": "WorkspaceVersion",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Media downloads: 0 B/s · Last 60 samples (about one minute). Includes failed attempts; excludes local files and page requests.",
+    "role": "panel",
+    "id": "TransferSpeed",
+    "description": "Media downloads: 0 B/s · Last 60 samples (about one minute). Includes failed attempts; excludes local files and page requests.",
+    "help": "Media downloads: 0 B/s · Last 60 samples (about one minute). Includes failed attempts; excludes local files and page requests.",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "↓ 0 B/s",
+    "role": "label",
+    "id": "TransferSpeedLabel",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Pause downloads and checks",
+    "role": "button",
+    "id": "PauseButton",
+    "description": "Pause downloads and checks · Ctrl+Shift+P · Outside inputs and overlays · when available",
+    "help": "Pause downloads and checks · Ctrl+Shift+P · Outside inputs and overlays · when available",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Enter / exit fullscreen",
+    "role": "button",
+    "id": "FullscreenButton",
+    "description": "Enter / exit fullscreen · F11 · Off",
+    "help": "Enter / exit fullscreen · F11 · Off",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Switch to light theme",
+    "role": "button",
+    "id": "ThemeToggleButton",
+    "description": "Switch to light theme",
+    "help": "Switch to light theme",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      3
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      3,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Menu",
+    "role": "menu",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "ItemsPresenter",
+    "role": "panel",
+    "id": "PART_ItemsPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Settings",
+    "role": "menu item",
+    "id": "WorkspaceMenuItem",
+    "description": "",
+    "help": "",
+    "states": [
+      "collapsed",
+      "enabled",
+      "expandable",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_LayoutRoot",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_HeaderPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "AccessText",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Popup",
+    "role": "unknown",
+    "id": "PART_Popup",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Minimize",
+    "role": "button",
+    "id": "WindowMinimizeButton",
+    "description": "Minimize",
+    "help": "Minimize",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Path",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Maximize",
+    "role": "button",
+    "id": "WindowMaximizeButton",
+    "description": "Maximize",
+    "help": "Maximize",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Path",
+    "role": "panel",
+    "id": "WindowMaximizeIcon",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Close",
+    "role": "button",
+    "id": "WindowCloseButton",
+    "description": "Close",
+    "help": "Close",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "Path",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspacePages",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspaceBody",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "WorkspaceIntakeCard",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Thread or board URLs…",
+    "role": "entry",
+    "id": "UrlInput",
+    "description": "Thread or board URLs…",
+    "help": "Thread or board URLs…",
+    "states": [
+      "editable",
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "single_line",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component",
+      "EditableText",
+      "Text"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia",
+      "placeholder-text": "Thread or board URLs…"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "DataValidationErrors",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "DockPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_ContentPresenterBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ScrollViewer",
+    "role": "scroll pane",
+    "id": "PART_ScrollViewer",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ScrollContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Thread or board URLs…",
+    "role": "label",
+    "id": "PART_Placeholder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "TextPresenter",
+    "role": "panel",
+    "id": "PART_TextPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Add",
+    "role": "button",
+    "id": "AddUrlButton",
+    "description": "Add",
+    "help": "Add",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Add",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "WorkspaceContentGrid",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "DownloadsPanel",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "TabControl",
+    "role": "page tab list",
+    "id": "DownloadsTabs",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "DockPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ItemsPresenter",
+    "role": "panel",
+    "id": "PART_ItemsPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "WrapPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "TabItem",
+    "role": "page tab",
+    "id": "ThreadsTab",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "focusable",
+      "selectable",
+      "selected",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_RootBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "DockPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_HeaderPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "AccessText",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "TabItem",
+    "role": "page tab",
+    "id": "BoardsTab",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "focusable",
+      "selectable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_RootBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "DockPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_HeaderPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "AccessText",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "PART_BorderSeparator",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Panel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_SelectedContentHost",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "ThreadsResultPanel",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "DataGrid",
+    "role": "tree table",
+    "id": "ThreadsDataGrid",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "DataGridBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "DataGridColumnHeadersPresenter",
+    "role": "header",
+    "id": "PART_ColumnHeadersPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Thread / title",
+    "role": "column header",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "HeaderBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "PART_ColumnHeaderRoot",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "HeaderBackground",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Thread / title",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Rectangle",
+    "role": "panel",
+    "id": "VerticalSeparator",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Media / transfer",
+    "role": "column header",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "HeaderBorder",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "PART_ColumnHeaderRoot",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "HeaderBackground",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "Media / transfer",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Rectangle",
+    "role": "panel",
+    "id": "PART_ColumnHeadersAndRowsSeparator",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "DataGridRowsPresenter",
+    "role": "panel",
+    "id": "PART_RowsPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      3
+    ]
+  },
+  {
+    "name": "Rectangle",
+    "role": "panel",
+    "id": "PART_FrozenColumnScrollBarSpacer",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      3,
+      0
+    ]
+  },
+  {
+    "name": "Add a thread or board URL to start downloading.",
+    "role": "label",
+    "id": "ThreadsEmptyState",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "WorkspaceListActions",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Search",
+    "role": "button",
+    "id": "DownloadSearchButton",
+    "description": "Search · Ctrl+F",
+    "help": "Search · Ctrl+F",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Search",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Choose columns…",
+    "role": "button",
+    "id": "DownloadsColumnsButton",
+    "description": "Choose columns…",
+    "help": "Choose columns…",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Choose columns…",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Copy session URLs (0)",
+    "role": "button",
+    "id": "CopyAllUrlsButton",
+    "description": "Copies all thread and board URLs in this session, including entries hidden by the filter.",
+    "help": "Copies all thread and board URLs in this session, including entries hidden by the filter.",
+    "states": [
+      "focusable",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      2
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      2,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Copy session URLs (0)",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      2,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Show details",
+    "role": "button",
+    "id": "DetailsToggleButton",
+    "description": "Show details · Alt+Enter",
+    "help": "Show details · Alt+Enter",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      3,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      3,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Show details",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      3,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "Watching for updates",
+    "role": "label",
+    "id": "WorkspaceStatus",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "0 threads · 0 boards · 0 queued · 0 downloading",
+    "role": "label",
+    "id": "WorkspaceCounts",
+    "description": "0 threads · 0 boards · 0 queued · 0 downloading",
+    "help": "0 threads · 0 boards · 0 queued · 0 downloading",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      2,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "WorkspaceNavigation",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "WorkspaceNavigationButtons",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Downloads",
+    "role": "button",
+    "id": "DownloadsNavigationButton",
+    "description": "Downloads · Ctrl+1 · Outside inputs and overlays · when available",
+    "help": "Downloads · Ctrl+1 · Outside inputs and overlays · when available",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Downloads",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Tools",
+    "role": "button",
+    "id": "ToolsNavigationButton",
+    "description": "Tools",
+    "help": "Tools",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Tools",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Settings",
+    "role": "button",
+    "id": "SettingsNavigationButton",
+    "description": "Settings · Ctrl+,",
+    "help": "Settings · Ctrl+,",
+    "states": [
+      "enabled",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "StackPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Settings",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "View",
+    "role": "combo box",
+    "id": "WorkspaceModeComboBox",
+    "description": "View",
+    "help": "View",
+    "states": [
+      "collapsed",
+      "enabled",
+      "expandable",
+      "focusable",
+      "sensitive",
+      "showing",
+      "visible",
+      "read_only"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Action",
+      "Component",
+      "Selection",
+      "Text"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "DataValidationErrors",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "DockPanel",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "PART_ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Grid",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "Background",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ContentPresenter",
+    "role": "panel",
+    "id": "ContentPresenter",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "name": "Barebones",
+    "role": "label",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "explicit-name": "true",
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "PathIcon",
+    "role": "panel",
+    "id": "DropDownGlyph",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2
+    ]
+  },
+  {
+    "name": "Border",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+    ]
+  },
+  {
+    "name": "Viewbox",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "ViewboxContainer",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Path",
+    "role": "panel",
+    "id": "PART_Path",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "name": "Popup",
+    "role": "unknown",
+    "id": "PART_Popup",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      3
+    ]
+  },
+  {
+    "name": "AdornerLayer",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      1
+    ]
+  },
+  {
+    "name": "WindowNotificationManager",
+    "role": "panel",
+    "id": "",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      1,
+      0
+    ]
+  },
+  {
+    "name": "ReversibleStackPanel",
+    "role": "panel",
+    "id": "PART_Items",
+    "description": "",
+    "help": "",
+    "states": [
+      "enabled",
+      "sensitive",
+      "showing",
+      "visible"
+    ],
+    "interfaces": [
+      "Accessible",
+      "Component"
+    ],
+    "attributes": {
+      "toolkit": "Avalonia"
+    },
+    "relations": [],
+    "path": [
+      0,
+      0,
+      1,
+      3,
+      1,
+      0,
+      0
+    ]
+  }
+]

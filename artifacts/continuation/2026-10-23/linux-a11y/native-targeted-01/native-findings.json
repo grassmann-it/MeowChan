@@ -1,0 +1,1880 @@
+{
+  "scope": "Targeted plugin overview, About/update control names/focus; Increase first/repeat focus only. Other fixture checkpoints acknowledged without repeating prior matrices.",
+  "stages": [
+    "board-edited-de",
+    "board-edited-en",
+    "board-error-de",
+    "board-error-en",
+    "board-ready-de",
+    "board-ready-en",
+    "favorite-error-de",
+    "favorite-error-en",
+    "favorite-ready-de",
+    "favorite-ready-en",
+    "main-de",
+    "main-en",
+    "menu-de",
+    "menu-en",
+    "settings-de",
+    "settings-en"
+  ],
+  "checks": [
+    {
+      "check": "main-en tools native action",
+      "passed": true,
+      "detail": {
+        "name": "Tools",
+        "role": "button",
+        "id": "ToolsNavigationButton",
+        "description": "Tools",
+        "help": "Tools",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en plugins native action",
+      "passed": true,
+      "detail": {
+        "name": "",
+        "role": null,
+        "id": null,
+        "description": "",
+        "help": null,
+        "states": [
+          "defunct"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": null,
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en PluginCategory meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Plugin category",
+        "role": "combo box",
+        "id": "PluginCategory",
+        "description": "",
+        "help": "",
+        "states": [
+          "collapsed",
+          "enabled",
+          "expandable",
+          "focusable",
+          "focused",
+          "sensitive",
+          "showing",
+          "visible",
+          "read_only"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component",
+          "Selection",
+          "Text"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en-PluginCategory actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-en-PluginCategory",
+        "start": 1792707359.936384,
+        "end": 1792707361.953047,
+        "requested": true,
+        "target": {
+          "name": "Plugin category",
+          "role": "combo box",
+          "id": "PluginCategory",
+          "description": "",
+          "help": "",
+          "states": [
+            "collapsed",
+            "enabled",
+            "expandable",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible",
+            "read_only"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component",
+            "Selection",
+            "Text"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Plugin category",
+            "role": "combo box",
+            "id": "PluginCategory",
+            "description": "",
+            "help": "",
+            "states": [
+              "collapsed",
+              "enabled",
+              "expandable",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible",
+              "read_only"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component",
+              "Selection",
+              "Text"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-en PluginsRefresh meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Refresh status",
+        "role": "button",
+        "id": "PluginsRefresh",
+        "description": "Refresh status",
+        "help": "Refresh status",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en-PluginsRefresh actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-en-PluginsRefresh",
+        "start": 1792707362.0860715,
+        "end": 1792707364.1013446,
+        "requested": true,
+        "target": {
+          "name": "Refresh status",
+          "role": "button",
+          "id": "PluginsRefresh",
+          "description": "Refresh status",
+          "help": "Refresh status",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Refresh status",
+            "role": "button",
+            "id": "PluginsRefresh",
+            "description": "Refresh status",
+            "help": "Refresh status",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-en PluginsFolder meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Open plugin folder",
+        "role": "button",
+        "id": "PluginsFolder",
+        "description": "Open plugin folder",
+        "help": "Open plugin folder",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en-PluginsFolder actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-en-PluginsFolder",
+        "start": 1792707364.2240286,
+        "end": 1792707366.2381434,
+        "requested": true,
+        "target": {
+          "name": "Open plugin folder",
+          "role": "button",
+          "id": "PluginsFolder",
+          "description": "Open plugin folder",
+          "help": "Open plugin folder",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Open plugin folder",
+            "role": "button",
+            "id": "PluginsFolder",
+            "description": "Open plugin folder",
+            "help": "Open plugin folder",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-en downloads native action",
+      "passed": true,
+      "detail": {
+        "name": "Downloads",
+        "role": "button",
+        "id": "DownloadsNavigationButton",
+        "description": "Downloads · Ctrl+1 · Outside inputs and overlays · when available",
+        "help": "Downloads · Ctrl+1 · Outside inputs and overlays · when available",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en about native action",
+      "passed": true,
+      "detail": {
+        "name": "About MeowChan",
+        "role": "button",
+        "id": "BrandAboutButton",
+        "description": "About MeowChan",
+        "help": "About MeowChan",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en CheckUpdatesButton meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Check for updates",
+        "role": "button",
+        "id": "CheckUpdatesButton",
+        "description": "",
+        "help": "",
+        "states": [
+          "focusable",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en CloseButton meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Close",
+        "role": "button",
+        "id": "CloseButton",
+        "description": "",
+        "help": "",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-en-CloseButton actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-en-CloseButton",
+        "start": 1792707368.4659224,
+        "end": 1792707370.4807973,
+        "requested": true,
+        "target": {
+          "name": "Close",
+          "role": "button",
+          "id": "CloseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Close",
+            "role": "button",
+            "id": "CloseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              1,
+              1,
+              3,
+              0,
+              0,
+              2,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-en close about native action",
+      "passed": true,
+      "detail": {
+        "name": "",
+        "role": null,
+        "id": null,
+        "description": "",
+        "help": null,
+        "states": [
+          "defunct"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": null,
+        "relations": []
+      }
+    },
+    {
+      "check": "settings-en-increase-first actual focus",
+      "passed": false,
+      "detail": {
+        "stage": "settings-en-increase-first",
+        "start": 1792707374.3516755,
+        "end": 1792707376.3776674,
+        "requested": true,
+        "target": {
+          "name": "Increase Remembered video volume (%)",
+          "role": "button",
+          "id": "PART_IncreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Remembered video volume (%)",
+            "role": "entry",
+            "id": "PART_TextBox",
+            "description": "Percent, from 0 to 100",
+            "help": "Percent, from 0 to 100",
+            "states": [
+              "editable",
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "single_line",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Component",
+              "EditableText",
+              "Text"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [
+              {
+                "type": "2",
+                "targets": [
+                  "Remembered video volume (%)"
+                ]
+              }
+            ],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "settings-en-decrease-bridge actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "settings-en-decrease-bridge",
+        "start": 1792707376.8266258,
+        "end": 1792707378.8422875,
+        "requested": true,
+        "target": {
+          "name": "Decrease Remembered video volume (%)",
+          "role": "button",
+          "id": "PART_DecreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Decrease Remembered video volume (%)",
+            "role": "button",
+            "id": "PART_DecreaseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "settings-en-increase-repeat actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "settings-en-increase-repeat",
+        "start": 1792707379.30682,
+        "end": 1792707384.3160715,
+        "requested": true,
+        "target": {
+          "name": "Increase Remembered video volume (%)",
+          "role": "button",
+          "id": "PART_IncreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Increase Remembered video volume (%)",
+            "role": "button",
+            "id": "PART_IncreaseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "favorite-ready-en required fixture transition native action",
+      "passed": true,
+      "detail": {
+        "name": "Add to favorites: Controlled favorite write failure",
+        "role": "toggle button",
+        "id": "ArchiveMediaFavorite",
+        "description": "Add to favorites: Controlled favorite write failure",
+        "help": "Add to favorites: Controlled favorite write failure",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible",
+          "checkable"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "board-ready-en required fixture transition native action",
+      "passed": true,
+      "detail": {
+        "name": "Clear this board's text rules",
+        "role": "button",
+        "id": "BoardAdmissionClearTextRules",
+        "description": "Only this board's text rules are cleared. Individual exclusions and reactivations stay unchanged. Review the preview, then apply all boards below.",
+        "help": "Only this board's text rules are cleared. Individual exclusions and reactivations stay unchanged. Review the preview, then apply all boards below.",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de tools native action",
+      "passed": true,
+      "detail": {
+        "name": "Werkzeuge",
+        "role": "button",
+        "id": "ToolsNavigationButton",
+        "description": "Werkzeuge",
+        "help": "Werkzeuge",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de plugins native action",
+      "passed": true,
+      "detail": {
+        "name": "",
+        "role": null,
+        "id": null,
+        "description": "",
+        "help": null,
+        "states": [
+          "defunct"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": null,
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de PluginCategory meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Pluginkategorie",
+        "role": "combo box",
+        "id": "PluginCategory",
+        "description": "",
+        "help": "",
+        "states": [
+          "collapsed",
+          "enabled",
+          "expandable",
+          "focusable",
+          "focused",
+          "sensitive",
+          "showing",
+          "visible",
+          "read_only"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component",
+          "Selection",
+          "Text"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de-PluginCategory actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-de-PluginCategory",
+        "start": 1792707394.6606479,
+        "end": 1792707396.6725712,
+        "requested": true,
+        "target": {
+          "name": "Pluginkategorie",
+          "role": "combo box",
+          "id": "PluginCategory",
+          "description": "",
+          "help": "",
+          "states": [
+            "collapsed",
+            "enabled",
+            "expandable",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible",
+            "read_only"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component",
+            "Selection",
+            "Text"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Pluginkategorie",
+            "role": "combo box",
+            "id": "PluginCategory",
+            "description": "",
+            "help": "",
+            "states": [
+              "collapsed",
+              "enabled",
+              "expandable",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible",
+              "read_only"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component",
+              "Selection",
+              "Text"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-de PluginsRefresh meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Status aktualisieren",
+        "role": "button",
+        "id": "PluginsRefresh",
+        "description": "Status aktualisieren",
+        "help": "Status aktualisieren",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de-PluginsRefresh actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-de-PluginsRefresh",
+        "start": 1792707396.8366554,
+        "end": 1792707398.850621,
+        "requested": true,
+        "target": {
+          "name": "Status aktualisieren",
+          "role": "button",
+          "id": "PluginsRefresh",
+          "description": "Status aktualisieren",
+          "help": "Status aktualisieren",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Status aktualisieren",
+            "role": "button",
+            "id": "PluginsRefresh",
+            "description": "Status aktualisieren",
+            "help": "Status aktualisieren",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-de PluginsFolder meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Pluginordner öffnen",
+        "role": "button",
+        "id": "PluginsFolder",
+        "description": "Pluginordner öffnen",
+        "help": "Pluginordner öffnen",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de-PluginsFolder actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-de-PluginsFolder",
+        "start": 1792707398.9760332,
+        "end": 1792707400.9903355,
+        "requested": true,
+        "target": {
+          "name": "Pluginordner öffnen",
+          "role": "button",
+          "id": "PluginsFolder",
+          "description": "Pluginordner öffnen",
+          "help": "Pluginordner öffnen",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Pluginordner öffnen",
+            "role": "button",
+            "id": "PluginsFolder",
+            "description": "Pluginordner öffnen",
+            "help": "Pluginordner öffnen",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-de downloads native action",
+      "passed": true,
+      "detail": {
+        "name": "Downloads",
+        "role": "button",
+        "id": "DownloadsNavigationButton",
+        "description": "Downloads · Ctrl+1 · Außerhalb von Eingaben und Overlays · bei verfügbarer Aktion",
+        "help": "Downloads · Ctrl+1 · Außerhalb von Eingaben und Overlays · bei verfügbarer Aktion",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de about native action",
+      "passed": true,
+      "detail": {
+        "name": "Über MeowChan",
+        "role": "button",
+        "id": "BrandAboutButton",
+        "description": "Über MeowChan",
+        "help": "Über MeowChan",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de CheckUpdatesButton meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Nach Updates suchen",
+        "role": "button",
+        "id": "CheckUpdatesButton",
+        "description": "",
+        "help": "",
+        "states": [
+          "focusable",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de CloseButton meaningful name",
+      "passed": true,
+      "detail": {
+        "name": "Schließen",
+        "role": "button",
+        "id": "CloseButton",
+        "description": "",
+        "help": "",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "main-de-CloseButton actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "main-de-CloseButton",
+        "start": 1792707403.4504628,
+        "end": 1792707405.4642525,
+        "requested": true,
+        "target": {
+          "name": "Schließen",
+          "role": "button",
+          "id": "CloseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Schließen",
+            "role": "button",
+            "id": "CloseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              1,
+              1,
+              3,
+              0,
+              0,
+              2,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "main-de close about native action",
+      "passed": true,
+      "detail": {
+        "name": "",
+        "role": null,
+        "id": null,
+        "description": "",
+        "help": null,
+        "states": [
+          "defunct"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": null,
+        "relations": []
+      }
+    },
+    {
+      "check": "settings-de-increase-first actual focus",
+      "passed": false,
+      "detail": {
+        "stage": "settings-de-increase-first",
+        "start": 1792707408.844976,
+        "end": 1792707410.8598657,
+        "requested": true,
+        "target": {
+          "name": "Gemerkte Videolautstärke (%) erhöhen",
+          "role": "button",
+          "id": "PART_IncreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Gemerkte Videolautstärke (%)",
+            "role": "entry",
+            "id": "PART_TextBox",
+            "description": "Prozent, von 0 bis 100",
+            "help": "Prozent, von 0 bis 100",
+            "states": [
+              "editable",
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "single_line",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Component",
+              "EditableText",
+              "Text"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [
+              {
+                "type": "2",
+                "targets": [
+                  "Gemerkte Videolautstärke (%)"
+                ]
+              }
+            ],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "settings-de-decrease-bridge actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "settings-de-decrease-bridge",
+        "start": 1792707411.302429,
+        "end": 1792707413.3161364,
+        "requested": true,
+        "target": {
+          "name": "Gemerkte Videolautstärke (%) verringern",
+          "role": "button",
+          "id": "PART_DecreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Gemerkte Videolautstärke (%) verringern",
+            "role": "button",
+            "id": "PART_DecreaseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "settings-de-increase-repeat actual focus",
+      "passed": true,
+      "detail": {
+        "stage": "settings-de-increase-repeat",
+        "start": 1792707413.7730534,
+        "end": 1792707418.7822824,
+        "requested": true,
+        "target": {
+          "name": "Gemerkte Videolautstärke (%) erhöhen",
+          "role": "button",
+          "id": "PART_IncreaseButton",
+          "description": "",
+          "help": "",
+          "states": [
+            "enabled",
+            "focusable",
+            "focused",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "interfaces": [
+            "Accessible",
+            "Action",
+            "Component"
+          ],
+          "attributes": {
+            "explicit-name": "true",
+            "toolkit": "Avalonia"
+          },
+          "relations": []
+        },
+        "focused_nodes": [
+          {
+            "name": "Gemerkte Videolautstärke (%) erhöhen",
+            "role": "button",
+            "id": "PART_IncreaseButton",
+            "description": "",
+            "help": "",
+            "states": [
+              "enabled",
+              "focusable",
+              "focused",
+              "sensitive",
+              "showing",
+              "visible"
+            ],
+            "interfaces": [
+              "Accessible",
+              "Action",
+              "Component"
+            ],
+            "attributes": {
+              "explicit-name": "true",
+              "toolkit": "Avalonia"
+            },
+            "relations": [],
+            "path": [
+              0,
+              0,
+              1,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "check": "favorite-ready-de required fixture transition native action",
+      "passed": true,
+      "detail": {
+        "name": "Zu Favoriten hinzufügen: Controlled favorite write failure",
+        "role": "toggle button",
+        "id": "ArchiveMediaFavorite",
+        "description": "Zu Favoriten hinzufügen: Controlled favorite write failure",
+        "help": "Zu Favoriten hinzufügen: Controlled favorite write failure",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible",
+          "checkable"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    },
+    {
+      "check": "board-ready-de required fixture transition native action",
+      "passed": true,
+      "detail": {
+        "name": "Textregeln dieses Boards entfernen",
+        "role": "button",
+        "id": "BoardAdmissionClearTextRules",
+        "description": "Nur die Textregeln dieses Boards werden entfernt. Einzelausschlüsse und Reaktivierungen bleiben erhalten. Vorschau prüfen, dann unten alle Boards übernehmen.",
+        "help": "Nur die Textregeln dieses Boards werden entfernt. Einzelausschlüsse und Reaktivierungen bleiben erhalten. Vorschau prüfen, dann unten alle Boards übernehmen.",
+        "states": [
+          "enabled",
+          "focusable",
+          "sensitive",
+          "showing",
+          "visible"
+        ],
+        "interfaces": [
+          "Accessible",
+          "Action",
+          "Component"
+        ],
+        "attributes": {
+          "explicit-name": "true",
+          "toolkit": "Avalonia"
+        },
+        "relations": []
+      }
+    }
+  ],
+  "passed": false
+}

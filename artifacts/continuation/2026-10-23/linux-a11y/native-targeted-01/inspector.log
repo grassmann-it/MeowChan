@@ -1,0 +1,38 @@
+main-en tools native action True
+main-en plugins native action True
+main-en PluginCategory meaningful name True
+main-en-PluginCategory actual focus True
+main-en PluginsRefresh meaningful name True
+main-en-PluginsRefresh actual focus True
+main-en PluginsFolder meaningful name True
+main-en-PluginsFolder actual focus True
+main-en downloads native action True
+main-en about native action True
+main-en CheckUpdatesButton meaningful name True
+main-en CloseButton meaningful name True
+main-en-CloseButton actual focus True
+main-en close about native action True
+settings-en-increase-first actual focus False
+settings-en-decrease-bridge actual focus True
+settings-en-increase-repeat actual focus True
+favorite-ready-en required fixture transition native action True
+board-ready-en required fixture transition native action True
+main-de tools native action True
+main-de plugins native action True
+main-de PluginCategory meaningful name True
+main-de-PluginCategory actual focus True
+main-de PluginsRefresh meaningful name True
+main-de-PluginsRefresh actual focus True
+main-de PluginsFolder meaningful name True
+main-de-PluginsFolder actual focus True
+main-de downloads native action True
+main-de about native action True
+main-de CheckUpdatesButton meaningful name True
+main-de CloseButton meaningful name True
+main-de-CloseButton actual focus True
+main-de close about native action True
+settings-de-increase-first actual focus False
+settings-de-decrease-bridge actual focus True
+settings-de-increase-repeat actual focus True
+favorite-ready-de required fixture transition native action True
+board-ready-de required fixture transition native action True
