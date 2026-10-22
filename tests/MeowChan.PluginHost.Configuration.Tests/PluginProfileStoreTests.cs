@@ -272,6 +272,35 @@ public sealed class PluginProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RepairedUnknownCandidateGetsItsDescribedIdentityAndRetainsDisableChoiceAndLoaderPath()
+    {
+        string loader = Path.Combine(profile, "plugins", "local.cs");
+        PluginProfileStore store = Store();
+        PluginCandidateObservation unknown = new("local.cs", "unavailable-local", null, null, "Compile error", loader);
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([unknown], 0);
+        state = await store.SetEnabledAsync(unknown.PluginId, false, state.Revision);
+        PluginCandidateObservation repaired = Candidate("fixed") with { CandidatePath = loader };
+        state = await store.ObserveCandidateAsync(repaired, state.Revision);
+        Assert.Equal("test.plugin", Assert.Single(state.Plugins).PluginId);
+        Assert.False(state.Plugins[0].Enabled);
+        state = await Store().ApplyStartupAsync([repaired], state.Revision);
+        Assert.Equal("fixed", state.Plugins[0].Active!.ExecutionRevision);
+        state = await Store().ApplyStartupAsync([], state.Revision);
+        Assert.Equal(loader, Assert.Single(state.Plugins[0].Candidates).CandidatePath);
+        Assert.False(state.Plugins[0].Enabled);
+    }
+
+    [Fact]
+    public async Task StartupCanReclassifyAnUnknownCandidateWithoutASeparateTestObservation()
+    {
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([new("local.cs", "unavailable-local", null, null, "Compile error")], 0);
+        state = await Store().ApplyStartupAsync([Candidate("fixed")], state.Revision);
+        Assert.Equal("test.plugin", Assert.Single(state.Plugins).PluginId);
+        Assert.Equal("fixed", Active(state).ExecutionRevision);
+    }
+
+    [Fact]
     public async Task ConcurrentReadersAlwaysObserveACompleteAtomicRevision()
     {
         PluginProfileStore store = Store();

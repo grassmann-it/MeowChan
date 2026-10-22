@@ -38,6 +38,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
         ValidateObservation(candidate);
         return MutateAsync(expectedRevision, state =>
         {
+            state = ReleaseProvisionalOwners(state, [candidate]);
             PluginActivationSnapshot plugin = FindOrCreate(state, candidate.PluginId);
             List<PluginCandidateSnapshot> candidates = plugin.Candidates.Where(item => item.CandidateId != candidate.CandidateId).ToList();
             if (state.Plugins.Any(item => item.PluginId != candidate.PluginId && item.Candidates.Any(existing => existing.CandidateId == candidate.CandidateId)))
@@ -56,6 +57,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
         return MutateAsync(expectedRevision, state =>
         {
+            state = ReleaseProvisionalOwners(state, observations);
             // A source file changing its declared plugin identity is an unavailable update of
             // that existing candidate, not permission to transfer its configuration or rights.
             Dictionary<string, string> candidateOwners = state.Plugins.SelectMany(plugin => plugin.Candidates
@@ -64,7 +66,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
             PluginCandidateObservation[] startup = observations.Select(candidate =>
                 candidateOwners.TryGetValue(candidate.CandidateId, out string? owner) && owner != candidate.PluginId
                     ? new PluginCandidateObservation(candidate.CandidateId, owner, null, null,
-                        $"Candidate plugin identity changed from '{owner}' to '{candidate.PluginId}'. Install it as a separate candidate to select the new identity explicitly.")
+                        $"Candidate plugin identity changed from '{owner}' to '{candidate.PluginId}'. Install it as a separate candidate to select the new identity explicitly.", candidate.CandidatePath)
                     : candidate).ToArray();
             // Preserve the old ownership of active source IDs before any new candidates are considered.
             Dictionary<string, string> sourceOwners = new(StringComparer.Ordinal);
@@ -308,7 +310,30 @@ public sealed class PluginProfileStore : IPluginProfileStore
     private static PluginProfileSnapshot Replace(PluginProfileSnapshot state, PluginActivationSnapshot plugin) => state with
     { Plugins = state.Plugins.Where(item => item.PluginId != plugin.PluginId).Append(plugin).ToArray() };
     private static PluginCandidateSnapshot ToSnapshot(PluginCandidateObservation candidate) => new(candidate.CandidateId, candidate.PluginId,
-        candidate.Artifact, candidate.Description, true, candidate.Problem);
+        candidate.Artifact, candidate.Description, true, candidate.Problem, candidate.CandidatePath);
+    private static PluginProfileSnapshot ReleaseProvisionalOwners(PluginProfileSnapshot state, IReadOnlyList<PluginCandidateObservation> observations)
+    {
+        List<PluginActivationSnapshot> plugins = new();
+        Dictionary<string, PluginActivationSnapshot> discovered = new(StringComparer.Ordinal);
+        foreach (PluginActivationSnapshot plugin in state.Plugins)
+        {
+            bool provisional = plugin.Active is null && plugin.Pending is null && plugin.LastGood is null && plugin.Pinned is null
+                && plugin.Candidates.All(candidate => candidate.Description is null)
+                && !state.Grants.Any(grant => grant.PluginId == plugin.PluginId)
+                && !state.SelectedSourceOwners.Values.Contains(plugin.PluginId);
+            if (!provisional) { plugins.Add(plugin); continue; }
+            foreach (PluginCandidateObservation observation in observations.Where(observation => observation.Description is not null
+                && observation.PluginId != plugin.PluginId && plugin.Candidates.Any(candidate => candidate.CandidateId == observation.CandidateId)))
+                if (!state.Plugins.Any(existing => existing.PluginId == observation.PluginId) && !discovered.ContainsKey(observation.PluginId))
+                    discovered.Add(observation.PluginId, FindOrCreate(state, observation.PluginId) with
+                    { Enabled = plugin.Enabled, LifecycleRevision = plugin.LifecycleRevision });
+            PluginCandidateSnapshot[] retained = plugin.Candidates.Where(candidate => !observations.Any(observation =>
+                observation.CandidateId == candidate.CandidateId && observation.PluginId != plugin.PluginId && observation.Description is not null)).ToArray();
+            if (retained.Length != 0) plugins.Add(plugin with { Candidates = retained });
+        }
+        plugins.AddRange(discovered.Values);
+        return state with { Plugins = plugins };
+    }
     private static bool SameBuild(PluginReleaseSnapshot a, PluginReleaseSnapshot b) => a.CandidateId == b.CandidateId && a.ExecutionRevision == b.ExecutionRevision;
     private static PluginReleaseSnapshot? MatchingBasis(PluginActivationSnapshot plugin, string candidateId) =>
         new[] { plugin.Pending, plugin.Active, plugin.LastGood }.FirstOrDefault(release => release?.CandidateId == candidateId);

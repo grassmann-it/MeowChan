@@ -5,10 +5,10 @@ namespace MeowChan.PluginHost.Activation;
 
 /// <summary>One observation from a consistent startup scan, or an isolated test build. An observation never activates code.</summary>
 public sealed record PluginCandidateObservation(string CandidateId, string PluginId,
-    PluginArtifact? Artifact, PluginDescription? Description, string? Problem = null);
+    PluginArtifact? Artifact, PluginDescription? Description, string? Problem = null, string? CandidatePath = null);
 
 public sealed record PluginCandidateSnapshot(string CandidateId, string PluginId,
-    PluginArtifact? Artifact, PluginDescription? Description, bool IsPresent, string? Problem);
+    PluginArtifact? Artifact, PluginDescription? Description, bool IsPresent, string? Problem, string? CandidatePath = null);
 
 /// <summary>A build and its matching complete, validated settings are always selected together.</summary>
 public sealed record PluginReleaseSnapshot(string CandidateId, PluginArtifact Artifact,
