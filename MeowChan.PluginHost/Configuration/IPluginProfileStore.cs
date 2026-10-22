@@ -16,6 +16,5 @@ public interface IPluginProfileStore
     Task<PluginProfileSnapshot> SelectRollbackAsync(string pluginId, long expectedRevision, CancellationToken cancellationToken = default);
     Task<PluginProfileSnapshot> SetEnabledAsync(string pluginId, bool enabled, long expectedRevision, CancellationToken cancellationToken = default);
     Task<PluginProfileSnapshot> SetGrantAsync(string pluginId, string filterKey, PluginGrantScope scope, FilterDataAccess access, long expectedRevision, CancellationToken cancellationToken = default);
-    Task<PluginProfileSnapshot> SaveFilterRuleAsync(string ruleId, string pluginId, string filterKey, SettingsSnapshot settings, long expectedRevision, CancellationToken cancellationToken = default);
     Task<PluginProfileSnapshot> ReportActivationFailureAsync(string pluginId, string executionRevision, string problem, long expectedRevision, CancellationToken cancellationToken = default);
 }

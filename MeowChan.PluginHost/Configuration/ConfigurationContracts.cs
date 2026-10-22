@@ -3,7 +3,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Configuration;
 
-/// <summary>Exactly one source/board or an explicit rule identity. Nulls are not wildcard grants.</summary>
+/// <summary>One exact source, optionally narrowed to a board and/or stable rule identity. Never grants other sources.</summary>
 public sealed record PluginGrantScope(string SourceId, string? BoardId = null, string? RuleId = null);
 
 public sealed record PluginGrantSnapshot(string PluginId, string FilterKey, PluginGrantScope Scope,
@@ -11,12 +11,12 @@ public sealed record PluginGrantSnapshot(string PluginId, string FilterKey, Plug
 
 public sealed record PluginGrantChange(PluginGrantSnapshot Grant);
 
-public sealed record FilterRuleSettingsSnapshot(string RuleId, string PluginId, string FilterKey,
-    string ExecutionRevision, SettingsSnapshot Settings, long Revision);
-
 public sealed record PluginProfileSnapshot(long Revision, IReadOnlyList<PluginActivationSnapshot> Plugins,
-    IReadOnlyList<PluginGrantSnapshot> Grants, IReadOnlyList<FilterRuleSettingsSnapshot> FilterRules)
+    IReadOnlyList<PluginGrantSnapshot> Grants)
 {
+    /// <summary>Explicit source-conflict choices, applied only by startup activation.</summary>
+    public IReadOnlyDictionary<string, string> SelectedSourceOwners { get; init; } = new Dictionary<string, string>();
+
     public IReadOnlySet<string> RetainedExecutionRevisions => Releases()
         .Select(release => release.ExecutionRevision).Concat(Plugins.SelectMany(plugin => plugin.Candidates)
             .Where(candidate => candidate.Artifact is not null).Select(candidate => candidate.Artifact!.ExecutionRevision))
