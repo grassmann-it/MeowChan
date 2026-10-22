@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Verify one final package-media candidate set and stage v0.9.0 release assets.
 
-Download the four named candidate artifacts from one GitHub Actions run into
---artifacts-root first. This offline command does not create a tag or release.
-The caller must independently confirm that all four downloads came from that
-same run; source SHA and binary/evidence bindings are checked here.
+Download the four named candidate artifacts into --artifacts-root first. This
+offline command does not create a tag or release. Platform source overrides
+allow an explicitly recorded Linux-only fix to retain accepted Windows/macOS
+packages; each platform still checks its exact source and binary/evidence binding.
+The caller must independently verify the originating successful Actions runs.
 """
 
 from __future__ import annotations
@@ -201,8 +202,13 @@ def mac(root: Path, source: str) -> dict[str, Path]:
     return outputs
 
 
-def assemble(root: Path, source: str, source_base: Path, output: Path) -> None:
+def assemble(root: Path, source: str, source_base: Path, output: Path, *,
+             windows_source: str | None = None, macos_source: str | None = None) -> None:
     require(COMMIT.fullmatch(source) is not None, 'Expected full lowercase source commit SHA')
+    windows_source = source if windows_source is None else windows_source
+    macos_source = source if macos_source is None else macos_source
+    require(COMMIT.fullmatch(windows_source) is not None, 'Invalid Windows source commit SHA')
+    require(COMMIT.fullmatch(macos_source) is not None, 'Invalid macOS source commit SHA')
     root = root.resolve(strict=True)
     require(root.is_dir() and not root.is_symlink(), 'Artifact root must be a directory')
     require(not output.exists() and not output.is_symlink(), 'Output already exists')
@@ -210,8 +216,8 @@ def assemble(root: Path, source: str, source_base: Path, output: Path) -> None:
     require(source_base.stat().st_size == BASE_BYTES, 'Immutable source base length mismatch')
     check_hash(source_base, BASE_SHA, BASE_NAME)
     assets = {}
-    for group in (windows(root, source), linux(root, source, 'linux-x64'),
-                  linux(root, source, 'linux-arm64'), mac(root, source)):
+    for group in (windows(root, windows_source), linux(root, source, 'linux-x64'),
+                  linux(root, source, 'linux-arm64'), mac(root, macos_source)):
         require(not (assets.keys() & group.keys()), 'Duplicate public release asset')
         assets.update(group)
     assets[BASE_NAME] = source_base
@@ -234,11 +240,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts-root', required=True, type=Path)
     parser.add_argument('--source-commit', required=True)
+    parser.add_argument('--windows-source-commit', help='Explicit accepted Windows source; defaults to --source-commit')
+    parser.add_argument('--macos-source-commit', help='Explicit accepted macOS source; defaults to --source-commit')
     parser.add_argument('--source-base', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     try:
-        assemble(args.artifacts_root, args.source_commit, args.source_base, args.output)
+        assemble(args.artifacts_root, args.source_commit, args.source_base, args.output,
+                 windows_source=args.windows_source_commit, macos_source=args.macos_source_commit)
     except (OSError, ValueError, KeyError, TypeError, tarfile.TarError, json.JSONDecodeError) as error:
         parser.exit(1, f'Release assembly rejected: {error}\n')
     print(f'Staged 13 release assets and SHA256SUMS in {args.output}')

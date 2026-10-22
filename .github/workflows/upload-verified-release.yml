@@ -3,13 +3,23 @@ on:
   workflow_dispatch:
     inputs:
       source_run:
-        description: Successful package-media run ID
+        description: Successful retained Windows and macOS package-media run ID
         required: true
         default: '39696624077'
       source_commit:
-        description: Exact package source commit
+        description: Exact final Linux and release source commit
+        required: true
+      linux_run:
+        description: Successful Linux-only distribution run ID
+        required: true
+      retained_source_commit:
+        description: Exact accepted Windows and macOS source commit
         required: true
         default: b0888df84c3f3facf9dff6b1aaa6167eb1cf190e
+      release_id:
+        description: Existing draft release ID
+        required: true
+        default: '420167100'
 permissions:
   contents: write
   actions: read
@@ -24,6 +34,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_RUN: ${{ inputs.source_run }}
       SOURCE_COMMIT: ${{ inputs.source_commit }}
+      LINUX_RUN: ${{ inputs.linux_run }}
+      RETAINED_SOURCE: ${{ inputs.retained_source_commit }}
+      RELEASE_ID: ${{ inputs.release_id }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,28 +45,37 @@ jobs:
         run: |
           [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion > run.json
+          [[ "$LINUX_RUN" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
+          [[ "$RETAINED_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion > retained-run.json
+          gh run view "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion > linux-run.json
           python3 - <<'PY'
           import json, os
-          r = json.load(open('run.json'))
-          assert r['headSha'] == os.environ['SOURCE_COMMIT']
-          assert r['status'] == 'completed' and r['conclusion'] == 'success'
+          for file, source in [('retained-run.json', 'RETAINED_SOURCE'), ('linux-run.json', 'SOURCE_COMMIT')]:
+              r = json.load(open(file))
+              assert r['headSha'] == os.environ[source]
+              assert r['status'] == 'completed' and r['conclusion'] == 'success'
           PY
       - name: Download accepted candidates and the immutable common source base
         run: |
-          for name in native-media-candidate-win-x64 linux-distribution-candidate-linux-x64 linux-distribution-candidate-linux-arm64 "macos-paired-candidate-$SOURCE_COMMIT"; do
+          for name in native-media-candidate-win-x64 "macos-paired-candidate-$RETAINED_SOURCE"; do
             gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "candidates/$name"
+          done
+          for name in linux-distribution-candidate-linux-x64 linux-distribution-candidate-linux-arm64; do
+            gh run download "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "candidates/$name"
           done
           gh release download v0.9.0-preview.3 --repo "$GITHUB_REPOSITORY" --pattern MeowChan-0.9.0-video-sources.tar.gz --dir source-base
       - name: Verify source, native package evidence, paired sources and exact asset inventory
-        run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged
+        run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --windows-source-commit "$RETAINED_SOURCE" --macos-source-commit "$RETAINED_SOURCE" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged
       - name: Upload verified assets to the existing draft without publishing
         run: |
           python3 - <<'PY'
           import hashlib, json, os, subprocess
           from pathlib import Path
           repo = os.environ['GITHUB_REPOSITORY']
-          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/tags/v0.9.0']))
+          release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/' + os.environ['RELEASE_ID']]))
+          assert release['tag_name'] == 'v0.9.0'
           assert release['draft'] is True and release['prerelease'] is False
           assert release['target_commitish'] == os.environ['SOURCE_COMMIT']
           order = ['win-x64.zip', 'osx-arm64.dmg', 'osx-x64.dmg', 'linux-x64.AppImage', 'linux-arm64.AppImage', 'linux-x64-bundled-vlc.tar.gz', 'linux-x64-system-vlc.tar.gz', 'linux-arm64-bundled-vlc.tar.gz', 'linux-arm64-system-vlc.tar.gz', 'video-sources.tar.gz', 'macos-video-source-overlay.tar.gz', 'linux-x64-video-sources.tar.gz', 'linux-arm64-video-sources.tar.gz']

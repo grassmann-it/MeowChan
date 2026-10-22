@@ -61,10 +61,10 @@ class StableReleaseFixtures(unittest.TestCase):
             'archiveBinding': {'member': 'MeowChan.exe', 'sha256': sha(archive)},
         })
 
-    def make_linux(self, rid):
+    def make_linux(self, rid, source=SOURCE):
         root = self.root / f'linux-distribution-candidate-{rid}'
         packages = root / 'linux-packages'
-        write(root / 'linux-evidence/source.txt', SOURCE)
+        write(root / 'linux-evidence/source.txt', source)
         artifacts = []
         for flavor, suffix in (('system-vlc', '-system-vlc.tar.gz'),
                                ('bundled-vlc', '-bundled-vlc.tar.gz'), ('appimage', '.AppImage')):
@@ -73,18 +73,18 @@ class StableReleaseFixtures(unittest.TestCase):
             artifacts.append({'flavor': flavor, 'file': name,
                               'bytes': archive.stat().st_size, 'sha256': sha(archive)})
         manifest = write_json(packages / f'{rid}-package-manifest.json', {
-            'schema': 'meowchan.linux-packages.v1', 'source_commit': SOURCE,
+            'schema': 'meowchan.linux-packages.v1', 'source_commit': source,
             'runtime': rid, 'version': '0.9.0', 'artifacts': artifacts,
         })
         source_name = f'MeowChan-0.9.0-{rid}-video-sources.tar.gz'
         sources = write(packages / source_name, b'Linux source fixture')
         write_json(packages / (source_name + '.json'), {
-            'schema': 'meowchan.linux-source-artifact.v1', 'source_commit': SOURCE,
+            'schema': 'meowchan.linux-source-artifact.v1', 'source_commit': source,
             'file': source_name, 'bytes': sources.stat().st_size, 'sha256': sha(sources),
             'runtimes': [rid],
         })
         write_json(root / 'linux-evidence/distributions/linux-distribution-gates.json', {
-            'passed': True, 'completed': True, 'sourceCommit': SOURCE,
+            'passed': True, 'completed': True, 'sourceCommit': source,
             'runtime': rid, 'manifestSha256': sha(manifest),
             'scenarios': [{'scenario': scenario, 'passed': True} for scenario in
                           ('bundled-vlc', 'system-vlc', 'missing-system-vlc', 'appimage')],
@@ -144,6 +144,20 @@ class StableReleaseFixtures(unittest.TestCase):
     def test_rejects_wrong_source_without_output(self):
         with self.assertRaisesRegex(ValueError, 'Source commit mismatch'):
             ASSEMBLY.assemble(self.root, 'b' * 40, self.base, self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_explicit_platform_sources_retain_accepted_packages_after_linux_fix(self):
+        linux_source = 'b' * 40
+        for rid in ('linux-x64', 'linux-arm64'):
+            self.make_linux(rid, source=linux_source)
+        ASSEMBLY.assemble(self.root, linux_source, self.base, self.output,
+                          windows_source=SOURCE, macos_source=SOURCE)
+        self.assertEqual(14, len(list(self.output.iterdir())))
+
+    def test_platform_overrides_do_not_accept_stale_linux_packages(self):
+        with self.assertRaisesRegex(ValueError, 'Source commit mismatch: .*linux-distribution-candidate'):
+            ASSEMBLY.assemble(self.root, 'b' * 40, self.base, self.output,
+                              windows_source=SOURCE, macos_source=SOURCE)
         self.assertFalse(self.output.exists())
 
     def test_rejects_changed_archive_hash_without_output(self):

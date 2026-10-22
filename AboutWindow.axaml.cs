@@ -4,11 +4,11 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Legal;
 using MeowChan.Desktop.Localization;
 using Serilog;
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 namespace MeowChan;
@@ -125,13 +125,14 @@ public partial class AboutWindow : Window
         }
     }
 
-    private void OnLinkClick(object? sender, RoutedEventArgs e)
+    private async void OnLinkClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.Tag is not string uri)
+        if (_closed || sender is not Button button || button.Tag is not string uri)
             return;
         try
         {
-            using Process? process = Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
+            await ExternalLauncher.OpenAsync(uri);
+            if (_closed) return;
             _failedLink = null;
             _linkFailure = null;
             LinkErrorText.Text = "";
@@ -139,6 +140,7 @@ public partial class AboutWindow : Window
         catch (Exception exception)
         {
             Log.Warning(exception, "Could not open About link {Uri}.", uri);
+            if (_closed) return;
             _failedLink = uri;
             _linkFailure = exception.Message;
             LinkErrorText.Text = Texts.T("about.linkFailed", uri, exception.Message);
