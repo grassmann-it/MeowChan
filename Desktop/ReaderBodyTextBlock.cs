@@ -5,7 +5,7 @@ using Avalonia.Layout;
 
 namespace MeowChan.Desktop;
 
-// Keep the native selectable text control and its inherited reading font. Only
+// Keep the native selectable text control and its configured reading font. Only
 // media-free bodies get a reading measure; attachment/text layouts remain intact.
 public sealed class ReaderBodyTextBlock : SelectableTextBlock
 {

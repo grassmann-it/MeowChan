@@ -180,7 +180,8 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
                                                             <StackPanel Grid.Column="1" Spacing="6">
-                                                                <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" TextWrapping="Wrap" />
+                                                                <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference. -->
+                                                                <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}" TextWrapping="Wrap" />
                                                                 <ItemsControl ItemsSource="{Binding Quotes}">
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate x:DataType="desktop:ArchiveQuoteRow">

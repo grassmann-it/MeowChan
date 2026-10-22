@@ -57,12 +57,18 @@ internal static class ReaderRepliesChecks
                 .Single(block => ReferenceEquals(block.DataContext, target));
             page.ReadingFontSizePreference = 15;
             list.UpdateLayout();
+            Console.WriteLine("SMOKE reader text measure at 15: " + MeasureDetails());
             Require(Math.Abs(body.MaxWidth - 660) < 0.1 && body.Bounds.Width <= 660.1,
-                "Long text-only body did not use the reading measure.");
+                "Long text-only body did not use the reading measure: " + MeasureDetails());
             page.ReadingFontSizePreference = 22;
             list.UpdateLayout();
+            Console.WriteLine("SMOKE reader text measure at 22: " + MeasureDetails());
             Require(Math.Abs(body.MaxWidth - 968) < 0.1 && Math.Abs(body.FontSize - 22) < 0.1,
-                "Text reading measure failed to follow the inherited reading font.");
+                "Text reading measure failed to follow the configured reading font: " + MeasureDetails());
+            string MeasureDetails() => $"preference={page.ReadingFontSizePreference}; listFont={list.FontSize}; "
+                + $"bodyFont={body.FontSize}; textOnly={body.IsTextOnly}; maxWidth={body.MaxWidth}; "
+                + $"bounds={body.Bounds}; desired={body.DesiredSize}; alignment={body.HorizontalAlignment}; "
+                + $"theme={window.ActualThemeVariant}; scale={window.RenderScaling}; textLength={body.Text?.Length}";
             body.SelectionStart = 0;
             body.SelectionEnd = 20;
             Require(body.SelectedText == target.Body[..20], "Reading measure broke native text selection.");
