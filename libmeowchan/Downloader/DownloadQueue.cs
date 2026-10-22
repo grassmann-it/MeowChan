@@ -433,8 +433,8 @@ public class DownloadQueue
             lock (_stateLock)
             {
                 MediaWork? current = store.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(work =>
-                    work.MediaIdentifier == media.MediaIdentifier && work.DestinationPath == media.DestinationPath);
-                if (current == null || current.ManualAttempt || current.Status == MediaWorkStatus.Succeeded
+                    SameMediaWork(work, media));
+                if (current == null || current.ManualAttempt || current.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded
                     || _jobs.ContainsKey(prepared.Job)) continue;
                 manual = current with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
                 if (!store.CommitMedia(manual)) continue;
@@ -451,7 +451,7 @@ public class DownloadQueue
     private static DownloadItem RestoreItem(IThread thread, MediaWork media, bool explicitRetry = false)
     {
         DownloadItem item = new(new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
-            media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath);
+            media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath, media.Variant);
         return thread is Boards.Base.BaseThread baseThread ? baseThread.BindRestoredMediaFilter(item, explicitRetry) : item;
     }
 
@@ -508,8 +508,7 @@ public class DownloadQueue
                     {
                         // A manual request or new revision may have replaced this wait after the scan.
                         MediaWork? current = _workStore?.LoadMedia(item.Work.ResourceUrl, item.Work.Generation)
-                            .FirstOrDefault(work => work.MediaIdentifier == item.Work.MediaIdentifier
-                                && work.DestinationPath == item.Work.DestinationPath);
+                            .FirstOrDefault(work => SameMediaWork(work, item.Work));
                         if (current == item.Work && _workStore!.CommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }))
                         {
                             JobIdentity identity = Prepare(item.Item).Job;
@@ -544,8 +543,7 @@ public class DownloadQueue
                     lock (_stateLock)
                     {
                         MediaWork? current = _workStore?.LoadMedia(due.Work.ResourceUrl, due.Work.Generation)
-                            .FirstOrDefault(work => work.MediaIdentifier == due.Work.MediaIdentifier
-                                && work.DestinationPath == due.Work.DestinationPath);
+                            .FirstOrDefault(work => SameMediaWork(work, due.Work));
                         if (current == due.Work) admission = EnqueueAsync(due.Item);
                     }
                     if (admission != null) await admission.ConfigureAwait(false);
@@ -656,7 +654,7 @@ public class DownloadQueue
         ThreadIdentity threadIdentity = GetThreadIdentity(item.Thread);
         string destinationPath = Path.GetFullPath(item.DestinationPath);
         if (OperatingSystem.IsWindows()) destinationPath = destinationPath.ToUpperInvariant();
-        return new PreparedDownload(threadIdentity, new JobIdentity(threadIdentity, item.MediaIdentifier, destinationPath));
+        return new PreparedDownload(threadIdentity, new JobIdentity(threadIdentity, item.MediaIdentifier, item.Variant, destinationPath));
     }
 
     private bool PrepareDurableAdmission(DownloadItem item, PreparedDownload prepared)
@@ -676,13 +674,13 @@ public class DownloadQueue
             owner = found;
         }
         MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
-            .FirstOrDefault(media => media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+            .FirstOrDefault(media => SameMediaWork(media, item));
         bool newRevision = previous != null && (previous.ExpectedSize != item.ExpectedSize
             || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal));
         DateTimeOffset now = _timeProvider.GetUtcNow();
         MediaWork next = previous == null || newRevision ? new MediaWork
         {
-            ResourceUrl = owner.Url, Generation = owner.Generation, MediaIdentifier = item.MediaIdentifier,
+            ResourceUrl = owner.Url, Generation = owner.Generation, MediaIdentifier = item.MediaIdentifier, Variant = item.Variant,
             DestinationPath = item.DestinationPath, DownloadUrl = item.DownloadUri.AbsoluteUri,
             ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5,
             OriginalFileName = item.OriginalFileName, LegacyPath = item.LegacyPath,
@@ -1046,7 +1044,7 @@ public class DownloadQueue
                 if (RecordFilterOmission(job.Item, omission))
                 {
                     if (job.Item.Thread is Boards.Base.BaseThread thread)
-                        thread.PublishMediaFilterOmission(job.Item.MediaIdentifier, job.Item.DestinationPath, omission.IsNoMatch, omission.ReasonCode);
+                        thread.PublishMediaFilterOmission(job.Item.MediaIdentifier, job.Item.DestinationPath, omission.IsNoMatch, omission.ReasonCode, job.Item.Variant);
                     else if (!omission.IsNoMatch)
                         job.Item.Thread.ReportMediaFailure(job.Item.MediaIdentifier, omission, job.Item.DestinationPath);
                 }
@@ -1069,7 +1067,9 @@ public class DownloadQueue
             }
             if (current) try
             {
-                job.Item.Thread.ReportMediaFailure(job.Item.MediaIdentifier, exception, job.Item.DestinationPath);
+                if (job.Item.Thread is Boards.Base.BaseThread thread)
+                    thread.ReportMediaFailure(job.Item.MediaIdentifier, exception, job.Item.DestinationPath, job.Item.Variant);
+                else job.Item.Thread.ReportMediaFailure(job.Item.MediaIdentifier, exception, job.Item.DestinationPath);
             }
             catch (Exception notificationException)
             {
@@ -1084,7 +1084,11 @@ public class DownloadQueue
                 try
                 {
                     if (RecordDurableResult(job.Item, null))
-                        job.Item.Thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath);
+                    {
+                        if (job.Item.Thread is Boards.Base.BaseThread thread)
+                            thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath, job.Item.Variant);
+                        else job.Item.Thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath);
+                    }
                 }
                 catch (Exception persistenceFailure)
                 {
@@ -1147,7 +1151,7 @@ public class DownloadQueue
         try
         {
             MediaWork? work = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
-                media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+                SameMediaWork(media, item));
             if (work is { HttpStatus: 404, ManualAttempt: false })
             {
                 _scheduled[Prepare(item).Job] = new ScheduledWork(item, work);
@@ -1164,7 +1168,7 @@ public class DownloadQueue
             if (_workStore == null) return true;
             if (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return false;
             MediaWork? previous = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
-                media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+                SameMediaWork(media, item));
             if (previous == null || previous.ExpectedSize != item.ExpectedSize || previous.ExpectedMd5 != item.ExpectedMd5) return false;
             if (!_workStore.CommitMedia(previous with
             {
@@ -1204,7 +1208,7 @@ public class DownloadQueue
         WorkResource? current = store.LoadResources().FirstOrDefault(resource => resource.Url == owner.Url);
         if (current == null || current.Generation != owner.Generation || current.Intent == WorkIntent.Suppressed) return false;
         MediaWork? media = store.LoadMedia(owner.Url, owner.Generation)
-            .FirstOrDefault(work => work.MediaIdentifier == item.MediaIdentifier && work.DestinationPath == item.DestinationPath);
+            .FirstOrDefault(work => SameMediaWork(work, item));
         if (media == null || media.ExpectedSize != item.ExpectedSize
             || !string.Equals(media.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
         DateTimeOffset now = _timeProvider.GetUtcNow();
@@ -1235,7 +1239,7 @@ public class DownloadQueue
             owner = found;
         }
         MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
-            .FirstOrDefault(media => media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+            .FirstOrDefault(media => SameMediaWork(media, item));
         if (previous == null || previous.ExpectedSize != item.ExpectedSize
             || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
         DateTimeOffset now = _timeProvider.GetUtcNow();
@@ -1396,6 +1400,12 @@ public class DownloadQueue
         return new ThreadIdentity(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
     }
 
+    private static bool SameMediaWork(MediaWork work, DownloadItem item) =>
+        work.MediaIdentifier == item.MediaIdentifier && work.Variant == item.Variant && work.DestinationPath == item.DestinationPath;
+
+    private static bool SameMediaWork(MediaWork first, MediaWork second) =>
+        first.MediaIdentifier == second.MediaIdentifier && first.Variant == second.Variant && first.DestinationPath == second.DestinationPath;
+
     private static bool SameRetrieval(DownloadItem first, DownloadItem second) =>
         first.ExpectedSize == second.ExpectedSize
         && string.Equals(first.ExpectedMd5, second.ExpectedMd5, StringComparison.Ordinal);
@@ -1424,7 +1434,7 @@ public class DownloadQueue
     private readonly record struct PreparedDownload(ThreadIdentity Thread, JobIdentity Job);
 
     private readonly record struct ThreadIdentity(string Source, string Board, string ThreadId);
-    private readonly record struct JobIdentity(ThreadIdentity Thread, string MediaId, string DestinationPath);
+    private readonly record struct JobIdentity(ThreadIdentity Thread, string MediaId, string Variant, string DestinationPath);
 
     private sealed class QueuedDownload
     {
