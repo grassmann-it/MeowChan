@@ -119,6 +119,7 @@ public static class SdkValidation
         }
         checks.ThreadId(request.Thread, "request.thread");
         checks.SameSource(request.Thread?.SourceId, source.SourceId, "request.thread.sourceId");
+        checks.RouteIdentity(source, SourceResourceKind.Thread, request.Thread?.BoardId, request.Thread?.ThreadId, "request.thread");
         checks.Validators(request.Validators, "request.validators");
         switch (result)
         {
@@ -162,6 +163,7 @@ public static class SdkValidation
         }
         checks.BoardId(request.Board, "request.board");
         checks.SameSource(request.Board?.SourceId, source.SourceId, "request.board.sourceId");
+        checks.RouteIdentity(source, SourceResourceKind.Board, request.Board?.BoardId, null, "request.board");
         checks.Page(request.Cursor, request.Page, "request");
         checks.Validators(request.Validators, "request.validators");
         switch (result)
@@ -315,6 +317,7 @@ public static class SdkValidation
             {
                 if (!left.Prefix.StartsWith(right.Prefix, StringComparison.Ordinal) && !right.Prefix.StartsWith(left.Prefix, StringComparison.Ordinal)) return false;
                 if (!left.Suffix.EndsWith(right.Suffix, StringComparison.Ordinal) && !right.Suffix.EndsWith(left.Suffix, StringComparison.Ordinal)) return false;
+                if (!VariableSegmentsOverlap(left, right)) return false;
             }
         }
         return true;
@@ -322,7 +325,81 @@ public static class SdkValidation
 
     private static bool MatchesSegment(RouteSegment template, string literal)
         => literal.Length > template.Prefix.Length + template.Suffix.Length && literal.StartsWith(template.Prefix, StringComparison.Ordinal)
-            && literal.EndsWith(template.Suffix, StringComparison.Ordinal);
+            && literal.EndsWith(template.Suffix, StringComparison.Ordinal)
+            && MatchesIdentifier(Uri.UnescapeDataString(literal[template.Prefix.Length..(literal.Length - template.Suffix.Length)]), template.IdentifierKind);
+
+    private static bool MatchesIdentifier(string value, RouteIdentifierKind kind)
+        => value.Length > 0 && value.All(character => AllowsIdentifierCharacter(character, kind));
+
+    private static bool AllowsIdentifierCharacter(char value, RouteIdentifierKind kind)
+        => kind switch
+        {
+            RouteIdentifierKind.PortableSegment => true,
+            RouteIdentifierKind.AsciiWord => char.IsAsciiLetterOrDigit(value) || value == '_',
+            RouteIdentifierKind.Decimal => value is >= '0' and <= '9',
+            _ => false
+        };
+
+    private static bool VariableSegmentsOverlap(RouteSegment first, RouteSegment second)
+    {
+        if (first.IdentifierKind == RouteIdentifierKind.PortableSegment && second.IdentifierKind == RouteIdentifierKind.PortableSegment) return true;
+        string prefix = first.Prefix.Length >= second.Prefix.Length ? first.Prefix : second.Prefix;
+        string suffix = first.Suffix.Length >= second.Suffix.Length ? first.Suffix : second.Suffix;
+        int minimum = Math.Max(first.Prefix.Length + first.Suffix.Length + 1, second.Prefix.Length + second.Suffix.Length + 1);
+        int maximum = Math.Max(minimum, prefix.Length + suffix.Length);
+        HashSet<int> overlaps = LiteralOverlapLengths(prefix, suffix);
+        int[] firstPrefix = InvalidCharacterCounts(prefix, first.IdentifierKind);
+        int[] firstSuffix = InvalidCharacterCounts(suffix, first.IdentifierKind);
+        int[] secondPrefix = InvalidCharacterCounts(prefix, second.IdentifierKind);
+        int[] secondSuffix = InvalidCharacterCounts(suffix, second.IdentifierKind);
+        // Beyond the fixed prefix/suffix, both alphabets admit '0', so one such
+        // length is enough. Shorter words can overlap the fixed affixes (1ab).
+        for (int length = minimum; length <= maximum; length++)
+        {
+            int overlap = prefix.Length + suffix.Length - length;
+            if (overlap > 0 && !overlaps.Contains(overlap)) continue;
+            if (AllowsFixedCharacters(first, firstPrefix, firstSuffix, length, prefix.Length, suffix.Length)
+                && AllowsFixedCharacters(second, secondPrefix, secondSuffix, length, prefix.Length, suffix.Length)) return true;
+        }
+        return false;
+    }
+
+    private static bool AllowsFixedCharacters(RouteSegment segment, int[] prefixCounts, int[] suffixCounts,
+        int length, int prefixLength, int suffixLength)
+    {
+        int prefixEnd = Math.Min(prefixLength, length - segment.Suffix.Length);
+        if (prefixEnd > segment.Prefix.Length && prefixCounts[prefixEnd] != prefixCounts[segment.Prefix.Length]) return false;
+        int suffixStart = Math.Max(0, segment.Prefix.Length - (length - suffixLength));
+        int suffixEnd = suffixLength - segment.Suffix.Length;
+        return suffixEnd <= suffixStart || suffixCounts[suffixEnd] == suffixCounts[suffixStart];
+    }
+
+    private static int[] InvalidCharacterCounts(string value, RouteIdentifierKind kind)
+    {
+        int[] counts = new int[value.Length + 1];
+        for (int index = 0; index < value.Length; index++)
+            counts[index + 1] = counts[index] + (AllowsIdentifierCharacter(value[index], kind) ? 0 : 1);
+        return counts;
+    }
+
+    private static HashSet<int> LiteralOverlapLengths(string prefix, string suffix)
+    {
+        // A prefix-function finds every suffix(prefix) == prefix(suffix) in
+        // linear time; route validation must not expand bounded literals into
+        // a quadratic set of candidate strings.
+        string value = suffix + '\0' + prefix;
+        int[] matches = new int[value.Length];
+        for (int index = 1; index < value.Length; index++)
+        {
+            int count = matches[index - 1];
+            while (count > 0 && value[index] != value[count]) count = matches[count - 1];
+            if (value[index] == value[count]) count++;
+            matches[index] = count;
+        }
+        HashSet<int> overlaps = new HashSet<int>();
+        for (int count = matches[^1]; count > 0; count = matches[count - 1]) overlaps.Add(count);
+        return overlaps;
+    }
 
     private sealed class RouteShape
     {
@@ -331,7 +408,7 @@ public static class SdkValidation
         internal RouteShape(UrlRoute route)
         {
             bool hasTrailingSlash = route.PathTemplate.EndsWith('/');
-            RouteSegment[] segments = route.PathTemplate.TrimEnd('/').Split('/').Select(RouteSegment.Parse).ToArray();
+            RouteSegment[] segments = route.PathTemplate.TrimEnd('/').Split('/').Select(value => RouteSegment.Parse(value, route)).ToArray();
             List<RouteSegment[]> variants = new List<RouteSegment[]>();
             AddVariants(segments);
             if (route.AllowTitleSegment) AddVariants([.. segments, RouteSegment.Title]);
@@ -345,19 +422,23 @@ public static class SdkValidation
         }
     }
 
-    private sealed record RouteSegment(bool Variable, string Literal, string Prefix, string Suffix)
+    private sealed record RouteSegment(bool Variable, string Literal, string Prefix, string Suffix,
+        RouteIdentifierKind IdentifierKind = RouteIdentifierKind.PortableSegment)
     {
         internal static readonly RouteSegment Empty = new RouteSegment(false, "", "", "");
         internal static readonly RouteSegment Title = new RouteSegment(true, "{title}", "", "");
 
-        internal static RouteSegment Parse(string value)
+        internal static RouteSegment Parse(string value, UrlRoute? route = null)
         {
             int start = value.IndexOf('{');
             int end = value.IndexOf('}');
             if (start < 0 || end <= start) return new RouteSegment(false, NormalizeLiteral(value), "", "");
             string prefix = NormalizeLiteral(value[..start]);
             string suffix = NormalizeLiteral(value[(end + 1)..]);
-            return new RouteSegment(true, prefix + value[start..(end + 1)] + suffix, prefix, suffix);
+            RouteIdentifierKind kind = value[start..(end + 1)] == "{board}"
+                ? route?.BoardIdentifierKind ?? RouteIdentifierKind.PortableSegment
+                : route?.ThreadIdentifierKind ?? RouteIdentifierKind.PortableSegment;
+            return new RouteSegment(true, prefix + value[start..(end + 1)] + suffix, prefix, suffix, kind);
         }
 
         // Sentinels keep a literal dot/space at either edge inside its segment while
@@ -505,6 +586,8 @@ public static class SdkValidation
         {
             if (route is null) { Add(path, "missing", "Route is required."); return; }
             EnumValue(route.Kind, path + ".kind");
+            EnumValue(route.BoardIdentifierKind, path + ".boardIdentifierKind");
+            EnumValue(route.ThreadIdentifierKind, path + ".threadIdentifierKind");
             Host(route.Host, path + ".host");
             string? template = route.PathTemplate;
             if (string.IsNullOrWhiteSpace(template) || !template.StartsWith('/') || template.Length > 2048
@@ -636,6 +719,16 @@ public static class SdkValidation
             if (actual != expected) Add(path, "wrong_source", "Resource identifies another source.");
         }
 
+        internal void RouteIdentity(SourceDescription source, SourceResourceKind kind, string? board, string? thread, string path)
+        {
+            UrlRoute? route = source.Routes?.FirstOrDefault(value => value is not null && value.Kind == kind && value.IsCanonical);
+            if (route is null) return;
+            if (board is not null && !MatchesIdentifier(board, route.BoardIdentifierKind))
+                Add(path + ".boardId", "invalid_route_identity", "Board identity does not match the canonical route's declared alphabet.");
+            if (kind == SourceResourceKind.Thread && thread is not null && !MatchesIdentifier(thread, route.ThreadIdentifierKind))
+                Add(path + ".threadId", "invalid_route_identity", "Thread identity does not match the canonical route's declared alphabet.");
+        }
+
         internal void ExpectedThread(SourceThreadId? actual, SourceThreadId? expected, string path)
         {
             ThreadId(actual, path);
@@ -763,7 +856,8 @@ public static class SdkValidation
                 .Replace("{thread}", Uri.EscapeDataString(thread.ThreadId), StringComparison.Ordinal);
             string authority = source.BaseUri.Scheme + "://" + canonical.Host
                 + (source.BaseUri.IsDefaultPort ? "" : ":" + source.BaseUri.Port);
-            if (expectedPath.Split('/').Any(IsDotSegment)
+            if (!MatchesIdentifier(boardId, canonical.BoardIdentifierKind) || !MatchesIdentifier(thread.ThreadId, canonical.ThreadIdentifierKind)
+                || expectedPath.Split('/').Any(IsDotSegment)
                 || !Uri.TryCreate(authority + expectedPath, UriKind.Absolute, out Uri? expected)
                 || !string.Equals(uri.IdnHost, expected.IdnHost, StringComparison.OrdinalIgnoreCase)
                 || uri.Scheme != expected.Scheme || uri.Port != expected.Port || uri.AbsolutePath != expected.AbsolutePath

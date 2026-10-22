@@ -287,6 +287,10 @@ MeowChan.PluginSdk.PluginLogLevel.Warning = 2 -> MeowChan.PluginSdk.PluginLogLev
 MeowChan.PluginSdk.PostOrderKind
 MeowChan.PluginSdk.PostOrderKind.DecimalPostId = 1 -> MeowChan.PluginSdk.PostOrderKind
 MeowChan.PluginSdk.PostOrderKind.StableOrdinal = 0 -> MeowChan.PluginSdk.PostOrderKind
+MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.AsciiWord = 1 -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.Decimal = 2 -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.PortableSegment = 0 -> MeowChan.PluginSdk.RouteIdentifierKind
 MeowChan.PluginSdk.SdkContract
 MeowChan.PluginSdk.SdkJson
 MeowChan.PluginSdk.SdkLimits
@@ -576,6 +580,8 @@ MeowChan.PluginSdk.UrlRoute.AllowTitleSegment.get -> bool
 MeowChan.PluginSdk.UrlRoute.AllowTitleSegment.init -> void
 MeowChan.PluginSdk.UrlRoute.AllowTrailingSlash.get -> bool
 MeowChan.PluginSdk.UrlRoute.AllowTrailingSlash.init -> void
+MeowChan.PluginSdk.UrlRoute.BoardIdentifierKind.get -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.UrlRoute.BoardIdentifierKind.init -> void
 MeowChan.PluginSdk.UrlRoute.Host.get -> string!
 MeowChan.PluginSdk.UrlRoute.Host.init -> void
 MeowChan.PluginSdk.UrlRoute.IsCanonical.get -> bool
@@ -586,6 +592,8 @@ MeowChan.PluginSdk.UrlRoute.LowercaseBoardId.get -> bool
 MeowChan.PluginSdk.UrlRoute.LowercaseBoardId.init -> void
 MeowChan.PluginSdk.UrlRoute.PathTemplate.get -> string!
 MeowChan.PluginSdk.UrlRoute.PathTemplate.init -> void
+MeowChan.PluginSdk.UrlRoute.ThreadIdentifierKind.get -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.UrlRoute.ThreadIdentifierKind.init -> void
 MeowChan.PluginSdk.UrlRoute.UrlRoute(MeowChan.PluginSdk.SourceResourceKind Kind, string! Host, string! PathTemplate, bool IsCanonical = false, bool AllowTrailingSlash = true, bool AllowTitleSegment = false, bool LowercaseBoardId = false) -> void
 MeowChan.PluginSdk.ValidationIssue
 MeowChan.PluginSdk.ValidationIssue.Code.get -> string!
