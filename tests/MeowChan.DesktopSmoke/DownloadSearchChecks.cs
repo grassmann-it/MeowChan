@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
+using System.ComponentModel;
+using MeowChan.Persistence;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -13,12 +15,28 @@ internal static class DownloadSearchChecks
     {
         ThreadRow[] rows = Enumerable.Range(2000, 300).Select(value => new ThreadRow(SnapshotFixtures.Thread(value,
             value.ToString(), value % 2 == 0 ? "Alpha local fixture" : "Beta local fixture", board: "local"))).ToArray();
+        ThreadRow complete = rows[0], waiting = rows[1];
+        MediaWork Saved(int value) => new() { ResourceUrl = complete.Url, Generation = 1, MediaIdentifier = value.ToString(),
+            DestinationPath = "/never/read/" + value, DownloadUrl = "https://fixture.invalid/" + value,
+            OriginalFileName = value + ".jpg", Status = MediaWorkStatus.Succeeded };
+        ThreadWorkSnapshot completeWork = new(complete.Url, WorkIntent.Watching, ThreadSourceStateValue.Active, null, false,
+            Enumerable.Range(1, 5).Select(Saved).ToArray());
+        complete.UpdateSnapshot(new DesktopThreadEntry(complete.WatchId, complete.Snapshot with { KnownMedia = 10, CompletedMedia = 5,
+            Content = new MeowChan.Archive.ThreadContentStatus(true, null, null, null, 5), Work = completeWork }, complete.HostName, complete.BoardName));
+        ThreadWorkSnapshot waitingWork = new(waiting.Url, WorkIntent.Watching, ThreadSourceStateValue.NotFound, DateTimeOffset.UtcNow, false,
+            new[] { Saved(1), Saved(2) with { Status = MediaWorkStatus.Waiting, HttpStatus = 404, DueAt = DateTimeOffset.UtcNow.AddMinutes(15) } });
+        waiting.UpdateSnapshot(new DesktopThreadEntry(waiting.WatchId, waiting.Snapshot with { KnownMedia = 2, CompletedMedia = 1,
+            Work = waitingWork }, waiting.HostName, waiting.BoardName));
         using BoardRow board = new(SnapshotFixtures.Board(2900, "local"));
         TextBox input = window.FindControl<TextBox>("DownloadSearchInput")!;
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
         try
         {
+            Require(complete.CompletedMedia == 5 && complete.SelectedMedia == 5 && complete.ExcludedMedia == 5 && complete.Completion == 100,
+                "The 10 known / 5 excluded / 5 saved fixture did not present 5/5 at 100 percent.");
+            Require(!complete.HasExceptionHint && waiting.HasExceptionHint && waiting.MediaErrorCount == 0,
+                "Normal success or waiting media were projected as an error.");
             foreach (ThreadRow row in rows) window.UrlList.Add(row);
             window.BoardsList.Add(board);
             tabs.SelectedIndex = 0;
@@ -74,6 +92,13 @@ internal static class DownloadSearchChecks
             missingItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             columnsButton.ContextMenu.Close();
             await Program.WaitUntilAsync(() => missingColumn.IsVisible);
+            grid.CollectionView.SortDescriptions.Clear();
+            missingColumn.Sort(ListSortDirection.Ascending);
+            await Program.WaitUntilAsync(() => ReferenceEquals(grid.CollectionView.Cast<ThreadRow>().First(), complete));
+            retryColumn.Sort(ListSortDirection.Descending);
+            await Program.WaitUntilAsync(() => ReferenceEquals(grid.CollectionView.Cast<ThreadRow>().First(), waiting));
+            grid.CollectionView.SortDescriptions.Clear();
+            grid.ScrollIntoView(complete, null);
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             foreach (string language in new[] { "en", "de" })
             {
