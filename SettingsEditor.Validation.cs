@@ -126,13 +126,20 @@ public partial class SettingsEditor
         Dispatcher.UIThread.Post(() =>
         {
             if (_isClosed || _firstInvalidInput != first) return;
-            // Expanding the existing advanced group keeps its field reachable.
+            // A collapsed group can defer initialization/styling until this expansion.
+            // NumericUpDown's Initialized/format handlers force Value->Text, so retain
+            // the rejected draft across that first materialization before focusing it.
+            NumericUpDown? numeric = first as NumericUpDown;
+            string? rawDraft = numeric?.Text;
             for (var parent = first.Parent; parent != null; parent = parent.Parent)
                 if (parent is Expander expander) expander.IsExpanded = true;
+            TopLevel.GetTopLevel(first)?.UpdateLayout();
+            numeric?.ApplyTemplate();
+            if (numeric != null && numeric.Text != rawDraft)
+                numeric.SetCurrentValue(NumericUpDown.TextProperty, rawDraft);
             (first.Parent as Control ?? first).BringIntoView();
-            // Focusing NumericUpDown itself redirects to PART_TextBox and causes a
-            // root->inner LostFocus commit. Focus the actual editing surface directly.
-            if (first is NumericUpDown numeric)
+            // Avoid the artificial root->PART_TextBox LostFocus commit.
+            if (numeric != null)
                 numeric.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(text => text.Name == "PART_TextBox")?.Focus();
             else first.Focus();
         }, DispatcherPriority.Loaded);

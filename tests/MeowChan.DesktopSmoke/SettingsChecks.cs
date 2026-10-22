@@ -105,7 +105,15 @@ internal static class SettingsChecks
                     Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();
                     NumericUpDown input = window.Editor.FindControl<NumericUpDown>(name)!;
-                    input.Text = "invalid draft";
+                    List<Expander> groups = new();
+                    for (var parent = input.Parent; parent != null; parent = parent.Parent)
+                        if (parent is Expander group) { groups.Add(group); group.IsExpanded = true; }
+                    window.UpdateLayout();
+                    input.ApplyTemplate();
+                    TextBox editingSurface = input.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
+                    decimal? previousValue = input.Value;
+                    editingSurface.Focus();
+                    editingSurface.Text = "invalid draft";
                     // App changes the vendor locale before the editor's Texts handler.
                     // Preserve raw text even before Save has created a field error.
                     Texts.SetLanguage(language == "en" ? "de" : "en");
@@ -113,7 +121,13 @@ internal static class SettingsChecks
                         "The vendor locale refresh replaced an unvalidated numeric draft or committed it.");
                     Texts.SetLanguage(language);
                     Require(input.Text == "invalid draft", "Restoring the vendor locale replaced an unvalidated numeric draft.");
-                    Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+                    // Users enter text in an existing editor, then may hide its group.
+                    // Save must reopen that group and restore the actual editing focus.
+                    foreach (Expander group in groups) group.IsExpanded = false;
+                    window.UpdateLayout();
+                    Button save = window.Editor.FindControl<Button>("SaveSettingsButton")!;
+                    save.Focus();
+                    Click(save);
                     TextBlock error = window.Editor.FindControl<TextBlock>(name + "Error")!;
                     try
                     {
@@ -133,7 +147,10 @@ internal static class SettingsChecks
                         throw;
                     }
                     Console.WriteLine($"SMOKE settings field passed: language={language}; field={name}; raw='{input.Text}'.");
-                    Require(commits == 0 && input.Text == "invalid draft", "Invalid field text was committed or corrected automatically.");
+                    Require(window.IsVisible && input.GetVisualDescendants().OfType<TextBox>().Any(text => text.Name == "PART_TextBox" && text.IsFocused),
+                        "Revealing validation did not focus the materialized numeric text box.");
+                    Require(commits == 0 && input.Text == "invalid draft" && input.Value == previousValue,
+                        "Invalid field text was committed/corrected or changed its last accepted numeric value.");
                     Require(window.Editor.GetVisualDescendants().OfType<TextBlock>()
                         .Count(text => text.Name?.EndsWith("InputError") == true && text.IsVisible) == 1,
                         "An invalid field marked unrelated settings fields.");
