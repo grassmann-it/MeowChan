@@ -529,7 +529,7 @@ public sealed partial class Registry : IAsyncDisposable
                     {
                         durableThread.SetTimeProvider(_queue.Clock);
                         durableThread.RestoreDurableState(durable);
-                        durableThread.SetLifecycleSinks((state, observed, finalSnapshot) => CommitSourceEndAsync(resource.Key, resource.Thread, state, observed, finalSnapshot),
+                        durableThread.SetLifecycleSinks((state, observed, finalSnapshot, token) => CommitSourceEndAsync(resource.Key, resource.Thread, state, observed, finalSnapshot, token),
                             () => CommitCaptureSettledAsync(resource.Key, resource.Thread));
                     }
                 }
@@ -630,12 +630,13 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     private async Task CommitSourceEndAsync(ResourceKey key, IThread thread, ThreadSourceState state, DateTimeOffset observed,
-        CapturedThreadSnapshot? finalSnapshot)
+        CapturedThreadSnapshot? finalSnapshot, CancellationToken cancellationToken)
     {
         if (_workStore == null) return;
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
                 || !_workResources.TryGetValue(key, out WorkResource? current)) return;
             WorkResource? committed = _workStore.CommitEnd(current.Url, current.Generation,

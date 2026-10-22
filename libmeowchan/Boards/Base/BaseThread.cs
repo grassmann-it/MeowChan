@@ -33,8 +33,10 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private Task? _monitoringTask;
     private TimeSpan _monitoringInterval = TimeSpan.FromSeconds(60);
     private HashSet<string> _downloadedMedia = new HashSet<string>(StringComparer.Ordinal);
+    private readonly HashSet<(string MediaId, string Variant)> _downloadedVariants = new();
+    private int CompletedCountLocked => _downloadedMedia.Count + _downloadedVariants.Count;
     private static readonly StringComparer DestinationComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-    private readonly Dictionary<string, HashSet<string>> _verifiedDestinations = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+    private readonly Dictionary<(string MediaId, string Variant), HashSet<string>> _verifiedDestinations = new();
     private readonly Dictionary<string, Dictionary<string, FailureInfo>> _destinationFailures = new Dictionary<string, Dictionary<string, FailureInfo>>(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _mediaFailures = new Dictionary<string, string>(StringComparer.Ordinal);
     private ThreadSourceState _sourceState = ThreadSourceState.Active;
@@ -47,7 +49,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private int _totalMediaCount;
     private ThreadContentContext? _content;
     private bool _contentCandidatesRestored;
-    private Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, Task>? _endSink;
+    private Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, CancellationToken, Task>? _endSink;
     private Func<Task>? _captureSettledSink;
     private DateTimeOffset? _firstEndObservation;
     private TimeProvider _timeProvider = TimeProvider.System;
@@ -69,7 +71,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         remove => _propertyChanges.Remove(value);
     }
     public IDisposable RegisterRemovalSink(Action<IThread> sink) => _removal.Register(sink);
-    internal void SetLifecycleSinks(Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, Task> endSink, Func<Task> captureSettledSink)
+    internal void SetLifecycleSinks(Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, CancellationToken, Task> endSink, Func<Task> captureSettledSink)
     {
         _endSink = endSink;
         _captureSettledSink = captureSettledSink;
@@ -92,15 +94,15 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     internal DownloadItem BindRestoredMediaFilter(DownloadItem item, bool explicitRetry = false)
         => _content?.BindRestoredMediaFilter(item, this, explicitRetry) ?? item;
 
-    internal void PublishMediaFilterOmission(string mediaIdentifier, string destinationPath, bool noMatch, string reason)
+    internal void PublishMediaFilterOmission(string mediaIdentifier, string destinationPath, bool noMatch, string reason, string variant = "original")
     {
-        if (!noMatch) { ReportMediaFailure(mediaIdentifier, new MediaFilterOmissionException(false, reason), destinationPath); return; }
+        if (!noMatch) { ReportMediaFailure(mediaIdentifier, new MediaFilterOmissionException(false, reason), destinationPath, variant); return; }
         lock (_stateLock)
         {
             if (_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures))
             { failures.Remove(GetDestinationKey(destinationPath)); RefreshMediaFailureLocked(mediaIdentifier); }
             _activity = _mediaFailures.Count > 0 ? ThreadActivity.Error
-                : _downloadedMedia.Count >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0) ? ThreadActivity.Finished : ThreadActivity.Downloading;
+                : CompletedCountLocked >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0) ? ThreadActivity.Finished : ThreadActivity.Downloading;
         }
         OnPropertyChanged();
     }
@@ -109,11 +111,11 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     {
         lock (_stateLock)
         {
-            _totalMediaCount = Math.Max(_totalMediaCount, media.Select(item => item.MediaIdentifier).Distinct(StringComparer.Ordinal).Count());
+            _totalMediaCount = Math.Max(_totalMediaCount, media.Select(item => (item.MediaIdentifier, item.Variant)).Distinct().Count());
             foreach (MediaWork item in media)
             {
-                if (item.Status == MediaWorkStatus.Succeeded) _downloadedMedia.Add(item.MediaIdentifier);
-                else if (item.Failure != null)
+                if (item.Status == MediaWorkStatus.Succeeded) AddCompletedLocked(item.MediaIdentifier, item.Variant);
+                else if (item.Status != MediaWorkStatus.Excluded && item.Failure != null)
                 {
                     if (!_destinationFailures.TryGetValue(item.MediaIdentifier, out Dictionary<string, FailureInfo>? failures))
                         _destinationFailures[item.MediaIdentifier] = failures = new Dictionary<string, FailureInfo>(DestinationComparer);
@@ -136,7 +138,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                 failures.Add(entry.Key, entry.Value.Values.Last());
             return new ThreadSnapshot(new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId),
                 Url, _title, DownloadDirectory, _activity, _sourceState, _requestProgress,
-                _totalMediaCount, _downloadedMedia.Count,
+                _totalMediaCount, CompletedCountLocked,
                 new ReadOnlyDictionary<string, FailureInfo>(failures), _lastCheckFailure, downloads) { Content = _content?.Snapshot };
         }
     }
@@ -252,7 +254,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     public int DownloadedMediaCount
     {
-        get { lock (_stateLock) { return _downloadedMedia.Count; } }
+        get { lock (_stateLock) { return CompletedCountLocked; } }
     }
 
     public string Progress
@@ -262,8 +264,8 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             lock (_stateLock)
             {
                 if (_totalMediaCount == 0) return "0 / 0 (0%)";
-                double percent = (double)_downloadedMedia.Count / _totalMediaCount * 100;
-                return $"{_downloadedMedia.Count} / {_totalMediaCount} ({percent:0.##}%)";
+                double percent = (double)CompletedCountLocked / _totalMediaCount * 100;
+                return $"{CompletedCountLocked} / {_totalMediaCount} ({percent:0.##}%)";
             }
         }
     }
@@ -286,8 +288,9 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             {
                 _downloadedMedia = snapshot;
                 _verifiedDestinations.Clear();
+                _downloadedVariants.Clear();
                 foreach (string mediaIdentifier in snapshot)
-                    _verifiedDestinations[mediaIdentifier] = new HashSet<string>(DestinationComparer) { string.Empty };
+                    _verifiedDestinations[(mediaIdentifier, "original")] = new HashSet<string>(DestinationComparer) { string.Empty };
             }
             OnPropertyChanged(nameof(DownloadedMedia));
             OnPropertyChanged(nameof(DownloadedMediaCount));
@@ -436,11 +439,16 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         OnPropertyChanged(nameof(SourceState));
     }
 
-    protected async Task ObserveSourceEndAsync(ThreadSourceState state, CapturedThreadSnapshot? finalSnapshot = null)
+    protected Task ObserveSourceEndAsync(ThreadSourceState state, CapturedThreadSnapshot? finalSnapshot = null) =>
+        ObserveSourceEndWithCancellationAsync(state, finalSnapshot, CancellationToken.None);
+
+    internal async Task ObserveSourceEndWithCancellationAsync(ThreadSourceState state, CapturedThreadSnapshot? finalSnapshot, CancellationToken cancellationToken)
     {
         if (state == ThreadSourceState.Active) throw new ArgumentOutOfRangeException(nameof(state));
-        DateTimeOffset first = _firstEndObservation ??= _timeProvider.GetUtcNow();
-        if (_endSink != null) await _endSink(state, first, finalSnapshot).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        DateTimeOffset first = _firstEndObservation ?? _timeProvider.GetUtcNow();
+        if (_endSink != null) await _endSink(state, first, finalSnapshot, cancellationToken).ConfigureAwait(false);
+        _firstEndObservation ??= first;
         _restoredFinalSnapshot = finalSnapshot;
         MarkPollingTerminal(state);
     }
@@ -478,22 +486,31 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         OnPropertyChanged();
     }
 
-    protected async Task RestoreContentCandidatesAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken)
+    protected Task RestoreContentCandidatesAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken) =>
+        RestoreContentCandidatesCoreAsync(media, cancellationToken, false);
+
+    internal Task RestorePluginContentCandidatesAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken) =>
+        RestoreContentCandidatesCoreAsync(media, cancellationToken, true);
+
+    private async Task RestoreContentCandidatesCoreAsync(Dictionary<string, DownloadItem> media, CancellationToken cancellationToken, bool tupleKeys)
     {
+        string Key(string id, string variant) => tupleKeys || variant != "original" ? MediaKey(id, variant) : id;
         if (_restoredFinalSnapshot != null)
             foreach (CapturedPost post in _restoredFinalSnapshot.Posts)
                 foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
                 {
                     if (attachment.MediaId == null || attachment.Url == null || attachment.PlannedPath == null) continue;
-                    media.TryAdd(attachment.MediaId, new DownloadItem(new Uri(attachment.Url), attachment.PlannedPath,
+                    media.TryAdd(Key(attachment.MediaId, attachment.Variant), new DownloadItem(new Uri(attachment.Url), attachment.PlannedPath,
                         Board.ImageBoard, this, attachment.MediaId, attachment.ExpectedSize, attachment.ExpectedMd5,
-                        attachment.OriginalFileName));
+                        attachment.OriginalFileName, null, attachment.Variant));
                 }
         if (_content == null || _contentCandidatesRestored) return;
         IReadOnlyList<DownloadItem> restored = await _content.RestoreCandidatesAsync(this, cancellationToken).ConfigureAwait(false);
-        foreach (DownloadItem item in restored) media.TryAdd(item.MediaIdentifier, item);
+        foreach (DownloadItem item in restored) media.TryAdd(Key(item.MediaIdentifier, item.Variant), item);
         _contentCandidatesRestored = true;
     }
+
+    internal static string MediaKey(string id, string variant) => JsonSerializer.Serialize(new[] { id, variant });
 
     protected async Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
     {
@@ -520,8 +537,12 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        HashSet<string> known = new HashSet<string>(media.Keys, StringComparer.Ordinal);
-        known.UnionWith(DownloadedMedia);
+        HashSet<(string MediaId, string Variant)> known = media.Values.Select(item => (item.MediaIdentifier, item.Variant)).ToHashSet();
+        lock (_stateLock)
+        {
+            known.UnionWith(_downloadedMedia.Select(id => (id, "original")));
+            known.UnionWith(_downloadedVariants);
+        }
         TotalMediaCount = known.Count;
         IReadOnlyList<DownloadItem>? selected = _content == null ? media.Values.ToArray()
             : await _content.SelectAsync(this, media.Values, cancellationToken).ConfigureAwait(false);
@@ -543,7 +564,9 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         lock (_stateLock) { return _downloadedMedia.Contains(mediaIdentifier); }
     }
 
-    public void MarkMediaAsDownloaded(string mediaIdentifier, string? destinationPath = null)
+    public void MarkMediaAsDownloaded(string mediaIdentifier, string? destinationPath = null) => MarkMediaAsDownloaded(mediaIdentifier, destinationPath, "original");
+
+    internal void MarkMediaAsDownloaded(string mediaIdentifier, string? destinationPath, string variant)
     {
         ArgumentNullException.ThrowIfNull(mediaIdentifier);
         string destinationKey = GetDestinationKey(destinationPath);
@@ -552,20 +575,20 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         bool statusChanged;
         lock (_stateLock)
         {
-            if (!_verifiedDestinations.TryGetValue(mediaIdentifier, out HashSet<string>? destinations))
+            if (!_verifiedDestinations.TryGetValue((mediaIdentifier, variant), out HashSet<string>? destinations))
             {
                 destinations = new HashSet<string>(DestinationComparer);
-                _verifiedDestinations.Add(mediaIdentifier, destinations);
+                _verifiedDestinations.Add((mediaIdentifier, variant), destinations);
             }
             destinations.Add(destinationKey);
-            mediaChanged = _downloadedMedia.Add(mediaIdentifier);
+            mediaChanged = AddCompletedLocked(mediaIdentifier, variant);
             failuresChanged = _destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures)
                 && failures.Remove(destinationKey);
             if (failuresChanged) RefreshMediaFailureLocked(mediaIdentifier);
             if (!mediaChanged && !failuresChanged) return;
             ThreadActivity nextStatus = _activity;
             if (_mediaFailures.Count > 0) nextStatus = ThreadActivity.Error;
-            else if (_downloadedMedia.Count >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0)) nextStatus = ThreadActivity.Finished;
+            else if (CompletedCountLocked >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0)) nextStatus = ThreadActivity.Finished;
             else if (failuresChanged && _activity == ThreadActivity.Error) nextStatus = ThreadActivity.Downloading;
             statusChanged = _activity != nextStatus;
             _activity = nextStatus;
@@ -573,21 +596,25 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         NotifyMediaStateChanged(mediaChanged, failuresChanged, statusChanged);
     }
 
-    public void MarkMediaPending(string mediaIdentifier, string? destinationPath = null)
+    public void MarkMediaPending(string mediaIdentifier, string? destinationPath = null) => MarkMediaPending(mediaIdentifier, destinationPath, "original");
+
+    internal void MarkMediaPending(string mediaIdentifier, string? destinationPath, string variant)
     {
         ArgumentNullException.ThrowIfNull(mediaIdentifier);
         string destinationKey = GetDestinationKey(destinationPath);
         bool statusChanged;
         lock (_stateLock)
         {
-            if (!InvalidateDestinationLocked(mediaIdentifier, destinationKey, destinationPath == null)) return;
+            if (!InvalidateDestinationLocked(mediaIdentifier, destinationKey, destinationPath == null, variant)) return;
             statusChanged = _activity == ThreadActivity.Finished;
             if (statusChanged) _activity = _mediaFailures.Count > 0 ? ThreadActivity.Error : ThreadActivity.Pending;
         }
         NotifyMediaStateChanged(true, false, statusChanged);
     }
 
-    public void ReportMediaFailure(string mediaIdentifier, Exception exception, string? destinationPath = null)
+    public void ReportMediaFailure(string mediaIdentifier, Exception exception, string? destinationPath = null) => ReportMediaFailure(mediaIdentifier, exception, destinationPath, "original");
+
+    internal void ReportMediaFailure(string mediaIdentifier, Exception exception, string? destinationPath, string variant)
     {
         ArgumentNullException.ThrowIfNull(mediaIdentifier);
         ArgumentNullException.ThrowIfNull(exception);
@@ -596,7 +623,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         bool statusChanged;
         lock (_stateLock)
         {
-            mediaChanged = InvalidateDestinationLocked(mediaIdentifier, destinationKey, destinationPath == null);
+            mediaChanged = InvalidateDestinationLocked(mediaIdentifier, destinationKey, destinationPath == null, variant);
             if (!_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures))
             {
                 failures = new Dictionary<string, FailureInfo>(DestinationComparer);
@@ -618,18 +645,23 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         return Path.GetFullPath(destinationPath);
     }
 
-    private bool InvalidateDestinationLocked(string mediaIdentifier, string destinationKey, bool allDestinations)
+    private bool InvalidateDestinationLocked(string mediaIdentifier, string destinationKey, bool allDestinations, string variant)
     {
-        if (!allDestinations && _verifiedDestinations.TryGetValue(mediaIdentifier, out HashSet<string>? destinations))
+        if (!allDestinations && _verifiedDestinations.TryGetValue((mediaIdentifier, variant), out HashSet<string>? destinations))
         {
             destinations.Remove(destinationKey);
             // An unspecified old marker cannot prove that a different destination is intact.
             destinations.Remove(string.Empty);
             if (destinations.Count > 0) return false;
         }
-        _verifiedDestinations.Remove(mediaIdentifier);
-        return _downloadedMedia.Remove(mediaIdentifier);
+        _verifiedDestinations.Remove((mediaIdentifier, variant));
+        return variant == "original" ? _downloadedMedia.Remove(mediaIdentifier) : _downloadedVariants.Remove((mediaIdentifier, variant));
     }
+
+    private bool AddCompletedLocked(string id, string variant) => variant == "original" ? _downloadedMedia.Add(id) : _downloadedVariants.Add((id, variant));
+
+    internal bool IsMediaDownloaded(string id, string variant)
+    { lock (_stateLock) return variant == "original" ? _downloadedMedia.Contains(id) : _downloadedVariants.Contains((id, variant)); }
 
     private void RefreshMediaFailureLocked(string mediaIdentifier)
     {
