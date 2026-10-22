@@ -4,13 +4,29 @@ This record separates upstream platform support, candidate MeowChan packages, an
 
 ## Final 0.9.0 platform packages
 
-The [final package run at `b0888df`](https://github.com/tfgrass/MeowChan/actions/runs/39696624077)
-passed all five native OS/CPU jobs: Windows x64, macOS Apple Silicon and Intel,
-and Linux x64 and ARM64. Windows and the apps mounted and copied out of both
-ad-hoc-signed macOS DMGs passed startup, real gallery playback and the packaged
-download/restore/export/desktop workflow. Each Linux CPU passed the bundled-VLC
-archive, system-VLC archive, missing-system-VLC case and AppImage, including
-extraction and extract-and-run, in isolated offline desktop containers.
+The accepted platform packages have explicit, independently verified source
+boundaries:
+
+- **Windows x64 and macOS Apple Silicon/Intel:** the [native package run at
+  `b0888df`](https://github.com/tfgrass/MeowChan/actions/runs/39696624077) passed.
+  Windows and the apps mounted and copied out of both ad-hoc-signed macOS DMGs
+  passed startup, real gallery playback and the packaged
+  download/restore/export/desktop workflow. These three packages are retained
+  unchanged from that run.
+- **Linux x64 and ARM64:** the final [Linux-only run at
+  `e441308`](https://github.com/tfgrass/MeowChan/actions/runs/39701797723) passed.
+  Each CPU passed the bundled-VLC archive, system-VLC archive,
+  missing-system-VLC case and AppImage, including extraction and
+  extract-and-run, in isolated offline desktop containers. These packages
+  include the final Linux browser-link correction; the release tag points to
+  this source. The earlier five-platform run remains historical Linux package
+  evidence and is not substituted for these final Linux checks.
+
+The final Linux launcher uses the selected known browser's new-window option
+for web links, retaining the desktop handler for unknown/unavailable browsers
+and other targets. Fourteen focused launcher tests and the isolated About-button
+GUI scenario passed, and the Linux user confirmed the new-window behavior after
+restarting. Window-manager focus policy still controls foreground activation.
 
 The Linux user also completed a personal click-through acceptance on 22 October
 2026. Personal Windows/macOS testing is deferred until before 1.0.0; the native
