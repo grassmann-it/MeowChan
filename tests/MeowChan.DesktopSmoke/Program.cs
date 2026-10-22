@@ -209,6 +209,14 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_POWERUSER_ONLY") == "1")
+            {
+                await PowerUserCommandChecks.RunAsync(mainWindow);
+                await RulesPageChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (_aboutLinksMode)
             {
                 await AboutLinkChecks.RunAsync(mainWindow);

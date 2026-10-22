@@ -27,5 +27,6 @@ internal static class PauseChecks
             if (Config.LoadConfig().DownloadsPaused) throw new InvalidOperationException("Resume was not persisted.");
         }
         Texts.SetLanguage("en");
+        await PowerUserCommandChecks.RunAsync(window);
     }
 }

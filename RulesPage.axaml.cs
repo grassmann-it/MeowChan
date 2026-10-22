@@ -185,6 +185,47 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string TypesOriginLabel => _preview == null ? string.Empty : Texts.T("rules.origin", FormatOrigin(_preview.TypesOrigin));
     public string SizeOriginLabel => _preview == null ? string.Empty : Texts.T("rules.origin", FormatOrigin(_preview.SizeLimitOrigin));
 
+    public MediaRuleScope ActiveScope => _draft.Scope;
+    public MediaRuleScope? ParentScope => _draft.Scope.Kind switch
+    {
+        MediaRuleScopeKind.Thread => MediaRuleScope.ForBoard(_draft.Scope.Source!, _draft.Scope.Board!),
+        MediaRuleScopeKind.Board => MediaRuleScope.ForSource(_draft.Scope.Source!),
+        MediaRuleScopeKind.Source => MediaRuleScope.Global,
+        _ => null
+    };
+    public bool CanOpenParent => IsEditable && ParentScope != null;
+    public bool CanOpenTypesOrigin => IsEditable && _preview?.TypesOrigin.Scope != null;
+    public bool CanOpenSizeOrigin => IsEditable && _preview?.SizeLimitOrigin.Scope != null;
+    public string ParentScopeLabel => CommandCatalog.Label("rules.open-parent")
+        + (ParentScope is MediaRuleScope parent ? " · " + FormatScope(parent) : string.Empty);
+    public string OpenTypesOriginLabel => OriginActionLabel(TypesLabel, _preview?.TypesOrigin.Scope);
+    public string OpenSizeOriginLabel => OriginActionLabel(SizeLabel, _preview?.SizeLimitOrigin.Scope);
+
+    private static string OriginActionLabel(string field, MediaRuleScope? scope) =>
+        CommandCatalog.Label("rules.open-origin") + " · " + field + " · "
+        + (scope == null ? Texts.T("rules.builtin") : FormatScope(scope));
+
+    private void OnOpenParentScope(object? sender, RoutedEventArgs e)
+    {
+        if (CanOpenParent && ParentScope is MediaRuleScope scope) OpenNavigatedScope(scope);
+    }
+    private void OnOpenTypesOrigin(object? sender, RoutedEventArgs e)
+    {
+        if (CanOpenTypesOrigin && _preview?.TypesOrigin.Scope is MediaRuleScope scope) OpenNavigatedScope(scope);
+    }
+    private void OnOpenSizeOrigin(object? sender, RoutedEventArgs e)
+    {
+        if (CanOpenSizeOrigin && _preview?.SizeLimitOrigin.Scope is MediaRuleScope scope) OpenNavigatedScope(scope);
+    }
+
+    private void OpenNavigatedScope(MediaRuleScope scope)
+    {
+        EditScope(scope);
+        if (!IsEditable || _draft.Scope != scope) return;
+        RuleEnabledInput.Focus();
+        RuleEnabledInput.BringIntoView();
+    }
+
     public void EndLifetime()
     {
         if (_ended) return;
@@ -469,6 +510,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         CommandBindings.ApplyLabeled(OpenNewRuleScopeButton, "rules.open-scope", OpenLabel);
         CommandBindings.ApplyLabeled(DiscardRuleButton, "rules.discard", DiscardLabel);
         CommandBindings.ApplyLabeled(SaveRuleButton, "rules.save", SaveLabel);
+        CommandBindings.ApplyLabeled(OpenParentRuleButton, "rules.open-parent", CommandCatalog.Label("rules.open-parent"));
+        CommandBindings.ApplyLabeled(OpenTypesOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
+        CommandBindings.ApplyLabeled(OpenSizeOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
+        RefreshOriginActionLabels();
     }
 
     private void OnRulesSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -504,6 +549,17 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         Raise(string.Empty);
         SynchronizeModeSelections();
+        RefreshOriginActionLabels();
+    }
+    private void RefreshOriginActionLabels()
+    {
+        if (_ended) return;
+        Avalonia.Automation.AutomationProperties.SetName(OpenParentRuleButton, ParentScopeLabel);
+        Avalonia.Automation.AutomationProperties.SetName(OpenTypesOriginButton, OpenTypesOriginLabel);
+        Avalonia.Automation.AutomationProperties.SetName(OpenSizeOriginButton, OpenSizeOriginLabel);
+        ToolTip.SetTip(OpenParentRuleButton, ParentScopeLabel);
+        ToolTip.SetTip(OpenTypesOriginButton, OpenTypesOriginLabel);
+        ToolTip.SetTip(OpenSizeOriginButton, OpenSizeOriginLabel);
     }
     private void SynchronizeModeSelections()
     {

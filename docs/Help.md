@@ -90,14 +90,30 @@ These shortcuts apply when the relevant list has focus. Ctrl means Command on ma
 | Ctrl+Shift+R | Open the focused board's **Thread filters…** wizard (Board list only) |
 | Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / source in the browser |
 | Shift+F10 | Open the list context menu |
+| Ctrl+A | Select all entries in the focused Downloads list, or all entries on the current Archive results page |
+| Alt+PageUp / Alt+PageDown | Previous / next Archive results page, only with focus in the results list |
 
 Text fields and embedded controls retain their own keys. Across the workspace,
-Ctrl+L focuses URL input, Ctrl+, opens Settings, Ctrl+F focuses Archive search,
-and F1 shows context-sensitive keyboard help. F11 toggles real window fullscreen
+Ctrl+L focuses URL input, Ctrl+, opens Settings, and Ctrl+F focuses the local
+Downloads search or Archive search on the active page. Ctrl+1 through Ctrl+5 open
+Downloads, Archive, Rules, Sources and Diagnostics in that order. Ctrl+Shift+P
+uses the same session Pause / Resume action as the header button; it remains
+unavailable while a pause transition is in progress. These direct page and pause
+shortcuts leave native inputs, dialogs and open overlays in control and retain
+unsaved page drafts. F1 shows the commands for the current context, including
+selection scope and availability. Ctrl+V imports URLs only in Downloads outside
+native controls; inside the URL field it pastes editable text normally. F11 toggles real window fullscreen
 in Downloads, Archive, reader and gallery; it preserves the current workspace and
 returns to the previous normal or maximized window. Escape dismisses the active
 menu, help or dialog first, then leaves fullscreen before closing a gallery or
 reader. Modal dialogs retain their own input.
+
+In Rules, each effective media-type or size value names its own origin. **Open
+rule** opens that exact Global, Source, Board or Thread scope. **Open parent
+scope** moves up one scope. Unsaved drafts and conflicting edits remain available
+when returning to their scope; navigation does not save or retry downloads.
+Built-in defaults have no stored rule to open. Saving affects future work and
+does not delete previously saved files.
 
 ## Linux packages and startup
 

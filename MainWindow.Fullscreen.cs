@@ -548,7 +548,8 @@ public partial class MainWindow
         Border help = WorkspaceControl<Border>("ShellHelpOverlay");
         if (help.IsVisible) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
-        var ids = new System.Collections.Generic.List<string> { "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
+        var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.rules", "navigation.sources", "navigation.diagnostics",
+            "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
         if (_largeReaderOpen)
         {
             foreach (var pair in new[] { ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
@@ -557,6 +558,7 @@ public partial class MainWindow
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {
+            ids.InsertRange(0, new[] { "input.focus-download-search", "selection.select-all", "menu.context-open", "watch.import-clipboard" });
             bool boards = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1;
             DownloadMenuTarget? target = CaptureDownloadMenu(boards);
             if (target != null)
@@ -573,10 +575,12 @@ public partial class MainWindow
             }
         }
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
-            ids.InsertRange(0, new[] { "input.focus-search", "archive.delete-permanently" });
+            ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
+                "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
         WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine,
             ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _))
-                .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)));
+                .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
+                    + (CommandCatalog.ScopeHint(id) is string hint ? " · " + hint : string.Empty)));
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
         WorkspaceControl<Button>("ShellHelpClose").Focus();
@@ -625,6 +629,37 @@ public partial class MainWindow
         if (e.Key == Key.F1 && e.KeyModifiers == KeyModifiers.None && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
+        if (CanExecuteShellPowerCommand(e.Source))
+        {
+            foreach ((string id, WorkspacePage page) in new[]
+            {
+                ("navigation.downloads", WorkspacePage.Downloads), ("navigation.archive", WorkspacePage.Archive),
+                ("navigation.rules", WorkspacePage.Rules), ("navigation.sources", WorkspacePage.Sources),
+                ("navigation.diagnostics", WorkspacePage.Diagnostics)
+            })
+            {
+                if (!CommandBindings.Matches(e, id)) continue;
+                if (_gallery != null) CloseGallery(restoreOrigin: false);
+                if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+                e.Handled = NavigateWorkspace(page);
+                return;
+            }
+            if (CommandBindings.Matches(e, "session.pause"))
+            {
+                if (_restoreCompleted && !_session.IsPauseTransitioning && WorkspaceControl<Button>("PauseButton").IsEnabled)
+                {
+                    e.Handled = true;
+                    OnPauseClick(sender, e);
+                }
+                return;
+            }
+            if (CommandBindings.Matches(e, "input.focus-download-search") && CanFocusDownloadSearch)
+            {
+                e.Handled = true;
+                FocusDownloadSearch();
+                return;
+            }
+        }
         if (e.KeyModifiers != ListCommandModifier) return;
         if (e.Key == Key.L)
         {
@@ -643,6 +678,14 @@ public partial class MainWindow
         else if (e.Key == Key.F && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
     }
+
+    internal bool CanExecuteShellPowerCommand(object? source) => _workspaceInitialized && _restoreCompleted
+        && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog()
+        && !IsNativeShortcutSource(source) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
+        && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
+        && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
+            || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }
+            || control is ComboBox { IsDropDownOpen: true });
 
     private bool HasVisibleShellDialog() => OwnedWindows.Any(window => window.IsVisible
         && !(_gallery?.OwnsOverlayWindow(window) ?? false));

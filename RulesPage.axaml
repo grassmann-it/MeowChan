@@ -46,6 +46,8 @@
                 </StackPanel>
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <Button x:Name="OpenParentRuleButton" IsEnabled="{Binding CanOpenParent}" IsVisible="{Binding CanOpenParent}"
+                            Click="OnOpenParentScope" HorizontalAlignment="Left" Margin="0,0,0,10" />
                     <CheckBox x:Name="RuleEnabledInput" Content="{Binding EnabledLabel}" IsChecked="{Binding RuleEnabled, Mode=TwoWay}" />
                     <TextBlock Text="{Binding EnabledHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4" />
                     <StackPanel IsEnabled="{Binding RuleEnabled}">
@@ -93,6 +95,8 @@
                                 <StackPanel Grid.Column="1" Spacing="4">
                                     <TextBlock x:Name="RuleEffectiveTypes" Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="RuleTypesOrigin" Text="{Binding TypesOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <Button x:Name="OpenTypesOriginButton" IsEnabled="{Binding CanOpenTypesOrigin}" IsVisible="{Binding CanOpenTypesOrigin}"
+                                            Click="OnOpenTypesOrigin" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -102,6 +106,8 @@
                                 <StackPanel Grid.Column="1" Spacing="4">
                                     <TextBlock x:Name="RuleEffectiveSize" Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="RuleSizeOrigin" Text="{Binding SizeOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <Button x:Name="OpenSizeOriginButton" IsEnabled="{Binding CanOpenSizeOrigin}" IsVisible="{Binding CanOpenSizeOrigin}"
+                                            Click="OnOpenSizeOrigin" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </Grid>
                         </Border>

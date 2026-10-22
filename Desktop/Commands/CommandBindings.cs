@@ -59,7 +59,9 @@ public static class CommandBindings
     {
         var definition = CommandCatalog.Get(id);
         item.Header = CommandCatalog.Label(id);
-        item.Gesture = Gesture(definition);
+        // Clipboard import is a Downloads shortcut. The native tray action remains
+        // explicit and must not register an application-wide paste accelerator.
+        item.Gesture = id == "watch.import-clipboard" ? null : Gesture(definition);
         item.Icon = NativeIcon(id);
     }
 
@@ -145,6 +147,7 @@ public static class CommandBindings
         string label = CommandCatalog.Label(id);
         string? shortcut = CommandCatalog.ShortcutDisplay(id);
         string result = shortcut is null ? label : label + " · " + shortcut;
+        if (CommandCatalog.ScopeHint(id) is string scope) result += " · " + scope;
         return string.IsNullOrWhiteSpace(unavailableReason) ? result : result + " · " + unavailableReason;
     }
 
@@ -189,11 +192,18 @@ public static class CommandBindings
         return gesture != null && gesture.Key == e.Key && gesture.KeyModifiers == e.KeyModifiers;
     }
 
+    public static KeyGesture? Gesture(string id) => Gesture(CommandCatalog.Get(id));
+
     private static KeyGesture? Gesture(CommandDefinition definition)
     {
         if (definition.Shortcut is null) return null;
         string shortcut = definition.Shortcut.Replace("Primary",
             OperatingSystem.IsMacOS() ? "Meta" : "Ctrl", StringComparison.Ordinal);
+        // Enum.Parse interprets bare digits as Key enum ordinals ("1" is Cancel).
+        // Keep the catalog/display human readable while parsing digit-row keys explicitly.
+        int keyStart = shortcut.LastIndexOf('+') + 1;
+        string key = shortcut[keyStart..];
+        if (key.Length == 1 && char.IsAsciiDigit(key[0])) shortcut = shortcut[..keyStart] + "D" + key;
         try { return KeyGesture.Parse(shortcut); }
         catch (FormatException) { return null; }
     }

@@ -404,8 +404,8 @@ public partial class MainWindow : Window
             if (NavigateWorkspace(WorkspacePage.Downloads)) urlInput.Focus();
             return;
         }
-        if (e.KeyModifiers == pasteModifier && e.Key == Key.V && e.Source is not TextBox &&
-            (e.Source as Visual)?.FindAncestorOfType<TextBox>() == null)
+        if (e.KeyModifiers == pasteModifier && e.Key == Key.V && _selectedPage == WorkspacePage.Downloads
+            && CanExecuteShellPowerCommand(e.Source))
         {
             e.Handled = true;
             await ImportClipboardAsync();
@@ -940,19 +940,22 @@ public partial class MainWindow : Window
         bool paused = _session.IsPaused;
         MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
         menu.IsEnabled = enabled && !_session.IsPauseTransitioning;
+        CommandBindings.Apply(menu, "session.pause");
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
+        menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
         Button button = this.FindControl<Button>("PauseButton")!;
         button.IsEnabled = enabled && !_session.IsPauseTransitioning;
         if (_lastPauseIcon != paused)
         {
             _lastPauseIcon = paused;
             button.Content = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
-            menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
         }
         string label = Texts.T(_session.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resume" : "action.pause");
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         button.Classes.Set("selected", paused);
-        ToolTip.SetTip(button, label);
+        string tip = label + " · " + CommandCatalog.ShortcutDisplay("session.pause") + " · " + CommandCatalog.ScopeHint("session.pause");
+        ToolTip.SetTip(button, tip);
+        Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
     }
 
     private async void OnPauseClick(object? sender, RoutedEventArgs e)

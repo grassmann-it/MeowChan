@@ -219,6 +219,7 @@ internal static class RulesPageChecks
             RequireModeSelections(page);
             Require(page.MegabytesText == "0.000001", "The size draft lost precision on the language roundtrip.");
 
+            await CheckOriginNavigationAsync(window);
             await CheckFailedSaveInSameWindowAsync(window);
         }
         finally
@@ -245,6 +246,106 @@ internal static class RulesPageChecks
         Require(SameCatalog(window.SessionHost.MediaRules, originalRules),
             "The Rules smoke did not restore the original catalog.");
         Console.WriteLine("SMOKE rules: durable global/board rules, field origins, disabled inheritance, retained invalid drafts, locale precision, guarded save failures and compact EN/DE layouts passed.");
+    }
+
+    private static async Task CheckOriginNavigationAsync(MainWindow window)
+    {
+        await OpenRulesAsync(window);
+        ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!;
+        object? retained = host.Content;
+        MediaRuleScope source = MediaRuleScope.ForSource("unknown-provider");
+        MediaRuleScope board = MediaRuleScope.ForBoard("unknown-provider", "unknown-board");
+        MediaRuleScope thread = MediaRuleScope.ForThread("unknown-provider", "unknown-board", "unknown-thread");
+        MediaRuleSet confirmed = new MediaRuleSet("origins-1", new[]
+        {
+            new MediaRule(MediaRuleScope.Global, sizeLimit: new MediaSizeLimit(MediaSizeLimitMode.Limited, 2_000_000)),
+            new MediaRule(source, types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { "jpg" })),
+            new MediaRule(board, types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { "png" }))
+        });
+        int writes = 0;
+        RulesPage fixture = new RulesPage(() => confirmed, (_, _) => { writes++; return Task.FromResult(confirmed); });
+        host.Content = fixture;
+        try
+        {
+            fixture.IsAvailable = true;
+            fixture.EditScope(thread);
+            fixture.RuleEnabled = true; // Retain a dirty inherited thread draft independently of its parent drafts.
+            fixture.NewSourceId = "manual-source";
+            fixture.NewBoardId = "manual-board";
+            fixture.NewThreadId = "manual-thread";
+            Require(fixture.CanOpenTypesOrigin && fixture.CanOpenSizeOrigin, "Inherited values lost their origin actions.");
+            Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
+            Require(fixture.ActiveScope == board, "Types origin did not open the actual board rule.");
+            fixture.ExtensionsText = "gif";
+            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
+            Require(fixture.ActiveScope == source, "Board parent navigation did not open the source scope.");
+            fixture.ExtensionsText = "webm";
+            Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
+            Require(fixture.ActiveScope == source && fixture.ExtensionsText == "webm", "Source-origin navigation discarded its own draft.");
+            fixture.EditScope(thread);
+            Click(fixture.FindControl<Button>("OpenSizeOriginButton")!);
+            Require(fixture.ActiveScope == MediaRuleScope.Global && !fixture.CanOpenParent,
+                "Size origin did not open Global independently of the type origin.");
+            fixture.EditScope(board);
+            Require(fixture.ExtensionsText == "gif", "Origin navigation lost the board draft.");
+            fixture.EditScope(source);
+            Require(fixture.ExtensionsText == "webm", "Origin navigation lost the source draft.");
+            fixture.EditScope(thread);
+            fixture.TypesMode = (int)MediaTypeSelectionMode.Selected;
+            fixture.ExtensionsText = "avif";
+            Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
+            Require(fixture.ActiveScope == thread && fixture.ExtensionsText == "avif", "Thread-origin navigation opened a parent instead.");
+            Require(fixture.NewSourceId == "manual-source" && fixture.NewBoardId == "manual-board" && fixture.NewThreadId == "manual-thread",
+                "Origin navigation lost manually entered unknown object identities.");
+            confirmed = new MediaRuleSet("origins-2", confirmed.Rules.Where(rule => rule.Scope != source)
+                .Append(new MediaRule(source, types: MediaTypeSelection.All)));
+            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
+            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
+            Require(fixture.ActiveScope == source && fixture.HasValidationError && !fixture.CanSave && fixture.ExtensionsText == "webm",
+                "Parent navigation erased an externally conflicting draft or its stale marker.");
+            fixture.EditScope(thread);
+            fixture.EditScope(source);
+            Require(fixture.HasValidationError && fixture.ExtensionsText == "webm", "Returning through scopes cleared a stale conflict.");
+            confirmed = MediaRuleSet.Default;
+            fixture.EditScope(MediaRuleScope.Global);
+            Require(!fixture.CanOpenTypesOrigin && !fixture.CanOpenSizeOrigin && !fixture.CanOpenParent,
+                "Built-in defaults were exposed as invented stored rules.");
+            Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
+            Require(fixture.ActiveScope == MediaRuleScope.Global && writes == 0, "Origin navigation wrote rules or followed a default value.");
+            confirmed = new MediaRuleSet("origins-3", new[]
+            {
+                new MediaRule(MediaRuleScope.Global, sizeLimit: new MediaSizeLimit(MediaSizeLimitMode.Limited, 2_000_000)),
+                new MediaRule(board, types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { "png" }))
+            });
+            fixture.EditScope(thread);
+            fixture.DiscardCurrentDraft();
+            Avalonia.Styling.ThemeVariant? originalTheme = window.RequestedThemeVariant;
+            try
+            {
+                foreach (Avalonia.Styling.ThemeVariant theme in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
+                {
+                    window.RequestedThemeVariant = theme;
+                    foreach (string language in new[] { "en", "de" })
+                    {
+                        Texts.SetLanguage(language);
+                        await FlushAsync();
+                        ScrollViewer scroll = fixture.FindControl<ScrollViewer>("RulesScroll")!;
+                        scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height - 60));
+                        await FlushAsync();
+                        Program.CaptureWindow(window, "smoke-rule-origins-" + theme.Key.ToString()!.ToLowerInvariant() + "-" + language + ".png");
+                    }
+                }
+            }
+            finally { window.RequestedThemeVariant = originalTheme; }
+            Require(writes == 0, "Rule origin or parent navigation performed an automatic save.");
+        }
+        finally
+        {
+            fixture.EndLifetime();
+            host.Content = retained;
+            Texts.SetLanguage("en");
+        }
+        Console.WriteLine("SMOKE rule origins: field-specific Global/Source/Board/Thread, parent scopes, dirty and stale draft retention, unknown IDs, defaults and zero writes passed.");
     }
 
     private static async Task CheckFailedSaveInSameWindowAsync(MainWindow window)
