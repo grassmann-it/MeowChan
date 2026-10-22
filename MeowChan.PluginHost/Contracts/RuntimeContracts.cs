@@ -24,6 +24,9 @@ public sealed record PluginWorkerOptions
     public int MaximumQueuedCalls { get; init; } = 128;
     public int MaximumLogBytes { get; init; } = 1024 * 1024;
     public long HeapLimitBytes { get; init; } = 256L * 1024 * 1024;
+    public long SourceHeapLimitBytes { get; init; } = 256L * 1024 * 1024;
+    public long FilterHeapLimitBytes { get; init; } = 512L * 1024 * 1024;
+    public long MaximumTemporaryBytes { get; init; } = 512L * 1024 * 1024;
 }
 
 /// <summary>Services are invoked only for a live correlated call; implementations enforce grants.</summary>
@@ -46,6 +49,7 @@ public interface IPluginWorkerClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
     Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation,
         CancellationToken cancellationToken = default);
+    Task RetryAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request,
         CancellationToken cancellationToken = default);
 }
