@@ -2,7 +2,31 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## 0.9.0 candidate: targeted native checks and final packages
+## Final 0.9.0 platform packages
+
+The [final package run at `b0888df`](https://github.com/tfgrass/MeowChan/actions/runs/39696624077)
+passed all five native OS/CPU jobs: Windows x64, macOS Apple Silicon and Intel,
+and Linux x64 and ARM64. Windows and the apps mounted and copied out of both
+ad-hoc-signed macOS DMGs passed startup, real gallery playback and the packaged
+download/restore/export/desktop workflow. Each Linux CPU passed the bundled-VLC
+archive, system-VLC archive, missing-system-VLC case and AppImage, including
+extraction and extract-and-run, in isolated offline desktop containers.
+
+The Linux user also completed a personal click-through acceptance on 22 October
+2026. Personal Windows/macOS testing is deferred until before 1.0.0; the native
+runner checks do not establish every physical device, audible hardware output,
+Gatekeeper approval or desktop environment. macOS remains ad-hoc signed without
+Developer ID signing or notarization. The final artifact assembly additionally
+checks source identity, package hashes, legal-source pairing and the complete
+13-file binary/source inventory plus `SHA256SUMS` before publication.
+
+The functional Linux checkpoint also passed four focused isolated GUI modes
+(normal, reader, download session and selection), 14 gallery tests and 47 focused
+export/recovery tests. Private KWin image, VP8 and VP9/Opus checks exercised
+maximized → fullscreen → maximized restoration and real caption-close shutdown.
+These are complementary source-built checks, not additional package platforms.
+
+## Earlier 0.9.0 candidate evidence (historical)
 
 Product checkpoint `161a8b0` contains fullscreen lifecycle corrections:
 explicit app resize requests are separate from native resize reports, normal
@@ -57,7 +81,7 @@ This is the agreed delivery matrix, not a claim that these artifacts are already
 
 Linux preflight runs **before session startup**: load the selected backend, require VLC major version 3 at least 3.0.20, and initialize an engine. The minimum includes the distro-maintained Ubuntu 24.04 runtime; no API used by MeowChan requires 3.0.21. Native packaged playback remains a separate acceptance gate. Missing, unsupported or unusable system VLC produces a dismissible installation hint, then exit code **2**. Bundled runtime integrity/metadata or load failures require re-extracting the complete package; they never trigger a system-VLC fallback. This check does not guarantee that every media file decodes: unsupported/corrupt files remain per-file preview/playback errors. Linux accepts the runtime ABI `libvlc.so.5`, without development symlinks.
 
-Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The 14 [interface screenshots](screenshots/README.md) were captured later at `b8e1291` and remain source-built UI evidence, not package acceptance.
+Source `20bc022` limits application archives to the app, runtime, icon and required legal notices/native-source information. README, changelog, user/developer help, screenshots, SDK/test sample documentation, PDBs and XML documentation stay out of desktop payloads; all GitHub documentation remains available. Native dependency trees and legal files must remain intact when extracting. The 16 [interface screenshots](screenshots/README.md) include the final Barebones/Advanced comparison and refreshed gallery, Settings and Rules at functional checkpoint `be2f807`, alongside 11 earlier `b8e1291` captures. They remain source-built UI evidence, separate from package acceptance.
 
 **Evidence boundary:** [package-media run 39630125624](https://github.com/tfgrass/MeowChan/actions/runs/39630125624) passed all five native OS/CPU package jobs at source `6354f94`, including the macOS collector. Libraryconsumer and bounded live checks also passed for that earlier candidate. It predates the slim payload and new Linux delivery/preflight contract and does **not** validate those changes. Local startup-fix Debug and Release-analyzer builds completed with zero warnings/errors and 44 focused tests passed. The corresponding new native delivery results remain open.
 

@@ -2,7 +2,7 @@
 
 ## 0.9.0
 
-**MeowChan** introduces a redesigned Avalonia desktop interface, with Barebones as the simple default for new profiles and Simple and Advanced views for more detail. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
+The first stable release under the **MeowChan** name introduces a redesigned Avalonia desktop interface, with Barebones as the simple default for new profiles and Simple and Advanced views for more detail. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
 
 ### What's new
 

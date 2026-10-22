@@ -104,9 +104,9 @@ Desktop packages contain the application, runtime, icon and legal notices. This 
 
 ## Images, search and navigation
 
-The [14 interface screenshots](screenshots/README.md) show the integrated 0.9.0
-interface captured from source commit `b8e1291`. Their provenance and limits
-are recorded with the images.
+The [interface screenshots](screenshots/README.md) show the 0.9.0 workspace,
+including Barebones and Advanced, the reader and gallery. Capture checkpoints,
+provenance and limits are recorded with the images.
 
 Choose **Read posts** to open the large thread reader across the work area, with
 readable posts and embedded media. Up/Down moves exactly one post. Left/Right

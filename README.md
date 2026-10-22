@@ -12,6 +12,27 @@ MeowChan is a cross-platform imageboard downloader and offline archive for 4chan
 
 Download **MeowChan 0.9.0** from the [stable release](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). The [release notes](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
 
+## Choose the view that fits your work
+
+**Barebones** is the default for a new profile. It keeps URLs, thread titles, media progress and the main actions in a compact window.
+
+[![Barebones Downloads with six demonstration threads and compact progress rows](docs/screenshots/v0.9.0-barebones.png)](docs/screenshots/v0.9.0-barebones.png)
+
+**Advanced** shows the same selected thread and download session with separate source, ID, status, queued and active columns. Its details panel exposes the thread URL, destination and available actions.
+
+[![Advanced Downloads with the same six demonstration threads, separate columns and thread details](docs/screenshots/v0.9.0-advanced.png)](docs/screenshots/v0.9.0-advanced.png)
+
+Switch views at the bottom right while work continues. **Simple** sits between these layouts; [see its Downloads view](docs/screenshots/v0.9.0-downloads.png). Each view remembers its own table columns, widths and order. These two comparison images use the same six passive offline example rows; they do not show live downloads.
+
+## Explore your saved threads
+
+- **Read offline:** Search captured posts and saved media, follow replies, and open threads in the full-window [reader](docs/screenshots/v0.9.0-reader.png).
+- **Browse images:** Use the [gallery](docs/screenshots/v0.9.0-gallery.png) to zoom, pan and view a saved image beside its captured post.
+- **Keep and share:** Mark saved media as favorites and export verified originals or portable offline HTML collections.
+- **Control downloads:** Set media rules by source, board or thread, inspect retry details and manage several watches together.
+
+The [interface gallery and capture notes](docs/screenshots/README.md) show more real UI, including Archive, Settings, Rules and About.
+
 ## Quick start
 
 Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
@@ -57,7 +78,7 @@ Read captured posts at full window size, with large local media and navigation b
 
 Find retained threads and media offline. Open images from all matching threads across every results page.
 
-These scenes use original offline demo artwork and synthetic posts captured in isolated Linux Xvfb/Openbox sessions at 100% scaling. The gallery, Settings and Rules images reflect the final 0.9.0 UI at functional source checkpoint `be2f807`; the other 11 retain their earlier `b8e1291` source capture. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 14-image set](docs/screenshots/README.md) describe both captures and their limits; these source-built images do not establish native package acceptance or live source availability.
+These scenes use original offline demo artwork and synthetic posts captured in isolated Linux Xvfb/Openbox sessions at 100% scaling. The Barebones, Advanced, gallery, Settings and Rules images reflect the final 0.9.0 UI at functional source checkpoint `be2f807`; the other 11 retain their earlier `b8e1291` source capture. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 16-image set](docs/screenshots/README.md) describe both captures and their limits; these source-built images do not establish native package acceptance or live source availability.
 
 ## What's new in 0.9.0
 
