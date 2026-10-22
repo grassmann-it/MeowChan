@@ -17,6 +17,8 @@ public partial class MainWindow
     private bool _refreshingDownloadSearch;
     private bool _downloadSearchOpen;
     private long _downloadFilterRevision;
+    private readonly Dictionary<long, long> _threadFilterExclusions = new();
+    private readonly Dictionary<long, long> _boardFilterExclusions = new();
     public string DownloadSearchText => this.FindControl<TextBox>("DownloadSearchInput")?.Text ?? string.Empty;
     public int VisibleResultCount => this.FindControl<TabControl>("DownloadsTabs")?.SelectedIndex == 1
         ? VisibleBoards.Count : VisibleThreads.Count;
@@ -71,19 +73,28 @@ public partial class MainWindow
     private void ReconcileDownloadResult<T>(ObservableCollection<T> visible, T[] result, DataGrid grid) where T : class
     {
         HashSet<T> included = new(result);
+        T[] retainedSelection = grid.SelectedItems.OfType<T>().Where(included.Contains).ToArray();
         // The result is independent of virtualization and scrolling. Remove only actual non-results.
         foreach (T item in grid.SelectedItems.OfType<T>().Where(item => !included.Contains(item)).ToArray())
             grid.SelectedItems.Remove(item);
         foreach (T item in visible.Where(item => !included.Contains(item)).ToArray())
         {
             visible.Remove(item);
-            _downloadFilterRevision++;
+            long revision = ++_downloadFilterRevision;
+            if (item is ThreadRow thread) _threadFilterExclusions[thread.WatchId] = revision;
+            if (item is BoardRow board) _boardFilterExclusions[board.WatchId] = revision;
         }
-        HashSet<T> existing = new(visible);
-        foreach (T item in result) if (existing.Add(item)) visible.Add(item);
+        for (int index = 0; index < result.Length; index++)
+        {
+            T item = result[index];
+            int currentIndex = visible.IndexOf(item);
+            if (currentIndex < 0) visible.Insert(index, item);
+            else if (currentIndex != index) visible.Move(currentIndex, index);
+        }
         // DataGrid may move currency when a result disappears; currency must not create a new selection.
-        foreach (T item in grid.SelectedItems.OfType<T>().Where(item => !included.Contains(item)).ToArray())
-            grid.SelectedItems.Remove(item);
+        HashSet<T> retained = new(retainedSelection);
+        foreach (T item in grid.SelectedItems.OfType<T>().Where(item => !retained.Contains(item)).ToArray()) grid.SelectedItems.Remove(item);
+        foreach (T item in retainedSelection) if (!grid.SelectedItems.Contains(item)) grid.SelectedItems.Add(item);
     }
 
     private void RefreshDownloadSearchPresentation()
@@ -95,6 +106,9 @@ public partial class MainWindow
         WorkspaceControl<Button>("DownloadSearchClose").IsVisible = _downloadSearchOpen;
         WorkspaceControl<Button>("DownloadSearchClear").IsVisible = active;
         TextBlock summary = WorkspaceControl<TextBlock>("DownloadSearchSummary");
+        Grid.SetColumn(summary, _downloadSearchOpen ? 1 : 0);
+        Grid.SetColumnSpan(summary, _downloadSearchOpen ? 1 : 2);
+        summary.MaxWidth = _downloadSearchOpen ? 120 : double.PositiveInfinity;
         summary.Text = active && !_downloadSearchOpen ? Texts.T("downloads.searchActive", VisibleResultCount, DownloadSearchText)
             : Texts.T("downloads.searchCount", VisibleResultCount);
         ToolTip.SetTip(summary, summary.Text);

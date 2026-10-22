@@ -7,7 +7,10 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
-public sealed record WorkStatusPresentation(string Status, string Progress, string Details, double Completion, bool CanRetry);
+public sealed record WorkStatusPresentation(string Status, string Progress, string Details, double Completion, bool CanRetry)
+{
+    public string ExceptionHint { get; init; } = string.Empty;
+}
 
 /// <summary>Passive, shared projection of authoritative work; displaying it never schedules work.</summary>
 public static class WorkStatusFormatter
@@ -31,6 +34,9 @@ public static class WorkStatusFormatter
             status += " · " + Texts.T("work.paused");
         string progress = Texts.T("work.saved", work.SavedMedia, work.Media.Count);
         List<string> details = new();
+        List<string> exceptions = new();
+        if (work.Source != ThreadSourceStateValue.Active)
+            details.Add(Texts.T(work.Source == ThreadSourceStateValue.Archived ? "work.sourceArchived" : "work.sourceEnded"));
         foreach (IGrouping<(MediaWorkStatus Status, int? HttpStatus), MediaWork> group in missing
                      .GroupBy(item => (item.Status, item.HttpStatus)))
         {
@@ -43,7 +49,10 @@ public static class WorkStatusFormatter
                 MediaWorkStatus.Expired => "work.missingCount",
                 _ => "work.pendingCount"
             };
-            progress += " · " + Texts.T(state, group.Count(), cause);
+            string summary = Texts.T(state, group.Count(), cause);
+            progress += " · " + summary;
+            if (group.Key.Status is MediaWorkStatus.Waiting or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired)
+                exceptions.Add(summary);
         }
         if (work.NextDueAt is DateTimeOffset due)
             details.Add(Texts.T("work.nextDue", due.ToLocalTime().ToString("g", Texts.Culture)));
@@ -62,6 +71,7 @@ public static class WorkStatusFormatter
         }
         double completion = work.Media.Count == 0 ? 0 : 100d * work.SavedMedia / work.Media.Count;
         bool canRetry = work.Intent != WorkIntent.Suppressed && missing.Any(item => !item.ManualAttempt);
-        return new WorkStatusPresentation(status, progress, string.Join(Environment.NewLine, details), completion, canRetry);
+        return new WorkStatusPresentation(status, progress, string.Join(Environment.NewLine, details), completion, canRetry)
+        { ExceptionHint = string.Join(" · ", exceptions) };
     }
 }

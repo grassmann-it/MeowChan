@@ -68,6 +68,7 @@ internal static class GridChecks
             window.BoardsList.Remove(second);
             tabs.SelectedIndex = 0;
         }
+        await DownloadSearchChecks.RunAsync(window);
     }
 
     private static ThreadRow CreateRow(string id, int value)

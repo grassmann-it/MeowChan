@@ -59,6 +59,46 @@ public sealed class WorkStatusPresentationTests
         Assert.False(WorkStatusFormatter.Format(work with { Media = work.Media.Select(item => item with { ManualAttempt = true }).ToArray() }).CanRetry);
     }
 
+    [Fact]
+    public void WaitingStaysWaitingBeforeDuringAndAfterGlobalPause()
+    {
+        ThreadWorkSnapshot work = Work(WorkIntent.Watching, MediaWorkStatus.Waiting);
+        WorkStatusPresentation before = WorkStatusFormatter.Format(work);
+        WorkStatusPresentation paused = WorkStatusFormatter.Format(work, true);
+        WorkStatusPresentation resumed = WorkStatusFormatter.Format(work);
+        Assert.Contains(Texts.T("work.waitingCount", 1, "404"), before.ExceptionHint);
+        Assert.Equal(before.ExceptionHint, paused.ExceptionHint);
+        Assert.Equal(before, resumed);
+        Assert.Equal(before.Details, paused.Details);
+        Assert.Contains(Texts.T("work.paused"), paused.Status);
+        Assert.DoesNotContain(Texts.T("work.paused"), resumed.Status);
+    }
+
+    [Fact]
+    public void OptionalColumnsUseTypedSnapshotsAndSuccessHasNoExceptionHint()
+    {
+        ThreadWorkSnapshot work = Work(WorkIntent.Watching, MediaWorkStatus.Waiting);
+        ThreadSnapshot snapshot = new(new ResourceId("fixture", "b", "1"), work.Url, "Fixture", "/never/read",
+            MeowChan.Interfaces.ThreadActivity.Finished, MeowChan.Interfaces.ThreadSourceState.Active,
+            null, 10, 10, new Dictionary<string, FailureInfo>(), null, new MeowChan.Downloader.DownloadCounts(0, 0))
+            { Work = work, Content = new MeowChan.Archive.ThreadContentStatus(true, null, null, null, 8) };
+        using ThreadRow row = new(new DesktopThreadEntry(1, snapshot, "Fixture", "b"));
+        Assert.Equal(2, row.SelectedMedia);
+        Assert.Equal(1, row.CompletedMedia);
+        Assert.Equal(1, row.MissingMedia);
+        Assert.Equal(0, row.MediaErrorCount);
+        Assert.Equal(8, row.ExcludedMedia);
+        Assert.Equal(End.AddMinutes(15), row.EarliestRetry);
+        Assert.True(row.HasExceptionHint);
+        row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = Work(WorkIntent.Watching, MediaWorkStatus.Succeeded) }, "Fixture", "b"));
+        Assert.False(row.HasExceptionHint);
+        Assert.Equal(0, row.MissingMedia);
+        Assert.Null(row.EarliestRetry);
+        Assert.Equal("—", row.EarliestRetryText);
+        Assert.Equal(100, row.Completion);
+        Assert.NotEqual(Texts.T("work.completed"), row.Status);
+    }
+
     private static ThreadWorkSnapshot Work(WorkIntent intent, MediaWorkStatus missingStatus) => new(
         "https://fixture.test/b/thread/1", intent, ThreadSourceStateValue.NotFound, End, false,
         new[] { Media("saved", MediaWorkStatus.Succeeded), Media("missing", missingStatus) });

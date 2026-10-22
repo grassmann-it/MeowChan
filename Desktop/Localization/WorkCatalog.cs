@@ -3,6 +3,10 @@ internal static class WorkCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("work.missingAndErrors", "{0} / {1} errors", "{0} / {1} Fehler"),
+        ("work.errorSummary", "{0} media errors", "{0} Medienfehler"),
+        ("work.sourceArchived", "The source thread is archived. Remaining media keep their existing retry limits.", "Der Quellthread ist archiviert. Für verbleibende Medien gelten die bisherigen Wiederholungsgrenzen."),
+        ("work.sourceEnded", "The source thread is no longer available. Missing media may remain after the retry deadline.", "Der Quellthread ist nicht mehr verfügbar. Nach Ende der Wiederholungsfrist können Medien fehlen."),
         ("work.watching", "Watching", "Wird beobachtet"),
         ("work.runout", "Finishing remaining work", "Nachlauf"),
         ("work.intervention", "Intervention required", "Eingriff erforderlich"),
@@ -10,8 +14,8 @@ internal static class WorkCatalog
         ("work.stopped", "Manually stopped", "Manuell beendet"),
         ("work.repairing", "Retrying missing media", "Fehlende Medien werden erneut versucht"),
         ("work.paused", "Globally paused", "Global pausiert"),
-        ("work.saved", "{0}/{1} saved", "{0}/{1} gespeichert"),
-        ("work.waitingCount", "{0} paused ({1})", "{0} pausiert ({1})"),
+        ("work.saved", "{0}/{1} saved / selected", "{0}/{1} gespeichert / ausgewählt"),
+        ("work.waitingCount", "{0} waiting ({1})", "{0} warten ({1})"),
         ("work.interventionCount", "{0} need intervention ({1})", "{0} benötigen Eingriff ({1})"),
         ("work.missingCount", "{0} missing ({1})", "{0} fehlen ({1})"),
         ("work.pendingCount", "{0} pending ({1})", "{0} ausstehend ({1})"),

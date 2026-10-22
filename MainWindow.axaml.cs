@@ -339,6 +339,7 @@ public partial class MainWindow : Window
 
     private void RefreshAdmissionResults()
     {
+        RefreshAdmissionRepair();
         Border panel = this.FindControl<Border>("AdmissionResultsPanel")!;
         StackPanel rows = this.FindControl<StackPanel>("AdmissionResultRows")!;
         panel.IsVisible = _admissionResults.Count > 0;

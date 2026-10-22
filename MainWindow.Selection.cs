@@ -84,9 +84,9 @@ public partial class MainWindow
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
     private ThreadRow[] SelectedThreads() => DownloadList(false).SelectedItems.Cast<object>().OfType<ThreadRow>()
-        .Where(UrlList.Contains).ToArray();
+        .Where(row => UrlList.Contains(row) && VisibleThreads.Contains(row)).ToArray();
     private BoardRow[] SelectedBoards() => DownloadList(true).SelectedItems.Cast<object>().OfType<BoardRow>()
-        .Where(BoardsList.Contains).ToArray();
+        .Where(row => BoardsList.Contains(row) && VisibleBoards.Contains(row)).ToArray();
     private ThreadRow? LeadThread => SelectedThreads().Length == 0 ? null
         : SelectedThreads().FirstOrDefault(row => row.WatchId == _threadLeadId) ?? SelectedThreads().FirstOrDefault();
     private BoardRow? LeadBoard => SelectedBoards().Length == 0 ? null
@@ -282,6 +282,7 @@ public partial class MainWindow
         long[] boards = SelectedBoards().Select(row => row.WatchId).ToArray();
         long? threadLead = _threadLeadId, boardLead = _boardLeadId;
         int tab = this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex;
+        long filterRevision = _downloadFilterRevision;
         var scrolls = new[] { DownloadList(false), DownloadList(true) }.Select(grid => grid.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()).ToArray();
         Vector[] offsets = scrolls.Select(scroll => scroll?.Offset ?? default).ToArray();
         return () =>
@@ -289,8 +290,8 @@ public partial class MainWindow
             if (_isClosing || !NavigateWorkspace(WorkspacePage.Downloads, activateArchive: false)) return;
             this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = tab;
             DownloadList(false).SelectedItems.Clear(); DownloadList(true).SelectedItems.Clear();
-            foreach (long id in threads) if (_threadRows.TryGetValue(id, out ThreadRow? row)) DownloadList(false).SelectedItems.Add(row);
-            foreach (long id in boards) if (_boardRows.TryGetValue(id, out BoardRow? row)) DownloadList(true).SelectedItems.Add(row);
+            foreach (long id in threads) if (_threadFilterExclusions.GetValueOrDefault(id) <= filterRevision && _threadRows.TryGetValue(id, out ThreadRow? row) && VisibleThreads.Contains(row)) DownloadList(false).SelectedItems.Add(row);
+            foreach (long id in boards) if (_boardFilterExclusions.GetValueOrDefault(id) <= filterRevision && _boardRows.TryGetValue(id, out BoardRow? row) && VisibleBoards.Contains(row)) DownloadList(true).SelectedItems.Add(row);
             _threadLeadId = threadLead; _boardLeadId = boardLead;
             Dispatcher.UIThread.Post(() =>
             {

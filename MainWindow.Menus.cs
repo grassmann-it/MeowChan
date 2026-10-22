@@ -49,7 +49,13 @@ public partial class MainWindow
         string unavailable = Texts.Language == "de" ? "Für diese Auswahl derzeit nicht verfügbar." : "Currently unavailable for this selection.";
         MenuItem Add(string id, Action action, bool available = true, int? count = null)
         {
-            var item = CommandBindings.CreateMenuItem(id, action, () => ready && available && !WorkspaceCommandBusy && !_selectionCommandRunning,
+            var item = CommandBindings.CreateMenuItem(id, () =>
+            {
+                DownloadMenuTarget? current = RevalidateDownloadMenu(frozen);
+                if (current == null) return;
+                frozen = current;
+                action();
+            }, () => ready && available && !WorkspaceCommandBusy && !_selectionCommandRunning,
                 () => ready && available ? null : unavailable);
             item.Tag = id;
             if (count is { } number && number != 1) item.Header = CommandCatalog.Label(id) + " (" + number + ")";
@@ -94,6 +100,21 @@ public partial class MainWindow
             id => frozen.Boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id)), count: frozen.WatchIds.Length);
     }
 
+    private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)
+    {
+        long[] selected = frozen.Boards ? SelectedBoards().Select(row => row.WatchId).ToArray()
+            : SelectedThreads().Select(row => row.WatchId).ToArray();
+        if (!selected.Contains(frozen.LeadWatch)) return null;
+        long[] ids = frozen.WatchIds.Where(selected.Contains).ToArray();
+        ResourceId[] threads = frozen.Threads.Where(id => SelectedThreads().Any(row => row.Snapshot.Id == id)).ToArray();
+        string[] urls = frozen.Urls.Where(url => frozen.Boards ? SelectedBoards().Any(row => row.Url == url)
+            : SelectedThreads().Any(row => row.Url == url)).ToArray();
+        return frozen with { WatchIds = ids, Threads = threads, Urls = urls,
+            Scope = frozen.Scope.Where(id => VisibleThreads.Any(row => row.Snapshot.Id == id)).ToArray(),
+            Checkable = frozen.Checkable.Where(target => ids.Contains(target.WatchId) && _session.CanRequestCheck(target)).ToArray(),
+            Retriable = frozen.Retriable.Where(target => ids.Contains(target.WatchId) && SelectedThreads().Any(row => row.WatchId == target.WatchId && row.CanRetryMedia)).ToArray() };
+    }
+
     private async Task OpenFrozenReaderAsync(DownloadMenuTarget frozen, Control origin)
     {
         OpenLargeReader(origin, frozen.Scope);
@@ -103,9 +124,9 @@ public partial class MainWindow
     private void OpenFrozenDetails(DownloadMenuTarget frozen)
     {
         DataGrid grid = DownloadList(frozen.Boards);
-        if (frozen.Boards && _boardRows.TryGetValue(frozen.LeadWatch, out BoardRow? board))
+        if (frozen.Boards && _boardRows.TryGetValue(frozen.LeadWatch, out BoardRow? board) && VisibleBoards.Contains(board))
         { _boardLeadId = board.WatchId; if (!grid.SelectedItems.Contains(board)) grid.SelectedItem = board; }
-        else if (!frozen.Boards && _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? thread))
+        else if (!frozen.Boards && _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? thread) && VisibleThreads.Contains(thread))
         { _threadLeadId = thread.WatchId; if (!grid.SelectedItems.Contains(thread)) grid.SelectedItem = thread; }
         else return;
         OpenWorkspaceDetails();

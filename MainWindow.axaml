@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop"
+        xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:ursa="https://irihi.tech/ursa"
         x:Class="MeowChan.MainWindow" x:DataType="local:MainWindow"
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
@@ -82,6 +82,9 @@
                                 MinWidth="100" MinHeight="36" VerticalAlignment="Stretch" Click="OnAddUrl" />
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" Tag="downloads.inputHint" Classes="localized muted" FontSize="13" TextWrapping="Wrap" />
+                    <ursa:Banner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch">
+                        <ScrollViewer MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="12" /></ScrollViewer>
+                    </ursa:Banner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
@@ -94,15 +97,17 @@
             </Border>
             <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
                 <Border x:Name="DownloadsPanel" Classes="panel" ClipToBounds="True">
-                    <Grid>
-                        <TabControl x:Name="DownloadsTabs" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
+                    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,Auto">
+                        <TabControl x:Name="DownloadsTabs" MinHeight="38" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
                             <TabControl.Styles>
                                 <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="12" /></Style>
                             </TabControl.Styles>
-                            <TabItem x:Name="ThreadsTab" Header="Threads">
-                                <Grid>
+                            <TabItem x:Name="ThreadsTab" Header="Threads" />
+                            <TabItem x:Name="BoardsTab" Header="Boards" />
+                        </TabControl>
+                                <Grid x:Name="ThreadsResultPanel" Grid.Row="2" Grid.ColumnSpan="2">
 <DataGrid x:Name="ThreadsDataGrid"
-                              ItemsSource="{Binding UrlList}"
+                              ItemsSource="{Binding VisibleThreads}"
                               AutoGenerateColumns="False" HeadersVisibility="Column" CanUserReorderColumns="True" CanUserSortColumns="True"
                               GridLinesVisibility="Horizontal"
                               IsReadOnly="True"
@@ -157,16 +162,17 @@
                             <DataGridTemplateColumn Header="Media / transfer" Width="300" SortMemberPath="Completion">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <StackPanel VerticalAlignment="Center" Spacing="3" ToolTip.Tip="{Binding StatusDetails}">
+                                        <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding StatusDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <TextBlock Text="{Binding Status}" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Status}" FontSize="12" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" ToolTip.Tip="{Binding Progress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="12" />
-                                                    <TextBlock Text="{Binding KnownMedia}" Classes="mono" FontSize="12" />
+                                                    <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="12" />
                                                 </StackPanel>
                                             </Grid>
-                                            <ProgressBar Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
+                                            <TextBlock Text="{Binding ExceptionHint}" IsVisible="{Binding HasExceptionHint}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding ExceptionHint}" />
+                                            <ProgressBar AutomationProperties.Name="{Binding Progress}" Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -185,6 +191,8 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Missing / errors" Width="140" SortMemberPath="MissingMedia" Binding="{Binding MissingMediaText, DataType=desktop:ThreadRow}" IsVisible="False" />
+                            <DataGridTextColumn Header="Earliest retry" Width="160" SortMemberPath="EarliestRetry" Binding="{Binding EarliestRetryText, DataType=desktop:ThreadRow}" IsVisible="False" />
                         </DataGrid.Columns>
 
                         <!-- ContextMenu for right-clicking on a row -->
@@ -194,11 +202,9 @@
                                                VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
                                                MaxWidth="360" Margin="28" TextWrapping="Wrap" IsHitTestVisible="False" />
                                 </Grid>
-                            </TabItem>
-                            <TabItem x:Name="BoardsTab" Header="Boards">
-                                <Grid>
+                                <Grid x:Name="BoardsResultPanel" Grid.Row="2" Grid.ColumnSpan="2" IsVisible="False">
 <DataGrid x:Name="BoardsDataGrid"
-                              ItemsSource="{Binding BoardsList}"
+                              ItemsSource="{Binding VisibleBoards}"
                               AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" CanUserReorderColumns="True"
                               GridLinesVisibility="Horizontal"
                               CanUserSortColumns="True"
@@ -237,14 +243,20 @@
                                                VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
                                                MaxWidth="360" Margin="28" TextWrapping="Wrap" IsHitTestVisible="False" />
                                 </Grid>
-                            </TabItem>
-                        </TabControl>
-                        <StackPanel x:Name="WorkspaceListActions" Orientation="Horizontal" Spacing="6"
-                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,4,8,0">
+                        <StackPanel x:Name="WorkspaceListActions" Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,8,0">
+                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" FontSize="12" />
+                            <Button x:Name="DownloadsMoreButton" Classes="localized subtle" Tag="downloads.more" Click="OnDownloadsMoreClick" FontSize="12" IsVisible="False" />
                             <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" Click="OnDownloadsColumnsClick" FontSize="12" />
                             <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
                             <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
                         </StackPanel>
+                        <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
+                            <TextBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
+                            <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                            <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
+                            <Button x:Name="DownloadSearchClose" Grid.Column="3" Classes="localized subtle" Tag="downloads.searchClose" Click="OnDownloadSearchClose" />
+                        </Grid>
                     </Grid>
                 </Border>
                 <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
@@ -275,9 +287,15 @@
                                         <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Margin="0,0,6,6" Click="OnRetryMissingMediaClick" />
                                         <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" Margin="0,0,6,6" />
                                     </WrapPanel>
+                                    <WrapPanel x:Name="InspectorLocalActions" Orientation="Horizontal" IsVisible="False">
+                                        <Button x:Name="InspectorReadPosts" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorReadPosts" />
+                                        <Button x:Name="InspectorGallery" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorGallery" />
+                                        <Button x:Name="InspectorHtmlExport" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorHtmlExport" />
+                                    </WrapPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Spacing="6">
                                         <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" />
+                                        <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="InspectorKnownMedia" Classes="muted" TextWrapping="Wrap" />
                                         <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" Margin="0,6,0,0" />
                                     </StackPanel>

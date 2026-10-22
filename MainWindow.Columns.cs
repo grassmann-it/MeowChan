@@ -29,6 +29,7 @@ public partial class MainWindow
         ContextMenu menu = new();
         foreach (DataGridColumn column in grid.Columns)
         {
+            if (IsAdvancedWorkColumn(column) && mode != "Advanced") continue;
             string key = gridName + "." + column.SortMemberPath;
             MenuItem item = new()
             {
@@ -38,6 +39,12 @@ public partial class MainWindow
                 IsEnabled = !column.IsVisible || CanHideDownloadColumn(gridName, column.SortMemberPath,
                     grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray())
             };
+            if (IsAdvancedWorkColumn(column))
+            {
+                string help = Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint");
+                ToolTip.SetTip(item, help);
+                Avalonia.Automation.AutomationProperties.SetHelpText(item, help);
+            }
             bool visible = column.IsVisible;
             item.Click += async (_, _) => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode);
             menu.Items.Add(item);

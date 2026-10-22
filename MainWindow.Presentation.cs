@@ -45,6 +45,8 @@ public partial class MainWindow
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
+        InitializeDownloadsHeader();
+        SetupInspectorLocalActions();
         WorkspaceControl<TextBlock>("WorkspaceVersion").Text = "v" + (typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
             ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? string.Empty);
@@ -89,6 +91,7 @@ public partial class MainWindow
         RememberNormalGeometry();
         QueueWindowPreferences();
         UpdateWorkspaceLayout();
+        UpdateDownloadsHeaderLayout();
     }
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
@@ -173,12 +176,14 @@ public partial class MainWindow
                 bool defaultVisible = column.SortMemberPath switch
                 {
                     nameof(ThreadRow.SourceBoard) => !barebones,
+                    nameof(ThreadRow.MissingMedia) or nameof(ThreadRow.EarliestRetry) => false,
                     nameof(ThreadRow.ThreadNumber) or nameof(ThreadRow.Status)
                         or nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
                     _ => true
                 };
                 string key = "ThreadsDataGrid." + column.SortMemberPath;
-                column.IsVisible = _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : defaultVisible;
+                column.IsVisible = IsAdvancedWorkColumn(column) ? advanced && (_config.ColumnVisibility.TryGetValue(key, out bool workVisible) && workVisible)
+                    : _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : defaultVisible;
             }
             foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
             {
@@ -251,6 +256,8 @@ public partial class MainWindow
                     nameof(ThreadRow.Completion) => "column.mediaTransfer",
                     nameof(ThreadRow.Queued) => "column.queued",
                     nameof(ThreadRow.Active) => "column.active",
+                    nameof(ThreadRow.MissingMedia) => "column.missingMedia",
+                    nameof(ThreadRow.EarliestRetry) => "column.earliestRetry",
                     _ => null
                 };
                 if (key != null) column.Header = Texts.T(key);
@@ -258,11 +265,11 @@ public partial class MainWindow
         }
         WorkspaceControl<TextBox>("UrlInput").PlaceholderText = Texts.T("downloads.urlPlaceholder");
         AutomationProperties.SetName(WorkspaceControl<TextBox>("UrlInput"), Texts.T("downloads.urlPlaceholder"));
-        WorkspaceControl<ComboBoxItem>("SimpleModeItem").Content = Texts.T("mode.simple");
-        WorkspaceControl<ComboBoxItem>("AdvancedModeItem").Content = Texts.T("mode.advanced");
-        WorkspaceControl<ComboBoxItem>("BarebonesModeItem").Content = Texts.T("mode.barebones");
+        RefreshWorkspaceModeDescriptions();
         AutomationProperties.SetName(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
         ToolTip.SetTip(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
+        SetupInspectorLocalActions();
+        RefreshAdmissionResults();
         UpdateThemeIcon();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
@@ -282,6 +289,7 @@ public partial class MainWindow
         ToolTip.SetTip(WorkspaceControl<ProgressBar>("InspectorProgressBar"), Texts.T("detail.knownHint"));
         UpdateWindowControls();
         RefreshSourcesPage();
+        UpdateDownloadsHeaderLayout();
     }
 
     private static void LocalizeWorkspaceControl(Control control)
@@ -300,16 +308,17 @@ public partial class MainWindow
     private void RefreshWorkspace()
     {
         if (!_workspaceInitialized) return;
+        RefreshDownloadSearch();
         foreach (ThreadRow row in UrlList) row.SetPaused(_session.IsPaused);
         RefreshMediaRetryControls();
         string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
             UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
         WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), summary);
-        WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", UrlList.Count);
-        WorkspaceControl<TabItem>("BoardsTab").Header = Texts.T("downloads.boardsCount", BoardsList.Count);
-        WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = UrlList.Count == 0;
-        WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = BoardsList.Count == 0;
+        WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", VisibleThreads.Count);
+        WorkspaceControl<TabItem>("BoardsTab").Header = Texts.T("downloads.boardsCount", VisibleBoards.Count);
+        WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = VisibleThreads.Count == 0;
+        WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = VisibleBoards.Count == 0;
         WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
@@ -324,6 +333,7 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("WorkspaceStatus").Text = Texts.T(stateKey);
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceStatus"), _session.StartupError);
         RefreshWorkspaceInspector();
+        UpdateDownloadsHeaderLayout();
     }
 
     private void RefreshDetailsToggleIcon()
@@ -354,6 +364,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceInspector()
     {
+        RefreshInspectorLocalActions();
         object? selected = GetWorkspaceSelection();
         bool hasSelection = selected != null;
         WorkspaceControl<TextBlock>("InspectorEmptyState").IsVisible = !hasSelection;
@@ -377,6 +388,8 @@ public partial class MainWindow
             error = thread.ErrorDetails;
             WorkspaceControl<SelectableTextBlock>("InspectorProgress").Text = thread.Progress;
             WorkspaceControl<ProgressBar>("InspectorProgressBar").Value = thread.Completion;
+            AutomationProperties.SetName(WorkspaceControl<ProgressBar>("InspectorProgressBar"), thread.Progress);
+            WorkspaceControl<TextBlock>("InspectorKnownMedia").Text = Texts.T("detail.knownMedia", thread.KnownMedia, thread.ExcludedMedia);
             WorkspaceControl<TextBlock>("InspectorQueue").Text = Texts.T("detail.queue") + ": " + thread.Queued + " / " + thread.Active;
         }
         else

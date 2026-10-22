@@ -18,7 +18,17 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Url => Snapshot.Url;
     public string DownloadDirectory => Snapshot.DownloadDirectory;
     public int KnownMedia => Snapshot.KnownMedia;
-    public int CompletedMedia => Snapshot.CompletedMedia;
+    public int CompletedMedia => Snapshot.Work?.SavedMedia ?? Snapshot.CompletedMedia;
+    public int SelectedMedia => Snapshot.Work?.Media.Count ?? Snapshot.SelectedMedia;
+    public int ExcludedMedia => Snapshot.Content?.ExcludedMedia ?? 0;
+    public int MissingMedia => Snapshot.Work?.MissingMedia ?? Math.Max(0, SelectedMedia - CompletedMedia);
+    public int MediaErrorCount => Snapshot.Work?.Media.Count(item => item.Status is MeowChan.Persistence.MediaWorkStatus.NeedsIntervention or MeowChan.Persistence.MediaWorkStatus.Expired)
+        ?? Snapshot.MediaFailures.Count;
+    public string MissingMediaText => Texts.T("work.missingAndErrors", MissingMedia, MediaErrorCount);
+    public DateTimeOffset? EarliestRetry => Snapshot.Work?.NextDueAt;
+    public string EarliestRetryText => EarliestRetry?.ToLocalTime().ToString("g", Texts.Culture) ?? "—";
+    public string ExceptionHint { get; private set; } = string.Empty;
+    public bool HasExceptionHint => ExceptionHint.Length > 0;
     public ThreadActivity Activity => Snapshot.Activity;
     public ThreadSourceState SourceState => Snapshot.SourceState;
     public string HostName { get; private set; } = string.Empty;
@@ -94,7 +104,8 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             _ => activity
         };
         Completion = snapshot.SelectedMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.SelectedMedia;
-        Progress = Texts.T("progress.media", snapshot.CompletedMedia, snapshot.SelectedMedia, Completion);
+        Progress = Texts.T("progress.media", CompletedMedia, SelectedMedia, Completion);
+        ExceptionHint = snapshot.MediaFailures.Count > 0 ? Texts.T("work.errorSummary", snapshot.MediaFailures.Count) : string.Empty;
         if (snapshot.Content?.ExcludedMedia > 0)
             Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;
@@ -114,6 +125,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         {
             WorkStatusPresentation presentation = WorkStatusFormatter.Format(work, _isPaused);
             Status = presentation.Status;
+            ExceptionHint = presentation.ExceptionHint;
             Progress = presentation.Status + " · " + presentation.Progress;
             if (snapshot.Content?.ExcludedMedia > 0)
                 Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
