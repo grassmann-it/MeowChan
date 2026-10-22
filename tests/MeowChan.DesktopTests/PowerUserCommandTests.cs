@@ -34,5 +34,7 @@ public sealed class PowerUserCommandTests
         Assert.Equal("Alt+PageDown", CommandCatalog.ShortcutDisplay("archive.next-page", false));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.PageDown }, "archive.next-page"));
         Assert.Null(CommandCatalog.Get("export.open-all-results-html-dialog").Shortcut);
+        Assert.NotNull(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Reader));
+        Assert.Null(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Archive));
     }
 }

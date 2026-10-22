@@ -552,7 +552,8 @@ public partial class MainWindow
             "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
         if (_largeReaderOpen)
         {
-            foreach (var pair in new[] { ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
+            foreach (var pair in new[] { ("ArchiveOpenGallery", "gallery.open"), ("ExportArchiveButton", "export.open-html-dialog"),
+                ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
                 ("ReaderPreviousThread", "reader.previous-thread"), ("ReaderNextThread", "reader.next-thread") })
                 if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
         }
@@ -580,7 +581,7 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine,
             ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _))
                 .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-                    + (CommandCatalog.ScopeHint(id) is string hint ? " · " + hint : string.Empty)));
+                    + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)));
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
         WorkspaceControl<Button>("ShellHelpClose").Focus();

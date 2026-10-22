@@ -200,9 +200,15 @@ public static class CommandCatalog
             .Replace("+Right", "+→", StringComparison.Ordinal);
     }
 
-    public static string? ScopeHint(string id)
+    public static string? ScopeHint(string id, CommandScope context = CommandScope.None)
     {
         bool german = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);
+        if (context == CommandScope.Reader && id == "gallery.open")
+            return german ? "Beitragsbereich im großen Reader · aktuell gelesener Thread"
+                : "Large reader post area · current thread";
+        if (context == CommandScope.Reader && id == "export.open-html-dialog")
+            return german ? "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen"
+                : "Current reader thread · outside inputs and dialogs";
         return id switch
         {
             "archive.select-page" => german ? "Ergebnisliste · nur diese Seite" : "Results list · this page only",
