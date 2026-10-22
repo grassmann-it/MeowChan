@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
@@ -23,6 +24,11 @@ internal static class CommandButtonContrastChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        // Dismiss earlier deliberate session/clipboard failures before sampling command pixels.
+        foreach (NotificationCard notification in window.GetVisualDescendants().OfType<NotificationCard>().ToArray())
+            notification.Close();
+        await Program.WaitUntilAsync(() => !window.GetVisualDescendants().OfType<NotificationCard>()
+            .Any(notification => notification.IsEffectivelyVisible));
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         List<string> failures = new();
         MouseDevice mouse = new();
