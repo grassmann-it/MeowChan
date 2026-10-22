@@ -193,7 +193,8 @@ public partial class ArchivePage : UserControl
                 table.ItemsSource = rows;
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 RestoreArchiveSelection(rows, selected);
-                Control<TextBlock>("ArchiveEmpty").IsVisible = rows.Length == 0;
+                _listLoaded = true;
+                UpdateArchiveEmptyState();
             }
             finally { _updatingList = false; }
             Message(string.Empty);
@@ -423,6 +424,7 @@ public partial class ArchivePage : UserControl
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
+        Control<Button>("ArchiveResetFilters").IsEnabled = ready;
         UpdateResultsExportAction(ready);
         Control<Button>("ExportArchiveButton").IsEnabled = ready && _selectedThread != null && !_exportRunning;
         Control<Button>("ArchiveHistoryBack").IsVisible = _history.Count > 0;
@@ -796,6 +798,7 @@ public partial class ArchivePage : UserControl
         }
         LocalizeExport();
         LocalizeSearch();
+        UpdateArchiveEmptyState();
         Control<Button>("ArchiveLayoutList").Content = Texts.T("gallery.list");
         Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");
         LocalizeArchiveColumns();

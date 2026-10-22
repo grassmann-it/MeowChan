@@ -23,6 +23,7 @@ internal static class ArchivePageChecks
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
         await CheckArchiveColumnsAsync(page);
+        await CheckEmptySearchAsync(window, page);
         ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
         threads.SelectedIndex = 0;
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
@@ -199,6 +200,35 @@ internal static class ArchivePageChecks
         await ArchiveNavigationChecks.RunAsync(window);
         await GalleryViewerChecks.RunAsync(window);
         Console.WriteLine("SMOKE archive: real post capture, restart, watch removal, plain offline reader, verified image preview, independent media loading and compact EN/DE pages passed.");
+    }
+
+    private static async Task CheckEmptySearchAsync(MainWindow window, ArchivePage page)
+    {
+        TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
+        ComboBox sort = page.FindControl<ComboBox>("ArchiveSort")!;
+        search.Text = "no local captured thread can match this search";
+        sort.SelectedIndex = 2;
+        await page.ApplySearchAsync();
+        Button reset = page.FindControl<Button>("ArchiveResetFilters")!;
+        Require(page.FindControl<StackPanel>("ArchiveEmptyState")!.IsVisible && reset.IsVisible
+            && page.FindControl<TextBlock>("ArchiveEmpty")!.Text == Texts.T("archive.noResults"),
+            "A filtered empty archive was presented as an empty collection.");
+        Program.CaptureWindow(window, "smoke-archive-no-search-results.png");
+        Click(reset);
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
+        Require(search.Text == string.Empty && sort.SelectedIndex == 2
+            && !page.FindControl<StackPanel>("ArchiveEmptyState")!.IsVisible,
+            "Explicit search reset failed to restore local results or changed sorting.");
+        sort.SelectedIndex = 0;
+        await page.ApplySearchAsync();
+        page.FindControl<ComboBox>("ArchiveWorkFilter")!.SelectedIndex = 4;
+        await page.ApplySearchAsync();
+        Require(page.FindControl<StackPanel>("ArchiveEmptyState")!.IsVisible && reset.IsVisible,
+            "A work filter with no matches did not expose its explicit reset.");
+        Click(reset);
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
+        Require(page.FindControl<ComboBox>("ArchiveWorkFilter")!.SelectedIndex == 0,
+            "Reset retained a restrictive work filter.");
     }
 
     private static async Task CheckSlowMediaAsync(MainWindow window, ResourceId id)

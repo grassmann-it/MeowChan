@@ -59,6 +59,10 @@ public partial class ArchivePage
         }, SelectedIndex = restore?.Scope ?? 3, MinWidth = 210 };
         TextBox search = new() { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
         TextBlock summary = new() { Name = "FavoritesSummary", TextWrapping = TextWrapping.Wrap };
+        TextBlock empty = new() { Name = "FavoritesEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        Button clearSearch = new() { Name = "FavoritesClearSearch", Content = Texts.T("viewer.favorites.clearSearch"),
+            HorizontalAlignment = HorizontalAlignment.Left, IsVisible = false };
+        StackPanel emptyState = new() { Spacing = 8, Children = { empty, clearSearch } };
         ListBox list = new() { Name = "FavoritesList", SelectionMode = SelectionMode.Single };
         list.ItemTemplate = new FuncDataTemplate<FavoriteOverviewRow>((row, _) =>
         {
@@ -83,11 +87,14 @@ public partial class ArchivePage
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 10, Margin = new Thickness(16) };
         layout.Children.Add(filters);
         layout.Children.Add(summary); Grid.SetRow(summary, 1);
-        layout.Children.Add(list); Grid.SetRow(list, 2);
+        Grid results = new();
+        results.Children.Add(list); results.Children.Add(emptyState);
+        layout.Children.Add(results); Grid.SetRow(results, 2);
         layout.Children.Add(status); Grid.SetRow(status, 3);
         layout.Children.Add(actions); Grid.SetRow(actions, 4);
         dialog.Content = layout;
         close.Click += (_, _) => dialog.Close();
+        clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
         dialog.KeyDown += (_, key) =>
         {
             if (key.Handled || key.Key != Key.Escape) return;
@@ -116,6 +123,10 @@ public partial class ArchivePage
             FavoriteOverviewRow[] rows = visible.Select(entry => new FavoriteOverviewRow(entry, missing.Contains(entry.Key))).ToArray();
             list.ItemsSource = rows;
             list.SelectedItem = rows.FirstOrDefault(row => row.Entry.Key == selection);
+            empty.IsVisible = !scopeLoading && rows.Length == 0;
+            empty.Text = Texts.T(term.Length == 0 ? "viewer.favorites.emptyScope" : "viewer.favorites.noResults");
+            clearSearch.IsVisible = empty.IsVisible && term.Length > 0;
+            list.IsVisible = !empty.IsVisible;
             RefreshActions();
             summary.Text = Texts.T("viewer.favorites.count", scoped.Length, visible.Length);
         }
@@ -124,6 +135,13 @@ public partial class ArchivePage
             FavoriteOverviewRow? selected = list.SelectedItem as FavoriteOverviewRow;
             view.IsEnabled = !scopeLoading && !actionRunning && selected is { Missing: false } && OpenFavoritesGallery != null;
             remove.IsEnabled = !scopeLoading && !actionRunning && selected != null && RemoveFavoriteAsync != null;
+            string exportLabel = Texts.T("viewer.favorites.exportShown", visible.Length);
+            export.Content = exportLabel;
+            AutomationProperties.SetName(export, exportLabel);
+            string exportHint = Texts.T("viewer.favorites.exportShownHint", visible.Length);
+            ToolTip.SetTip(export, exportHint);
+            AutomationProperties.SetHelpText(export, exportHint);
+            clearSearch.IsEnabled = !actionRunning;
             export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
             if (selected?.Missing == true) status.Text = Texts.T("viewer.favorites.unavailable", 1);
         }

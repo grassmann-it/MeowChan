@@ -23,7 +23,7 @@ public partial class ArchivePage
         string label = Texts.T("export.resultsAction", _listTotal);
         button.IsEnabled = ready && _openReader != null && _listTotal > 0
             && !Control<Border>("ArchiveExportDialog").IsVisible;
-        button.Content = "HTML…";
+        button.Content = Texts.T("export.resultsShortAction");
         ToolTip.SetTip(button, label);
         AutomationProperties.SetName(button, label);
         AutomationProperties.SetHelpText(button, Texts.T("export.resultsScope"));

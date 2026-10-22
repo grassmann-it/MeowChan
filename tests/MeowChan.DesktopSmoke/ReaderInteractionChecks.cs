@@ -9,6 +9,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Testing;
@@ -182,6 +183,17 @@ internal static class ReaderInteractionChecks
         Window dialog = window.OwnedWindows.Single(dialog => dialog.Name == "FavoritesOverviewDialog");
         ListBox list = Named<ListBox>(dialog, "FavoritesList");
         await Program.WaitUntilAsync(() => list.ItemCount == 2 && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled);
+        list.SelectedIndex = 0;
+        Require(Equals(Named<Button>(dialog, "FavoritesExportOriginals").Content, Texts.T("viewer.favorites.exportShown", 2)),
+            "Selecting one favorite hid the actual two-item export scope.");
+        Named<TextBox>(dialog, "FavoritesSearch").Text = "absent favorite search";
+        Require(Named<TextBlock>(dialog, "FavoritesEmpty").IsVisible
+            && Named<TextBlock>(dialog, "FavoritesEmpty").Text == Texts.T("viewer.favorites.noResults")
+            && Named<Button>(dialog, "FavoritesClearSearch").IsVisible,
+            "A favorite search with no matches did not offer a local search reset.");
+        Click(Named<Button>(dialog, "FavoritesClearSearch"));
+        Require(list.ItemCount == 2 && Named<ComboBox>(dialog, "FavoritesScope").SelectedIndex == 3,
+            "Clearing favorite search changed scope or lost visible favorites.");
         Named<TextBox>(dialog, "FavoritesSearch").Text = "reader.png";
         list.SelectedIndex = 0;
         dialog.UpdateLayout();
@@ -202,10 +214,16 @@ internal static class ReaderInteractionChecks
         Require(File.Exists(row.Asset.Path) && !window.SessionHost.IsFavorite(entry), "Removing a favorite deleted the original or kept the mark.");
         Require(window.SessionHost.IsFavorite(remaining) && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled,
             "Removing one of two visible favorites left the remaining original export disabled.");
+        Require(Equals(Named<Button>(dialog, "FavoritesExportOriginals").Content, Texts.T("viewer.favorites.exportShown", 1)),
+            "Removing a favorite left a stale export count.");
         await CheckRemainingFavoriteExportAsync(window, page, dialog, remaining);
         Named<ComboBox>(dialog, "FavoritesScope").SelectedIndex = 2;
         await Program.WaitUntilAsync(() => list.ItemCount == 0);
         Require(!Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled, "Empty favorites retained an enabled original export.");
+        Named<TextBox>(dialog, "FavoritesSearch").Text = string.Empty;
+        Require(Named<TextBlock>(dialog, "FavoritesEmpty").Text == Texts.T("viewer.favorites.emptyScope")
+            && !Named<Button>(dialog, "FavoritesClearSearch").IsVisible,
+            "An empty favorite scope was presented as an active search.");
         dialog.Close();
         await FlushAsync();
     }
