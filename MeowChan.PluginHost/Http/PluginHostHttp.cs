@@ -1,4 +1,5 @@
 using System.Net;
+using System.IO.Compression;
 using System.Net.Http.Headers;
 using MeowChan.Http;
 using MeowChan.PluginSdk;
@@ -70,7 +71,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                     bodyDeadline.CancelAfter(TimeSpan.FromSeconds(30));
                     if (response.Content.Headers.ContentLength > SdkLimits.MaximumMetadataBytes)
                         return Failure("metadata-too-large", "Metadata body exceeds 8 MiB.");
-                    await using Stream body = await response.Content.ReadAsStreamAsync(bodyDeadline.Token).ConfigureAwait(false);
+                    await using Stream body = await ReadDecodedBodyAsync(response.Content, bodyDeadline.Token).ConfigureAwait(false);
                     using MemoryStream buffer = new();
                     byte[] chunk = new byte[65536];
                     int count;
@@ -93,7 +94,27 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         catch (OperationCanceledException) { return Failure("http-timeout", "Metadata body deadline exceeded."); }
         catch (TimeoutException exception) { return Failure("http-timeout", exception.Message); }
         catch (HttpRequestException exception) { return Failure("http-network", exception.Message); }
+        catch (InvalidDataException exception) { return Failure("http-encoding", exception.Message); }
         catch (IOException exception) { return Failure("http-network", exception.Message); }
+    }
+    private static async Task<Stream> ReadDecodedBodyAsync(HttpContent content, CancellationToken token)
+    {
+        Stream body = await content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (content.Headers.ContentEncoding.Count > 2) throw new InvalidDataException("Too many content encodings.");
+            foreach (string encoding in content.Headers.ContentEncoding.Reverse())
+                body = encoding.ToLowerInvariant() switch
+                {
+                    "gzip" => new GZipStream(body, CompressionMode.Decompress),
+                    "deflate" => new DeflateStream(body, CompressionMode.Decompress),
+                    "br" => new BrotliStream(body, CompressionMode.Decompress),
+                    "identity" => body,
+                    _ => throw new InvalidDataException("Unsupported metadata content encoding.")
+                };
+            return body;
+        }
+        catch { await body.DisposeAsync().ConfigureAwait(false); throw; }
     }
     private static HostHttpFailure Failure(string code, string message) => new(new(code, message[..Math.Min(message.Length, 2048)]));
     public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); } }

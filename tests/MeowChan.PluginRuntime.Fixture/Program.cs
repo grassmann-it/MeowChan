@@ -20,7 +20,14 @@ using FrameCodec codec = new(Console.OpenStandardInput(), output);
 while (await codec.ReadAsync(CancellationToken.None) is WireEnvelope request)
 {
     if (request.Operation == "hello")
+    {
+        if (args[0] == "delayed")
+        {
+            await File.WriteAllTextAsync(Path.Combine(args[1], "handshake.wait"), "ready");
+            while (!File.Exists(Path.Combine(args[1], "handshake.release"))) await Task.Delay(10);
+        }
         await codec.WriteAsync(request with { Direction = "response", Payload = WireJson.Element(new HelloResponse(ProtocolVersion.Operations)), Version = args[0] == "version" ? 99 : 1 }, CancellationToken.None);
+    }
     else if (request.Operation == "describe")
         await codec.WriteAsync(request with { Direction = "response", Payload = WireJson.Element(new FixturePlugin().Describe()) }, CancellationToken.None);
     else

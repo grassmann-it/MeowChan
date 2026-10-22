@@ -11,6 +11,7 @@ internal sealed class WorkerServer
     private readonly FrameCodec _codec;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<WireEnvelope>> _services = new();
     private readonly CancellationTokenSource _shutdown = new();
+    private readonly SemaphoreSlim _serviceSlots = new(8, 8);
     private WireEnvelope? _identity;
     private WireEnvelope? _active;
     private CancellationTokenSource? _activeCancellation;
@@ -48,18 +49,18 @@ internal sealed class WorkerServer
                 }
                 if (envelope.Direction == "cancel")
                 {
-                    if (_active?.RequestId == envelope.RequestId) _activeCancellation?.Cancel();
+                    if (_active?.RequestId == envelope.RequestId && envelope.RequestId != Volatile.Read(ref _completedRequestId))
+                        _activeCancellation?.Cancel();
                     continue;
                 }
                 if (envelope.Direction != "request") throw new InvalidDataException("Unexpected frame direction.");
                 if (_active != null && _active.RequestId != Volatile.Read(ref _completedRequestId))
                     throw new InvalidDataException("Concurrent plugin calls are forbidden.");
-                _activeCancellation?.Dispose();
                 _activeCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
                 _active = envelope;
                 // Do not let synchronous plugin entrypoints block the private pipe reader/cancellation.
-                CancellationToken token = _activeCancellation.Token;
-                _activeTask = Task.Run(() => ExecuteAsync(envelope, token), CancellationToken.None);
+                CancellationTokenSource callCancellation = _activeCancellation;
+                _activeTask = Task.Run(() => ExecuteAsync(envelope, callCancellation), CancellationToken.None);
             }
             return 0;
         }
@@ -80,8 +81,9 @@ internal sealed class WorkerServer
             throw new InvalidDataException("Stale worker or execution revision.");
     }
 
-    private async Task ExecuteAsync(WireEnvelope envelope, CancellationToken token)
+    private async Task ExecuteAsync(WireEnvelope envelope, CancellationTokenSource callCancellation)
     {
+        CancellationToken token = callCancellation.Token;
         try
         {
             if (envelope.Operation == "describe")
@@ -153,6 +155,11 @@ internal sealed class WorkerServer
             try { await _codec.WriteAsync(envelope with { Direction = "error", Payload = WireJson.Element(new WireFailure(code, message)) }, _shutdown.Token).ConfigureAwait(false); }
             catch (Exception) when (_shutdown.IsCancellationRequested) { }
         }
+        finally
+        {
+            await callCancellation.CancelAsync().ConfigureAwait(false);
+            callCancellation.Dispose();
+        }
     }
 
     private Task ReplyAsync<T>(WireEnvelope request, T response)
@@ -170,7 +177,7 @@ internal sealed class WorkerServer
         token.ThrowIfCancellationRequested();
         string requestId = Guid.NewGuid().ToString("N");
         TaskCompletionSource<WireEnvelope> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (_services.Count >= 8) throw new InvalidOperationException("Too many concurrent host-service calls.");
+        if (!_serviceSlots.Wait(0)) throw new InvalidOperationException("Too many concurrent host-service calls.");
         _services[requestId] = completion;
         try
         {
@@ -184,7 +191,7 @@ internal sealed class WorkerServer
             if (response.Direction == "error") throw new InvalidOperationException(WireJson.Read<WireFailure>(response.Payload).Message);
             return WireJson.Read<TResponse>(response.Payload);
         }
-        finally { _services.TryRemove(requestId, out _); }
+        finally { _services.TryRemove(requestId, out _); _serviceSlots.Release(); }
     }
 
     private sealed class CallServices(WorkerServer server, WireEnvelope parent, CancellationToken lifetime) : IHostHttp, IImageAssetReader

@@ -164,6 +164,8 @@ public sealed class RuntimeProcessTests
         IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         PluginWorkerException exception = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("temp"), Operation));
         Assert.Equal("temporary-limit", exception.Code);
+        Assert.Equal(0, manager.GetTemporaryBytes());
+        Assert.Empty(Directory.GetDirectories(workspace.Path));
         await worker.DisposeAsync(); Assert.Empty(Directory.GetDirectories(workspace.Path));
     }
     [Fact]
@@ -243,6 +245,102 @@ public sealed class RuntimeProcessTests
         runningCancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         Assert.IsType<SdkThreadSnapshot>(await first.ReadThreadAsync(Thread(), Operation));
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task FinishingOrCrashingCallCancelsItsOutstandingHostServices(bool crash)
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        CancellableHttp http = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
+        Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread(crash ? "background-crash" : "background"), Operation);
+        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        if (crash) await Assert.ThrowsAsync<PluginWorkerException>(() => call);
+        else Assert.IsType<SdkThreadSnapshot>(await call);
+        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+    [Fact]
+    public async Task SharedTemporaryBudgetIsEnforcedEvenWithAnEmptyWorkerWorkspace()
+    {
+        using Workspace workspace = new();
+        await using PluginWorkerManager manager = new(new() { MaximumTemporaryBytes = 1024, ExternalTemporaryBytes = () => 1025 });
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        PluginWorkerException failure = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("cancel"), Operation));
+        Assert.Equal("temporary-limit", failure.Code);
+    }
+    [Fact]
+    public async Task RepeatedBackgroundServicesDoNotLeakWorkerServiceSlots()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        CancellableHttp http = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
+        for (int attempt = 0; attempt < 12; attempt++)
+            Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread("background"), Operation));
+        Assert.Equal(12, http.RequestCount);
+    }
+    [Fact]
+    public async Task ConcurrentDescribeAndTestStartUseConsistentAdmissionOrder()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new(new() { MaximumConcurrentStarts = 1 });
+        PluginWorkerLaunch delayed = Launch(workspace.Path, "delayed");
+        delayed = delayed with { Arguments = delayed.Arguments.Concat([workspace.Path]).ToArray() };
+        Task<IPluginWorkerClient> first = manager.StartAsync(delayed, Artifact(), Configuration, new Services());
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        while (!File.Exists(Path.Combine(workspace.Path, "handshake.wait"))) await Task.Delay(10, timeout.Token);
+        Task<PluginDescription> describe = manager.DescribeAsync(Launch(workspace.Path), Artifact(), timeout.Token);
+        Task<IPluginWorkerClient> test = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(), testWorker: true, cancellationToken: timeout.Token);
+        await File.WriteAllTextAsync(Path.Combine(workspace.Path, "handshake.release"), "release", timeout.Token);
+        await Task.WhenAll(first, describe, test).WaitAsync(timeout.Token);
+        await (await first).DisposeAsync(); await (await test).DisposeAsync();
+    }
+    [Fact]
+    public async Task CapacityEvictionOfCrashedWorkerPreservesRestartDelay()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new(new() { MaximumProductionWorkers = 1 });
+        await using IPluginWorkerClient first = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        await Assert.ThrowsAsync<PluginWorkerException>(() => first.ReadThreadAsync(Thread("crash"), Operation));
+        await using IPluginWorkerClient second = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        Stopwatch elapsed = Stopwatch.StartNew();
+        Assert.IsType<SdkThreadSnapshot>(await first.ReadThreadAsync(Thread(), Operation));
+        Assert.True(elapsed.Elapsed >= TimeSpan.FromSeconds(1));
+    }
+    [Fact]
+    public async Task MalformedSettingsDiagnosticsAreTypedValidationErrors()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        PluginWorkerException error = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ValidateSettingsAsync(new(SettingScope.Plugin, new("1", []), SourceId: "malformed")));
+        Assert.Equal("validation", error.Code);
+    }
+    [Fact]
+    public async Task QueuedPluginStartsAsSoonAsBusyWorkerBecomesIdle()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new(new() { MaximumProductionWorkers = 1 });
+        CancellableHttp http = new();
+        await using IPluginWorkerClient first = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
+        using CancellationTokenSource cancellation = new();
+        Task<ThreadReadResult> call = first.ReadThreadAsync(Thread("http"), Operation, cancellation.Token);
+        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Task<IPluginWorkerClient> queued = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        Assert.False(queued.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+        await using IPluginWorkerClient second = await queued.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.IsType<SdkThreadSnapshot>(await second.ReadThreadAsync(Thread(), Operation));
+        Assert.Equal("idle", first.Snapshot.State);
+    }
+    private sealed class CancellableHttp : IHostHttp
+    {
+        public int RequestCount;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref RequestCount);
+            Started.TrySetResult();
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); throw new InvalidOperationException(); }
+            catch (OperationCanceledException) { Cancelled.TrySetResult(); throw; }
+        }
     }
     private static async Task WaitExited(int pid)
     {

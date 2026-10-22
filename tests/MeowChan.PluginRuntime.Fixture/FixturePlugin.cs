@@ -2,8 +2,10 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginRuntime.Fixture;
 
-public sealed class FixturePlugin : ISourcePlugin, IImageFilterPlugin
+public sealed class FixturePlugin : ISourcePlugin, IImageFilterPlugin, IPluginSettingsValidator
 {
+    public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, PluginCallContext context, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<FieldValidationError>>(request.SourceId == "malformed" ? [new(null!, "bad", "Bad result")] : []);
     public PluginDescription Describe() => new("fixture", "Fixture", "1.0.0", SdkContract.Version, "Controlled runtime fixture",
         [new("fixture", "Fixture", new("https://fixture.test/"), SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog,
             [new(SourceResourceKind.Thread, "fixture.test", "/{board}/thread/{thread}", IsCanonical: true), new(SourceResourceKind.Board, "fixture.test", "/{board}", IsCanonical: true)],
@@ -28,6 +30,12 @@ public sealed class FixturePlugin : ISourcePlugin, IImageFilterPlugin
             case "logs": for (int i = 0; i < 2000; i++) context.Log.Write(PluginLogLevel.Information, new string('x', 2048)); break;
             case "wrong": return new ThreadNotFound(new("fixture", "b", "other"), 404);
             case "large": return Snapshot(request, new string('x', 17 * 1024 * 1024));
+            case "background":
+            case "background-crash":
+                _ = context.Http.SendAsync(new("fixture", HostHttpMethod.Get, new("https://fixture.test/background")), cancellationToken);
+                await Task.Delay(100, cancellationToken);
+                if (request.Thread.ThreadId == "background-crash") Environment.Exit(71);
+                return Snapshot(request, "finished");
             case "http":
                 HostHttpResult result = await context.Http.SendAsync(new("fixture", HostHttpMethod.Get, new("https://fixture.test/api")), cancellationToken);
                 return result switch

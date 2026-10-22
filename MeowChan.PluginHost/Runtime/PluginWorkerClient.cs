@@ -19,6 +19,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     private PluginWorkerSnapshot? _lastSnapshot;
     private bool _hadFailure;
     private bool _disposed;
+    private int _disposeStarted;
     private int _busy;
     private string _state = "starting";
     private PluginWorkerIdentity _identity;
@@ -29,7 +30,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     public PluginDescription Description { get; private set; } = null!;
     public PluginWorkerIdentity Identity => _identity;
     public PluginWorkerSnapshot Snapshot => _connection is WorkerConnection connection
-        ? connection.Snapshot with { State = _state }
+        ? connection.Snapshot with { State = connection.IsAlive ? _state : "unavailable" }
         : new(_identity, _state, null, _lastSnapshot?.FailureCode, _lastSnapshot?.FailureMessage, _lastSnapshot?.Logs ?? []);
 
     public PluginWorkerClient(PluginWorkerManager manager, PluginWorkerLaunch launch, PluginArtifact artifact,
@@ -38,7 +39,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     {
         _manager = manager; _launch = launch; _artifact = artifact; _configuration = configuration;
         _services = services; _options = options; IsTestWorker = testWorker;
-        _serial = new(1, options.MaximumQueuedCalls);
+        _serial = new(1, Math.Min(8, options.MaximumQueuedCalls));
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(shutdown);
         _identity = new("pending", artifact.ExecutionRevision, configuration.Revision);
     }
@@ -47,7 +48,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
         Interlocked.Increment(ref _busy);
         try { await EnsureConnectionAsync(linked.Token).ConfigureAwait(false); }
-        finally { Interlocked.Decrement(ref _busy); }
+        finally { Interlocked.Decrement(ref _busy); await _manager.NotifyIdleAsync(this).ConfigureAwait(false); }
     }
     private async Task<WorkerConnection> EnsureConnectionAsync(CancellationToken token)
     {
@@ -122,7 +123,8 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     public async Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<FieldValidationError> errors = await CallAsync<SettingsValidationRequest, IReadOnlyList<FieldValidationError>>("settings", request, null, cancellationToken).ConfigureAwait(false);
-        if (errors.Count > 1024 || errors.Any(error => error == null || error.FieldKey.Length > 256 || error.Code.Length > 256 || error.Message.Length > 2048))
+        if (errors.Count > 1024 || errors.Any(error => error == null || string.IsNullOrWhiteSpace(error.FieldKey) || error.FieldKey.Length > 256
+            || string.IsNullOrWhiteSpace(error.Code) || error.Code.Length > 256 || string.IsNullOrWhiteSpace(error.Message) || error.Message.Length > 2048))
             throw new PluginWorkerException("validation", "Unbounded or invalid settings diagnostics.");
         return errors;
     }
@@ -143,6 +145,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         if (context != null && (string.IsNullOrWhiteSpace(context.ResourceId) || context.ResourceId.Length > 1024 || context.Generation < 0))
             throw new ArgumentException("A valid resource identity and generation are required.", nameof(context));
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
+        using IDisposable outstanding = await _manager.OutstandingCalls.EnterAsync(linked.Token).ConfigureAwait(false);
         using IDisposable serial = await _serial.EnterAsync(linked.Token).ConfigureAwait(false);
         Interlocked.Increment(ref _busy);
         try
@@ -155,11 +158,30 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
             linked.Token.ThrowIfCancellationRequested();
             return result;
         }
+        catch
+        {
+            // A failed evaluation must not leave its process/copies occupying the shared
+            // staging budget after the caller observes failure and starts another candidate.
+            await _connectionGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_connection is { IsAlive: false })
+                {
+                    _lastSnapshot = _connection.Snapshot;
+                    _hadFailure = true;
+                    await _connection.DisposeAsync().ConfigureAwait(false);
+                    _connection = null;
+                }
+            }
+            finally { _connectionGate.Release(); }
+            throw;
+        }
         finally
         {
             LastUsed = DateTimeOffset.UtcNow;
             if (_state != "intervention-required") _state = _connection is { IsAlive: true } ? "ready" : "unavailable";
             Interlocked.Decrement(ref _busy);
+            await _manager.NotifyIdleAsync(this).ConfigureAwait(false);
         }
     }
     internal async Task<bool> EvictIfIdleAsync(TimeSpan idle)
@@ -169,6 +191,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         {
             if (Volatile.Read(ref _busy) != 0 || _connection == null) return false;
             _lastSnapshot = _connection.Snapshot;
+            _hadFailure |= !_connection.IsAlive;
             await _connection.DisposeAsync().ConfigureAwait(false); _connection = null; _state = "idle";
             return true;
         }
@@ -176,11 +199,11 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     }
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
         _disposed = true;
         await _lifetime.CancelAsync().ConfigureAwait(false);
         await _connectionGate.WaitAsync().ConfigureAwait(false);
         try { if (_connection != null) { _lastSnapshot = _connection.Snapshot; await _connection.DisposeAsync().ConfigureAwait(false); _connection = null; } _state = "stopped"; }
-        finally { _connectionGate.Release(); _manager.Remove(this); }
+        finally { _connectionGate.Release(); _manager.Remove(this); _lifetime.Dispose(); }
     }
 }

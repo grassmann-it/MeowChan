@@ -8,6 +8,7 @@ internal sealed class AsyncAdmission
     private readonly int _queueLimit;
     private int _active;
     private readonly LinkedList<Waiter> _waiting = new();
+    public bool HasWaiters { get { lock (_sync) return _waiting.Count > 0; } }
     public AsyncAdmission(int maximum, int queueLimit) { _maximum = maximum; _queueLimit = queueLimit; }
     public Task<IDisposable> EnterAsync(CancellationToken token)
     {

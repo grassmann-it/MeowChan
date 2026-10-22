@@ -11,6 +11,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
     private readonly AsyncAdmission _tests;
     private readonly AsyncAdmission _starts;
     internal readonly AsyncAdmission Calls;
+    internal readonly AsyncAdmission OutstandingCalls;
     private readonly object _sync = new();
     private readonly HashSet<PluginWorkerClient> _clients = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -25,6 +26,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         _tests = new(_options.MaximumTestWorkers, _options.MaximumQueuedCalls);
         _starts = new(_options.MaximumConcurrentStarts, _options.MaximumQueuedCalls);
         Calls = new(_options.MaximumConcurrentCalls, _options.MaximumQueuedCalls);
+        OutstandingCalls = new(_options.MaximumConcurrentCalls + _options.MaximumQueuedCalls, 0);
         _eviction = EvictLoopAsync();
     }
 
@@ -49,8 +51,8 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+        using IDisposable process = await _tests.EnterAsync(lifetime.Token).ConfigureAwait(false);
         using IDisposable starting = await _starts.EnterAsync(lifetime.Token).ConfigureAwait(false);
-        IDisposable process = await _tests.EnterAsync(lifetime.Token).ConfigureAwait(false);
         PluginConfiguration configuration = new("describe", new("1", []), new Dictionary<string, SettingsSnapshot>());
         await using WorkerConnection connection = await WorkerConnection.StartAsync(launch, artifact, configuration,
             NoHostServices.Instance, _options, process, lifetime.Token, describeOnly: true).ConfigureAwait(false);
@@ -78,18 +80,23 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         PluginWorkerClient[] idle;
         lock (_sync) idle = _clients.Where(client => !ReferenceEquals(client, owner) && client.IsTestWorker == testWorker)
             .OrderBy(client => client.LastUsed).ToArray();
-        int active = idle.Count(client => client.HasConnection) + (owner.HasConnection ? 1 : 0);
-        int maximum = testWorker ? _options.MaximumTestWorkers : _options.MaximumProductionWorkers;
-        if (active >= maximum)
+        AsyncAdmission admission = testWorker ? _tests : _production;
+        Task<IDisposable> admitted = admission.EnterAsync(token);
+        if (!admitted.IsCompleted)
             foreach (PluginWorkerClient candidate in idle)
                 if (await candidate.EvictIfIdleAsync(TimeSpan.Zero).ConfigureAwait(false)) break;
-        IDisposable process = await (testWorker ? _tests : _production).EnterAsync(token).ConfigureAwait(false);
+        IDisposable process = await admitted.ConfigureAwait(false);
         try
         {
             using IDisposable starting = await _starts.EnterAsync(token).ConfigureAwait(false);
             return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token, temporaryBytes: () => GetTemporaryBytes() + Math.Max(0, _options.ExternalTemporaryBytes?.Invoke() ?? 0)).ConfigureAwait(false);
         }
         catch { process.Dispose(); throw; }
+    }
+    internal async Task NotifyIdleAsync(PluginWorkerClient client)
+    {
+        if ((client.IsTestWorker ? _tests : _production).HasWaiters)
+            await client.EvictIfIdleAsync(TimeSpan.Zero).ConfigureAwait(false);
     }
     internal void Remove(PluginWorkerClient client) { lock (_sync) _clients.Remove(client); }
 
