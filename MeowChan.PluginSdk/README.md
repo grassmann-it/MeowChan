@@ -61,3 +61,8 @@ URL ownership; the host must resolve candidates explicitly.
 
 The package has no Core, Avalonia, Roslyn or process-transport dependency. The
 package-only example is in `samples/MeowChan.PluginSdk.Consumer`.
+
+The [plugin author guide](../docs/plugins/README.md) covers installation, source and
+filter implementation, settings/grants, optional hosting and validation. It links
+the maintained Lainchan, Kohlchan and ImageDimensionsFilter source files rather
+than duplicate documentation examples.

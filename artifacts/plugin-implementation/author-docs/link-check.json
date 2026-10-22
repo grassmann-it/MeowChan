@@ -1,0 +1,32 @@
+{
+  "relative_links": 51,
+  "errors": [],
+  "ui_label_rows": 12,
+  "compiler_probe_source_hashes": [
+    {
+      "file": "Lainchan.cs",
+      "same_source_bytes": true
+    },
+    {
+      "file": "Kohlchan.cs",
+      "same_source_bytes": true
+    }
+  ],
+  "integration_targets": [
+    "Desktop/Localization/PluginCatalog.cs",
+    "MeowChan.PluginCompiler/README.md",
+    "MeowChan.PluginHost/Compilation/CompilationContracts.cs",
+    "MeowChan.PluginHost/Configuration/IPluginProfileStore.cs",
+    "MeowChan.PluginHost/Contracts/RuntimeContracts.cs",
+    "MeowChan.PluginHost/Installation/InstallationContracts.cs",
+    "MeowChan.PluginHost/Installation/PluginBundleManifest.cs",
+    "MeowChan.PluginHost/Runtime/PluginWorkerManager.cs",
+    "MeowChan.PluginHost/Sources/PluginSourceImageBoard.cs",
+    "MeowChan.PluginHost/Sources/PluginSourceRouter.cs",
+    "plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs",
+    "plugins/Official/README.md",
+    "tests/MeowChan.OfficialPlugins.Tests/OfficialSourceTests.cs",
+    "tests/MeowChan.PluginCompiler.Tests/CompilerIntegrationTests.cs",
+    "tests/MeowChan.PluginRuntime.Tests/RuntimeProcessTests.cs"
+  ]
+}
