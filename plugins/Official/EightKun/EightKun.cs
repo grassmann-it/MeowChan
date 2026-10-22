@@ -26,11 +26,11 @@ public sealed class EightKunPlugin : ISourcePlugin
         {
             new("8kun", "8kun", new Uri("https://8kun.top/"),
                 SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
-                new UrlRoute[] { new(SourceResourceKind.Board, "8kun.top", "/{board}/", IsCanonical: true, LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "8kun.top", "/{board}/catalog", LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "8kun.top", "/{board}/catalog.html", LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "8kun.top", "/{board}/index.html", LowercaseBoardId: true),
-                new(SourceResourceKind.Thread, "8kun.top", "/{board}/res/{thread}.html", IsCanonical: true, LowercaseBoardId: true) },
+                new UrlRoute[] { new(SourceResourceKind.Board, "8kun.top", "/{board}/", IsCanonical: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "8kun.top", "/{board}/catalog", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "8kun.top", "/{board}/catalog.html", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "8kun.top", "/{board}/index.html", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Thread, "8kun.top", "/{board}/res/{thread}.html", IsCanonical: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal } },
                 new HttpHostDeclaration[] { new("8kun.top", HttpHostPurpose.Metadata), new("nerv.8kun.top", HttpHostPurpose.OriginalMedia) }, EmptySettings, PostOrderKind.DecimalPostId)
         }, Array.Empty<FilterDescription>(), EmptySettings,
         new InformationEntry[] { new("capture", "Captured content", InformationKind.Text,
@@ -115,7 +115,7 @@ internal static class EightKunParser
 
     internal static bool ValidBoard(string source, string board) => source == "8kun" && board.Length is > 0 and <= 256
         && board.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
-    internal static bool ValidId(string id) => id.Length is > 0 and <= 256 && id.All(char.IsAsciiDigit) && id.Any(character => character != '0');
+    internal static bool ValidId(string id) => id.Length is > 0 and <= 256 && id.All(char.IsAsciiDigit);
     internal static Uri ThreadUri(string board, string id) => new($"https://8kun.top/{board}/res/{id}.html");
     internal static Uri ThreadEndpoint(string board, string id) => new($"https://8kun.top/{board}/res/{id}.json");
 

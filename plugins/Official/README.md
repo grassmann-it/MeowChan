@@ -8,6 +8,9 @@ references plus `MeowChan.PluginSdk`. Its project builds a precompiled assembly:
 | `4chan` | `meowchan.official.4chan` | `FourChan/FourChan.cs` | `MeowChan.Plugin.FourChan.dll` |
 | `8kun` | `meowchan.official.8kun` | `EightKun/EightKun.cs` | `MeowChan.Plugin.EightKun.dll` |
 
+All board routes declare ASCII word identifiers and all thread routes declare
+decimal identifiers, matching the legacy URL grammar without worker IPC.
+
 Both have a public parameterless entry point (`FourChanPlugin` / `EightKunPlugin`
 in `MeowChan.OfficialSources.FourChan` / `.EightKun`). Descriptions are static,
 have an empty version-1 settings schema, and declare catalog, thread, post and

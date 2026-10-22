@@ -26,12 +26,12 @@ public sealed class FourChanPlugin : ISourcePlugin
         {
             new("4chan", "4chan", new Uri("https://boards.4chan.org/"),
                 SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
-                new UrlRoute[] { new(SourceResourceKind.Board, "boards.4chan.org", "/{board}/", IsCanonical: true, LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "boards.4chan.org", "/{board}/catalog", LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/", LowercaseBoardId: true),
-                new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/catalog", LowercaseBoardId: true),
-                new(SourceResourceKind.Thread, "boards.4chan.org", "/{board}/thread/{thread}", IsCanonical: true, AllowTitleSegment: true, LowercaseBoardId: true),
-                new(SourceResourceKind.Thread, "boards.4channel.org", "/{board}/thread/{thread}", AllowTitleSegment: true, LowercaseBoardId: true) },
+                new UrlRoute[] { new(SourceResourceKind.Board, "boards.4chan.org", "/{board}/", IsCanonical: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "boards.4chan.org", "/{board}/catalog", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/catalog", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.Thread, "boards.4chan.org", "/{board}/thread/{thread}", IsCanonical: true, AllowTitleSegment: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal },
+                new(SourceResourceKind.Thread, "boards.4channel.org", "/{board}/thread/{thread}", AllowTitleSegment: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal } },
                 new HttpHostDeclaration[] { new("a.4cdn.org", HttpHostPurpose.Metadata), new("i.4cdn.org", HttpHostPurpose.OriginalMedia) }, EmptySettings, PostOrderKind.DecimalPostId)
         }, Array.Empty<FilterDescription>(), EmptySettings,
         new InformationEntry[] { new("capture", "Captured content", InformationKind.Text,
@@ -116,7 +116,7 @@ internal static class FourChanParser
 
     internal static bool ValidBoard(string source, string board) => source == "4chan" && board.Length is > 0 and <= 256
         && board.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
-    internal static bool ValidId(string id) => id.Length is > 0 and <= 256 && id.All(char.IsAsciiDigit) && id.Any(character => character != '0');
+    internal static bool ValidId(string id) => id.Length is > 0 and <= 256 && id.All(char.IsAsciiDigit);
     internal static Uri ThreadUri(string board, string id) => new($"https://boards.4chan.org/{board}/thread/{id}");
     internal static Uri ThreadEndpoint(string board, string id) => new($"https://a.4cdn.org/{board}/thread/{id}.json");
 

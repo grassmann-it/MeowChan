@@ -46,6 +46,8 @@ public sealed class OfficialSourceTests
         Assert.Equal(eightKun ? 5 : 6, source.Routes.Count);
         foreach (UrlRoute route in source.Routes)
         {
+            Assert.Equal(RouteIdentifierKind.AsciiWord, route.BoardIdentifierKind);
+            if (route.Kind == SourceResourceKind.Thread) Assert.Equal(RouteIdentifierKind.Decimal, route.ThreadIdentifierKind);
             string path = route.PathTemplate.Replace("{board}", "G", StringComparison.Ordinal)
                 .Replace("{thread}", "000123", StringComparison.Ordinal);
             if (route.AllowTitleSegment) path = path.TrimEnd('/') + "/inert-title";
@@ -146,6 +148,19 @@ public sealed class OfficialSourceTests
         CatalogSnapshot catalog = Assert.IsType<CatalogSnapshot>(await plugin.ReadCatalogAsync(request,
             Context(new FixtureHttp(Response(200, "\uFEFF[{\"threads\":[{\"no\":123}]}]")))));
         Assert.Equal("123", Assert.Single(catalog.Snapshot.Threads).Id.ThreadId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DecimalUrlIdentityIsNotRewrittenOrRejectedBeforeProviderResponse(bool eightKun)
+    {
+        ISourcePlugin plugin = Plugin(eightKun);
+        ThreadReadRequest request = new(new SourceThreadId(eightKun ? "8kun" : "4chan", "g", "0000"));
+        FixtureHttp http = new(Response(404, ""));
+        ThreadNotFound result = Assert.IsType<ThreadNotFound>(await plugin.ReadThreadAsync(request, Context(http)));
+        Assert.Equal("0000", result.Thread.ThreadId);
+        Assert.Equal(eightKun ? "https://8kun.top/g/res/0000.json" : "https://a.4cdn.org/g/thread/0000.json", Assert.Single(http.Requests).Url.AbsoluteUri);
     }
 
     [Theory]
