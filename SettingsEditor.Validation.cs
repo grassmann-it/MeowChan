@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
@@ -10,6 +11,23 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private Control? _firstInvalidInput;
+    private (NumericUpDown Input, string? Text)[]? _controlLanguageDrafts;
+
+    private void OnControlLanguageChanging()
+    {
+        if (!_isClosed)
+            _controlLanguageDrafts = NumericFields().Select(field => (field.Input, field.Input.Text)).ToArray();
+    }
+
+    private void OnControlLanguageChanged()
+    {
+        var drafts = _controlLanguageDrafts;
+        _controlLanguageDrafts = null;
+        if (_isClosed || drafts == null) return;
+        foreach (var draft in drafts)
+            if (draft.Input.Text != draft.Text) draft.Input.Text = draft.Text;
+    }
+
     private readonly Dictionary<string, string> _fieldHelpErrors = new();
     private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out string? error) ? error : baseline;
     public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);

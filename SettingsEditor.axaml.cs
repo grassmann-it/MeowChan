@@ -164,6 +164,8 @@ namespace MeowChan
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
 
+            App.ControlLanguageChanging += OnControlLanguageChanging;
+            App.ControlLanguageChanged += OnControlLanguageChanged;
             Texts.Changed += OnLanguageChanged;
         }
 
@@ -383,6 +385,9 @@ namespace MeowChan
             if (_isClosed) return;
             _isClosed = true;
             Texts.Changed -= OnLanguageChanged;
+            App.ControlLanguageChanging -= OnControlLanguageChanging;
+            App.ControlLanguageChanged -= OnControlLanguageChanged;
+            _controlLanguageDrafts = null;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
         }

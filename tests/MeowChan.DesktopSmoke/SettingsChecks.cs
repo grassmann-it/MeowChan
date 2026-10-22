@@ -52,6 +52,13 @@ internal static class SettingsChecks
                     window.Editor.CancelChanges();
                     NumericUpDown input = window.Editor.FindControl<NumericUpDown>(name)!;
                     input.Text = "invalid draft";
+                    // App changes the vendor locale before the editor's Texts handler.
+                    // Preserve raw text even before Save has created a field error.
+                    Texts.SetLanguage(language == "en" ? "de" : "en");
+                    Require(input.Text == "invalid draft" && !window.Editor.HasError && commits == 0,
+                        "The vendor locale refresh replaced an unvalidated numeric draft or committed it.");
+                    Texts.SetLanguage(language);
+                    Require(input.Text == "invalid draft", "Restoring the vendor locale replaced an unvalidated numeric draft.");
                     Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
                     TextBlock error = window.Editor.FindControl<TextBlock>(name + "Error")!;
                     await WaitUntilAsync(() => !window.Editor.IsBusy && error.IsEffectivelyVisible

@@ -15,6 +15,10 @@ namespace MeowChan;
 
 public partial class App : Application
 {
+    // Vendor locale changes reformat numeric editors before Texts.Changed reaches
+    // their later subscribers. Give draft owners a scope around that mutation.
+    internal static event Action? ControlLanguageChanging;
+    internal static event Action? ControlLanguageChanged;
     public override void Initialize()
     {
         LinuxHarfBuzzBootstrap.EnsureLoaded();
@@ -34,11 +38,16 @@ public partial class App : Application
         // Vendor controls require a supported specific culture. Unknown language
         // packs retain the application's English fallback instead of Chinese defaults.
         CultureInfo culture = CultureInfo.GetCultureInfo(Texts.Culture.TwoLetterISOLanguageName == "de" ? "de-DE" : "en-US");
-        foreach (Avalonia.Styling.IStyle style in Styles)
+        ControlLanguageChanging?.Invoke();
+        try
         {
-            if (style is SemiTheme semi) semi.Locale = culture;
-            else if (style is UrsaSemiTheme ursa) ursa.Locale = culture;
+            foreach (Avalonia.Styling.IStyle style in Styles)
+            {
+                if (style is SemiTheme semi) semi.Locale = culture;
+                else if (style is UrsaSemiTheme ursa) ursa.Locale = culture;
+            }
         }
+        finally { ControlLanguageChanged?.Invoke(); }
     }
 
     protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
