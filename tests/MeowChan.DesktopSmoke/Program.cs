@@ -35,17 +35,19 @@ internal static class Program
     private static bool _readerUxMode;
     private static bool _galleryCloseOnly;
     private static bool _selectionMode;
+    private static bool _aboutLinksMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links]");
             return 2;
         }
 
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
+        _aboutLinksMode = args.Contains("--about-links", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _galleryCloseOnly = _readerUxMode && Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_ONLY") == "1";
@@ -146,6 +148,7 @@ internal static class Program
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
                 : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
                 : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
+                : _aboutLinksMode ? "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -196,6 +199,13 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (_aboutLinksMode)
+            {
+                await AboutLinkChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (_selectionMode)
             {
                 await ShellPresentationChecks.RunAsync(mainWindow);
