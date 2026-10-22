@@ -8,10 +8,11 @@ internal static class ProcessGroup
     {
         if (!OperatingSystem.IsWindows()) SetProcessGroup(0, 0);
     }
-    public static void KillWorkerGroup(int processId)
+    public static bool IsWorkerGroup(int processId) => !OperatingSystem.IsWindows() && GetProcessGroup(processId) == processId;
+    public static void KillWorkerGroup(int processId, bool previouslyConfirmed = false)
     {
         // Only target a distinct process group led by this owned worker. Never the host group.
-        if (!OperatingSystem.IsWindows() && GetProcessGroup(processId) == processId)
+        if (!OperatingSystem.IsWindows() && (previouslyConfirmed || IsWorkerGroup(processId)))
             SendSignal(-processId, 9);
     }
     [DllImport("libc", EntryPoint = "setpgid", SetLastError = true)] private static extern int SetProcessGroup(int pid, int pgid);

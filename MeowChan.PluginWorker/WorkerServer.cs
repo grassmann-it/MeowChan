@@ -15,6 +15,7 @@ internal sealed class WorkerServer
     private WireEnvelope? _active;
     private CancellationTokenSource? _activeCancellation;
     private Task? _activeTask;
+    private string? _completedRequestId;
     private IPlugin? _plugin;
     private PluginDescription? _description;
     private PluginConfiguration? _configuration;
@@ -51,7 +52,8 @@ internal sealed class WorkerServer
                     continue;
                 }
                 if (envelope.Direction != "request") throw new InvalidDataException("Unexpected frame direction.");
-                if (_activeTask is { IsCompleted: false }) throw new InvalidDataException("Concurrent plugin calls are forbidden.");
+                if (_active != null && _active.RequestId != Volatile.Read(ref _completedRequestId))
+                    throw new InvalidDataException("Concurrent plugin calls are forbidden.");
                 _activeCancellation?.Dispose();
                 _activeCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
                 _active = envelope;
@@ -137,17 +139,30 @@ internal sealed class WorkerServer
                 default: throw new InvalidDataException("Unsupported mandatory operation: " + envelope.Operation);
             }
         }
+        catch (OutOfMemoryException)
+        {
+            Console.Error.WriteLine("MEOWCHAN_WORKER_MEMORY_LIMIT");
+            Environment.Exit(72);
+            throw;
+        }
         catch (Exception exception)
         {
-            string code = exception is OperationCanceledException ? "cancelled" : exception is InvalidDataException ? "protocol" : "plugin-error";
+            string code = exception is OperationCanceledException ? "cancelled" : exception is FrameLimitException ? "frame-too-large" : exception is InvalidDataException ? "protocol" : "plugin-error";
             string message = exception.Message.Length > 2048 ? exception.Message[..2048] : exception.Message;
+            Volatile.Write(ref _completedRequestId, envelope.RequestId);
             try { await _codec.WriteAsync(envelope with { Direction = "error", Payload = WireJson.Element(new WireFailure(code, message)) }, _shutdown.Token).ConfigureAwait(false); }
             catch (Exception) when (_shutdown.IsCancellationRequested) { }
         }
     }
 
-    private Task ReplyAsync<T>(WireEnvelope request, T response) =>
-        _codec.WriteAsync(request with { Direction = "response", Payload = WireJson.Element(response) }, _shutdown.Token);
+    private Task ReplyAsync<T>(WireEnvelope request, T response)
+    {
+        WireEnvelope reply = request with { Direction = "response", Payload = WireJson.Element(response) };
+        // Publishing completion precedes writing the response: the host may issue its next
+        // serial request as soon as these bytes arrive, before our async task continuation runs.
+        Volatile.Write(ref _completedRequestId, request.RequestId);
+        return _codec.WriteAsync(reply, _shutdown.Token);
+    }
 
     private async Task<TResponse> ServiceAsync<TRequest, TResponse>(WireEnvelope parent, string operation,
         TRequest request, CancellationToken token)

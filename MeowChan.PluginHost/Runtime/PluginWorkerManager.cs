@@ -57,6 +57,12 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         return connection.Description;
     }
 
+    public long GetTemporaryBytes()
+    {
+        PluginWorkerClient[] clients;
+        lock (_sync) clients = _clients.ToArray();
+        return clients.Sum(client => client.GetTemporaryBytes());
+    }
     public IReadOnlyList<PluginWorkerSnapshot> GetSnapshots()
     {
         lock (_sync) return _clients.Select(client => client.Snapshot).ToArray();
@@ -81,7 +87,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         try
         {
             using IDisposable starting = await _starts.EnterAsync(token).ConfigureAwait(false);
-            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token).ConfigureAwait(false);
+            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token, temporaryBytes: () => GetTemporaryBytes() + Math.Max(0, _options.ExternalTemporaryBytes?.Invoke() ?? 0)).ConfigureAwait(false);
         }
         catch { process.Dispose(); throw; }
     }

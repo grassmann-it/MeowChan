@@ -9,6 +9,8 @@ namespace MeowChan.PluginHost.Runtime;
 internal sealed class WorkerConnection : IAsyncDisposable
 {
     private readonly Process _process;
+    private readonly OwnedProcessTree _processTree;
+    private readonly Func<long>? _temporaryBytes;
     private readonly FrameCodec _codec;
     private readonly PluginWorkerOptions _options;
     private readonly IPluginHostServices _services;
@@ -30,20 +32,21 @@ internal sealed class WorkerConnection : IAsyncDisposable
         (_failure as PluginWorkerException)?.Code ?? (_failure != null ? "worker-exit" : null), _failure?.Message, _log.Snapshot());
 
     private WorkerConnection(Process process, PluginWorkerIdentity identity, PluginWorkerOptions options,
-        IPluginHostServices services, IDisposable processLease, string workingDirectory)
+        IPluginHostServices services, IDisposable processLease, string workingDirectory, Func<long>? temporaryBytes)
     {
-        _workingDirectory = workingDirectory;
+        _workingDirectory = workingDirectory; _temporaryBytes = temporaryBytes;
+        _processTree = new OwnedProcessTree(process);
         _process = process; Identity = identity; _options = options; _services = services; _processLease = processLease;
         _codec = new(process.StandardOutput.BaseStream, process.StandardInput.BaseStream);
         _log = new(options.MaximumLogBytes);
-        _reader = ReadLoopAsync();
         _logs = ReadLogsAsync();
+        _reader = ReadLoopAsync();
         _temporaryMonitor = MonitorTemporaryAsync();
     }
 
     public static async Task<WorkerConnection> StartAsync(PluginWorkerLaunch launch, PluginArtifact artifact,
         PluginConfiguration configuration, IPluginHostServices services, PluginWorkerOptions options,
-        IDisposable processLease, CancellationToken token, bool describeOnly = false)
+        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null)
     {
         Process? process = null;
         WorkerConnection? connection = null;
@@ -64,8 +67,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             start.Environment["DOTNET_EnableDiagnostics"] = "0";
             process = Process.Start(start) ?? throw new PluginWorkerException("start", "Worker process could not be started.");
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { }
-            connection = new WorkerConnection(process, new(Guid.NewGuid().ToString("N"), artifact.ExecutionRevision, configuration.Revision), options, services, processLease, workingDirectory);
+            connection = new WorkerConnection(process, new(Guid.NewGuid().ToString("N"), artifact.ExecutionRevision, configuration.Revision), options, services, processLease, workingDirectory, temporaryBytes);
             HelloResponse hello = await connection.InvokeAsync<HelloRequest, HelloResponse>("hello", new(ProtocolVersion.Operations), null, options.HandshakeTimeout, token).ConfigureAwait(false);
+            connection._processTree.ConfirmGroup();
             if (ProtocolVersion.Operations.Any(operation => !hello.Operations.Contains(operation)))
                 throw new PluginWorkerException("protocol", "Worker does not implement the required operations.");
             PluginDescription description = await connection.InvokeAsync<InitializeRequest, PluginDescription>("describe",
@@ -118,13 +122,13 @@ internal sealed class WorkerConnection : IAsyncDisposable
                 await _codec.WriteAsync(envelope with { Direction = "cancel" }, grace.Token).ConfigureAwait(false);
                 await pending.Completion.Task.WaitAsync(grace.Token).ConfigureAwait(false);
             }
-            catch (Exception) { Fail(new PluginWorkerException("unresponsive", "Worker did not cooperate with cancellation.")); Kill(_process); }
+            catch (Exception) { Fail(new PluginWorkerException("unresponsive", "Worker did not cooperate with cancellation.")); _processTree.Kill(); }
             if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
             throw new PluginWorkerException("timeout", "Plugin operation exceeded its deadline.");
         }
         catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or InvalidDataException)
         {
-            Fail(new PluginWorkerException("protocol", exception.Message, exception)); Kill(_process);
+            Fail(new PluginWorkerException("protocol", exception.Message, exception)); _processTree.Kill();
             throw new PluginWorkerException("protocol", "Invalid or closed worker protocol.", exception);
         }
         finally { _pending.TryRemove(id, out _); }
@@ -160,7 +164,23 @@ internal sealed class WorkerConnection : IAsyncDisposable
             if (!_lifetime.IsCancellationRequested) throw new EndOfStreamException("Worker closed its private protocol channel.");
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception exception) { Fail(new PluginWorkerException(exception is EndOfStreamException ? "worker-exit" : "protocol", exception.Message, exception)); Kill(_process); }
+        catch (Exception exception)
+        {
+            string code = exception is FrameLimitException ? "frame-too-large" : exception is EndOfStreamException ? "worker-exit" : "protocol";
+            if (exception is EndOfStreamException)
+            {
+                try
+                {
+                    await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+                    await _logs.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+                    if (_process.ExitCode == 72 && _log.Snapshot().Any(line => line.Contains("MEOWCHAN_WORKER_MEMORY_LIMIT", StringComparison.Ordinal)))
+                        code = "memory-limit";
+                }
+                catch (Exception exitFailure) when (exitFailure is TimeoutException or InvalidOperationException) { }
+            }
+            Fail(new PluginWorkerException(code, code == "memory-limit" ? "Worker reached its configured managed heap limit." : exception.Message, exception));
+            _processTree.Kill();
+        }
     }
 
     private static void CheckCorrelation(WireEnvelope response, WireEnvelope request, bool service)
@@ -224,6 +244,21 @@ internal sealed class WorkerConnection : IAsyncDisposable
         }
         catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException) { }
     }
+    public long GetTemporaryBytes()
+    {
+        try
+        {
+            long total = 0; int count = 0;
+            EnumerationOptions enumeration = new() { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
+            foreach (string file in Directory.EnumerateFiles(_workingDirectory, "*", enumeration))
+            {
+                if (++count > 10000) return _options.MaximumTemporaryBytes + 1;
+                try { total = checked(total + new FileInfo(file).Length); } catch (IOException) { }
+            }
+            return total;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return 0; }
+    }
     private async Task MonitorTemporaryAsync()
     {
         try
@@ -238,10 +273,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
                 {
                     _lifetime.Token.ThrowIfCancellationRequested();
                     total += new FileInfo(file).Length;
-                    if (++count > 10000 || total > _options.MaximumTemporaryBytes)
+                    if (++count > 10000 || total > _options.MaximumTemporaryBytes || (_temporaryBytes?.Invoke() ?? total) > _options.MaximumTemporaryBytes)
                     {
                         Fail(new PluginWorkerException("temporary-limit", "Worker exceeded its temporary workspace budget."));
-                        Kill(_process); return;
+                        _processTree.Kill(); return;
                     }
                 }
             }
@@ -271,10 +306,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         Fail(new PluginWorkerException("stopped", "Plugin worker was stopped."));
         await _lifetime.CancelAsync().ConfigureAwait(false);
-        Kill(_process);
+        _processTree.Kill();
         try { await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (TimeoutException) { }
         try { await Task.WhenAll(_reader, _logs, _temporaryMonitor).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (Exception) { }
-        _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); TryDeleteWorkspace(_workingDirectory);
+        _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); TryDeleteWorkspace(_workingDirectory);
     }
     private sealed record Pending(WireEnvelope Envelope, PluginOperationContext? Context, CancellationToken Token, object? Request)
     {

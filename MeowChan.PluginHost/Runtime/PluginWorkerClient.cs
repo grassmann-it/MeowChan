@@ -23,6 +23,7 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     private string _state = "starting";
     private PluginWorkerIdentity _identity;
     public bool IsTestWorker { get; }
+    internal long GetTemporaryBytes() => _connection?.GetTemporaryBytes() ?? 0;
     public bool HasConnection => _connection != null;
     public DateTimeOffset LastUsed { get; private set; } = DateTimeOffset.UtcNow;
     public PluginDescription Description { get; private set; } = null!;

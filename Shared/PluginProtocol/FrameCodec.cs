@@ -19,7 +19,7 @@ internal sealed class FrameCodec : IDisposable
         await _input.ReadExactlyAsync(prefix.AsMemory(1), cancellationToken).ConfigureAwait(false);
         int length = BinaryPrimitives.ReadInt32LittleEndian(prefix);
         if (length <= 0 || length > ProtocolVersion.MaximumFrameBytes)
-            throw new InvalidDataException("The protocol frame length is outside the allowed range.");
+            throw new FrameLimitException("The protocol frame length is outside the allowed range.");
         byte[] bytes = new byte[length];
         await _input.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
         WireEnvelope envelope = JsonSerializer.Deserialize<WireEnvelope>(bytes, WireJson.Options)
@@ -34,7 +34,7 @@ internal sealed class FrameCodec : IDisposable
     {
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, WireJson.Options);
         if (bytes.Length > ProtocolVersion.MaximumFrameBytes)
-            throw new InvalidDataException("The protocol frame exceeds 16 MiB.");
+            throw new FrameLimitException("The protocol frame exceeds 16 MiB.");
         byte[] prefix = new byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(prefix, bytes.Length);
         await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -48,3 +48,5 @@ internal sealed class FrameCodec : IDisposable
     }
     public void Dispose() => _writer.Dispose();
 }
+
+internal sealed class FrameLimitException(string message) : IOException(message);
