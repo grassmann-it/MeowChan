@@ -110,6 +110,7 @@ internal static class PluginManagementChecks
                 Require(card.IsFocused && page.FindControl<Grid>("PluginListPane")!.IsVisible, "Back did not restore focus to the same plugin card.");
                 card.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             }
+            await CapturePluginDraftAndPendingAsync(window, page, profile, original.Artifact!, production, productionIdentity);
             Texts.SetLanguage("en");
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/hang";
             Task pending = page.ProbeAsync();
@@ -173,12 +174,14 @@ internal static class PluginManagementChecks
             Require(Grant("plugins.grantSource").Text == "fixture-source", "Grant save lost the target source.");
             Grant("plugins.grantBoard").Text = "b"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             Require(page.GetVisualDescendants().OfType<TextBlock>().Single(label => label.Name == "RuleFilterGrantStatus").Text == Texts.T("plugins.accessGranted"), "A source-wide grant was not effective for its board.");
+            await CaptureGrantStateAsync(window, page, granted: true);
             Button revoke = page.GetVisualDescendants().OfType<Button>().Single(button => button.Tag is PluginGrantScope);
             Require(((PluginGrantScope)revoke.Tag!).BoardId == null, "The revoke action lost the broader grant origin.");
             revoke.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Program.WaitUntilAsync(() => !page.IsBusy);
             PluginProfileSnapshot revoked = await profile.ReadAsync();
             Require(!PluginGrantAuthorization.Resolve(revoked, "fixture.management", "fixture-filter", "fixture-source", "b", MeowChan.PluginHost.Filters.FilterRuleIdentity.ForScope(MediaRuleScope.Global)).Allows(FilterDataAccess.OriginalImage), "Revocation left the displayed broader grant effective.");
             Require(Grant("plugins.grantBoard").Text == "b", "Grant refresh lost the target board.");
+            await CaptureGrantStateAsync(window, page, granted: false);
             await RevealAsync(window, Grant("plugins.grantBoard"));
             Program.CaptureWindow(window, "smoke-plugin-filter-rule-grants.png");
             MediaRule oldSchema = baseline with { ImageFilter = new(MediaImageFilterMode.Plugin, "fixture.management", "fixture-filter", "1", new Dictionary<string, string> { ["rule-label"] = "old label", ["removed"] = "do not silently drop" }) };
@@ -191,6 +194,131 @@ internal static class PluginManagementChecks
             Console.WriteLine("PLUGIN RULE UI PASS: real worker domain rejection, persistent field errors, real Core commit, effective broader grant/revoke, retained targets and explicit schema migration.");
         }
         finally { page.EndLifetime(); host.Content = retained; }
+    }
+    private static async Task CapturePluginDraftAndPendingAsync(MainWindow window, PluginsPage page, PluginProfileStore profile,
+        PluginArtifact activeArtifact, IPluginWorkerClient production, string productionIdentity)
+    {
+        await AtBarebonesMinimumAsync(window, async () =>
+        {
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                TextBox field = page.GetVisualDescendants().OfType<TextBox>().Single(input => input.Name == "PluginField_label");
+                Button save = page.FindControl<Button>("PluginSave")!;
+                TextBlock draftStatus = page.FindControl<TextBlock>("PluginDraftStatus")!;
+                Require(field.Text == "retained draft" && page.CurrentDraft?.Dirty == true && save.IsEnabled
+                    && draftStatus.Text == Texts.T("plugins.draft"), "Draft capture does not represent a saveable unsaved edit.");
+                await RevealAsync(window, field);
+                Program.CaptureWindow(window, "smoke-plugins-draft-field-barebones-" + language + ".png");
+                await RevealRangeAsync(window, draftStatus, save);
+                Program.CaptureWindow(window, "smoke-plugins-draft-actions-barebones-" + language + ".png");
+            }
+            page.FindControl<Button>("PluginSave")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentDraft?.Dirty == false);
+            PluginActivationSnapshot saved = (await profile.ReadAsync()).Plugins.Single();
+            PluginReleaseSnapshot active = saved.Active ?? throw new InvalidOperationException("Saving settings lost the active release.");
+            PluginReleaseSnapshot pending = saved.Pending ?? throw new InvalidOperationException("Saving settings did not stage a pending release.");
+            Require(active.ExecutionRevision == activeArtifact.ExecutionRevision && pending.ExecutionRevision != active.ExecutionRevision
+                && active.Configuration.PluginSettings.Values.Single(value => value.Key == "label").Text == "fixture"
+                && pending.Configuration.PluginSettings.Values.Single(value => value.Key == "label").Text == "retained draft",
+                "Saving the plugin draft did not retain the active build while staging the tested build and settings.");
+            Require(production.Identity.InstanceId == productionIdentity && production.Snapshot.State != "stopped", "Saving settings replaced the productive worker.");
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                TextBlock status = page.FindControl<TextBlock>("PluginStatus")!;
+                string statusText = status.Text ?? string.Empty;
+                Require(statusText.Contains(Texts.T("plugins.activeRevision", string.Empty).Trim(), StringComparison.Ordinal)
+                    && statusText.Contains(Texts.T("plugins.pendingRevision", string.Empty).Trim(), StringComparison.Ordinal)
+                    && statusText.Contains(active.ExecutionRevision[..12], StringComparison.Ordinal)
+                    && statusText.Contains(pending.ExecutionRevision[..12], StringComparison.Ordinal),
+                    "The active/pending capture omits a persisted revision or its distinct status label.");
+                await RevealAsync(window, status);
+                Program.CaptureWindow(window, "smoke-plugins-active-pending-barebones-" + language + ".png");
+            }
+            Console.WriteLine("PLUGIN SETTINGS CAPTURE: real UI save retained active " + active.ExecutionRevision
+                + " and staged pending " + pending.ExecutionRevision + "; pending label=retained draft.");
+        });
+    }
+    private static async Task CaptureGrantStateAsync(MainWindow window, RulesPage page, bool granted)
+    {
+        await AtBarebonesMinimumAsync(window, async () =>
+        {
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                TextBlock status = page.GetVisualDescendants().OfType<TextBlock>().Single(label => label.Name == "RuleFilterGrantStatus");
+                TextBox source = page.GetVisualDescendants().OfType<TextBox>().Single(input => Avalonia.Automation.AutomationProperties.GetName(input) == Texts.T("plugins.grantSource"));
+                TextBox board = page.GetVisualDescendants().OfType<TextBox>().Single(input => Avalonia.Automation.AutomationProperties.GetName(input) == Texts.T("plugins.grantBoard"));
+                Button allow = page.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Texts.T("plugins.grantRequired")));
+                Require(source.Text == "fixture-source" && board.Text == "b" && status.Text == Texts.T(granted ? "plugins.accessGranted" : "plugins.accessMissing"),
+                    "Grant capture does not show the verified target and effective access state.");
+                string prefix = "smoke-plugins-grant-" + (granted ? "effective" : "revoked") + "-barebones-" + language;
+                await RevealRangeAsync(window, source, status);
+                Require(InScrollViewport(board), "Board field is clipped between source and grant status.");
+                Program.CaptureWindow(window, prefix + "-scope.png");
+                if (granted)
+                {
+                    Button revoke = page.GetVisualDescendants().OfType<Button>().Single(button => button.Tag is PluginGrantScope);
+                    PluginGrantScope scope = (PluginGrantScope)revoke.Tag!;
+                    TextBlock origin = ((StackPanel)revoke.Parent!).Children.OfType<TextBlock>().Single();
+                    Require(scope.SourceId == "fixture-source" && scope.BoardId == null && revoke.IsEnabled,
+                        "The visible revoke action does not target the actual broader source grant.");
+                    await RevealRangeAsync(window, status, revoke);
+                    Require(InScrollViewport(origin), "Grant origin is clipped above the revoke action.");
+                    Program.CaptureWindow(window, prefix + "-revoke.png");
+                }
+                else Require(!page.GetVisualDescendants().OfType<Button>().Any(button => button.Tag is PluginGrantScope), "Revoked grant still exposes an effective-grant revoke action.");
+                Control firstAction = granted
+                    ? page.GetVisualDescendants().OfType<Button>().Single(button => button.Tag is PluginGrantScope)
+                    : status;
+                await RevealRangeAsync(window, firstAction, allow);
+                Require(allow.IsEnabled, "Grant action is disabled in its capture.");
+                Program.CaptureWindow(window, prefix + "-grant.png");
+            }
+        });
+    }
+    private static async Task AtBarebonesMinimumAsync(MainWindow window, Func<Task> capture)
+    {
+        string mode = Config.LoadConfig().WorkspaceMode;
+        string language = Texts.Language;
+        double width = window.Width, height = window.Height;
+        try
+        {
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            window.Width = 640; window.Height = 480;
+            await Program.WaitUntilAsync(() => { window.UpdateLayout(); return Math.Abs(window.ClientSize.Width - 640) <= 1 && Math.Abs(window.ClientSize.Height - 480) <= 1; });
+            await capture();
+        }
+        finally
+        {
+            Texts.SetLanguage(language);
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            window.Width = width; window.Height = height;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+    }
+    private static Task RevealRangeAsync(Window window, Control first, Control last) => Program.WaitUntilAsync(() =>
+    {
+        window.UpdateLayout();
+        ScrollViewer scroll = first.GetVisualAncestors().OfType<ScrollViewer>().First();
+        Point? start = first.TranslatePoint(default, scroll), end = last.TranslatePoint(default, scroll);
+        if (start is not { } top || end is not { } bottom) return false;
+        Require(bottom.Y + last.Bounds.Height - top.Y <= scroll.Viewport.Height + 1,
+            "The requested capture range is taller than the minimum-size viewport.");
+        if (!InScrollViewport(first) || !InScrollViewport(last))
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + top.Y));
+        window.UpdateLayout();
+        return InScrollViewport(first) && InScrollViewport(last);
+    });
+    private static bool InScrollViewport(Control control)
+    {
+        ScrollViewer scroll = control.GetVisualAncestors().OfType<ScrollViewer>().First();
+        Point? position = control.TranslatePoint(default, scroll);
+        return control.IsEffectivelyVisible && position is { } point && point.Y >= -1 && point.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
     }
     private static Task RevealAsync(Window window, Control control) => Program.WaitUntilAsync(() =>
     {
