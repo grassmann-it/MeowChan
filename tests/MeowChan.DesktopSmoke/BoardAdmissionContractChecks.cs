@@ -112,6 +112,7 @@ internal static class BoardAdmissionContractChecks
         await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionRetry").IsVisible);
         Require(!apply.IsEnabled && Find<TextBlock>(modal, "BoardAdmissionStatus").Text!.Contains("Controlled catalog failure", StringComparison.Ordinal)
             && Find<TextBlock>(modal, "BoardAdmissionSummary").Text == string.Empty
+            && !Find<Button>(modal, "BoardAdmissionReinclude").IsVisible
             && Find<Button>(modal, "BoardAdmissionCancel").IsEnabled, "Failure did not retain retry/cancel or suggested a valid empty preview.");
         Program.CaptureWindow(modal, "smoke-board-admission-error-" + Texts.Language + ".png");
         Click(Find<Button>(modal, "BoardAdmissionRetry"));

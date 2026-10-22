@@ -87,9 +87,9 @@ internal sealed class BoardAdmissionWindow : Window
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
         {
             var rulePanel = new StackPanel { Spacing = 6 };
-            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 16 };
-            var matches = Wrapped(string.Empty); matches.Name = "BoardAdmissionMatches";
-            var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false };
+            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 16, IsVisible = false };
+            var matches = Wrapped(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
+            var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
             var status = Wrapped(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
             var list = new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 };
             var retry = new Button { Name = "BoardAdmissionRetry", Content = Texts.T("wizard.retry"), IsVisible = false };
@@ -193,6 +193,9 @@ internal sealed class BoardAdmissionWindow : Window
     private void Refresh(Draft draft)
     {
         bool valid = RulesValid(draft);
+        draft.Summary.IsVisible = !valid || draft.Loaded;
+        draft.Matches.IsVisible = valid && draft.Loaded;
+        draft.Reinclude.IsVisible = valid && draft.Loaded;
         if (!valid) { draft.Summary.Text = Texts.T("wizard.invalid"); draft.Matches.Text = string.Empty; draft.Reinclude.IsEnabled = false; }
         else if (!draft.Loaded)
         {
