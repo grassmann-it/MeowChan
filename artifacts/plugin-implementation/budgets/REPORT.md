@@ -56,3 +56,26 @@ Neue Belege umfassen:
 - Volumezuordnung ist ein Sessioncache. Ein schon vor dem ersten Zugriff nach Neustart nicht eingehängter Unix-Mount ohne im Dateisystem erkennbaren Fehlzustand ist nicht von einem absichtlich neuen lokalen Zielordner unterscheidbar. Persistentes Mountidentitätsjournal gehört noch nicht zum bisherigen Workstorevertrag.
 - Fairness ist für registrierte Metadatenaufrufe und die Quellen-/Prioritätsrotation garantiert; Überlaufcaller warten am gemeinsamen Kapazitätssignal. Die 500-Watch-Abnahme belegt Fortschritt und Grenzen, keine FIFO-Zusage für beliebig viele gleichzeitig neu eintreffende Überlaufcaller.
 - Ein vom Filterowner gemeldeter Folgefix muss RestoreDurableMedia daran hindern, Excluded/NoMatch als technische MediaFailure wiederherzustellen; an ihn und Root gemeldet.
+
+## Folgeauftrag: stabile Medienvarianten (22.10.2026)
+
+Eigene weitere Liefercommits: `67acdde` und `2a8f571`.
+Erforderliche fremde APIvoraussetzungen: Filter `e5706cf` (hier `48cc33f`), Adapter `936960e` (hier `21c8424`).
+
+`MediaWork.Variant` ist ein eigener Identitätsteil mit Default `original`. SQLite führt eine separate Variantspalte im Primärschlüssel; die alte Tabelle wird in einer einzigen Transaktion migriert. Der alte JSONpayload bleibt dabei bytegleich, ebenso Original-IDs, Pfade, Fälligkeiten und erste Endzeit. Zweifaches Öffnen ist idempotent. Weder Prefixreservierung noch Flattening ändern gespeicherte Quellidentitäten.
+
+Queue-Jobidentität, sämtliche Journal-/Schedule-/Revisionslookups und RestoreItem führen raw MediaId und Variant getrennt. Benachrichtigungen gehen an die variantenfähigen BaseThread-Overloads. Aus `(x--preview, original)` und `(x, preview)` werden zwei getrennte Jobs und Erfolge; dieselbe raw ID mit anderer Variante ist auch bei identischem angefordertem Ziel ein anderer Queue-/Journalkey. Die UI-/Host-/Content-/Manifestweiterleitung besitzt weiterhin Adapter bzw. Filter.
+
+Der parallel gemeldete RequestMediaRetry-Race ist korrigiert: Auch der innere atomare Recheck schließt Excluded aus. Eine kontrollierte Storefixture ersetzt den zunächst gelesenen technischen Fehler vor dem zweiten Read durch NoMatch und belegt, dass kein Ready-/Retryjob entsteht.
+
+Zusätzliche Nachweise:
+
+- echte alte SQLite-Tabellendefinition ohne Variantspalte, unveränderter Legacy-JSONpayload nach Migration, zweimaliges Öffnen und unveränderte Retry-/Endzeiten;
+- unabhängige rawId-/Variantkeyteile und Erkennung eines manipulierten Variantpayloads;
+- zwei ehemalige Flattening-Kollisionspaare durch echte DownloadWorker-/Dateibytes und Workjournal, neue Queue nach Neustart, zwei korrekte Completion-Identitäten ohne weitere HTTPrequests oder Dateien;
+- gleiche raw ID und gleiches Ziel bei zwei Varianten bleiben getrennte Reservierungen/NoMatch-Journaleinträge;
+- unveränderte Original-Queue-/Lifecyclefälle.
+
+Gezielt **82/82 PASS**. Ein erster vollständiger Lauf zeigte **671/672** mit dem vorhandenen 32-Produzenten-Test als Fehler; Einzelrepro und vollständige Wiederholung bestanden. Dessen erster HTTP-Startanker synchronisierte die nun asynchrone Dateisystemprüfung vor der nächsten Producer-Admisson nicht. Der Test wartet jetzt ausdrücklich auf dieselbe Pending==8-Bedingung; keine Assertion oder Frist wurde gelockert. Finaler vollständiger Lauf nach dieser Synchronisation: **672/672 PASS**, 4 s, TRX unter `/tmp/meowchan-budgets-variant-tests/variant-core-synchronized.trx`.
+
+Der neue DownloadItem-Overload meldete beim vollständigen Core-Neubau RS0027; dies ist an seinen Filterowner zur lokalen, begründeten APIbehandlung übergeben. Bestehendes xUnit2031 bleibt. Der zuvor genannte NoMatch-RestoreFailure ist in Adaptervoraussetzung `936960e` bereits ausgeschlossen.

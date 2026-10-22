@@ -807,6 +807,9 @@ public sealed class DownloadQueueTests
             }).ToArray();
             await handler.WaitForStartsAsync(32);
             Assert.Equal(32, handler.ActiveRequests);
+            // Producers now complete an asynchronous filesystem check before pending
+            // admission. The first 32 HTTP starts do not synchronize that next step.
+            await TestWait.UntilAsync(() => queue.GetCapacitySnapshot().Pending == 8);
             Assert.Equal(8, queue.GetCapacitySnapshot().Pending);
             Assert.True(queue.GetCapacitySnapshot().WaitingAdmission > 0);
             try
