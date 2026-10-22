@@ -45,6 +45,7 @@ internal static class ShowcaseCaptures
         await Program.WaitUntilAsync(() => gallery.GetVisualDescendants().OfType<Border>()
             .Any(border => border.Name == "GalleryContext" && border.IsVisible && border.Bounds.Width > 0));
         await CaptureAsync(window, "v0.9.0-gallery.png");
+        await CheckGalleryModeGeometryAsync(window, gallery);
         Click(GalleryButton(gallery, "GalleryClose"));
 
         await CaptureReaderAsync(window, page);
@@ -78,6 +79,19 @@ internal static class ShowcaseCaptures
         await CaptureAsync(about, "v0.9.0-about-licenses.png");
         Click(about.FindControl<Button>("CloseButton")!);
         Console.WriteLine("SHOWCASE final UI scenes captured: downloads, gallery/post context/favorite, reader and replies, archive/media, HTML export, favorites/original export, settings, rules, About/support/credits/offline licenses.");
+    }
+
+    private static async Task CheckGalleryModeGeometryAsync(MainWindow window, ContentControl gallery)
+    {
+        Size previous = window.ClientSize;
+        foreach ((string mode, int width, int height) in new[] { ("Barebones", 640, 480), ("Advanced", 760, 500), ("Simple", 760, 500) })
+        {
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            await ResizeAsync(window, width, height);
+            await ReaderUxChecks.CheckOverlayChromeAsync(window, gallery);
+            Program.CaptureWindow(window, "smoke-gallery-minimum-" + mode.ToLowerInvariant() + ".png");
+        }
+        await ResizeAsync(window, previous.Width, previous.Height);
     }
 
     private static async Task CaptureDownloadsAsync(MainWindow window)

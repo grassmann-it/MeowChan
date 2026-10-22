@@ -203,16 +203,44 @@ internal static class ReaderUxChecks
 
     internal static async Task CheckOverlayChromeAsync(MainWindow window, ContentControl overlay)
     {
-        await Program.WaitUntilAsync(() =>
+        object? evidence = null;
+        bool Check()
         {
             window.UpdateLayout();
             Control header = window.FindControl<Grid>("WorkspaceTitleBar")!;
+            // The title grid is the header's content, excluding its bottom border.
+            // At 150%, that 1 DIP border rounds to 2 physical pixels (1 1/3 DIP).
+            // Overlay row 1 starts after the complete header, not after its content.
+            Border headerFrame = header.Parent as Border
+                ?? throw new InvalidOperationException("Workspace title bar no longer belongs to its header border.");
             Point? top = overlay.TranslatePoint(default, window);
-            return overlay.IsEffectivelyVisible && top is Point origin
-                && Math.Abs(origin.Y - header.Bounds.Height) <= 1
-                && Math.Abs(overlay.Bounds.Width - window.ClientSize.Width) <= 1
-                && Math.Abs(origin.Y + overlay.Bounds.Height - window.ClientSize.Height) <= 1;
-        });
+            Point? headerTop = header.TranslatePoint(default, window);
+            Point? headerBottom = headerFrame.TranslatePoint(new Point(0, headerFrame.Bounds.Height), window);
+            double? yDelta = top?.Y - headerBottom?.Y;
+            double widthDelta = overlay.Bounds.Width - window.ClientSize.Width;
+            double? bottomDelta = top?.Y + overlay.Bounds.Height - window.ClientSize.Height;
+            bool visible = overlay.IsEffectivelyVisible;
+            bool translated = top.HasValue && headerBottom.HasValue;
+            bool aligned = yDelta is double y && Math.Abs(y) <= 1;
+            bool fullWidth = Math.Abs(widthDelta) <= 1;
+            bool fullHeight = bottomDelta is double bottom && Math.Abs(bottom) <= 1;
+            evidence = new { overlay.Name, visible, translated, aligned, fullWidth, fullHeight,
+                origin = top?.ToString(), bounds = overlay.Bounds.ToString(), headerOrigin = headerTop?.ToString(),
+                headerBounds = header.Bounds.ToString(), client = window.ClientSize.ToString(),
+                headerFrameBounds = headerFrame.Bounds.ToString(), headerBottom = headerBottom?.ToString(),
+                windowBounds = window.Bounds.ToString(), window.RenderScaling,
+                physicalClient = PixelSize.FromSize(window.ClientSize, window.RenderScaling).ToString(),
+                yDelta, widthDelta, bottomDelta, toleranceDip = 1 };
+            return visible && translated && aligned && fullWidth && fullHeight;
+        }
+        try { await Program.WaitUntilAsync(Check); }
+        catch
+        {
+            Console.Error.WriteLine("SMOKE overlay FAIL: " + JsonSerializer.Serialize(evidence));
+            Program.CaptureWindow(window, "smoke-overlay-failure-" + overlay.Name + ".png");
+            throw;
+        }
+        Console.WriteLine("SMOKE overlay PASS: " + JsonSerializer.Serialize(evidence));
         await WindowChromeChecks.CheckReachableAsync(window);
     }
 
