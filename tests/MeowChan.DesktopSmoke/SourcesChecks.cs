@@ -34,7 +34,16 @@ internal static class SourcesChecks
                 ?? throw new InvalidOperationException("The productive Sources selection did not identify a registered canonical source: " + selectedIdentity);
             Button selectedCard = livePage.FindControl<StackPanel>("SourceCards")!.Children.OfType<Button>()
                 .Single(card => card.Classes.Contains("selected"));
-            Require(selectedCard.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == selectedSource.BaseUri.AbsoluteUri),
+            // Navigation refreshes the card's Content synchronously, before its
+            // button template necessarily materializes a visual ContentPresenter.
+            StackPanel selectedLabels = selectedCard.Content as StackPanel
+                ?? throw new InvalidOperationException("The selected source card lost its label content.");
+            string[] selectedText = selectedLabels.Children.OfType<TextBlock>().Select(text => text.Text ?? string.Empty).ToArray();
+            Console.WriteLine("SMOKE productive source card: source=" + selectedSource.SourceId
+                + "; labels=" + string.Join(" | ", selectedText.Take(2))
+                + "; visual-text-count=" + selectedCard.GetVisualDescendants().OfType<TextBlock>().Count() + ".");
+            Require(selectedText.Length >= 2 && selectedText[0] == "● " + selectedSource.DisplayName
+                && selectedText[1] == selectedSource.BaseUri.AbsoluteUri,
                 "The productive Sources details disagreed with the selected source card.");
             livePage.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Console.WriteLine("SMOKE productive source rules: selected=" + selectedSource.SourceId
