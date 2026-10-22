@@ -1,0 +1,305 @@
+{
+  "payload": "/home/tomka/Desktop/oChan/artifacts/plugin-implementation/2026-10-22/integration/final-01/candidate/linux-publish",
+  "cpuCount": 16,
+  "sdkAccessible": false,
+  "networkAvailable": false,
+  "installationReadOnly": true,
+  "doesNotExecuteDesktopPluginSession": true,
+  "doesNotMeasureDotNetToolchainValidation": true,
+  "sha256": {
+    "plugin-compiler/toolchain.json": "88c296065ca27bf530528286f609e61e00a68705464fed6845185727d8b79358",
+    "plugin-worker/MeowChan.PluginWorker": "dc0af95d529d5c2f7076d561cbac0757cfc89924bec774a4deda8b0d51d07fc7",
+    "plugins/MeowChan.ImageDimensionsFilter.plugin.json": "3dda850461a46d8fddbd3bf6438672ea25d166ac280d03d3aacbc42036528517",
+    "plugins/MeowChan.Plugin.EightKun.plugin.json": "078a56f1445569bce6640df3b89e7daa061566ece1fe44801317220164fdd723",
+    "plugins/MeowChan.Plugin.FourChan.plugin.json": "77331dac05cfc9747e97c98f0c408cc9911cc1c95232d4e6f22539fa16ce2ed9",
+    "plugins/MeowChan.Plugin.Kohlchan.plugin.json": "eed5abe0bfa4af471bd4f1f32ac52429d2491534b1355ec06b219ee8a59a5cf9",
+    "plugins/MeowChan.Plugin.Lainchan.plugin.json": "d80c6f8ce021d201a8ef8c5ab7c97ec82f6b62340a14f8e8e3c491d47c6feb8b"
+  },
+  "results": [
+    {
+      "repetition": 0,
+      "manifest": "MeowChan.ImageDimensionsFilter.plugin.json",
+      "pluginId": "meowchan.example.image-dimensions",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 73.00083299924154,
+      "pythonHashCpuMs": 25.573314,
+      "spawnThroughHelloMs": 99.0948489998118,
+      "describeMs": 86.4650560033624,
+      "gracefulExitMs": 31.403740002133418,
+      "workerTotalMs": 216.96364500530763,
+      "workerCpuMs": 1.616,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 0,
+      "manifest": "MeowChan.Plugin.EightKun.plugin.json",
+      "pluginId": "meowchan.official.8kun",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 17.804547998821363,
+      "pythonHashCpuMs": 17.588663000000004,
+      "spawnThroughHelloMs": 74.2680300027132,
+      "describeMs": 71.0998699942138,
+      "gracefulExitMs": 3.143534006085247,
+      "workerTotalMs": 148.51143400301225,
+      "workerCpuMs": 1.4639999999999997,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 0,
+      "manifest": "MeowChan.Plugin.FourChan.plugin.json",
+      "pluginId": "meowchan.official.4chan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 12.938406005559955,
+      "pythonHashCpuMs": 12.752304000000006,
+      "spawnThroughHelloMs": 73.6803379986668,
+      "describeMs": 79.81076900614426,
+      "gracefulExitMs": 7.301270998141263,
+      "workerTotalMs": 160.79237800295232,
+      "workerCpuMs": 1.0859999999999996,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 0,
+      "manifest": "MeowChan.Plugin.Kohlchan.plugin.json",
+      "pluginId": "meowchan.source.kohlchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 13.905824001994915,
+      "pythonHashCpuMs": 13.721972000000013,
+      "spawnThroughHelloMs": 91.94471800583415,
+      "describeMs": 148.29982700030087,
+      "gracefulExitMs": 7.279613993887324,
+      "workerTotalMs": 247.52415900002234,
+      "workerCpuMs": 1.2120000000000004,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 0,
+      "manifest": "MeowChan.Plugin.Lainchan.plugin.json",
+      "pluginId": "meowchan.source.lainchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 18.316923000384122,
+      "pythonHashCpuMs": 16.86660000000001,
+      "spawnThroughHelloMs": 77.37009799893713,
+      "describeMs": 88.36985700327205,
+      "gracefulExitMs": 7.274978997884318,
+      "workerTotalMs": 173.0149340000935,
+      "workerCpuMs": 1.092,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 1,
+      "manifest": "MeowChan.ImageDimensionsFilter.plugin.json",
+      "pluginId": "meowchan.example.image-dimensions",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 16.322744006174617,
+      "pythonHashCpuMs": 16.02234600000002,
+      "spawnThroughHelloMs": 72.89151100121671,
+      "describeMs": 67.36471999465721,
+      "gracefulExitMs": 3.148383002553601,
+      "workerTotalMs": 143.40461399842752,
+      "workerCpuMs": 1.5839999999999985,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 1,
+      "manifest": "MeowChan.Plugin.EightKun.plugin.json",
+      "pluginId": "meowchan.official.8kun",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 11.798874998930842,
+      "pythonHashCpuMs": 11.711800999999994,
+      "spawnThroughHelloMs": 70.38568799907807,
+      "describeMs": 86.00385700265178,
+      "gracefulExitMs": 7.246180000947788,
+      "workerTotalMs": 163.63572500267765,
+      "workerCpuMs": 1.1940000000000006,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 1,
+      "manifest": "MeowChan.Plugin.FourChan.plugin.json",
+      "pluginId": "meowchan.official.4chan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 13.181108006392606,
+      "pythonHashCpuMs": 13.084512999999992,
+      "spawnThroughHelloMs": 73.89461999991909,
+      "describeMs": 83.97009899636032,
+      "gracefulExitMs": 3.144187001453247,
+      "workerTotalMs": 161.00890599773265,
+      "workerCpuMs": 1.0229999999999997,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 1,
+      "manifest": "MeowChan.Plugin.Kohlchan.plugin.json",
+      "pluginId": "meowchan.source.kohlchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 12.861942996096332,
+      "pythonHashCpuMs": 12.671621000000021,
+      "spawnThroughHelloMs": 67.28544300131034,
+      "describeMs": 78.58808000310091,
+      "gracefulExitMs": 7.243444997584447,
+      "workerTotalMs": 153.1169680019957,
+      "workerCpuMs": 1.0030000000000003,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 1,
+      "manifest": "MeowChan.Plugin.Lainchan.plugin.json",
+      "pluginId": "meowchan.source.lainchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 13.758200999291148,
+      "pythonHashCpuMs": 13.444311999999986,
+      "spawnThroughHelloMs": 72.90709099470405,
+      "describeMs": 84.83736000198405,
+      "gracefulExitMs": 3.159779000270646,
+      "workerTotalMs": 160.90422999695875,
+      "workerCpuMs": 1.2580000000000005,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 2,
+      "manifest": "MeowChan.ImageDimensionsFilter.plugin.json",
+      "pluginId": "meowchan.example.image-dimensions",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 12.554795001051389,
+      "pythonHashCpuMs": 12.411528000000004,
+      "spawnThroughHelloMs": 91.56002000236185,
+      "describeMs": 87.6239799981704,
+      "gracefulExitMs": 7.228510999993887,
+      "workerTotalMs": 186.41251100052614,
+      "workerCpuMs": 1.497,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 2,
+      "manifest": "MeowChan.Plugin.EightKun.plugin.json",
+      "pluginId": "meowchan.official.8kun",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 20.82459999655839,
+      "pythonHashCpuMs": 18.42265699999998,
+      "spawnThroughHelloMs": 74.11316899379017,
+      "describeMs": 72.5579360005213,
+      "gracefulExitMs": 7.27208900207188,
+      "workerTotalMs": 153.94319399638334,
+      "workerCpuMs": 1.5669999999999988,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 2,
+      "manifest": "MeowChan.Plugin.FourChan.plugin.json",
+      "pluginId": "meowchan.official.4chan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 13.489427998138126,
+      "pythonHashCpuMs": 13.167171000000005,
+      "spawnThroughHelloMs": 75.35987899609609,
+      "describeMs": 73.73710100364406,
+      "gracefulExitMs": 3.167118993587792,
+      "workerTotalMs": 152.26409899332793,
+      "workerCpuMs": 1.5010000000000023,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 2,
+      "manifest": "MeowChan.Plugin.Kohlchan.plugin.json",
+      "pluginId": "meowchan.source.kohlchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 12.053172002197243,
+      "pythonHashCpuMs": 11.92994,
+      "spawnThroughHelloMs": 66.88071099779336,
+      "describeMs": 73.82692499959376,
+      "gracefulExitMs": 7.260539001435973,
+      "workerTotalMs": 147.9681749988231,
+      "workerCpuMs": 1.4389999999999994,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    },
+    {
+      "repetition": 2,
+      "manifest": "MeowChan.Plugin.Lainchan.plugin.json",
+      "pluginId": "meowchan.source.lainchan",
+      "hashFiles": 171,
+      "hashBytes": 16145320,
+      "pythonFullHashMs": 16.161320003448054,
+      "pythonHashCpuMs": 14.856338999999997,
+      "spawnThroughHelloMs": 80.99637400300708,
+      "describeMs": 98.06982499867445,
+      "gracefulExitMs": 7.267171000421513,
+      "workerTotalMs": 186.33337000210304,
+      "workerCpuMs": 1.580999999999999,
+      "loadavg": [
+        3.9658203125,
+        5.78515625,
+        13.92919921875
+      ]
+    }
+  ]
+}
