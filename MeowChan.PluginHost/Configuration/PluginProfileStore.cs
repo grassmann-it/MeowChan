@@ -20,7 +20,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
     public PluginProfileStore(string profileDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
-        directory = Path.Combine(Path.GetFullPath(profileDirectory), "plugins");
+        directory = Path.Combine(Path.GetFullPath(profileDirectory), "plugin-state");
         path = Path.Combine(directory, "state.json");
         lockPath = Path.Combine(directory, "state.lock");
     }
@@ -56,6 +56,16 @@ public sealed class PluginProfileStore : IPluginProfileStore
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
         return MutateAsync(expectedRevision, state =>
         {
+            // A source file changing its declared plugin identity is an unavailable update of
+            // that existing candidate, not permission to transfer its configuration or rights.
+            Dictionary<string, string> candidateOwners = state.Plugins.SelectMany(plugin => plugin.Candidates
+                .Select(candidate => (candidate.CandidateId, plugin.PluginId)))
+                .ToDictionary(item => item.CandidateId, item => item.PluginId, StringComparer.Ordinal);
+            PluginCandidateObservation[] startup = observations.Select(candidate =>
+                candidateOwners.TryGetValue(candidate.CandidateId, out string? owner) && owner != candidate.PluginId
+                    ? new PluginCandidateObservation(candidate.CandidateId, owner, null, null,
+                        $"Candidate plugin identity changed from '{owner}' to '{candidate.PluginId}'. Install it as a separate candidate to select the new identity explicitly.")
+                    : candidate).ToArray();
             // Preserve the old ownership of active source IDs before any new candidates are considered.
             Dictionary<string, string> sourceOwners = new(StringComparer.Ordinal);
             foreach (PluginActivationSnapshot old in state.Plugins.Where(plugin => plugin.Active is not null))
@@ -63,11 +73,11 @@ public sealed class PluginProfileStore : IPluginProfileStore
             foreach ((string sourceId, string owner) in state.SelectedSourceOwners) sourceOwners[sourceId] = owner;
             List<PluginActivationSnapshot> plugins = new();
             IEnumerable<string> pluginIds = state.Plugins.Select(plugin => plugin.PluginId)
-                .Concat(observations.Select(candidate => candidate.PluginId)).Distinct(StringComparer.Ordinal);
+                .Concat(startup.Select(candidate => candidate.PluginId)).Distinct(StringComparer.Ordinal);
             foreach (string pluginId in pluginIds)
             {
                 PluginActivationSnapshot old = FindOrCreate(state, pluginId);
-                PluginCandidateObservation[] present = observations.Where(candidate => candidate.PluginId == pluginId).ToArray();
+                PluginCandidateObservation[] present = startup.Where(candidate => candidate.PluginId == pluginId).ToArray();
                 List<PluginCandidateSnapshot> inventory = old.Candidates
                     .Where(candidate => !present.Any(item => item.CandidateId == candidate.CandidateId))
                     .Select(candidate => candidate with { IsPresent = false, Problem = "Candidate is missing from the startup inventory." }).ToList();
@@ -107,7 +117,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
                         && owner != pluginId).Select(source => source.SourceId).ToArray();
                     // With no prior owner, two new descriptions are ambiguous: neither wins by enumeration order.
                     string[] newConflicts = release.Description.Sources.Where(source => !sourceOwners.ContainsKey(source.SourceId)
-                        && observations.Any(other => other.PluginId != pluginId && other.Description?.Sources.Any(item => item.SourceId == source.SourceId) == true))
+                        && startup.Any(other => other.PluginId != pluginId && other.Description?.Sources.Any(item => item.SourceId == source.SourceId) == true))
                         .Select(source => source.SourceId).ToArray();
                     if (conflicts.Length + newConflicts.Length != 0)
                         next = next with { Problem = "Source identity conflict requires explicit selection: " + string.Join(", ", conflicts.Concat(newConflicts)) };

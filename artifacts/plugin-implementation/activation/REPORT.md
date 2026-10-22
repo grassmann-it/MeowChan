@@ -7,7 +7,7 @@ Keine Änderungen an Root-STATUS, Desktop, Core-Regelstore, Runtime oder zentral
 
 ## Ergebnis
 
-- `PluginProfileStore(profileDirectory)` führt `plugins/state.json` als einzigen Hostwertebestand für Auswahl, aktive/pending/letzte gute/gepinnte Releases, Plugin-/Sourcekonfiguration und Grants.
+- `PluginProfileStore(profileDirectory)` führt `plugin-state/state.json` als einzigen Hostwertebestand für Auswahl, aktive/pending/letzte gute/gepinnte Releases, Plugin-/Sourcekonfiguration und Grants. Der frühere unveröffentlichte Entwurf `plugins/state.json` wurde vor Nutzerprofilverwendung getrennt, damit das Drop-in-Inventar keine Metadaten als Kandidaten scannt.
 - Ein Release bindet Artefakt und geprüfte komplette Konfiguration zusammen. Build-, Schema-, Konfigurations-, Lifecycle-, Profil- und scopierte Grantrevisionen bleiben getrennt.
 - Konsistentes Startinventar aktiviert erst beim Appstart. Testbeobachtung und normale Einstellungsänderung beeinflussen laufende Releases nicht. Defekte/fehlende ausgewählte Updates führen zu erklärter Unverfügbarkeit; kein stiller Rückfall.
 - Expliziter Rückfall pinnt den erhaltenen Build mit dessen passender Konfiguration dauerhaft. Auch editierte Einstellungen eines Pins bleiben über wiederholte Starts erhalten. Auswahl neuer Kandidaten löst den Pin ausdrücklich.

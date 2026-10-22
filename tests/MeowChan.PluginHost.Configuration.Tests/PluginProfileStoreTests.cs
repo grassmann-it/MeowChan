@@ -238,6 +238,40 @@ public sealed class PluginProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ChangedPluginIdentityIsAnIsolatedUnavailableUpdateWithoutTransferringGrants()
+    {
+        PluginCandidateObservation original = Candidate("a");
+        PluginCandidateObservation independent = Candidate("independent") with { CandidateId = "independent.cs", PluginId = "independent.plugin" };
+        independent = independent with { Description = independent.Description! with { PluginId = independent.PluginId } };
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([original, independent], 0);
+        state = await store.SetGrantAsync("test.plugin", "dimensions", new("source", "board"), FilterDataAccess.OriginalImage, state.Revision);
+        PluginCandidateObservation changed = Candidate("changed") with { PluginId = "changed.plugin" };
+        changed = changed with { Description = changed.Description! with { PluginId = changed.PluginId } };
+        state = await Store().ApplyStartupAsync([changed, independent], state.Revision);
+        PluginActivationSnapshot unavailable = state.Plugins.Single(plugin => plugin.PluginId == "test.plugin");
+        Assert.Null(unavailable.Active);
+        Assert.Equal("a", unavailable.LastGood!.ExecutionRevision);
+        Assert.Contains("identity changed", unavailable.Problem);
+        Assert.Equal("independent", state.Plugins.Single(plugin => plugin.PluginId == independent.PluginId).Active!.ExecutionRevision);
+        Assert.DoesNotContain(state.Plugins, plugin => plugin.PluginId == "changed.plugin");
+        Assert.Equal("test.plugin", Assert.Single(state.Grants).PluginId);
+        state = await Store().ApplyStartupAsync([changed, independent], state.Revision);
+        Assert.Null(state.Plugins.Single(plugin => plugin.PluginId == "test.plugin").Active);
+        Assert.NotNull(state.Plugins.Single(plugin => plugin.PluginId == independent.PluginId).Active);
+    }
+
+    [Fact]
+    public async Task StoreMetadataDoesNotBecomeADropInInstallationCandidate()
+    {
+        PluginProfileStore store = Store();
+        await store.ApplyStartupAsync([Candidate("a")], 0);
+        Assert.Equal(Path.Combine(profile, "plugin-state", "state.json"), store.StorePath);
+        Assert.False(Directory.Exists(Path.Combine(profile, "plugins")));
+        Assert.True(File.Exists(Path.Combine(profile, "plugin-state", "state.lock")));
+    }
+
+    [Fact]
     public async Task ConcurrentReadersAlwaysObserveACompleteAtomicRevision()
     {
         PluginProfileStore store = Store();
