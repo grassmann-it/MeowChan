@@ -105,6 +105,29 @@ internal static class ReadingPositionChecks
         Require(!reader.IsVisible, "A delayed resume survived navigating away and back.");
         await window.ResumeLastReadingAsync();
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
+        await commands.WaitAsync();
+        delayedResume = window.ResumeLastReadingAsync();
+        Func<bool>? pagedReaderUnchanged = null;
+        try
+        {
+            Click(page.FindControl<Button>("NextPostsButton")!);
+            await Program.WaitUntilAsync(() => page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> rows
+                && rows.FirstOrDefault()?.Id == "1050");
+            pagedReaderUnchanged = page.CaptureReadingRequestGuard();
+        }
+        finally { commands.Release(); }
+        await delayedResume;
+        await WaitForAsync(async () =>
+        {
+            LocalReadingPosition? position = await window.SessionHost.ReadReadingPositionAsync();
+            return int.TryParse(position?.PostId, out int post) && post is >= 1050 and <= 1054;
+        });
+        Require(pagedReaderUnchanged?.Invoke() == true, "The stale resume rebuilt the newly chosen reader page.");
+        Require(reader.IsVisible && page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> pagedRows
+            && pagedRows.FirstOrDefault()?.Id == "1050", "A delayed resume replaced a newer reader page.");
+        Program.CaptureWindow(window, "smoke-reading-position-delayed-pagination.png");
+        await page.FocusPostAsync("1022");
+        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
         await ReaderLiveChecks.RunAsync(window);
         File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly resume post 1022");
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");

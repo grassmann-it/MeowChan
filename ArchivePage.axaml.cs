@@ -654,6 +654,7 @@ public partial class ArchivePage : UserControl
     private void OnPreviousPosts(object? sender, RoutedEventArgs e)
     {
         if (_busy || _postOffset == 0) return;
+        ++_readerInteractionRevision;
         _postOffset = Math.Max(0, _postOffset - PageSize);
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
@@ -661,6 +662,7 @@ public partial class ArchivePage : UserControl
     private void OnNextPosts(object? sender, RoutedEventArgs e)
     {
         if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
+        ++_readerInteractionRevision;
         _postOffset += PageSize;
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
