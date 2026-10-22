@@ -83,6 +83,7 @@ try
 
     if (options.TryGetValue("--application-directory", out string? suppliedApplication))
     {
+        evidence["compilerWorkerStatus"] = "running";
         string application = Path.GetFullPath(suppliedApplication);
         string suffix = OperatingSystem.IsWindows() ? ".exe" : "";
         string compilerDirectory = Path.Combine(application, "plugin-compiler");

@@ -42,7 +42,7 @@ Date: 2026-10-22. Source/runner handoff; final candidate execution remains open.
   and all three missing candidates, without invoking dotnet.
 - Static C# contract review against the current integrated Host/SDK contracts:
   no definite API/compile mismatch found. Follow-up fixes use asynchronous
-  compiler disposal, distinguish requested/failed process probes, and require
+  compiler disposal, distinguish requested/running/failed process probes, and require
   a real worker PID before claiming process exit.
 - `git diff --check`: **PASS**.
 
