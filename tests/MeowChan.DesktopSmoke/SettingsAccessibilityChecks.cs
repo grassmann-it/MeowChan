@@ -1,5 +1,6 @@
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -50,6 +51,7 @@ internal static class SettingsAccessibilityChecks
                         if (unitKey != null)
                             Require(peer.GetHelpText() == Texts.T(unitKey),
                                 $"{language}/{theme}: focused {field} has no localized unit help.");
+                        await CheckStepActionsAsync(input, label, language + "/" + theme);
                     }
                 }
             }
@@ -61,7 +63,31 @@ internal static class SettingsAccessibilityChecks
             if (!settingsWasVisible)
                 window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
-        Console.WriteLine("SMOKE Settings V04: focused numeric text boxes expose localized labels, label relations and units in EN/DE and Light/Dark (native speech checked separately).");
+        Console.WriteLine("SMOKE Settings V04: focused numeric text boxes expose localized labels, label relations and units; named increase/decrease actions change and restore values in EN/DE and Light/Dark (native speech checked separately).");
+    }
+
+    private static async Task CheckStepActionsAsync(NumericUpDown input, string label, string context)
+    {
+        decimal original = input.Value!.Value;
+        try
+        {
+            foreach ((string part, string key, decimal expected) in new[]
+            {
+                ("PART_IncreaseButton", "settings.increaseValue", original + input.Increment),
+                ("PART_DecreaseButton", "settings.decreaseValue", original)
+            })
+            {
+                Button button = input.GetVisualDescendants().OfType<Button>().Single(control => control.Name == part);
+                AutomationPeer peer = ControlAutomationPeer.CreatePeerForElement(button)!;
+                Require(peer.GetName() == Texts.T(key, label),
+                    $"{context}: {input.Name}/{part} has no localized action and field name.");
+                Require(button.IsEffectivelyEnabled && peer is IInvokeProvider,
+                    $"{context}: {input.Name}/{part} is not an accessible action.");
+                ((IInvokeProvider)peer).Invoke();
+                await Program.WaitUntilAsync(() => input.Value == expected);
+            }
+        }
+        finally { input.Value = original; }
     }
 
     private static void Require(bool value, string message)

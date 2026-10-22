@@ -7,6 +7,8 @@ internal static class R08dSettingsCatalog
         ("settings.unitSeconds", "Seconds", "Sekunden"),
         ("settings.unitBandwidth", "Mebibytes per second (MiB/s)", "Mebibyte pro Sekunde (MiB/s)"),
         ("settings.unitPercent", "Percent, from 0 to 100", "Prozent, von 0 bis 100"),
+        ("settings.increaseValue", "Increase {0}", "{0} erhöhen"),
+        ("settings.decreaseValue", "Decrease {0}", "{0} verringern"),
         ("resume.remember", "Remember the last reading position locally", "Letzte Lesestelle lokal merken"),
         ("resume.hint", "After saving, remembers one consciously opened reader position for this profile. Use Resume last reading beside Archive in the app menu after restarting. Disabling deletes the position; no content is fetched.", "Nach dem Speichern wird eine bewusst geöffnete Readerstelle für dieses Profil gemerkt. Nach Neustart im Appmenü neben Archiv „Zuletzt gelesen fortsetzen“ wählen. Ausschalten löscht die Stelle; es werden keine Inhalte abgerufen."),
         ("resume.action", "Resume last reading", "Zuletzt gelesen fortsetzen"),

@@ -12,6 +12,22 @@
             <Setter Property="AutomationProperties.LabeledBy" Value="{Binding (AutomationProperties.LabeledBy), RelativeSource={RelativeSource TemplatedParent}}" />
             <Setter Property="AutomationProperties.HelpText" Value="{Binding (AutomationProperties.HelpText), RelativeSource={RelativeSource TemplatedParent}}" />
         </Style>
+        <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ :is(Button)#PART_IncreaseButton">
+            <Setter Property="AutomationProperties.Name">
+                <MultiBinding Converter="{x:Static local:SettingsEditor.NumericActionNameConverter}">
+                    <Binding Path="IncreaseNumericValueFormat" />
+                    <Binding Path="(AutomationProperties.Name)" RelativeSource="{RelativeSource FindAncestor, AncestorType=NumericUpDown}" />
+                </MultiBinding>
+            </Setter>
+        </Style>
+        <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ :is(Button)#PART_DecreaseButton">
+            <Setter Property="AutomationProperties.Name">
+                <MultiBinding Converter="{x:Static local:SettingsEditor.NumericActionNameConverter}">
+                    <Binding Path="DecreaseNumericValueFormat" />
+                    <Binding Path="(AutomationProperties.Name)" RelativeSource="{RelativeSource FindAncestor, AncestorType=NumericUpDown}" />
+                </MultiBinding>
+            </Setter>
+        </Style>
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="SettingsHeader" Margin="20,20,20,16" Spacing="5" MaxWidth="880" HorizontalAlignment="Center">

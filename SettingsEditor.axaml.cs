@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -17,6 +18,11 @@ namespace MeowChan
 {
     public partial class SettingsEditor : UserControl, INotifyPropertyChanged
     {
+        public static IMultiValueConverter NumericActionNameConverter { get; } =
+            new FuncMultiValueConverter<object?, string>((IReadOnlyList<object?> values) =>
+                values.Count == 2 && values[0] is string format && values[1] is string field
+                    ? string.Format(CultureInfo.CurrentCulture, format, field) : string.Empty);
+
         private readonly Config _config;
         private readonly Func<Config, Task>? _applySettings;
         private readonly Func<Task>? _forgetReadingPosition;
@@ -157,6 +163,8 @@ namespace MeowChan
         public string SecondsHelp => Texts.T("settings.unitSeconds");
         public string BandwidthHelp => Texts.T("settings.unitBandwidth");
         public string VolumeHelp => Texts.T("settings.unitPercent");
+        public string IncreaseNumericValueFormat => Texts.T("settings.increaseValue");
+        public string DecreaseNumericValueFormat => Texts.T("settings.decreaseValue");
         public bool CanForgetReadingPosition => _forgetReadingPosition != null && IsEditable;
         public bool RememberReadingPosition { get => _rememberReadingPosition; set => SetField(ref _rememberReadingPosition, value, nameof(RememberReadingPosition)); }
         public string SupportedSources => Texts.T("settings.supportedSources");
