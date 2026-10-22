@@ -178,9 +178,19 @@ public partial class ArchivePage
     {
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
             || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
-        KeyModifiers command = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
+        if (MatchesArchiveCommand(e, "archive.previous-page") || MatchesArchiveCommand(e, "archive.next-page"))
+        {
+            e.Handled = true;
+            Button pageButton = Control<Button>(e.Key == Key.PageUp ? "PreviousThreadsButton" : "NextThreadsButton");
+            if (pageButton.IsEnabled)
+            {
+                if (e.Key == Key.PageUp) OnPreviousThreads(sender, e);
+                else OnNextThreads(sender, e);
+            }
+            return;
+        }
         if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
         {
             Dispatcher.UIThread.Post(async () =>
@@ -198,7 +208,7 @@ public partial class ArchivePage
             return;
         }
         if (_busy) return;
-        if (e.Key == Key.A && e.KeyModifiers == command)
+        if (MatchesArchiveCommand(e, "archive.select-page"))
         {
             e.Handled = true;
             _archiveSelectionIds.Clear(); foreach (ArchiveThreadRow row in ArchiveVisibleRows) _archiveSelectionIds.Add(row.Summary.Id);

@@ -248,7 +248,9 @@ public partial class ArchivePage
     internal async Task OpenOriginalExportAsync(IReadOnlyList<FavoriteExportAsset> frozenAssets, Control? origin = null,
         int missingCount = 0, string? scopeLabel = null)
     {
-        if (TopLevel.GetTopLevel(origin ?? this) is not Window owner) return;
+        Window? owner = TopLevel.GetTopLevel(origin ?? Control<Grid>("ArchiveReaderPane")) as Window
+            ?? TopLevel.GetTopLevel(this) as Window;
+        if (owner == null) return;
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();
         Window dialog = new()
         {
@@ -264,10 +266,12 @@ public partial class ArchivePage
         browse.IsEnabled = assets.Length > 0;
         Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { });
         Button start = CommandBindings.CreateButton("export.start-originals", () => { });
+        start.Name = "OriginalExportStart";
         if (System.IO.Directory.Exists(LastExportDirectoryPreference)) destination.Text = LastExportDirectoryPreference;
         start.IsEnabled = assets.Length > 0 && !string.IsNullOrEmpty(destination.Text);
         openFolder.IsEnabled = !string.IsNullOrEmpty(destination.Text);
-        Button cancel = CommandBindings.CreateButton("export.cancel", () => { });
+        Button cancel = CommandBindings.CreateButton("export.close", () => { });
+        cancel.Name = "OriginalExportClose";
         WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(browse); actions.Children.Add(openFolder); actions.Children.Add(start); actions.Children.Add(cancel);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 12, Margin = new Thickness(16) };
@@ -326,6 +330,7 @@ public partial class ArchivePage
         {
             if (running || string.IsNullOrWhiteSpace(destination.Text)) return;
             running = true; start.IsEnabled = browse.IsEnabled = openFolder.IsEnabled = false;
+            CommandBindings.Apply(cancel, "export.cancel");
             status.Text = Texts.T("viewer.export.running");
             try
             {
@@ -335,7 +340,13 @@ public partial class ArchivePage
             }
             catch (OperationCanceledException) when (run.IsCancellationRequested) { status.Text = Texts.T("viewer.export.cancelled"); }
             catch (Exception ex) { status.Text = ex.Message; }
-            finally { running = false; browse.IsEnabled = assets.Length > 0; openFolder.IsEnabled = !string.IsNullOrWhiteSpace(destination.Text); }
+            finally
+            {
+                running = false;
+                CommandBindings.Apply(cancel, "export.close");
+                browse.IsEnabled = assets.Length > 0;
+                openFolder.IsEnabled = !string.IsNullOrWhiteSpace(destination.Text);
+            }
         };
         cancel.Click += (_, _) => { if (running) run.Cancel(); else dialog.Close(); };
         await dialog.ShowDialog(owner);

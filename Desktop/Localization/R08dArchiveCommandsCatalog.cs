@@ -17,6 +17,8 @@ internal static class R08dArchiveCommandsCatalog
         ("archive.command.noFolder", "No media folder is recorded for this entry.", "Für diesen Eintrag ist kein Medienordner gespeichert."),
         ("archive.command.noSource", "No source URL is recorded for this entry.", "Für diesen Eintrag ist keine Quelladresse gespeichert."),
         ("archive.command.unavailable", "Why are actions unavailable?", "Warum sind Aktionen nicht verfügbar?"),
-        ("archive.command.selectionCount", "{0} selected threads · batch actions use this selection", "{0} ausgewählte Threads · Stapelaktionen verwenden diese Auswahl"),
+        ("archive.command.selectionCount", "{0} selected threads · each action shows its eligible targets", "{0} ausgewählte Threads · jede Aktion zeigt ihre geeigneten Ziele"),
+        ("archive.command.batchCount", "{0} · {1} threads", "{0} · {1} Threads"),
+        ("archive.command.leadTarget", "{0} · for {1}", "{0} · für {1}"),
     };
 }

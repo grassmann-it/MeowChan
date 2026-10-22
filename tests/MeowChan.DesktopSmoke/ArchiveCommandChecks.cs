@@ -1,4 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Automation;
+using MeowChan.Desktop.Commands;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -47,10 +51,24 @@ internal static class ArchiveCommandChecks
             Require(Find("thread.details").Command?.CanExecute(null) == true, "Archive without watch has no local metadata details.");
             Require(menu.Items.OfType<MenuItem>().Any(item => Equals(item.Header, Texts.T("archive.command.unavailable")) && item.IsEnabled),
                 "Unavailable archive commands have no keyboard-accessible explanation.");
+            Require(Equals(Find("export.open-html-dialog").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("export.open-html-dialog"), 2)) &&
+                Equals(Find("watch.check").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.check"), 1)) &&
+                Equals(Find("watch.remove").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.remove"), 0)),
+                "Archive actions do not show their distinct eligible target counts.");
+            Require(Find("gallery.open").Header!.ToString()!.Contains(rows[0].Summary.Id.Thread!) &&
+                AutomationProperties.GetName(Find("gallery.open")) == Find("gallery.open").Header!.ToString(),
+                "Lead action does not expose its actual target visibly and through automation.");
             Find("watch.check").Command!.Execute(null);
             Require(checkedIds.SequenceEqual(new[] { rows[0].Summary.Id }), "Archive check did not filter mixed watch eligibility.");
             Find("watch.retry-media").Command!.Execute(null);
             Require(checkedIds.SequenceEqual(new[] { rows[1].Summary.Id }), "Archive retry did not filter mixed media eligibility.");
+            page.CanCheckWatch = id => id == rows[2].Summary.Id;
+            await Program.WaitUntilAsync(() => !Find("watch.check").IsEnabled);
+            checkedIds = Array.Empty<ResourceId>();
+            Find("watch.check").Command!.Execute(null);
+            Require(checkedIds.Length == 0 && Equals(Find("watch.check").Header,
+                Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.check"), 0)),
+                "Changing eligibility did not update the count or admitted a target outside the frozen selection.");
             // A language refresh replaces row instances. The open menu must keep
             // using its captured selection after that refresh and a new selection.
             Texts.SetLanguage("de");
@@ -75,7 +93,36 @@ internal static class ArchiveCommandChecks
             page.DeletePermanentlyRequested = oldDelete;
             table.ContextMenu?.Close();
         }
+        await CheckPaginationKeysAsync(page, table);
         Console.WriteLine("SMOKE archive commands: shared order, selection loading, mixed eligibility, watchless reasons and frozen targets after refresh passed.");
+    }
+
+    private static async Task CheckPaginationKeysAsync(ArchivePage page, DataGrid table)
+    {
+        ResourceId[] firstPage = table.ItemsSource.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
+        Require(firstPage.Length == 50 && page.FindControl<Button>("NextThreadsButton")!.IsEnabled,
+            "Pagination fixture must cross a results page.");
+        TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
+        void Key(Control source, Key key, KeyModifiers modifiers) => source.RaiseEvent(new KeyEventArgs
+            { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+        Key(search, Avalonia.Input.Key.PageDown, KeyModifiers.Alt);
+        Require(table.ItemsSource.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).SequenceEqual(firstPage),
+            "Alt+PageDown escaped the search input.");
+        table.Focus();
+        Key(table, Avalonia.Input.Key.PageDown, KeyModifiers.Alt);
+        await Program.WaitUntilAsync(() => !page.IsBusy && !page.FindControl<Button>("NextThreadsButton")!.IsEnabled);
+        Require(table.SelectedItems.Count == 0, "Changing result pages retained hidden selected targets.");
+        Key(table, Avalonia.Input.Key.PageDown, KeyModifiers.Alt);
+        Require(!page.IsBusy, "Last-page shortcut started another request.");
+        Key(table, Avalonia.Input.Key.PageUp, KeyModifiers.Alt);
+        await Program.WaitUntilAsync(() => !page.IsBusy && !page.FindControl<Button>("PreviousThreadsButton")!.IsEnabled);
+        Require(table.ItemsSource.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).SequenceEqual(firstPage),
+            "Page shortcut did not use the existing ordered navigation.");
+        Key(table, Avalonia.Input.Key.A, OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
+        Require(table.SelectedItems.Count == 50, "Select all escaped the current 50-row results page.");
+        table.SelectedItems.Clear();
+        await Program.WaitUntilAsync(() => !page.IsBusy);
+        Console.WriteLine("SMOKE archive pagination: scoped Alt+PageUp/Down, boundaries, input shielding, page selection and Ctrl/Cmd+A passed.");
     }
 
     private static void Require(bool condition, string message)

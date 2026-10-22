@@ -26,13 +26,14 @@
                             <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
                         </StackPanel>
                     </Expander>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
+                    <WrapPanel Grid.Row="2" ItemSpacing="4" LineSpacing="4">
                         <Button x:Name="ArchiveLayoutList" Content="List" Click="OnArchiveLayoutClick" />
                         <Button x:Name="ArchiveLayoutTable" Content="Table" Click="OnArchiveLayoutClick" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" Click="OnResultsGalleryClick" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" Click="OnFavoritesOverviewClick" />
-                    </StackPanel>
+                        <Button x:Name="ArchiveResultsExport" Content="HTML…" Click="OnResultsExportClick" />
+                    </WrapPanel>
                 </Grid>
                 <Border Grid.Row="1" Classes="panel">
                     <Grid>

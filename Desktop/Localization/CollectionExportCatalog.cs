@@ -3,6 +3,14 @@ internal static class CollectionExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("export.resultsAction", "Export all {0} results as HTML…", "Alle {0} Treffer als HTML exportieren…"),
+        ("export.resultsScope", "All matching threads across every results page. Page selection is unchanged.", "Alle passenden Threads über sämtliche Ergebnisseiten. Die Seitenauswahl bleibt erhalten."),
+        ("export.resultsTitle", "Export all matching threads as HTML", "Alle passenden Threads als HTML exportieren"),
+        ("export.resultsResolving", "Resolving all matching threads… Close to cancel.", "Alle passenden Threads werden ermittelt… Schließen bricht die Suche ab."),
+        ("export.resultsFrozen", "{0} matching threads fixed for this export", "{0} Treffer für diesen Export festgehalten"),
+        ("export.resultsHint", "The target threads stay fixed. After you start, each thread's latest local content is read separately. Nothing is downloaded.", "Die Zielthreads bleiben fest. Nach dem Start wird der aktuelle lokale Inhalt jedes Threads einzeln gelesen. Es wird nichts heruntergeladen."),
+        ("export.resultsEmpty", "No matching threads remain. Close this dialog and refresh the search.", "Es sind keine passenden Threads mehr vorhanden. Dialog schließen und Suche aktualisieren."),
+        ("export.resultsFailed", "Could not resolve matching threads: {0}", "Passende Threads konnten nicht ermittelt werden: {0}"),
         ("export.omission.MediaNotIncluded", "Media omitted by export choice", "Medien gemäß Exportauswahl ausgelassen"),
         ("export.omission.ExcludedByRule", "Excluded by download rule", "Durch Downloadregel ausgeschlossen"),
         ("export.omission.Unavailable", "Saved media unavailable", "Gespeicherte Medien nicht verfügbar"),

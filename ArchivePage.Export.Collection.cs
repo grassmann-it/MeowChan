@@ -44,7 +44,21 @@ public partial class ArchivePage
     }
     private void UpdateExportSummary()
     {
-        if (_exportThread == null) return;
+        TextBlock fixedScope = Control<TextBlock>("ArchiveExportFixedScope");
+        fixedScope.IsVisible = _exportAllResults && _exportThread != null;
+        fixedScope.Text = fixedScope.IsVisible ? Texts.T("export.resultsFrozen", _exportMembers?.Length ?? 1) : string.Empty;
+        if (_exportThread == null)
+        {
+            Control<TextBlock>("ArchiveExportSummary").Text = _exportResolving ? Texts.T("export.resultsResolving") : string.Empty;
+            return;
+        }
+        if (_exportAllResults)
+        {
+            ResourceId[] members = _exportMembers ?? new[] { _exportThread };
+            Control<TextBlock>("ArchiveExportSummary").Text = Texts.T("export.resultsFrozen", members.Length) + "\n" +
+                string.Join("\n", members.Select(ExportMemberLabel));
+            return;
+        }
         Control<TextBlock>("ArchiveExportSummary").Text = IsCollectionExport
             ? Texts.T("export.collectionSelection", _exportMembers!.Length) + "\n" + string.Join("\n", _exportMembers.Select(ExportMemberLabel))
             : ExportMemberLabel(_exportThread);

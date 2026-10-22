@@ -155,6 +155,7 @@ internal static class ArchiveExportChecks
                 Require(!fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export workflow did not close with Escape.");
                 Require(fixture.FindControl<Button>("ExportArchiveButton")!.IsFocused, "Closing export did not restore its real origin focus.");
                 await ArchiveCollectionExportChecks.RunAsync(fixture, saved.Summary.Id, readerIdentity, destinationRoot, value => exportGate = value, () => opened);
+                await ArchiveResultsExportChecks.RunAsync(window, fixture, profile, exportLease, destinationRoot, value => exportGate = value);
             }
             finally { readerGate.TrySetResult(); exportGate?.TrySetResult(); fixture.EndLifetime(); host.Content = retained; }
         }

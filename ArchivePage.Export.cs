@@ -46,13 +46,15 @@ public partial class ArchivePage
         LastExportDirectoryPreference = directory;
     }
     internal Task OpenExportForThreadAsync(ResourceId id, Control? origin) => OpenExportCoreAsync(id, origin, null, null);
-    private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed)
+    private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed,
+        bool allResults = false, bool resolvedResults = false)
     {
         if (_ended || _openReader == null) return;
         EnsureExportDialog();
-        if (Control<Border>("ArchiveExportDialog").IsVisible) { Control<Button>("ArchiveExportClose").Focus(); return; }
+        if (Control<Border>("ArchiveExportDialog").IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
         int request = ++_exportRequest;
         _exportThread = id; _exportOrigin = origin; LastExport = null;
+        _exportAllResults = allResults; _exportResolving = false;
         _exportMembers = members; _exportClosed = onClosed; LastCollectionExport = null;
         _exportLookupCancellation?.Cancel(); _exportLookupCancellation?.Dispose();
         _exportLookupCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -66,11 +68,7 @@ public partial class ArchivePage
         Control<RadioButton>("ArchiveExportNew").IsChecked = true;
         Control<CheckBox>("ArchiveExportBackup").IsChecked = false;
         ExportStatus(string.Empty);
-        Control<Border>("ArchiveExportDialog").IsVisible = true;
-        ResizeExportDialog();
-        TopLevel? top = _exportTopLevel = TopLevel.GetTopLevel(this);
-        top?.AddHandler(PointerPressedEvent, ExportModalPointer, RoutingStrategies.Tunnel);
-        top?.AddHandler(KeyDownEvent, ExportModalKey, RoutingStrategies.Tunnel);
+        ShowExportDialog();
         UpdateExportMode(); Control<TextBox>("ArchiveExportDestination").Focus();
         try
         {
@@ -244,7 +242,7 @@ public partial class ArchivePage
     private void UpdateExportActions()
     {
         if (_exportCard == null) return;
-        bool ready = !_exportRunning && !_exportPicking && !_exportLoading;
+        bool ready = !_exportRunning && !_exportPicking && !_exportLoading && _exportThread != null;
         Control<Button>("ArchiveExportStart").IsEnabled = ready;
         Control<Button>("ArchiveExportBrowse").IsEnabled = ready && !UpdatingExport;
         Control<Button>("ArchiveExportAssociate").IsEnabled = ready && HasSelectedExportHistory;
@@ -280,8 +278,9 @@ public partial class ArchivePage
             return;
         }
         _exportLookupCancellation?.Cancel();
-        ++_exportRequest; _exportLoading = false; Control<Border>("ArchiveExportDialog").IsVisible = false;
+        ++_exportRequest; _exportLoading = false; _exportResolving = false; Control<Border>("ArchiveExportDialog").IsVisible = false;
         EndExportDialog();
+        UpdateActions();
         Action? closed = _exportClosed; _exportClosed = null;
         if (closed != null) closed(); else _exportOrigin?.Focus();
     }

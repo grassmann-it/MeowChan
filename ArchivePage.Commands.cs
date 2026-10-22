@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -16,13 +17,7 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private static bool MatchesArchiveCommand(KeyEventArgs e, string id)
-    {
-        string? shortcut = CommandCatalog.Get(id).Shortcut;
-        if (shortcut == null) return false;
-        KeyGesture gesture = KeyGesture.Parse(shortcut.Replace("Primary", OperatingSystem.IsMacOS() ? "Meta" : "Ctrl", StringComparison.Ordinal));
-        return gesture.Key == e.Key && gesture.KeyModifiers == e.KeyModifiers;
-    }
+    private static bool MatchesArchiveCommand(KeyEventArgs e, string id) => CommandBindings.Matches(e, id);
 
     private ResourceId[] EligibleArchiveWatches(IEnumerable<ResourceId> ids, bool retry) =>
         ids.Where(id => (retry ? CanRetryWatch : CanCheckWatch)?.Invoke(id) == true).ToArray();
@@ -92,45 +87,65 @@ public partial class ArchivePage
         Control origin = ArchiveSelectionList;
         ResourceId[] ids = targets.Select(row => row.Summary.Id).ToArray();
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
-        var unavailable = new List<string>();
+        List<MenuItem> commands = new();
+        List<Func<string?>> disabledReasons = new();
         bool Ready() => _available && !_ended && !_busy;
-        void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null)
+        void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
+            Func<int>? count = null, bool leadAction = false)
         {
-            bool Enabled() => Ready() && (eligible?.Invoke() ?? true);
+            MenuItem? item = null;
+            void UpdateLabel()
+            {
+                if (item == null) return;
+                string label = count != null ? Texts.T("archive.command.batchCount", CommandCatalog.Label(id), count())
+                    : leadAction ? Texts.T("archive.command.leadTarget", CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
+                    : CommandCatalog.Label(id);
+                item.Header = label;
+                AutomationProperties.SetName(item, label);
+                string tip = label + (CommandCatalog.ShortcutDisplay(id) is string shortcut ? " · " + shortcut : "");
+                if (!Ready()) tip += " · " + Texts.T("archive.command.busy");
+                else if (eligible?.Invoke() == false && reason != null) tip += " · " + reason;
+                ToolTip.SetTip(item, tip);
+                AutomationProperties.SetHelpText(item, tip);
+            }
+            bool Enabled() { UpdateLabel(); return Ready() && (eligible?.Invoke() ?? true); }
             string? Reason() => !Ready() ? Texts.T("archive.command.busy") : !Enabled() ? reason : null;
-            MenuItem item = CommandBindings.CreateMenuItem(id, execute, Enabled, Reason);
+            item = CommandBindings.CreateMenuItem(id, execute, Enabled, Reason);
             item.Tag = id;
+            UpdateLabel();
+            commands.Add(item);
             menu.Items.Add(item);
-            if (!Enabled() && Reason() is string why) unavailable.Add(CommandCatalog.Label(id) + ": " + why);
+            disabledReasons.Add(() => !Enabled() && Reason() is string why ? CommandCatalog.Label(id) + ": " + why : null);
         }
         Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
-            () => ids.Length == 1, Texts.T("archive.command.singleRead"));
-        Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); });
-        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead));
+            () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
+        Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
+        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
         menu.Items.Add(new Separator());
-        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin));
-        Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); });
+        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
+        Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);
         Add("location.open-folder", () => RunArchiveLeadAction(lead, "folder"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"));
+            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"), leadAction: true);
         Add("location.open-source", () => RunArchiveLeadAction(lead, "browser"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"));
+            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"), leadAction: true);
         menu.Items.Add(new Separator());
         Add("watch.check", async () => await CheckArchiveTargetsAsync(ids, false),
-            () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, false).Length > 0, Texts.T("archive.command.noCheck"));
+            () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, false).Length > 0, Texts.T("archive.command.noCheck"), count: () => EligibleArchiveWatches(ids, false).Length);
         Add("watch.retry-media", async () => await CheckArchiveTargetsAsync(ids, true),
-            () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, true).Length > 0, Texts.T("archive.command.noRetry"));
+            () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, true).Length > 0, Texts.T("archive.command.noRetry"), count: () => EligibleArchiveWatches(ids, true).Length);
         Add("rules.edit-scope", () => RunArchiveLeadAction(lead, "rules"),
-            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"));
+            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"), leadAction: true);
         menu.Items.Add(new Separator());
         Add("watch.remove", async () =>
         {
             ResourceId[] eligible = ids.Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
             if (eligible.Length > 0 && RemoveSelectedWatches != null) await RemoveSelectedWatches(eligible);
-        }, () => RemoveSelectedWatches != null && ids.Any(id => CanRemoveWatch?.Invoke(id) == true), Texts.T("archive.command.noWatch"));
+        }, () => RemoveSelectedWatches != null && ids.Any(id => CanRemoveWatch?.Invoke(id) == true), Texts.T("archive.command.noWatch"),
+            count: () => ids.Count(id => CanRemoveWatch?.Invoke(id) == true));
         Add("archive.delete-permanently", async () =>
         {
             if (DeletePermanentlyRequested != null) await DeletePermanentlyRequested(ids, origin);
-        }, () => DeletePermanentlyRequested != null);
+        }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
         if (ids.Length > 1)
         {
             string count = string.Format(Texts.T("archive.command.selectionCount"), ids.Length);
@@ -140,16 +155,33 @@ public partial class ArchivePage
             AutomationProperties.SetName(info, count);
             menu.Items.Add(info);
         }
-        if (unavailable.Count > 0)
+        // Disabled commands cannot receive keyboard focus. Refresh this enabled
+        // explanation together with changing counts and command availability.
+        string explanation = string.Empty;
+        MenuItem unavailable = new() { Header = Texts.T("archive.command.unavailable"), Icon = CommandBindings.Icon("thread.details") };
+        void UpdateExplanation()
         {
-            // Disabled items cannot receive keyboard focus. This enabled explanation
-            // exposes the same reasons to keyboard and assistive technology users.
-            string explanation = string.Join(Environment.NewLine, unavailable);
-            var info = new MenuItem { Header = Texts.T("archive.command.unavailable"), Icon = CommandBindings.Icon("thread.details") };
-            ToolTip.SetTip(info, explanation);
-            AutomationProperties.SetHelpText(info, explanation);
-            info.Click += (_, _) => Message(explanation);
-            menu.Items.Add(info);
+            explanation = string.Join(Environment.NewLine, disabledReasons.Select(reason => reason()).Where(reason => reason != null));
+            unavailable.Header = Texts.T("archive.command.unavailable");
+            unavailable.IsVisible = explanation.Length > 0;
+            ToolTip.SetTip(unavailable, explanation);
+            AutomationProperties.SetHelpText(unavailable, explanation);
         }
+        unavailable.Click += (_, _) => Message(explanation);
+        menu.Items.Add(unavailable);
+        UpdateExplanation();
+        DispatcherTimer refresh = new() { Interval = TimeSpan.FromMilliseconds(250) };
+        refresh.Tick += (_, _) =>
+        {
+            foreach (MenuItem item in commands) CommandBindings.Refresh(item);
+            UpdateExplanation();
+        };
+        void StopRefresh(object? source, RoutedEventArgs args)
+        {
+            refresh.Stop();
+            menu.Closed -= StopRefresh;
+        }
+        menu.Closed += StopRefresh;
+        refresh.Start();
     }
 }

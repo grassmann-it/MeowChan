@@ -423,6 +423,7 @@ public partial class ArchivePage : UserControl
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
+        UpdateResultsExportAction(ready);
         Control<Button>("ExportArchiveButton").IsEnabled = ready && _selectedThread != null && !_exportRunning;
         Control<Button>("ArchiveHistoryBack").IsVisible = _history.Count > 0;
         Control<Button>("RefreshArchiveButton").IsEnabled = ready;
@@ -787,8 +788,8 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(Control<Button>("RefreshArchiveButton"), "archive.refresh", iconOnly: true);
         CommandBindings.Apply(Control<Button>("SearchArchiveButton"), "archive.search", iconOnly: true);
         CommandBindings.Apply(Control<Button>("ArchiveBackButton"), "archive.back-to-list");
-        CommandBindings.Apply(Control<Button>("PreviousThreadsButton"), "pagination.previous", iconOnly: true);
-        CommandBindings.Apply(Control<Button>("NextThreadsButton"), "pagination.next", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("PreviousThreadsButton"), "archive.previous-page", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("NextThreadsButton"), "archive.next-page", iconOnly: true);
         CommandBindings.Apply(Control<Button>("PreviousPostsButton"), "pagination.previous", iconOnly: true);
         CommandBindings.Apply(Control<Button>("NextPostsButton"), "pagination.next", iconOnly: true);
         CommandBindings.Apply(Control<Button>("PreviousReferences"), "pagination.previous", iconOnly: true);

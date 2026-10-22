@@ -20,6 +20,15 @@ public partial class ArchivePage
     // scope is already complete when this lazy dialog is first opened.
     internal T? FindControl<T>(string name) where T : Control =>
         _exportNames.Find<T>(name) ?? ControlExtensions.FindControl<T>(this, name);
+    private void ShowExportDialog()
+    {
+        Control<Border>("ArchiveExportDialog").IsVisible = true;
+        ResizeExportDialog();
+        if (_exportTopLevel != null) return;
+        TopLevel? top = _exportTopLevel = TopLevel.GetTopLevel(Control<Border>("ArchiveExportDialog")) ?? TopLevel.GetTopLevel(this);
+        top?.AddHandler(PointerPressedEvent, ExportModalPointer, RoutingStrategies.Tunnel);
+        top?.AddHandler(KeyDownEvent, ExportModalKey, RoutingStrategies.Tunnel);
+    }
     private void EndExportDialog()
     {
         _exportLookupCancellation?.Cancel();
@@ -66,13 +75,16 @@ public partial class ArchivePage
         Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
         content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportStatus"));
-        Grid body = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 10 };
-        body.Children.Add(new ScrollViewer { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        Grid body = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 10 };
+        TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
+        body.Children.Add(fixedScope);
+        ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid.SetRow(scroll, 1); body.Children.Add(scroll);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;
-        actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start); Grid.SetRow(actions, 1); body.Children.Add(actions);
+        actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start); Grid.SetRow(actions, 2); body.Children.Add(actions);
         _exportCard = new Border { Child = body, MaxWidth = 680, Padding = new Thickness(16), Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         NameScope.SetNameScope(_exportCard, _exportNames);
         _exportNames.Complete();
@@ -114,8 +126,8 @@ public partial class ArchivePage
     {
         if (_exportCard == null) return;
         UpdateExportSummary();
-        Control<TextBlock>("ArchiveExportTitle").Text = Texts.T("archive.export");
-        Control<TextBlock>("ArchiveExportHint").Text = Texts.T(IsCollectionExport ? "export.collectionHint" : "export.hint");
+        Control<TextBlock>("ArchiveExportTitle").Text = Texts.T(_exportAllResults ? "export.resultsTitle" : "archive.export");
+        Control<TextBlock>("ArchiveExportHint").Text = Texts.T(_exportAllResults ? "export.resultsHint" : IsCollectionExport ? "export.collectionHint" : "export.hint");
         Control<TextBlock>("ArchiveExportHistoryLabel").Text = Texts.T(IsCollectionExport ? "export.collectionKnown" : "export.known");
         Control<RadioButton>("ArchiveExportNew").Content = Texts.T("export.new");
         Control<RadioButton>("ArchiveExportUpdate").Content = Texts.T("export.update");

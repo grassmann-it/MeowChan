@@ -282,7 +282,7 @@ Ordinary **Delete** only removes watches and keeps the archive and media.
 
 ## Portable HTML export
 
-Right-click an Archive thread or use Export in its reader. The compact dialog
+Right-click an Archive thread or use **HTML…** in its reader. The compact dialog
 binds the chosen thread; choose a destination and whether to include saved media.
 Exports contain captured posts, CSS and verified matching saved originals, or a
 media gallery for media-only threads. Missing files, historical mismatches and
@@ -317,6 +317,19 @@ new folder or explicitly update an inspected result. Changing the selection
 requires a new folder. Updates check identity/generation and observed content;
 modified/extra files or reduced posts/media require a retained backup. Copy the
 whole folder for portable reading. This combined export is part of 0.9.0.
+
+### Export every matching archive thread
+
+Open **HTML…** beside the Archive results and choose **Export all N results as
+HTML…**. This includes all pages of the applied search, including its source,
+board, content and work filters. The dialog resolves the actual ordered targets
+and shows their fixed count. Close or press Escape during resolution to cancel.
+
+Later searches, sorting, new matches and work-state changes do not change that
+dialog's targets. After **Export**, each target's current local content is read
+separately. A deleted target fails the export; it is not replaced by another match.
+Missing media retain the usual omission rules. Ctrl/Cmd+A and selection exports
+still apply only to the current results page.
 
 ## Upgrading and backups
 
