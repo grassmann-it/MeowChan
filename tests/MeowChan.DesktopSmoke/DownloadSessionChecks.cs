@@ -214,6 +214,13 @@ internal static class DownloadSessionChecks
                     && card.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("check.scheduled")
                         || text.Text == Texts.T("check.alreadyScheduled"))));
             Require(ReferenceEquals(restored.UrlList.Single(), recovered), "The real Check action replaced the restored watch row.");
+            // The Check notification is already verified; dismiss it before archive visual checks.
+            foreach (Avalonia.Controls.Notifications.NotificationCard notification in restored.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Notifications.NotificationCard>().ToArray())
+                notification.Close();
+            await Program.WaitUntilAsync(() => !restored.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Notifications.NotificationCard>()
+                .Any(notification => notification.IsEffectivelyVisible));
             await ArchivePageChecks.RunAsync(restored, recovered.WatchId, new ResourceId("4chan", "g", "123"));
             await CloseNormallyAsync(restored);
             using (ProfileLease lease = ProfileLease.Acquire(profile))
