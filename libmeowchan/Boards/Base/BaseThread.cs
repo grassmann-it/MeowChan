@@ -78,6 +78,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     internal void RestoreDurableState(WorkResource resource)
     {
+        WatchGeneration = resource.Generation;
         OutputDirectory = resource.OutputRoot;
         _firstEndObservation = resource.EndObservedAt;
         if (resource.FinalSnapshotJson != null)
@@ -86,6 +87,8 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         if (resource.Source != ThreadSourceStateValue.Active)
             MarkPollingTerminal(resource.Source == ThreadSourceStateValue.Archived ? ThreadSourceState.Archived : ThreadSourceState.NotFound);
     }
+
+    internal long WatchGeneration { get; private set; }
 
     internal void RestoreDurableMedia(IReadOnlyList<MediaWork> media)
     {

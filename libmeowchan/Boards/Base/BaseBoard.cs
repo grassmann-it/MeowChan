@@ -26,6 +26,8 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
     private Task? _monitoringTask;
     private DownloadQueue? _sessionQueue;
     internal void AttachSessionQueue(DownloadQueue queue) => _sessionQueue = queue;
+    internal long WatchGeneration { get; set; }
+    internal DownloadQueue? SessionQueue => _sessionQueue;
     private TimeSpan _monitoringInterval = TimeSpan.FromSeconds(60);
 
     public abstract IImageBoard ImageBoard { get; }

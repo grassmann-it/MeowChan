@@ -39,8 +39,8 @@ public sealed partial class Registry : IAsyncDisposable
         public int RemovalRequested;
     }
 
-    private readonly IImageBoard[] _providers;
-    private readonly ProviderDescriptor[] _providerDescriptors;
+    private IImageBoard[] _providers;
+    private ProviderDescriptor[] _providerDescriptors;
     private readonly ILogger _logger;
     private readonly CoalescedEvent<Action> _stateChanges;
     private readonly Queue<string> _warnings = new Queue<string>();
@@ -556,7 +556,11 @@ public sealed partial class Registry : IAsyncDisposable
                     new ValueTask(AdmitDiscoveryAsync(watch, thread, token)));
                 watch.StateHandler = (_, _) => SignalChanged();
                 resource.Board.PropertyChanged += watch.StateHandler;
-                if (resource.Board is BaseBoard baseBoard) baseBoard.AttachSessionQueue(_queue);
+                if (resource.Board is BaseBoard baseBoard)
+                {
+                    baseBoard.AttachSessionQueue(_queue);
+                    baseBoard.WatchGeneration = (durable ?? _workResources.GetValueOrDefault(resource.Key))?.Generation ?? 0;
+                }
                 resource.Board.StartMonitoring((int)_boardInterval.TotalSeconds);
                 resource.Board.UpdateMonitoringInterval(_boardInterval);
             }
