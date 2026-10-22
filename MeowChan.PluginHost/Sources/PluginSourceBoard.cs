@@ -32,13 +32,7 @@ internal sealed class PluginSourceBoard : BaseBoard
             if (_retryAt is DateTimeOffset due && due > DateTimeOffset.UtcNow)
                 throw new PluginWorkerException("source_deferred", $"Source is waiting until {due:O}.");
             CatalogReadRequest request = new(new SourceBoardId(_source.Name, BoardCode), Validators: _validators, HasSnapshot: _lastCatalog != null);
-            CatalogReadResult result;
-            DownloadQueue? queue = SessionQueue ?? _source.MetadataQueue;
-            using (IDisposable? admission = queue == null ? null
-                : await queue.AcquireMetadataAsync(_source.Name, DownloadPriority.BoardDiscovery, cancellationToken).ConfigureAwait(false))
-                result = await _source.InvokeAsync((worker, token) => worker.ReadCatalogAsync(request,
-                    new PluginOperationContext(BoardUri.AbsoluteUri, WatchGeneration), token), cancellationToken).ConfigureAwait(false);
-            PluginSourceImageBoard.Validate(SdkValidation.ValidateCatalogResult(request, result, _source.Description));
+            CatalogReadResult result = await ReadPagesAsync(request, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             switch (result)
             {
@@ -73,6 +67,43 @@ internal sealed class PluginSourceBoard : BaseBoard
             }
         }
         finally { _readGate.Release(); }
+    }
+
+    private async Task<CatalogReadResult> ReadPagesAsync(CatalogReadRequest request, CancellationToken token)
+    {
+        List<SourceThreadReference> threads = new();
+        HashSet<SourceThreadId> identities = new();
+        HashSet<(string? Cursor, int? Page)> pages = new();
+        SourceValidators? firstValidators = null;
+        int textBytes = 0;
+        DownloadQueue? queue = SessionQueue ?? _source.MetadataQueue;
+        for (int page = 0; page < 128; page++)
+        {
+            if (!pages.Add((request.Cursor, request.Page))) throw new PluginWorkerException("catalog_pagination_loop", "The source repeated a catalog continuation.");
+            CatalogReadResult result;
+            using (IDisposable? admission = queue == null ? null : await queue.AcquireMetadataAsync(_source.Name,
+                DownloadPriority.BoardDiscovery, token).ConfigureAwait(false))
+                result = await _source.InvokeAsync((worker, cancellation) => worker.ReadCatalogAsync(request,
+                    new PluginOperationContext(BoardUri.AbsoluteUri, WatchGeneration), cancellation), token).ConfigureAwait(false);
+            PluginSourceImageBoard.Validate(SdkValidation.ValidateCatalogResult(request, result, _source.Description));
+            token.ThrowIfCancellationRequested();
+            if (result is not CatalogSnapshot observed) return result;
+            SourceCatalogSnapshot snapshot = observed.Snapshot;
+            if (page == 0) firstValidators = snapshot.Validators;
+            foreach (SourceThreadReference thread in snapshot.Threads)
+            {
+                if (!identities.Add(thread.Id)) continue;
+                textBytes = checked(textBytes + System.Text.Encoding.UTF8.GetByteCount(thread.OpeningText ?? "")
+                    + System.Text.Encoding.UTF8.GetByteCount(thread.Title ?? "") + thread.Url.AbsoluteUri.Length);
+                if (threads.Count >= SdkLimits.MaximumCollectionCount || textBytes > SdkLimits.MaximumMetadataBytes)
+                    throw new PluginWorkerException("catalog_too_large", "The combined catalog exceeds the host's bounded observation size.");
+                threads.Add(thread);
+            }
+            if (snapshot.NextCursor == null && snapshot.NextPage == null)
+                return new CatalogSnapshot(snapshot with { Threads = threads.AsReadOnly(), Validators = firstValidators });
+            request = new CatalogReadRequest(request.Board, snapshot.NextCursor, snapshot.NextPage);
+        }
+        throw new PluginWorkerException("catalog_page_limit", "The catalog exceeded 128 continuation pages.");
     }
 
     protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using MeowChan.Archive;
 using MeowChan.Boards.Base;
 using MeowChan.Downloader;
@@ -35,7 +37,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     private async Task CheckCoreAsync(DownloadQueue queue, CancellationToken token)
     {
         await base.checkThreadAsync(queue, token).ConfigureAwait(false);
-        await RestoreContentCandidatesAsync(_knownMedia, token).ConfigureAwait(false);
+        await RestorePluginContentCandidatesAsync(_knownMedia, token).ConfigureAwait(false);
         await CaptureContentAsync(null, token).ConfigureAwait(false);
         if (SourceState != ThreadSourceState.Active)
         {
@@ -65,7 +67,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
                 return;
             case ThreadNotFound:
-                await ObserveSourceEndAsync(ThreadSourceState.NotFound).ConfigureAwait(false);
+                await ObserveSourceEndWithCancellationAsync(ThreadSourceState.NotFound, null, token).ConfigureAwait(false);
                 await CaptureSourceStateAsync(ThreadSourceState.NotFound, token).ConfigureAwait(false);
                 await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
                 await SettleTerminalWorkAsync().ConfigureAwait(false);
@@ -96,12 +98,17 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 if (!attachment.IsDeleted && attachment.MediaId != null && attachment.Url != null)
                 {
                     // Original source identities remain byte-for-byte compatible with 0.9.
-                    string mediaId = attachment.Variant == "original" ? attachment.MediaId : attachment.MediaId + "--" + attachment.Variant;
+                    string mediaId = attachment.MediaId;
                     string extension = attachment.Extension ?? Path.GetExtension(attachment.Url.AbsolutePath);
-                    destination = StorageLayout.GetMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension);
-                    string? legacy = LegacyPath(attachment.OriginalFileName);
-                    observedMedia[mediaId] = new DownloadItem(attachment.Url, destination, Source, this, mediaId,
-                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.OriginalFileName, legacy);
+                    destination = StorageLayout.GetMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, StorageId(mediaId), extension, attachment.Variant);
+                    string? legacy = attachment.Variant != "original" ? null : Source.Name switch
+                    {
+                        "4chan" => LegacyPath(attachment.OriginalFileName),
+                        "8kun" => LegacyPath(mediaId + extension),
+                        _ => null
+                    };
+                    observedMedia[MediaKey(mediaId, attachment.Variant)] = new DownloadItem(attachment.Url, destination, Source, this, mediaId,
+                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.OriginalFileName, legacy, attachment.Variant);
                 }
                 attachments.Add(new CapturedAttachment(attachment.Position, attachment.MediaId, attachment.Variant,
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
@@ -118,7 +125,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         CapturedThreadSnapshot capture = new(new ResourceId(Source.Name, Board.BoardCode, ThreadId), Url, title,
             state, DateTimeOffset.UtcNow, DownloadDirectory, posts.AsReadOnly())
             { DecimalPostOrder = Source.Description.PostOrder == PostOrderKind.DecimalPostId };
-        if (state == ThreadSourceState.Archived) await ObserveSourceEndAsync(state, capture).ConfigureAwait(false);
+        if (state == ThreadSourceState.Archived) await ObserveSourceEndWithCancellationAsync(state, capture, token).ConfigureAwait(false);
         Title = title;
         foreach (KeyValuePair<string, DownloadItem> item in observedMedia) _knownMedia[item.Key] = item.Value;
         await CaptureContentAsync(capture, token).ConfigureAwait(false);
@@ -134,6 +141,14 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         if (string.IsNullOrEmpty(filename) || filename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
             || filename.Contains('/') || filename.Contains('\\') || filename is "." or ".." || Path.IsPathRooted(filename)) return null;
         return Path.Combine(OutputDirectory, Board.BoardCode, ThreadId, filename);
+    }
+
+    private static string StorageId(string id)
+    {
+        // Paths are host-owned; opaque source media IDs remain unchanged in capture/decision/store keys.
+        if (!id.StartsWith("opaque-", StringComparison.Ordinal) && id.Length is > 0 and <= 128
+            && id.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-')) return id;
+        return "opaque-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id))).ToLowerInvariant();
     }
 
     protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)

@@ -7,6 +7,8 @@
     <ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
     <ProjectReference Include="../../plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj" />
     <ProjectReference Include="../../MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../MeowChan.SourceAdapter.Fixture/MeowChan.SourceAdapter.Fixture.csproj" />
+    <ProjectReference Include="../../plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

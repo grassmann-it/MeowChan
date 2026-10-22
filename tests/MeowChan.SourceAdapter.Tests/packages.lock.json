@@ -151,6 +151,12 @@
           "Serilog": "[4.0.2, )"
         }
       },
+      "meowchan.plugin.eightkun": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
+        }
+      },
       "meowchan.plugin.fourchan": {
         "type": "Project",
         "dependencies": {
@@ -166,6 +172,12 @@
       },
       "meowchan.pluginsdk": {
         "type": "Project"
+      },
+      "meowchan.sourceadapter.fixture": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
+        }
       }
     }
   }

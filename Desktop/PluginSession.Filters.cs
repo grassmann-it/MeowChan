@@ -44,10 +44,9 @@ internal sealed partial class PluginSession
             grant = Grant(rule.PluginId, rule.FilterKey, request);
             if (!grant.Allows(filter.RequiredAccess)) return null;
         }
-        SettingsSnapshot settings = RuleSettings(rule, filter.Settings);
+        SettingsSnapshot settings = FilterRuleSettings.Create(rule, filter);
         if (SdkValidation.ValidateSettings(filter.Settings, settings, SettingScope.FilterRule).Count != 0) return null;
         IPluginWorkerClient worker = await GetWorkerAsync(rule.PluginId, token).ConfigureAwait(false);
-        string instance = worker.Identity.InstanceId;
         long generation = PluginRegistryAdapter.GetWatchGeneration(thread);
         PluginReleaseSnapshot release = activation.Active!;
         PluginOperationContext operation = new(thread.Url, generation, request.Decision.Selection.EffectiveRule.Revision, grant.Revision);
@@ -55,7 +54,7 @@ internal sealed partial class PluginSession
         {
             lock (_state) return !_disposed && _active.TryGetValue(rule.PluginId, out PluginActivationSnapshot? current)
                 && current.Enabled && current.LifecycleRevision == activation.LifecycleRevision && current.Active?.ExecutionRevision == release.ExecutionRevision
-                && PluginRegistryAdapter.GetWatchGeneration(thread) == generation && worker.Identity.InstanceId == instance
+                && PluginRegistryAdapter.GetWatchGeneration(thread) == generation
                 && Grant(rule.PluginId, rule.FilterKey, request).Revision == grant.Revision;
         }
         return new FilterPluginBinding(rule.PluginId, release.ExecutionRevision, release.Configuration.Revision,
@@ -66,21 +65,4 @@ internal sealed partial class PluginSession
         PluginGrantAuthorization.Resolve(_grants, plugin, key, request.Item.ImageBoard.Name,
             request.Item.Thread.Board.BoardCode, request.RuleId);
 
-    private static SettingsSnapshot RuleSettings(MediaImageFilterRule rule, SettingsSchema schema)
-    {
-        List<SettingValue> values = new();
-        foreach (SettingDefinition field in schema.Fields)
-        {
-            if (!rule.Parameters.TryGetValue(field.Key, out string? text))
-            { if (field.Default != null) values.Add(field.Default); continue; }
-            SettingValue value = field.Kind switch
-            {
-                SettingKind.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number) => new(field.Key, field.Kind, Integer: number),
-                SettingKind.Boolean when bool.TryParse(text, out bool boolean) => new(field.Key, field.Kind, Boolean: boolean),
-                _ => new(field.Key, field.Kind, Text: text)
-            };
-            values.Add(value);
-        }
-        return new SettingsSnapshot(rule.SchemaVersion, values);
-    }
 }

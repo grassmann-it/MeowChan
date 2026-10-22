@@ -56,9 +56,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger)
     {
         _queue = queue; _logger = logger;
+        string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
-        _shippedDirectory = Path.Combine(AppContext.BaseDirectory, "plugins");
-        string compilerDirectory = Path.Combine(AppContext.BaseDirectory, "plugin-compiler");
+        _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
+        string compilerDirectory = Path.Combine(applicationDirectory, "plugin-compiler");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
         CompilationService = new PluginCompilationService(new PluginCompilerOptions(
             Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory,
@@ -76,11 +77,23 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _filterStages = new FilterStageCoordinator(profileDirectory, profileLease,
             new FilterStageOptions { WorkerTemporaryBytes = Runtime.GetTemporaryBytes });
         string working = Path.Combine(profileDirectory, "plugin-workers");
-        _launch = new PluginWorkerLaunch(Path.Combine(AppContext.BaseDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
+        _launch = new PluginWorkerLaunch(Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
             Array.Empty<string>(), working);
         _transport = PluginHostHttp.CreateTransport();
         ProfileStore.LifecycleChanged += OnLifecycleChanged;
         ProfileStore.GrantChanged += OnGrantChanged;
+    }
+
+    private static string PayloadDirectory()
+    {
+        DirectoryInfo directory = new DirectoryInfo(AppContext.BaseDirectory);
+        if (OperatingSystem.IsMacOS() && directory.Name == "MacOS" && directory.Parent?.Name == "Contents"
+            && directory.Parent.Parent?.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            string payload = Path.Combine(directory.Parent.FullName, "Resources", "application");
+            if (Directory.Exists(payload)) return payload;
+        }
+        return directory.FullName;
     }
 
     internal async Task StartAsync(CancellationToken cancellationToken)
@@ -107,7 +120,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                     : await CompilationService.BuildAsync(candidate.Path, cancellationToken: token).ConfigureAwait(false);
                 if (!build.Succeeded) throw new InvalidDataException(string.Join("; ", build.Diagnostics.Select(item => item.Message)));
                 PluginDescription description = await DescribeTestAsync(build.Artifact!, token).ConfigureAwait(false);
-                observations.Add(new PluginCandidateObservation(candidate.CandidateId, description.PluginId, build.Artifact, description));
+                observations.Add(new PluginCandidateObservation(candidate.CandidateId, description.PluginId, build.Artifact, description, CandidatePath: candidate.Path));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception exception)
@@ -115,7 +128,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 string problem = Path.GetFileName(candidate.Path) + ": " + exception.Message;
                 warnings.Add(problem);
                 observations.Add(new PluginCandidateObservation(candidate.CandidateId, oldId ?? "unavailable-" + candidate.CandidateId,
-                    null, null, problem));
+                    null, null, problem, candidate.Path));
             }
         }
         PluginProfileSnapshot activated = await ProfileStore.ApplyStartupAsync(observations, previous.Revision, token).ConfigureAwait(false);

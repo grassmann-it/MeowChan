@@ -99,7 +99,7 @@ public sealed class SourceAdapterTests
         while (!condition()) await Task.Delay(10, timeout.Token);
     }
 
-    internal sealed class TestWorker(Func<ThreadReadRequest, PluginOperationContext, CancellationToken, Task<ThreadReadResult>> read, PluginDescription? description = null) : IPluginWorkerClient
+    internal sealed class TestWorker(Func<ThreadReadRequest, PluginOperationContext, CancellationToken, Task<ThreadReadResult>> read, PluginDescription? description = null, Func<CatalogReadRequest, PluginOperationContext, CancellationToken, Task<CatalogReadResult>>? catalog = null) : IPluginWorkerClient
     {
         public PluginDescription Description { get; } = description ?? new FourChanPlugin().Describe();
         public PluginWorkerIdentity Identity { get; } = new("test", "build", "config");
@@ -107,7 +107,7 @@ public sealed class SourceAdapterTests
         public PluginOperationContext? LastOperation { get; private set; }
         public Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
         { LastOperation = operation; return read(request, operation, cancellationToken); }
-        public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => catalog?.Invoke(request, operation, cancellationToken) ?? throw new NotSupportedException();
         public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FieldValidationError>>(Array.Empty<FieldValidationError>());
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

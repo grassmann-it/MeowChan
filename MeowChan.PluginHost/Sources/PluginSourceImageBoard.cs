@@ -54,7 +54,8 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     {
         if (!Router.TryResolve(threadUri, out SourceResourceKind kind, out string board, out string? thread, out Uri? canonical) || kind != SourceResourceKind.Thread)
             throw new ArgumentException("Unsupported thread URI.", nameof(threadUri));
-        return new PluginSourceThread(new PluginSourceBoard(this, board, Router.Canonical(SourceResourceKind.Board, board)), thread!, canonical!);
+        return new PluginSourceThread(new PluginSourceBoard(this, board, Description.Routes.Any(route => route.IsCanonical && route.Kind == SourceResourceKind.Board)
+            ? Router.Canonical(SourceResourceKind.Board, board) : BaseUri), thread!, canonical!);
     }
 
     public void SetEnabled(bool enabled)
