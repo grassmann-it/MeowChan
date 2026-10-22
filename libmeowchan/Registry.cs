@@ -532,10 +532,11 @@ public sealed partial class Registry : IAsyncDisposable
                         durableThread.SetLifecycleSinks((state, observed, finalSnapshot) => CommitSourceEndAsync(resource.Key, resource.Thread, state, observed, finalSnapshot),
                             () => CommitCaptureSettledAsync(resource.Key, resource.Thread));
                     }
-                    _queue.BindWork(resource.Thread, durable);
                 }
                 if (_contentRuntime != null && resource.Thread is BaseThread { SupportsContent: true } contentThread)
                     await _contentRuntime.BindAsync(contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
+                // Bind captured decisions before restoring media work; resumed transfers use the same rule path.
+                if (durable != null) _queue.BindWork(resource.Thread, durable);
                 watch.OwnerRegistration = resource.Thread.RegisterRemovalSink(removed =>
                 {
                     if (Interlocked.Exchange(ref watch.RemovalRequested, 1) == 0)
@@ -999,9 +1000,9 @@ public sealed partial class Registry : IAsyncDisposable
                 else
                 {
                     if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
-                        item.Status != MediaWorkStatus.Succeeded && item.HttpStatus != 404)) continue;
-                    if (media.Any(item => item.Status != MediaWorkStatus.Succeeded && item.Status != MediaWorkStatus.Expired)) continue;
-                    if (media.Any(item => item.Status != MediaWorkStatus.Succeeded &&
+                        item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) && item.HttpStatus != 404)) continue;
+                    if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded or MediaWorkStatus.Expired))) continue;
+                    if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
                         (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
                 }
                 WorkResource? committed = _workStore.CommitState(state with { Intent = WorkIntent.Completed });

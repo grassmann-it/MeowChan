@@ -4,8 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MeowChan.Boards.EightKun;
-using MeowChan.Boards.FourChan;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -13,6 +11,8 @@ using Serilog;
 using MeowChan.Archive;
 using MeowChan.Boards.Base;
 using MeowChan.Rules;
+using MeowChan.Desktop.Updates;
+using MeowChan.PluginHost.Sources;
 
 namespace MeowChan.Desktop;
 
@@ -43,6 +43,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     private readonly Registry _registry;
     private readonly ThreadContentRuntime _content;
     private readonly ILogger _logger;
+    private readonly DownloadQueue _downloadQueue;
+    private readonly CancellationTokenSource _startupCancellation = new CancellationTokenSource();
+    internal PluginSession? Plugins { get; }
+    internal UpdateSession Updates { get; }
     private readonly Dictionary<IThread, WatchIdentity> _threads = new Dictionary<IThread, WatchIdentity>(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<IBoard, WatchIdentity> _boards = new Dictionary<IBoard, WatchIdentity>(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<long, IThread> _threadHandles = new Dictionary<long, IThread>();
@@ -68,7 +72,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
 
     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
-        Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null)
+        Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
+        Func<string, Config, UpdateSession>? updateSessionFactory = null)
     {
         _logger = logger ?? Log.Logger;
         _profileLease = ProfileLease.Acquire(profileDirectory);
@@ -80,11 +85,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
+            _downloadQueue = queue;
+            queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             queue.SetPaused(Config.DownloadsPaused);
-            IImageBoard[] sources = providers?.ToArray() ?? new IImageBoard[]
-            {
-                new FourChanImageBoard(logger: _logger), new EightKunImageBoard(logger: _logger)
-            };
+            if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger);
+            IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             IWorkStateStore workStore = new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
@@ -92,6 +97,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
+            Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
+                ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
         }
         catch
         {
@@ -122,12 +129,19 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         try
         {
-            await _content.InitializeAsync().ConfigureAwait(false);
+            if (Plugins != null)
+            {
+                await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
+                await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
+            }
+            await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
+            Plugins?.AttachContent(_content);
             await _registry.RestoreAsync().ConfigureAwait(false);
             lock (_lifecycle)
             {
                 if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
             }
+            if (State == DesktopSessionState.Ready) Updates.Start();
         }
         catch (Exception exception)
         {
@@ -190,6 +204,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             threads = threadEntries.ToArray();
             boards = boardEntries.ToArray();
             warnings = _content.LoadWarning is string warning ? view.Warnings.Append(warning).ToArray() : view.Warnings;
+            if (Plugins != null) warnings = warnings.Concat(Plugins.Warnings).ToArray();
         }
         lock (_lifecycle)
         {
@@ -335,6 +350,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
             Config.CopyFrom(candidate);
+            _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
+            await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
         SignalChanged();
@@ -366,6 +383,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     internal IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => _registry.GetProviderDescriptors();
+    internal IReadOnlyList<DownloadTargetWaitState> GetTargetWaitStates() => _downloadQueue.TargetWaitStates;
+    internal Task CheckTargetsAsync(CancellationToken cancellationToken = default) => _downloadQueue.CheckTargetsAsync(cancellationToken);
 
     internal MediaRuleSet MediaRules => _content.Rules.Current;
     internal EffectiveMediaRule ResolveRules(MediaRuleScope scope) => _content.Rules.Resolve(scope);
@@ -432,6 +451,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         try
         {
+            _startupCancellation.Cancel();
+            await Updates.DisposeAsync().ConfigureAwait(false);
             await restoration.ConfigureAwait(false);
             await _commands.WaitAsync().ConfigureAwait(false);
             try
@@ -439,6 +460,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _registry.StopAsync().ConfigureAwait(false);
                 await _registry.DisposeAsync().ConfigureAwait(false);
                 await _content.DisposeAsync().ConfigureAwait(false);
+                if (Plugins != null) await Plugins.DisposeAsync().ConfigureAwait(false);
                 _registry.StateChanged -= OnRegistryChanged;
                 lock (_lifecycle) { _state = DesktopSessionState.Stopped; }
             }
@@ -456,6 +478,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            _startupCancellation.Dispose();
             _profileLease.Dispose();
             StateChanged = null;
         }
