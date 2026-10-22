@@ -691,6 +691,8 @@ public partial class MainWindow : Window
         _isClosing = true;
         _shutdownRunning = true;
         _settingsEditor?.EndLifetime();
+        _pluginsPage?.EndLifetime();
+        _rulesPage?.EndLifetime();
         UpdateInteractionState();
         Log.Information("Application shutdown started.");
         try
