@@ -112,7 +112,8 @@ jobs:
                   return
               subprocess.run(['gh', 'release', 'upload', 'v0.9.0', str(Path('staged') / name), '--repo', repo, '--clobber'], check=True)
               print('Uploaded:', name, flush=True)
-          # Keep the requested leading download order; remaining distinct assets can
+          # Upload the primary binaries first (GitHub displays assets alphabetically by
+          # filename regardless of upload order); remaining distinct assets can
           # transfer concurrently. A receipt is written only after every upload succeeds.
           for row in record['assets'][:5]:
               upload(row)
