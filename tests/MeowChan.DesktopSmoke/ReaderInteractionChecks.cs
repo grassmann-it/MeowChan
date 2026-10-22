@@ -8,8 +8,10 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
+using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -26,7 +28,7 @@ internal static class ReaderInteractionChecks
         await CheckHistoryAsync(page);
         Console.WriteLine("SMOKE exact cross-page quote anchor and newest-32 history passed.");
         await CheckFavoritesOverviewAsync(window, page);
-        Console.WriteLine("SMOKE reader interactions: native focus, exact media Enter, persistent favorite failure, exact bounded quote return and favorite removal/view passed.");
+        Console.WriteLine("SMOKE reader interactions: native focus, exact media Enter, persistent favorite failure, exact bounded quote return and favorite removal/view/export passed.");
     }
 
     private static async Task CheckReaderShortcutsAsync(ArchivePage page)
@@ -172,12 +174,14 @@ internal static class ReaderInteractionChecks
         ArchiveAssetRow row = page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().First();
         ResourceId thread = page.CurrentThread!.Summary.Id;
         GalleryEntry entry = new(new GalleryAssetKey(thread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset, null, null, false, true);
+        GalleryEntry remaining = entry with { Key = entry.Key with { Thread = thread with { Thread = "1001" } } };
         await window.SessionHost.SetFavoriteAsync(entry, true);
+        await window.SessionHost.SetFavoriteAsync(remaining, true);
         Task overview = page.OpenFavoritesOverviewAsync();
         await Program.WaitUntilAsync(() => window.OwnedWindows.Any(dialog => dialog.Name == "FavoritesOverviewDialog"));
         Window dialog = window.OwnedWindows.Single(dialog => dialog.Name == "FavoritesOverviewDialog");
         ListBox list = Named<ListBox>(dialog, "FavoritesList");
-        await Program.WaitUntilAsync(() => list.ItemCount == 1 && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled);
+        await Program.WaitUntilAsync(() => list.ItemCount == 2 && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled);
         Named<TextBox>(dialog, "FavoritesSearch").Text = "reader.png";
         list.SelectedIndex = 0;
         dialog.UpdateLayout();
@@ -194,10 +198,78 @@ internal static class ReaderInteractionChecks
         await Program.WaitUntilAsync(() => Named<Button>(dialog, "FavoritesRemove").IsEnabled);
         Require(Named<TextBox>(dialog, "FavoritesSearch").Text == "reader.png" && list.SelectedItem != null, "Favorite return lost search or exact selection.");
         Click(Named<Button>(dialog, "FavoritesRemove"));
-        await Program.WaitUntilAsync(() => list.ItemCount == 0);
+        await Program.WaitUntilAsync(() => list.ItemCount == 1 && Named<Button>(dialog, "FavoritesRemove").IsEnabled);
         Require(File.Exists(row.Asset.Path) && !window.SessionHost.IsFavorite(entry), "Removing a favorite deleted the original or kept the mark.");
+        Require(window.SessionHost.IsFavorite(remaining) && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled,
+            "Removing one of two visible favorites left the remaining original export disabled.");
+        await CheckRemainingFavoriteExportAsync(window, page, dialog, remaining);
+        Named<ComboBox>(dialog, "FavoritesScope").SelectedIndex = 2;
+        await Program.WaitUntilAsync(() => list.ItemCount == 0);
+        Require(!Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled, "Empty favorites retained an enabled original export.");
         dialog.Close();
         await FlushAsync();
+    }
+
+    private static async Task CheckRemainingFavoriteExportAsync(MainWindow window, ArchivePage page, Window overview, GalleryEntry remaining)
+    {
+        Func<IReadOnlyList<FavoriteEntry>?, CancellationToken, Task<FavoriteResolutionSnapshot>> resolve = page.ResolveFavoriteAssets!;
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int resolutions = 0;
+        FavoriteEntry[]? requested = null;
+        string destination = TemporaryWorkspacePaths.CreateDirectory("meowchan-favorite-export-");
+        string previousDirectory = page.LastExportDirectoryPreference;
+        Window? exportDialog = null;
+        try
+        {
+            page.LastExportDirectoryPreference = destination;
+            page.ResolveFavoriteAssets = async (entries, token) =>
+            {
+                resolutions++;
+                requested = entries?.ToArray();
+                await gate.Task.WaitAsync(token);
+                return await resolve(entries, token);
+            };
+            Button export = Named<Button>(overview, "FavoritesExportOriginals");
+            Button remove = Named<Button>(overview, "FavoritesRemove");
+            Button view = Named<Button>(overview, "FavoritesView");
+            Click(export);
+            Require(resolutions == 1 && requested is { Length: 1 }
+                && requested[0].Key == FavoriteAssetKey.From(remaining.Key.Thread, remaining.Asset),
+                "Original export did not freeze exactly the remaining favorite.");
+            TextBox search = Named<TextBox>(overview, "FavoritesSearch");
+            search.Text = "no matching favorite";
+            search.Text = "reader.png";
+            Named<ListBox>(overview, "FavoritesList").SelectedIndex = 0;
+            Require(!export.IsEnabled && !remove.IsEnabled && !view.IsEnabled,
+                "Search/selection re-enabled favorite actions while export resolution was pending.");
+            Click(export); Click(remove); Click(view);
+            Require(resolutions == 1 && window.SessionHost.IsFavorite(remaining),
+                "A repeated favorite action escaped the pending original-export guard.");
+            gate.TrySetResult();
+            await Program.WaitUntilAsync(() => overview.OwnedWindows.Any());
+            exportDialog = overview.OwnedWindows.Single();
+            // The dialog owns a frozen set even if the favorite is removed before copying.
+            await window.SessionHost.SetFavoriteAsync(remaining, false);
+            Button start = Named<Button>(exportDialog, "OriginalExportStart");
+            Require(start.IsEnabled, "The remaining favorite could not be exported immediately after removal of another.");
+            Click(start);
+            Button close = Named<Button>(exportDialog, "OriginalExportClose");
+            await Program.WaitUntilAsync(() => Equals(close.Content, CommandCatalog.Label("export.close")));
+            string[] copied = Directory.GetFiles(destination, "*", SearchOption.AllDirectories);
+            Require(copied.Length == 1 && File.ReadAllBytes(copied[0]).SequenceEqual(File.ReadAllBytes(remaining.Asset.Path)),
+                "Original export lost its frozen target or changed the remaining original bytes.");
+            Click(close);
+            await Program.WaitUntilAsync(() => export.IsEnabled && remove.IsEnabled);
+            Console.WriteLine("SMOKE favorites: remove one of two, immediate original export, pending-action guard and frozen original bytes passed.");
+        }
+        finally
+        {
+            gate.TrySetResult();
+            page.ResolveFavoriteAssets = resolve;
+            page.LastExportDirectoryPreference = previousDirectory;
+            exportDialog?.Close();
+            Directory.Delete(destination, recursive: true);
+        }
     }
 
     private static (string Id, double Top) Top(ListBox posts) => posts.GetVisualDescendants().OfType<ListBoxItem>()

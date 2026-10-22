@@ -118,13 +118,13 @@ public partial class ArchivePage
             list.SelectedItem = rows.FirstOrDefault(row => row.Entry.Key == selection);
             RefreshActions();
             summary.Text = Texts.T("viewer.favorites.count", scoped.Length, visible.Length);
-            export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
         }
         void RefreshActions()
         {
             FavoriteOverviewRow? selected = list.SelectedItem as FavoriteOverviewRow;
             view.IsEnabled = !scopeLoading && !actionRunning && selected is { Missing: false } && OpenFavoritesGallery != null;
             remove.IsEnabled = !scopeLoading && !actionRunning && selected != null && RemoveFavoriteAsync != null;
+            export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
             if (selected?.Missing == true) status.Text = Texts.T("viewer.favorites.unavailable", 1);
         }
         list.SelectionChanged += (_, _) => RefreshActions();
@@ -161,11 +161,11 @@ public partial class ArchivePage
         search.PropertyChanged += (_, args) => { if (args.Property == TextBox.TextProperty) Render(); };
         export.Click += async (_, _) =>
         {
-            if (ResolveFavoriteAssets == null) return;
+            if (scopeLoading || actionRunning || visible.Length == 0 || ResolveFavoriteAssets == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             string label = scope.SelectedItem?.ToString() ?? Texts.T("viewer.favorites.all");
             if (!string.IsNullOrWhiteSpace(search.Text)) label += " · " + Texts.T("viewer.favorites.searchApplied");
-            export.IsEnabled = false;
+            actionRunning = true; RefreshActions();
             try
             {
                 FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(frozen, loading.Token);
@@ -173,11 +173,11 @@ public partial class ArchivePage
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
             catch (Exception ex) { status.Text = ex.Message; }
-            finally { export.IsEnabled = !scopeLoading && visible.Length > 0; }
+            finally { actionRunning = false; RefreshActions(); }
         };
         remove.Click += async (_, _) =>
         {
-            if (actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
+            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
             int index = list.SelectedIndex;
             actionRunning = true; RefreshActions();
             status.Text = string.Empty;
@@ -193,7 +193,7 @@ public partial class ArchivePage
         };
         view.Click += async (_, _) =>
         {
-            if (actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
+            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             returnState = new FavoriteOverviewState(scope.SelectedIndex, search.Text ?? string.Empty, selected.Entry.Key);
             actionRunning = true; RefreshActions();
