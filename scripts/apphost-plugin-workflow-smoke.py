@@ -276,8 +276,18 @@ def validate_assembly_bindings(metrics, closure):
     return bindings
 
 
+def prepare_private_home(root, working):
+    """Defaults may query UserProfile before fixture config overrides are applied."""
+    home = workflow.owned_path(working / 'home', root)
+    home.mkdir(mode=0o700)
+    return home
+
+
 def sandbox(apphost, root, working):
-    """Whitelist filesystem mounts: source tree, home, NuGet and optional SDK roots are absent."""
+    """Whitelist mounts: source tree, personal home, NuGet and optional SDK roots are absent."""
+    home = workflow.owned_path(working / 'home', root, exists=True)
+    if not home.is_dir() or home.stat().st_mode & 0o777 != 0o700:
+        raise ValueError('Sandbox HOME must be an existing private owned directory')
     command = ['bwrap', '--die-with-parent', '--unshare-net', '--ro-bind', '/usr', '/usr']
     for path in ('/lib', '/lib64', '/etc'):
         if Path(path).exists():
@@ -288,7 +298,7 @@ def sandbox(apphost, root, working):
     command += ['--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
                 '--bind', str(root), str(root), '--ro-bind', str(root / 'package'), str(root / 'package'),
                 '--ro-bind', '/tmp/.X11-unix', '/tmp/.X11-unix', '--chdir', str(working),
-                '--setenv', 'PATH', '/no-sdk', '--setenv', 'HOME', '/no-home',
+                '--setenv', 'PATH', '/no-sdk', '--setenv', 'HOME', str(home),
                 '--setenv', 'DOTNET_ROOT', '/no-sdk', '--setenv', 'NUGET_PACKAGES', '/no-nuget',
                 str(apphost), '--smoke-plugin-workflow']
     return command
@@ -316,6 +326,7 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
     previous = root / 'profile-download' if phase == 'restore' else None
     descriptor, profile = workflow.create_descriptor(root, phase, scale, previous)
     working, environment = workflow.phase_environment(root, phase, profile, True, scale)
+    home = prepare_private_home(root, working)
     # Keep only the explicit isolated GUI/runtime variables. All package helpers
     # inherit this environment and the same filesystem/network namespace.
     allowed = {'LANG', 'LC_ALL', 'TZ', 'MEOWCHAN_PROFILE', 'MEOWCHAN_DISABLE_UPDATE_CHECK',
@@ -326,6 +337,7 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
     # The private Xvfb display uses Mesa. Selecting the NVIDIA vendor here can
     # crash Xvfb before the packaged application starts on NVIDIA hosts.
     environment['__EGL_VENDOR_LIBRARY_FILENAMES'] = '/usr/share/glvnd/egl_vendor.d/50_mesa.json'
+    environment['HOME'] = str(home)
     authority = root / ('xauthority-' + phase)
     authority.touch(mode=0o600)
     command = ['dbus-run-session', '--config-file=' + str(working / 'bus.conf'), '--',
@@ -333,7 +345,7 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
                '--server-args=-screen 0 1600x1000x24 -nolisten tcp', sys.executable,
                str(Path(__file__).with_name('with-isolated-window-manager.py').resolve()), '--',
                *sandbox(apphost, root, working), str(descriptor)]
-    result = {'phase': phase, 'passed': False, 'command': command}
+    result = {'phase': phase, 'passed': False, 'command': command, 'privateHome': str(home)}
     shutil.copy2(descriptor, destination / 'descriptor.json')
     process = None
     try:
@@ -347,6 +359,9 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
             raise ValueError('Apphost failed; see output.log')
         if 'APPHOST PLUGIN WORKFLOW PASS' not in (destination / 'output.log').read_text(errors='replace'):
             raise ValueError('Apphost completion marker missing')
+        if (home / '.dotnet/sdk').exists() or (home / '.nuget/packages').exists():
+            raise ValueError('SDK or NuGet packages appeared in the private HOME')
+        result['privateHomeSdkAndNugetPackagesAbsent'] = True
         source = workflow.owned_path(profile / 'apphost-workflow.json', root, exists=True)
         if not source.is_file() or source.stat().st_size > workflow.MAX_METRICS_BYTES:
             raise ValueError('Unbounded product evidence')

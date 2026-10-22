@@ -7,6 +7,9 @@ import struct
 import uuid
 import zipfile
 import zlib
+import subprocess
+import shutil
+import json
 import unittest
 from unittest.mock import patch
 
@@ -55,7 +58,15 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
     def test_namespace_mounts_do_not_expose_home_or_original_tree(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            command = runner.sandbox(root / 'package/MeowChan', root, root / 'cwd')
+            working = root / 'cwd'
+            working.mkdir()
+            home = runner.prepare_private_home(root, working)
+            command = runner.sandbox(root / 'package/MeowChan', root, working)
+            self.assertEqual(0o700, home.stat().st_mode & 0o777)
+            self.assertIn(str(home), command)
+            self.assertNotIn('/no-home', command)
+            self.assertFalse((home / '.dotnet/sdk').exists())
+            self.assertFalse((home / '.nuget/packages').exists())
             self.assertIn('--unshare-net', command)
             self.assertIn('/no-sdk', command)
             self.assertIn('/no-nuget', command)
@@ -66,6 +77,41 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
             self.assertEqual('--ro-bind', command[index - 1])
             self.assertEqual('--smoke-plugin-workflow', command[-1])
 
+
+    def test_sandbox_rejects_missing_or_shared_home(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            working = root / 'cwd'
+            working.mkdir()
+            with self.assertRaises((ValueError, OSError)): runner.sandbox(root / 'package/MeowChan', root, working)
+            home = runner.prepare_private_home(root, working)
+            home.chmod(0o755)
+            with self.assertRaises((ValueError, OSError)): runner.sandbox(root / 'package/MeowChan', root, working)
+
+    @unittest.skipUnless(shutil.which('bwrap'), 'bubblewrap unavailable')
+    def test_private_home_is_visible_but_host_home_and_package_stores_are_not(self):
+        # Pure Python namespace proof; no desktop, runtime, profile or network access.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / 'package').mkdir()
+            working = root / 'cwd'
+            working.mkdir()
+            home = runner.prepare_private_home(root, working)
+            command = runner.sandbox(root / 'package/MeowChan', root, working)[:-2]
+            socket = command.index('/tmp/.X11-unix')
+            del command[socket - 1:socket + 2]  # This non-GUI probe requires no X11 socket.
+            code = """import json, os
+from pathlib import Path
+home = Path(os.environ['HOME'])
+print(json.dumps({'homeExists': home.is_dir(), 'mode': home.stat().st_mode & 511,
+                  'home': str(home), 'hostHomeAbsent': not Path('/home').exists(),
+                  'sdkAbsent': not Path(os.environ['DOTNET_ROOT']).exists() and not (home / '.dotnet/sdk').exists(),
+                  'nugetAbsent': not Path(os.environ['NUGET_PACKAGES']).exists() and not (home / '.nuget/packages').exists()}))
+"""
+            result = subprocess.run([*command, '/usr/bin/python3', '-c', code], check=True, text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+            self.assertEqual(dict(homeExists=True, mode=0o700, home=str(home), hostHomeAbsent=True,
+                                  sdkAbsent=True, nugetAbsent=True), json.loads(result.stdout))
 
 
 def managed_pe(mvid):
