@@ -114,7 +114,7 @@
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
                     </Grid>
-                    <WrapPanel HorizontalAlignment="Left">
+                    <WrapPanel x:Name="ReaderToolbar" HorizontalAlignment="Left">
                         <WrapPanel.Styles><Style Selector="Button"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /></Style></WrapPanel.Styles>
                     <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
@@ -123,15 +123,6 @@
                     <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Left" Margin="12,0,0,0">
-                        <Grid ColumnDefinitions="38,38,38" RowDefinitions="32,32" ColumnSpacing="2" RowSpacing="2">
-                            <Grid.Styles><Style Selector="Button"><Setter Property="Width" Value="38" /><Setter Property="Height" Value="32" /></Style></Grid.Styles>
-                            <Button x:Name="ReaderPreviousPost" Grid.Column="1" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" />
-                            <Button x:Name="ReaderPreviousThread" Grid.Row="1" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
-                            <Button x:Name="ReaderNextPost" Grid.Row="1" Grid.Column="1" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" />
-                            <Button x:Name="ReaderNextThread" Grid.Row="1" Grid.Column="2" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
-                        </Grid>
-                    </WrapPanel>
                     </WrapPanel>
                     <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                     <WrapPanel Orientation="Horizontal">
@@ -141,7 +132,7 @@
                     </WrapPanel>
                 </StackPanel>
                 <Border Grid.Row="1" Classes="panel">
-                    <Grid>
+                    <Grid x:Name="ReaderContentSurface">
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
                             <TabItem x:Name="ArchivePostsTab" Header="Posts">
@@ -271,6 +262,23 @@
                                 </Grid>
                             </TabItem>
                         </TabControl>
+                        <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Right"
+                                   VerticalAlignment="Bottom" Margin="0,0,24,56" ZIndex="1">
+                            <Border Classes="raised" Padding="4" CornerRadius="8">
+                                <Grid ColumnDefinitions="32,32,8,32,32" ColumnSpacing="2">
+                                    <Grid.Styles>
+                                        <Style Selector="Button">
+                                            <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" />
+                                            <Setter Property="MinWidth" Value="32" /><Setter Property="Padding" Value="4" />
+                                        </Style>
+                                    </Grid.Styles>
+                                    <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" />
+                                    <Button x:Name="ReaderNextPost" Grid.Column="1" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" />
+                                    <Button x:Name="ReaderPreviousThread" Grid.Column="3" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
+                                    <Button x:Name="ReaderNextThread" Grid.Column="4" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
+                                </Grid>
+                            </Border>
+                        </WrapPanel>
                     </Grid>
                 </Border>
                 <TextBlock x:Name="ArchivePartialHint" Grid.Row="2" Tag="archive.partial" Classes="muted localized" FontSize="12" TextWrapping="Wrap" />

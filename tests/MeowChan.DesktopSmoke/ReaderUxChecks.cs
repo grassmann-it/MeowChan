@@ -87,6 +87,7 @@ internal static class ReaderUxChecks
         await page.MediaLoadTask;
         await CheckDetachedReaderIconsAsync(window, page, reader);
         await ReaderInteractionChecks.RunAsync(window, page);
+        await ReaderNavigationOverlayChecks.RunAsync(window, page);
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);
@@ -180,6 +181,10 @@ internal static class ReaderUxChecks
                 "Tab escaped the full-window reader.");
         }
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        Require(!page.FindControl<WrapPanel>("ReaderNavigation")!.IsVisible
+            && page.FindControl<ListBox>("ArchivePosts")!.Margin == default
+            && page.FindControl<TabControl>("ArchiveContentTabs")!.Margin == default,
+            "Embedded archive retained the reader overlay or its reserved content band.");
         Require(!reader.IsVisible && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"),
             "Closing reader did not return control ownership.");
         Click(page.FindControl<Button>("NextThreadsButton")!);

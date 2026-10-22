@@ -44,6 +44,7 @@ public partial class ArchivePage
     {
         foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
+        Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
         ListBox posts = Control<ListBox>("ArchivePosts");
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -73,6 +74,7 @@ public partial class ArchivePage
         Control<Button>("ArchiveCloseReader").IsVisible = true;
         Control<Button>("ArchiveReadPosts").IsVisible = false;
         Control<ListBox>("ArchivePosts").MaxWidth = 1120;
+        UpdateReaderNavigation();
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
         return pane;
@@ -93,6 +95,7 @@ public partial class ArchivePage
         Control<Button>("ArchiveCloseReader").IsVisible = false;
         Control<Button>("ArchiveReadPosts").IsVisible = true;
         Control<ListBox>("ArchivePosts").MaxWidth = double.PositiveInfinity;
+        UpdateReaderNavigation();
         Control<Grid>("ArchiveSplit").Children.Add(pane);
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
@@ -185,6 +188,27 @@ public partial class ArchivePage
         Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && thread > 0;
         Control<Button>("ReaderNextThread").IsEnabled = !_busy && thread >= 0 && thread + 1 < _readerThreads.Count;
         Control<WrapPanel>("ReaderNavigation").IsVisible = _largeReader;
+        UpdateReaderNavigationLayout();
+    }
+
+    private void UpdateReaderNavigationLayout()
+    {
+        TabControl tabs = Control<TabControl>("ArchiveContentTabs");
+        bool postsSelected = tabs.SelectedIndex == 0;
+        Grid surface = Control<Grid>("ReaderContentSurface");
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        // Use the spare horizontal space beside the capped reading width when
+        // available. At smaller sizes reserve a shallow band outside the scroll
+        // viewport; a final spacer would still let other posts pass underneath.
+        bool sideSpace = _largeReader && surface.Bounds.Width >= posts.MaxWidth + 186;
+        posts.Margin = !_largeReader ? default : sideSpace ? new Thickness(0, 0, 186, 0) : new Thickness(0, 0, 0, 42);
+        tabs.Margin = _largeReader && !postsSelected ? new Thickness(0, 0, 0, 66) : default;
+        if (!_largeReader) return;
+        Grid pageBar = Control<Grid>("ArchivePostNavigation");
+        double bottom = 16;
+        if (postsSelected && pageBar.IsEffectivelyVisible && pageBar.TranslatePoint(default, surface) is Point position)
+            bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
+        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, 24, bottom);
     }
 
     private async void OnReaderNavigationClick(object? sender, RoutedEventArgs e)
