@@ -21,7 +21,7 @@ public interface IWorkStateStore
 /// <summary>Persisted source state is independent of a provider instance and the post catalog.</summary>
 public enum ThreadSourceStateValue { Active, Archived, NotFound }
 public enum WorkIntent { Watching, Suppressed, Completed, Repairing }
-public enum MediaWorkStatus { Ready, Waiting, Succeeded, NeedsIntervention, Expired }
+public enum MediaWorkStatus { Ready, Waiting, Succeeded, NeedsIntervention, Expired, Excluded }
 
 public sealed record WorkResource
 {

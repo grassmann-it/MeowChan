@@ -31,3 +31,12 @@ static MeowChan.Rules.MediaImageFilterRule.Disabled.get -> MeowChan.Rules.MediaI
 MeowChan.Rules.MediaImageFilterRule.MediaImageFilterRule(MeowChan.Rules.MediaImageFilterMode mode, string? pluginId = null, string? filterKey = null, string! schemaVersion = "1", System.Collections.Generic.IReadOnlyDictionary<string!, string!>? parameters = null) -> void
 MeowChan.Rules.EffectiveMediaRule.ImageFilterOrigin.get -> MeowChan.Rules.MediaRuleOrigin?
 MeowChan.Rules.EffectiveMediaRule.ImageFilterOrigin.init -> void
+MeowChan.Downloader.DownloadTargetWaitState
+MeowChan.Downloader.DownloadTargetWaitState.Path.get -> string!
+MeowChan.Downloader.DownloadTargetWaitState.Reason.get -> string!
+MeowChan.Downloader.DownloadTargetWaitState.NextCheckAt.get -> System.DateTimeOffset
+MeowChan.Downloader.DownloadQueue.MinimumFreeSpaceBytes.get -> long
+MeowChan.Downloader.DownloadQueue.TargetWaitStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState!>!
+MeowChan.Downloader.DownloadQueue.UpdateMinimumFreeSpaceBytes(long bytes) -> void
+MeowChan.Downloader.DownloadQueue.CheckTargetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+MeowChan.Persistence.MediaWorkStatus.Excluded = 5 -> MeowChan.Persistence.MediaWorkStatus

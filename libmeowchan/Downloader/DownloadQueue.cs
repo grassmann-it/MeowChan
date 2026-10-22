@@ -31,6 +31,11 @@ public class DownloadQueue
 {
     private readonly object _stateLock = new object();
     private readonly MetadataAdmission _metadataAdmission = new();
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly DownloadTargetGate _targets;
+    private Task? _targetPolling;
+    private TaskCompletionSource _targetChanged = CreateCompletionSource();
+    private int _activeFilteredDownloads;
     private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
     private CancellationTokenSource _transferEpoch = new();
     private TaskCompletionSource _workersDrained = CreateCompletedSource();
@@ -107,6 +112,7 @@ public class DownloadQueue
                 if (_stopping) throw new InvalidOperationException("The queue is stopping.");
                 if (_paused == paused) return;
                 _paused = paused;
+                _metadataAdmission.SetPaused(paused);
                 if (paused)
                 {
                     _resumed = CreateCompletionSource();
@@ -158,6 +164,99 @@ public class DownloadQueue
 
     public (int Active, int Waiting) GetMetadataCapacitySnapshot() => _metadataAdmission.Snapshot;
     internal DownloadPriority GetThreadPriority(IThread thread) { lock (_stateLock) return GetPriorityLocked(thread); }
+
+    public long MinimumFreeSpaceBytes => _targets.Reserve;
+    public IReadOnlyList<DownloadTargetWaitState> TargetWaitStates => _targets.Snapshot();
+    public void UpdateMinimumFreeSpaceBytes(long bytes) => _targets.UpdateReserve(bytes);
+    public Task CheckTargetsAsync(CancellationToken cancellationToken = default) => _targets.CheckBlockedAsync(true, cancellationToken);
+    internal DownloadTargetGate TargetGate => _targets;
+
+    private string TargetPath(DownloadItem item)
+    {
+        lock (_stateLock) return _workOwners.TryGetValue(item.Thread, out WorkResource? owner)
+            ? Path.GetFullPath(owner.OutputRoot) : Path.GetDirectoryName(item.DestinationPath)!;
+    }
+
+    private void OnTargetsChanged()
+    {
+        List<QueuedDownload> ready;
+        lock (_stateLock)
+        {
+            if (_stopping) return;
+            TaskCompletionSource old = _targetChanged;
+            _targetChanged = CreateCompletionSource();
+            old.TrySetResult();
+            if (_targetPolling == null && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
+            if (_workStore != null) SignalScheduleLocked();
+            ready = ReserveWorkersLocked();
+        }
+        StartWorkers(ready);
+        _changes.Signal();
+    }
+
+    private async Task PollTargetsAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                Task changed;
+                TimeSpan delay;
+                lock (_stateLock)
+                {
+                    if (_stopping) return;
+                    DateTimeOffset? next = _targets.NextCheckAt;
+                    if (next == null) { _targetPolling = null; return; }
+                    changed = _targetChanged.Task;
+                    delay = next.Value - _timeProvider.GetUtcNow();
+                }
+                await WaitUntilResumedAsync(_lifetime.Token).ConfigureAwait(false);
+                if (delay > TimeSpan.Zero)
+                {
+                    try { await changed.WaitAsync(delay, _timeProvider, _lifetime.Token).ConfigureAwait(false); }
+                    catch (TimeoutException) { }
+                }
+                else await _targets.CheckBlockedAsync(false, _lifetime.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+    }
+
+    private async Task<bool> WaitForTargetAsync(DownloadItem item, CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        while (true)
+        {
+            Task changed;
+            lock (_stateLock)
+            {
+                if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
+                changed = _capacityChanged.Task;
+            }
+            Task targetChanged = _targets.ChangeTask;
+            if (await _targets.CheckAsync(TargetPath(item), item.ExpectedSize, linked.Token).ConfigureAwait(false)) return true;
+            await Task.WhenAny(changed, targetChanged).WaitAsync(linked.Token).ConfigureAwait(false);
+        }
+    }
+
+    private void OnFilterCapacityChanged()
+    {
+        List<QueuedDownload> ready;
+        lock (_stateLock) { ready = ReserveWorkersLocked(); }
+        StartWorkers(ready);
+        _changes.Signal();
+    }
+
+    private void AttachFilter(QueuedDownload job)
+    {
+        job.SubscribedFilter = job.Item.Filter;
+        if (job.SubscribedFilter != null) job.SubscribedFilter.CapacityChanged += OnFilterCapacityChanged;
+    }
+    private void DetachFilter(QueuedDownload job)
+    {
+        if (job.SubscribedFilter != null) job.SubscribedFilter.CapacityChanged -= OnFilterCapacityChanged;
+        job.SubscribedFilter = null;
+    }
 
     public long MaxBandwidthBytesPerSecond => _bandwidthLimiter.MaxBytesPerSecond;
     /// <summary>Cumulative media response-body bytes read by this queue, including failed attempts; excludes local restoration.</summary>
@@ -223,6 +322,8 @@ public class DownloadQueue
         if (_bodyIdleTimeout <= TimeSpan.Zero || _bodyIdleTimeout.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(bodyIdleTimeout));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _targets = new DownloadTargetGate(_timeProvider, _lifetime.Token);
+        _targets.Changed += OnTargetsChanged;
         _logger = logger ?? Serilog.Core.Logger.None;
         _changes = new CoalescedEvent<Action>(handler => handler(),
             exception => _logger.Error(exception, "Download queue observer failed"));
@@ -300,7 +401,7 @@ public class DownloadQueue
             _workOwners[thread] = resource;
             foreach (MediaWork media in saved)
             {
-                if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired) continue;
+                if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired or MediaWorkStatus.Excluded) continue;
                 DownloadItem item = RestoreItem(thread, media);
                 PreparedDownload prepared = Prepare(item);
                 _scheduled[prepared.Job] = new ScheduledWork(item, media);
@@ -325,7 +426,7 @@ public class DownloadQueue
         foreach (MediaWork media in store.LoadMedia(owner.Url, owner.Generation))
         {
             if (mediaIdentifier != null && media.MediaIdentifier != mediaIdentifier) continue;
-            if (media.Status == MediaWorkStatus.Succeeded || media.ManualAttempt) continue;
+            if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded || media.ManualAttempt) continue;
             DownloadItem item = RestoreItem(thread, media);
             PreparedDownload prepared = Prepare(item);
             MediaWork manual = media with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
@@ -390,6 +491,7 @@ public class DownloadQueue
                             continue;
                         }
                     }
+                    if (_targets.IsBlocked(TargetPath(candidate.Item))) continue;
                     if (at <= now && due == null) due = candidate;
                     else if (at > now && (delay == null || at - now < delay)) delay = at - now;
                 }
@@ -418,6 +520,11 @@ public class DownloadQueue
             {
                 try
                 {
+                    if (!await _targets.CheckAsync(TargetPath(due.Item), due.Item.ExpectedSize, _lifetime.Token).ConfigureAwait(false))
+                    {
+                        lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
+                        continue;
+                    }
                     Task<bool>? admission = null;
                     lock (_stateLock)
                     {
@@ -428,6 +535,7 @@ public class DownloadQueue
                     }
                     if (admission != null) await admission.ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
                 catch (Exception error) { Quarantine(due.Item, error); }
                 continue;
             }
@@ -488,12 +596,15 @@ public class DownloadQueue
         LinkedListNode<AdmissionWaiter> node;
         lock (_stateLock)
         {
-            waiter = new AdmissionWaiter(item.Thread);
+            waiter = new AdmissionWaiter(item);
             node = _admissionWaiters.AddLast(waiter);
             PulseCapacityLocked();
         }
         try
         {
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, waiter.Closed.Token);
+            if (!await WaitForTargetAsync(item, linked.Token).ConfigureAwait(false)) return false;
+            lock (_stateLock) { waiter.TargetReady = true; PulseCapacityLocked(); }
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -515,9 +626,12 @@ public class DownloadQueue
                 await changed.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested &&
+            (waiter.Closed.IsCancellationRequested || _lifetime.IsCancellationRequested)) { return false; }
         finally
         {
             lock (_stateLock) { _admissionWaiters.Remove(node); PulseCapacityLocked(); }
+            waiter.Closed.Dispose();
         }
     }
 
@@ -564,7 +678,7 @@ public class DownloadQueue
             OriginalFileName = item.OriginalFileName,
             LegacyPath = item.LegacyPath
         };
-        if (next.Status is MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired) return false;
+        if (next.Status is MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired or MediaWorkStatus.Excluded) return false;
         if (!next.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && next.HttpStatus == 404 && now >= end.AddHours(12)) return false;
         if (!store.CommitMedia(next)) return false;
         if (next.DueAt is DateTimeOffset due && due > now)
@@ -625,13 +739,14 @@ public class DownloadQueue
                     { _reservedSuccessors--; PulseCapacityLocked(); }
                     existing.Replacement = needsSuccessor ? item : null;
                 }
-                else existing.Item = item;
+                else { DetachFilter(existing); existing.Item = item; AttachFilter(existing); }
                 ready = new List<QueuedDownload>();
             }
             else
             {
 
                 if ((!fromWaiter && (_admissionWaiters.Count > 0))
+                    || _jobs.Count + _reservedSuccessors >= _maxPendingDownloads + _maxParallelDownloads
                     || ((_paused || _activeDownloads >= _maxParallelDownloads) && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
                 { full = true; return false; }
 
@@ -657,6 +772,7 @@ public class DownloadQueue
 
                 QueuedDownload job = new QueuedDownload(jobIdentity, url, item, threadState);
                 _jobs.Add(jobIdentity, job);
+                AttachFilter(job);
                 _pendingDownloads.AddLast(job);
                 threadState.OutstandingJobs++;
                 ready = ReserveWorkersLocked();
@@ -699,6 +815,8 @@ public class DownloadQueue
         lock (_stateLock)
         {
             _cancelledThreads.GetValue(thread, static (IThread _) => new object());
+            foreach (AdmissionWaiter waiter in _admissionWaiters.ToArray())
+                if (ReferenceEquals(waiter.Thread, thread)) waiter.Closed.Cancel();
             _workOwners.Remove(thread);
             foreach (JobIdentity key in _scheduled.Where(entry => ReferenceEquals(entry.Value.Item.Thread, thread))
                 .Select(entry => entry.Key).ToArray()) _scheduled.Remove(key);
@@ -748,6 +866,7 @@ public class DownloadQueue
 
             _stopping = true;
             _metadataAdmission.Close();
+            foreach (AdmissionWaiter waiter in _admissionWaiters.ToArray()) waiter.Closed.Cancel();
             _scheduleChanged.TrySetResult();
             _resumed.TrySetResult();
             stopCompletion = CreateCompletionSource();
@@ -762,6 +881,7 @@ public class DownloadQueue
             {
                 _interruptedDownloads.RemoveFirst();
                 _jobs.Remove(interrupted.Value.Identity);
+                DetachFilter(interrupted.Value);
                 interrupted.Value.ThreadState.OutstandingJobs--;
             }
 
@@ -770,6 +890,7 @@ public class DownloadQueue
                 QueuedDownload job = node.Value;
                 _pendingDownloads.RemoveFirst();
                 _jobs.Remove(job.Identity);
+                DetachFilter(job);
                 job.ThreadState.OutstandingJobs--;
             }
 
@@ -782,6 +903,7 @@ public class DownloadQueue
             PulseCapacityLocked();
         }
 
+        _lifetime.Cancel();
         RunCleanup(cleanup);
         _changes.Signal();
         _ = CompleteStopAsync(threads, stopCompletion);
@@ -817,9 +939,14 @@ public class DownloadQueue
     private AdmissionWaiter? NextWaiterLocked()
     {
         DownloadPriority preferred = _preferManualAdmission ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
+        AdmissionWaiter? fallback = null;
         foreach (AdmissionWaiter waiter in _admissionWaiters)
+        {
+            if (!waiter.TargetReady || _targets.IsBlocked(TargetPath(waiter.Item))) continue;
+            fallback ??= waiter;
             if (GetPriorityLocked(waiter.Thread) == preferred) return waiter;
-        return _admissionWaiters.First?.Value;
+        }
+        return fallback;
     }
 
     private void PulseCapacityLocked()
@@ -836,25 +963,21 @@ public class DownloadQueue
         {
             DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
             LinkedListNode<QueuedDownload>? chosen = null;
-            for (LinkedListNode<QueuedDownload>? node = _pendingDownloads.First; node != null; node = node.Next)
+            foreach (LinkedList<QueuedDownload> list in new[] { _interruptedDownloads, _pendingDownloads })
+            for (LinkedListNode<QueuedDownload>? node = list.First; node != null; node = node.Next)
             {
+                if (_targets.IsBlocked(TargetPath(node.Value.Item))) continue;
+                if (node.Value.Item.Filter != null && (_activeFilteredDownloads >= Math.Max(1, Math.Min(2, _maxParallelDownloads - 1)) || !node.Value.Item.Filter.CanStart)) continue;
                 bool matches = GetPriorityLocked(node.Value.Item.Thread) == preferred;
                 bool chosenMatches = chosen != null && GetPriorityLocked(chosen.Value.Item.Thread) == preferred;
                 if (chosen == null || (matches && !chosenMatches)
                     || (matches == chosenMatches && node.Value.ThreadState.LastDispatch < chosen.Value.ThreadState.LastDispatch))
                     chosen = node;
             }
-            QueuedDownload job;
-            if (_interruptedDownloads.First is { } interrupted)
-            {
-                job = interrupted.Value;
-                _interruptedDownloads.RemoveFirst();
-            }
-            else
-            {
-                job = chosen!.Value;
-                _pendingDownloads.Remove(chosen);
-            }
+            if (chosen == null) break;
+            QueuedDownload job = chosen.Value;
+            chosen.List!.Remove(chosen);
+            if (job.Item.Filter != null) _activeFilteredDownloads++;
             _preferManualDispatch = GetPriorityLocked(job.Item.Thread) != DownloadPriority.Manual;
             job.ThreadState.LastDispatch = ++_dispatchSequence;
             job.IsActive = true;
@@ -879,12 +1002,15 @@ public class DownloadQueue
     {
         bool succeeded = false;
         bool interrupted = false;
+        bool targetBlocked = false;
         using AsyncCancellationLink cancellation = new(job.ThreadState.Token, job.EpochToken);
         try
         {
             job.EpochToken.ThrowIfCancellationRequested();
             cancellation.Token.ThrowIfCancellationRequested();
             if (!CanRunDurable(job.Item)) return;
+            if (!await _targets.CheckAsync(TargetPath(job.Item), job.Item.ExpectedSize, cancellation.Token).ConfigureAwait(false))
+            { targetBlocked = true; return; }
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
                 _logger, notifyThread: _workStore == null)
             {
@@ -897,6 +1023,17 @@ public class DownloadQueue
         {
             interrupted = job.EpochToken.IsCancellationRequested;
             _logger.Debug("Download for {DownloadUri} was cancelled.", job.Item.DownloadUri);
+        }
+        catch (MediaFilterOmissionException omission)
+        {
+            try { RecordFilterOmission(job.Item, omission); }
+            catch (Exception persistenceFailure) { Quarantine(job.Item, persistenceFailure); }
+        }
+        catch (Exception exception) when (DownloadTargetGate.IsTargetFailure(exception))
+        {
+            // Storage waits are not network attempts. Keep DueAt, 404 count and source-end deadline intact.
+            targetBlocked = true;
+            _targets.Block(TargetPath(job.Item), exception);
         }
         catch (Exception exception)
         {
@@ -935,14 +1072,17 @@ public class DownloadQueue
             lock (_stateLock)
             {
                 _activeDownloads--;
+                if (job.Item.Filter != null) _activeFilteredDownloads--;
                 if (_activeDownloads == 0) _workersDrained.TrySetResult();
-                if (interrupted && !_stopping && !job.ThreadState.Token.IsCancellationRequested
+                if ((interrupted || targetBlocked) && !_stopping && !job.ThreadState.Token.IsCancellationRequested
                     && !_cancelledThreads.TryGetValue(job.Item.Thread, out _))
                 {
                     job.IsActive = false;
                     if (job.Replacement != null)
                     {
+                        DetachFilter(job);
                         job.Item = job.Replacement;
+                        AttachFilter(job);
                         job.Replacement = null;
                         _reservedSuccessors--;
                     }
@@ -952,6 +1092,7 @@ public class DownloadQueue
                 else
                 {
                     _jobs.Remove(job.Identity);
+                    DetachFilter(job);
                     job.ThreadState.OutstandingJobs--;
                     if (job.Replacement != null) _reservedSuccessors--;
                     if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
@@ -959,6 +1100,7 @@ public class DownloadQueue
                     {
                         QueuedDownload successor = new QueuedDownload(job.Identity, replacement.DownloadUri.ToString(), replacement, job.ThreadState);
                         _jobs.Add(job.Identity, successor);
+                        AttachFilter(successor);
                         _pendingDownloads.AddLast(successor);
                         job.ThreadState.OutstandingJobs++;
                     }
@@ -972,6 +1114,23 @@ public class DownloadQueue
             StartWorkers(ready);
             _changes.Signal();
         }
+    }
+
+    private void RecordFilterOmission(DownloadItem item, MediaFilterOmissionException omission)
+    {
+        lock (_stateLock)
+        {
+            if (_workStore == null || !_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return;
+            MediaWork? previous = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
+                media.MediaIdentifier == item.MediaIdentifier && media.DestinationPath == item.DestinationPath);
+            if (previous == null || previous.ExpectedSize != item.ExpectedSize || previous.ExpectedMd5 != item.ExpectedMd5) return;
+            _workStore.CommitMedia(previous with
+            {
+                Status = omission.IsNoMatch ? MediaWorkStatus.Excluded : MediaWorkStatus.NeedsIntervention,
+                Failure = omission.ReasonCode, DueAt = null, ManualAttempt = false
+            });
+        }
+        _changes.Signal();
     }
 
     private void Quarantine(DownloadItem item, Exception failure)
@@ -1013,7 +1172,7 @@ public class DownloadQueue
             _changes.Signal();
             return false;
         }
-        return media.Status is not (MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired)
+        return media.Status is not (MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired or MediaWorkStatus.Excluded)
             && (media.DueAt == null || media.DueAt <= now);
     }
 
@@ -1076,6 +1235,7 @@ public class DownloadQueue
         {
             _interruptedDownloads.Remove(interrupted);
             _jobs.Remove(interrupted.Identity);
+            DetachFilter(interrupted);
             threadState.OutstandingJobs--;
         }
         LinkedListNode<QueuedDownload>? node = _pendingDownloads.First;
@@ -1087,6 +1247,7 @@ public class DownloadQueue
             {
                 _pendingDownloads.Remove(node);
                 _jobs.Remove(job.Identity);
+                DetachFilter(job);
                 threadState.OutstandingJobs--;
             }
             node = next;
@@ -1135,6 +1296,7 @@ public class DownloadQueue
             await Task.WhenAll(cancellations).ConfigureAwait(false);
             await WaitForIdleAsync().ConfigureAwait(false);
             if (_scheduleTask != null) await _scheduleTask.ConfigureAwait(false);
+            if (_targetPolling != null) await _targetPolling.ConfigureAwait(false);
             completion.TrySetResult();
         }
         catch (Exception exception)
@@ -1209,7 +1371,13 @@ public class DownloadQueue
 
     private sealed class PriorityState { public DownloadPriority Priority { get; set; } }
     private sealed record ScheduledWork(DownloadItem Item, MediaWork Work);
-    private sealed record AdmissionWaiter(IThread Thread);
+    private sealed class AdmissionWaiter(DownloadItem item)
+    {
+        public DownloadItem Item { get; } = item;
+        public IThread Thread => Item.Thread;
+        public bool TargetReady { get; set; }
+        public CancellationTokenSource Closed { get; } = new();
+    }
     private readonly record struct PreparedDownload(ThreadIdentity Thread, JobIdentity Job);
 
     private readonly record struct ThreadIdentity(string Source, string Board, string ThreadId);
@@ -1223,6 +1391,7 @@ public class DownloadQueue
         public DownloadItem? Replacement { get; set; }
         public ThreadState ThreadState { get; }
         public bool IsActive { get; set; }
+        public IOriginalMediaFilter? SubscribedFilter { get; set; }
         public CancellationToken EpochToken { get; set; }
 
         public QueuedDownload(JobIdentity identity, string url, DownloadItem item, ThreadState threadState)

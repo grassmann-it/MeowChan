@@ -44,6 +44,21 @@ public sealed class MetadataAdmissionTests
     }
 
     [Fact]
+    public async Task PauseKeepsAlreadyWaitingMetadataOutOfFreedSlotsUntilResume()
+    {
+        DownloadQueue queue = new(1, 1024);
+        using IDisposable held = await queue.AcquireMetadataAsync("one", DownloadPriority.Manual);
+        Task<IDisposable> pending = queue.AcquireMetadataAsync("one", DownloadPriority.BoardDiscovery);
+        await queue.SetPausedAsync(true);
+        held.Dispose();
+        Assert.Equal((0, 1), queue.GetMetadataCapacitySnapshot());
+        Assert.False(pending.IsCompleted);
+        await queue.SetPausedAsync(false);
+        using IDisposable next = await pending.WaitAsync(TestWait.Timeout);
+        await queue.StopAllAsync();
+    }
+
+    [Fact]
     public async Task StopClosesPendingAndFutureMetadataCalls()
     {
         DownloadQueue queue = new(1, 1024);

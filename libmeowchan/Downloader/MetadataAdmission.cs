@@ -17,6 +17,7 @@ internal sealed class MetadataAdmission
     private long _round;
     private bool _preferManual = true;
     private bool _closed;
+    private bool _paused;
 
     public (int Active, int Waiting) Snapshot { get { lock (_sync) return (_active, _waiting.Count); } }
 
@@ -42,7 +43,7 @@ internal sealed class MetadataAdmission
                         source.Waiters++;
                         node = _waiting.AddLast(new Waiter(sourceId, source, priority));
                     }
-                    if (node != null && _active < 4 && ReferenceEquals(ChooseLocked(), node))
+                    if (node != null && !_paused && _active < 4 && ReferenceEquals(ChooseLocked(), node))
                     {
                         Waiter next = node.Value;
                         _waiting.Remove(node);
@@ -71,6 +72,8 @@ internal sealed class MetadataAdmission
             }
         }
     }
+
+    public void SetPaused(bool paused) { lock (_sync) { _paused = paused; PulseLocked(); } }
 
     public void Close() { lock (_sync) { _closed = true; PulseLocked(); } }
 
