@@ -103,11 +103,12 @@ internal static class ComparisonCaptures
         await Program.WaitUntilAsync(() =>
         {
             window.UpdateLayout();
-            Point? origin = copy.TranslatePoint(new Point(0, 0), window);
-            return !copy.IsEnabled && copy.IsEffectivelyVisible && copy.Bounds.Width > 0
+            Button action = copy.IsEffectivelyVisible ? copy : window.FindControl<Button>("DownloadsMoreButton")!;
+            Point? origin = action.TranslatePoint(new Point(0, 0), window);
+            return !copy.IsEnabled && action.IsEffectivelyVisible && action.Bounds.Width > 0
                 && Math.Abs(window.Bounds.Width - window.Width) <= 1 && Math.Abs(window.Bounds.Height - window.Height) <= 1
                 && origin.HasValue && origin.Value.X >= 0 && origin.Value.Y >= 0
-                && origin.Value.X + copy.Bounds.Width <= window.Bounds.Width + 1
+                && origin.Value.X + action.Bounds.Width <= window.Bounds.Width + 1
                 && window.FindControl<TextBlock>("ThreadsEmptyState")!.IsEffectivelyVisible;
         });
         Program.CaptureWindow(window, fileName);
