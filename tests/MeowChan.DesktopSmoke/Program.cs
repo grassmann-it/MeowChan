@@ -230,6 +230,14 @@ internal static class Program
             }
 
             MainWindow mainWindow = window as MainWindow ?? throw new InvalidOperationException("MainWindow was not created.");
+            // StartAsync returns the session's existing startup task, including plugin bootstrap.
+            // Only the subsequent command-state propagation belongs to the five-second UI poll.
+            Console.WriteLine("SMOKE awaiting desktop session startup; state=" + mainWindow.SessionHost.State + ".");
+            await mainWindow.SessionHost.StartAsync();
+            if (mainWindow.SessionHost.State != DesktopSessionState.Ready)
+                throw new InvalidOperationException("Desktop session startup did not reach Ready: state="
+                    + mainWindow.SessionHost.State + "; error=" + (mainWindow.SessionHost.StartupError ?? "no startup error recorded"));
+            Console.WriteLine("SMOKE desktop session startup completed; state=Ready.");
             await WaitUntilAsync(() => mainWindow.FindControl<Button>("AddUrlButton")!.IsEnabled);
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
