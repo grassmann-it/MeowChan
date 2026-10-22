@@ -89,8 +89,7 @@ internal static class UpdateGuiChecks
                 if (mode == "Advanced")
                 {
                     window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                    window.SettingsEditor.FindControl<TextBlock>("UpdatePrivacyText")!.BringIntoView();
-                    await Task.Delay(40);
+                    await RevealUpdateSettingsAsync(window);
                     Capture(window, $"smoke-updates-settings-{language}-{theme}.png");
                     window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 }
@@ -116,14 +115,13 @@ internal static class UpdateGuiChecks
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks);
             Require(!editor.HasError && Config.LoadConfig(profile).MinimumFreeSpaceGiB == 2, "Updated settings were not persisted.");
-            editor.FindControl<TextBlock>("UpdatePrivacyText")!.BringIntoView();
-            await Task.Delay(50);
+            await RevealUpdateSettingsAsync(window);
             Capture(window, "smoke-updates-settings-de-Light.png");
 
-            // Automatic errors are silent; manual errors remain in About and survive language changes.
+            // Disabled automatic checks stay silent; actual manual HTTP errors remain visible across language changes.
             handler.Status = HttpStatusCode.Forbidden;
             await host.Updates.CheckAsync(UpdateCheckKind.Automatic);
-            Require(host.Updates.View.ManualResult == null, "Automatic update failure leaked into manual status.");
+            Require(host.Updates.View.ManualResult == null, "A disabled automatic update check leaked into manual status.");
             about = new AboutWindow(host.Updates);
             about.Show(window);
             about.FindControl<Button>("CheckUpdatesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -152,6 +150,19 @@ internal static class UpdateGuiChecks
             Texts.SetLanguage(owner.SessionHost.Config.Language);
             Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
         }
+    }
+
+    private static async Task RevealUpdateSettingsAsync(MainWindow window)
+    {
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+        window.UpdateLayout();
+        TextBlock privacy = window.SettingsEditor.FindControl<TextBlock>("UpdatePrivacyText")!;
+        CheckBox automatic = window.SettingsEditor.FindControl<CheckBox>("AutomaticUpdatesInput")!;
+        ScrollViewer scroll = window.SettingsEditor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
+        privacy.BringIntoView();
+        await Program.WaitUntilAsync(() => privacy.TranslatePoint(default, scroll) is { } bottom
+            && automatic.TranslatePoint(default, scroll) is { } top
+            && top.Y >= -1 && bottom.Y + privacy.Bounds.Height <= scroll.Bounds.Height + 1);
     }
 
     private static void Capture(Window window, string name)

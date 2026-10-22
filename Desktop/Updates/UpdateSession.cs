@@ -26,6 +26,7 @@ internal sealed class UpdateSession : IAsyncDisposable
     private bool _prereleases;
     private Task? _background;
     private Task? _stop;
+    private int _manualPending;
 
     internal UpdateSession(string profileDirectory, Config config, HttpClient? client = null,
         TimeProvider? timeProvider = null, Func<string?>? disableEnvironment = null,
@@ -85,22 +86,31 @@ internal sealed class UpdateSession : IAsyncDisposable
 
     internal async Task CheckAsync(UpdateCheckKind kind = UpdateCheckKind.Manual)
     {
-        await _operations.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+        bool manual = kind == UpdateCheckKind.Manual;
+        if (manual && Interlocked.CompareExchange(ref _manualPending, 1, 0) != 0) return;
+        bool acquired = false;
         try
         {
-            if (kind == UpdateCheckKind.Manual) Publish(View with { IsChecking = true, ManualResult = null });
+            // Publish before waiting for an automatic request, so repeated clicks cannot queue more checks.
+            if (manual) Publish(View with { IsChecking = true, ManualResult = null });
+            await _operations.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+            acquired = true;
             UpdateCheckResult result = await _service.CheckAsync(kind, _lifetime.Token).ConfigureAwait(false);
             await RefreshCoreAsync().ConfigureAwait(false);
             UpdateView view = View;
             // A manual check deliberately reveals even a previously skipped release.
-            if (kind == UpdateCheckKind.Manual)
-                Publish(view with { IsChecking = false, ManualResult = result,
+            if (manual)
+                Publish(view with { ManualResult = result,
                     Update = result.Status == UpdateCheckStatus.Available ? result.Update : view.Update });
         }
         finally
         {
-            if (View.IsChecking) Publish(View with { IsChecking = false });
-            _operations.Release();
+            if (manual)
+            {
+                Publish(View with { IsChecking = false });
+                Interlocked.Exchange(ref _manualPending, 0);
+            }
+            if (acquired) _operations.Release();
         }
     }
 

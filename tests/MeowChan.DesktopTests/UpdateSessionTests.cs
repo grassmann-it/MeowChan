@@ -30,6 +30,24 @@ public sealed class UpdateSessionTests
     }
 
     [Fact]
+    public async Task ManualClicksWhileAutomaticHttpIsPendingDoNotQueueDuplicateRequests()
+    {
+        await using Fixture fixture = new();
+        fixture.Handler.ResponseGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task automatic = fixture.Session.CheckAsync(UpdateCheckKind.Automatic);
+        await fixture.Handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Task manual = fixture.Session.CheckAsync();
+        Assert.True(fixture.Session.View.IsChecking);
+        await fixture.Session.CheckAsync();
+        Assert.Equal(1, fixture.Handler.Requests);
+        fixture.Handler.ResponseGate.SetResult();
+        await Task.WhenAll(automatic, manual);
+        Assert.Equal(2, fixture.Handler.Requests);
+        Assert.False(fixture.Session.View.IsChecking);
+        Assert.Equal(UpdateCheckStatus.Available, fixture.Session.View.ManualResult?.Status);
+    }
+
+    [Fact]
     public async Task SkipPersistsAcrossRestartButManualCheckCanRevealItAgain()
     {
         await using Fixture fixture = new();
@@ -195,12 +213,14 @@ public sealed class UpdateSessionTests
         internal bool Block;
         internal bool Cancelled;
         internal bool Disposed;
+        internal TaskCompletionSource? ResponseGate;
         internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests++;
             Url = request.RequestUri!.AbsoluteUri;
             Entered.TrySetResult();
+            if (ResponseGate != null) await ResponseGate.Task.WaitAsync(cancellationToken);
             if (Block)
                 try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
                 catch (OperationCanceledException) { Cancelled = true; throw; }
