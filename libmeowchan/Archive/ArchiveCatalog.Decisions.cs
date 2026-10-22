@@ -81,15 +81,15 @@ public sealed partial class ArchiveCatalog
     }
 
 
-    internal Task<CandidateDecision?> RecordFilterOmissionAsync(CandidateDecision expected, bool noMatch,
+    internal Task<CandidateDecision?> RecordFilterOmissionAsync(CandidateDecision expected, bool? noMatch,
         string reason, CancellationToken cancellationToken)
         => WriteAsync((SqliteConnection connection, SqliteTransaction transaction) =>
         {
             CandidateDecision? current = FindDecision(connection, transaction, expected.Metadata.Key);
-            if (current == null || current.Metadata != expected.Metadata || current.Selection.EffectiveRule.Revision != expected.Selection.EffectiveRule.Revision) return null;
-            MediaSelectionResult selection = current.Selection with {
-                Outcome = noMatch ? MediaSelectionOutcome.Excluded : MediaSelectionOutcome.TechnicalOmission,
-                Reason = noMatch ? MediaSelectionReason.FilterNoMatch : MediaSelectionReason.FilterUnavailable, FilterReason = reason };
+            if (current == null || current.Metadata != expected.Metadata) return null;
+            MediaSelectionResult selection = expected.Selection with {
+                Outcome = noMatch == true ? MediaSelectionOutcome.Excluded : noMatch == false ? MediaSelectionOutcome.TechnicalOmission : MediaSelectionOutcome.Selected,
+                Reason = noMatch == true ? MediaSelectionReason.FilterNoMatch : noMatch == false ? MediaSelectionReason.FilterUnavailable : expected.Metadata.ExpectedSize.HasValue ? MediaSelectionReason.Allowed : MediaSelectionReason.AllowedUnknownSize, FilterReason = reason };
             using SqliteCommand command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = "UPDATE media_decisions SET selection_json=$selection WHERE source_id=$source AND board_id=$board AND thread_id=$thread AND media_id=$media AND variant=$variant";

@@ -16,6 +16,8 @@ public class DownloadItem
     public string? OriginalFileName { get; }
     public string? LegacyPath { get; }
     internal IOriginalMediaFilter? Filter { get; set; }
+    internal string? FilterPostId { get; set; }
+    internal int FilterPosition { get; set; }
 
     public DownloadItem(Uri downloadUri, string destinationPath, IImageBoard imageBoard, IThread thread, string mediaIdentifier,
         long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null, string? legacyPath = null)

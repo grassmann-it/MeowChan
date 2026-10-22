@@ -195,8 +195,17 @@ public sealed partial class MediaStore
     /// On a manifest failure the complete file remains recoverable, but no success is returned.
     /// The source stream remains owned by the caller.
     /// </summary>
-    public async Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source,
+    public Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source,
         CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null)
+        => CommitCoreAsync(item, source, cancellationToken, throttleAsync, null, null);
+
+    internal Task<MediaCommitResult> CommitVerifiedAsync(DownloadItem item, Stream source, string sha256,
+        Action authorizeCommit, CancellationToken cancellationToken)
+        => CommitCoreAsync(item, source, cancellationToken, null, sha256, authorizeCommit);
+
+    private async Task<MediaCommitResult> CommitCoreAsync(DownloadItem item, Stream source,
+        CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync,
+        string? expectedSha256, Action? authorizeCommit)
     {
         ArgumentNullException.ThrowIfNull(source);
         string destination = GetDestination(item);
@@ -213,7 +222,7 @@ public sealed partial class MediaStore
                 FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 digest = await CopyAndHashAsync(source, temporaryStream, cancellationToken, throttleAsync).ConfigureAwait(false);
-                if (!MatchesExpected(item, expectedMd5, digest))
+                if (!MatchesExpected(item, expectedMd5, digest) || expectedSha256 != null && digest.Sha256 != expectedSha256)
                 {
                     throw new InvalidDataException("Downloaded media does not match its expected size or MD5 checksum.");
                 }
@@ -273,6 +282,7 @@ public sealed partial class MediaStore
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
+                authorizeCommit?.Invoke();
                 if (!reused)
                 {
                     // No overwrite: a competing or foreign destination is never truncated.

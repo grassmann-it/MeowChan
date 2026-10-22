@@ -23,7 +23,7 @@ internal interface IOriginalMediaFilterLease : IAsyncDisposable
 internal interface IOriginalMediaFilterFactory
 {
     IOriginalMediaFilter Create(DownloadItem item, CandidateDecision decision, Func<bool> isCurrent,
-        Func<bool, string, CancellationToken, Task> recordOmission);
+        Func<bool?, string, CancellationToken, Task> recordOmission);
 }
 
 internal sealed class MediaFilterOmissionException : Exception

@@ -89,6 +89,8 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     }
 
     internal long WatchGeneration { get; private set; }
+    internal DownloadItem BindRestoredMediaFilter(DownloadItem item, bool explicitRetry = false)
+        => _content?.BindRestoredMediaFilter(item, this, explicitRetry) ?? item;
 
     internal void RestoreDurableMedia(IReadOnlyList<MediaWork> media)
     {

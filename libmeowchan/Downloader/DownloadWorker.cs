@@ -61,7 +61,7 @@ public sealed class DownloadWorker
 
         DownloadItem verifiedItem = _item.ExpectedSize.HasValue || !contentLength.HasValue ? _item : new DownloadItem(
             _item.DownloadUri, _item.DestinationPath, _item.ImageBoard, _item.Thread, _item.MediaIdentifier,
-            contentLength, _item.ExpectedMd5, _item.OriginalFileName, _item.LegacyPath) { Filter = _item.Filter };
+            contentLength, _item.ExpectedMd5, _item.OriginalFileName, _item.LegacyPath) { Filter = _item.Filter, FilterPostId = _item.FilterPostId, FilterPosition = _item.FilterPosition };
         await using Stream source = await OpenBodyAsync(response.Content, cancellationToken).ConfigureAwait(false);
         using IdleTimeoutReadStream timedSource = new IdleTimeoutReadStream(source, _bodyIdleTimeout, _timeProvider);
         MediaCommitResult completed = filterLease == null

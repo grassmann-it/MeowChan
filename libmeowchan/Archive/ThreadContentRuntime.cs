@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -48,7 +49,9 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
         string directory = StorageLayout.GetThreadDirectory(outputRoot, id.Source, id.Board, id.Thread!);
         ArchiveThreadSummary summary = await Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(id, thread.Url,
             thread.Title, directory, !restored), cancellationToken).ConfigureAwait(false);
-        thread.AttachContent(new ThreadContentContext(this, summary));
+        ThreadContentContext context = new ThreadContentContext(this, summary);
+        await context.InitializeFiltersAsync(cancellationToken).ConfigureAwait(false);
+        thread.AttachContent(context);
     }
 
     public Task<ArchiveReader> OpenReaderAsync(CancellationToken cancellationToken = default) =>
@@ -70,7 +73,9 @@ internal sealed class ThreadContentContext
     private CapturedThreadSnapshot? _pending;
     private CapturedThreadSnapshot? _latest;
     private readonly SemaphoreSlim _captureGate = new SemaphoreSlim(1, 1);
-    private readonly Dictionary<string, CandidateDecision> _decisions = new Dictionary<string, CandidateDecision>(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CandidateDecision> _decisions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, (string PostId, int Position)> _postIds = new(StringComparer.Ordinal);
+    private FailureInfo? _filterFailure;
     private bool _enabled;
     private DateTimeOffset? _capturedAt;
     private FailureInfo? _captureFailure;
@@ -93,7 +98,7 @@ internal sealed class ThreadContentContext
 
     internal ThreadContentStatus Snapshot
     {
-        get { lock (_state) return new ThreadContentStatus(_enabled, _capturedAt, _captureFailure ?? _sourceFailure, _selectionFailure, _excluded); }
+        get { lock (_state) return new ThreadContentStatus(_enabled, _capturedAt, _captureFailure ?? _sourceFailure, _selectionFailure ?? _filterFailure, _excluded); }
     }
     internal bool NeedsRetry { get { lock (_state) return _captureFailure != null || _sourceFailure != null || _selectionFailure != null; } }
 
@@ -136,7 +141,7 @@ internal sealed class ThreadContentContext
         {
         bool enabled;
         lock (_state) enabled = _enabled;
-        if (observed != null) { _latest = observed; _lastObservedSourceState = observed.SourceState; }
+        if (observed != null) { _latest = observed; _lastObservedSourceState = observed.SourceState; RememberPostIds(observed.Posts); }
         observed ??= enabled && (forceLatest || _capturedAt == null) ? _latest : null;
         if (enabled && observed != null)
             _pending = _pending == null ? observed : ArchiveCaptureMerge.Merge(_pending, observed);
@@ -192,7 +197,7 @@ internal sealed class ThreadContentContext
                 }
                 if (decision.Selection.Outcome == MediaSelectionOutcome.Selected) selected.Add(ToItem(decision.Metadata, owner));
                 else if (decision.Selection.Outcome == MediaSelectionOutcome.Excluded) excluded++;
-                else lock (_state) _selectionFailure = new FailureInfo(FailureKind.Storage, decision.Selection.FilterReason ?? "Filter unavailable");
+                else lock (_state) _filterFailure = new FailureInfo(FailureKind.Storage, decision.Selection.FilterReason ?? "Filter unavailable");
             }
             lock (_state) { _excluded = excluded; }
             return selected.AsReadOnly();
@@ -205,24 +210,51 @@ internal sealed class ThreadContentContext
         }
     }
 
-    private DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner)
+    private DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner, bool explicitRetry = false)
     {
         DownloadItem item = new DownloadItem(metadata.DownloadUri, metadata.DestinationPath, owner.Board.ImageBoard, owner,
             metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath);
+        if (_postIds.TryGetValue(metadata.Key.MediaId, out var post)) { item.FilterPostId = post.PostId; item.FilterPosition = post.Position; }
         if (_decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? decision)
             && decision.Selection.EffectiveRule.ImageFilter.Mode == MediaImageFilterMode.Plugin
             && decision.Selection.Reason != MediaSelectionReason.PreviouslySaved)
         {
+            if (explicitRetry && decision.Selection.Outcome != MediaSelectionOutcome.Excluded)
+            {
+                decision = decision with { Selection = decision.Selection with { EffectiveRule = _runtime.Rules.Resolve(_id) } };
+                _decisions[metadata.Key.MediaId] = decision;
+            }
             item.Filter = _runtime.OriginalFilters?.Create(item, decision,
                 () => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
                     && _decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? current)
                     && SameMetadata(current.Metadata, metadata),
                 async (noMatch, reason, token) => {
                     CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token).ConfigureAwait(false);
-                    if (saved != null) { lock (_state) { _decisions[metadata.Key.MediaId] = saved; if (noMatch) _excluded++; else _selectionFailure = new FailureInfo(FailureKind.Storage, reason); } }
+                    if (saved != null) { lock (_state) { _decisions[metadata.Key.MediaId] = saved; if (noMatch == true) _excluded++; else if (noMatch == false) _filterFailure = new FailureInfo(FailureKind.Storage, reason); else _filterFailure = null; } }
                 }) ?? new MissingFilter();
         }
         return item;
+    }
+
+    internal async Task InitializeFiltersAsync(CancellationToken token)
+    {
+        foreach (CandidateDecision decision in await _runtime.Catalog.GetDecisionsAsync(_id, token).ConfigureAwait(false))
+            _decisions[decision.Metadata.Key.MediaId] = decision;
+        await using ArchiveReader reader = await _runtime.OpenReaderAsync(token).ConfigureAwait(false);
+        ArchivedThreadView? view = await reader.ReadThreadAsync(_id, token).ConfigureAwait(false);
+        if (view != null) for (int offset = 0; offset < view.PostCount; offset += 500) RememberPostIds(view.GetPosts(offset, 500));
+    }
+
+    private void RememberPostIds(IEnumerable<CapturedPost> posts)
+    {
+        foreach (CapturedPost post in posts) foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
+            if (attachment.MediaId != null) _postIds[attachment.MediaId] = (post.PostId, attachment.Position);
+    }
+
+    internal DownloadItem BindRestoredMediaFilter(DownloadItem item, BaseThread owner, bool explicitRetry)
+    {
+        if (!_decisions.TryGetValue(item.MediaIdentifier, out CandidateDecision? decision)) return item;
+        return ToItem(decision.Metadata, owner, explicitRetry);
     }
 
     private sealed class MissingFilter : IOriginalMediaFilter
