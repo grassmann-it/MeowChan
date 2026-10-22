@@ -1,0 +1,11 @@
+<Project>
+  <!-- Import only into libmeowchan. The identical parser source is compiled into each
+       standalone plugin and the optional direct library providers, with no SDK dependency. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'libmeowchan'">
+    <DefineConstants>$(DefineConstants);MEOWCHAN_CORE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'libmeowchan'">
+    <Compile Include="$(MSBuildThisFileDirectory)FourChan/FourChan.cs" Link="SourceParsing/FourChan.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)EightKun/EightKun.cs" Link="SourceParsing/EightKun.cs" />
+  </ItemGroup>
+</Project>

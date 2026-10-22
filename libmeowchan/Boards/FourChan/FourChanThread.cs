@@ -6,7 +6,8 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using MeowChan.OfficialSources.FourChan;
 using MeowChan.Boards.Base;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
@@ -98,34 +99,37 @@ public class FourChanThread : BaseThread, IThread
             response.EnsureSuccessStatusCode();
             if (response.StatusCode != HttpStatusCode.OK)
                 throw new InvalidDataException("A thread snapshot requires a complete HTTP 200 response.");
-            JObject data = JObject.Parse(await BaseImageBoard.GetJsonReader(Board.ImageBoard).ReadAsync(response.Content, cancellationToken));
-            cancellationToken.ThrowIfCancellationRequested();
-            JArray posts = data["posts"] as JArray
-                ?? throw new InvalidDataException("Thread data does not contain posts.");
-            string? subject = posts.Count > 0 ? WebUtility.HtmlDecode(posts[0].Value<string>("sub")) : null;
-            Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {ThreadId}" : subject;
-
+            FourChanParser.ThreadData parsed;
+            try
+            {
+                parsed = FourChanParser.ParseThread(await BaseImageBoard.GetJsonReader(Board.ImageBoard).ReadAsync(response.Content, cancellationToken),
+                    Board.BoardCode, ThreadId, cancellationToken);
+            }
+            catch (System.Text.Json.JsonException exception)
+            {
+                // Keep the established library exception contract for invalid JSON.
+                throw new JsonReaderException(exception.Message, exception);
+            }
+            Title = string.IsNullOrWhiteSpace(parsed.Title) ? $"Thread {ThreadId}" : parsed.Title;
             Dictionary<string, DownloadItem> media = new Dictionary<string, DownloadItem>(StringComparer.Ordinal);
             List<CapturedPost> capturedPosts = new List<CapturedPost>();
-            int ordinal = 0;
-            foreach (JToken post in posts)
+            foreach (FourChanParser.Post post in parsed.Posts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 List<CapturedAttachment> attachments = new List<CapturedAttachment>();
-                DownloadItem? item = ParseMedia(post);
-                if (item != null)
+                foreach (FourChanParser.Attachment file in post.Attachments)
                 {
+                    if (file.Deleted) { attachments.Add(new CapturedAttachment(file.Position, null, IsDeleted: true)); continue; }
+                    DownloadItem item = CreateMedia(file);
                     media.TryAdd(item.MediaIdentifier, item);
-                    attachments.Add(ProviderPostCapture.Attachment(item, 0));
+                    attachments.Add(ProviderPostCapture.Attachment(item, file.Position));
                 }
-                else if (post.Value<int?>("filedeleted") == 1)
-                    attachments.Add(new CapturedAttachment(0, null, IsDeleted: true));
-                CapturedPost? captured = ProviderPostCapture.Parse(post, ordinal++, ThreadId, attachments.AsReadOnly());
-                if (captured != null) capturedPosts.Add(captured);
+                capturedPosts.Add(new CapturedPost(post.Id, post.Ordinal, (PostFieldPresence)post.Fields,
+                    post.PostedAt, post.Subject, post.Author, post.Text, post.Deleted, attachments.AsReadOnly()));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            bool archived = posts.Count > 0 && posts[0].Value<int?>("archived") == 1;
+            bool archived = parsed.Archived;
             CapturedThreadSnapshot capturedSnapshot = new(
                 new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url, Title,
                 archived ? ThreadSourceState.Archived : SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
@@ -144,20 +148,12 @@ public class FourChanThread : BaseThread, IThread
         }
     }
 
-    private DownloadItem? ParseMedia(JToken post)
+    private DownloadItem CreateMedia(FourChanParser.Attachment file)
     {
-        if (post.Value<int?>("filedeleted") == 1 || post["tim"] == null || post["ext"] == null || post["filename"] == null)
-            return null;
-        long timestamp = post.Value<long>("tim");
-        string? extension = post.Value<string>("ext");
-        if (timestamp <= 0 || string.IsNullOrWhiteSpace(extension)) return null;
-        string mediaId = timestamp.ToString(CultureInfo.InvariantCulture);
-        string originalFileName = (post.Value<string>("filename") ?? "unknown") + extension;
-        Uri uri = new Uri($"https://i.4cdn.org/{Board.BoardCode}/{mediaId}{extension}");
         string destination = StorageLayout.GetMediaPath(OutputDirectory, Board.ImageBoard.Name,
-            Board.BoardCode, ThreadId, mediaId, extension);
-        return new DownloadItem(uri, destination, Board.ImageBoard, this, mediaId,
-            post.Value<long?>("fsize"), post.Value<string>("md5"), originalFileName, GetLegacyPath(originalFileName));
+            Board.BoardCode, ThreadId, file.Id!, file.Extension!);
+        return new DownloadItem(file.Url!, destination, Board.ImageBoard, this, file.Id!,
+            file.Size, file.Md5, file.FileName, GetLegacyPath(file.FileName!));
     }
 
     private string? GetLegacyPath(string originalFileName)

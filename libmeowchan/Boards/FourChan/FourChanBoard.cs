@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using MeowChan.OfficialSources.FourChan;
 using MeowChan.Boards.Base;
 using MeowChan.Interfaces;
 using MeowChan.Http;
@@ -84,27 +84,24 @@ public class FourChanBoard : BaseBoard
             using HttpResponseMessage response = await ImageBoard.GetHttpClient()
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
-            JArray catalog = JArray.Parse(await BaseImageBoard.GetJsonReader(ImageBoard).ReadAsync(response.Content, cancellationToken));
-            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<FourChanParser.CatalogEntry> catalog;
+            try
+            {
+                catalog = FourChanParser.ParseCatalog(await BaseImageBoard.GetJsonReader(ImageBoard).ReadAsync(response.Content, cancellationToken), cancellationToken);
+            }
+            catch (System.Text.Json.JsonException exception)
+            {
+                // Keep the established library exception contract for invalid JSON.
+                throw new JsonReaderException(exception.Message, exception);
+            }
             List<IThread> threads = new List<IThread>();
-            foreach (JToken page in catalog)
+            foreach (FourChanParser.CatalogEntry entry in catalog)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                JArray entries = page["threads"] as JArray
-                    ?? throw new InvalidDataException("Catalog page does not contain threads.");
-                foreach (JToken entry in entries)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    long id = entry.Value<long?>("no")
-                        ?? throw new InvalidDataException("Catalog thread does not contain an ID.");
-                    if (id <= 0) throw new InvalidDataException("Catalog thread ID must be positive.");
-                    string threadId = id.ToString(CultureInfo.InvariantCulture);
-                    FourChanThread thread = new FourChanThread(this, new Uri($"https://boards.4chan.org/{BoardCode}/thread/{threadId}"));
-                    string? subject = WebUtility.HtmlDecode(entry.Value<string>("sub"));
-                    thread.Title = string.IsNullOrWhiteSpace(subject) ? $"Thread {threadId}" : subject;
-                    thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Value<string>("com"));
-                    threads.Add(thread);
-                }
+                FourChanThread thread = new FourChanThread(this, FourChanParser.ThreadUri(BoardCode, entry.Id));
+                thread.Title = string.IsNullOrWhiteSpace(entry.Title) ? $"Thread {entry.Id}" : entry.Title;
+                thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Text);
+                threads.Add(thread);
             }
             cancellationToken.ThrowIfCancellationRequested();
             return threads;
