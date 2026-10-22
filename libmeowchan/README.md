@@ -293,7 +293,7 @@ python3 scripts/test-local-package.py --feed artifacts/packages --consumer sampl
 
 Use a fresh feed containing one candidate package. The verifier restores the sample with a fresh package cache and forces `libmeowchan` to come from that local feed, checks the restored package hash and excludes desktop packages from the dependency graph. The sample performs a verified download, starts a fresh session over the same files, confirms reuse without another media request, and stops cleanly. It then creates and reads a SQLite post catalog after disposing its writer and lease, verifying the native dependency through the actual package. It contacts no public imageboard.
 
-`libmeowchan` is licensed under Artistic License 2.0; the package includes `LICENSE`. Its NuGet dependencies retain their own licenses. This package contains no Actipro or Avalonia binaries, desktop assets or desktop redistribution terms.
+`libmeowchan` is licensed under Artistic License 2.0; the package includes `LICENSE`. Its NuGet dependencies retain their own licenses. This package contains no Avalonia, Semi or Ursa binaries, desktop assets or desktop redistribution terms.
 
 ## Passive provider descriptions
 

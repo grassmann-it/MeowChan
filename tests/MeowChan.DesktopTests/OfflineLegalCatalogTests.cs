@@ -21,14 +21,14 @@ public sealed class OfflineLegalCatalogTests
             Assert.Null(catalog.Error);
             Assert.Equal(notices.ReplaceLineEndings("\n"), catalog.Notices);
             OfflineLegalCatalog canonical = OfflineLegalCatalog.Load(root);
-            foreach (string name in new[] { "Avalonia", "Feather Icons", "Avalonia.Fonts.Inter" })
+            foreach (string name in new[] { "Avalonia", "Feather Icons", "Avalonia.Fonts.Inter", "Semi.Avalonia", "Semi.Avalonia.DataGrid", "Irihi.Ursa", "Irihi.Ursa.Themes.Semi", "Irihi.Avalonia.Shared", "Irihi.Avalonia.Shared.Contracts" })
             {
                 OfflineLegalCatalog.Entry entry = Assert.Single(catalog.Entries, e => e.Name == name);
                 Assert.Contains("THE SOFTWARE IS PROVIDED", entry.FullText);
                 Assert.DoesNotContain("Section missing", entry.FullText);
                 Assert.Equal(Assert.Single(canonical.Entries, e => e.Name == name).FullText, entry.FullText);
             }
-            Assert.DoesNotContain("## Actipro Avalonia Free", Assert.Single(catalog.Entries, e => e.Name == "Feather Icons").FullText);
+            Assert.DoesNotContain("## Semi for Avalonia", Assert.Single(catalog.Entries, e => e.Name == "Feather Icons").FullText);
         }
         finally { Directory.Delete(fixture, recursive: true); }
     }
@@ -40,6 +40,8 @@ public sealed class OfflineLegalCatalogTests
         OfflineLegalCatalog catalog = OfflineLegalCatalog.Load(root);
 
         Assert.Null(catalog.Error);
+        Assert.DoesNotContain(catalog.Entries, e => e.Name.StartsWith("Actipro", StringComparison.Ordinal));
+        Assert.Contains(catalog.Entries, e => e.Name == "Irihi.Ursa" && e.Version == "2.2.0" && e.FullText.Contains("2025 .NET Foundation and Contributors"));
         Assert.Contains(catalog.Entries, e => e.Name == "Avalonia" && e.Version == "12.1.4" && e.FullText.Contains("MIT License"));
         Assert.Contains(catalog.Entries, e => e.Name == "Feather Icons" && e.Copyright.Contains("Cole Bemis") && e.FullText.Contains("THE SOFTWARE IS PROVIDED"));
         if (OperatingSystem.IsMacOS())

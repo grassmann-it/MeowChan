@@ -29,24 +29,6 @@
         "resolved": "2.8.2",
         "contentHash": "vm1tbfXhFmjFMUmS4M0J0ASXz3/U5XvXBa6DOQUL3fEz4Vt6YPhv+ESCarx6M6D+9kJkJYZKCNvJMas1+nVfmQ=="
       },
-      "ActiproSoftware.Controls.Avalonia": {
-        "type": "Transitive",
-        "resolved": "26.2.0",
-        "contentHash": "k16kt7XdUq3pi+MZmqC03smtd5Tg2hkKlWFQXHMP3N8OlRgQ7cz/SWeEtc3yggLjec391EcNHaZnzalT/3ut5A==",
-        "dependencies": {
-          "Avalonia": "12.1.2"
-        }
-      },
-      "ActiproSoftware.Controls.Avalonia.Themes.DataGrid": {
-        "type": "Transitive",
-        "resolved": "26.2.0",
-        "contentHash": "rzMANjG+m52y9P/jK2qO5C1dhy+XRphunXLW5LWMYDCU604gm/0l1obhl7ND+PVxaHWZF6WWnpi04ZyXwr9mNQ==",
-        "dependencies": {
-          "ActiproSoftware.Controls.Avalonia": "[26.2.0]",
-          "Avalonia": "12.1.2",
-          "Avalonia.Controls.DataGrid": "12.1.2"
-        }
-      },
       "Avalonia": {
         "type": "Transitive",
         "resolved": "12.1.4",
@@ -200,6 +182,39 @@
         "resolved": "8.3.1.3",
         "contentHash": "bx8CE8Js+XGX8PUxAHCBDEORt5aaBYtMN4Hr9QFs57Xithh6yjUyYqksizH6eRDhJkwsGI+SXWmPmMm8lZC9Pw=="
       },
+      "Irihi.Avalonia.Shared": {
+        "type": "Transitive",
+        "resolved": "0.5.0",
+        "contentHash": "UiUCCdP2xBuKWByLUvc+eMIZypBPESGC9PKUA3vF2v7F8bkzWQ6m0ung4gZtIhzH+RU2xclvcDBge0E368M58g==",
+        "dependencies": {
+          "Avalonia": "12.0.0"
+        }
+      },
+      "Irihi.Avalonia.Shared.Contracts": {
+        "type": "Transitive",
+        "resolved": "0.5.0",
+        "contentHash": "Is1wn/QEBsHnY632WpUX5+iKmQ+GzmE15iHXpohbRCjN/gfrxTxzIxgriNWvPI9+S4Lq/oDw8Yz2js/QzqV0xA=="
+      },
+      "Irihi.Ursa": {
+        "type": "Transitive",
+        "resolved": "2.2.0",
+        "contentHash": "+lyGb+KRpXUGfw8k13HGQYwf9pS17tbFreTD9HoIPGDgz/35K8skZ8bD/4GwiC7SL7++vbeDJSfxaCepBp556g==",
+        "dependencies": {
+          "Avalonia": "12.0.2",
+          "Irihi.Avalonia.Shared": "0.5.0",
+          "Irihi.Avalonia.Shared.Contracts": "0.5.0"
+        }
+      },
+      "Irihi.Ursa.Themes.Semi": {
+        "type": "Transitive",
+        "resolved": "2.2.0",
+        "contentHash": "kTEooG/zqFeoBzq6POheSP9185UJ6RO38SIvX1K7XB3aglabi0TDg0eHEeFTwwuH4QHyM3TYndlOiTb20PjQlw==",
+        "dependencies": {
+          "Avalonia": "12.0.2",
+          "Irihi.Ursa": "2.2.0",
+          "Semi.Avalonia": "12.0.1"
+        }
+      },
       "LibVLCSharp": {
         "type": "Transitive",
         "resolved": "3.10.2",
@@ -305,6 +320,23 @@
         "type": "Transitive",
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "Semi.Avalonia": {
+        "type": "Transitive",
+        "resolved": "12.1.0.1",
+        "contentHash": "8wSI5jaGOpnWRurYGyaPjccnimVUa2xAsuKqYjJBLXSMbAiYB3QkCtJ/zrWnOVh/wXY4nSKQA1sWqZpcF7pE3g==",
+        "dependencies": {
+          "Avalonia": "12.1.0",
+          "Irihi.Avalonia.Shared": "0.5.0"
+        }
+      },
+      "Semi.Avalonia.DataGrid": {
+        "type": "Transitive",
+        "resolved": "12.1.0.1",
+        "contentHash": "I3EFeBgtADQp+3RsS9A03GIKJ5lfnIqwZFLzhz6EyZOWq8lSbOTGPRAhMZ4lrFZxh2JzuOlYlRktM9oQ7f5GmA==",
+        "dependencies": {
+          "Avalonia.Controls.DataGrid": "12.1.0"
+        }
       },
       "Serilog": {
         "type": "Transitive",
@@ -458,13 +490,15 @@
       "meowchan": {
         "type": "Project",
         "dependencies": {
-          "ActiproSoftware.Controls.Avalonia": "[26.2.0, )",
-          "ActiproSoftware.Controls.Avalonia.Themes.DataGrid": "[26.2.0, )",
           "Avalonia": "[12.1.4, )",
           "Avalonia.Controls.DataGrid": "[12.1.2, )",
           "Avalonia.Desktop": "[12.1.4, )",
           "Avalonia.Fonts.Inter": "[12.1.4, )",
+          "Irihi.Ursa": "[2.2.0, )",
+          "Irihi.Ursa.Themes.Semi": "[2.2.0, )",
           "LibVLCSharp.Avalonia": "[3.10.2, )",
+          "Semi.Avalonia": "[12.1.0.1, )",
+          "Semi.Avalonia.DataGrid": "[12.1.0.1, )",
           "Serilog": "[4.0.2, )",
           "Serilog.Extensions.Logging": "[8.0.0, )",
           "Serilog.Sinks.Console": "[6.0.0, )",

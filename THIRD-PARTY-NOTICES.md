@@ -18,31 +18,16 @@ assets. Build-only packages, test packages and WebAssembly-only native assets ar
 not part of the desktop distribution. Upstream aggregate notice files are
 preserved in full and can describe components beyond the subset used here.
 
-## Actipro redistribution terms
+## Desktop themes and controls (2026-10-22)
 
-The exact `26.2.0` NuSpec descriptions designate both
-`ActiproSoftware.Controls.Avalonia` and
-`ActiproSoftware.Controls.Avalonia.Themes.DataGrid` as free products. Their
-included EULA's **FREE VS. PAID** clause automatically authorizes licensees of
-products designated free without a purchase. These packages remain proprietary
-software governed by the Actipro EULA; “free” describes the price and product
-designation, not an open-source license.
-
-The [version 26.2 deployment documentation](https://www.actiprosoftware.com/docs/controls/avalonia/deployment?v=26.2)
-expressly lists `ActiproSoftware.Avalonia.Core.dll`,
-`ActiproSoftware.Avalonia.Shared.dll` and
-`ActiproSoftware.Avalonia.Themes.Native.DataGrid.dll` as redistributable for free.
-These are the Actipro assemblies referenced by this application. The EULA permits
-redistribution only in conjunction with the licensee's application, requires a
-valid copyright notice and retention of proprietary notices, and restricts
-separate redistribution, exposing the libraries for end-user development,
-reverse engineering and use of Actipro trademarks. The complete EULA below
-contains the binding terms, including its conditions and limitations.
-
-No Actipro Pro package is referenced in this inventory. A later dependency
-change must be evaluated using that package's own terms. The licensing source
-for the two current packages is the byte-identical `License.txt` inside their
-versioned NuGet archives, rather than a general assumption about Actipro products.
+The 1.0 desktop uses Semi.Avalonia and Semi.Avalonia.DataGrid 12.1.0.1,
+Irihi.Ursa and Irihi.Ursa.Themes.Semi 2.2.0, and their Irihi.Avalonia.Shared /
+Irihi.Avalonia.Shared.Contracts 0.5.0 dependencies. The six resolved NuGet
+archives each declare MIT and contain a full LICENSE file. Those texts and
+original hashes appear below. Package author metadata is IRIHI Technology Co.,
+Ltd.; copyright attribution is retained exactly as supplied in each LICENSE,
+including the .NET Foundation attribution in the Ursa packages. The previous
+proprietary theme assemblies are no longer dependencies or distributed assets.
 
 ## Bundled visual assets
 
@@ -63,8 +48,12 @@ versioned NuGet archives, rather than a general assumption about Actipro product
 
 | Package | Version | License information | Package attribution |
 | --- | --- | --- | --- |
-| [ActiproSoftware.Controls.Avalonia](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia/26.2.0) | 26.2.0 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC |
-| [ActiproSoftware.Controls.Avalonia.Themes.DataGrid](https://www.nuget.org/packages/ActiproSoftware.Controls.Avalonia.Themes.DataGrid/26.2.0) | 26.2.0 | Actipro EULA (free product) | Copyright (c) 2021-2026 Actipro Software LLC |
+| [Semi.Avalonia](https://www.nuget.org/packages/Semi.Avalonia/12.1.0.1) | 12.1.0.1 | MIT | Copyright (c) 2022 IRIHI Technology |
+| [Semi.Avalonia.DataGrid](https://www.nuget.org/packages/Semi.Avalonia.DataGrid/12.1.0.1) | 12.1.0.1 | MIT | Copyright (c) 2022 IRIHI Technology |
+| [Irihi.Ursa](https://www.nuget.org/packages/Irihi.Ursa/2.2.0) | 2.2.0 | MIT | Copyright (c) 2025 .NET Foundation and Contributors |
+| [Irihi.Ursa.Themes.Semi](https://www.nuget.org/packages/Irihi.Ursa.Themes.Semi/2.2.0) | 2.2.0 | MIT | Copyright (c) 2025 .NET Foundation and Contributors |
+| [Irihi.Avalonia.Shared](https://www.nuget.org/packages/Irihi.Avalonia.Shared/0.5.0) | 0.5.0 | MIT | Copyright (c) 2023 iriHi Technology |
+| [Irihi.Avalonia.Shared.Contracts](https://www.nuget.org/packages/Irihi.Avalonia.Shared.Contracts/0.5.0) | 0.5.0 | MIT | Copyright (c) 2023 iriHi Technology |
 | [Avalonia](https://www.nuget.org/packages/Avalonia/12.1.4) | 12.1.4 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
 | [Avalonia.Angle.Windows.Natives](https://www.nuget.org/packages/Avalonia.Angle.Windows.Natives/2.1.27548.20260419) | 2.1.27548.20260419 | BSD; bundled LICENSE | Copyright 2013-2026 © The AvaloniaUI Project |
 | [Avalonia.Controls.DataGrid](https://www.nuget.org/packages/Avalonia.Controls.DataGrid/12.1.2) | 12.1.2 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
@@ -242,136 +231,97 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## Actipro Avalonia Free — proprietary EULA
+## Semi for Avalonia — MIT
 
-Source: [License.txt in ActiproSoftware.Controls.Avalonia 26.2.0](https://api.nuget.org/v3-flatcontainer/actiprosoftware.controls.avalonia/26.2.0/actiprosoftware.controls.avalonia.26.2.0.nupkg).
-
-Original SHA-256: `1db19003e1c6f1343fba8ef65f89d7268c06b22d233993ae9cf907a97e457e45`.
-
-The same byte-identical EULA is included in ActiproSoftware.Controls.Avalonia.Themes.DataGrid 26.2.0. Package copyright: Copyright (c) 2021-2026 Actipro Software LLC. All rights reserved.
+Source: [LICENSE in Semi.Avalonia 12.1.0.1](https://api.nuget.org/v3-flatcontainer/semi.avalonia/12.1.0.1/semi.avalonia.12.1.0.1.nupkg).
+The byte-identical LICENSE is also included in Semi.Avalonia.DataGrid 12.1.0.1.
+Original SHA-256: `ed829fc24561e453700d3b617321a1af37c5000d64ba4ae0085955eb87d6b688`.
+The NuSpec records [upstream commit dc75ad45](https://github.com/irihitech/Semi.Avalonia/tree/dc75ad45e3ab2c9cf99eefc23352a6767aeb47c6).
 
 ````text
-END-USER LICENSE AGREEMENT FOR ACTIPRO SOFTWARE LLC SOFTWARE
+MIT License
 
-IMPORTANT - READ CAREFULLY: This Actipro Software LLC ("Actipro") End-User License Agreement ("EULA") is a legal agreement between you ("Licensee"), a developer of software applications, and Actipro for the Actipro software product accompanying this EULA, which includes computer software and may include associated source code, media, printed materials, and electronic documentation ("SOFTWARE PRODUCT"). By installing, copying, or otherwise using the SOFTWARE PRODUCT, you agree to be bound by the terms of this EULA. If you do not agree to the terms of this EULA, do not install, use, distribute in any manner, or replicate in any manner, any part, file or portion of the SOFTWARE PRODUCT.
+Copyright (c) 2022 IRIHI Technology
 
-The SOFTWARE PRODUCT is protected by copyright laws and international copyright treaties, as well as other intellectual property laws and treaties. The SOFTWARE PRODUCT is licensed, not sold.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-The Licensee is considered to be an authorized licensee ("Authorized") if the Licensee has legitimately obtained a registered license for the SOFTWARE PRODUCT from Actipro or an authorized Actipro reseller.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-RIGOROUS ENFORCEMENT OF INTELLECTUAL PROPERTY RIGHTS. If the licensed right of use for this SOFTWARE PRODUCT is purchased by the Licensee with any intent to reverse engineer, decompile, create derivative works, and the exploitation or unauthorized transfer of, any Actipro intellectual property and trade secrets, to include any exposed methods or source code where provided, no licensed right of use shall exist, and any products created as a result shall be judged illegal by definition of all applicable law. Any sale or resale of intellectual property or created derivatives so obtained will be prosecuted to the fullest extent of all local, federal and international law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
 
-GRANT OF LICENSE. This EULA, if legally executed as defined herein, licenses and so grants the Licensee the following rights:
+## Ursa for Avalonia — MIT
 
-FREE VS. PAID. When the SOFTWARE PRODUCT is specifically designated as being free ("Free SOFTWARE PRODUCT"), the Licensee is automatically Authorized without any license purchase required. Conversely, any SOFTWARE PRODUCT not designated as being free ("Paid SOFTWARE PRODUCT") typically requires licenses to be purchased.
+Source: [LICENSE in Irihi.Ursa 2.2.0](https://api.nuget.org/v3-flatcontainer/irihi.ursa/2.2.0/irihi.ursa.2.2.0.nupkg).
+The byte-identical LICENSE is also included in Irihi.Ursa.Themes.Semi 2.2.0.
+Original SHA-256: `9053c8a1145c94b994011631ba3bcd2b01645bd3a1828fae3c76a10e2361fb9d`.
+The NuSpec records [upstream commit 00fef728](https://github.com/irihitech/Ursa.Avalonia/tree/00fef728ce87cc8cbc9085f3162867daa1d57490).
 
-Actipro reserves the right to discontinue at its discretion, and without advance notice, the availability of a Free SOFTWARE PRODUCT or its constituent parts at any time.
+````text
+MIT License
 
-EVALUATION. A Paid SOFTWARE PRODUCT grants the Licensee an evaluation period ("Evaluation Period"), typically thirty (30) days, over which the SOFTWARE PRODUCT may be examined and used purely on a trial basis. The Evaluation Period may be extended by Actipro. During the Evaluation Period, the SOFTWARE PRODUCT's files may NOT be redistributed in any form or manner.
+Copyright (c) 2025 .NET Foundation and Contributors
 
-After the Evaluation Period ends, the Licensee must either:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-  1. Cease use of the SOFTWARE PRODUCT and all related files, or
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-  2. Contact Actipro or one of its authorized resellers to purchase licenses for the SOFTWARE PRODUCT.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
 
-DEVELOPMENT. Actipro grants the Licensee the non-exclusive license to install and use multiple copies of the SOFTWARE PRODUCT or any prior version for the sole purpose of developing any number of end user applications that operate in conjunction with the SOFTWARE PRODUCT. If the Licensee is not Authorized, the Licensee may not use the SOFTWARE PRODUCT beyond the Evaluation Period.
+## Irihi Avalonia Shared — MIT
 
-If the Licensee has purchased a single developer license ("Single Developer License"), the Licensee is Authorized to use the SOFTWARE PRODUCT indefinitely beyond the Evaluation Period. A Single Developer License for the SOFTWARE PRODUCT may not be shared or used concurrently by more than one individual developer. In a project that uses the SOFTWARE PRODUCT, each individual developer on the project requires a separate Single Developer License, regardless of whether they directly use the SOFTWARE PRODUCT or not. Single Developer Licenses may also be obtained in team discount packs.
+Source: [LICENSE in Irihi.Avalonia.Shared 0.5.0](https://api.nuget.org/v3-flatcontainer/irihi.avalonia.shared/0.5.0/irihi.avalonia.shared.0.5.0.nupkg).
+The byte-identical LICENSE is also included in Irihi.Avalonia.Shared.Contracts 0.5.0.
+Original SHA-256: `ec35403fdfacfc7de897d520dc2d68387997eb881cf9f3eea45b89cbeae19f5b`.
+The NuSpec records [upstream commit 3514e169](https://github.com/irihitech/Irihi.Avalonia.Shared/tree/3514e169837878c80c71c315be1437ac942743b3).
 
-If the Licensee has purchased a site license ("Site License"), each of the developers at a single physical location is considered Authorized according to the terms and conditions of the Single Developer License. Each additional physical location requires an additional Site License to be considered Authorized.
+````text
+MIT License
 
-If the Licensee has purchased an enterprise license ("Enterprise License"), all developers in the Licensee's organization, regardless of location, are considered Authorized according to the terms and conditions of the Single Developer License.
+Copyright (c) 2023 iriHi Technology
 
-If the Licensee has purchased a blueprint license ("Blueprint License"), each of the Authorized developers for the SOFTWARE PRODUCT is considered Authorized to access source code for the SOFTWARE PRODUCT ("Source Code"). The Blueprint License must be purchased at the same time as a Site License, Enterprise License, or one or more Single Developer Licenses. Source Code may exclude Actipro proprietary licensing code. The sale of Blueprint Licenses is considered final and neither the SOFTWARE PRODUCT nor Source Code may be returned under any circumstances.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-DUPLICATION AND DISTRIBUTION. The SOFTWARE PRODUCT may include certain files ("Redistributables") intended for distribution by the Licensee to the users of programs the Licensee creates. Redistributables include, for example, those files identified in printed or electronic documentation as redistributable files, or those files pre-selected for deployment by an install utility provided with the SOFTWARE PRODUCT (if any). In any event, the Redistributables for the SOFTWARE PRODUCT are only those files specifically designated as such by Actipro.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Subject to all of the terms and conditions in this EULA, if the Licensee is Authorized, Actipro grants the Licensee the non-exclusive, royalty-free license to duplicate the Redistributables and to distribute them solely in conjunction with software products developed by the Licensee that use them. The Licensee may not supply any means by which end users could incorporate the SOFTWARE PRODUCT or portions thereof into their own products.
-
-SOURCE CODE. If the Licensee has purchased a Blueprint License and is Authorized, the Licensee is provided Source Code for the SOFTWARE PRODUCT. The following stipulations and restrictions apply to Source Code:
-
-  1. Source Code shall be considered as part the SOFTWARE PRODUCT and all requirements stated above still apply, meaning that developers at a separate site from the one which purchased the Blueprint License are NOT able to work on any project created that uses the Source Code, unless that site has also purchased a Blueprint License. The only exception is when an Enterprise License has been purchased along with the Blueprint License, in which case the Source Code may be used by developers at any site.
-
-  2. Actipro grants the Licensee the non-exclusive license to view and modify the Source Code for the sole purposes of education and troubleshooting. If the Licensee troubleshoots the Source Code, the Licensee may compile the corrected source code and use and distribute the resulting object code solely as a replacement for the corresponding Redistributables the Source Code compiles into.
-
-  3. The Licensee may NOT distribute or sell the Source Code, or portions or modifications or derivative works thereof, to any third party not Authorized by the Licensee's Blueprint License(s), without explicit permission by Actipro.
-
-  4. The Licensee may not compete against Actipro by repackaging, recompiling, or renaming the SOFTWARE PRODUCT for which the Licensee purchased Source Code. Any derivative works based on the Source Code are illegal to be created or sold if they compete in any way with the SOFTWARE PRODUCT or other Actipro products.
-
-  5. Any object code that is created by using the Source Code or derivative code based on the Source Code must be obfuscated.
-
-  6. Any object code that is created by using the Source Code or derivative code based on the Source Code may NOT bear "ActiproSoftware" or the name of the SOFTWARE PRODUCT in the object code assembly name.
-
-  7. All Source Code must be kept in its proper "ActiproSoftware" namespace.
-
-  8. Actipro shall retain all rights, title and interest in and to all corrections, modifications and derivative works of the Source Code created by the Licensee, including all copyrights subsisting therein, to the extent such corrections, modifications or derivative works contain copyrightable code or expression derived from the Source Code.
-
-  9. The Licensee acknowledges that the Source Code contains valuable and proprietary trade secrets of Actipro, and agrees to expend every effort to insure its confidentiality.
-
-  10. Source Code may be obtained by coordinating with Actipro during the support period for the Blueprint License, typically one year in duration, starting on the date of purchase of the Blueprint License.
-
-STORAGE/NETWORK USE. The Licensee may also store or install a copy of the SOFTWARE PRODUCT on a storage device, such as a network server, used only to install or run the SOFTWARE PRODUCT on the Licensee's other computers over an internal network; however, the Licensee must acquire and dedicate a Single Developer License for each separate individual developer who wishes to use the SOFTWARE PRODUCT.
-
-DESCRIPTION OF OTHER RIGHTS AND LIMITATIONS.
-
-NOT FOR RESALE SOFTWARE. If the SOFTWARE PRODUCT is labeled and provided as "Not for Resale" or "NFR", then, notwithstanding other sections of this EULA, the Licensee may not resell, distribute, or otherwise transfer for value or benefit in any manner, the SOFTWARE PRODUCT or any derivative work using the SOFTWARE PRODUCT. The Licensee may not transfer, rent, lease, lend, copy, modify, translate, sublicense, time-share or electronically transmit the SOFTWARE PRODUCT, media or documentation. This also applies to any and all intermediate files, source code, and compiled executables.
-
-LIMITATIONS ON REVERSE ENGINEERING, DECOMPILATION, AND DISASSEMBLY. The Licensee may not reverse engineer, decompile, create derivative works, modify, translate, or disassemble the SOFTWARE PRODUCT, and only to the extent that such activity is expressly permitted by applicable law notwithstanding this limitation. The Licensee agrees to take all reasonable, legal and appropriate measures to prohibit the illegal dissemination of the SOFTWARE PRODUCT or any of its constituent parts and redistributables to the fullest extent of all applicable local, US Codes and International Laws and Treaties regarding anti-circumvention, including but not limited to, the Geneva and Berne World Intellectual Property Organization (WIPO) Diplomatic Conferences.
-
-RENTAL. The Licensee may not rent, lease, or lend the SOFTWARE PRODUCT.
-
-SEPARATION OF COMPONENTS, THEIR CONSTITUENT PARTS AND REDISTRIBUTABLES. The SOFTWARE PRODUCT is licensed as a single product. The SOFTWARE PRODUCT and its constituent parts and any provided redistributables may not be reverse engineered, decompiled, disassembled, nor placed for distribution, sale, or resale as individual creations by the Licensee or any individual not expressly given such permission by Actipro. The provision of Source Code, if included with the SOFTWARE PRODUCT, does not constitute transfer of any legal rights to such code, and resale or distribution of all or any portion of all Source Code and intellectual property will be prosecuted to the fullest extent of all applicable local, federal and international laws. All Actipro libraries, Source Code, Redistributables and other files remain Actipro's exclusive property. The Licensee may not distribute any files, except those that Actipro has expressly designated as Redistributable.
-
-INSTALLATION AND USE. The license granted in this EULA for the Licensee to create his/her own compiled programs and distribute the Licensee's programs and the Redistributables (if any), is subject to all of the following conditions:
-
-  1. All copies of the programs the Licensee creates must bear a valid copyright notice, either their own or the Actipro copyright notice that appears on the SOFTWARE PRODUCT.
-
-  2. The Licensee may not remove or alter any Actipro copyright, trademark or other proprietary rights notice contained in any portion of Actipro libraries, source code, Redistributables or other files that bear such a notice.
-
-  3. Actipro provides no warranty at all to any person, and the Licensee will remain solely responsible to anyone receiving the Licensee's programs for support, service, upgrades, or technical or other assistance, and such recipients will have no right to contact Actipro for such services or assistance.
-
-  4. The Licensee will indemnify and hold Actipro, its related companies and its suppliers, harmless from and against any claims or liabilities arising out of the use, reproduction or distribution of the Licensee's programs.
-
-  5. The Licensee's programs containing the SOFTWARE PRODUCT must be written using a licensed, registered copy of the SOFTWARE PRODUCT.
-
-  6. The Licensee's programs must add primary and substantial functionality, and may not be merely a set or subset of any of the libraries, Source Code, Redistributables or other files of the SOFTWARE PRODUCT.
-
-  7. The Licensee may not use Actipro's or any of its suppliers' names, logos, or trademarks to market the Licensee's programs, unless expressly given such permission by Actipro.
-
-  8. When the SOFTWARE PRODUCT is used in an open-source project, no Licensee or License Key values ("License Information") may be committed to the open source code repository, since the License Information is confidential and not to be shared with unlicensed developers.
-
-SUPPORT SERVICES. Actipro may provide the Licensee with support services related to the SOFTWARE PRODUCT ("Support Services"). Use of Support Services is governed by Actipro policies and programs described in the user manual, in on-line documentation and/or other Actipro provided materials. Any supplemental software code provided to the Licensee as part of the Support Services shall be considered part of the SOFTWARE PRODUCT and subject to the terms and conditions of this EULA. With respect to technical information the Licensee provides to Actipro as part of the Support Services, Actipro may use such information for its business purposes, including for product support and development.
-
-SOFTWARE TRANSFER. The Licensee may NOT permanently or temporarily transfer ANY of the Licensee's rights under this EULA to any individual or entity. Regardless of any modifications which the Licensee makes and regardless of how the Licensee might compile, link, and/or package the Licensee's programs, under no circumstances may the libraries, redistributables, and/or other files of the SOFTWARE PRODUCT (including any portions thereof) be used for developing programs by anyone other than the Licensee. Only the Licensee as the licensed end user has the right to use the libraries, redistributables, or other files of the SOFTWARE PRODUCT (or any portions thereof) for developing programs created with the SOFTWARE PRODUCT. In particular, the Licensee may not share copies of the Source Code or Redistributables with other co-developers.
-
-TERMINATION. Without prejudice to any other rights or remedies, Actipro will terminate this EULA upon the Licensee's failure to comply with all the terms and conditions of this EULA. In such event, the Licensee must destroy all copies of the SOFTWARE PRODUCT and all of its component parts including any related documentation, and must remove ANY and ALL use of such technology immediately from any applications using technology contained in the SOFTWARE PRODUCT developed by the Licensee, whether in native, altered or compiled state.
-
-UPGRADES. If the SOFTWARE PRODUCT is labeled as an upgrade, the Licensee must be properly licensed to use the SOFTWARE PRODUCT identified by Actipro as being eligible for the upgrade in order to use the SOFTWARE PRODUCT. A SOFTWARE PRODUCT labeled as an upgrade replaces and/or supplements the SOFTWARE PRODUCT that formed the basis for the Licensee's eligibility for the upgrade, and together constitute a single SOFTWARE PRODUCT. The Licensee may use the resulting upgraded SOFTWARE PRODUCT only in accordance with all the terms of this EULA.
-
-COPYRIGHT. All title and copyrights in and to the SOFTWARE PRODUCT (including but not limited to any images, demos, source code, intermediate files, packages, photographs, animations, video, audio, music, text, and "applets" incorporated into the SOFTWARE PRODUCT), the accompanying printed materials, and any copies of the SOFTWARE PRODUCT are owned by Actipro or its subsidiaries. The SOFTWARE PRODUCT is protected by copyright laws and international treaty provisions. Therefore, the Licensee must treat the SOFTWARE PRODUCT like any other copyrighted material except that the Licensee may install the SOFTWARE PRODUCT for use by the Licensee. The Licensee may not copy any printed materials accompanying the SOFTWARE PRODUCT.
-
-THIRD PARTY LIBRARIES. The SOFTWARE PRODUCT may reference or require certain third-party components or libraries ("Other Libraries") that are subject to additional restrictions. Where applicable, Actipro may distribute a "Notices" file disclosing the Other Libraries. Notify Actipro if a required notice was accidentally not listed. The Licensee is responsible for reviewing and agreeing to each associated license agreement accompanying Other Libraries, and any other sub-dependency required by Other Libraries.
-
-GENERAL PROVISIONS. This EULA may only be modified in writing signed by the Licensee and an authorized officer of Actipro. If any provision of this EULA is found void or unenforceable, the remainder will remain valid and enforceable according to its terms.
-
-ENTIRE AGREEMENT. This EULA constitutes the sole and entire agreement between Actipro and the Licensee relating to the SOFTWARE PRODUCT. This EULA supersedes any prior and contemporaneous proposals, agreements, purchase orders, and all other communications in relation to the SOFTWARE PRODUCT, whether oral or written. Use of any purchase order or other document supplied by the Licensee in connection with the SOFTWARE PRODUCT will be for administrative convenience only and all terms and conditions stated therein will be null and void. No terms or conditions, other than those contained herein, and no other understanding or agreement that in any way modifies these terms and conditions, shall be binding upon the parties unless entered in writing and executed by both parties.
-
-MISCELLANEOUS. If the Licensee acquired this product in the United States, this EULA is governed by the laws of the State of Ohio.
-
-If this SOFTWARE PRODUCT was acquired outside the United States, then the Licensee, agrees and ascends to the adherence to all applicable international treaties regarding copyright and intellectual property rights which shall also apply. In addition, the Licensee agrees that any local law(s) to the benefit and protection of Actipro ownership of, and interest in, its intellectual property and right of recovery for damages thereto will also apply.
-
-Should you have any questions concerning this EULA, or if you desire to contact Actipro for any reason, please contact us via our support web pages at https://www.actiprosoftware.com.
-
-NO WARRANTIES. ACTIPRO EXPRESSLY DISCLAIMS ANY WARRANTY FOR THE SOFTWARE PRODUCT. THE PRODUCT AND ANY RELATED DOCUMENTATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NONINFRINGEMENT. THE ENTIRE RISK ARISING OUT OF USE OR PERFORMANCE OF THE PRODUCT REMAINS WITH THE LICENSEE.
-
-LIMITATION OF LIABILITY. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL ACTIPRO OR ITS SUPPLIERS BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF BUSINESS PROFITS, BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE PRODUCT OR THE PROVISION OF OR FAILURE TO PROVIDE SUPPORT SERVICES, EVEN IF ACTIPRO HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-
-THE OTHER LIBRARIES ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL ACTIPRO OR THE OTHER LIBRARIES' AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE OTHER LIBRARIES OR THE USE OR OTHER DEALINGS IN THE OTHER LIBRARIES.
-
-Copyright (c) 2002-2023 Actipro Software LLC. All rights reserved.
-
-EULA Version: 2023-09-14
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ````
 
 ## Avalonia — MIT

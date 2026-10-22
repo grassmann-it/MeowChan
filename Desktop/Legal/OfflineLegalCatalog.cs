@@ -225,7 +225,9 @@ public sealed class OfflineLegalCatalog
     {
         string[] titles = name switch
         {
-            var n when n.StartsWith("Actipro", StringComparison.Ordinal) => ["Actipro Avalonia Free — proprietary EULA"],
+            var n when n.StartsWith("Semi.Avalonia", StringComparison.Ordinal) => ["Semi for Avalonia — MIT"],
+            var n when n.StartsWith("Irihi.Ursa", StringComparison.Ordinal) => ["Ursa for Avalonia — MIT"],
+            var n when n.StartsWith("Irihi.Avalonia.Shared", StringComparison.Ordinal) => ["Irihi Avalonia Shared — MIT"],
             "Avalonia.Fonts.Inter" => ["Inter fonts — SIL Open Font License 1.1", "Avalonia — MIT"],
             var n when n.StartsWith("Avalonia.Angle", StringComparison.Ordinal) => ["ANGLE Windows native assets — BSD license"],
             var n when n.StartsWith("Avalonia", StringComparison.Ordinal) => ["Avalonia — MIT", "Avalonia — upstream third-party notices"],

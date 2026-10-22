@@ -32,7 +32,7 @@ def inspect_package(package: Path) -> tuple[str, str]:
             raise ValueError(f"Unexpected candidate package ID: {package_id}")
         for item in metadata.iter():
             dependency = item.attrib.get("id", "").lower()
-            if dependency.startswith(("avalonia", "actipro")) or dependency in {"ochan", "meowchan"}:
+            if dependency.startswith(("avalonia", "semi.avalonia", "irihi.")) or dependency in {"ochan", "meowchan"}:
                 raise ValueError(f"Desktop dependency leaked into library package: {dependency}")
         assemblies = [name for name in archive.namelist() if name.endswith(".dll")]
         if assemblies != ["lib/net10.0/libmeowchan.dll"]:
@@ -85,7 +85,7 @@ def main() -> int:
             dependency_id = name.rsplit("/", 1)[0].lower()
             if item["type"] == "project":
                 raise ValueError(f"Consumer has a forbidden ProjectReference: {name}")
-            if dependency_id.startswith(("avalonia", "actipro")) or dependency_id in {"ochan", "meowchan"}:
+            if dependency_id.startswith(("avalonia", "semi.avalonia", "irihi.")) or dependency_id in {"ochan", "meowchan"}:
                 raise ValueError(f"Desktop dependency leaked into consumer: {name}")
         restored_entry = next((item for name, item in assets["libraries"].items()
                                if name.rsplit("/", 1)[0].lower() == package_id.lower()), None)

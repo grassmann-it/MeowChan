@@ -42,7 +42,7 @@ class LocalPackageTests(unittest.TestCase):
             verifier.inspect_package(self.package)
 
     def test_rejects_desktop_dependency(self):
-        for dependency in ("MeowChan", "Avalonia.Desktop"):
+        for dependency in ("MeowChan", "Avalonia.Desktop", "Semi.Avalonia", "Irihi.Ursa"):
             with self.subTest(dependency=dependency):
                 self.write_package(dependency=dependency)
                 with self.assertRaisesRegex(ValueError, "Desktop dependency"):
