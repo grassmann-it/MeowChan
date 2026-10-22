@@ -53,7 +53,8 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             Spacing = 4, MaxWidth = 220,
             Children = { icon, new TextBlock { Text = _error, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left } }
         };
-        Foreground = marked ? Brushes.Gold : null;
+        if (marked && _error == null) Foreground = Brushes.Gold;
+        else ClearValue(ForegroundProperty);
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
         string description = _error == null ? (IsEnabled ? label : Texts.T("archive.notSaved")) : label + ": " + _error;
         ToolTip.SetTip(this, description);

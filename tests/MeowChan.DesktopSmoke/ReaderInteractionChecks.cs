@@ -18,10 +18,43 @@ internal static class ReaderInteractionChecks
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
         await CheckNativeMediaKeysAsync(page);
+        Console.WriteLine("SMOKE reader native controls and media Enter passed.");
+        await CheckReaderShortcutsAsync(page);
+        Console.WriteLine("SMOKE current-thread reader shortcuts and dialog input protection passed.");
         await CheckFavoriteFailureAsync(page);
+        Console.WriteLine("SMOKE persistent keyboard/automation favorite failure passed.");
         await CheckHistoryAsync(page);
+        Console.WriteLine("SMOKE exact cross-page quote anchor and newest-32 history passed.");
         await CheckFavoritesOverviewAsync(window, page);
         Console.WriteLine("SMOKE reader interactions: native focus, exact media Enter, persistent favorite failure, exact bounded quote return and favorite removal/view passed.");
+    }
+
+    private static async Task CheckReaderShortcutsAsync(ArchivePage page)
+    {
+        ResourceId original = page.CurrentThread!.Summary.Id;
+        ResourceId target = original with { Thread = "1001" };
+        await page.LoadThreadAsync(target);
+        await page.FocusPostAsync("1001");
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        Func<ResourceId, GalleryEntryKey?, Control?, Task>? previous = page.OpenGallery;
+        ResourceId? galleryTarget = null;
+        try
+        {
+            page.OpenGallery = (id, _, _) => { galleryTarget = id; return Task.CompletedTask; };
+            KeyEventArgs galleryKey = Press(posts, Key.Enter, KeyModifiers.Shift);
+            Require(galleryKey.Handled && galleryTarget == target, "Reader gallery shortcut used archive selection instead of the currently read thread.");
+            Press(posts, Key.E, primary);
+            await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
+            Require(page.FindControl<TextBlock>("ArchiveExportSummary")!.Text == target.Source + " /" + target.Board + "/ " + target.Thread,
+                "Reader export shortcut used archive selection instead of the currently read thread.");
+            galleryTarget = null;
+            TextBox destination = page.FindControl<TextBox>("ArchiveExportDestination")!;
+            Press(destination, Key.Enter, KeyModifiers.Shift);
+            Require(galleryTarget == null, "Reader shortcut escaped a focused dialog input.");
+            Click(page.FindControl<Button>("ArchiveExportClose")!);
+        }
+        finally { page.OpenGallery = previous; await page.LoadThreadAsync(original); await page.FocusPostAsync("1000"); await page.MediaLoadTask; }
     }
 
     private static async Task CheckNativeMediaKeysAsync(ArchivePage page)
@@ -67,7 +100,8 @@ internal static class ReaderInteractionChecks
         await page.FocusPostAsync("1000");
         await page.MediaLoadTask;
         await Program.WaitUntilAsync(() => page.FindControl<Grid>("ArchiveReaderPane")!.GetVisualDescendants().OfType<ArchiveAttachmentView>().Any());
-        ArchiveAttachmentView inline = page.FindControl<Grid>("ArchiveReaderPane")!.GetVisualDescendants().OfType<ArchiveAttachmentView>().First();
+        ArchiveAttachmentView inline = page.FindControl<Grid>("ArchiveReaderPane")!.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+            .First(view => view.GetVisualAncestors().OfType<ListBoxItem>().Any(item => item.DataContext is ArchivePostRow { Id: "1000" }));
         Func<GalleryEntry, bool>? isFavorite = page.IsArchiveFavorite;
         Func<GalleryEntry, Task>? toggle = page.ToggleArchiveFavoriteAsync;
         bool marked = false;
@@ -82,6 +116,16 @@ internal static class ReaderInteractionChecks
             Require(star.IsChecked == false && (AutomationProperties.GetName(star) ?? string.Empty).Contains("Fixture favorite write denied"), "Favorite refresh hid the failure or claimed success.");
             Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"), "Favorite failure is not visible at the medium.");
             Require(star.Focusable && AutomationProperties.GetLiveSetting(star) == AutomationLiveSetting.Assertive, "Favorite failure is not keyboard/automation reachable.");
+            await FlushAsync();
+            await Task.Delay(120);
+            Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"
+                    && text.Bounds.Height > 0 && text.Foreground?.Opacity > 0 && text.IsEffectivelyVisible),
+                "Favorite failure has no laid-out visible text.");
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            Point? top = star.TranslatePoint(default, posts);
+            Require(top != null && top.Value.Y >= 0 && top.Value.Y + star.Bounds.Height <= posts.Bounds.Height,
+                "Favorite error was tested outside the visible post viewport.");
+            Program.CaptureWindow((Window)TopLevel.GetTopLevel(star)!, "smoke-reader-favorite-error.png");
             page.ToggleArchiveFavoriteAsync = _ => { marked = true; return Task.CompletedTask; };
             Click(star);
             Require(star.IsChecked == true && !(AutomationProperties.GetName(star) ?? string.Empty).Contains("denied"), "The next successful favorite action did not clear the failure.");
@@ -132,11 +176,13 @@ internal static class ReaderInteractionChecks
         Task overview = page.OpenFavoritesOverviewAsync();
         await Program.WaitUntilAsync(() => window.OwnedWindows.Any(dialog => dialog.Name == "FavoritesOverviewDialog"));
         Window dialog = window.OwnedWindows.Single(dialog => dialog.Name == "FavoritesOverviewDialog");
-        ListBox list = dialog.FindControl<ListBox>("FavoritesList")!;
-        await Program.WaitUntilAsync(() => list.ItemCount == 1 && dialog.FindControl<Button>("FavoritesExportOriginals")!.IsEnabled);
-        dialog.FindControl<TextBox>("FavoritesSearch")!.Text = "reader.png";
+        ListBox list = Named<ListBox>(dialog, "FavoritesList");
+        await Program.WaitUntilAsync(() => list.ItemCount == 1 && Named<Button>(dialog, "FavoritesExportOriginals").IsEnabled);
+        Named<TextBox>(dialog, "FavoritesSearch").Text = "reader.png";
         list.SelectedIndex = 0;
-        Click(dialog.FindControl<Button>("FavoritesView")!);
+        dialog.UpdateLayout();
+        Program.CaptureWindow(dialog, "smoke-favorites-review.png");
+        Click(Named<Button>(dialog, "FavoritesView"));
         await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("GalleryHost")!.IsVisible);
         GalleryViewer viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
         Require(viewer.CaptureState().Key == entry.Key, "Favorite View opened a different identity.");
@@ -144,10 +190,10 @@ internal static class ReaderInteractionChecks
         await overview;
         await Program.WaitUntilAsync(() => window.OwnedWindows.Any(candidate => candidate.Name == "FavoritesOverviewDialog"));
         dialog = window.OwnedWindows.Single(candidate => candidate.Name == "FavoritesOverviewDialog");
-        list = dialog.FindControl<ListBox>("FavoritesList")!;
-        await Program.WaitUntilAsync(() => dialog.FindControl<Button>("FavoritesRemove")!.IsEnabled);
-        Require(dialog.FindControl<TextBox>("FavoritesSearch")!.Text == "reader.png" && list.SelectedItem != null, "Favorite return lost search or exact selection.");
-        Click(dialog.FindControl<Button>("FavoritesRemove")!);
+        list = Named<ListBox>(dialog, "FavoritesList");
+        await Program.WaitUntilAsync(() => Named<Button>(dialog, "FavoritesRemove").IsEnabled);
+        Require(Named<TextBox>(dialog, "FavoritesSearch").Text == "reader.png" && list.SelectedItem != null, "Favorite return lost search or exact selection.");
+        Click(Named<Button>(dialog, "FavoritesRemove"));
         await Program.WaitUntilAsync(() => list.ItemCount == 0);
         Require(File.Exists(row.Asset.Path) && !window.SessionHost.IsFavorite(entry), "Removing a favorite deleted the original or kept the mark.");
         dialog.Close();
@@ -164,6 +210,7 @@ internal static class ReaderInteractionChecks
         KeyEventArgs args = new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
         control.RaiseEvent(args); return args;
     }
+    private static T Named<T>(Control parent, string name) where T : Control => parent.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static async Task FlushAsync() { await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded); await Task.Delay(20); }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

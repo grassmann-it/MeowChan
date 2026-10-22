@@ -47,6 +47,7 @@ public partial class MainWindow
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
         if (!_favoriteChanges.Add(key)) return;
         _galleryFavoriteErrors.Remove(key);
+        _archivePage?.ClearFavoriteError(key);
         RefreshGalleryFavorite();
         try
         {

@@ -100,12 +100,15 @@ public partial class MainWindow
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
         _archivePage.ToggleArchiveFavoriteAsync = async entry =>
         {
+            _galleryFavoriteErrors.Remove(Favorites.FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
             await _session.SetFavoriteAsync(entry, !_session.IsFavorite(entry));
             RefreshGalleryFavorite();
         };
         _archivePage.ResolveFavoriteAssets = _session.ResolveFavoriteAssetsAsync;
         _archivePage.RemoveFavoriteAsync = async entry =>
         {
+            _galleryFavoriteErrors.Remove(entry.Key);
+            _archivePage.ClearFavoriteError(entry.Key);
             await _session.SetFavoriteAsync(entry, false);
             RefreshGalleryFavorite();
         };

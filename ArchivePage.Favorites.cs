@@ -40,7 +40,8 @@ public partial class ArchivePage
 
     private async Task OpenFavoritesOverviewAsync(FavoriteOverviewState? restore)
     {
-        if (_ended || GetFavorites == null || ResolveFavoriteAssets == null || TopLevel.GetTopLevel(this) is not Window owner) return;
+        if (_ended || GetFavorites == null || ResolveFavoriteAssets == null
+            || (TopLevel.GetTopLevel(Control<Grid>("ArchiveReaderPane")) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
         FavoriteEntry[] all = GetFavorites().ToArray();
         ResourceId? currentThread = _selectedThread;
         ResourceId[] selectedThreads = FrozenArchiveSelection();

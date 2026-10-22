@@ -21,6 +21,10 @@ public partial class ArchivePage
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
+    internal void ClearFavoriteError(FavoriteAssetKey key)
+    {
+        if (_favoriteErrors.Remove(key)) RefreshArchiveFavoriteControls();
+    }
 
     private void ConfigureArchiveMediaFavorites()
     {

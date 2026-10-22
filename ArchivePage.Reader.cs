@@ -199,19 +199,21 @@ public partial class ArchivePage
         if (e.Handled || !_largeReader || IsReaderDialogOpen) return;
         if (e.Source is Visual source)
         {
-            if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem)) return;
+            if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;
             if (source.GetVisualAncestors().Prepend(source).OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd)) return;
         }
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (e.KeyModifiers == primary && e.Key == Key.E && _thread != null)
         {
+            if (_busy || _ended) return;
             e.Handled = true;
             await OpenExportForThreadsAsync(new[] { _thread.Summary.Id }, e.Source as Control);
             return;
         }
         if (e.KeyModifiers == KeyModifiers.Shift && e.Key == Key.Enter && _thread != null && OpenGallery != null)
         {
+            if (_busy || _ended) return;
             // Buttons and native editors retain their activation gestures.
             if (e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is Button or Slider or TabItem)) return;
             e.Handled = true;

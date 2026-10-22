@@ -556,6 +556,7 @@ internal sealed class GalleryViewer : UserControl
         }
         _image.IsVisible = _status.IsVisible = true;
         _readPosts.IsVisible = false;
+        if (_entry?.Key != entry.Key) SetFavoriteError(null);
         _entry = entry; _info = null; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = true;
