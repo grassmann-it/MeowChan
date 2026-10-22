@@ -80,6 +80,25 @@ public sealed partial class ArchiveCatalog
         return ReadAsync(connection => ReadDecisions(connection, null, resource), cancellationToken);
     }
 
+
+    internal Task<CandidateDecision?> RecordFilterOmissionAsync(CandidateDecision expected, bool noMatch,
+        string reason, CancellationToken cancellationToken)
+        => WriteAsync((SqliteConnection connection, SqliteTransaction transaction) =>
+        {
+            CandidateDecision? current = FindDecision(connection, transaction, expected.Metadata.Key);
+            if (current == null || current.Metadata != expected.Metadata || current.Selection.EffectiveRule.Revision != expected.Selection.EffectiveRule.Revision) return null;
+            MediaSelectionResult selection = current.Selection with {
+                Outcome = noMatch ? MediaSelectionOutcome.Excluded : MediaSelectionOutcome.TechnicalOmission,
+                Reason = noMatch ? MediaSelectionReason.FilterNoMatch : MediaSelectionReason.FilterUnavailable, FilterReason = reason };
+            using SqliteCommand command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE media_decisions SET selection_json=$selection WHERE source_id=$source AND board_id=$board AND thread_id=$thread AND media_id=$media AND variant=$variant";
+            AddCandidateKey(command, expected.Metadata.Key);
+            command.Parameters.AddWithValue("$selection", SerializeSelection(selection));
+            command.ExecuteNonQuery();
+            return current with { Selection = selection };
+        }, cancellationToken);
+
     internal static IReadOnlyList<CandidateDecision> ReadDecisions(SqliteConnection connection,
         SqliteTransaction? transaction, ResourceId resource)
     {
@@ -179,7 +198,8 @@ public sealed partial class ArchiveCatalog
             TypesMode = effective.Types.Mode, Extensions = new List<string>(effective.Types.Extensions).ToArray(),
             SizeMode = effective.SizeLimit.Mode, MaximumBytes = effective.SizeLimit.Bytes,
             TypesOrigin = ToOriginDocument(effective.TypesOrigin), SizeOrigin = ToOriginDocument(effective.SizeLimitOrigin),
-            ObservedExtension = selection.Extension, ObservedSize = selection.SizeBytes
+            ObservedExtension = selection.Extension, ObservedSize = selection.SizeBytes,
+            ImageFilter = effective.ImageFilter, ImageFilterOrigin = effective.ImageFilterOrigin == null ? null : ToOriginDocument(effective.ImageFilterOrigin), FilterReason = selection.FilterReason
         };
         return JsonSerializer.Serialize(document, CandidateSelectionJsonContext.Default.CandidateSelectionDocument);
     }
@@ -196,12 +216,12 @@ public sealed partial class ArchiveCatalog
                 document.Extensions == null || document.TypesMode == MediaTypeSelectionMode.Inherit ||
                 document.SizeMode == MediaSizeLimitMode.Inherit || document.ObservedSize < 0)
                 throw new InvalidDataException("The saved candidate selection contains invalid values.");
-            bool excluded = document.Reason is MediaSelectionReason.TypeExcluded or MediaSelectionReason.SizeExceeded;
+            bool excluded = document.Reason is MediaSelectionReason.TypeExcluded or MediaSelectionReason.SizeExceeded or MediaSelectionReason.FilterNoMatch;
             if (excluded != (document.Outcome == MediaSelectionOutcome.Excluded))
                 throw new InvalidDataException("The saved candidate selection outcome and reason conflict.");
             EffectiveMediaRule effective = new EffectiveMediaRule(document.Revision,
                 new MediaTypeSelection(document.TypesMode, document.Extensions), new MediaSizeLimit(document.SizeMode, document.MaximumBytes),
-                FromOriginDocument(document.TypesOrigin), FromOriginDocument(document.SizeOrigin));
+                FromOriginDocument(document.TypesOrigin), FromOriginDocument(document.SizeOrigin)) { ImageFilter = document.ImageFilter ?? MediaImageFilterRule.Disabled, ImageFilterOrigin = document.ImageFilterOrigin == null ? null : FromOriginDocument(document.ImageFilterOrigin) };
             string? extension = document.ObservedExtension == null ? null : MediaTypeSelection.NormalizeExtension(document.ObservedExtension);
             if (effective.TypesOrigin.Revision != effective.Revision || effective.SizeLimitOrigin.Revision != effective.Revision)
                 throw new InvalidDataException("The saved rule origin revisions conflict.");
@@ -212,9 +232,9 @@ public sealed partial class ArchiveCatalog
                 : effective.SizeLimit.Mode == MediaSizeLimitMode.Limited && document.ObservedSize > effective.SizeLimit.Bytes
                     ? MediaSelectionReason.SizeExceeded
                     : document.ObservedSize.HasValue ? MediaSelectionReason.Allowed : MediaSelectionReason.AllowedUnknownSize;
-            if (document.Reason != MediaSelectionReason.PreviouslySaved && document.Reason != expectedReason)
+            if (document.Reason is not (MediaSelectionReason.PreviouslySaved or MediaSelectionReason.FilterNoMatch or MediaSelectionReason.FilterUnavailable) && document.Reason != expectedReason)
                 throw new InvalidDataException("The saved candidate reason conflicts with its original effective values.");
-            return new MediaSelectionResult(document.Outcome, document.Reason, effective, extension, document.ObservedSize);
+            return new MediaSelectionResult(document.Outcome, document.Reason, effective, extension, document.ObservedSize) { FilterReason = document.FilterReason };
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
@@ -242,6 +262,9 @@ public sealed partial class ArchiveCatalog
 
 internal sealed class CandidateSelectionDocument
 {
+    public MediaImageFilterRule? ImageFilter { get; set; }
+    public CandidateRuleOriginDocument? ImageFilterOrigin { get; set; }
+    public string? FilterReason { get; set; }
     [JsonRequired] public int Version { get; set; }
     [JsonRequired] public MediaSelectionOutcome Outcome { get; set; }
     [JsonRequired] public MediaSelectionReason Reason { get; set; }

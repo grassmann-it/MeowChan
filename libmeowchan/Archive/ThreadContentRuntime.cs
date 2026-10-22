@@ -22,6 +22,7 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
     private bool _disposed;
     public bool IsInitialized => _catalog != null && !_disposed;
     public MediaRuleStore Rules { get; }
+    internal IOriginalMediaFilterFactory? OriginalFilters { get; set; }
     public ArchiveCatalog Catalog => _catalog ?? throw new InvalidOperationException("Initialize content services before starting watches.");
     public string? LoadWarning { get; private set; }
 
@@ -190,9 +191,10 @@ internal sealed class ThreadContentContext
                     _decisions[item.MediaIdentifier] = decision;
                 }
                 if (decision.Selection.Outcome == MediaSelectionOutcome.Selected) selected.Add(ToItem(decision.Metadata, owner));
-                else excluded++;
+                else if (decision.Selection.Outcome == MediaSelectionOutcome.Excluded) excluded++;
+                else lock (_state) _selectionFailure = new FailureInfo(FailureKind.Storage, decision.Selection.FilterReason ?? "Filter unavailable");
             }
-            lock (_state) { _excluded = excluded; _selectionFailure = null; }
+            lock (_state) { _excluded = excluded; }
             return selected.AsReadOnly();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -203,9 +205,33 @@ internal sealed class ThreadContentContext
         }
     }
 
-    private static DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner) => new DownloadItem(metadata.DownloadUri,
-        metadata.DestinationPath, owner.Board.ImageBoard, owner, metadata.Key.MediaId, metadata.ExpectedSize,
-        metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath);
+    private DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner)
+    {
+        DownloadItem item = new DownloadItem(metadata.DownloadUri, metadata.DestinationPath, owner.Board.ImageBoard, owner,
+            metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath);
+        if (_decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? decision)
+            && decision.Selection.EffectiveRule.ImageFilter.Mode == MediaImageFilterMode.Plugin
+            && decision.Selection.Reason != MediaSelectionReason.PreviouslySaved)
+        {
+            item.Filter = _runtime.OriginalFilters?.Create(item, decision,
+                () => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
+                    && _decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? current)
+                    && SameMetadata(current.Metadata, metadata),
+                async (noMatch, reason, token) => {
+                    CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token).ConfigureAwait(false);
+                    if (saved != null) { lock (_state) { _decisions[metadata.Key.MediaId] = saved; if (noMatch) _excluded++; else _selectionFailure = new FailureInfo(FailureKind.Storage, reason); } }
+                }) ?? new MissingFilter();
+        }
+        return item;
+    }
+
+    private sealed class MissingFilter : IOriginalMediaFilter
+    {
+        public bool CanStart => true;
+        public event Action? CapacityChanged { add { } remove { } }
+        public Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken cancellationToken)
+            => Task.FromException<IOriginalMediaFilterLease>(new MediaFilterOmissionException(false, "filter_host_unavailable"));
+    }
 
     private static bool SameMetadata(CandidateMetadata first, CandidateMetadata second) => first.DownloadUri == second.DownloadUri
         && first.ExpectedSize == second.ExpectedSize && first.ExpectedMd5 == second.ExpectedMd5

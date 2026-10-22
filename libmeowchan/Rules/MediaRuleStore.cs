@@ -133,7 +133,7 @@ public sealed class MediaRuleStore
         MediaRuleScope scope = new MediaRuleScope(document.Scope.Kind, document.Scope.Source, document.Scope.Board, document.Scope.Thread);
         return new MediaRule(scope, document.Enabled,
             new MediaTypeSelection(document.Types.Mode, document.Types.Extensions),
-            new MediaSizeLimit(document.SizeLimit.Mode, document.SizeLimit.Bytes));
+            new MediaSizeLimit(document.SizeLimit.Mode, document.SizeLimit.Bytes)) { ImageFilter = document.ImageFilter ?? MediaImageFilterRule.Inherit };
     }
 
     private static MediaRulesDocument ToDocument(MediaRuleSet snapshot)
@@ -145,6 +145,7 @@ public sealed class MediaRuleStore
             {
                 Scope = new MediaRuleScopeDocument { Kind = rule.Scope.Kind, Source = rule.Scope.Source, Board = rule.Scope.Board, Thread = rule.Scope.Thread },
                 Enabled = rule.Enabled,
+                ImageFilter = rule.ImageFilter,
                 Types = new MediaTypeSelectionDocument { Mode = rule.Types.Mode, Extensions = rule.Types.Extensions.ToArray() },
                 SizeLimit = new MediaSizeLimitDocument { Mode = rule.SizeLimit.Mode, Bytes = rule.SizeLimit.Bytes }
             }).ToArray()
@@ -164,6 +165,7 @@ internal sealed class MediaRulesDocument
 
 internal sealed class MediaRuleDocument
 {
+    public MediaImageFilterRule? ImageFilter { get; set; }
     [JsonRequired] public MediaRuleScopeDocument Scope { get; set; } = new MediaRuleScopeDocument();
     [JsonRequired] public bool Enabled { get; set; }
     [JsonRequired] public MediaTypeSelectionDocument Types { get; set; } = new MediaTypeSelectionDocument();

@@ -46,6 +46,8 @@ public sealed class DownloadWorker
         }
         if (_notifyThread) _item.Thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath);
 
+        await using IOriginalMediaFilterLease? filterLease = _item.Filter == null ? null
+            : await _item.Filter.AcquireAsync(_item, cancellationToken).ConfigureAwait(false);
         HttpClient client = _item.ImageBoard.GetHttpClient();
         using HttpResponseMessage response = await client.GetAsync(_item.DownloadUri,
             HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
@@ -59,11 +61,12 @@ public sealed class DownloadWorker
 
         DownloadItem verifiedItem = _item.ExpectedSize.HasValue || !contentLength.HasValue ? _item : new DownloadItem(
             _item.DownloadUri, _item.DestinationPath, _item.ImageBoard, _item.Thread, _item.MediaIdentifier,
-            contentLength, _item.ExpectedMd5, _item.OriginalFileName, _item.LegacyPath);
+            contentLength, _item.ExpectedMd5, _item.OriginalFileName, _item.LegacyPath) { Filter = _item.Filter };
         await using Stream source = await OpenBodyAsync(response.Content, cancellationToken).ConfigureAwait(false);
         using IdleTimeoutReadStream timedSource = new IdleTimeoutReadStream(source, _bodyIdleTimeout, _timeProvider);
-        MediaCommitResult completed = await _store.CommitAsync(verifiedItem, timedSource, cancellationToken,
-            RecordAndThrottleAsync).ConfigureAwait(false);
+        MediaCommitResult completed = filterLease == null
+            ? await _store.CommitAsync(verifiedItem, timedSource, cancellationToken, RecordAndThrottleAsync).ConfigureAwait(false)
+            : await filterLease.CommitAsync(verifiedItem, timedSource, _store, RecordAndThrottleAsync, cancellationToken).ConfigureAwait(false);
         // CommitAsync deliberately finishes its short manifest commit after publishing the file,
         // even when cancellation arrives then. This is a verified completion, not a partial file.
         if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);

@@ -7,3 +7,27 @@ static readonly MeowChan.Http.RequestPolicyHandler.DeferWhenWaitingKey -> System
 static readonly MeowChan.Http.RequestPolicyHandler.ObserverKey -> System.Net.Http.HttpRequestOptionsKey<System.Action<MeowChan.Http.RequestPolicyProgress!>!>
 MeowChan.Downloader.DownloadQueue.AcquireMetadataAsync(string! sourceId, MeowChan.Downloader.DownloadPriority priority, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.IDisposable!>!
 MeowChan.Downloader.DownloadQueue.GetMetadataCapacitySnapshot() -> (int Active, int Waiting)
+MeowChan.Rules.MediaSelectionOutcome.TechnicalOmission = 2 -> MeowChan.Rules.MediaSelectionOutcome
+MeowChan.Rules.MediaSelectionReason.FilterNoMatch = 5 -> MeowChan.Rules.MediaSelectionReason
+MeowChan.Rules.MediaSelectionReason.FilterUnavailable = 6 -> MeowChan.Rules.MediaSelectionReason
+MeowChan.Rules.MediaRule.ImageFilter.get -> MeowChan.Rules.MediaImageFilterRule!
+MeowChan.Rules.MediaRule.ImageFilter.init -> void
+MeowChan.Rules.EffectiveMediaRule.ImageFilter.get -> MeowChan.Rules.MediaImageFilterRule!
+MeowChan.Rules.EffectiveMediaRule.ImageFilter.init -> void
+MeowChan.Rules.MediaSelectionResult.FilterReason.get -> string?
+MeowChan.Rules.MediaSelectionResult.FilterReason.init -> void
+MeowChan.Rules.MediaImageFilterMode
+MeowChan.Rules.MediaImageFilterMode.Inherit = 0 -> MeowChan.Rules.MediaImageFilterMode
+MeowChan.Rules.MediaImageFilterMode.Disabled = 1 -> MeowChan.Rules.MediaImageFilterMode
+MeowChan.Rules.MediaImageFilterMode.Plugin = 2 -> MeowChan.Rules.MediaImageFilterMode
+MeowChan.Rules.MediaImageFilterRule
+MeowChan.Rules.MediaImageFilterRule.Mode.get -> MeowChan.Rules.MediaImageFilterMode
+MeowChan.Rules.MediaImageFilterRule.PluginId.get -> string?
+MeowChan.Rules.MediaImageFilterRule.FilterKey.get -> string?
+MeowChan.Rules.MediaImageFilterRule.SchemaVersion.get -> string!
+MeowChan.Rules.MediaImageFilterRule.Parameters.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+static MeowChan.Rules.MediaImageFilterRule.Inherit.get -> MeowChan.Rules.MediaImageFilterRule!
+static MeowChan.Rules.MediaImageFilterRule.Disabled.get -> MeowChan.Rules.MediaImageFilterRule!
+MeowChan.Rules.MediaImageFilterRule.MediaImageFilterRule(MeowChan.Rules.MediaImageFilterMode mode, string? pluginId = null, string? filterKey = null, string! schemaVersion = "1", System.Collections.Generic.IReadOnlyDictionary<string!, string!>? parameters = null) -> void
+MeowChan.Rules.EffectiveMediaRule.ImageFilterOrigin.get -> MeowChan.Rules.MediaRuleOrigin?
+MeowChan.Rules.EffectiveMediaRule.ImageFilterOrigin.init -> void

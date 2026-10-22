@@ -30,6 +30,8 @@ public sealed class MediaRuleResolver
         ArgumentNullException.ThrowIfNull(target);
         MediaTypeSelection types = MediaTypeSelection.All;
         MediaSizeLimit size = MediaSizeLimit.Unlimited;
+        MediaImageFilterRule filter = MediaImageFilterRule.Disabled;
+        MediaRuleOrigin? filterOrigin = null;
         MediaRuleOrigin typesOrigin = new MediaRuleOrigin(null, _ruleSet.Revision);
         MediaRuleOrigin sizeOrigin = new MediaRuleOrigin(null, _ruleSet.Revision);
         List<MediaRuleScope> scopes = new List<MediaRuleScope>
@@ -42,6 +44,7 @@ public sealed class MediaRuleResolver
         foreach (MediaRuleScope scope in scopes)
         {
             if (!_rules.TryGetValue(scope, out MediaRule? rule) || !rule.Enabled) continue;
+            if (rule.ImageFilter.Mode != MediaImageFilterMode.Inherit) { filter = rule.ImageFilter; filterOrigin = new MediaRuleOrigin(scope, _ruleSet.Revision); }
             if (rule.Types.Mode != MediaTypeSelectionMode.Inherit)
             {
                 types = rule.Types;
@@ -53,7 +56,7 @@ public sealed class MediaRuleResolver
                 sizeOrigin = new MediaRuleOrigin(scope, _ruleSet.Revision);
             }
         }
-        return new EffectiveMediaRule(_ruleSet.Revision, types, size, typesOrigin, sizeOrigin);
+        return new EffectiveMediaRule(_ruleSet.Revision, types, size, typesOrigin, sizeOrigin) { ImageFilter = filter, ImageFilterOrigin = filterOrigin };
     }
 
     public MediaSelectionResult Evaluate(ResourceId resource, string? extension, long? sizeBytes)

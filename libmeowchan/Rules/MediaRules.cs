@@ -8,8 +8,8 @@ namespace MeowChan.Rules;
 public enum MediaRuleScopeKind { Global, Source, Board, Thread }
 public enum MediaTypeSelectionMode { Inherit, All, Selected }
 public enum MediaSizeLimitMode { Inherit, Unlimited, Limited }
-public enum MediaSelectionOutcome { Selected, Excluded }
-public enum MediaSelectionReason { Allowed, AllowedUnknownSize, TypeExcluded, SizeExceeded, PreviouslySaved }
+public enum MediaSelectionOutcome { Selected, Excluded, TechnicalOmission }
+public enum MediaSelectionReason { Allowed, AllowedUnknownSize, TypeExcluded, SizeExceeded, PreviouslySaved, FilterNoMatch, FilterUnavailable }
 
 /// <summary>Stable provider identities, independent of URLs and translated display names.</summary>
 public sealed record MediaRuleScope
@@ -107,6 +107,7 @@ public sealed record MediaRule
 {
     public MediaRuleScope Scope { get; }
     public bool Enabled { get; }
+    public MediaImageFilterRule ImageFilter { get; init; } = MediaImageFilterRule.Inherit;
     public MediaTypeSelection Types { get; }
     public MediaSizeLimit SizeLimit { get; }
 
@@ -144,7 +145,39 @@ public sealed class MediaRuleSet
 public sealed record MediaRuleOrigin(MediaRuleScope? Scope, string Revision);
 
 public sealed record EffectiveMediaRule(string Revision, MediaTypeSelection Types, MediaSizeLimit SizeLimit,
-    MediaRuleOrigin TypesOrigin, MediaRuleOrigin SizeLimitOrigin);
+    MediaRuleOrigin TypesOrigin, MediaRuleOrigin SizeLimitOrigin)
+{
+    public MediaImageFilterRule ImageFilter { get; init; } = MediaImageFilterRule.Disabled;
+    public MediaRuleOrigin? ImageFilterOrigin { get; init; }
+}
 
 public sealed record MediaSelectionResult(MediaSelectionOutcome Outcome, MediaSelectionReason Reason,
-    EffectiveMediaRule EffectiveRule, string? Extension, long? SizeBytes);
+    EffectiveMediaRule EffectiveRule, string? Extension, long? SizeBytes)
+{
+    public string? FilterReason { get; init; }
+}
+
+public enum MediaImageFilterMode { Inherit, Disabled, Plugin }
+
+/// <summary>Per-rule values, independent of a worker process or plugin runtime configuration.</summary>
+public sealed class MediaImageFilterRule
+{
+    public MediaImageFilterMode Mode { get; }
+    public string? PluginId { get; }
+    public string? FilterKey { get; }
+    public string SchemaVersion { get; }
+    public IReadOnlyDictionary<string, string> Parameters { get; }
+    public static MediaImageFilterRule Inherit { get; } = new MediaImageFilterRule(MediaImageFilterMode.Inherit);
+    public static MediaImageFilterRule Disabled { get; } = new MediaImageFilterRule(MediaImageFilterMode.Disabled);
+
+    public MediaImageFilterRule(MediaImageFilterMode mode, string? pluginId = null, string? filterKey = null,
+        string schemaVersion = "1", IReadOnlyDictionary<string, string>? parameters = null)
+    {
+        if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+        if (mode == MediaImageFilterMode.Plugin) { MediaRuleScope.ValidateIdentity(pluginId, nameof(pluginId)); MediaRuleScope.ValidateIdentity(filterKey, nameof(filterKey)); }
+        else if (pluginId != null || filterKey != null || parameters?.Count > 0) throw new ArgumentException("Only a plugin rule may contain plugin values.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaVersion);
+        Mode = mode; PluginId = pluginId; FilterKey = filterKey; SchemaVersion = schemaVersion;
+        Parameters = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(parameters ?? new Dictionary<string, string>(), StringComparer.Ordinal));
+    }
+}
