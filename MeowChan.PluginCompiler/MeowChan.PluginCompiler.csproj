@@ -4,7 +4,10 @@
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <Version>1.0.0</Version><IsPackable>false</IsPackable>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <NuGetLockFilePath>packages.lock.json</NuGetLockFilePath>
+    <CompilerLockRuntime>$(RuntimeIdentifier)</CompilerLockRuntime>
+    <CompilerLockRuntime Condition="'$(CompilerLockRuntime)' == ''">$(RuntimeIdentifiers)</CompilerLockRuntime>
+    <NuGetLockFilePath Condition="'$(CompilerLockRuntime)' == ''">$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(CompilerLockRuntime)' != ''">$(MSBuildProjectDirectory)/packages.$(CompilerLockRuntime).lock.json</NuGetLockFilePath>
     <CompilerFrameworkReferenceVersion>10.0.11</CompilerFrameworkReferenceVersion>
     <PublishSingleFile>false</PublishSingleFile><PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
@@ -38,9 +41,9 @@
     </ItemGroup>
   </Target>
   <Target Name="GenerateBuildToolchainManifest" AfterTargets="Build">
-    <Exec Command="dotnet &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(TargetDir).&quot;" />
+    <Exec Command="dotnet exec --runtimeconfig &quot;$(MSBuildProjectDirectory)/BuildTools/ManifestGenerator.runtimeconfig.json&quot; --depsfile &quot;$(MSBuildProjectDirectory)/BuildTools/ManifestGenerator.deps.json&quot; &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(TargetDir).&quot;" />
   </Target>
   <Target Name="GeneratePublishToolchainManifest" AfterTargets="Publish">
-    <Exec Command="dotnet &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(PublishDir).&quot;" />
+    <Exec Command="dotnet exec --runtimeconfig &quot;$(MSBuildProjectDirectory)/BuildTools/ManifestGenerator.runtimeconfig.json&quot; --depsfile &quot;$(MSBuildProjectDirectory)/BuildTools/ManifestGenerator.deps.json&quot; &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(PublishDir).&quot;" />
   </Target>
 </Project>

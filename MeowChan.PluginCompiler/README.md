@@ -15,6 +15,7 @@ Publish this project **self-contained, untrimmed, non-single-file** for each RID
 to `<app>/plugin-compiler/`. Both build and publish generate `toolchain.json` with
 SHA256 hashes for compiler binaries and every delivered SDK/framework reference.
 Keep the whole directory, including `references/`, runtime files and `licenses/`.
+The manifest-generation build target deliberately runs with a separate build-host runtime configuration and empty dependency graph, so a cross-published self-contained runtime is never executed during packaging.
 The main app and worker need their own publication. Crosspublish is not native
 execution evidence. All five platform archives still require package verification.
 
@@ -40,6 +41,11 @@ the original path, line and column. Roslyn sees a stable virtual source path, so
 file moves cannot alter CallerFilePath or deterministic output under one byte key.
 The helper is started by absolute apphost path with `ArgumentList`, private pipes
 and a stage working directory. Cancellation/timeout kills the process tree.
+`PluginCompilationService.DisposeAsync()` cancels and awaits its own pending and
+running operations; the owning session must dispose it on shutdown. File opening
+and hashing run off the caller thread. POSIX reads use nonblocking/no-follow
+handles and seek-based bounded reads so FIFOs cannot trap inventory or source
+snapshots; manifest growth is bounded during the read, not merely by initial size.
 
 Cache directories are `compilations/<hash>` and `artifacts/<execution-revision>`.
 All bytes are checked before publication and on retrieval; final directories are

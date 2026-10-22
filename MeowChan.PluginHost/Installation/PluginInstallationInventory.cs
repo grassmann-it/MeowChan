@@ -8,9 +8,9 @@ namespace MeowChan.PluginHost.Installation;
 public sealed class PluginInstallationInventory(int maximumCandidates = 256, int maximumSourceBytes = 4 * 1024 * 1024) : IPluginInstallationInventory
 {
     public Task<PluginInventory> ScanAsync(string directory, CancellationToken cancellationToken = default) =>
-        Task.Run(() => Scan(directory, cancellationToken), cancellationToken);
+        Task.Run(() => ScanAsyncCore(directory, cancellationToken), cancellationToken);
 
-    private PluginInventory Scan(string directory, CancellationToken cancellationToken)
+    private async Task<PluginInventory> ScanAsyncCore(string directory, CancellationToken cancellationToken)
     {
         if (maximumCandidates is < 1 or > 4096 || maximumSourceBytes is < 1 or > 4 * 1024 * 1024) throw new ArgumentOutOfRangeException();
         List<PluginInstallationCandidate> candidates = new();
@@ -39,15 +39,17 @@ public sealed class PluginInstallationInventory(int maximumCandidates = 256, int
                         if (kind == PluginCandidateKind.Source && size == 0) issues.Add(new("MCEMPTY", "The source file is empty.", path));
                         if (kind == PluginCandidateKind.Source && size > maximumSourceBytes) issues.Add(new("MCLIMIT", $"Source exceeds {maximumSourceBytes} bytes.", path));
                         if (kind == PluginCandidateKind.Unsupported) issues.Add(new("MCUNSUPPORTED", "Expected one .cs source file or a delivered .plugin.json bundle manifest.", path));
-                        using FileStream probe = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                        _ = probe.ReadByte();
+                        using (Microsoft.Win32.SafeHandles.SafeFileHandle probe = CompilerWire.OpenRead(path))
+                        {
+                            _ = RandomAccess.Read(probe, Span<byte>.Empty, 0);
+                        }
                         if (kind == PluginCandidateKind.PrebuiltManifest)
                         {
                             if (size > 1024 * 1024) issues.Add(new("MCLIMIT", "Bundle manifest exceeds 1 MiB.", path));
                             else
                             {
-                                probe.Position = 0;
-                                PluginBundleManifest? bundle = JsonSerializer.Deserialize<PluginBundleManifest>(probe, CompilerWire.JsonOptions);
+                                byte[] bytes = await CompilerWire.ReadBoundedAsync(path, 1024 * 1024, cancellationToken).ConfigureAwait(false);
+                                PluginBundleManifest? bundle = JsonSerializer.Deserialize<PluginBundleManifest>(bytes, CompilerWire.JsonOptions);
                                 if (bundle is null || bundle.SchemaVersion != 1 || !CompilerWire.IsHash(bundle.AssemblySha256) ||
                                     !CompilerWire.IsHash(bundle.SdkFingerprint) || !CompilerWire.IsHash(bundle.CompilerFingerprint) || bundle.Resources is null || bundle.Resources.Count > 128)
                                     issues.Add(new("MCMANIFEST", "The bundle manifest is unsupported or incomplete.", path));
@@ -55,14 +57,14 @@ public sealed class PluginInstallationInventory(int maximumCandidates = 256, int
                         }
                     }
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+                catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException)
                 { issues.Add(new("MCIO", exception.Message, path)); }
                 string identityPath = OperatingSystem.IsWindows() ? path.ToUpperInvariant() : path;
                 string candidateId = CompilerWire.Hash(Encoding.UTF8.GetBytes(identityPath));
                 candidates.Add(new(candidateId, path, kind, size, issues));
             }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException)
         { diagnostics.Add(new("MCIO", exception.Message, fullDirectory)); }
         if (truncated) diagnostics.Add(new("MCLIMIT", $"Inventory stopped at {maximumCandidates} candidates.", fullDirectory, Severity: "warning"));
         return new(candidates, truncated, diagnostics);

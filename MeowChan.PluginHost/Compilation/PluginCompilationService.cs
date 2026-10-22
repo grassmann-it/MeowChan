@@ -6,12 +6,16 @@ using MeowChan.PluginHost.Contracts;
 namespace MeowChan.PluginHost.Compilation;
 
 /// <summary>Builds an immutable candidate with the shipped compiler. Owns no activation or configuration state.</summary>
-public sealed partial class PluginCompilationService : IPluginCompilationService
+public sealed partial class PluginCompilationService : IPluginCompilationService, IAsyncDisposable
 {
     private static readonly SemaphoreSlim BuildGate = new(1, 1);
     private static int _admittedBuilds;
     private readonly PluginCompilerOptions _options;
     private readonly string _cache;
+    private readonly object _operationsGate = new();
+    private readonly HashSet<Task> _operations = new();
+    private readonly CancellationTokenSource _lifetime = new();
+    private Task? _disposeTask;
     private sealed record CompilationEntry(int SchemaVersion, string CompilationFingerprint, string SourceFingerprint,
         string AssemblySha256, string SdkFingerprint, string CompilerFingerprint, PluginBuildDiagnostic[] Diagnostics);
     private sealed record ArtifactEntry(int SchemaVersion, string ExecutionRevision, CompilationEntry Compilation, PluginArtifactResource[] Resources);
@@ -30,19 +34,17 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
         _cache = Path.GetFullPath(options.CacheDirectory);
     }
 
-    public async Task<PluginBuildResult> BuildAsync(string sourcePath, IReadOnlyList<PluginResourceInput>? resources = null,
-        CancellationToken cancellationToken = default)
+    public Task<PluginBuildResult> BuildAsync(string sourcePath, IReadOnlyList<PluginResourceInput>? resources = null,
+        CancellationToken cancellationToken = default) => ScheduleOperation(token => BuildCoreAsync(sourcePath, resources, token), sourcePath, cancellationToken);
+
+    private async Task<PluginBuildResult> BuildCoreAsync(string sourcePath, IReadOnlyList<PluginResourceInput>? resources,
+        CancellationToken cancellationToken)
     {
         string? sourceFingerprint = null;
         string? compilationFingerprint = null;
         bool acquired = false;
         string? stage = null;
         List<PluginBuildDiagnostic> notices = new();
-        if (Interlocked.Increment(ref _admittedBuilds) > 9)
-        {
-            Interlocked.Decrement(ref _admittedBuilds);
-            return Failure(PluginBuildStatus.Busy, "MCBUSY", "The compiler is busy (one build and eight waiting requests).", sourcePath);
-        }
         try
         {
             await BuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -137,7 +139,6 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
         {
             if (stage is not null) TryDelete(stage);
             if (acquired) BuildGate.Release();
-            Interlocked.Decrement(ref _admittedBuilds);
         }
     }
 
@@ -287,7 +288,10 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
             byte[] requestJson = JsonSerializer.SerializeToUtf8Bytes(request, CompilerWire.JsonOptions);
             await process.StandardInput.BaseStream.WriteAsync(requestJson, linked.Token).ConfigureAwait(false);
             process.StandardInput.Close();
-            await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+            Task exit = process.WaitForExitAsync(linked.Token);
+            Task first = await Task.WhenAny(exit, outputTask).ConfigureAwait(false);
+            if (first == outputTask && !outputTask.IsCompletedSuccessfully) await outputTask.ConfigureAwait(false);
+            await exit.ConfigureAwait(false);
             byte[] output = await outputTask.ConfigureAwait(false);
             byte[] stderr = await errorTask.ConfigureAwait(false);
             if (output.Length == 0) throw new CompilerProcessException($"Compiler exited with code {process.ExitCode}: {Encoding.UTF8.GetString(stderr)}");
@@ -322,6 +326,46 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
             if (take > 0) result.Write(buffer, 0, take);
         }
         return result.ToArray();
+    }
+
+    private Task<PluginBuildResult> ScheduleOperation(Func<CancellationToken, Task<PluginBuildResult>> operation, string path, CancellationToken cancellationToken)
+    {
+        lock (_operationsGate)
+        {
+            if (_disposeTask is not null) return Task.FromResult(Failure(PluginBuildStatus.Cancelled, "MCCANCEL", "The compiler service is stopping.", path));
+            if (Interlocked.Increment(ref _admittedBuilds) > 9)
+            {
+                Interlocked.Decrement(ref _admittedBuilds);
+                return Task.FromResult(Failure(PluginBuildStatus.Busy, "MCBUSY", "The compiler is busy (one build and eight waiting requests).", path));
+            }
+            // File opens and hash verification also stay off the caller/UI thread.
+            Task<PluginBuildResult> task = Task.Run(async () =>
+            {
+                using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                try { return await operation(linked.Token).ConfigureAwait(false); }
+                finally { Interlocked.Decrement(ref _admittedBuilds); }
+            }, CancellationToken.None);
+            _operations.Add(task);
+            _ = task.ContinueWith(completed => { lock (_operationsGate) _operations.Remove(completed); },
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return task;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_operationsGate)
+        {
+            _disposeTask ??= StopAsync(_operations.ToArray());
+            return new(_disposeTask);
+        }
+    }
+
+    private async Task StopAsync(Task[] operations)
+    {
+        await _lifetime.CancelAsync().ConfigureAwait(false);
+        try { await Task.WhenAll(operations).ConfigureAwait(false); }
+        finally { _lifetime.Dispose(); }
     }
 
     private static PluginBuildDiagnostic[] RemapDiagnostics(IEnumerable<PluginBuildDiagnostic> diagnostics, string originalPath) =>

@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Text;
 using System.Text.Json;
 
@@ -54,19 +56,44 @@ internal static class CompilerWire
         }
         return result;
     }
+    // A normal FileStream open can wait indefinitely on a FIFO before cancellation is observed.
+    // Nonblocking, no-follow POSIX opens keep local special-file candidates from trapping inventory/build tasks.
+    internal static SafeFileHandle OpenRead(string path)
+    {
+        if (OperatingSystem.IsWindows()) return File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.Asynchronous);
+        int flags = OperatingSystem.IsMacOS() ? 0x4 | 0x100 | 0x1000000 : 0x800 | 0x20000 | 0x80000;
+        int descriptor = OpenUnix(path, flags);
+        if (descriptor < 0)
+        {
+            int error = Marshal.GetLastPInvokeError();
+            string message = $"Cannot read {path}: {new System.ComponentModel.Win32Exception(error).Message}";
+            if (error == 13) throw new UnauthorizedAccessException(message);
+            throw new IOException(message);
+        }
+        return new SafeFileHandle(new IntPtr(descriptor), ownsHandle: true);
+    }
+
+    [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int OpenUnix([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int flags);
+
     internal static async Task<byte[]> ReadBoundedAsync(string path, int maximum, CancellationToken cancellationToken)
     {
-        await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous);
-        if (stream.Length > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
-        using MemoryStream output = new();
-        byte[] buffer = new byte[65536];
-        int count;
-        while ((count = await stream.ReadAsync(buffer, cancellationToken)) != 0)
+        cancellationToken.ThrowIfCancellationRequested();
+        using SafeFileHandle handle = OpenRead(path);
+        try
         {
-            if (output.Length + count > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
-            output.Write(buffer, 0, count);
+            if (RandomAccess.GetLength(handle) > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
+            using MemoryStream output = new();
+            byte[] buffer = new byte[65536];
+            int count;
+            while ((count = await RandomAccess.ReadAsync(handle, buffer, output.Length, cancellationToken).ConfigureAwait(false)) != 0)
+            {
+                if (output.Length + count > maximum) throw new InvalidDataException($"File exceeds {maximum} bytes: {path}");
+                output.Write(buffer, 0, count);
+            }
+            return output.ToArray();
         }
-        return output.ToArray();
+        catch (NotSupportedException exception) { throw new IOException($"Only regular seekable files can be read: {path}", exception); }
     }
     internal static async Task<ToolchainManifest> ReadToolchainAsync(string directory, CancellationToken cancellationToken)
     {

@@ -142,7 +142,7 @@ public sealed class CompilerIntegrationTests : IDisposable
     public async Task CancelAndTimeoutKillRealCompilerProcessTreeWithoutPartialPublication()
     {
         if (OperatingSystem.IsWindows()) return; // Linux shell process fixture; Windows native package verification is separate.
-        string path = await SourceAsync();
+        string path = await SourceAsync(ValidSource + "/*" + new string('x', 1024 * 1024) + "*/");
         string marker = Path.Combine(_root, "compiler pid");
         string wrapper = await WrapperAsync("echo $$ > " + Quote(marker) + "\nsleep 30\n");
         using CancellationTokenSource cancel = new();
@@ -241,6 +241,97 @@ public sealed class CompilerIntegrationTests : IDisposable
         await File.WriteAllBytesAsync(Path.Combine(package, "official.dll"), [9, 8]);
         Assert.Equal(PluginBuildStatus.IntegrityError, (await importer.ImportBundleAsync(manifestPath)).Status);
         Assert.NotNull(await importer.FindArtifactAsync(imported.Artifact.ExecutionRevision));
+    }
+
+    [Fact]
+    public async Task CompilerCrashAndBoundedAdmissionRemainExplicitFailures()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string path = await SourceAsync();
+        string crash = await WrapperAsync("echo 'controlled compiler crash' >&2\nexit 37\n");
+        PluginBuildResult crashed = await Service(crash).BuildAsync(path);
+        Assert.Equal(PluginBuildStatus.CompilerError, crashed.Status);
+        Assert.Contains(crashed.Diagnostics, d => d.Message.Contains("37", StringComparison.Ordinal));
+        Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));
+        string marker = Path.Combine(_root, "admitted compiler");
+        string hanging = await WrapperAsync("echo ready > " + Quote(marker) + "\nsleep 30\n");
+        using CancellationTokenSource cancellation = new();
+        Task<PluginBuildResult> running = Service(hanging).BuildAsync(path, cancellationToken: cancellation.Token);
+        await WaitForFileAsync(marker);
+        Task<PluginBuildResult>[] waiting = Enumerable.Range(0, 8).Select(_ => Service(hanging).BuildAsync(path, cancellationToken: cancellation.Token)).ToArray();
+        PluginBuildResult rejected = await Service(hanging).BuildAsync(path);
+        Assert.Equal(PluginBuildStatus.Busy, rejected.Status);
+        cancellation.Cancel();
+        Assert.Equal(PluginBuildStatus.Cancelled, (await running).Status);
+        Assert.All(await Task.WhenAll(waiting), r => Assert.Equal(PluginBuildStatus.Cancelled, r.Status));
+        Success(await Service().BuildAsync(path));
+    }
+
+    [Fact]
+    public async Task CallerFilePathUsesStableVirtualPathAndMovedSourcesKeepDeterministicBytes()
+    {
+        string source = "using System.Runtime.CompilerServices; public static class Paths { public static string Name => Get(); public static string Get([CallerFilePath] string path = \"\") => path; }";
+        string firstPath = await SourceAsync(source);
+        PluginBuildResult first = await Service().BuildAsync(firstPath);
+        Success(first);
+        string otherPath = Path.Combine(_root, "other path.cs"); await File.WriteAllTextAsync(otherPath, source);
+        PluginCompilationService independent = new(new PluginCompilerOptions(Executable, _bundle, Path.Combine(_root, "independent cache")));
+        PluginBuildResult other = await independent.BuildAsync(otherPath);
+        Success(other);
+        Assert.Equal(first.CompilationFingerprint, other.CompilationFingerprint);
+        Assert.Equal(first.Artifact!.AssemblySha256, other.Artifact!.AssemblySha256);
+    }
+
+    [Fact]
+    public async Task ServiceShutdownCancelsAndAwaitsItsOwnChildProcess()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string path = await SourceAsync();
+        string marker = Path.Combine(_root, "shutdown pid");
+        string wrapper = await WrapperAsync("echo $$ > " + Quote(marker) + "\nsleep 30\n");
+        PluginCompilationService service = Service(wrapper);
+        Task<PluginBuildResult> running = service.BuildAsync(path);
+        await WaitForFileAsync(marker);
+        int pid = int.Parse(await File.ReadAllTextAsync(marker));
+        await service.DisposeAsync();
+        Assert.Equal(PluginBuildStatus.Cancelled, (await running).Status);
+        AssertProcessGone(pid);
+        Assert.Equal(PluginBuildStatus.Cancelled, (await service.BuildAsync(path)).Status);
+        Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));
+    }
+
+    [Fact]
+    public async Task FifoCandidatesCannotTrapInventoryOrSourceReads()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string plugins = Path.Combine(_root, "special files"); Directory.CreateDirectory(plugins);
+        string sourceFifo = Path.Combine(plugins, "pipe.cs");
+        string manifestFifo = Path.Combine(plugins, "pipe.plugin.json");
+        foreach (string path in new[] { sourceFifo, manifestFifo })
+        {
+            ProcessStartInfo start = new("/usr/bin/mkfifo") { UseShellExecute = false }; start.ArgumentList.Add(path);
+            using Process process = Process.Start(start)!; await process.WaitForExitAsync(); Assert.Equal(0, process.ExitCode);
+        }
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        PluginInventory inventory = await new PluginInstallationInventory().ScanAsync(plugins, timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(2, inventory.Candidates.Count);
+        Assert.All(inventory.Candidates, candidate => Assert.NotEmpty(candidate.Diagnostics));
+        PluginBuildResult result = await Service().BuildAsync(sourceFifo, cancellationToken: timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(result.Succeeded);
+        Assert.NotEqual(PluginBuildStatus.Cancelled, result.Status);
+        Assert.False(timeout.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task ExcessiveCompilerOutputIsStoppedAsProtocolFailure()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string path = await SourceAsync();
+        string wrapper = await WrapperAsync("head -c 1100000 /dev/zero\nsleep 30\n");
+        PluginBuildResult result = await Service(wrapper, TimeSpan.FromSeconds(5)).BuildAsync(path);
+        Assert.Equal(PluginBuildStatus.CompilerError, result.Status);
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("size limit", StringComparison.Ordinal));
+        Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));
     }
 
     private async Task<string> WrapperAsync(string contents)

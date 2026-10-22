@@ -1,0 +1,5 @@
+{
+  "runtimeTarget": { "name": ".NETCoreApp,Version=v10.0", "signature": "" },
+  "targets": { ".NETCoreApp,Version=v10.0": {} },
+  "libraries": {}
+}

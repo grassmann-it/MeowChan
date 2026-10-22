@@ -6,15 +6,13 @@ namespace MeowChan.PluginHost.Compilation;
 
 public sealed partial class PluginCompilationService : IPluginBundleInstaller
 {
-    public async Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default)
+    public Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default) =>
+        ScheduleOperation(token => ImportBundleCoreAsync(manifestPath, token), manifestPath, cancellationToken);
+
+    private async Task<PluginBuildResult> ImportBundleCoreAsync(string manifestPath, CancellationToken cancellationToken)
     {
         string? stage = null;
         bool acquired = false;
-        if (Interlocked.Increment(ref _admittedBuilds) > 9)
-        {
-            Interlocked.Decrement(ref _admittedBuilds);
-            return Failure(PluginBuildStatus.Busy, "MCBUSY", "The compiler/importer is busy.", manifestPath);
-        }
         try
         {
             await BuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -80,7 +78,6 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
         {
             if (stage is not null) TryDelete(stage);
             if (acquired) BuildGate.Release();
-            Interlocked.Decrement(ref _admittedBuilds);
         }
     }
 }
