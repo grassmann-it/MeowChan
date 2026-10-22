@@ -43,12 +43,36 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginRuntime.Test
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.ImageDimensionsFilter", "plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj", "{9013C8EE-1187-58D8-A80F-485656C67C77}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginFilters.Fixture", "tests/MeowChan.PluginFilters.Fixture/MeowChan.PluginFilters.Fixture.csproj", "{28A2B3FA-5E53-506B-BB36-304CE2469FDD}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginFilters.Helper", "tests/MeowChan.PluginFilters.Helper/MeowChan.PluginFilters.Helper.csproj", "{537957F2-1613-5B68-8AD3-F842852A581A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginFilters.Tests", "tests/MeowChan.PluginFilters.Tests/MeowChan.PluginFilters.Tests.csproj", "{EA13A482-684F-5FFC-907F-42EF5938C1BC}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.SourceAdapter.Tests", "tests/MeowChan.SourceAdapter.Tests/MeowChan.SourceAdapter.Tests.csproj", "{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA13A482-684F-5FFC-907F-42EF5938C1BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA13A482-684F-5FFC-907F-42EF5938C1BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA13A482-684F-5FFC-907F-42EF5938C1BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA13A482-684F-5FFC-907F-42EF5938C1BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{537957F2-1613-5B68-8AD3-F842852A581A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{537957F2-1613-5B68-8AD3-F842852A581A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{537957F2-1613-5B68-8AD3-F842852A581A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{537957F2-1613-5B68-8AD3-F842852A581A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28A2B3FA-5E53-506B-BB36-304CE2469FDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28A2B3FA-5E53-506B-BB36-304CE2469FDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28A2B3FA-5E53-506B-BB36-304CE2469FDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28A2B3FA-5E53-506B-BB36-304CE2469FDD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{9013C8EE-1187-58D8-A80F-485656C67C77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9013C8EE-1187-58D8-A80F-485656C67C77}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9013C8EE-1187-58D8-A80F-485656C67C77}.Release|Any CPU.ActiveCfg = Release|Any CPU
