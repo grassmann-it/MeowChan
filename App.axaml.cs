@@ -2,6 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Semi.Avalonia;
+using Ursa.Themes.Semi;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using Serilog;
@@ -15,6 +18,26 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        ApplyControlLanguage();
+        Texts.Changed += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) ApplyControlLanguage();
+        else Dispatcher.UIThread.Post(ApplyControlLanguage);
+    }
+
+    private void ApplyControlLanguage()
+    {
+        // Vendor controls require a supported specific culture. Unknown language
+        // packs retain the application's English fallback instead of Chinese defaults.
+        CultureInfo culture = CultureInfo.GetCultureInfo(Texts.Culture.TwoLetterISOLanguageName == "de" ? "de-DE" : "en-US");
+        foreach (Avalonia.Styling.IStyle style in Styles)
+        {
+            if (style is SemiTheme semi) semi.Locale = culture;
+            else if (style is UrsaSemiTheme ursa) ursa.Locale = culture;
+        }
     }
 
     protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
@@ -24,6 +47,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            desktop.Exit += (_, _) => Texts.Changed -= OnLanguageChanged;
             LinuxVideoPreflightResult? video = null;
             try
             {

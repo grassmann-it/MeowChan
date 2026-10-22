@@ -16,6 +16,29 @@
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#F49B9B</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#83D4AC</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#2D3239</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#2D3239</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidForeground">#121416</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#8ABBFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#8ABBFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedForeground">#121416</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#2D3239</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowSelectedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridLineBrush">#2D3239</SolidColorBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Workspace.Background">#F3F5F7</SolidColorBrush>
@@ -31,46 +54,37 @@
                     <SolidColorBrush x:Key="Workspace.AccentHover">#174E9A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#176342</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground">#18212C</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#DCE3EC</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#46556A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#B8C1CD</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#B8C1CD</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidForeground">#FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#174E9A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#174E9A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedForeground">#FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#E8EDF3</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#46556A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#B8C1CD</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#E8EDF3</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowSelectedBackground">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#1D5CB5</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridLineBrush">#B8C1CD</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
-        <!-- Keep workspace buttons independent of the vendor theme's state brushes. -->
-        <ControlTheme x:Key="Workspace.Button" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
-            <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <ContentPresenter Name="PART_ContentPresenter"
-                                      Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                      BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
-                                      Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" RecognizesAccessKey="True"
-                                      Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
-                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-                </ControlTemplate>
-            </Setter>
-            <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /></Style>
-            <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
-            <Style Selector="^:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
-                <Setter Property="BorderThickness" Value="1" />
-            </Style>
-            <Style Selector="^.primary:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.OnAccent}" />
-            </Style>
-            <Style Selector="^.primary:pointerover"><Setter Property="Background" Value="{DynamicResource Workspace.AccentHover}" /></Style>
-            <Style Selector="^.primary:pressed"><Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /></Style>
-            <Style Selector="^:disabled">
-                <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
-                <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
-                <Setter Property="Opacity" Value="0.65" />
-            </Style>
-        </ControlTheme>
+        <!-- Semi owns every standard control template. These public theme resources
+             retain MeowChan's density without replacing focus, input or state behavior. -->
+        <Thickness x:Key="DataGridCellTextBlockDefaultMargin">12,0</Thickness>
+        <x:Double x:Key="DataGridCellMinHeight">0</x:Double>
+        <x:Double x:Key="DataGridColumnHeaderMinHeight">28</x:Double>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -94,11 +108,18 @@
     <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="5" /></Style>
     <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="5" /></Style>
     <Style Selector="Button">
-        <Setter Property="Theme" Value="{StaticResource Workspace.Button}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="MinHeight" Value="30" /><Setter Property="Padding" Value="10,5" />
         <Setter Property="CornerRadius" Value="5" /><Setter Property="FontSize" Value="13" />
     </Style>
     <Style Selector="Button.primary">
+        <Setter Property="Theme" Value="{DynamicResource SolidButton}" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.OnAccent}" />
         <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="BorderThickness" Value="0" />
     </Style>
@@ -120,7 +141,7 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
     </Style>
-    <Style Selector="Button.window-close:pointerover, Button.window-close:pressed">
+    <Style Selector="Button.window-close:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.window-close:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Path.window-caption-icon">
@@ -147,6 +168,4 @@
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
-    <Style Selector="DataGridRow:pointerover /template/ Border#border"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
-    <Style Selector="DataGridRow:selected /template/ Border#border"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
 </Styles>

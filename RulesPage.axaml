@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ursa="https://irihi.tech/ursa"
              xmlns:local="clr-namespace:MeowChan"
              x:Class="MeowChan.RulesPage" x:DataType="local:RulesPage"
              SizeChanged="OnRulesSizeChanged">
@@ -82,7 +83,9 @@
                 </StackPanel>
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
-                    <TextBlock Text="{Binding ValidationMessage}" Classes="error" IsVisible="{Binding HasValidationError}" TextWrapping="Wrap" />
+                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationError}">
+                        <TextBlock Text="{Binding ValidationMessage}" Classes="error" TextWrapping="Wrap" />
+                    </ursa:Banner>
                     <StackPanel Spacing="0" IsVisible="{Binding HasPreview}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
@@ -114,7 +117,9 @@
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" />
-                        <TextBlock x:Name="RuleActionError" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                        <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
+                            <TextBlock x:Name="RuleActionError" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" />
+                        </ursa:Banner>
                     </StackPanel>
                 </ScrollViewer>
                 <StackPanel x:Name="RulesFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">

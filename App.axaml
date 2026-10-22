@@ -1,16 +1,13 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:actipro="http://schemas.actiprosoftware.com/avaloniaui"
-             xmlns:generator="using:ActiproSoftware.UI.Avalonia.Themes.Generation"
+             xmlns:semi="https://irihi.tech/semi"
              x:Class="MeowChan.App"
              RequestedThemeVariant="Dark">
 
   <Application.Styles>
-    <actipro:ModernTheme Includes="NativeDataGrid">
-      <actipro:ModernTheme.Definition>
-        <generator:ThemeDefinition TabAppearanceKind="Subtle" />
-      </actipro:ModernTheme.Definition>
-    </actipro:ModernTheme>
+    <semi:SemiTheme Locale="en-US" />
+    <semi:DataGridSemiTheme />
+    <semi:UrsaSemiTheme Locale="en-US" />
     <StyleInclude Source="avares://MeowChan/Desktop/WorkspaceStyles.axaml" />
   </Application.Styles>
 </Application>
