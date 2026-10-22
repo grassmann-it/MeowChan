@@ -17,12 +17,7 @@ internal static class ReadingPositionChecks
         Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads, "Startup changed the existing start page.");
         if (File.Exists(Path.Combine(profile, "reading-restart-ready")))
         {
-            LocalReadingPosition? saved = await window.SessionHost.ReadReadingPositionAsync();
-            Require(saved?.SelectedPostId == "1022", "The second process did not load the last position.");
-            await window.ResumeLastReadingAsync();
-            await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
-            Program.CaptureWindow(window, "smoke-reading-position-restarted.png");
-            Console.WriteLine("SMOKE reading position: real process restart retained the anchor; explicit resume only.");
+            await ReadingPositionAnchorChecks.CheckRestartAsync(window, profile);
             return;
         }
         await CheckSettingsSemanticsAsync(window);
@@ -129,7 +124,8 @@ internal static class ReadingPositionChecks
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
         await ReaderLiveChecks.RunAsync(window);
-        File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly resume post 1022");
+        await ReadingPositionAnchorChecks.PrepareRestartAsync(window, profile);
+        File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly restore the recorded nonzero visible anchor");
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
     }
 

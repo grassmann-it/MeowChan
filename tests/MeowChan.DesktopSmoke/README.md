@@ -169,5 +169,13 @@ GNOME extensions, Windows and macOS remains a separate package acceptance check.
 `MEOWCHAN_READING_TEST_PROFILE` pointing at the same fresh disposable path. The
 harness marks and retains that path, refuses unmarked existing directories, and
 the second process verifies normal startup followed by explicit reader resume.
+The first process scrolls through the actual reader wheel-input route and records
+the first visible post, selected post and a required nonzero viewport offset.
+After the second process invokes the resume menu action, it compares the rendered
+post and offset with that independent record (the same <2 DIP tolerance as V18),
+also checking the persisted anchor and unchanged startup page. Logs include both
+process IDs, scale, client size and the measured offset; screenshots show before
+close, startup before resume and the resumed reader. Use a fresh profile for each
+two-process pair; an older retained fixture lacks the anchor expectation file.
 Remove the retained test profile after both runs. Without that variable the test
 uses its usual temporary profile and removes it after the run.
