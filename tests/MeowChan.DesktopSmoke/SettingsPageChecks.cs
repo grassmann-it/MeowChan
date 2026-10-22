@@ -17,6 +17,7 @@ internal static class SettingsPageChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        await SettingsAccessibilityChecks.RunAsync(owner);
         await CheckSmallLayoutAsync(owner);
         await CheckDraftAndFooterAsync(owner);
         await CheckPendingSaveAsync(owner);

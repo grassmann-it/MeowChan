@@ -5,6 +5,14 @@
              xmlns:localization="clr-namespace:MeowChan.Desktop.Localization"
              x:Class="MeowChan.SettingsEditor" x:DataType="local:SettingsEditor"
              SizeChanged="OnEditorSizeChanged">
+    <UserControl.Styles>
+        <!-- Keyboard focus enters the template's text box, so it needs the field semantics too. -->
+        <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+            <Setter Property="AutomationProperties.Name" Value="{Binding (AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}" />
+            <Setter Property="AutomationProperties.LabeledBy" Value="{Binding (AutomationProperties.LabeledBy), RelativeSource={RelativeSource TemplatedParent}}" />
+            <Setter Property="AutomationProperties.HelpText" Value="{Binding (AutomationProperties.HelpText), RelativeSource={RelativeSource TemplatedParent}}" />
+        </Style>
+    </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="SettingsHeader" Margin="20,20,20,16" Spacing="5" MaxWidth="880" HorizontalAlignment="Center">
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
