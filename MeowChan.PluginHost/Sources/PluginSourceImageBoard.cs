@@ -21,6 +21,7 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     public override string Name => Description.SourceId;
     public override string NiceName => Description.Name;
     public override Uri BaseUri => Description.BaseUri;
+    internal override bool UsesOpaqueStorageIdentifiers => true;
     public ProviderCapabilities Capabilities => (ProviderCapabilities)(int)Description.Capabilities;
     public IReadOnlyList<string> SupportedHosts { get; }
     public string? AdapterVersion { get; }

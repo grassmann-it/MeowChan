@@ -1,11 +1,45 @@
 using System;
 using System.IO;
+using MeowChan.Boards.Base;
+using MeowChan.Interfaces;
 
 namespace MeowChan.Storage;
 
 /// <summary>Creates portable paths from stable source identifiers, never from original upload names.</summary>
 public static class StorageLayout
 {
+    internal static string GetBoardDirectory(string root, IBoard board) =>
+        board.ImageBoard is BaseImageBoard { UsesOpaqueStorageIdentifiers: true }
+            ? CombineInsideRoot(root, EncodePluginSegment(board.ImageBoard.Name), EncodePluginSegment(board.BoardCode))
+            : GetBoardDirectory(root, board.ImageBoard.Name, board.BoardCode);
+
+    internal static string GetThreadDirectory(string root, IThread thread) =>
+        thread.Board.ImageBoard is BaseImageBoard { UsesOpaqueStorageIdentifiers: true }
+            ? CombineInsideRoot(root, EncodePluginSegment(thread.Board.ImageBoard.Name),
+                EncodePluginSegment(thread.Board.BoardCode), EncodePluginSegment(thread.ThreadId))
+            : GetThreadDirectory(root, thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
+
+    internal static string GetPluginMediaPath(string root, string source, string board, string thread,
+        string mediaId, string extension, string variant)
+    {
+        MeowChan.Rules.MediaRuleScope.ValidateIdentity(variant, nameof(variant));
+        string suffix = variant == "original" ? string.Empty
+            : "~" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(variant))).ToLowerInvariant();
+        string fileName = EncodePluginSegment(mediaId) + suffix + ValidateExtension(extension, 32);
+        return CombineInsideRoot(root, EncodePluginSegment(source), EncodePluginSegment(board), EncodePluginSegment(thread), fileName);
+    }
+
+    private static string EncodePluginSegment(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        try { return ValidateSegment(value, nameof(value)); }
+        catch (ArgumentException)
+        {
+            // '~' is outside the legacy ASCII namespace. Raw identities never become filesystem paths.
+            return "~opaque-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        }
+    }
+
     public static string GetBoardDirectory(string root, string source, string board)
     {
         return CombineInsideRoot(root, ValidateSegment(source, nameof(source)), ValidateSegment(board, nameof(board)));
@@ -61,11 +95,11 @@ public static class StorageLayout
         return value;
     }
 
-    private static string ValidateExtension(string extension)
+    private static string ValidateExtension(string extension, int maximumLength = 12)
     {
-        if (string.IsNullOrEmpty(extension) || extension.Length < 2 || extension.Length > 13 || extension[0] != '.')
+        if (string.IsNullOrEmpty(extension) || extension.Length < 2 || extension.Length > maximumLength + 1 || extension[0] != '.')
         {
-            throw new ArgumentException("A media extension must be a dot followed by 1 to 12 ASCII letters or digits.", nameof(extension));
+            throw new ArgumentException($"A media extension must be a dot followed by 1 to {maximumLength} ASCII letters or digits.", nameof(extension));
         }
 
         for (int index = 1; index < extension.Length; index++)

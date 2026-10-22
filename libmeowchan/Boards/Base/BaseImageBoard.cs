@@ -37,6 +37,8 @@ public abstract class BaseImageBoard : IImageBoard
     public abstract string Name { get; }
     public abstract string NiceName { get; }
     public abstract Uri BaseUri { get; }
+    // Optional host adapters can carry opaque SDK identities without weakening the public layout contract.
+    internal virtual bool UsesOpaqueStorageIdentifiers => false;
     public abstract bool CanHandle(Uri uri);
     public abstract bool IsThreadUri(Uri uri);
     public abstract bool IsBoardUri(Uri uri);

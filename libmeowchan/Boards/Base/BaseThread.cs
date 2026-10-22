@@ -154,7 +154,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     public abstract string NiceName { get; }
     public abstract Uri ThreadUri { get; }
     public string Url => ThreadUri.ToString();
-    public string DownloadDirectory => StorageLayout.GetThreadDirectory(OutputDirectory, Board.ImageBoard.Name, Board.BoardCode, ThreadId);
+    public string DownloadDirectory => StorageLayout.GetThreadDirectory(OutputDirectory, this);
     protected string OutputDirectory { get; private set; } = "Downloads";
     protected virtual TimeSpan MinimumRecheckInterval => TimeSpan.FromMilliseconds(1);
 

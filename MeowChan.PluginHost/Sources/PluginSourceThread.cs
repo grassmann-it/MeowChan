@@ -1,6 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using MeowChan.Archive;
 using MeowChan.Boards.Base;
 using MeowChan.Downloader;
@@ -100,7 +98,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                     // Original source identities remain byte-for-byte compatible with 0.9.
                     string mediaId = attachment.MediaId;
                     string extension = attachment.Extension ?? Path.GetExtension(attachment.Url.AbsolutePath);
-                    destination = StorageLayout.GetMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, StorageId(mediaId), extension, attachment.Variant);
+                    destination = StorageLayout.GetPluginMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension, attachment.Variant);
                     string? legacy = attachment.Variant != "original" ? null : Source.Name switch
                     {
                         "4chan" => LegacyPath(attachment.OriginalFileName),
@@ -116,7 +114,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             }
             string? html = post.TextFormat == SourceTextFormat.Html ? post.Text
                 : post.Text == null ? null : WebUtility.HtmlEncode(post.Text).Replace("\n", "<br>", StringComparison.Ordinal);
-            posts.Add(new CapturedPost(post.PostId, checked((int)post.Ordinal), (PostFieldPresence)(int)post.Fields,
+            posts.Add(new CapturedPost(post.PostId, post.Ordinal, (PostFieldPresence)(int)post.Fields,
                 post.PostedAt, post.Subject, post.Author, html, post.IsDeleted, attachments.AsReadOnly()));
         }
         token.ThrowIfCancellationRequested();
@@ -140,15 +138,10 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     {
         if (string.IsNullOrEmpty(filename) || filename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
             || filename.Contains('/') || filename.Contains('\\') || filename is "." or ".." || Path.IsPathRooted(filename)) return null;
+        // Legacy providers only emitted portable board/thread IDs. Opaque plugin IDs have no legacy layout.
+        try { _ = StorageLayout.GetThreadDirectory(OutputDirectory, Source.Name, Board.BoardCode, ThreadId); }
+        catch (ArgumentException) { return null; }
         return Path.Combine(OutputDirectory, Board.BoardCode, ThreadId, filename);
-    }
-
-    private static string StorageId(string id)
-    {
-        // Paths are host-owned; opaque source media IDs remain unchanged in capture/decision/store keys.
-        if (!id.StartsWith("opaque-", StringComparison.Ordinal) && id.Length is > 0 and <= 128
-            && id.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-')) return id;
-        return "opaque-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id))).ToLowerInvariant();
     }
 
     protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)

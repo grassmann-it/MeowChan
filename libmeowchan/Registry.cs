@@ -113,7 +113,7 @@ public sealed partial class Registry : IAsyncDisposable
         foreach (Watch watch in watches)
         {
             if (watch.Board == null) continue;
-            string directory = StorageLayout.GetBoardDirectory(watch.OutputRoot, watch.Board.ImageBoard.Name, watch.Board.BoardCode);
+            string directory = StorageLayout.GetBoardDirectory(watch.OutputRoot, watch.Board);
             boardSnapshots.Add(watch.Board, watch.Board.GetSnapshot(directory));
         }
         return new RegistryView(new ReadOnlyDictionary<IThread, ThreadSnapshot>(threadSnapshots),
@@ -245,7 +245,7 @@ public sealed partial class Registry : IAsyncDisposable
         {
             if (!_watches.TryGetValue(Key(board), out Watch? watch) || !ReferenceEquals(watch.Board, board))
                 throw new InvalidOperationException("The board is not registered with this session.");
-            return StorageLayout.GetBoardDirectory(watch.OutputRoot, board.ImageBoard.Name, board.BoardCode);
+            return StorageLayout.GetBoardDirectory(watch.OutputRoot, board);
         }
     }
 

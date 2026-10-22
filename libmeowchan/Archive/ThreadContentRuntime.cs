@@ -46,7 +46,7 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
     internal async Task BindAsync(BaseThread thread, string outputRoot, bool restored, CancellationToken cancellationToken = default)
     {
         ResourceId id = new ResourceId(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
-        string directory = StorageLayout.GetThreadDirectory(outputRoot, id.Source, id.Board, id.Thread!);
+        string directory = StorageLayout.GetThreadDirectory(outputRoot, thread);
         ArchiveThreadSummary summary = await Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(id, thread.Url,
             thread.Title, directory, !restored), cancellationToken).ConfigureAwait(false);
         ThreadContentContext context = new ThreadContentContext(this, summary);
