@@ -1,0 +1,23 @@
+{
+  "compiler": {
+    "package": "Microsoft.CodeAnalysis.CSharp",
+    "version": "5.0.0",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.codeanalysis.csharp/5.0.0/microsoft.codeanalysis.csharp.5.0.0.nupkg",
+    "license": "MIT"
+  },
+  "compilerCommon": {
+    "package": "Microsoft.CodeAnalysis.Common",
+    "version": "5.0.0",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.codeanalysis.common/5.0.0/microsoft.codeanalysis.common.5.0.0.nupkg",
+    "license": "MIT"
+  },
+  "frameworkReferences": {
+    "package": "Microsoft.NETCore.App.Ref",
+    "version": "10.0.11",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.ref/10.0.11/microsoft.netcore.app.ref.10.0.11.nupkg",
+    "license": "MIT",
+    "assets": "ref/net10.0/*.dll",
+    "contentHash": "tHHeb+axV3SHYPyafZEbcEFuJlvRlO395guslArUZCWr4JX0x2vd0ZE895Vc6+HQnQRQRPZJKYqp4jWrnxMLhA=="
+  },
+  "integrity": "Roslyn NuGet contentHash is pinned in packages.lock.json. The PackageDownload framework reference archive SHA512 is checked explicitly by the project target; NuGet omits PackageDownload from lock files. Delivered individual file hashes are emitted into toolchain.json. No runtime SDK discovery or download occurs."
+}

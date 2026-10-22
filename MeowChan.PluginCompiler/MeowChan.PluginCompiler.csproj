@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0</Version><IsPackable>false</IsPackable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>packages.lock.json</NuGetLockFilePath>
+    <CompilerFrameworkReferenceVersion>10.0.11</CompilerFrameworkReferenceVersion>
+    <PublishSingleFile>false</PublishSingleFile><PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageDownload Include="Microsoft.NETCore.App.Ref" Version="[10.0.11]" />
+    <ProjectReference Include="../MeowChan.PluginSdk/MeowChan.PluginSdk.csproj" />
+    <Compile Include="../MeowChan.PluginHost/Compilation/CompilerWire.cs" Link="CompilerWire.cs" />
+  </ItemGroup>
+  <Target Name="IncludeDeliveredCompilerReferences" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolvePackageAssets">
+    <GetFileHash Files="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/microsoft.netcore.app.ref.$(CompilerFrameworkReferenceVersion).nupkg" Algorithm="SHA512">
+      <Output TaskParameter="Hash" PropertyName="CompilerReferencePackageHash" />
+    </GetFileHash>
+    <Error Condition="'$(CompilerReferencePackageHash)' != 'B471DE6FE6B157748760FC9A7D911B70416E265BD194EDFDE60BAC940AD46425ABE095F4C76BDDD1913CF7955CEBE1D09D045044F649298AA9E235AB9F130B84'" Text="Pinned framework reference package failed its SHA512 integrity check." />
+    <ItemGroup>
+      <_FrameworkRef Include="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/ref/net10.0/*.dll" />
+      <Content Include="@(_FrameworkRef)">
+        <Link>references/%(_FrameworkRef.Filename)%(_FrameworkRef.Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+      <_FrameworkNotice Include="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/LICENSE.TXT;$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/THIRD-PARTY-NOTICES.TXT" />
+      <Content Include="@(_FrameworkNotice)">
+        <Link>licenses/framework/%(_FrameworkNotice.Filename)%(_FrameworkNotice.Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+      <Content Include="$(NuGetPackageRoot)microsoft.codeanalysis.common/5.0.0/ThirdPartyNotices.rtf">
+        <Link>licenses/roslyn/ThirdPartyNotices.rtf</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+      <_RoslynNotice Include="provenance.json;LICENSE-Roslyn.txt" />
+      <Content Include="@(_RoslynNotice)">
+        <Link>licenses/roslyn/%(_RoslynNotice.Filename)%(_RoslynNotice.Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
+  <Target Name="GenerateBuildToolchainManifest" AfterTargets="Build">
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(TargetDir).&quot;" />
+  </Target>
+  <Target Name="GeneratePublishToolchainManifest" AfterTargets="Publish">
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; --write-toolchain-manifest &quot;$(PublishDir).&quot;" />
+  </Target>
+</Project>
