@@ -3,6 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -31,6 +34,8 @@ internal static class GalleryCaptionChecks
                     {
                         SetContext(viewer, open);
                         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                        if (open && testedWidth == 850 && !video)
+                            await CheckContextSelectorAsync(window, viewer, variant);
                         Check(window, viewer, video, variant.ToString(), testedWidth, open, "normal");
                         if (open)
                         {
@@ -99,6 +104,57 @@ internal static class GalleryCaptionChecks
                 throw new InvalidOperationException("Show in thread cannot be reached clear of the gallery caption.");
             scroll.ScrollToHome();
         }
+    }
+
+    private static async Task CheckContextSelectorAsync(MainWindow window, GalleryViewer viewer, ThemeVariant workspaceTheme)
+    {
+        ComboBox selector = Find<ComboBox>(viewer, "GalleryPostAssociation");
+        int selected = selector.SelectedIndex;
+        foreach (bool enabled in new[] { true, false })
+        {
+            selector.IsEnabled = enabled;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
+            await Task.Delay(220); // Let native Semi state transitions settle.
+            if (selector.ActualThemeVariant != ThemeVariant.Dark || window.ActualThemeVariant != workspaceTheme
+                || viewer.ActualThemeVariant != workspaceTheme)
+                throw new InvalidOperationException("Post selector lost its local dark theme or changed the workspace theme.");
+            TextBlock label = selector.GetVisualDescendants().OfType<TextBlock>().First(text => text.IsEffectivelyVisible && text.Text?.StartsWith("#") == true);
+            PathIcon arrow = selector.GetVisualDescendants().OfType<PathIcon>().Single(icon => icon.Name == "DropDownGlyph");
+            // Compare actual rendered template brushes to the permanent post surface.
+            Color background = ((ISolidColorBrush)Find<Border>(viewer, "GalleryContext").Background!).Color;
+            double textContrast = Contrast(label.Foreground, background), arrowContrast = Contrast(arrow.Foreground, background);
+            Console.WriteLine($"SMOKE gallery context selector: workspace={workspaceTheme}, enabled={enabled}, text={textContrast:0.###}, arrow={arrowContrast:0.###}");
+            if (enabled && (textContrast < 4.5 || arrowContrast < 3))
+                throw new InvalidOperationException("Post selector label or chevron is unreadable against its dark context.");
+            Program.CaptureWindow(window, $"smoke-gallery-context-selector-{workspaceTheme.ToString().ToLowerInvariant()}-{(enabled ? "enabled" : "disabled")}.png");
+        }
+        selector.IsEnabled = true;
+        selector.IsDropDownOpen = true;
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
+        Popup popup = selector.GetTemplateChildren().OfType<Popup>().Single();
+        await Program.WaitUntilAsync(() => popup.IsOpen && popup.Child != null);
+        Control child = popup.Child!;
+        if (child.ActualThemeVariant != ThemeVariant.Dark || selector.SelectedIndex != selected)
+            throw new InvalidOperationException("Post selector popup lost its local dark resources or changed the association.");
+        ComboBoxItem[] items = child.GetVisualDescendants().OfType<ComboBoxItem>().ToArray();
+        // The 55-association fixture is virtualized; inspect the visible popup rows.
+        if (items.Length == 0 || items.Any(item => item.ActualThemeVariant != ThemeVariant.Dark))
+            throw new InvalidOperationException("Post selector popup rows lost the dark theme.");
+        Program.CaptureWindow(window, $"smoke-gallery-context-selector-{workspaceTheme.ToString().ToLowerInvariant()}-open.png");
+        selector.IsDropDownOpen = false;
+    }
+
+    private static double Contrast(IBrush? foreground, Color background)
+    {
+        if (foreground is not ISolidColorBrush brush) throw new InvalidOperationException("Post selector did not resolve a solid template brush.");
+        double alpha = brush.Color.A / 255d * brush.Opacity;
+        Color color = Color.FromRgb((byte)Math.Round(brush.Color.R * alpha + background.R * (1 - alpha)),
+            (byte)Math.Round(brush.Color.G * alpha + background.G * (1 - alpha)),
+            (byte)Math.Round(brush.Color.B * alpha + background.B * (1 - alpha)));
+        static double Linear(byte channel) { double value = channel / 255d; return value <= .04045 ? value / 12.92 : Math.Pow((value + .055) / 1.055, 2.4); }
+        static double Luminance(Color value) => .2126 * Linear(value.R) + .7152 * Linear(value.G) + .0722 * Linear(value.B);
+        double first = Luminance(color), second = Luminance(background);
+        return (Math.Max(first, second) + .05) / (Math.Min(first, second) + .05);
     }
 
     private static void SetContext(GalleryViewer viewer, bool open)

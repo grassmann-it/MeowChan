@@ -205,7 +205,13 @@ internal sealed class GalleryViewer : UserControl
                 _statusPlate.IsVisible = _status.IsVisible && !string.IsNullOrWhiteSpace(_status.Text);
         };
         _body.Children.Add(_viewport);
-        _contextPanel.Child = new ScrollViewer { Content = _context, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
+        // Post context shares the permanently dark gallery surface. Scope native
+        // control resources too, including ComboBox popup, hover and disabled states.
+        _contextPanel.Child = new ScrollViewer
+        {
+            Content = new ThemeVariantScope { RequestedThemeVariant = ThemeVariant.Dark, Child = _context },
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        };
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_body);
         root.Children.Add(_infoOverlay);
@@ -646,7 +652,7 @@ internal sealed class GalleryViewer : UserControl
             .DistinctBy(value => (value.Post!.PostId, value.Attachment?.Position)).ToArray();
         if (associations.Length > 1)
         {
-            ComboBox selector = new() { HorizontalAlignment = HorizontalAlignment.Stretch,
+            ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
                 ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
                 SelectedIndex = Array.FindIndex(associations, value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
             AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
