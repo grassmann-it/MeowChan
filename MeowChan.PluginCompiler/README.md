@@ -15,7 +15,14 @@ Publish this project **self-contained, untrimmed, non-single-file** for each RID
 to `<app>/plugin-compiler/`. Both build and publish generate `toolchain.json` with
 SHA256 hashes for compiler binaries and every delivered SDK/framework reference.
 Keep the whole directory, including `references/`, runtime files and `licenses/`.
-The manifest-generation build target deliberately runs with a separate build-host runtime configuration and empty dependency graph, so a cross-published self-contained runtime is never executed during packaging.
+The managed compiler assembly explicitly targets AnyCPU. The RID still selects the
+native apphost and runtime. The manifest-generation build target runs that neutral
+IL assembly with a separate build-host runtime configuration and empty dependency
+graph, so a cross-published native runtime is never executed during packaging.
+The manifest hashes files from the requested target output/publish directory.
+After crosspublish, `tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py`
+checks the managed PE flags, native apphost/runtime architecture, and every
+manifest fingerprint against the actual delivered bytes.
 The main app and worker need their own publication. Crosspublish is not native
 execution evidence. All five platform archives still require package verification.
 

@@ -147,3 +147,38 @@ self-contained Linuxlieferung und im normalen Build geprüft; fremde RIDarchive
 werden hier nicht als bereits getestet ausgewiesen. Prozessgrenze/Heaplimit
 sind keine OS-Sandbox. Host-/SDK-RIDlocks, die beim lokalen Restore entstanden,
 sind fremdes Eigentum und wurden nicht in die Compilercommits aufgenommen.
+
+## Nachtrag: Root-Crosspublish auf Basis 9e91635
+
+Root meldete beim tatsächlichen `linux-arm64`-Publish einen FileLoadException:
+Die separate Hostruntimeconfig behebt die native Laufzeitauflösung, aber nicht
+`PlatformTarget=arm64`, das der .NET-SDK aus dem RID ableitet. Der zuvor dokumentierte
+Linux-x64-Nachweis hatte diesen Cross-CPU-Fall nicht geprüft.
+
+Enger Folgefix: Compilerprojekt setzt ausdrücklich `PlatformTarget=AnyCPU` für
+seine verwaltete IL-DLL. Apphost und native Runtime werden weiterhin allein über
+den RID gewählt. Keine Änderung an Plattformcode, Manifestvertrag, Referenz-
+oder Integritätsprüfung. SDK 10.0.111 bestätigt die Zulässigkeit in
+`Microsoft.NET.RuntimeIdentifierInference.targets`: Ableitung aus RID nur bei
+leerem PlatformTarget (Zeilen 133–157), AnyCPU ausdrücklich aus dem
+RID-/PlatformTarget-Mismatchcheck ausgenommen (Zeile 318).
+
+Das neue `tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py` liest ein
+reales Publishverzeichnis. Es prüft AnyCPU-PE/CorFlags, die native Architektur von
+Apphost/hostfxr/coreclr (ELF/PE/Mach-O) und jedes Manifestfile samt aggregierten
+Compiler-/SDK-/Referenzfingerprints gegen die tatsächlichen Zielbytes.
+Das Skript führt keinen Zielarchitekturcode aus und ändert das Payload nicht.
+
+Auf ausdrückliche Root-Anweisung wurde für diesen Folgefix **kein eigener
+Build/Restore/Test/Publish und keine Probeausführung** gestartet. Nur statische
+Code-/SDKprüfung und `git diff --check`. Root übernimmt echte linux-arm64- und
+beide macOS-Publishes und kann anschließend prüfen:
+
+```sh
+python3 tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py <published-plugin-compiler-dir> linux-arm64 --report <result.json>
+python3 tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py <published-plugin-compiler-dir> osx-x64 --report <result.json>
+python3 tests/MeowChan.PluginCompiler.Tests/cross_publish_probe.py <published-plugin-compiler-dir> osx-arm64 --report <result.json>
+```
+
+Bis diese Läufe vorliegen ist der Cross-CPU-Folgefix ein begründeter,
+prüfbarer Kandidat und noch kein bestätigter Crosspublish-PASS.
