@@ -38,7 +38,7 @@ public sealed class ArchiveMediaTileView : UserControl
     internal void RefreshFavorite()
     {
         ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
     }
 
     private async Task LoadAsync()

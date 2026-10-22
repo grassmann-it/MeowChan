@@ -18,6 +18,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private readonly HashSet<FavoriteAssetKey> _favoriteChanges = new();
+    private readonly Dictionary<FavoriteAssetKey, string> _galleryFavoriteErrors = new();
 
     private void WireGalleryActions()
     {
@@ -45,9 +46,16 @@ public partial class MainWindow
     {
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
         if (!_favoriteChanges.Add(key)) return;
+        _galleryFavoriteErrors.Remove(key);
+        RefreshGalleryFavorite();
         try
         {
             await _session.SetFavoriteAsync(entry, !_session.IsFavorite(entry));
+            RefreshGalleryFavorite();
+        }
+        catch (Exception error)
+        {
+            _galleryFavoriteErrors[key] = error.Message;
             RefreshGalleryFavorite();
         }
         finally { _favoriteChanges.Remove(key); }
@@ -57,7 +65,11 @@ public partial class MainWindow
     {
         _archivePage?.RefreshArchiveFavoriteControls();
         if (_gallery != null && _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count)
+        {
             _gallery.SetFavorite(_session.IsFavorite(_galleryEntries[_galleryIndex]));
+            GalleryEntry current = _galleryEntries[_galleryIndex];
+            _gallery.SetFavoriteError(_galleryFavoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(current.Key.Thread, current.Asset)));
+        }
     }
 
     private async Task ShowGalleryDetailsAsync(GalleryEntry entry)

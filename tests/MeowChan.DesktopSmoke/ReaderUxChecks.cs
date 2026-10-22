@@ -86,6 +86,7 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
         await page.MediaLoadTask;
         await CheckDetachedReaderIconsAsync(window, page, reader);
+        await ReaderInteractionChecks.RunAsync(window, page);
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);

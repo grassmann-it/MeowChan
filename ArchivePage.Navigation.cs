@@ -16,7 +16,9 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private ArchiveThreadQuery _query = new ArchiveThreadQuery();
-    private readonly Stack<(ArchivedThreadView View, int Offset)> _history = new();
+    private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor);
+    private readonly LinkedList<ReaderHistoryEntry> _history = new();
+    private ReaderAnchor? _backlinkOriginAnchor;
     private CancellationTokenSource? _referenceCancellation;
     private int _referenceRequest;
     private ArchivePostId? _backlinkPost;
@@ -85,6 +87,8 @@ public partial class ArchivePage
     internal async Task NavigateQuoteAsync(ArchiveQuoteRow row)
     {
         if (_ended || _busy || !_available || _openReader == null) return;
+        ReaderAnchor? originAnchor = row.Backlink && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 2
+            ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
         int request = _referenceRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -103,10 +107,11 @@ public partial class ArchivePage
             if (_thread != null)
             {
                 // Keep a bounded immutable navigation history, independent of later captures.
-                if (_history.Count == 32) _history.Clear();
-                _history.Push((_thread, _postOffset));
+                if (_history.Count == 32) _history.RemoveFirst();
+                _history.AddLast(new ReaderHistoryEntry(_thread, _postOffset, originAnchor));
             }
             ShowCapturedView(resolved.View, resolved.PostIndex.Value / PageSize * PageSize, resolved.Post!.PostId);
+            await FocusPostAsync(resolved.Post.PostId);
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) Message(exception.Message, true); }
@@ -136,15 +141,20 @@ public partial class ArchivePage
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
-    private void OnHistoryBack(object? sender, RoutedEventArgs e)
+    private async void OnHistoryBack(object? sender, RoutedEventArgs e)
     {
-        if (_busy || _ended || !_history.TryPop(out (ArchivedThreadView View, int Offset) previous)) return;
+        if (_busy || _ended || _history.Last == null) return;
+        ReaderHistoryEntry previous = _history.Last.Value;
+        _history.RemoveLast();
         CancelReferences();
         ShowCapturedView(previous.View, previous.Offset);
+        if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
+        ReaderPositionChanged(deliberate: true);
     }
     private async void OnBacklinksClick(object? sender, RoutedEventArgs e)
     {
         if (_thread == null || sender is not Button { DataContext: ArchivePostRow row }) return;
+        _backlinkOriginAnchor = CaptureReaderAnchor();
         CancelReferences();
         _backlinkPost = new ArchivePostId(_thread.Summary.Id, row.Id);
         _referenceOffset = 0;

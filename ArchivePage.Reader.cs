@@ -6,12 +6,14 @@ using MeowChan.Archive;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
@@ -40,6 +42,8 @@ public partial class ArchivePage
     private int _readerInteractionRevision;
     private void InitializeReaderInteraction()
     {
+        foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
+            media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         ListBox posts = Control<ListBox>("ArchivePosts");
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -125,6 +129,7 @@ public partial class ArchivePage
                 container.Focus();
             }
             else posts.Focus();
+            ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
         }, DispatcherPriority.Loaded);
     }
     internal void SetReaderScope(IReadOnlyList<ResourceId> threads)
@@ -191,19 +196,48 @@ public partial class ArchivePage
 
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || !_largeReader || e.KeyModifiers != KeyModifiers.None || Control<Border>("ArchiveExportDialog").IsVisible) return;
+        if (e.Handled || !_largeReader || IsReaderDialogOpen) return;
         if (e.Source is Visual source)
         {
-            if (source.GetVisualAncestors().Prepend(source).Any(control => control is TextBox or ComboBox)) return;
+            if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem)) return;
             if (source.GetVisualAncestors().Prepend(source).OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd)) return;
         }
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        if (e.KeyModifiers == primary && e.Key == Key.E && _thread != null)
+        {
+            e.Handled = true;
+            await OpenExportForThreadsAsync(new[] { _thread.Summary.Id }, e.Source as Control);
+            return;
+        }
+        if (e.KeyModifiers == KeyModifiers.Shift && e.Key == Key.Enter && _thread != null && OpenGallery != null)
+        {
+            // Buttons and native editors retain their activation gestures.
+            if (e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is Button or Slider or TabItem)) return;
+            e.Handled = true;
+            await OpenGallery(_thread.Summary.Id, null, e.Source as Control);
+            return;
+        }
+        if (e.KeyModifiers != KeyModifiers.None) return;
         if (e.Key == Key.Escape) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
+        if (ReaderArrowBelongsToNativeControl(e.Source)) return;
         int post = e.Key == Key.Up ? -1 : e.Key == Key.Down ? 1 : 0;
         int thread = e.Key == Key.Left ? -1 : e.Key == Key.Right ? 1 : 0;
         if (post == 0 && thread == 0) return;
         e.Handled = true;
         await NavigateReaderAsync(post, thread);
+    }
+
+    internal bool ReaderArrowBelongsToNativeControl(object? source)
+    {
+        if (source is not Visual visual) return false;
+        foreach (Visual node in visual.GetSelfAndVisualAncestors())
+        {
+            if (ReferenceEquals(node, Control<ListBox>("ArchivePosts"))) return false;
+            if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
+                or TextBox or ComboBox or NumericUpDown or MenuItem || node is SelectingItemsControl and not TabControl) return true;
+        }
+        return false;
     }
 
     internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
@@ -249,6 +283,13 @@ public partial class ArchivePage
     private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor)
     {
         if (_thread?.Summary.Id != anchor.Thread) return;
+        if (_thread.FindPostIndex(anchor.PostId) < 0)
+        {
+            string? fallback = _thread.GetPosts(Math.Min(_postOffset, Math.Max(0, _thread.PostCount - 1)), 1).FirstOrDefault()?.PostId;
+            Message(Texts.T(fallback == null ? "archive.noPosts" : "reader.anchorUnavailable"));
+            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision);
+            return;
+        }
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;
         int focusRequest = _readerFocusRequest + 1;

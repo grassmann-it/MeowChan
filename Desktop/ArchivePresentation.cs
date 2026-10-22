@@ -59,6 +59,7 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<bool>? FavoriteAvailable { get; set; }
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
+    public Func<string?>? FavoriteError { get; set; }
     public bool LargePreview { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
@@ -130,6 +131,7 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<bool>? FavoriteAvailable { get; set; }
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
+    public Func<string?>? FavoriteError { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
     public string Size => (Asset.Length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB";
     public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");

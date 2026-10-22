@@ -104,6 +104,12 @@ public partial class MainWindow
             RefreshGalleryFavorite();
         };
         _archivePage.ResolveFavoriteAssets = _session.ResolveFavoriteAssetsAsync;
+        _archivePage.RemoveFavoriteAsync = async entry =>
+        {
+            await _session.SetFavoriteAsync(entry, false);
+            RefreshGalleryFavorite();
+        };
+        _archivePage.OpenFavoritesGallery = OpenFavoritesGalleryAsync;
         _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
         _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
         _archivePage.SaveViewPreferencesAsync = (layout, split) =>

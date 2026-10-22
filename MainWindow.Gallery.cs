@@ -29,6 +29,7 @@ public partial class MainWindow
     private int _galleryRequest;
     private Control? _galleryOrigin;
     private Action? _galleryRestoreOrigin;
+    private Action? _galleryCompleted;
     private GalleryEntryKey? _galleryStart;
     private bool _galleryStartMissing;
     private bool _galleryAllVersions;
@@ -65,6 +66,13 @@ public partial class MainWindow
         _galleryStart = null;
         _galleryAllVersions = true;
         await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start);
+    }
+
+    private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)
+    {
+        await OpenMediaGalleryAsync(entries, start);
+        if (_gallery != null) _galleryCompleted = completed;
+        else if (!_isClosing) completed();
     }
 
     internal async Task OpenSearchGalleryAsync(ArchiveThreadQuery query, int workFilter = 0, Control? origin = null)
@@ -349,6 +357,8 @@ public partial class MainWindow
         bool followReader = restoreOrigin && _galleryReaderOrigin;
         bool restorePage = restoreOrigin && _galleryVisitedReader;
         Action? restore = _galleryRestoreOrigin;
+        Action? completed = _galleryCompleted;
+        _galleryCompleted = null;
         _gallerySuspended = false;
         _galleryVisitedReader = false;
         if (_archivePage != null) { _archivePage.ShowGalleryReturn(false); _archivePage.GalleryReturn = null; }
@@ -375,6 +385,7 @@ public partial class MainWindow
         else if (restoreOrigin) _galleryOrigin?.Focus();
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
+        if (restoreOrigin && !_isClosing) completed?.Invoke();
     }
 
     private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)

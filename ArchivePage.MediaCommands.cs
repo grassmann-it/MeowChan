@@ -20,6 +20,7 @@ public partial class ArchivePage
     internal ContextMenu? ArchiveMediaMenu { get; private set; }
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
+    private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
 
     private void ConfigureArchiveMediaFavorites()
     {
@@ -34,6 +35,7 @@ public partial class ArchivePage
             row.FavoriteAvailable = () => ToggleArchiveFavoriteAsync != null;
             row.IsFavorite = () => IsArchiveFavorite?.Invoke(entry) == true;
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
+            row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
         }
         if (Control<ListBox>("ArchivePosts").ItemsSource is System.Collections.IEnumerable posts)
             foreach (ArchivePostRow post in posts.OfType<ArchivePostRow>())
@@ -44,6 +46,7 @@ public partial class ArchivePage
                     row.FavoriteAvailable = () => entry != null && ToggleArchiveFavoriteAsync != null;
                     row.IsFavorite = () => entry != null && IsArchiveFavorite?.Invoke(entry) == true;
                     row.ToggleFavoriteAsync = () => entry == null ? Task.CompletedTask : ToggleArchiveMediaFavoriteAsync(entry);
+                    row.FavoriteError = () => entry == null ? null : _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
                 }
         RefreshArchiveFavoriteControls();
     }
@@ -51,15 +54,25 @@ public partial class ArchivePage
     private async Task ToggleArchiveMediaFavoriteAsync(GalleryEntry entry)
     {
         if (ToggleArchiveFavoriteAsync == null) return;
-        await ToggleArchiveFavoriteAsync(entry);
+        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+        _favoriteErrors.Remove(key);
+        RefreshArchiveFavoriteControls();
+        try { await ToggleArchiveFavoriteAsync(entry); }
+        catch (Exception error)
+        {
+            _favoriteErrors[key] = error.Message;
+            RefreshArchiveFavoriteControls();
+            throw;
+        }
         if (_archiveFavoritesOnly) RenderMedia();
         else RefreshArchiveFavoriteControls();
     }
 
     internal void RefreshArchiveFavoriteControls()
     {
-        foreach (ArchiveAttachmentView view in this.GetVisualDescendants().OfType<ArchiveAttachmentView>()) view.RefreshFavorite();
-        foreach (ArchiveMediaTileView view in this.GetVisualDescendants().OfType<ArchiveMediaTileView>()) view.RefreshFavorite();
+        Control reader = Control<Grid>("ArchiveReaderPane");
+        foreach (ArchiveAttachmentView view in reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()) view.RefreshFavorite();
+        foreach (ArchiveMediaTileView view in reader.GetVisualDescendants().OfType<ArchiveMediaTileView>()) view.RefreshFavorite();
     }
 
     private void InitializeArchiveMediaCommands() =>
@@ -135,7 +148,15 @@ public partial class ArchivePage
             if (target != null) await ToggleArchiveMediaFavoriteAsync(target);
         }, saved && ToggleArchiveFavoriteAsync != null, missing);
         if (target != null && menu.Items.OfType<MenuItem>().LastOrDefault() is MenuItem favorite)
+        {
             favorite.Header = Texts.T(IsArchiveFavorite?.Invoke(target) == true ? "viewer.favorite.remove" : "viewer.favorite.add");
+            favorite.IsChecked = IsArchiveFavorite?.Invoke(target) == true;
+            favorite.ToggleType = MenuItemToggleType.CheckBox;
+            favorite.InputGesture = null;
+            Avalonia.Automation.AutomationProperties.SetName(favorite, favorite.Header.ToString());
+            Avalonia.Automation.AutomationProperties.SetHelpText(favorite, favorite.Header.ToString());
+            ToolTip.SetTip(favorite, favorite.Header);
+        }
         Add("media.export-original", async () =>
         {
             if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);

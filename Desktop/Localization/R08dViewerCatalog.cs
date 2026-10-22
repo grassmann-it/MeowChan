@@ -4,8 +4,9 @@ internal static class R08dViewerCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("viewer.favorite.add", "Add to favorites · F", "Als Favorit markieren · F"),
-        ("viewer.favorite.remove", "Remove from favorites · F", "Favorit entfernen · F"),
+        ("viewer.favorite.add", "Add to favorites", "Zu Favoriten hinzufügen"),
+        ("viewer.favorite.remove", "Remove from favorites", "Aus Favoriten entfernen"),
+        ("viewer.favorites.view", "View", "Ansehen"),
         ("viewer.context.show", "Show post context · P", "Beitragskontext anzeigen · P"),
         ("viewer.context.hide", "Hide post context · P", "Beitragskontext ausblenden · P"),
         ("viewer.fullscreen", "Full screen · F11", "Vollbild · F11"),

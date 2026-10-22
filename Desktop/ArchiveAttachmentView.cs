@@ -78,7 +78,7 @@ public sealed class ArchiveAttachmentView : UserControl
     internal void RefreshFavorite()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
     }
 
     internal Image Thumbnail => _image;
@@ -88,7 +88,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private void UpdateLabel()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync);
+        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
         bool large = row?.LargePreview == true;
         _slot.Large = large;
         _slot.InvalidateMeasure();

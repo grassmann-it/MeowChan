@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -15,36 +16,48 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private Func<bool>? _marked;
     private Func<Task>? _toggle;
     private bool _running;
+    private Func<string?>? _errorSource;
+    private string? _error;
 
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
         Padding = new Avalonia.Thickness(6);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
+        AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Assertive);
         Click += async (_, e) =>
         {
             e.Handled = true;
             if (_running || _available?.Invoke() != true || _toggle == null) return;
+            _error = null;
+            IsChecked = _marked?.Invoke() == true;
             _running = true; IsEnabled = false;
             try { await _toggle(); }
-            catch (Exception error) { ToolTip.SetTip(this, error.Message); }
+            catch (Exception error) { _error = error.Message; }
             finally { _running = false; Refresh(); }
         };
     }
 
-    internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle)
-    { _available = available; _marked = marked; _toggle = toggle; Refresh(); }
+    internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
+    { _available = available; _marked = marked; _toggle = toggle; _errorSource = error; Refresh(); }
 
     internal void Refresh()
     {
         bool marked = _marked?.Invoke() == true;
+        if (_errorSource != null) _error = _errorSource();
         IsEnabled = !_running && _available?.Invoke() == true;
         IsChecked = marked;
-        Content = CommandBindings.Icon("favorites.toggle", state: marked ? "marked" : "unmarked");
+        Control icon = CommandBindings.Icon("favorites.toggle", state: marked ? "marked" : "unmarked");
+        Content = _error == null ? icon : new StackPanel
+        {
+            Spacing = 4, MaxWidth = 220,
+            Children = { icon, new TextBlock { Text = _error, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left } }
+        };
         Foreground = marked ? Brushes.Gold : null;
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
-        ToolTip.SetTip(this, IsEnabled ? label : Texts.T("archive.notSaved"));
-        AutomationProperties.SetName(this, label);
-        AutomationProperties.SetHelpText(this, IsEnabled ? label : Texts.T("archive.notSaved"));
+        string description = _error == null ? (IsEnabled ? label : Texts.T("archive.notSaved")) : label + ": " + _error;
+        ToolTip.SetTip(this, description);
+        AutomationProperties.SetName(this, description);
+        AutomationProperties.SetHelpText(this, description);
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -102,8 +103,8 @@ public partial class ArchivePage
         string? postSelection = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
         string[] expandedReplies = (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
             .Where(post => post.RepliesExpanded).Select(post => post.Id).ToArray() ?? Array.Empty<string>();
-        // Stack enumeration is newest-first; restore in reverse to retain the same Back path.
         var history = _history.ToArray();
+        ReaderAnchor? backlinkOrigin = _backlinkOriginAnchor;
         ArchivePostId? backlinkPost = _backlinkPost;
         int referenceOffset = _referenceOffset;
         int referenceTotal = _referenceTotal;
@@ -128,7 +129,8 @@ public partial class ArchivePage
             Control<TextBox>("ArchiveBoardFilter").Text = boardFilter;
             for (int index = 0; index < filterNames.Length; index++) Control<ComboBox>(filterNames[index]).SelectedIndex = filterIndices[index];
             _history.Clear();
-            foreach (var position in history.Reverse()) _history.Push(position);
+            foreach (ReaderHistoryEntry position in history) _history.AddLast(position);
+            _backlinkOriginAnchor = backlinkOrigin;
             _backlinkPost = backlinkPost;
             _referenceOffset = referenceOffset;
             _referenceTotal = referenceTotal;
@@ -254,7 +256,20 @@ public partial class ArchivePage
 
     private async void OnMediaDoubleTapped(object? sender, TappedEventArgs e)
     {
-        ArchiveAssetRow? row = (e.Source as Control)?.DataContext as ArchiveAssetRow;
+        if (e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is Button or TextBox or ComboBox or Slider)) return;
+        ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
+            .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
+        if (row == null) return;
+        e.Handled = true;
+        await OpenAssetGalleryAsync(row, e.Source as Control);
+    }
+
+    private async void OnMediaKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || IsReaderDialogOpen || sender is not Control list) return;
+        if (!MainWindow.IsListCommandSource(e.Source, list)) return;
+        ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
+            .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault() ?? SelectedMediaRow();
         if (row == null) return;
         e.Handled = true;
         await OpenAssetGalleryAsync(row, e.Source as Control);
@@ -266,6 +281,7 @@ public partial class ArchivePage
         OpenReaderRequested?.Invoke(sender as Control);
         await LoadThreadAsync(_selectedThread);
         Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
+        ReaderPositionChanged(deliberate: true);
     }
 
     private async void OnMediaModeClick(object? sender, RoutedEventArgs e)

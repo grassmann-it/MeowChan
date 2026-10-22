@@ -9,6 +9,9 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Input;
+using Avalonia.Automation;
+using Avalonia.Controls.Templates;
+using MeowChan.Gallery;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -22,9 +25,20 @@ public partial class ArchivePage
     internal Func<IReadOnlyList<FavoriteEntry>>? GetFavorites { get; set; }
     internal Func<IReadOnlyList<FavoriteEntry>?, CancellationToken, Task<FavoriteResolutionSnapshot>>? ResolveFavoriteAssets { get; set; }
 
+    internal Func<FavoriteEntry, Task>? RemoveFavoriteAsync { get; set; }
+    internal Func<IReadOnlyList<GalleryEntry>, GalleryEntryKey, Action, Task>? OpenFavoritesGallery { get; set; }
+    private sealed record FavoriteOverviewState(int Scope, string Search, FavoriteAssetKey? Selected);
+    private sealed record FavoriteOverviewRow(FavoriteEntry Entry, bool Missing)
+    {
+        public string Label => (Missing ? Texts.T("viewer.favorites.missing") + " · " : string.Empty) + FavoriteLabel(Entry);
+        public string Identity => Entry.Key.MediaIdentifier + " · " + Entry.Key.Variant + " · SHA-256: " + Entry.Key.Sha256;
+    }
+
     private enum FavoriteScope { CurrentThread, SelectedThreads, FilteredThreads, All }
 
-    internal async Task OpenFavoritesOverviewAsync()
+    internal Task OpenFavoritesOverviewAsync() => OpenFavoritesOverviewAsync(null);
+
+    private async Task OpenFavoritesOverviewAsync(FavoriteOverviewState? restore)
     {
         if (_ended || GetFavorites == null || ResolveFavoriteAssets == null || TopLevel.GetTopLevel(this) is not Window owner) return;
         FavoriteEntry[] all = GetFavorites().ToArray();
@@ -34,25 +48,37 @@ public partial class ArchivePage
         int workFilter = _workFilter;
         Window dialog = new()
         {
-            Title = Texts.T("viewer.favorites.title"), Width = 760, Height = 580,
+            Name = "FavoritesOverviewDialog", Title = Texts.T("viewer.favorites.title"), Width = 760, Height = 580,
             MinWidth = 450, MinHeight = 340, WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         ComboBox scope = new() { Name = "FavoritesScope", ItemsSource = new[]
         {
             Texts.T("viewer.favorites.current"), Texts.T("viewer.favorites.selected"),
             Texts.T("viewer.favorites.filtered"), Texts.T("viewer.favorites.all")
-        }, SelectedIndex = 3, MinWidth = 210 };
-        TextBox search = new() { Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
+        }, SelectedIndex = restore?.Scope ?? 3, MinWidth = 210 };
+        TextBox search = new() { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
         TextBlock summary = new() { Name = "FavoritesSummary", TextWrapping = TextWrapping.Wrap };
-        ListBox list = new() { Name = "FavoritesList" };
-        TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+        ListBox list = new() { Name = "FavoritesList", SelectionMode = SelectionMode.Single };
+        list.ItemTemplate = new FuncDataTemplate<FavoriteOverviewRow>((row, _) =>
+        {
+            StackPanel item = new() { Spacing = 3 };
+            item.Children.Add(new TextBlock { Text = row?.Label, TextWrapping = TextWrapping.Wrap });
+            item.Children.Add(new TextBlock { Text = row?.Identity, TextWrapping = TextWrapping.Wrap, FontSize = 11 });
+            return item;
+        });
+        Button view = new() { Name = "FavoritesView", Content = Texts.T("viewer.favorites.view") };
+        Button remove = new() { Name = "FavoritesRemove", Content = Texts.T("viewer.favorite.remove") };
+        AutomationProperties.SetName(view, Texts.T("viewer.favorites.view"));
+        AutomationProperties.SetName(remove, Texts.T("viewer.favorite.remove"));
+        SelectableTextBlock status = new() { Name = "FavoritesStatus", TextWrapping = TextWrapping.Wrap, Focusable = true };
+        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
         Button export = CommandBindings.CreateButton("favorites.export-originals", () => { });
         export.Name = "FavoritesExportOriginals";
         Button close = new() { Content = Texts.T("action.close") };
         WrapPanel filters = new() { ItemSpacing = 8, LineSpacing = 8 };
         filters.Children.Add(scope); filters.Children.Add(search);
         WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(export); actions.Children.Add(close);
+        actions.Children.Add(view); actions.Children.Add(remove); actions.Children.Add(export); actions.Children.Add(close);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 10, Margin = new Thickness(16) };
         layout.Children.Add(filters);
         layout.Children.Add(summary); Grid.SetRow(summary, 1);
@@ -71,6 +97,11 @@ public partial class ArchivePage
         FavoriteEntry[] scoped = all;
         FavoriteEntry[] visible = all;
         bool scopeLoading = false;
+        bool actionRunning = false;
+        FavoriteAssetKey? selection = restore?.Selected;
+        GalleryEntry[]? galleryEntries = null;
+        GalleryEntryKey? galleryStart = null;
+        FavoriteOverviewState? returnState = null;
         HashSet<FavoriteAssetKey> missing = new();
         int generation = 0;
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -80,10 +111,22 @@ public partial class ArchivePage
             string term = search.Text?.Trim() ?? string.Empty;
             visible = string.IsNullOrEmpty(term) ? scoped : scoped.Where(entry =>
                 FavoriteLabel(entry).Contains(term, StringComparison.CurrentCultureIgnoreCase)).ToArray();
-            list.ItemsSource = visible.Select(entry => (missing.Contains(entry.Key) ? Texts.T("viewer.favorites.missing") + " · " : "") + FavoriteLabel(entry)).ToArray();
+            selection = (list.SelectedItem as FavoriteOverviewRow)?.Entry.Key ?? selection;
+            FavoriteOverviewRow[] rows = visible.Select(entry => new FavoriteOverviewRow(entry, missing.Contains(entry.Key))).ToArray();
+            list.ItemsSource = rows;
+            list.SelectedItem = rows.FirstOrDefault(row => row.Entry.Key == selection);
+            RefreshActions();
             summary.Text = Texts.T("viewer.favorites.count", scoped.Length, visible.Length);
-            export.IsEnabled = !scopeLoading && visible.Length > 0;
+            export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
         }
+        void RefreshActions()
+        {
+            FavoriteOverviewRow? selected = list.SelectedItem as FavoriteOverviewRow;
+            view.IsEnabled = !scopeLoading && !actionRunning && selected is { Missing: false } && OpenFavoritesGallery != null;
+            remove.IsEnabled = !scopeLoading && !actionRunning && selected != null && RemoveFavoriteAsync != null;
+            if (selected?.Missing == true) status.Text = Texts.T("viewer.favorites.unavailable", 1);
+        }
+        list.SelectionChanged += (_, _) => RefreshActions();
         async Task LoadScopeAsync()
         {
             int request = ++generation;
@@ -100,6 +143,7 @@ public partial class ArchivePage
                     FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, workFilter, loading.Token),
                     _ => null
                 };
+                all = GetFavorites().ToArray();
                 FavoriteEntry[] next = threadIds == null ? all : all.Where(entry => threadIds.Contains(entry.Key.Thread)).ToArray();
                 FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(next, loading.Token);
                 if (request != generation || loading.IsCancellationRequested) return;
@@ -130,11 +174,57 @@ public partial class ArchivePage
             catch (Exception ex) { status.Text = ex.Message; }
             finally { export.IsEnabled = !scopeLoading && visible.Length > 0; }
         };
+        remove.Click += async (_, _) =>
+        {
+            if (actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
+            int index = list.SelectedIndex;
+            actionRunning = true; RefreshActions();
+            status.Text = string.Empty;
+            try
+            {
+                await RemoveFavoriteAsync(selected.Entry);
+                await LoadScopeAsync();
+                if (list.ItemCount > 0) list.SelectedIndex = Math.Min(index, list.ItemCount - 1);
+                selection = (list.SelectedItem as FavoriteOverviewRow)?.Entry.Key;
+            }
+            catch (Exception error) { status.Text = error.Message; }
+            finally { actionRunning = false; RefreshActions(); }
+        };
+        view.Click += async (_, _) =>
+        {
+            if (actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
+            FavoriteEntry[] frozen = visible.ToArray();
+            returnState = new FavoriteOverviewState(scope.SelectedIndex, search.Text ?? string.Empty, selected.Entry.Key);
+            actionRunning = true; RefreshActions();
+            try
+            {
+                FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(frozen, loading.Token);
+                galleryEntries = resolved.Available.Select(item =>
+                {
+                    MediaAssetReference asset = item.Manifest.FindById(item.AssetId)!;
+                    return new GalleryEntry(new GalleryAssetKey(item.Key.Thread, item.Manifest.Directory, item.AssetId),
+                        item.Manifest, asset, null, null, !asset.IsCurrent, true);
+                }).ToArray();
+                galleryStart = galleryEntries.FirstOrDefault(entry => FavoriteAssetKey.From(entry.Key.Thread, entry.Asset) == selected.Entry.Key)?.EntryKey;
+                if (galleryStart == null)
+                {
+                    missing.Add(selected.Entry.Key); Render();
+                    status.Text = Texts.T("viewer.favorites.unavailable", 1);
+                    return;
+                }
+                dialog.Close();
+            }
+            catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
+            catch (Exception error) { status.Text = error.Message; }
+            finally { actionRunning = false; RefreshActions(); }
+        };
         Render();
         Task shown = dialog.ShowDialog(owner);
         await LoadScopeAsync();
         await shown;
         loading.Dispose();
+        if (galleryStart != null && galleryEntries != null && OpenFavoritesGallery != null && !_ended)
+            await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) _ = OpenFavoritesOverviewAsync(returnState); });
     }
 
     private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveThreadQuery query,

@@ -31,6 +31,8 @@ internal sealed class GalleryViewer : UserControl
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.White, IsHitTestVisible = false };
     private readonly TextBlock _scope = new() { Name = "GalleryScope", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+    private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", Foreground = Brushes.White,
+        TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
     private readonly Button _readPosts;
     private readonly TextBlock _position = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _quality = new() { Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
@@ -141,6 +143,13 @@ internal sealed class GalleryViewer : UserControl
         UpdateFavorite();
     }
 
+    internal void SetFavoriteError(string? error)
+    {
+        _favoriteError.Text = error;
+        _favoriteError.IsVisible = !string.IsNullOrWhiteSpace(error);
+        AutomationProperties.SetName(_favoriteError, error ?? string.Empty);
+    }
+
     internal void SetAssociations(IReadOnlyList<GalleryEntry> entries) { _associations = entries; UpdateContext(); }
 
     internal GalleryViewer()
@@ -173,6 +182,8 @@ internal sealed class GalleryViewer : UserControl
         infoContent.Children.Add(infoHeadline);
         infoContent.Children.Add(_scope);
         infoContent.Children.Add(_warnings);
+        infoContent.Children.Add(_favoriteError);
+        AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
         _infoOverlay.Child = infoContent;
         _helpPanel.Child = new ScrollViewer { Content = _helpContent,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -392,7 +403,7 @@ internal sealed class GalleryViewer : UserControl
         string label = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
         _favorite.IsChecked = _favoriteSelected;
         AutomationProperties.SetName(_favorite, label);
-        ToolTip.SetTip(_favorite, label);
+        ToolTip.SetTip(_favorite, label + " · F");
         _favorite.IsEnabled = _entry != null;
     }
 
@@ -443,9 +454,16 @@ internal sealed class GalleryViewer : UserControl
             item.Click += (_, _) => { if (item.IsEnabled) action(); };
             return item;
         }
+        MenuItem favorite = Item("favorites.toggle", () => FavoriteToggleRequested?.Invoke(entry));
+        favorite.Header = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
+        favorite.ToggleType = MenuItemToggleType.CheckBox;
+        favorite.IsChecked = _favoriteSelected;
+        AutomationProperties.SetName(favorite, favorite.Header.ToString());
+        AutomationProperties.SetHelpText(favorite, favorite.Header + " · F");
+        ToolTip.SetTip(favorite, favorite.Header + " · F");
         ContextMenu menu = new() { ItemsSource = new object[]
         {
-            Item("favorites.toggle", () => FavoriteToggleRequested?.Invoke(entry)),
+            favorite,
             new Separator(),
             Item("media.export-original", () => ExportOriginalRequested?.Invoke(entry)),
             Item("media.show-in-folder", () => ShowInFolderRequested?.Invoke(entry)),

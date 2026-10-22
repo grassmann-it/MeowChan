@@ -33,6 +33,25 @@ public sealed class FavoriteCoreTests
     }
 
     [Fact]
+    public async Task FrozenExportStillCopiesOriginalAfterFavoriteIsRemovedBeforeStart()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        FavoriteExportAsset original = await Commit(directory.Path, board, [4, 8, 15, 16], "456");
+        using ProfileLease lease = ProfileLease.Acquire(Path.Combine(directory.Path, "profile"));
+        FavoriteStore store = new(lease.ProfileDirectory, lease);
+        FavoriteEntry favorite = new(original.Key, original.Length, original.OriginalFileName);
+        store.SetFavorite(favorite, true);
+        FavoriteExportAsset[] frozen = [original];
+        store.SetFavorite(favorite, false);
+        Assert.Empty(store.List());
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(frozen, Path.Combine(directory.Path, "export"));
+        Assert.Equal(1, result.Copied);
+        Assert.Equal(new byte[] { 4, 8, 15, 16 }, await File.ReadAllBytesAsync(result.Items[0].Path!));
+        Assert.True(File.Exists(original.Manifest.FindById(original.AssetId)!.Path));
+    }
+
+    [Fact]
     public async Task ExportIsRepeatableAndPreservesConflictingExistingFile()
     {
         using TempDirectory directory = new();

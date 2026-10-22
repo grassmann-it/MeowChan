@@ -48,15 +48,22 @@ internal sealed partial class DesktopSessionHost
         }
     }
 
-    internal async Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
+    internal Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
         CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        return SetFavoriteAsync(FavoriteStore.From(entry.Key.Thread, entry.Asset), favorite, token);
+    }
+
+    // Removing a missing original must not require resolving or touching its file.
+    internal async Task<bool> SetFavoriteAsync(FavoriteEntry candidate, bool favorite,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
         await _commands.WaitAsync(token).ConfigureAwait(false);
         try
         {
             EnsureReady();
-            FavoriteEntry candidate = FavoriteStore.From(entry.Key.Thread, entry.Asset);
             bool changed;
             lock (_favoritesSync)
             {
