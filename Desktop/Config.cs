@@ -63,6 +63,19 @@ namespace MeowChan
         public bool CloseToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         public int MaxParallelDownloads { get; set; } = 5;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool AutomaticUpdateChecks { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool IncludePrereleaseUpdates { get; set; }
+        public int MinimumFreeSpaceGiB { get; set; } = 1;
+        public int PluginMaximumProductionWorkers { get; set; } = 4;
+        public int PluginWorkerIdleMinutes { get; set; } = 5;
+        public int PluginSourceHeapMiB { get; set; } = 256;
+        public int PluginFilterHeapMiB { get; set; } = 512;
+
+        public string? PluginEditorExecutable { get; set; }
+        public string[] PluginEditorArguments { get; set; } = ["{file}"];
+
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string Theme
@@ -344,6 +357,20 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BandwidthLimiter), "The bandwidth limit must be greater than zero.");
             if (MaxParallelDownloads <= 0)
                 throw new ArgumentOutOfRangeException(nameof(MaxParallelDownloads), "Parallel downloads must be greater than zero.");
+            if (PluginMaximumProductionWorkers is < 1 or > 8)
+                throw new ArgumentOutOfRangeException(nameof(PluginMaximumProductionWorkers), "The plugin limit must be between 1 and 8.");
+            if (PluginWorkerIdleMinutes is < 1 or > 30)
+                throw new ArgumentOutOfRangeException(nameof(PluginWorkerIdleMinutes), "The plugin limit must be between 1 and 30.");
+            if (PluginSourceHeapMiB is < 128 or > 1024)
+                throw new ArgumentOutOfRangeException(nameof(PluginSourceHeapMiB), "The plugin limit must be between 128 and 1024.");
+            if (PluginFilterHeapMiB is < 256 or > 2048)
+                throw new ArgumentOutOfRangeException(nameof(PluginFilterHeapMiB), "The plugin limit must be between 256 and 2048.");
+            if (MinimumFreeSpaceGiB < 0)
+                throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must not be negative.");
+            if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
+                || PluginEditorArguments == null || PluginEditorArguments.Length > 32
+                || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
+                throw new ArgumentException("The plugin editor command is invalid.", nameof(PluginEditorExecutable));
             if (string.IsNullOrWhiteSpace(DownloadPath))
                 throw new ArgumentException("A download directory is required.", nameof(DownloadPath));
 
@@ -381,6 +408,16 @@ namespace MeowChan
                 CloseToTray = CloseToTray,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
+                AutomaticUpdateChecks = AutomaticUpdateChecks,
+                IncludePrereleaseUpdates = IncludePrereleaseUpdates,
+                MinimumFreeSpaceGiB = MinimumFreeSpaceGiB,
+                PluginMaximumProductionWorkers = PluginMaximumProductionWorkers,
+                PluginWorkerIdleMinutes = PluginWorkerIdleMinutes,
+                PluginSourceHeapMiB = PluginSourceHeapMiB,
+                PluginFilterHeapMiB = PluginFilterHeapMiB,
+
+                PluginEditorExecutable = PluginEditorExecutable,
+                PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
                 Theme = Theme,
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
@@ -431,6 +468,14 @@ namespace MeowChan
             CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
+            AutomaticUpdateChecks = source.AutomaticUpdateChecks;
+            IncludePrereleaseUpdates = source.IncludePrereleaseUpdates;
+            MinimumFreeSpaceGiB = source.MinimumFreeSpaceGiB;
+            PluginMaximumProductionWorkers = source.PluginMaximumProductionWorkers;
+            PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
+            PluginSourceHeapMiB = source.PluginSourceHeapMiB;
+            PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+
             Theme = source.Theme;
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
@@ -452,6 +497,8 @@ namespace MeowChan
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
+            PluginEditorExecutable = source.PluginEditorExecutable;
+            PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
             LoadWarning = source.LoadWarning;
         }
 
@@ -469,6 +516,14 @@ namespace MeowChan
             CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
+            AutomaticUpdateChecks = source.AutomaticUpdateChecks;
+            IncludePrereleaseUpdates = source.IncludePrereleaseUpdates;
+            MinimumFreeSpaceGiB = source.MinimumFreeSpaceGiB;
+            PluginMaximumProductionWorkers = source.PluginMaximumProductionWorkers;
+            PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
+            PluginSourceHeapMiB = source.PluginSourceHeapMiB;
+            PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+
             Theme = source.Theme;
             Language = source.Language;
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })

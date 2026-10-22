@@ -18,7 +18,7 @@ public sealed class UpdateService
     private static readonly TimeSpan AutomaticInterval = TimeSpan.FromHours(24);
     private readonly HttpClient _client;
     private readonly UpdateStateStore _store;
-    private readonly UpdateServiceOptions _options;
+    private UpdateServiceOptions _options;
     private readonly TimeProvider _time;
     private readonly Func<string?> _disableEnvironment;
     private readonly Action<UpdateCheckError, Exception?> _diagnostic;
@@ -60,6 +60,17 @@ public sealed class UpdateService
         if (disabled is not null) return disabled;
         await Task.Delay(TimeSpan.FromSeconds(30), _time, cancellationToken).ConfigureAwait(false);
         return await CheckAsync(UpdateCheckKind.Automatic, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task ConfigureAsync(bool automaticChecks, bool includePrereleases, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _options = _options with { AutomaticChecksEnabled = automaticChecks, IncludePrereleases = includePrereleases };
+            _lastResult = null;
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<UpdateState> GetStateAsync(CancellationToken cancellationToken = default)
