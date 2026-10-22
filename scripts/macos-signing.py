@@ -2,7 +2,8 @@
 """Native macOS ad-hoc signing and fail-closed bundle dependency validation.
 
 No hardened runtime, Developer ID, timestamp, notarization or Gatekeeper claim.
-CoreCLR permissions apply only to the main executable (and its bundle signature).
+CoreCLR permissions apply only to the main executable, the two known plugin
+helper apphosts, and the outer bundle signature.
 """
 from __future__ import annotations
 import argparse
@@ -43,7 +44,7 @@ def inventory(bundle: Path) -> list[Path]:
                     binaries.append(path)
         elif not path.is_dir():
             raise ValueError(f'Unsupported bundle entry: {path}')
-    for required in {bundle / 'Contents/MacOS/MeowChan', apphost_path(bundle)}:
+    for required in coreclr_apphosts(bundle):
         if required not in binaries:
             raise ValueError(f'Missing regular Mach-O executable: {required}')
     return binaries
@@ -78,6 +79,18 @@ def apphost_path(bundle: Path) -> Path:
     return bundle / 'Contents/MacOS/MeowChan'
 
 
+def coreclr_apphosts(bundle: Path) -> list[Path]:
+    hosts = [apphost_path(bundle)]
+    # Signed bundles seal payloads as resources; unsigned source fixtures may
+    # use the original MacOS payload location. Never follow alias directories.
+    for payload in (bundle / 'Contents/Resources/application', bundle / 'Contents/MacOS'):
+        for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
+            parent = payload / directory
+            if parent.is_dir() and not parent.is_symlink():
+                hosts.append(parent / name)
+    return hosts
+
+
 def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
     if sys.platform != 'darwin':
         raise ValueError('Native macOS is required for signing/validation')
@@ -87,17 +100,19 @@ def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
         raise ValueError(f'Native runner architecture {platform.machine()} does not match {expected}')
     binaries = inventory(bundle)
     executable = apphost_path(bundle)
+    apphosts = coreclr_apphosts(bundle)
     commands = {p: load_commands(run('/usr/bin/otool', '-l', p)) for p in binaries}
-    main_rpaths = [expand(r, executable, executable) for r in commands[executable][1]]
     binary_set = set(binaries)
     for path in binaries:
         # Universal dependencies are acceptable only if they include the selected
         # native slice; the apphost itself must be the exact selected architecture.
         arches = run('/usr/bin/lipo', '-archs', path).strip().split()
-        if expected not in arches or (path == executable and arches != [expected]):
+        if expected not in arches or (path in apphosts and arches != [expected]):
             raise ValueError(f'Architecture mismatch: {path}: {arches}')
         dependencies, rpaths = commands[path]
-        search = [expand(r, path, executable) for r in rpaths] + main_rpaths
+        owner = next((host for host in apphosts[1:] if path.is_relative_to(host.parent)), executable)
+        owner_rpaths = [expand(r, owner, owner) for r in commands[owner][1]]
+        search = [expand(r, path, owner) for r in rpaths] + owner_rpaths
         for base in search:
             if not base.is_absolute() or (not base.resolve().is_relative_to(bundle) and not system_dependency(str(base) + '/')):
                 raise ValueError(f'Unsafe runtime search path in {path}: {base}')
@@ -107,7 +122,7 @@ def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
             if dependency.startswith('@rpath/'):
                 candidates = [base / dependency[7:] for base in search]
             elif dependency.startswith(('@loader_path/', '@executable_path/')):
-                candidates = [expand(dependency, path, executable)]
+                candidates = [expand(dependency, path, owner)]
             else:
                 raise ValueError(f'Non-relocatable install name in {path}: {dependency}')
             if not any(system_dependency(str(p)) or (p.exists() and p.resolve().is_relative_to(bundle) and p.resolve() in binary_set) for p in candidates):
@@ -116,13 +131,15 @@ def validate(bundle: Path, runtime: str, signatures: bool = True) -> dict:
             run('/usr/bin/codesign', '--verify', '--strict', path)
     if signatures:
         run('/usr/bin/codesign', '--verify', '--strict', bundle)
-        actual = plistlib.loads(run('/usr/bin/codesign', '--display', '--entitlements', ':-', executable).encode())
-        if actual != ENTITLEMENTS:
-            raise ValueError(f'Unexpected CoreCLR apphost entitlements: {actual}')
+        for host in apphosts:
+            actual = plistlib.loads(run('/usr/bin/codesign', '--display', '--entitlements', ':-', host).encode())
+            if actual != ENTITLEMENTS:
+                raise ValueError(f'Unexpected CoreCLR apphost entitlements for {host}: {actual}')
     return {'runtime': runtime, 'native_host': platform.machine(), 'macho_files': len(binaries),
             'signatures_verified': signatures, 'dependency_closure': True,
             'apphost': str(executable.relative_to(bundle)),
             'coreclr_entitlements_verified': signatures,
+            'coreclr_apphosts': [str(host.relative_to(bundle)) for host in apphosts],
             'files': {str(p.relative_to(bundle)): hashlib.sha256(p.read_bytes()).hexdigest() for p in binaries}}
 
 
@@ -152,12 +169,14 @@ def sign(bundle: Path, runtime: str) -> dict:
     repair_vlc_references(bundle, runtime)
     validate(bundle, runtime, signatures=False)
     executable = apphost_path(bundle.resolve())
+    apphosts = coreclr_apphosts(bundle.resolve())
     with tempfile.TemporaryDirectory(prefix='meowchan-entitlements-') as temporary:
         entitlements = Path(temporary) / 'coreclr.plist'
         entitlements.write_bytes(plistlib.dumps(ENTITLEMENTS))
         for path in sorted(inventory(bundle), key=lambda p: len(p.parts), reverse=True):
             if path != executable:
-                run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', path)
+                options = ('--entitlements', entitlements) if path in apphosts else ()
+                run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', *options, path)
         # Seal nested code containers after their contents, before the outer app.
         nested = [p for p in bundle.rglob('*') if not p.is_symlink() and p.is_dir() and p.suffix in {'.framework', '.app', '.xpc', '.bundle'}]
         for path in sorted(nested, key=lambda p: len(p.parts), reverse=True):

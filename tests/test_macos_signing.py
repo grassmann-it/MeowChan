@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import sys
+import plistlib
 import tempfile
 import unittest
 from unittest import mock
@@ -12,6 +13,52 @@ SPEC.loader.exec_module(signing)
 
 
 class SigningContracts(unittest.TestCase):
+    def test_only_known_helper_apphosts_receive_coreclr_permissions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            main = root / 'Contents/MacOS/MeowChan'
+            worker = root / 'Contents/Resources/application/plugin-worker/MeowChan.PluginWorker'
+            compiler = root / 'Contents/Resources/application/plugin-compiler/MeowChan.PluginCompiler'
+            library = worker.parent / 'libcoreclr.dylib'
+            unrelated = compiler.parent / 'native-helper'
+            for path in (main, worker, compiler, library, unrelated):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(bytes.fromhex('cffaedfe'))
+            signed = {}
+            def command(*args):
+                if '--sign' in args:
+                    signed[args[-1]] = '--entitlements' in args
+                return ''
+            with mock.patch.object(signing.sys, 'platform', 'darwin'), mock.patch.object(signing, 'repair_vlc_references'), mock.patch.object(signing, 'validate', return_value={}), mock.patch.object(signing, 'run', side_effect=command):
+                signing.sign(root, 'osx-arm64')
+            for path in (main, worker, compiler, root):
+                self.assertTrue(signed[path])
+            for path in (library, unrelated):
+                self.assertFalse(signed[path])
+
+    def test_helper_dependency_uses_own_executable_path_and_its_entitlements_are_verified(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            main = root / 'Contents/MacOS/MeowChan'
+            worker = root / 'Contents/Resources/application/plugin-worker/MeowChan.PluginWorker'
+            library = worker.parent / 'libhostfxr.dylib'
+            for path in (main, worker, library):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(bytes.fromhex('cffaedfe'))
+            def commands(*args):
+                if '-archs' in args: return 'arm64'
+                if '--display' in args: return plistlib.dumps(signing.ENTITLEMENTS).decode()
+                if '-l' in args and args[-1] == worker:
+                    return 'cmd LC_LOAD_DYLIB\nname @executable_path/libhostfxr.dylib (offset 24)'
+                return ''
+            with mock.patch.object(signing.sys, 'platform', 'darwin'), mock.patch.object(signing.platform, 'machine', return_value='arm64'), mock.patch.object(signing, 'run', side_effect=commands):
+                report = signing.validate(root, 'osx-arm64')
+                self.assertEqual(2, len(report['coreclr_apphosts']))
+                self.assertTrue(report['coreclr_entitlements_verified'])
+                library.unlink()
+                with self.assertRaisesRegex(ValueError, 'Unresolved'):
+                    signing.validate(root, 'osx-arm64')
+
     def test_load_commands_omit_id_and_preserve_spaces(self):
         deps, paths = signing.load_commands('''Load command 0
           cmd LC_ID_DYLIB

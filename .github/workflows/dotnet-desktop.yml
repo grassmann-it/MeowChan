@@ -45,6 +45,10 @@ on:
 permissions:
   contents: read
 
+# Tests and native fixtures stay offline; product defaults are unchanged.
+env:
+  MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
+
 concurrency:
   group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}
   cancel-in-progress: true
@@ -99,6 +103,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_macos_packaging.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
+          python -m unittest discover -s tests -p test_plugin_packaging.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: python -m unittest discover -s tests -p test_local_package.py -v
@@ -112,6 +117,19 @@ jobs:
         run: cp tests/MeowChan.DesktopSmoke/obj/project.assets.json artifacts/build-evidence/desktop-smoke-assets.json
       - name: Build graphical harness
         run: dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
+      - name: Verify plugin delivery in desktop and transitive harness outputs
+        shell: bash
+        run: |
+          case "$RUNNER_OS/$RUNNER_ARCH" in
+            Linux/X64) plugin_rid=linux-x64 ;;
+            Linux/ARM64) plugin_rid=linux-arm64 ;;
+            Windows/X64) plugin_rid=win-x64 ;;
+            macOS/X64) plugin_rid=osx-x64 ;;
+            macOS/ARM64) plugin_rid=osx-arm64 ;;
+            *) echo "Unsupported plugin verification host"; exit 1 ;;
+          esac
+          python scripts/package-plugins.py --verify bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/desktop-plugins.json
+          python scripts/package-plugins.py --verify tests/MeowChan.DesktopSmoke/bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/smoke-plugins.json
       - name: Install Linux virtual display and private session bus
         if: runner.os == 'Linux'
         run: |
@@ -239,6 +257,7 @@ jobs:
       - name: Validate slim distribution and selected external video runtime
         run: |
           python scripts/check-desktop-package.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify publish-output/${{ matrix.runtime }} --runtime ${{ matrix.runtime }}
           python scripts/check-video-native.py publish-output/${{ matrix.runtime }} ${{ matrix.runtime }}
       - name: Retain resolved publish dependency and runtime packs
         shell: bash
@@ -259,6 +278,7 @@ jobs:
         shell: bash
         run: |
           python scripts/check-desktop-package.py extracted ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify extracted --runtime ${{ matrix.runtime }}
           python scripts/check-video-native.py extracted ${{ matrix.runtime }}
       - name: Document package-check boundary
         shell: bash
@@ -315,6 +335,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_macos*.py' -v
           python3 -m unittest discover -s tests -p test_desktop_package.py -v
+          python3 -m unittest discover -s tests -p test_plugin_packaging.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -334,6 +355,7 @@ jobs:
             test -f "artifacts/macos-publish/$library"
           done
           python3 scripts/check-desktop-package.py artifacts/macos-publish ${{ matrix.runtime }}
+          python3 scripts/package-plugins.py --verify artifacts/macos-publish --runtime ${{ matrix.runtime }}
           python3 scripts/check-video-native.py artifacts/macos-publish ${{ matrix.runtime }}
       - name: Sign app inside-out and verify ZIP round trip
         run: python3 scripts/package-macos.py --publish-dir artifacts/macos-publish --output-dir artifacts/macos-bundle --version ${{ steps.metadata.outputs.version }} --runtime ${{ matrix.runtime }} --sign-adhoc --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip
@@ -346,6 +368,7 @@ jobs:
           python3 scripts/check-desktop-package.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/macos-evidence/contents.json
           python3 scripts/macos-signing.py artifacts/macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/macos-evidence/signatures.json
           python3 scripts/check-video-native.py artifacts/macos-extracted/MeowChan.app/Contents/Resources/application ${{ matrix.runtime }} > artifacts/macos-evidence/video-tree.json
+          python3 scripts/package-plugins.py --verify artifacts/macos-extracted/MeowChan.app/Contents/Resources/application --runtime ${{ matrix.runtime }} --report artifacts/macos-evidence/plugins.json
           shasum -a 256 "$archive" > "$archive.sha256"
           cp "$archive.sha256" artifacts/macos-evidence/archive.sha256
           echo "Native self-contained ad-hoc DMG; mounted and copied app verified. No Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
@@ -406,6 +429,7 @@ jobs:
           python -m unittest discover -s tests -p test_apphost_playback_runner.py -v
           python -m unittest discover -s tests -p test_apphost_workflow_runner.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
+          python -m unittest discover -s tests -p test_plugin_packaging.py -v
       - name: Restore the actual release package contract
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained single-file application
@@ -413,6 +437,7 @@ jobs:
       - name: Validate slim distribution and selected native video runtime
         run: |
           python scripts/check-desktop-package.py artifacts/media-publish ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify artifacts/media-publish --runtime ${{ matrix.runtime }}
           python scripts/check-video-native.py artifacts/media-publish ${{ matrix.runtime }}
       - name: ZIP and extract the Windows package
         if: runner.os == 'Windows'
@@ -428,6 +453,7 @@ jobs:
       - name: Check extracted distribution and native video layout
         run: |
           python scripts/check-desktop-package.py artifacts/media-extracted ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify artifacts/media-extracted --runtime ${{ matrix.runtime }}
           python scripts/check-video-native.py artifacts/media-extracted ${{ matrix.runtime }}
       - name: Play both WebM codecs through the extracted Windows apphost
         if: runner.os == 'Windows'
@@ -513,6 +539,7 @@ jobs:
           python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_linux*.py' -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_apphost*runner.py' -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_desktop_package.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_packaging.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -526,6 +553,7 @@ jobs:
           dotnet restore MeowChan.csproj --artifacts-path artifacts/linux-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
           dotnet publish MeowChan.csproj --artifacts-path artifacts/linux-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/linux-publish
           python3 scripts/check-desktop-package.py artifacts/linux-publish ${{ matrix.runtime }}
+          python3 scripts/package-plugins.py --verify artifacts/linux-publish --runtime ${{ matrix.runtime }}
       - name: Prepare the selected private VLC runtime and pinned AppImage tools
         shell: bash
         run: |
