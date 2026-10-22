@@ -205,9 +205,14 @@ internal static class SourcesChecks
     {
         Button sources = window.FindControl<Button>("SourcesNavigationButton")!;
         Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
+        Require(window.SessionHost.Config.WorkspaceMode == "Advanced" && window.Bounds.Width > 0
+            && (window.Bounds.Width >= 1120) == wide,
+            $"Sources navigation did not reach the requested Advanced geometry: wide={wide}; mode={window.SessionHost.Config.WorkspaceMode}; width={window.Bounds.Width}.");
         window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads, "Sources navigation fixture did not leave the Sources page.");
-        await Program.WaitUntilAsync(() => sources.IsVisible == wide && tools.IsVisible != wide);
+        // Tools also owns Plugins, so it stays reachable beside the wide direct buttons.
+        await Program.WaitUntilAsync(() => sources.IsVisible == wide && tools.IsVisible);
+        Require(Fits(window, tools) && tools.IsEffectivelyEnabled, "Tools navigation is outside the usable window or disabled.");
         if (wide)
         {
             Require(Fits(window, sources) && sources.IsEffectivelyEnabled, "Wide Sources navigation is outside the usable window.");
@@ -215,7 +220,6 @@ internal static class SourcesChecks
         }
         else
         {
-            Require(Fits(window, tools) && tools.IsEffectivelyEnabled, "Compact Tools navigation is outside the usable window.");
             MenuFlyout flyout = tools.Flyout as MenuFlyout
                 ?? throw new InvalidOperationException("Compact Tools has no productive menu.");
             flyout.ShowAt(tools);
@@ -225,7 +229,8 @@ internal static class SourcesChecks
             item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => !flyout.IsOpen);
         }
-        Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && (wide ? sources : tools).Classes.Contains("selected"),
+        Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && sources.Classes.Contains("selected")
+            && tools.Classes.Contains("selected") == !wide,
             "The available Advanced navigation did not open and select the productive Sources page.");
         Console.WriteLine($"SMOKE sources navigation: {(wide ? "wide button" : "compact Tools menu")}; actual-width={window.Bounds.Width}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
     }
