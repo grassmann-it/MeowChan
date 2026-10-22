@@ -25,7 +25,29 @@ public partial class ArchivePage
     {
         int? epoch = _pendingReadingInputEpoch;
         _pendingReadingInputEpoch = null;
-        if (epoch == _readingInputEpoch) ReaderPositionChanged(true);
+        if (epoch == _readingInputEpoch)
+        {
+            Control<ListBox>("ArchivePosts").UpdateLayout();
+            ReaderPositionChanged(true);
+        }
+    }
+
+    private void QueueReadingPositionCapture(DispatcherPriority priority)
+    {
+        int epoch = _readingInputEpoch;
+        _pendingReadingInputEpoch = epoch;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (epoch == _readingInputEpoch) FlushReadingPositionInput();
+        }, priority);
+    }
+
+    internal Func<bool> CaptureReadingRequestGuard()
+    {
+        int content = _contentRequest;
+        int focus = _readerFocusRequest;
+        int interaction = _readerInteractionRevision;
+        return () => !_ended && content == _contentRequest && focus == _readerFocusRequest && interaction == _readerInteractionRevision;
     }
 
     private void InitializeReadingPositionInput()
@@ -36,15 +58,7 @@ public partial class ArchivePage
         ListBox posts = Control<ListBox>("ArchivePosts");
         // Only input on an explicitly opened reader counts. Layout, previews,
         // list selection and background refresh never create a persisted entry.
-        void CaptureAfterInput()
-        {
-            int epoch = _readingInputEpoch;
-            _pendingReadingInputEpoch = epoch;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (epoch == _readingInputEpoch) FlushReadingPositionInput();
-            }, DispatcherPriority.Background);
-        }
+        void CaptureAfterInput() => QueueReadingPositionCapture(DispatcherPriority.Background);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => CaptureAfterInput(), RoutingStrategies.Bubble, handledEventsToo: true);
         posts.AddHandler(PointerReleasedEvent, (_, _) => CaptureAfterInput(), RoutingStrategies.Bubble, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
@@ -99,7 +113,7 @@ public partial class ArchivePage
             ShowReadingPositionMessage(fallback ? Texts.T("resume.fallback") : string.Empty);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_ended) ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true); }
+        catch (Exception error) { if (!_ended && stillRequested?.Invoke() != false) ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true); }
         finally { _resumingPosition = false; }
     }
 }

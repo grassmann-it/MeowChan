@@ -36,6 +36,8 @@ internal static class ReaderLiveChecks
             window.Show(owner); page.IsAvailable = true;
             await page.LoadThreadAsync(id);
             await page.FocusPostAsync("7000");
+            int consciousMoves = 0;
+            page.ConsciousReadingPositionChanged += _ => ++consciousMoves;
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
@@ -54,6 +56,8 @@ internal static class ReaderLiveChecks
             show.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 4 && (posts.SelectedItem as ArchivePostRow)?.Id == "7002");
             Require(!show.IsVisible, "Manual update retained a stale notice.");
+            Require(consciousMoves > 0, "Manual new-post action did not publish a conscious reading position.");
+            consciousMoves = 0; // Equivalent to discarding all pre-forget captures.
             follow.IsChecked = true;
             mayRefresh = false;
             await catalog.CaptureAsync(Snapshot(5));
@@ -63,6 +67,7 @@ internal static class ReaderLiveChecks
             mayRefresh = true;
             await page.CheckReaderUpdatesAsync();
             await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 5 && (posts.SelectedItem as ArchivePostRow)?.Id == "7004");
+            Require(consciousMoves == 0, "Automatic live following published a conscious reading position after forget.");
             Program.CaptureWindow(window, "smoke-reader-follow-live.png");
             watched = false;
             await page.CheckReaderUpdatesAsync();

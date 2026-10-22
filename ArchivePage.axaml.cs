@@ -270,7 +270,7 @@ public partial class ArchivePage : UserControl
                 MediaLoadTask = LoadMediaAsync(thread);
                 if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor);
                 else if (_largeReader && thread.PostCount > 0)
-                    await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId);
+                    await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId, resetPage ? null : _readerInteractionRevision);
                 else if (_largeReader) Control<Button>("ArchiveCloseReader").Focus();
             }
         }
@@ -651,8 +651,20 @@ public partial class ArchivePage : UserControl
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await ActivateAsync();
     private async void OnPreviousThreads(object? sender, RoutedEventArgs e) { if (_busy || _listOffset == 0) return; _listOffset = Math.Max(0, _listOffset - PageSize); await LoadListAsync(); }
     private async void OnNextThreads(object? sender, RoutedEventArgs e) { if (_busy || _listOffset + PageSize >= _listTotal) return; _listOffset += PageSize; await LoadListAsync(); }
-    private void OnPreviousPosts(object? sender, RoutedEventArgs e) { if (_busy || _postOffset == 0) return; _postOffset = Math.Max(0, _postOffset - PageSize); RenderThread(); }
-    private void OnNextPosts(object? sender, RoutedEventArgs e) { if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return; _postOffset += PageSize; RenderThread(); }
+    private void OnPreviousPosts(object? sender, RoutedEventArgs e)
+    {
+        if (_busy || _postOffset == 0) return;
+        _postOffset = Math.Max(0, _postOffset - PageSize);
+        RenderThread();
+        QueueReadingPositionCapture(DispatcherPriority.Loaded);
+    }
+    private void OnNextPosts(object? sender, RoutedEventArgs e)
+    {
+        if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
+        _postOffset += PageSize;
+        RenderThread();
+        QueueReadingPositionCapture(DispatcherPriority.Loaded);
+    }
     private void OnBackClick(object? sender, RoutedEventArgs e) { _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {

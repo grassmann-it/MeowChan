@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -46,6 +47,8 @@ internal static class ReadingPositionChecks
         Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Enabling or passive preview created an entry.");
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
+        Click(page.FindControl<Button>("NextPostsButton")!);
+        await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.PostId == "1050");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
         LocalReadingPosition? captured = await window.SessionHost.ReadReadingPositionAsync();
@@ -81,6 +84,28 @@ internal static class ReadingPositionChecks
         Program.CaptureWindow(window, "smoke-reading-position-fallback.png");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window.SessionHost)!;
+        await commands.WaitAsync();
+        Task delayedResume = window.ResumeLastReadingAsync();
+        try { await page.LoadThreadAsync(new ResourceId("4chan", "g", "1001")); }
+        finally { commands.Release(); }
+        await delayedResume;
+        Require(!reader.IsVisible && page.CurrentThread?.Summary.Id.Thread == "1001", "A delayed resume replaced a newer chosen thread.");
+        await commands.WaitAsync();
+        delayedResume = window.ResumeLastReadingAsync();
+        try
+        {
+            Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            await Program.WaitUntilAsync(() => !page.IsBusy);
+        }
+        finally { commands.Release(); }
+        await delayedResume;
+        Require(!reader.IsVisible, "A delayed resume survived navigating away and back.");
+        await window.ResumeLastReadingAsync();
+        await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
+        await ReaderLiveChecks.RunAsync(window);
         File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly resume post 1022");
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
     }

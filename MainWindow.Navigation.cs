@@ -167,6 +167,7 @@ public partial class MainWindow
         if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.State == DesktopSessionState.RecoveryFailed))
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
+        ++_readingResumeNavigationRevision;
         _selectedPage = page;
         this.FindControl<Grid>("WorkspaceBody")!.IsVisible = page == WorkspacePage.Downloads;
         this.FindControl<ContentControl>("SettingsPageHost")!.IsVisible = page == WorkspacePage.Settings;

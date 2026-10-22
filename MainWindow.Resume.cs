@@ -15,6 +15,7 @@ public partial class MainWindow
     private MenuItem? _resumeReadingToolsMenu;
     private Task _readingPositionSave = Task.CompletedTask;
     private bool _readingPositionForgetPending;
+    private int _readingResumeNavigationRevision;
 
     private void InitializeReadingResume()
     {
@@ -78,16 +79,23 @@ public partial class MainWindow
     internal async Task ResumeLastReadingAsync()
     {
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        int navigation = _readingResumeNavigationRevision;
+        long generation = _session.ReadingPositionGeneration;
+        Func<bool> readerUnchanged = ArchivePage.CaptureReadingRequestGuard();
+        bool StillRequested() => !_isClosing && navigation == _readingResumeNavigationRevision
+            && generation == _session.ReadingPositionGeneration && readerUnchanged();
         try
         {
             await _readingPositionSave;
-            long generation = _session.ReadingPositionGeneration;
+            if (!StillRequested()) return;
             LocalReadingPosition? position = await _session.ReadReadingPositionAsync();
-            bool StillRequested() => !_isClosing && _selectedPage == WorkspacePage.Archive && generation == _session.ReadingPositionGeneration;
             if (!StillRequested()) return;
             if (position == null) ArchivePage.ShowReadingPositionMessage(Texts.T("resume.none"));
             else await ArchivePage.ResumeReadingPositionAsync(position, StillRequested);
         }
-        catch (Exception error) { ArchivePage.ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true); }
+        catch (Exception error)
+        {
+            if (StillRequested()) ArchivePage.ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true);
+        }
     }
 }

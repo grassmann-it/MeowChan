@@ -90,7 +90,7 @@ public partial class ArchivePage
             if (!MayFollow(summary)) { _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
             UpdateReaderUpdateControls();
             if (_followReader && _pendingReaderUpdate != null && MayRefreshReaderNow)
-                await ShowReaderUpdatesAsync();
+                await ShowReaderUpdatesAsync(deliberate: false);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error) { if (!_ended && request == _contentRequest) Message(Texts.T("reader.updateFailed", error.Message), true); }
@@ -108,16 +108,17 @@ public partial class ArchivePage
 
     private async void OnShowReaderUpdates(object? sender, RoutedEventArgs e) => await ShowReaderUpdatesAsync();
 
-    internal async Task ShowReaderUpdatesAsync()
+    internal async Task ShowReaderUpdatesAsync(bool deliberate = true)
     {
         if (_ended || _busy || _thread == null || _pendingReaderUpdate == null || !MayRefreshReaderNow) return;
         ResourceId id = _thread.Summary.Id;
         int previousCount = _thread.PostCount;
+        int interactionRevision = _readerInteractionRevision;
         bool follow = _followReader;
         await LoadThreadAsync(id, resetPage: false);
         if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0) return;
         // Manual refresh reveals the first appended post; live following stays at the newest.
         int index = follow ? _thread.PostCount - 1 : Math.Min(previousCount, _thread.PostCount - 1);
-        await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId);
+        await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId, deliberate ? null : interactionRevision);
     }
 }
