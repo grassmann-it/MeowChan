@@ -59,13 +59,24 @@ jobs:
           PY
       - name: Download accepted candidates and the immutable common source base
         run: |
-          for name in native-media-candidate-win-x64 "macos-paired-candidate-$RETAINED_SOURCE"; do
-            gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "candidates/$name"
-          done
-          for name in linux-distribution-candidate-linux-x64 linux-distribution-candidate-linux-arm64; do
-            gh run download "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "candidates/$name"
-          done
-          gh release download v0.9.0-preview.3 --repo "$GITHUB_REPOSITORY" --pattern MeowChan-0.9.0-video-sources.tar.gz --dir source-base
+          python3 - <<'PY'
+          import concurrent.futures, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          commands = []
+          for run, names in [
+              (os.environ['SOURCE_RUN'], ['native-media-candidate-win-x64', 'macos-paired-candidate-' + os.environ['RETAINED_SOURCE']]),
+              (os.environ['LINUX_RUN'], ['linux-distribution-candidate-linux-x64', 'linux-distribution-candidate-linux-arm64']),
+          ]:
+              for name in names:
+                  commands.append(['gh', 'run', 'download', run, '--repo', repo, '--name', name, '--dir', 'candidates/' + name])
+          commands.append(['gh', 'release', 'download', 'v0.9.0-preview.3', '--repo', repo, '--pattern', 'MeowChan-0.9.0-video-sources.tar.gz', '--dir', 'source-base'])
+          # Independent immutable inputs use separate directories; await every transfer
+          # before the assembler verifies the complete set and any release upload starts.
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+              futures = [executor.submit(subprocess.run, command, check=True) for command in commands]
+              for future in futures:
+                  future.result()
+          PY
       - name: Verify source, native package evidence, paired sources and exact asset inventory
         run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --windows-source-commit "$RETAINED_SOURCE" --macos-source-commit "$RETAINED_SOURCE" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged
       - name: Upload verified assets to the existing draft without publishing
