@@ -63,6 +63,10 @@ public partial class MainWindow
             string query = DownloadSearchText;
             ReconcileDownloadResult(VisibleThreads, UrlList.Where(row => DownloadSearch.Matches(row, query)).ToArray(), DownloadList(false));
             ReconcileDownloadResult(VisibleBoards, BoardsList.Where(row => DownloadSearch.Matches(row, query)).ToArray(), DownloadList(true));
+            HashSet<long> activeThreads = new(UrlList.Select(row => row.WatchId));
+            HashSet<long> activeBoards = new(BoardsList.Select(row => row.WatchId));
+            foreach (long id in _threadFilterExclusions.Keys.Where(id => !activeThreads.Contains(id)).ToArray()) _threadFilterExclusions.Remove(id);
+            foreach (long id in _boardFilterExclusions.Keys.Where(id => !activeBoards.Contains(id)).ToArray()) _boardFilterExclusions.Remove(id);
             if (!SelectedThreads().Any(row => row.WatchId == _threadLeadId)) _threadLeadId = SelectedThreads().FirstOrDefault()?.WatchId;
             if (!SelectedBoards().Any(row => row.WatchId == _boardLeadId)) _boardLeadId = SelectedBoards().FirstOrDefault()?.WatchId;
             RefreshDownloadSearchPresentation();
@@ -72,6 +76,7 @@ public partial class MainWindow
 
     private void ReconcileDownloadResult<T>(ObservableCollection<T> visible, T[] result, DataGrid grid) where T : class
     {
+        if (visible.SequenceEqual(result)) return;
         HashSet<T> included = new(result);
         T[] retainedSelection = grid.SelectedItems.OfType<T>().Where(included.Contains).ToArray();
         // The result is independent of virtualization and scrolling. Remove only actual non-results.

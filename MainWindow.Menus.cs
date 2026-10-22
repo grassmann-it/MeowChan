@@ -91,13 +91,13 @@ public partial class MainWindow
         Add("location.open-folder", () => OpenDirectory(frozen.Folder));
         Add("location.open-source", () => OpenTarget(frozen.Url));
         menu.Items.Add(new Separator());
-        Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false), frozen.Checkable.Length > 0, frozen.Checkable.Length);
+        Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false, IsCurrentDownloadTarget), frozen.Checkable.Length > 0, frozen.Checkable.Length);
         if (!frozen.Boards)
-            Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true), frozen.Retriable.Length > 0, frozen.Retriable.Length);
+            Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true, IsCurrentDownloadTarget), frozen.Retriable.Length > 0, frozen.Retriable.Length);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
         menu.Items.Add(new Separator());
         Add("watch.remove", async () => await RunSelectionCommandAsync(frozen.WatchIds,
-            id => frozen.Boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id)), count: frozen.WatchIds.Length);
+            id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
     }
 
     private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)

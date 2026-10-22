@@ -63,8 +63,20 @@ public partial class MainWindow
             Size unconstrained = new(double.PositiveInfinity, double.PositiveInfinity);
             TabControl tabs = WorkspaceControl<TabControl>("DownloadsTabs");
             StackPanel actions = WorkspaceControl<StackPanel>("WorkspaceListActions");
-            tabs.Measure(unconstrained); actions.Measure(unconstrained);
-            bool compact = tabs.DesiredSize.Width + actions.DesiredSize.Width + 8 > width;
+            double tabWidth = tabs.Padding.Left + tabs.Padding.Right;
+            foreach (TabItem item in tabs.Items.OfType<TabItem>())
+            {
+                item.Measure(unconstrained);
+                tabWidth += item.DesiredSize.Width;
+            }
+            Control[] fullActions = actions.Children.Where(item => item.IsVisible).ToArray();
+            double actionWidth = actions.Margin.Left + actions.Margin.Right + Math.Max(0, fullActions.Length - 1) * actions.Spacing;
+            foreach (Control action in fullActions)
+            {
+                action.Measure(unconstrained);
+                actionWidth += action.DesiredSize.Width;
+            }
+            bool compact = tabWidth + actionWidth + 8 > width;
             columns.IsVisible = !compact; copy.IsVisible = !compact; more.IsVisible = compact;
         }
         finally { _measuringDownloadsHeader = false; }
@@ -77,8 +89,10 @@ public partial class MainWindow
         MenuItem columns = new() { Header = Texts.T("downloads.columns") };
         // Use the same column menu and commands as the full-width header.
         columns.Click += (_, args) => OnDownloadsColumnsClick(button, args);
-        MenuItem copy = new() { Header = Texts.T("action.copyAllUrls"), IsEnabled = WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled };
+        MenuItem copy = new() { Header = Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count), IsEnabled = WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled };
         copy.Click += async (_, _) => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url)));
+        ToolTip.SetTip(copy, Texts.T("downloads.copySessionUrlsHint"));
+        AutomationProperties.SetHelpText(copy, Texts.T("downloads.copySessionUrlsHint"));
         menu.Items.Add(columns); menu.Items.Add(copy);
         button.ContextMenu = menu;
         menu.Open(button);

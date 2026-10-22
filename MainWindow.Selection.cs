@@ -206,8 +206,18 @@ public partial class MainWindow
     private Task RemoveDownloadSelectionAsync(bool boards)
     {
         long[] ids = boards ? SelectedBoards().Select(row => row.WatchId).ToArray() : SelectedThreads().Select(row => row.WatchId).ToArray();
-        return RunSelectionCommandAsync(ids, id => boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id));
+        return RunSelectionCommandAsync(ids, id => RemoveVisibleDownloadWatchAsync(id, boards));
     }
+
+    private Task RemoveVisibleDownloadWatchAsync(long id, bool boards)
+    {
+        if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return Task.CompletedTask;
+        return boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id);
+    }
+
+    private bool IsCurrentDownloadTarget(DiagnosticTarget target) => target.Kind == DiagnosticTargetKind.Board
+        ? SelectedBoards().Any(row => row.WatchId == target.WatchId)
+        : SelectedThreads().Any(row => row.WatchId == target.WatchId);
 
     private Task CheckDownloadSelectionAsync(bool boards, bool retry)
     {
@@ -216,16 +226,17 @@ public partial class MainWindow
                 .Select(row => new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)).ToArray()
             : SelectedThreads().Where(row => retry ? row.CanRetryMedia : _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)))
                 .Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray();
-        return RunCheckTargetsAsync(targets, retry);
+        return RunCheckTargetsAsync(targets, retry, IsCurrentDownloadTarget);
     }
 
-    private async Task RunCheckTargetsAsync(DiagnosticTarget[] frozen, bool retry)
+    private async Task RunCheckTargetsAsync(DiagnosticTarget[] frozen, bool retry, Func<DiagnosticTarget, bool>? isCurrent = null)
     {
         var responses = new List<(DiagnosticTarget Target, Interfaces.CheckRequestStatus Status)>();
         int acceptedMedia = 0;
         bool retried = false;
         await RunSelectionCommandAsync(frozen, async target =>
         {
+            if (isCurrent != null && !isCurrent(target)) return;
             if (retry && target.Kind == DiagnosticTargetKind.Thread)
             { acceptedMedia += await _session.RetryMissingMediaAsync(target.WatchId); retried = true; }
             else

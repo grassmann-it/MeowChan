@@ -54,6 +54,8 @@ internal static class BuiltInCatalog
         ("downloads.searchClear", "Clear", "Leeren"),
         ("downloads.searchClose", "Hide", "Einklappen"),
         ("downloads.searchEmpty", "No downloads match this filter. Clear the search to show all downloads.", "Keine Downloads passen zum Filter. Suche leeren, um alle Downloads anzuzeigen."),
+        ("downloads.copySessionUrls", "Copy session URLs ({0})", "Sitzungs-URLs kopieren ({0})"),
+        ("downloads.copySessionUrlsHint", "Copies all thread and board URLs in this session, including entries hidden by the filter.", "Kopiert alle Thread- und Board-URLs dieser Sitzung, einschließlich ausgefilterter Einträge."),
         ("downloads.more", "More", "Mehr"),
         ("downloads.columns", "Columns…", "Spalten…"),
         ("column.missingMedia", "Not saved / errors", "Ungespeichert / Fehler"),

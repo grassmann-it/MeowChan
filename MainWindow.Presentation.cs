@@ -113,6 +113,8 @@ public partial class MainWindow
             return;
         }
         LocalizeWorkspace();
+        foreach (ThreadRow row in UrlList) row.UpdateSnapshot(new DesktopThreadEntry(row.WatchId, row.Snapshot, row.HostName, row.BoardName));
+        foreach (BoardRow row in BoardsList) row.UpdateSnapshot(new DesktopBoardEntry(row.WatchId, row.Snapshot, row.HostName, row.NiceName));
         RefreshWorkspace();
     }
 
@@ -274,7 +276,7 @@ public partial class MainWindow
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("AddUrlButton"), "watch.add-url", Texts.T("action.add"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("CopyAllUrlsButton"), "watch.copy-all-links", Texts.T("action.copyAllUrls"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("CopyAllUrlsButton"), "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenFolderButton"), "location.open-folder", Texts.T("action.openFolder"));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenBrowserButton"), "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorMediaRetryButton"), "watch.retry-media", Texts.T("work.retry"));
@@ -321,7 +323,11 @@ public partial class MainWindow
         WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = VisibleBoards.Count == 0;
         WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
         WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
-        WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
+        Button sessionUrls = WorkspaceControl<Button>("CopyAllUrlsButton");
+        sessionUrls.IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
+        CommandBindings.ApplyLabeled(sessionUrls, "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
+        ToolTip.SetTip(sessionUrls, Texts.T("downloads.copySessionUrlsHint"));
+        AutomationProperties.SetHelpText(sessionUrls, Texts.T("downloads.copySessionUrlsHint"));
         RefreshDetailsToggleIcon();
         string stateKey = _isClosing ? "shell.stopping" : _session.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.State switch
         {

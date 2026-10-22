@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Styling;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -49,14 +50,41 @@ internal static class DownloadSearchChecks
             Require(window.FindControl<Grid>("DownloadSearchBar")!.IsVisible && window.FindControl<Button>("DownloadSearchClear")!.IsVisible,
                 "Collapsed active search lost its filter summary or clear action.");
             Click(window.FindControl<Button>("DownloadSearchClear")!);
-            Require(input.Text == "" && !window.FindControl<Grid>("DownloadSearchBar")!.IsVisible, "Clearing collapsed search did not restore the compact view.");
+            await Program.WaitUntilAsync(() => input.Text == "" && !window.FindControl<Grid>("DownloadSearchBar")!.IsVisible);
             tabs.SelectedIndex = 0;
+            TextBox url = window.FindControl<TextBox>("UrlInput")!;
+            url.Text = "not-a-valid-url";
+            Click(window.FindControl<Button>("AddUrlButton")!);
+            await Program.WaitUntilAsync(() => window.FindControl<Control>("AdmissionRepairPanel")!.IsVisible);
+            Require(url.Text == "not-a-valid-url", "Rejected input was lost.");
+            Require(window.FindControl<SelectableTextBlock>("AdmissionRepairText")!.Text?.Contains("HTTP") == true,
+                "URL rejection did not expose the cause and repair form.");
+            Program.CaptureWindow(window, "smoke-download-url-repair.png");
+            window.FindControl<Control>("AdmissionRepairPanel")!.IsVisible = false;
+            window.FindControl<Border>("AdmissionResultsPanel")!.IsVisible = false;
+            url.Text = "";
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
+            DataGridColumn missingColumn = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.MissingMedia));
+            DataGridColumn retryColumn = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.EarliestRetry));
+            Require(!missingColumn.IsVisible && !retryColumn.IsVisible, "Optional work columns were visible by default.");
+            Button columnsButton = window.FindControl<Button>("DownloadsColumnsButton")!;
+            Click(columnsButton);
+            MenuItem missingItem = columnsButton.ContextMenu!.Items.OfType<MenuItem>()
+                .Single(item => Equals(item.Header, Texts.T("column.missingMedia")));
+            missingItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            columnsButton.ContextMenu.Close();
+            await Program.WaitUntilAsync(() => missingColumn.IsVisible);
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             foreach (string language in new[] { "en", "de" })
             {
                 Texts.SetLanguage(language);
                 foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
                 {
                     await PresentationChecks.SwitchModeAsync(window, mode);
+                    Texts.SetLanguage(language);
+                    Application.Current!.RequestedThemeVariant = theme;
+                    Require(missingColumn.IsVisible == (mode == "Advanced") && !retryColumn.IsVisible,
+                        "Optional work columns did not preserve their Advanced-only preference.");
                     window.Width = mode == "Barebones" ? 640 : 760;
                     window.Height = mode == "Barebones" ? 480 : 500;
                     await Task.Delay(80);
@@ -66,10 +94,27 @@ internal static class DownloadSearchChecks
                     Point? tabEnd = tabs.TranslatePoint(new Point(tabs.Bounds.Width, 0), window);
                     Require(actionStart != null && tabEnd != null && tabEnd.Value.X <= actionStart.Value.X + 1,
                         "Download actions overlap the independently measured tabs at " + mode + "/" + language);
+                    foreach (string tabName in new[] { "ThreadsTab", "BoardsTab" })
+                    {
+                        TabItem item = window.FindControl<TabItem>(tabName)!;
+                        Point? itemEnd = item.TranslatePoint(new Point(item.Bounds.Width, 0), window);
+                        Require(item.IsEffectivelyVisible && item.Bounds.Width > 0 && itemEnd != null && itemEnd.Value.X <= actionStart!.Value.X + 1,
+                            "A download tab or count is covered by list actions.");
+                    }
                     Require(window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible, "Compact header hid the direct details action.");
-                    Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language + ".png");
+                    Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
                 }
             }
+            ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+            double footerHeight = window.FindControl<Border>("WorkspaceNavigation")!.Bounds.Height;
+            modes.IsDropDownOpen = true;
+            await Task.Delay(60);
+            Require(modes.Items.OfType<ComboBoxItem>().All(item => item.Content is StackPanel), "Opened modes did not explain their detail level.");
+            Require(Math.Abs(window.FindControl<Border>("WorkspaceNavigation")!.Bounds.Height - footerHeight) < 1,
+                "Opening mode descriptions enlarged the footer.");
+            modes.IsDropDownOpen = false;
+            await Task.Delay(40);
+            Require(modes.Items.OfType<ComboBoxItem>().All(item => item.Content is string), "Closed mode selector retained permanent explanation blocks.");
             Console.WriteLine("SMOKE download search: 300 passive rows, literal case-insensitive filter, result-bound selection, no restoration, scrolling, boards, collapsed clear, independently measured EN/DE minimum headers passed.");
         }
         finally
