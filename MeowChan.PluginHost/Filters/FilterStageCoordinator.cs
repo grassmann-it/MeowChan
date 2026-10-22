@@ -35,7 +35,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
             || _options.MaximumDecodedPixels is < 1 or > SdkLimits.MaximumDecodedPixels) throw new ArgumentOutOfRangeException(nameof(options));
         _profileLease = profileLease;
         _profileLease.EnsureMatches(ProfileLease.NormalizeDirectory(profileDirectory));
-        _directory = Path.Combine(profileDirectory, "filter-stages");
+        _directory = Path.Combine(ProfileLease.NormalizeDirectory(profileDirectory), "filter-stages");
         Directory.CreateDirectory(_directory);
         if ((File.GetAttributes(_directory) & FileAttributes.ReparsePoint) != 0) throw new IOException("Filter stage directory must not be a link.");
         _slots = new SemaphoreSlim(_options.MaximumConcurrentChecks);
@@ -93,7 +93,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     }
 
     private bool CanStart { get { lock (_state) return !_shutdown.IsCancellationRequested && _active < _options.MaximumConcurrentChecks
-        && _bytes + _options.WorkerTemporaryBytes() + _options.MaximumImageBytes <= _options.MaximumTemporaryBytes; } }
+        ; } }
     private void CheckBudget(long add = 0)
     {
         lock (_state)
@@ -234,7 +234,11 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 if (result.Outcome != ImageFilterOutcome.Match)
                     throw new MediaFilterOmissionException(result.Outcome == ImageFilterOutcome.NoMatch, result.ReasonCode, result.Message);
                 Image.Position = 0;
-                MediaCommitResult committed = await store.CommitVerifiedAsync(item, Image, digest, EnsureCurrent, _lifetime.Token).ConfigureAwait(false);
+                // MediaStore copies into the target filesystem before atomic publication. Reserve that own temporary copy too.
+                _owner.CheckBudget(_size);
+                MediaCommitResult committed;
+                try { committed = await store.CommitVerifiedAsync(item, Image, digest, EnsureCurrent, _lifetime.Token).ConfigureAwait(false); }
+                finally { lock (_owner._state) _owner._bytes -= _size; }
                 await _record(null, result.ReasonCode, CancellationToken.None).ConfigureAwait(false);
                 return committed;
             }

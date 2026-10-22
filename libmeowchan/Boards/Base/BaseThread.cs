@@ -92,6 +92,19 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     internal DownloadItem BindRestoredMediaFilter(DownloadItem item, bool explicitRetry = false)
         => _content?.BindRestoredMediaFilter(item, this, explicitRetry) ?? item;
 
+    internal void PublishMediaFilterOmission(string mediaIdentifier, string destinationPath, bool noMatch, string reason)
+    {
+        if (!noMatch) { ReportMediaFailure(mediaIdentifier, new MediaFilterOmissionException(false, reason), destinationPath); return; }
+        lock (_stateLock)
+        {
+            if (_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures))
+            { failures.Remove(GetDestinationKey(destinationPath)); RefreshMediaFailureLocked(mediaIdentifier); }
+            _activity = _mediaFailures.Count > 0 ? ThreadActivity.Error
+                : _downloadedMedia.Count >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0) ? ThreadActivity.Finished : ThreadActivity.Downloading;
+        }
+        OnPropertyChanged();
+    }
+
     internal void RestoreDurableMedia(IReadOnlyList<MediaWork> media)
     {
         lock (_stateLock)
@@ -452,6 +465,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         {
             if (_monitoringTask != null) throw new InvalidOperationException("Attach content services before starting monitoring.");
             _content = content;
+            if (_restoredFinalSnapshot != null) content.RememberPostIds(_restoredFinalSnapshot.Posts);
             _contentCandidatesRestored = false;
         }
     }

@@ -224,14 +224,27 @@ internal sealed class ThreadContentContext
                 decision = decision with { Selection = decision.Selection with { EffectiveRule = _runtime.Rules.Resolve(_id) } };
                 _decisions[metadata.Key.MediaId] = decision;
             }
-            item.Filter = _runtime.OriginalFilters?.Create(item, decision,
-                () => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
-                    && _decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? current)
-                    && SameMetadata(current.Metadata, metadata),
-                async (noMatch, reason, token) => {
-                    CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token).ConfigureAwait(false);
-                    if (saved != null) { lock (_state) { _decisions[metadata.Key.MediaId] = saved; if (noMatch == true) _excluded++; else if (noMatch == false) _filterFailure = new FailureInfo(FailureKind.Storage, reason); else _filterFailure = null; } }
-                }) ?? new MissingFilter();
+            bool Current() => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
+                && _decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? current)
+                && ReferenceEquals(current, decision) && SameMetadata(current.Metadata, metadata);
+            async Task Record(bool? noMatch, string reason, CancellationToken token)
+            {
+                if (noMatch != null && !Current()) return;
+                CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token).ConfigureAwait(false);
+                if (saved != null)
+                {
+                    lock (_state)
+                    {
+                        _decisions[metadata.Key.MediaId] = saved;
+                        _excluded = _decisions.Values.Count(value => value.Selection.Outcome == MediaSelectionOutcome.Excluded);
+                        CandidateDecision? omitted = _decisions.Values.FirstOrDefault(value => value.Selection.Outcome == MediaSelectionOutcome.TechnicalOmission);
+                        _filterFailure = omitted == null ? null : new FailureInfo(FailureKind.Storage, omitted.Selection.FilterReason ?? "Filter unavailable");
+                    }
+                }
+            }
+            item.Filter = decision.Selection.EffectiveRule.ImageFilter.Mode != MediaImageFilterMode.Plugin
+                ? new RuleBypassFilter(decision, Current, Record)
+                : _runtime.OriginalFilters?.Create(item, decision, Current, Record) ?? new MissingFilter(Record);
         }
         return item;
     }
@@ -240,12 +253,18 @@ internal sealed class ThreadContentContext
     {
         foreach (CandidateDecision decision in await _runtime.Catalog.GetDecisionsAsync(_id, token).ConfigureAwait(false))
             _decisions[decision.Metadata.Key.MediaId] = decision;
+        lock (_state)
+        {
+            _excluded = _decisions.Values.Count(value => value.Selection.Outcome == MediaSelectionOutcome.Excluded);
+            CandidateDecision? omitted = _decisions.Values.FirstOrDefault(value => value.Selection.Outcome == MediaSelectionOutcome.TechnicalOmission);
+            if (omitted != null) _filterFailure = new FailureInfo(FailureKind.Storage, omitted.Selection.FilterReason ?? "Filter unavailable");
+        }
         await using ArchiveReader reader = await _runtime.OpenReaderAsync(token).ConfigureAwait(false);
         ArchivedThreadView? view = await reader.ReadThreadAsync(_id, token).ConfigureAwait(false);
         if (view != null) for (int offset = 0; offset < view.PostCount; offset += 500) RememberPostIds(view.GetPosts(offset, 500));
     }
 
-    private void RememberPostIds(IEnumerable<CapturedPost> posts)
+    internal void RememberPostIds(IEnumerable<CapturedPost> posts)
     {
         foreach (CapturedPost post in posts) foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
             if (attachment.MediaId != null) _postIds[attachment.MediaId] = (post.PostId, attachment.Position);
@@ -257,12 +276,43 @@ internal sealed class ThreadContentContext
         return ToItem(decision.Metadata, owner, explicitRetry);
     }
 
-    private sealed class MissingFilter : IOriginalMediaFilter
+    private sealed class MissingFilter(Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
     {
         public bool CanStart => true;
         public event Action? CapacityChanged { add { } remove { } }
-        public Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken cancellationToken)
-            => Task.FromException<IOriginalMediaFilterLease>(new MediaFilterOmissionException(false, "filter_host_unavailable"));
+        public async Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken cancellationToken)
+        {
+            await record(false, "filter_host_unavailable", cancellationToken).ConfigureAwait(false);
+            throw new MediaFilterOmissionException(false, "filter_host_unavailable");
+        }
+    }
+
+    private sealed class RuleBypassFilter(CandidateDecision decision, Func<bool> current,
+        Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter, IOriginalMediaFilterLease
+    {
+        public bool CanStart => true;
+        public event Action? CapacityChanged { add { } remove { } }
+        public async Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken cancellationToken)
+        {
+            if (!current()) throw new MediaFilterOmissionException(false, "filter_rule_changed");
+            EffectiveMediaRule rule = decision.Selection.EffectiveRule;
+            if (rule.Types.Mode == MediaTypeSelectionMode.Selected && !rule.Types.Extensions.Contains(decision.Metadata.Extension)
+                || rule.SizeLimit.Mode == MediaSizeLimitMode.Limited && item.ExpectedSize > rule.SizeLimit.Bytes)
+            {
+                await record(true, "filter_metadata_excluded", cancellationToken).ConfigureAwait(false);
+                throw new MediaFilterOmissionException(true, "filter_metadata_excluded");
+            }
+            return this;
+        }
+        public async Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source, MediaStore store,
+            Func<int, CancellationToken, Task> throttle, CancellationToken cancellationToken)
+        {
+            if (!current()) throw new MediaFilterOmissionException(false, "filter_rule_changed");
+            MediaCommitResult result = await store.CommitAsync(item, source, cancellationToken, throttle).ConfigureAwait(false);
+            await record(null, "filter_removed_by_explicit_retry", CancellationToken.None).ConfigureAwait(false);
+            return result;
+        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static bool SameMetadata(CandidateMetadata first, CandidateMetadata second) => first.DownloadUri == second.DownloadUri
