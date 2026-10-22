@@ -1,0 +1,84 @@
+{
+  "sourceCommit": "b21dddc",
+  "baseCommit": "594e5ba",
+  "importedRootCommits": [
+    "270292e",
+    "08e8711"
+  ],
+  "configuration": "Release",
+  "runtime": "linux-x64 / .NET 10.0.11",
+  "passed": 3,
+  "failed": 0,
+  "tests": [
+    {
+      "test": "MeowChan.DesktopTests.DesktopPluginSessionIntegrationTests.DeliveredSourceCatalogsArePreviewedThroughDesktopWithoutCreatingWatchesOrMedia",
+      "outcome": "Passed",
+      "duration": "00:00:11.1287608",
+      "startups": [
+        {
+          "elapsedMilliseconds": 8069,
+          "priorArtifacts": 0,
+          "manifests": 5,
+          "state": "Ready",
+          "warningCount": 0,
+          "StartupError": null
+        }
+      ]
+    },
+    {
+      "test": "MeowChan.DesktopTests.DesktopPluginSessionIntegrationTests.DeliveredSourcesAndFilterUseTheRealDesktopSessionThenRestoreTwiceOffline",
+      "outcome": "Passed",
+      "duration": "00:00:39.3161715",
+      "startups": [
+        {
+          "elapsedMilliseconds": 9071,
+          "priorArtifacts": 0,
+          "manifests": 5,
+          "state": "Ready",
+          "warningCount": 0,
+          "StartupError": null
+        },
+        {
+          "elapsedMilliseconds": 11038,
+          "priorArtifacts": 5,
+          "manifests": 5,
+          "state": "Ready",
+          "warningCount": 0,
+          "StartupError": null
+        },
+        {
+          "elapsedMilliseconds": 11988,
+          "priorArtifacts": 5,
+          "manifests": 5,
+          "state": "Ready",
+          "warningCount": 0,
+          "StartupError": null
+        }
+      ]
+    },
+    {
+      "test": "MeowChan.DesktopTests.DesktopPluginSessionIntegrationTests.DesktopShutdownCancelsDeliveredSourceHostHttpAndReclaimsItsWorker",
+      "outcome": "Passed",
+      "duration": "00:00:15.8242033",
+      "startups": [
+        {
+          "elapsedMilliseconds": 11050,
+          "priorArtifacts": 0,
+          "manifests": 5,
+          "state": "Ready",
+          "warningCount": 0,
+          "StartupError": null
+        }
+      ]
+    }
+  ],
+  "payload": "transitive DesktopTests output, five manifests, real worker apphosts",
+  "toolchainFilesPerImport": 171,
+  "toolchainBytesPerImport": 16145832,
+  "limits": [
+    "not a self-contained desktop apphost run",
+    "not SDK-free/read-only-installation proof",
+    "no native Windows/macOS execution",
+    "fixture metadata/media only, no live source requests"
+  ]
+}

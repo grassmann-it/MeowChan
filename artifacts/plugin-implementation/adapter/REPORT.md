@@ -126,3 +126,11 @@ Die tatsächliche vollständige Lainchan-/Kohlchan-Providerparität gehört zu d
 Ownernachweisen; die hier genannten Tests prüfen ihre stabile sichere Ablage.
 
 Keine Pushes, Releases oder Änderungen an Benutzerprofilen durchgeführt.
+
+## Nachtrag: produktive Desktopserviceintegration
+
+Der Folgeauftrag schließt die bisher fehlende echte `DesktopSessionHost`- und
+`PluginSession`-Verkettung mit ausgelieferten Lainchan-/Kohlchan-/Filterassemblies,
+normalen Downloads, zwei Offline-Restarts und Worker-Shutdown. Drei neue Tests
+bestehen zweimal. [Nachweis, Transportrouten und Startupmessungen](DESKTOP-INTEGRATION.md).
+Die dort benannten endgültigen Apphost-/SDKfrei-/GUI-/Plattformgates bleiben offen.
