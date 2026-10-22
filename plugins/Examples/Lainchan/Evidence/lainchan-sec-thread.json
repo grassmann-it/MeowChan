@@ -1,0 +1,87 @@
+{
+  "url": "https://lainchan.org/sec/res/27498.json",
+  "utc": "2026-10-22T15:50:28.465292+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "headers": {
+    "Server": "nginx/1.26.3",
+    "Content-Type": "application/json",
+    "Content-Length": "107548",
+    "Last-Modified": "Thu, 22 Oct 2026 12:39:37 GMT",
+    "ETag": "\"6ada0409-1a41c\""
+  },
+  "read_bytes": 107548,
+  "truncated": false,
+  "body_sha256": "4ce0e51eb1eb7b276baaa4e48f0e247f304ef5a07157f7fc1aba7f3086cdecf9",
+  "json_top_type": "dict",
+  "top_keys": [
+    "posts"
+  ],
+  "post_count": 167,
+  "post_key_union": [
+    "capcode",
+    "com",
+    "cyclical",
+    "email",
+    "ext",
+    "extra_files",
+    "filename",
+    "fsize",
+    "h",
+    "last_modified",
+    "locked",
+    "md5",
+    "name",
+    "no",
+    "omitted_images",
+    "omitted_posts",
+    "resto",
+    "sticky",
+    "sub",
+    "tim",
+    "time",
+    "tn_h",
+    "tn_w",
+    "w"
+  ],
+  "op_keys": [
+    "capcode",
+    "com",
+    "cyclical",
+    "ext",
+    "filename",
+    "fsize",
+    "h",
+    "last_modified",
+    "locked",
+    "md5",
+    "name",
+    "no",
+    "omitted_images",
+    "omitted_posts",
+    "resto",
+    "sticky",
+    "sub",
+    "tim",
+    "time",
+    "tn_h",
+    "tn_w",
+    "w"
+  ],
+  "extra_files_count": [
+    2
+  ],
+  "state_fields_unique": [
+    {
+      "locked": 0,
+      "omitted_posts": 0,
+      "omitted_images": 0
+    },
+    {
+      "locked": 0
+    }
+  ]
+}

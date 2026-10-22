@@ -1,0 +1,39 @@
+{
+  "url": "https://lainchan.org/",
+  "utc": "2026-10-22T15:49:57.485832+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "headers": {
+    "Server": "nginx/1.26.3",
+    "Content-Type": "text/html",
+    "Content-Length": "7550",
+    "Last-Modified": "Thu, 22 Oct 2026 15:48:25 GMT",
+    "ETag": "\"6ada3049-1d7e\""
+  },
+  "read_bytes": 7550,
+  "truncated": false,
+  "body_sha256": "699d72243e2e17b65246462bca7013fc4dccf38bcc800e9a29cec20d4b0386be",
+  "relevant_links": [
+    "/faq.html",
+    "https://github.com/lainchan/lainchan",
+    "/q/res/2911.html#14426",
+    "/sec/res/28669.html#28673",
+    "/\u03a9/res/93574.html#95116",
+    "/sec/res/28669.html#28674",
+    "/r/res/50379.html#50427",
+    "/music/res/14733.html#14941",
+    "/hum/res/91126.html#103371",
+    "/music/res/14940.html#14940",
+    "/r/res/50379.html#50426",
+    "/sec/res/23033.html#28672",
+    "/sec/res/28661.html#28671",
+    "/r/res/50379.html#50425",
+    "/sec/res/28661.html#28670",
+    "/sec/res/28669.html#28669",
+    "/r/res/50379.html#50424"
+  ],
+  "html_title": "LAINCHAN"
+}

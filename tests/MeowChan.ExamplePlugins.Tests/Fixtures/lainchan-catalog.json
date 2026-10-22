@@ -1,0 +1,23 @@
+[
+  {
+    "page": 1,
+    "threads": [
+      {
+        "no": 123,
+        "sub": "First",
+        "com": "<p>Opening</p>",
+        "replies": 1,
+        "images": 3
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "threads": [
+      {
+        "no": 456,
+        "sub": "Second"
+      }
+    ]
+  }
+]

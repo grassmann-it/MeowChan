@@ -1,0 +1,18 @@
+{
+  "url": "https://lainchan.org/sec/res/0.json",
+  "utc": "2026-10-22T15:50:29.561255+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 404,
+  "headers": {
+    "Server": "nginx/1.26.3",
+    "Content-Type": "text/html; charset=UTF-8"
+  },
+  "read_bytes": 942,
+  "truncated": false,
+  "body_sha256": "234ae52c02f3acf0e7d1f20ec1decb0672d4c791bea29db315b0859de443a3ee",
+  "relevant_links": [],
+  "html_title": "404"
+}

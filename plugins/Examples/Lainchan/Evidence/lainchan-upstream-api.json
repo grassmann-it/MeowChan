@@ -1,0 +1,115 @@
+{
+  "url": "https://raw.githubusercontent.com/lainchan/lainchan/master/inc/api.php",
+  "utc": "2026-10-22T15:50:46.587064+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "origin": "Repository linked by https://lainchan.org/",
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "read_bytes": 5078,
+  "truncated": false,
+  "body_sha256": "3e111eccf4f6743e898b992c9f538b50e96a3bc57a548a074672621949328ada",
+  "selected_source_lines": [
+    {
+      "line": 9,
+      "text": "* Class for generating json API compatible with 4chan API"
+    },
+    {
+      "line": 15,
+      "text": "* Translation from local fields to fields in 4chan-style API"
+    },
+    {
+      "line": 29,
+      "text": "'omitted' => 'omitted_posts',"
+    },
+    {
+      "line": 30,
+      "text": "'omitted_images' => 'omitted_images',"
+    },
+    {
+      "line": 31,
+      "text": "'replies' => 'replies',"
+    },
+    {
+      "line": 34,
+      "text": "'locked' => 'locked',"
+    },
+    {
+      "line": 35,
+      "text": "'cycle' => 'cyclical',"
+    },
+    {
+      "line": 67,
+      "text": "'omitted_posts' => 1,"
+    },
+    {
+      "line": 68,
+      "text": "'omitted_images' => 1,"
+    },
+    {
+      "line": 69,
+      "text": "'replies' => 1,"
+    },
+    {
+      "line": 72,
+      "text": "'locked' => 1,"
+    },
+    {
+      "line": 76,
+      "text": "private function translateFields($fields, $object, &$apiPost) {"
+    },
+    {
+      "line": 90,
+      "text": "private function translateFile($file, $post, &$apiPost) {"
+    },
+    {
+      "line": 104,
+      "text": "private function translatePost($post, $threadsPage = false) {"
+    },
+    {
+      "line": 130,
+      "text": "// Note: 4chan only supports one file, so only the first file is taken into account for 4chan-compatible API."
+    },
+    {
+      "line": 135,
+      "text": "$extra_files = array();"
+    },
+    {
+      "line": 142,
+      "text": "$extra_files[] = $extra_file;"
+    },
+    {
+      "line": 144,
+      "text": "$apiPost['extra_files'] = $extra_files;"
+    },
+    {
+      "line": 151,
+      "text": "function translateThread(Thread $thread, $threadsPage = false) {"
+    },
+    {
+      "line": 155,
+      "text": "$apiPosts['posts'][] = $op;"
+    },
+    {
+      "line": 158,
+      "text": "$apiPosts['posts'][] = $this->translatePost($p, $threadsPage);"
+    },
+    {
+      "line": 164,
+      "text": "function translatePage(array $threads) {"
+    },
+    {
+      "line": 172,
+      "text": "function translateCatalogPage(array $threads, $threadsPage = false) {"
+    },
+    {
+      "line": 176,
+      "text": "$apiPage['threads'][] = current($ts['posts']);"
+    },
+    {
+      "line": 181,
+      "text": "function translateCatalog($catalog, $threadsPage = false) {"
+    }
+  ]
+}

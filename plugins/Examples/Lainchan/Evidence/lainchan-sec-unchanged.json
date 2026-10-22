@@ -1,0 +1,17 @@
+{
+  "url": "https://lainchan.org/sec/res/27498.json",
+  "utc": "2026-10-22T15:51:10.344435+00:00",
+  "method": "GET",
+  "request_headers": {
+    "If-None-Match": "\"6ada0409-1a41c\""
+  },
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "byte_limit": 0,
+  "status": 304,
+  "headers": {
+    "Last-Modified": "Thu, 22 Oct 2026 12:39:37 GMT",
+    "ETag": "\"6ada0409-1a41c\""
+  },
+  "body_read_bytes": 0
+}

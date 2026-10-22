@@ -1,0 +1,17 @@
+{
+  "url": "https://kohlchan.net/cyber/res/0.json",
+  "utc": "2026-10-22T19:54:23.123676+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "request_headers": {},
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 404,
+  "headers": {
+    "Content-Type": "text/html; charset=utf-8",
+    "last-modified": "Thu, 18 Jun 2026 21:26:47 GMT"
+  },
+  "read_bytes": 8387,
+  "truncated": false,
+  "body_sha256": "c584d40c801ee4ee38b194211144ce11fe153e6e69ec876327528585f3115644"
+}

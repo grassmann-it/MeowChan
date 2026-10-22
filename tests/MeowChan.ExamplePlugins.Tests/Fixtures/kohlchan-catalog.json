@@ -1,0 +1,16 @@
+[
+  {
+    "threadId": 123,
+    "subject": "First",
+    "markdown": "<p>Opening</p>",
+    "postCount": 1,
+    "fileCount": 3,
+    "page": 1
+  },
+  {
+    "threadId": 456,
+    "subject": "Second",
+    "message": "Plain opening",
+    "page": 2
+  }
+]

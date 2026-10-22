@@ -1,0 +1,18 @@
+{
+  "url": "https://kohlchan.net/int/res/28988287.json",
+  "utc": "2026-10-22T19:55:07.781615+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "request_headers": {
+    "If-Modified-Since": "Thu, 22 Oct 2026 19:52:42 GMT"
+  },
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 304,
+  "headers": {
+    "last-modified": "Thu, 22 Oct 2026 19:52:42 GMT"
+  },
+  "read_bytes": 0,
+  "truncated": false,
+  "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

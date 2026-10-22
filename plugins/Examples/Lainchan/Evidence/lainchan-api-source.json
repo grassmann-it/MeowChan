@@ -1,0 +1,140 @@
+{
+  "url": "https://raw.githubusercontent.com/lainchan/lainchan/master/inc/api.php",
+  "utc": "2026-10-22T19:53:35.996435+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "status": 200,
+  "headers": {
+    "Content-Length": "5078",
+    "Content-Type": "text/plain; charset=utf-8",
+    "ETag": "\"c615d19b366a320787a05b2be1dc0ea74fc60d3ae8b76986e6f87b86465786ff\""
+  },
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "read_bytes": 5078,
+  "truncated": false,
+  "body_sha256": "3e111eccf4f6743e898b992c9f538b50e96a3bc57a548a074672621949328ada",
+  "source_lines": [
+    {
+      "line": 90,
+      "text": "\tprivate function translateFile($file, $post, &$apiPost) {"
+    },
+    {
+      "line": 91,
+      "text": "\t\t$this->translateFields($this->fileFields, $file, $apiPost);"
+    },
+    {
+      "line": 92,
+      "text": "\t\t$apiPost['filename'] = @substr($file->name, 0, strrpos($file->name, '.'));"
+    },
+    {
+      "line": 93,
+      "text": "\t\t$dotPos = strrpos($file->file, '.');"
+    },
+    {
+      "line": 94,
+      "text": "\t\t$apiPost['ext'] = substr($file->file, $dotPos);"
+    },
+    {
+      "line": 95,
+      "text": "\t\t$apiPost['tim'] = substr($file->file, 0, $dotPos);"
+    },
+    {
+      "line": 96,
+      "text": "\t\tif (isset ($file->hash) && $file->hash) {"
+    },
+    {
+      "line": 97,
+      "text": "\t\t\t$apiPost['md5'] = base64_encode(hex2bin($file->hash));"
+    },
+    {
+      "line": 98,
+      "text": "\t\t}"
+    },
+    {
+      "line": 99,
+      "text": "\t\telse if (isset ($post->filehash) && $post->filehash) {"
+    },
+    {
+      "line": 100,
+      "text": "\t\t\t$apiPost['md5'] = base64_encode(hex2bin($post->filehash));"
+    },
+    {
+      "line": 101,
+      "text": "\t\t}"
+    },
+    {
+      "line": 102,
+      "text": "\t}"
+    },
+    {
+      "line": 130,
+      "text": "\t\t// Note: 4chan only supports one file, so only the first file is taken into account for 4chan-compatible API."
+    },
+    {
+      "line": 131,
+      "text": "\t\tif (isset($post->files) && $post->files && !$threadsPage) {"
+    },
+    {
+      "line": 132,
+      "text": "\t\t\t$file = $post->files[0];"
+    },
+    {
+      "line": 133,
+      "text": "\t\t\t$this->translateFile($file, $post, $apiPost);"
+    },
+    {
+      "line": 134,
+      "text": "\t\t\tif (sizeof($post->files) > 1) {"
+    },
+    {
+      "line": 135,
+      "text": "\t\t\t\t$extra_files = array();"
+    },
+    {
+      "line": 136,
+      "text": "\t\t\t\tforeach ($post->files as $i => $f) {"
+    },
+    {
+      "line": 137,
+      "text": "\t\t\t\t\tif ($i == 0) continue;"
+    },
+    {
+      "line": 138,
+      "text": "\t\t\t\t"
+    },
+    {
+      "line": 139,
+      "text": "\t\t\t\t\t$extra_file = array();"
+    },
+    {
+      "line": 140,
+      "text": "\t\t\t\t\t$this->translateFile($f, $post, $extra_file);"
+    },
+    {
+      "line": 141,
+      "text": ""
+    },
+    {
+      "line": 142,
+      "text": "\t\t\t\t\t$extra_files[] = $extra_file;"
+    },
+    {
+      "line": 143,
+      "text": "\t\t\t\t}"
+    },
+    {
+      "line": 144,
+      "text": "\t\t\t\t$apiPost['extra_files'] = $extra_files;"
+    },
+    {
+      "line": 145,
+      "text": "\t\t\t}"
+    },
+    {
+      "line": 146,
+      "text": "\t\t}"
+    }
+  ],
+  "extraction": "Selected API shape excerpts only; original body not retained."
+}

@@ -1,0 +1,29 @@
+{
+  "url": "https://lainchan.org/sec/res/27498.html",
+  "utc": "2026-10-22T19:54:23.874873+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "request_headers": {},
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "headers": {
+    "Content-Type": "text/html",
+    "Content-Length": "227052",
+    "Last-Modified": "Thu, 22 Oct 2026 12:39:37 GMT",
+    "ETag": "\"6ada0409-376ec\""
+  },
+  "read_bytes": 227052,
+  "truncated": false,
+  "body_sha256": "2e8cb63b49895e9f42e71dac3d74b5e6e399c2b84383e5dc139c1620971b6b03",
+  "original_media_paths": [
+    "/sec/src/1764313136267-0.png",
+    "/sec/src/1764658193665-0.jpg"
+  ],
+  "preview_media_paths": [
+    "/sec/thumb/1764313136267-0.png",
+    "/sec/thumb/1764658193665-0.png",
+    "/sec/thumb/1764684424667-0.png",
+    "/sec/thumb/1767898186783-0.png"
+  ]
+}

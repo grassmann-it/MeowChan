@@ -1,0 +1,80 @@
+{
+  "url": "https://kohlchan.net/int/res/28988287.json",
+  "utc": "2026-10-22T19:55:07.439323+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "request_headers": {},
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "last-modified": "Thu, 22 Oct 2026 19:52:42 GMT"
+  },
+  "read_bytes": 1309,
+  "truncated": false,
+  "body_sha256": "195d969916e736a543692b6bcac940399b9d5556377f34e5b624c3bb63996fb7",
+  "json_top_type": "object",
+  "top_keys": [
+    "archived",
+    "autoSage",
+    "boardDescription",
+    "boardMarkdown",
+    "boardName",
+    "boardUri",
+    "creation",
+    "cyclic",
+    "email",
+    "files",
+    "flag",
+    "flagCode",
+    "flagName",
+    "forceAnonymity",
+    "id",
+    "locked",
+    "markdown",
+    "maxFileCount",
+    "maxFileSize",
+    "maxMessageLength",
+    "message",
+    "name",
+    "pinned",
+    "posts",
+    "reportCategories",
+    "signedRole",
+    "subject",
+    "threadId",
+    "uniquePosters",
+    "usesCustomCss",
+    "usesCustomJs",
+    "wsPort"
+  ],
+  "post_count": 0,
+  "post_key_union": [],
+  "state_fields": {
+    "threadId": 28988287,
+    "boardUri": "int",
+    "archived": false,
+    "locked": false,
+    "cyclic": false
+  },
+  "files_per_post": [
+    1
+  ],
+  "file_key_union": [
+    "height",
+    "mime",
+    "originalName",
+    "path",
+    "size",
+    "thumb",
+    "width"
+  ],
+  "example_file_paths": [
+    {
+      "path": "/.media/685e4ab313ec1ffa680d53f5e79b08d4bf0a308f8039e0d4e775e2ee681a8390.png",
+      "thumb": "/.media/t_685e4ab313ec1ffa680d53f5e79b08d4bf0a308f8039e0d4e775e2ee681a8390",
+      "mime": "image/png"
+    }
+  ]
+}

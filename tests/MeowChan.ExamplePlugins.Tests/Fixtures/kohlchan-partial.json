@@ -1,0 +1,10 @@
+{
+  "threadId": 123,
+  "boardUri": "demo",
+  "posts": [
+    {
+      "postId": 124,
+      "markdown": ""
+    }
+  ]
+}

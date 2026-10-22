@@ -1,0 +1,41 @@
+{
+  "threadId": 123,
+  "boardUri": "demo",
+  "creation": "2023-11-14T22:13:20.000Z",
+  "subject": "Synthetic thread",
+  "name": "Synthetic author",
+  "markdown": "<p>Synthetic text</p>",
+  "message": "Synthetic text",
+  "locked": true,
+  "cyclic": true,
+  "archived": false,
+  "files": [
+    {
+      "originalName": "same.png",
+      "path": "/.media/alpha.png",
+      "thumb": "/.media/t_alpha",
+      "size": 4,
+      "mime": "image/png"
+    },
+    {
+      "originalName": "same.png",
+      "path": "/.media/beta.png",
+      "thumb": "/.media/t_beta",
+      "size": 5,
+      "mime": "image/png"
+    },
+    {
+      "originalName": "movie.webm",
+      "path": "/.media/gamma.webm",
+      "size": 6,
+      "mime": "video/webm"
+    }
+  ],
+  "posts": [
+    {
+      "postId": 124,
+      "message": "Synthetic reply",
+      "files": []
+    }
+  ]
+}

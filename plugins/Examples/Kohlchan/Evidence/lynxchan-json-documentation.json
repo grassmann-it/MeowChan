@@ -1,0 +1,292 @@
+{
+  "url": "https://raw.githubusercontent.com/skyssolutions/lynxchan/master/doc/Json.txt",
+  "utc": "2026-10-22T19:53:35.645553+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "status": 200,
+  "headers": {
+    "Content-Length": "12520",
+    "Content-Type": "text/plain; charset=utf-8",
+    "ETag": "\"cbea5b68ee644fc3898e7046f9e6f4fc9f582fa88548d19d65d342f10901c56c\""
+  },
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "read_bytes": 12520,
+  "truncated": false,
+  "body_sha256": "684a4257000dc33ea3eaf93e381dce9324b376db49e95fb549e5b9de4c47aa24",
+  "source_lines": [
+    {
+      "line": 37,
+      "text": ""
+    },
+    {
+      "line": 38,
+      "text": "Path:/<board>/res/<thread>.json"
+    },
+    {
+      "line": 39,
+      "text": ""
+    },
+    {
+      "line": 60,
+      "text": "    id: thread-wise id of the poster."
+    },
+    {
+      "line": 61,
+      "text": "    boardUri: uri of the board where the thread belongs to."
+    },
+    {
+      "line": 62,
+      "text": "    email: email of the poster."
+    },
+    {
+      "line": 63,
+      "text": "    markdown: message with html markdown applied."
+    },
+    {
+      "line": 64,
+      "text": "    flag: url of the used flag."
+    },
+    {
+      "line": 65,
+      "text": "    flagData(Array): array with the available flags for the board. Each element contains the following fields:"
+    },
+    {
+      "line": 66,
+      "text": "        _id: id of the flag."
+    },
+    {
+      "line": 67,
+      "text": "        name: name of the flag."
+    },
+    {
+      "line": 68,
+      "text": "    threadId(Number): unique id of the thread inside the board."
+    },
+    {
+      "line": 69,
+      "text": "    subject: subject of the thread."
+    },
+    {
+      "line": 70,
+      "text": "    lastEditTime(Date): date of the last time the message of the thread message was edited."
+    },
+    {
+      "line": 71,
+      "text": "    flagName: name of the used flag."
+    },
+    {
+      "line": 72,
+      "text": "    flagCode: location code of the flag."
+    },
+    {
+      "line": 73,
+      "text": "    lastEditLogin: Login of the last user to edit the thread message."
+    },
+    {
+      "line": 74,
+      "text": "    message: text of the post."
+    },
+    {
+      "line": 75,
+      "text": "    name: name of the poster."
+    },
+    {
+      "line": 76,
+      "text": "    creation(Date): time when the post was created."
+    },
+    {
+      "line": 77,
+      "text": "    autoSage(Boolean): indicates if the thread is bumplocked."
+    },
+    {
+      "line": 78,
+      "text": "    locked(Boolean: indicates if the thread is locked and cannot be replied to."
+    },
+    {
+      "line": 79,
+      "text": "    cyclic(Boolean): indicates if the thread is cyclic."
+    },
+    {
+      "line": 80,
+      "text": "    archived(Boolean): indicates if the thread has been archived."
+    },
+    {
+      "line": 81,
+      "text": "    pinned(Boolean): indicates if the thread is pinned and will be listed on top of unpinned threads."
+    },
+    {
+      "line": 82,
+      "text": "    files(Array): files uploaded with the thread. Each object contains the following fields:"
+    },
+    {
+      "line": 83,
+      "text": "        originalName: original name of the upload."
+    },
+    {
+      "line": 84,
+      "text": "        path: path for the file."
+    },
+    {
+      "line": 85,
+      "text": "        thumb: path for the file's thumbnail."
+    },
+    {
+      "line": 86,
+      "text": "        size(Number) size in bytes of the file."
+    },
+    {
+      "line": 87,
+      "text": "        mime: mime of the file."
+    },
+    {
+      "line": 88,
+      "text": "        width(Number): width of the file, if image."
+    },
+    {
+      "line": 89,
+      "text": "        height(Number): size of the file, if image."
+    },
+    {
+      "line": 90,
+      "text": "    posts(Array): array of the posts in this thread. Each object contains the following fields:"
+    },
+    {
+      "line": 91,
+      "text": "        name: name of the poster."
+    },
+    {
+      "line": 92,
+      "text": "        trash(Boolean): true if the post is trashed."
+    },
+    {
+      "line": 93,
+      "text": "        signedRole: role of the user that posted the thread."
+    },
+    {
+      "line": 94,
+      "text": "        email: email of the poster."
+    },
+    {
+      "line": 95,
+      "text": "        flag: url of the used flag."
+    },
+    {
+      "line": 96,
+      "text": "        flagCode: location code of the flag."
+    },
+    {
+      "line": 97,
+      "text": "        flagName: name of the used flag."
+    },
+    {
+      "line": 98,
+      "text": "        lastEditTime(Date): date of the last time the message of the thread message was edited."
+    },
+    {
+      "line": 181,
+      "text": "            postId(Number): unique id of the post inside the board."
+    },
+    {
+      "line": 182,
+      "text": "            id: thread-wise id of the poster."
+    },
+    {
+      "line": 183,
+      "text": "            subject: subject of the thread."
+    },
+    {
+      "line": 184,
+      "text": "            message: text of the post."
+    },
+    {
+      "line": 185,
+      "text": "            banMessage: message to be displayed indicating this message was a cause to a ban."
+    },
+    {
+      "line": 186,
+      "text": "            creation(Date): time when the post was created."
+    },
+    {
+      "line": 187,
+      "text": "            files(Array): pre-aggregated array of files uploaded with the post. Each object contains the following fields:"
+    },
+    {
+      "line": 188,
+      "text": "                originalName: original name of the upload."
+    },
+    {
+      "line": 189,
+      "text": "                path: path for the file."
+    },
+    {
+      "line": 190,
+      "text": "                thumb: path for the file's thumbnail."
+    },
+    {
+      "line": 191,
+      "text": "                mime: mime of the file."
+    },
+    {
+      "line": 192,
+      "text": "                size(Number) size in bytes of the file."
+    },
+    {
+      "line": 193,
+      "text": "                width(Number): width of the file, if image."
+    },
+    {
+      "line": 194,
+      "text": "                height(Number): size of the file, if image. "
+    },
+    {
+      "line": 195,
+      "text": ""
+    },
+    {
+      "line": 196,
+      "text": "------------------------------------------------------------------------------------------"
+    },
+    {
+      "line": 197,
+      "text": ""
+    },
+    {
+      "line": 198,
+      "text": "JSO_ID::04"
+    },
+    {
+      "line": 199,
+      "text": ""
+    },
+    {
+      "line": 200,
+      "text": "Path:/<board>/catalog.json"
+    },
+    {
+      "line": 201,
+      "text": ""
+    },
+    {
+      "line": 202,
+      "text": "Root(Array): array of objects representing threads. Each element contains the following fields:"
+    },
+    {
+      "line": 203,
+      "text": "    message: message of the thread."
+    }
+  ],
+  "extraction": "Selected API shape excerpts only; original body not retained.",
+  "catalog_excerpt": [
+    "JSO_ID::04",
+    "Path:/<board>/catalog.json",
+    "Root(Array): array of objects representing threads. Each element contains the following fields:",
+    "    message: message of the thread.",
+    "    markdown: message with html markdown applied.",
+    "    threadId(Number): id of the thread.",
+    "    postCount(Number): how many replies the thread has.",
+    "    fileCount(Number): how many files were posted in replies in this thread.",
+    "    page(Number): which thread of the board the thread is.",
+    "    subject: subject of the thread."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "url": "https://kohlchan.net/bus/catalog.json",
+  "utc": "2026-10-22T19:55:06.842946+00:00",
+  "method": "GET",
+  "byte_limit": 262144,
+  "request_headers": {},
+  "cookies_sent": false,
+  "redirects_followed": false,
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "last-modified": "Thu, 08 Oct 2026 20:25:29 GMT"
+  },
+  "read_bytes": 262145,
+  "truncated": true,
+  "body_sha256": "4feb4215434aa1ab5e79a7551200b7da81223e680ecbd568fe8ca0063867766f"
+}
