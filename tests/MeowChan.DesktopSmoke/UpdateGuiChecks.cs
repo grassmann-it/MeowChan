@@ -46,7 +46,7 @@ internal static class UpdateGuiChecks
             await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 28);
             string[] handoffs = File.ReadAllLines(browserCapture);
             Require(handoffs[16] == Handler.ReleaseUrl && handoffs[23] == Handler.DownloadUrl,
-                "Update actions did not hand the fixture release and RID-specific asset URLs to the fake browser.");
+                "Update browser handoff differs: " + handoffs[16] + " | " + handoffs[23] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
             about.Close();
             about = null;
 
@@ -54,13 +54,21 @@ internal static class UpdateGuiChecks
             foreach (string theme in new[] { "Dark", "Light" })
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             {
+                await host.SaveViewPreferencesAsync(current => { current.Language = language; current.Theme = theme; });
                 Texts.SetLanguage(language);
-                Application.Current!.RequestedThemeVariant = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
-                await PresentationChecks.SwitchModeAsync(window, mode);
+                ThemeVariant expectedTheme = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
+                Application.Current!.RequestedThemeVariant = expectedTheme;
+                ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+                modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
+                await Program.WaitUntilAsync(() => host.Config.WorkspaceMode == mode
+                    && Config.LoadConfig(profile).WorkspaceMode == mode
+                    && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
                 window.Width = mode == "Barebones" ? 640 : 760;
                 window.Height = mode == "Barebones" ? 480 : 500;
                 await Task.Delay(60);
                 window.UpdateLayout();
+                Require(Texts.Language == language && window.ActualThemeVariant == expectedTheme,
+                    "The requested language/theme matrix state was not applied.");
                 Button notice = window.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "UpdateNoticeButton");
                 Require(notice.IsVisible && notice.Bounds.Width > 0 && notice.Bounds.Height > 0,
                     "Update notice is missing in " + language + "/" + theme + "/" + mode);
@@ -74,14 +82,25 @@ internal static class UpdateGuiChecks
                 about = window.OwnedWindows.OfType<AboutWindow>().Single();
                 await Task.Delay(40);
                 Require(about.FindControl<TextBlock>("UpdateStatusText")!.Text == Texts.T("updates.available", "9.8.7"), "About update status is not localized.");
+                Require(about.ActualThemeVariant == expectedTheme, "About did not inherit the selected theme.");
                 Capture(about, $"smoke-updates-{language}-{theme}-{mode}-about.png");
                 about.Close();
                 about = null;
+                if (mode == "Advanced")
+                {
+                    window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    window.SettingsEditor.FindControl<TextBlock>("UpdatePrivacyText")!.BringIntoView();
+                    await Task.Delay(40);
+                    Capture(window, $"smoke-updates-settings-{language}-{theme}.png");
+                    window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
             }
 
             // Settings drafts change no live preference until Save, and Discard restores all update/budget fields.
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             SettingsEditor editor = window.SettingsEditor;
+            Require(editor.FindControl<CheckBox>("AutomaticUpdatesInput")!.IsEffectivelyEnabled,
+                "Update settings did not use their actual profile session's enabled state.");
             editor.AutomaticUpdateChecks = false;
             editor.IncludePrereleaseUpdates = true;
             editor.MinimumFreeSpaceGiB = 3;
@@ -92,10 +111,12 @@ internal static class UpdateGuiChecks
                 "Discard failed to restore update and resource preferences.");
             editor.AutomaticUpdateChecks = false;
             editor.MinimumFreeSpaceGiB = 2;
+            editor.SelectedLanguage = editor.LanguageChoices.Single(choice => choice.Code == "de");
+            editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == "Light");
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks);
             Require(!editor.HasError && Config.LoadConfig(profile).MinimumFreeSpaceGiB == 2, "Updated settings were not persisted.");
-            editor.FindControl<CheckBox>("AutomaticUpdatesInput")!.BringIntoView();
+            editor.FindControl<TextBlock>("UpdatePrivacyText")!.BringIntoView();
             await Task.Delay(50);
             Capture(window, "smoke-updates-settings-de-Light.png");
 
@@ -136,7 +157,8 @@ internal static class UpdateGuiChecks
     private static void Capture(Window window, string name)
     {
         window.UpdateLayout();
-        using RenderTargetBitmap bitmap = new(new PixelSize((int)Math.Ceiling(window.Bounds.Width), (int)Math.Ceiling(window.Bounds.Height)), new Vector(96, 96));
+        double scale = window.RenderScaling;
+        using RenderTargetBitmap bitmap = new(new PixelSize((int)Math.Ceiling(window.Bounds.Width * scale), (int)Math.Ceiling(window.Bounds.Height * scale)), new Vector(96 * scale, 96 * scale));
         bitmap.Render(window);
         bitmap.Save(Path.Combine(AppContext.BaseDirectory, name), PngBitmapEncoderOptions.Default);
     }

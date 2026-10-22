@@ -56,7 +56,25 @@ namespace MeowChan
         private bool _automaticUpdateChecks;
         private bool _includePrereleaseUpdates;
         private decimal? _minimumFreeSpaceGiB;
-        internal UpdateSession? Updates { get; set; }
+        private UpdateSession? _updates;
+        internal UpdateSession? Updates
+        {
+            get => _updates;
+            set
+            {
+                if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
+                _updates = value;
+                if (_updates != null) _updates.Changed += OnUpdateStateChanged;
+                OnUpdateStateChanged();
+            }
+        }
+
+        private void OnUpdateStateChanged() => Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosed) return;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UpdatesDisabled)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UpdatesEnabled)));
+        });
         private decimal? _productionWorkers;
         private decimal? _workerIdleMinutes;
         private decimal? _sourceHeapMiB;
@@ -154,7 +172,7 @@ namespace MeowChan
         public string IncludePrereleaseUpdatesLabel => Texts.T("updates.prereleases");
         public string UpdatePrivacyHint => Texts.T("updates.privacy");
         public string UpdateDisabledReason => Texts.T("updates.disabled");
-        public bool UpdatesDisabled => Environment.GetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK") == "1";
+        public bool UpdatesDisabled => Updates?.View.EnvironmentDisabled ?? Environment.GetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK") == "1";
         public bool UpdatesEnabled => !UpdatesDisabled;
         public string ReserveLabel => Texts.T("budgets.reserve");
         public string ReserveHint => Texts.T("budgets.reserveHint");
@@ -361,6 +379,7 @@ namespace MeowChan
             if (_isClosed) return;
             _isClosed = true;
             Texts.Changed -= OnLanguageChanged;
+            if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
         }
 

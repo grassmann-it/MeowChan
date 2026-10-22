@@ -21,7 +21,22 @@ public sealed record UpdateCheckResult(UpdateCheckStatus Status, UpdateInfo? Upd
 public sealed record UpdateServiceOptions
 {
     public required SemanticVersion CurrentVersion { get; init; }
-    public string RuntimeIdentifier { get; init; } = RuntimeInformation.RuntimeIdentifier;
+    public string RuntimeIdentifier { get; init; } = CurrentRuntimeIdentifier();
+
+    // Distribution-provided .NET builds can report e.g. arch-x64. Release assets use portable RIDs.
+    internal static string CurrentRuntimeIdentifier()
+    {
+        string? architecture = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "x64",
+            Architecture.Arm64 => "arm64",
+            _ => null
+        };
+        string? platform = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsLinux() ? "linux"
+            : OperatingSystem.IsMacOS() ? "osx" : null;
+        return architecture != null && platform != null ? platform + "-" + architecture : RuntimeInformation.RuntimeIdentifier;
+    }
+
     public bool IncludePrereleases { get; init; }
     public bool AutomaticChecksEnabled { get; init; } = true;
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(15);

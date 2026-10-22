@@ -21,6 +21,20 @@ public sealed class UpdateAssetSelectionTests
     }
 
     [Fact]
+    public async Task CurrentDistributionRuntimeUsesPortableReleaseAssetNames()
+    {
+        string rid = UpdateServiceOptions.CurrentRuntimeIdentifier();
+        string extension = OperatingSystem.IsWindows() ? ".zip" : OperatingSystem.IsMacOS() ? ".dmg" : ".AppImage";
+        string name = "MeowChan-2.0.0-" + rid + extension;
+        string url = "https://github.com/tfgrass/MeowChan/releases/download/v2.0.0/" + name;
+        using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("v2.0.0",
+            assets: [new { name, browser_download_url = url }]),
+            new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.0.0") });
+        UpdateInfo? result = (await fixture.Service.CheckAsync(UpdateCheckKind.Manual)).Update;
+        Assert.Equal(url, result?.DownloadUri.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task MultipleLinuxPackagesFallBackToTheOfficialReleasePage()
     {
         string[] names = ["MeowChan-2.0.0-linux-x64.AppImage", "MeowChan-2.0.0-linux-x64-bundled-vlc.tar.gz",
