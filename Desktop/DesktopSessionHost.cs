@@ -73,7 +73,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
-        Func<string, Config, UpdateSession>? updateSessionFactory = null)
+        Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null)
     {
         _logger = logger ?? Log.Logger;
         _profileLease = ProfileLease.Acquire(profileDirectory);
@@ -88,7 +88,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _downloadQueue = queue;
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             queue.SetPaused(Config.DownloadsPaused);
-            if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger);
+            if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger, pluginTransportFactory);
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);

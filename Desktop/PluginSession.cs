@@ -53,7 +53,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal IReadOnlyList<PluginSourceImageBoard> Sources { get; private set; } = Array.Empty<PluginSourceImageBoard>();
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
 
-    internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger)
+    internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
+        Func<HttpClient>? transportFactory = null)
     {
         _queue = queue; _logger = logger;
         string applicationDirectory = PayloadDirectory();
@@ -79,7 +80,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         string working = Path.Combine(profileDirectory, "plugin-workers");
         _launch = new PluginWorkerLaunch(Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
             Array.Empty<string>(), working);
-        _transport = PluginHostHttp.CreateTransport();
+        // The optional factory only replaces network transport; this session owns the returned client.
+        _transport = transportFactory?.Invoke() ?? PluginHostHttp.CreateTransport();
         ProfileStore.LifecycleChanged += OnLifecycleChanged;
         ProfileStore.GrantChanged += OnGrantChanged;
     }
