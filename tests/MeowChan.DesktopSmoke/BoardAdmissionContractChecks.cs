@@ -112,7 +112,7 @@ internal static class BoardAdmissionContractChecks
         modal.UpdateLayout();
         Require(reset.Parent is Grid decision && reset.Bounds.Width < decision.Bounds.Width / 2
             && reset.Bounds.Height >= 32 && InWindow(modal, reset), "Board reset became a full-width or clipped action at dialog minimum.");
-        Require(AutomationProperties.GetName(reset).Contains("#3", StringComparison.Ordinal)
+        Require(AutomationProperties.GetName(reset)?.Contains("#3", StringComparison.Ordinal) == true
             && AutomationProperties.GetHelpText(reset) == Texts.T("wizard.resetChoiceHint"), "Repeated reset actions lack their thread identity or draft scope.");
         Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-before.png");
         reset.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });

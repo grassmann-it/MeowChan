@@ -15,6 +15,7 @@ using MeowChan.Storage;
 string profile = Path.GetFullPath(args.Single());
 if (Directory.Exists(profile)) throw new InvalidOperationException("Generator requires a new profile path.");
 Directory.CreateDirectory(profile);
+Directory.CreateDirectory(Path.Combine(profile, "exports"));
 new Config { DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = true,
     SaveUrlsOnExit = true, MaxParallelDownloads = 2,
     RecheckTimer = 3600, CompactDensity = true,

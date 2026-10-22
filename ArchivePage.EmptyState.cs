@@ -11,7 +11,7 @@ public partial class ArchivePage
     private bool _listLoaded;
 
     internal static bool HasArchiveConstraints(ArchiveThreadQuery query, int workFilter) =>
-        !string.IsNullOrEmpty(query.Text) || query.Source != null || query.Board != null
+        !string.IsNullOrWhiteSpace(query.Text) || query.Source != null || query.Board != null
         || query.SourceState != null || query.CaptureEnabled != null || query.HasPosts != null
         || workFilter != 0;
 

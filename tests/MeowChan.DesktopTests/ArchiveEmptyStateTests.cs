@@ -10,6 +10,7 @@ public sealed class ArchiveEmptyStateTests
     {
         foreach (ArchiveThreadSort sort in Enum.GetValues<ArchiveThreadSort>())
             Assert.False(ArchivePage.HasArchiveConstraints(new ArchiveThreadQuery(Sort: sort), 0));
+        Assert.False(ArchivePage.HasArchiveConstraints(new ArchiveThreadQuery(Text: " \t "), 0));
     }
 
     [Fact]

@@ -68,7 +68,8 @@ public sealed class DesktopUpgradeIntegrationTests
                 Assert.Equal(MediaWorkStatus.Succeeded, Assert.Single(work.Media).Status);
                 ArchivedThreadView view = (await reader.ReadThreadAsync(id))!;
                 Assert.NotNull(view);
-                Assert.Equal(JsonSerializer.Serialize(old.GetProperty("Posts")), JsonSerializer.Serialize(view.GetPosts()));
+                Assert.True(JsonElement.DeepEquals(old.GetProperty("Posts"), JsonSerializer.SerializeToElement(view.GetPosts())),
+                    "Migrated posts differ from the old captured structure.");
                 Assert.Equal(old.GetProperty("MediaDirectory").GetString(), view.Summary.MediaDirectory);
                 MediaAssetReference asset = Assert.Single((await MediaAssetReader.OpenAsync(view.Summary.MediaDirectory)).GetPage());
                 Assert.Equal(old.GetProperty("Asset").Deserialize<MediaAssetReference>(), asset);
@@ -79,6 +80,7 @@ public sealed class DesktopUpgradeIntegrationTests
                 Assert.Equal(old.GetProperty("Export").GetProperty("ExportId").GetGuid(), verified.Entry.ExportId);
                 Assert.Equal(old.GetProperty("Export").GetProperty("Generation").GetInt32(), verified.Entry.Generation);
                 // Re-export the migrated archive through 1.0 and verify the same original bytes.
+                Directory.CreateDirectory(Path.Combine(profile, "reexport-" + startup));
                 ArchiveHtmlExportResult fresh = await ArchiveHtmlExporter.ExportAsync(reader, id,
                     Path.Combine(profile, "reexport-" + startup, id.Source));
                 Assert.Equal(2, fresh.PostCount);
