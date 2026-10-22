@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Admission;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -217,14 +218,27 @@ internal static class PresentationChecks
             SelectableTextBlock sources = resultViewport.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .Single(block => block.Name == "AdmissionSourcesHelp");
             Require(input.Text == rejectedInput, "The small-window rejection discarded the editable URL batch.");
-            Require(repair.Text?.Contains(Texts.T("admission.repairUnsupported"), StringComparison.Ordinal) == true
-                && repair.Text.Contains(Texts.T("admission.repairFormat", "https://boards.4chan.org/b/thread/123456"), StringComparison.Ordinal),
-                "The small-window repair did not retain its immediate cause and matching URL example.");
+            string repairText = repair.Text ?? string.Empty;
+            string repairPrefix = Texts.T("admission.repairUnsupported") + Environment.NewLine
+                + Texts.T("admission.repairFormat", string.Empty);
+            Require(repairText.StartsWith(repairPrefix, StringComparison.Ordinal),
+                "The small-window repair did not retain its complete immediate cause and localized URL-example label.");
+            // An unknown host can use any registered source's valid example. Plugin
+            // activation order must not turn one particular source into a UI contract.
+            string exampleUrl = repairText[repairPrefix.Length..];
+            ProviderDescriptor[] providers = window.SessionHost.GetProviderDescriptors().ToArray();
+            BoardAdmissionTarget? example = window.SessionHost.ClassifyAdmission(exampleUrl);
+            Require(Uri.TryCreate(exampleUrl, UriKind.Absolute, out Uri? exampleUri)
+                && providers.Any(provider => provider.SupportedHosts.Prepend(provider.BaseUri.Host)
+                    .Contains(exampleUri.Host, StringComparer.OrdinalIgnoreCase))
+                && example != null && example.Url == exampleUrl,
+                "The displayed repair example was not a canonical URL accepted by a registered source: " + exampleUrl);
             Require(InViewport(window, repairViewport) && FitsVertically(repair, repairViewport),
                 "The small-window repair clipped the immediate cause or URL example.");
             Require(Enumerable.Range(1, 6).All(index => report.Text?.Contains("https://unsupported.invalid/small-window-" + index, StringComparison.Ordinal) == true)
                 && sources.Text?.Contains("https://boards.4chan.org/", StringComparison.Ordinal) == true
-                && sources.Text.Contains("https://8kun.top/", StringComparison.Ordinal),
+                && sources.Text.Contains("https://8kun.top/", StringComparison.Ordinal)
+                && providers.All(provider => sources.Text.Contains(provider.DisplayName + " (" + provider.BaseUri.AbsoluteUri + ")", StringComparison.Ordinal)),
                 "The scrollable results lost rejected URLs or the separate registered-source help.");
             await WaitForLayoutAsync(window, () => InViewport(window, input) && InViewport(window, add)
                 && grid.IsEffectivelyVisible && grid.Bounds.Height >= grid.RowHeight
