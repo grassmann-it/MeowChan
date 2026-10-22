@@ -24,8 +24,8 @@ not fetch media, choose paths, write captures or change watch generations.
 ## Shared parser and library integration
 
 The framework-only parser is inside the same file as its SDK adapter.
-`LibraryParsing.targets`, imported by `libmeowchan.csproj`, links these exact two
-files with `MEOWCHAN_CORE`: the SDK adapters are excluded and direct library
+`LibraryParsing.targets` must be imported by `libmeowchan.csproj` during root
+integration. It links these exact two files with `MEOWCHAN_CORE`: the SDK adapters are excluded and direct library
 providers call the identical parser. No SDK/runtime/compiler reference is added
 to libmeowchan. There is no copied or separately generated library parser.
 The 0.9 library classes retain metadata name lookup, request policy, downloads,

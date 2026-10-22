@@ -37,6 +37,53 @@ public sealed class OfficialSourceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void DeclaredAliasesPreserveLibraryCanonicalUrisAndIds(bool eightKun)
+    {
+        ISourcePlugin plugin = Plugin(eightKun);
+        SourceDescription source = plugin.Describe().Sources.Single();
+        using HttpClient client = new(new LibraryTransport("", ""));
+        IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
+        Assert.Equal(eightKun ? 5 : 6, source.Routes.Count);
+        foreach (UrlRoute route in source.Routes)
+        {
+            string path = route.PathTemplate.Replace("{board}", "G", StringComparison.Ordinal)
+                .Replace("{thread}", "000123", StringComparison.Ordinal);
+            if (route.AllowTitleSegment) path = path.TrimEnd('/') + "/inert-title";
+            Uri alias = new("https://" + route.Host + path.TrimEnd('/') + "/?ignored=yes#post123");
+            if (route.Kind == SourceResourceKind.Board)
+            {
+                Assert.True(provider.IsBoardUri(alias));
+                IBoard board = provider.GetBoard(alias);
+                Assert.Equal("g", board.BoardCode);
+                Assert.Equal(eightKun ? "https://8kun.top/g/" : "https://boards.4chan.org/g/", board.BoardUri.AbsoluteUri);
+            }
+            else
+            {
+                Assert.True(provider.IsThreadUri(alias));
+                IThread thread = provider.GetThread(alias);
+                Assert.Equal("000123", thread.ThreadId);
+                Assert.Equal(eightKun ? "https://8kun.top/g/res/000123.html" : "https://boards.4chan.org/g/thread/000123", thread.ThreadUri.AbsoluteUri);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AttachmentIdentityAndFilenameFallbackRemainProviderSpecific(bool eightKun)
+    {
+        ISourcePlugin plugin = Plugin(eightKun);
+        SdkThreadSnapshot result = Assert.IsType<SdkThreadSnapshot>(await plugin.ReadThreadAsync(Request(eightKun),
+            Context(new FixtureHttp(Response(200, "{\"posts\":[{\"no\":123,\"tim\":\"000777\",\"ext\":\".png\",\"filename\":null}]}")))));
+        SourceAttachment file = Assert.Single(Assert.Single(result.Snapshot.Posts).Attachments!);
+        Assert.Equal(eightKun ? "000777" : "777", file.MediaId);
+        Assert.Equal(eightKun ? "000777.png" : "unknown.png", file.OriginalFileName);
+        Assert.Equal(eightKun ? "https://nerv.8kun.top/file_store/000777.png" : "https://i.4cdn.org/g/777.png", file.Url!.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CapturedFixtureMatchesLibraryPostsAttachmentsAndCatalog(bool eightKun)
     {
         string json = Fixture("thread.json");
