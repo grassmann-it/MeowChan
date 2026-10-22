@@ -25,9 +25,13 @@ internal static class MediaRetryChecks
         object? previous = grid.SelectedItem;
         string language = Texts.Language;
         window.UrlList.Add(row);
-        grid.SelectedItem = row;
         try
         {
+            // Passive fixture additions reach the filtered ItemsSource on the coalesced UI update.
+            await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(row)
+                && grid.CollectionView.Cast<ThreadRow>().Contains(row));
+            grid.SelectedItem = row;
+            await Program.WaitUntilAsync(() => ReferenceEquals(grid.SelectedItem, row) && grid.SelectedItems.Contains(row));
             foreach (string selectedLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(selectedLanguage);

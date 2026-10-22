@@ -321,6 +321,8 @@ internal static class ReaderUxChecks
         try
         {
             foreach (ThreadRow row in rows) window.UrlList.Add(row);
+            await Program.WaitUntilAsync(() => rows.All(row => window.VisibleThreads.Contains(row)
+                && grid.CollectionView.Cast<ThreadRow>().Contains(row)));
             grid.CollectionView.SortDescriptions.Clear();
             DataGridColumn order = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.ThreadNumber));
             order.Sort(ListSortDirection.Descending);

@@ -157,7 +157,7 @@ internal static class ShowcaseCaptures
                 throw new InvalidOperationException("The first showcase media 404 must retain its real fifteen-minute retry interval.");
             if (retryWork.SavedMedia != 17 || retryWork.MissingMedia != 1
                 || retryWork.NextDueAt == null || retryWork.Deadline != null
-                || !waiting.Progress.Contains("1 paused (404)", StringComparison.Ordinal)
+                || !waiting.Progress.Contains("1 waiting (404)", StringComparison.Ordinal)
                 || !waiting.ErrorDetails.Contains("Earliest retry:", StringComparison.Ordinal))
                 throw new InvalidOperationException("The showcase media-404 work projection lost saved counts, retry schedule or active-source semantics.");
             // Simple's grid shows compact state/counts; full media retry progress is available
@@ -174,7 +174,7 @@ internal static class ShowcaseCaptures
                 return window.FindControl<Border>("WorkspaceInspector")!.IsEffectivelyVisible
                     && progress.IsEffectivelyVisible && progress.Bounds.Width > 0
                     && progress.Text == waiting.Progress
-                    && progress.Text!.Contains("1 paused (404)", StringComparison.Ordinal)
+                    && progress.Text!.Contains("1 waiting (404)", StringComparison.Ordinal)
                     && error.IsEffectivelyVisible && error.Text == waiting.ErrorDetails
                     && error.Text!.Contains("Earliest retry:", StringComparison.Ordinal);
             });

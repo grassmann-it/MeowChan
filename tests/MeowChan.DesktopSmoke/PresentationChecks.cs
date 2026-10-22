@@ -38,7 +38,10 @@ internal static class PresentationChecks
         window.UrlList.Add(retained);
         window.BoardsList.Add(board);
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+        await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(retained)
+            && grid.CollectionView.Cast<ThreadRow>().Contains(retained));
         grid.SelectedItem = retained;
+        await Program.WaitUntilAsync(() => ReferenceEquals(grid.SelectedItem, retained) && grid.SelectedItems.Contains(retained));
 
         await CheckModeColumnProfilesAsync(window, grid);
 
