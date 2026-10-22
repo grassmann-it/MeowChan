@@ -115,6 +115,63 @@ public sealed class RouteIdentifierValidationTests
         AssertConflict(first, second, conflict);
     }
 
+    [Theory]
+    [InlineData(RouteIdentifierKind.Decimal, false)]
+    [InlineData(RouteIdentifierKind.Decimal, true)]
+    [InlineData(RouteIdentifierKind.AsciiWord, false)]
+    [InlineData(RouteIdentifierKind.AsciiWord, true)]
+    public void VariableAffixOverlapRespectsTheBoundedIdentifierLength(RouteIdentifierKind kind, bool suffix)
+    {
+        UrlRoute plain = new UrlRoute(SourceResourceKind.Thread, "source.test", "/{board}/thread/{thread}", true)
+            { ThreadIdentifierKind = kind };
+        foreach (RouteIdentifierKind affixedKind in new[] { kind, RouteIdentifierKind.PortableSegment })
+        foreach (int length in new[] { SdkLimits.MaximumIdentifierLength - 1, SdkLimits.MaximumIdentifierLength })
+        {
+            string affix = new string('1', length);
+            string segment = suffix ? "{thread}" + affix : affix + "{thread}";
+            UrlRoute affixed = plain with { PathTemplate = "/{board}/thread/" + segment, ThreadIdentifierKind = affixedKind };
+            bool conflict = length < SdkLimits.MaximumIdentifierLength;
+            AssertConflict(plain, affixed, conflict);
+            AssertConflict(affixed, plain, conflict);
+        }
+    }
+
+    [Theory]
+    [InlineData(RouteIdentifierKind.Decimal, false)]
+    [InlineData(RouteIdentifierKind.Decimal, true)]
+    [InlineData(RouteIdentifierKind.AsciiWord, false)]
+    [InlineData(RouteIdentifierKind.AsciiWord, true)]
+    public void LiteralOverlapBoundsTheIdentifierWithoutCountingItsAffixes(RouteIdentifierKind kind, bool escaped)
+    {
+        UrlRoute thread = new UrlRoute(SourceResourceKind.Thread, "source.test", "/{board}/thread/prefix-{thread}-suffix", true)
+            { ThreadIdentifierKind = kind };
+        foreach (int length in new[] { SdkLimits.MaximumIdentifierLength, SdkLimits.MaximumIdentifierLength + 1 })
+        {
+            string identifier = string.Concat(Enumerable.Repeat(escaped ? "%31" : "1", length));
+            UrlRoute board = new UrlRoute(SourceResourceKind.Board, "source.test", "/{board}/thread/prefix-" + identifier + "-suffix", true);
+            bool conflict = length <= SdkLimits.MaximumIdentifierLength;
+            AssertConflict(thread, board, conflict);
+            AssertConflict(board, thread, conflict);
+        }
+    }
+
+    [Fact]
+    public void PortableIdentifiersKeepTheirEscapedLengthAndTitleAliasesRemainUnbounded()
+    {
+        string identifier = new string('é', SdkLimits.MaximumIdentifierLength);
+        Assert.True(Uri.EscapeDataString(identifier).Length > SdkLimits.MaximumIdentifierLength);
+        UrlRoute portable = StrictRoute() with { ThreadIdentifierKind = RouteIdentifierKind.PortableSegment };
+        Assert.Empty(ValidateSnapshot(portable, "b", identifier));
+        UrlRoute literal = new UrlRoute(SourceResourceKind.Board, "source.test", "/{board}/res/" + identifier + ".html", true);
+        AssertConflict(portable, literal, true);
+        AssertConflict(literal, portable, true);
+
+        UrlRoute titled = StrictRoute() with { AllowTitleSegment = true };
+        UrlRoute longTitle = StrictRoute() with { PathTemplate = StrictRoute().PathTemplate + "/" + new string('1', SdkLimits.MaximumIdentifierLength + 1) };
+        AssertConflict(titled, longTitle, true);
+        AssertConflict(longTitle, titled, true);
+    }
+
     [Fact]
     public void VariableAffixIntersectionMatchesAnIndependentFiniteLanguageOracle()
     {

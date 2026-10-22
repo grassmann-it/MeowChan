@@ -329,7 +329,8 @@ public static class SdkValidation
             && MatchesIdentifier(Uri.UnescapeDataString(literal[template.Prefix.Length..(literal.Length - template.Suffix.Length)]), template.IdentifierKind);
 
     private static bool MatchesIdentifier(string value, RouteIdentifierKind kind)
-        => value.Length > 0 && value.All(character => AllowsIdentifierCharacter(character, kind));
+        => value.Length > 0 && (kind == RouteIdentifierKind.PortableSegment || value.Length <= SdkLimits.MaximumIdentifierLength)
+            && value.All(character => AllowsIdentifierCharacter(character, kind));
 
     private static bool AllowsIdentifierCharacter(char value, RouteIdentifierKind kind)
         => kind switch
@@ -347,6 +348,13 @@ public static class SdkValidation
         string suffix = first.Suffix.Length >= second.Suffix.Length ? first.Suffix : second.Suffix;
         int minimum = Math.Max(first.Prefix.Length + first.Suffix.Length + 1, second.Prefix.Length + second.Suffix.Length + 1);
         int maximum = Math.Max(minimum, prefix.Length + suffix.Length);
+        // Restricted ASCII IDs use one URL character per identity character.
+        // Portable IDs can expand when escaped; title aliases are also unbounded.
+        if (first.IdentifierKind != RouteIdentifierKind.PortableSegment)
+            maximum = Math.Min(maximum, first.Prefix.Length + first.Suffix.Length + SdkLimits.MaximumIdentifierLength);
+        if (second.IdentifierKind != RouteIdentifierKind.PortableSegment)
+            maximum = Math.Min(maximum, second.Prefix.Length + second.Suffix.Length + SdkLimits.MaximumIdentifierLength);
+        if (minimum > maximum) return false;
         HashSet<int> overlaps = LiteralOverlapLengths(prefix, suffix);
         int[] firstPrefix = InvalidCharacterCounts(prefix, first.IdentifierKind);
         int[] firstSuffix = InvalidCharacterCounts(suffix, first.IdentifierKind);
