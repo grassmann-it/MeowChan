@@ -416,6 +416,16 @@
           "Newtonsoft.Json": "[13.0.3, )",
           "Serilog": "[4.0.2, )"
         }
+      },
+      "meowchan.pluginhost": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )",
+          "libmeowchan": "[1.0.0, )"
+        }
+      },
+      "meowchan.pluginsdk": {
+        "type": "Project"
       }
     },
     "net10.0/win-x64": {

@@ -421,7 +421,7 @@
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.0, )",
-          "libmeowchan": "[0.9.0, )"
+          "libmeowchan": "[1.0.0, )"
         }
       },
       "meowchan.pluginsdk": {
