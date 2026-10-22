@@ -44,3 +44,4 @@ MeowChan.Persistence.MediaWork.Variant.get -> string!
 MeowChan.Persistence.MediaWork.Variant.init -> void
 MeowChan.Downloader.DownloadItem.Variant.get -> string!
 MeowChan.Downloader.DownloadItem.DownloadItem(System.Uri! downloadUri, string! destinationPath, MeowChan.Interfaces.IImageBoard! imageBoard, MeowChan.Interfaces.IThread! thread, string! mediaIdentifier, long? expectedSize, string? expectedMd5, string? originalFileName, string? legacyPath, string! variant) -> void
+static MeowChan.Storage.StorageLayout.GetMediaPath(string! root, string! source, string! board, string! thread, string! mediaId, string! ext, string! variant) -> string!

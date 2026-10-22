@@ -153,7 +153,7 @@ public sealed partial class MediaStore
             MediaManifestEntry entry = asset.Entry;
             bool current = currentAssets.TryGetValue(asset.RequestedFileName, out string? currentId)
                 && currentId == pair.Key;
-            assets.Add(new MediaAssetReference(pair.Key, entry.MediaIdentifier, "original", asset.RequestedFileName,
+            assets.Add(new MediaAssetReference(pair.Key, entry.MediaIdentifier, entry.Variant, asset.RequestedFileName,
                 Path.Combine(directory, entry.FileName), entry.Length, entry.Sha256.ToLowerInvariant(),
                 entry.SourceUrl, entry.OriginalFileName, current) { Md5 = entry.Md5 });
         }
@@ -168,7 +168,7 @@ public sealed partial class MediaStore
     private static bool IsValidAssetEntry(string directory, string requestedName, MediaManifestEntry? entry)
     {
         if (!TryGetEntryPath(directory, requestedName, out _) || entry == null
-            || !TryGetEntryPath(directory, entry.FileName, out _) || string.IsNullOrWhiteSpace(entry.MediaIdentifier)
+            || !TryGetEntryPath(directory, entry.FileName, out _) || string.IsNullOrWhiteSpace(entry.MediaIdentifier) || string.IsNullOrWhiteSpace(entry.Variant)
             || entry.Length < 0 || entry.Sha256 == null || entry.Sha256.Length != 64
             || !Uri.TryCreate(entry.SourceUrl, UriKind.Absolute, out _)) return false;
         foreach (char character in entry.Sha256)

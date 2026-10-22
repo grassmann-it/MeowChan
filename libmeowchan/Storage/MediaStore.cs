@@ -197,15 +197,19 @@ public sealed partial class MediaStore
     /// </summary>
     public Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source,
         CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null)
-        => CommitCoreAsync(item, source, cancellationToken, throttleAsync, null, null);
+        => CommitCoreAsync(item, source, cancellationToken, throttleAsync, null, null, null);
+
+    internal Task<MediaCommitResult> CommitAuthorizedAsync(DownloadItem item, Stream source,
+        Action authorizeCommit, CancellationToken cancellationToken, Func<int, CancellationToken, Task> throttle)
+        => CommitCoreAsync(item, source, cancellationToken, throttle, null, authorizeCommit, null);
 
     internal Task<MediaCommitResult> CommitVerifiedAsync(DownloadItem item, Stream source, string sha256,
-        Action authorizeCommit, CancellationToken cancellationToken)
-        => CommitCoreAsync(item, source, cancellationToken, null, sha256, authorizeCommit);
+        Action authorizeCommit, CancellationToken cancellationToken, Func<string, CancellationToken, Task>? recordTemporary = null)
+        => CommitCoreAsync(item, source, cancellationToken, null, sha256, authorizeCommit, recordTemporary);
 
     private async Task<MediaCommitResult> CommitCoreAsync(DownloadItem item, Stream source,
         CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync,
-        string? expectedSha256, Action? authorizeCommit)
+        string? expectedSha256, Action? authorizeCommit, Func<string, CancellationToken, Task>? recordTemporary)
     {
         ArgumentNullException.ThrowIfNull(source);
         string destination = GetDestination(item);
@@ -217,6 +221,7 @@ public sealed partial class MediaStore
 
         try
         {
+            if (recordTemporary != null) await recordTemporary(temporaryPath, cancellationToken).ConfigureAwait(false);
             FileDigest digest;
             await using (FileStream temporaryStream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
@@ -470,7 +475,7 @@ public sealed partial class MediaStore
 
         VerificationFingerprint fingerprint = new VerificationFingerprint(actualPath, before,
             item.ExpectedSize, expectedMd5 == null ? null : Convert.ToBase64String(expectedMd5),
-            new ManifestEntryFingerprint(entry.MediaIdentifier, entry.SourceUrl, entry.FileName, entry.Length,
+            new ManifestEntryFingerprint(entry.MediaIdentifier, entry.Variant, entry.SourceUrl, entry.FileName, entry.Length,
                 entry.Sha256, entry.Md5, entry.ExpectedMd5, entry.OriginalFileName));
         FileDigest? cached = FindVerifiedFile(cacheKey, fingerprint);
         if (cached != null)
@@ -572,7 +577,7 @@ public sealed partial class MediaStore
 
     private static bool EntryMatchesItem(MediaManifestEntry? entry, DownloadItem item)
     {
-        return entry != null && entry.MediaIdentifier == item.MediaIdentifier && entry.Length >= 0
+        return entry != null && entry.MediaIdentifier == item.MediaIdentifier && entry.Variant == item.Variant && entry.Length >= 0
             && entry.Sha256 != null && entry.Sha256.Length == 64;
     }
 
@@ -683,7 +688,7 @@ public sealed partial class MediaStore
     {
         MediaManifestEntry identity = new MediaManifestEntry
         {
-            MediaIdentifier = item.MediaIdentifier, FileName = Path.GetFileName(path), Sha256 = digest.Sha256
+            MediaIdentifier = item.MediaIdentifier, Variant = item.Variant, FileName = Path.GetFileName(path), Sha256 = digest.Sha256
         };
         return new MediaCommitResult(path, digest.Length, digest.Sha256, reused)
         {
@@ -737,6 +742,7 @@ public sealed partial class MediaStore
         MediaManifestEntry entry = new MediaManifestEntry
         {
             MediaIdentifier = item.MediaIdentifier,
+            Variant = item.Variant,
             SourceUrl = item.DownloadUri.AbsoluteUri,
             FileName = Path.GetFileName(actualPath),
             Length = digest.Length,
@@ -758,10 +764,9 @@ public sealed partial class MediaStore
     private static string GetAssetId(string requestedName, MediaManifestEntry entry)
     {
         // The identifier binds one published path and its bytes, not a mutable current-media pointer.
-        string identity = JsonSerializer.Serialize(new[]
-        {
-            requestedName, entry.MediaIdentifier, entry.FileName, entry.Sha256?.ToLowerInvariant()
-        });
+        string identity = JsonSerializer.Serialize(entry.Variant == "original"
+            ? new[] { requestedName, entry.MediaIdentifier, entry.FileName, entry.Sha256?.ToLowerInvariant() }
+            : new[] { requestedName, entry.MediaIdentifier, entry.FileName, entry.Sha256?.ToLowerInvariant(), entry.Variant });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
     }
 
@@ -910,6 +915,26 @@ public sealed partial class MediaStore
         }
     }
 
+    internal static bool TryRecoverFilterTemporary(string destinationPath, string temporaryPath)
+    {
+        string? directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
+        if (directory == null || !PathsEqual(directory, Path.GetDirectoryName(Path.GetFullPath(temporaryPath))!)) return false;
+        string name = Path.GetFileName(temporaryPath);
+        const string prefix = ".meowchan-media-";
+        if (!name.StartsWith(prefix, StringComparison.Ordinal) || !name.EndsWith(".part", StringComparison.Ordinal)
+            || !Guid.TryParseExact(name.Substring(prefix.Length, name.Length - prefix.Length - 5), "N", out _)) return false;
+        if (!File.Exists(temporaryPath)) return true;
+        try
+        {
+            using FileStream lease = new(Path.Combine(directory, DirectoryLeaseFileName), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            if ((File.GetAttributes(temporaryPath) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) return false;
+            File.Delete(temporaryPath);
+            return true;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
     private static void DeleteOwnTemporaryFile(string path)
     {
         try
@@ -927,7 +952,7 @@ public sealed partial class MediaStore
 
     private sealed record FileDigest(long Length, string Sha256, byte[] Md5);
     private sealed record FileStamp(long Length, DateTime LastWriteTimeUtc, DateTime CreationTimeUtc);
-    private sealed record ManifestEntryFingerprint(string MediaIdentifier, string SourceUrl, string FileName,
+    private sealed record ManifestEntryFingerprint(string MediaIdentifier, string Variant, string SourceUrl, string FileName,
         long Length, string Sha256, string Md5, string? ExpectedMd5, string? OriginalFileName);
     private sealed record VerificationFingerprint(string ActualPath, FileStamp Stamp, long? ExpectedSize,
         string? ExpectedMd5, ManifestEntryFingerprint ManifestEntry);
@@ -952,6 +977,7 @@ public sealed partial class MediaStore
     {
         public MediaManifestEntry() { }
         public string MediaIdentifier { get; set; } = string.Empty;
+        public string Variant { get; set; } = "original";
         public string SourceUrl { get; set; } = string.Empty;
         public string FileName { get; set; } = string.Empty;
         public long Length { get; set; }

@@ -41,10 +41,14 @@ public sealed class DownloadWorker
         MediaCommitResult? restored = await _store.TryRestoreAsync(_item, cancellationToken).ConfigureAwait(false);
         if (restored != null)
         {
-            if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
+            if (_notifyThread) NotifyDownloaded();
             return;
         }
-        if (_notifyThread) _item.Thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath);
+        if (_notifyThread)
+        {
+            if (_item.Thread is MeowChan.Boards.Base.BaseThread thread) thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath, _item.Variant);
+            else _item.Thread.MarkMediaPending(_item.MediaIdentifier, _item.DestinationPath);
+        }
 
         await using IOriginalMediaFilterLease? filterLease = _item.Filter == null ? null
             : await _item.Filter.AcquireAsync(_item, cancellationToken).ConfigureAwait(false);
@@ -69,9 +73,15 @@ public sealed class DownloadWorker
             : await filterLease.CommitAsync(verifiedItem, timedSource, _store, RecordAndThrottleAsync, cancellationToken).ConfigureAwait(false);
         // CommitAsync deliberately finishes its short manifest commit after publishing the file,
         // even when cancellation arrives then. This is a verified completion, not a partial file.
-        if (_notifyThread) _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
+        if (_notifyThread) NotifyDownloaded();
         _logger.Debug("Saved verified media {MediaId} to {Path} ({Length} bytes)",
             _item.MediaIdentifier, completed.Path, completed.Length);
+    }
+
+    private void NotifyDownloaded()
+    {
+        if (_item.Thread is MeowChan.Boards.Base.BaseThread thread) thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath, _item.Variant);
+        else _item.Thread.MarkMediaAsDownloaded(_item.MediaIdentifier, _item.DestinationPath);
     }
 
     private Task RecordAndThrottleAsync(int bytes, CancellationToken cancellationToken)

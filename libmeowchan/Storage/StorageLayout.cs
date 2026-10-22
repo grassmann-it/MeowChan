@@ -24,6 +24,16 @@ public static class StorageLayout
             ValidateSegment(board, nameof(board)), ValidateSegment(thread, nameof(thread)), fileName);
     }
 
+    /// <summary>Original paths remain unchanged; other variants use a separate filename namespace.</summary>
+    public static string GetMediaPath(string root, string source, string board, string thread, string mediaId, string ext, string variant)
+    {
+        MeowChan.Rules.MediaRuleScope.ValidateIdentity(variant, nameof(variant));
+        if (variant == "original") return GetMediaPath(root, source, board, thread, mediaId, ext);
+        string variantHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(variant))).ToLowerInvariant();
+        string fileName = ValidateSegment(mediaId, nameof(mediaId)) + "~" + variantHash + ValidateExtension(ext);
+        return CombineInsideRoot(root, ValidateSegment(source, nameof(source)), ValidateSegment(board, nameof(board)), ValidateSegment(thread, nameof(thread)), fileName);
+    }
+
     private static string ValidateSegment(string value, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > 128)

@@ -20,10 +20,12 @@ public class DownloadItem
     internal string? FilterPostId { get; set; }
     internal int FilterPosition { get; set; }
 
+#pragma warning disable RS0027 // Preserve the existing optional-argument API while adding a distinct explicit-variant overload.
     public DownloadItem(Uri downloadUri, string destinationPath, IImageBoard imageBoard, IThread thread, string mediaIdentifier,
         long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null, string? legacyPath = null)
         : this(downloadUri, destinationPath, imageBoard, thread, mediaIdentifier, expectedSize, expectedMd5, originalFileName, legacyPath, "original") { }
 
+#pragma warning restore RS0027
     public DownloadItem(Uri downloadUri, string destinationPath, IImageBoard imageBoard, IThread thread, string mediaIdentifier,
         long? expectedSize, string? expectedMd5, string? originalFileName, string? legacyPath, string variant)
     {

@@ -73,8 +73,8 @@ internal sealed class ThreadContentContext
     private CapturedThreadSnapshot? _pending;
     private CapturedThreadSnapshot? _latest;
     private readonly SemaphoreSlim _captureGate = new SemaphoreSlim(1, 1);
-    private readonly ConcurrentDictionary<string, CandidateDecision> _decisions = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, (string PostId, int Position)> _postIds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string MediaId, string Variant), CandidateDecision> _decisions = new();
+    private readonly ConcurrentDictionary<(string MediaId, string Variant), (string PostId, int Position)> _postIds = new();
     private FailureInfo? _filterFailure;
     private bool _enabled;
     private DateTimeOffset? _capturedAt;
@@ -85,7 +85,7 @@ internal sealed class ThreadContentContext
     private ThreadSourceState? _lastObservedSourceState;
     private int _excluded;
     private readonly object _state = new object();
-    private HashSet<string>? _previouslySaved;
+    private HashSet<(string MediaId, string Variant)>? _previouslySaved;
 
     internal ThreadContentContext(ThreadContentRuntime runtime, ArchiveThreadSummary summary)
     {
@@ -165,7 +165,7 @@ internal sealed class ThreadContentContext
     internal async Task<IReadOnlyList<DownloadItem>> RestoreCandidatesAsync(BaseThread owner, CancellationToken cancellationToken)
     {
         IReadOnlyList<CandidateDecision> decisions = await _runtime.Catalog.GetDecisionsAsync(_id, cancellationToken).ConfigureAwait(false);
-        foreach (CandidateDecision decision in decisions) _decisions[decision.Metadata.Key.MediaId] = decision;
+        foreach (CandidateDecision decision in decisions) _decisions[(decision.Metadata.Key.MediaId, decision.Metadata.Key.Variant)] = decision;
         return Array.AsReadOnly(decisions.Select(decision => ToItem(decision.Metadata, owner)).ToArray());
     }
 
@@ -177,23 +177,23 @@ internal sealed class ThreadContentContext
             if (_previouslySaved == null)
             {
                 MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(_directory, cancellationToken).ConfigureAwait(false);
-                _previouslySaved = new HashSet<string>(StringComparer.Ordinal);
+                _previouslySaved = new HashSet<(string MediaId, string Variant)>();
                 for (int offset = 0; offset < manifest.Count; offset += 500)
-                    _previouslySaved.UnionWith(manifest.GetPage(offset, 500).Select(asset => asset.MediaIdentifier));
+                    _previouslySaved.UnionWith(manifest.GetPage(offset, 500).Select(asset => (asset.MediaIdentifier, asset.Variant)));
             }
             List<DownloadItem> selected = new List<DownloadItem>();
             int excluded = 0;
             foreach (DownloadItem item in candidates)
             {
-                CandidateMetadata metadata = new CandidateMetadata(new CandidateKey(_id, item.MediaIdentifier), item.DownloadUri,
+                CandidateMetadata metadata = new CandidateMetadata(new CandidateKey(_id, item.MediaIdentifier, item.Variant), item.DownloadUri,
                     item.DestinationPath, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName, item.LegacyPath,
                     Path.GetExtension(item.OriginalFileName ?? item.DestinationPath));
-                if (!_decisions.TryGetValue(item.MediaIdentifier, out CandidateDecision? decision)
+                if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)
                     || !SameMetadata(decision.Metadata, metadata))
                 {
                     decision = await _runtime.Catalog.GetOrCreateDecisionAsync(metadata, _runtime.Rules,
-                        _previouslySaved.Contains(item.MediaIdentifier) || owner.IsMediaDownloaded(item.MediaIdentifier), cancellationToken).ConfigureAwait(false);
-                    _decisions[item.MediaIdentifier] = decision;
+                        _previouslySaved.Contains((item.MediaIdentifier, item.Variant)) || owner.IsMediaDownloaded(item.MediaIdentifier, item.Variant), cancellationToken).ConfigureAwait(false);
+                    _decisions[(item.MediaIdentifier, item.Variant)] = decision;
                 }
                 if (decision.Selection.Outcome == MediaSelectionOutcome.Selected) selected.Add(ToItem(decision.Metadata, owner));
                 else if (decision.Selection.Outcome == MediaSelectionOutcome.Excluded) excluded++;
@@ -213,19 +213,19 @@ internal sealed class ThreadContentContext
     private DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner, bool explicitRetry = false)
     {
         DownloadItem item = new DownloadItem(metadata.DownloadUri, metadata.DestinationPath, owner.Board.ImageBoard, owner,
-            metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath);
-        if (_postIds.TryGetValue(metadata.Key.MediaId, out var post)) { item.FilterPostId = post.PostId; item.FilterPosition = post.Position; }
-        if (_decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? decision)
+            metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath, metadata.Key.Variant);
+        if (_postIds.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out var post)) { item.FilterPostId = post.PostId; item.FilterPosition = post.Position; }
+        if (_decisions.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out CandidateDecision? decision)
             && decision.Selection.EffectiveRule.ImageFilter.Mode == MediaImageFilterMode.Plugin
             && decision.Selection.Reason != MediaSelectionReason.PreviouslySaved)
         {
             if (explicitRetry && decision.Selection.Outcome != MediaSelectionOutcome.Excluded)
             {
                 decision = decision with { Selection = decision.Selection with { EffectiveRule = _runtime.Rules.Resolve(_id) } };
-                _decisions[metadata.Key.MediaId] = decision;
+                _decisions[(metadata.Key.MediaId, metadata.Key.Variant)] = decision;
             }
             bool Current() => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
-                && _decisions.TryGetValue(metadata.Key.MediaId, out CandidateDecision? current)
+                && _decisions.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out CandidateDecision? current)
                 && ReferenceEquals(current, decision) && SameMetadata(current.Metadata, metadata);
             async Task Record(bool? noMatch, string reason, CancellationToken token)
             {
@@ -235,7 +235,7 @@ internal sealed class ThreadContentContext
                 {
                     lock (_state)
                     {
-                        _decisions[metadata.Key.MediaId] = saved;
+                        _decisions[(metadata.Key.MediaId, metadata.Key.Variant)] = saved;
                         _excluded = _decisions.Values.Count(value => value.Selection.Outcome == MediaSelectionOutcome.Excluded);
                         CandidateDecision? omitted = _decisions.Values.FirstOrDefault(value => value.Selection.Outcome == MediaSelectionOutcome.TechnicalOmission);
                         _filterFailure = omitted == null ? null : new FailureInfo(FailureKind.Storage, omitted.Selection.FilterReason ?? "Filter unavailable");
@@ -252,7 +252,7 @@ internal sealed class ThreadContentContext
     internal async Task InitializeFiltersAsync(CancellationToken token)
     {
         foreach (CandidateDecision decision in await _runtime.Catalog.GetDecisionsAsync(_id, token).ConfigureAwait(false))
-            _decisions[decision.Metadata.Key.MediaId] = decision;
+            _decisions[(decision.Metadata.Key.MediaId, decision.Metadata.Key.Variant)] = decision;
         lock (_state)
         {
             _excluded = _decisions.Values.Count(value => value.Selection.Outcome == MediaSelectionOutcome.Excluded);
@@ -267,12 +267,12 @@ internal sealed class ThreadContentContext
     internal void RememberPostIds(IEnumerable<CapturedPost> posts)
     {
         foreach (CapturedPost post in posts) foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
-            if (attachment.MediaId != null) _postIds[attachment.MediaId] = (post.PostId, attachment.Position);
+            if (attachment.MediaId != null) _postIds[(attachment.MediaId, attachment.Variant)] = (post.PostId, attachment.Position);
     }
 
     internal DownloadItem BindRestoredMediaFilter(DownloadItem item, BaseThread owner, bool explicitRetry)
     {
-        if (!_decisions.TryGetValue(item.MediaIdentifier, out CandidateDecision? decision)) return item;
+        if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)) return item;
         return ToItem(decision.Metadata, owner, explicitRetry);
     }
 
@@ -308,7 +308,9 @@ internal sealed class ThreadContentContext
             Func<int, CancellationToken, Task> throttle, CancellationToken cancellationToken)
         {
             if (!current()) throw new MediaFilterOmissionException(false, "filter_rule_changed");
-            MediaCommitResult result = await store.CommitAsync(item, source, cancellationToken, throttle).ConfigureAwait(false);
+            MediaCommitResult result = await store.CommitAuthorizedAsync(item, source, () => {
+                if (!current()) throw new MediaFilterOmissionException(false, "filter_rule_changed");
+            }, cancellationToken, throttle).ConfigureAwait(false);
             await record(null, "filter_removed_by_explicit_retry", CancellationToken.None).ConfigureAwait(false);
             return result;
         }
