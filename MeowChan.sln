@@ -41,12 +41,18 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginRuntime.Fixt
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginRuntime.Tests", "tests/MeowChan.PluginRuntime.Tests/MeowChan.PluginRuntime.Tests.csproj", "{1DAE5B3C-D976-59B7-AD03-F72310040D2B}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.ImageDimensionsFilter", "plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj", "{9013C8EE-1187-58D8-A80F-485656C67C77}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9013C8EE-1187-58D8-A80F-485656C67C77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9013C8EE-1187-58D8-A80F-485656C67C77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9013C8EE-1187-58D8-A80F-485656C67C77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9013C8EE-1187-58D8-A80F-485656C67C77}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1DAE5B3C-D976-59B7-AD03-F72310040D2B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1DAE5B3C-D976-59B7-AD03-F72310040D2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1DAE5B3C-D976-59B7-AD03-F72310040D2B}.Release|Any CPU.ActiveCfg = Release|Any CPU

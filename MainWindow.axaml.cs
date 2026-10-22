@@ -985,7 +985,7 @@ public partial class MainWindow : Window
     {
         if (!_isClosing)
         {
-            AboutWindow aboutWindow = new AboutWindow();
+            AboutWindow aboutWindow = new AboutWindow(_session.Updates);
             await aboutWindow.ShowDialog(this);
         }
     }
