@@ -37,16 +37,18 @@ internal static class Program
     private static bool _selectionMode;
     private static bool _aboutLinksMode;
     private static bool _boardAdmissionMode;
+    private static bool _readingPositionMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position]");
             return 2;
         }
 
+        _readingPositionMode = args.Contains("--reading-position", StringComparer.Ordinal);
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
         _aboutLinksMode = args.Contains("--about-links", StringComparer.Ordinal);
         _boardAdmissionMode = args.Contains("--board-admission", StringComparer.Ordinal);
@@ -59,6 +61,14 @@ internal static class Program
             throw new IOException("Showcase directory already exists; choose a clean isolated run: " + showcaseRoot);
         string profile = showcaseRoot != null ? Path.Combine(showcaseRoot, "profile")
             : Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
+        if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 } readingProfile)
+        {
+            profile = Path.GetFullPath(readingProfile);
+            if (Directory.Exists(profile) && !File.Exists(Path.Combine(profile, ".reading-smoke-profile")))
+                throw new IOException("Reading smoke refuses an unmarked existing profile.");
+            Directory.CreateDirectory(profile);
+            File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
+        }
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);
@@ -86,7 +96,12 @@ internal static class Program
                 SaveUrlsOnExit = true
             };
             if (_galleryCloseOnly) config.WorkspaceMode = "Advanced";
-            config.SaveConfig();
+            if (!_readingPositionMode || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if (_readingPositionMode && !File.Exists(Path.Combine(profile, "reading-fixture-ready")))
+            {
+                ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
+                File.WriteAllText(Path.Combine(profile, "reading-fixture-ready"), "ready");
+            }
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
             if (_readerUxMode)
@@ -151,6 +166,7 @@ internal static class Program
                 : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
                 : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
                 : _boardAdmissionMode ? "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"
+                : _readingPositionMode ? "local reading position, explicit process restart and settings semantics"
                 : _aboutLinksMode ? "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
@@ -161,7 +177,8 @@ internal static class Program
             if (Application.Current is DownloadSessionSmokeApp fixtureApp)
                 fixtureApp.DisposeFixture();
             Log.CloseAndFlush();
-            Directory.Delete(showcaseRoot ?? profile, recursive: true);
+            if (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE")))
+                Directory.Delete(showcaseRoot ?? profile, recursive: true);
         }
     }
 
@@ -213,6 +230,13 @@ internal static class Program
             {
                 await PowerUserCommandChecks.RunAsync(mainWindow);
                 await RulesPageChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_readingPositionMode)
+            {
+                await ReadingPositionChecks.RunAsync(mainWindow, profile: Config.GetConfigDirectory());
                 _checksPassed = true;
                 mainWindow.Close();
                 return;

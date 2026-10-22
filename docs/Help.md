@@ -166,6 +166,21 @@ Show context to read the associated saved post and available local references.
 A media-only item can have no captured post. In the gallery, **P** toggles saved-post
 context, **0** selects Fit, **1** selects 1:1, **F** toggles the current media favorite,
 and F1 or ? opens keyboard help. Space plays or pauses an active local video.
+**Local reading continuation** is off by default. In Settings → Reading & media,
+enable **Remember the last reading position locally** and Save. MeowChan then
+keeps exactly one deliberately opened reader position for this profile. After
+restarting, choose **Resume last reading** beside Archive in the app menu (or
+Tools). The app keeps its normal start page until you choose that action. Only
+locally captured posts are read; no source request or download is started.
+
+**Forget reading position** removes the entry immediately and keeps the setting
+on. It starts remembering again only with your next deliberate reader action.
+Saving the setting as off also deletes the entry. Missing local content is
+explained without silently choosing another thread; if a saved post disappeared,
+the first captured post is explicitly identified as a replacement position.
+Settings uses **Discard draft** to revert unapplied edits; forgetting is a separate,
+immediate action.
+
 Settings controls default context visibility, shortcut hints, video autoplay,
 initial mute and volume.
 

@@ -56,6 +56,8 @@ namespace MeowChan
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
         public bool ShowBoardAdmissionWizard { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool RememberReadingPosition { get; set; }
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public bool CloseToTray { get; set; }
@@ -373,6 +375,7 @@ namespace MeowChan
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
+                RememberReadingPosition = RememberReadingPosition,
                 DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
                 CloseToTray = CloseToTray,
@@ -422,6 +425,7 @@ namespace MeowChan
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            RememberReadingPosition = source.RememberReadingPosition;
             DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
@@ -460,6 +464,7 @@ namespace MeowChan
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            RememberReadingPosition = source.RememberReadingPosition;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
@@ -484,6 +489,9 @@ namespace MeowChan
             VideoVolume = source.VideoVolume;
             ShowShortcutHelp = source.ShowShortcutHelp;
         }
+
+        // Compatibility settings host uses its existing isolated config owner.
+        internal void ForgetReadingPositionFile() => File.Delete(Path.Combine(_profileDirectory ?? GetConfigDirectory(), "reading-position.json"));
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());
 

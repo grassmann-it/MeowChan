@@ -679,6 +679,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _archivePage?.FlushReadingPositionInput();
         _isClosing = true;
         _shutdownRunning = true;
         _settingsEditor?.EndLifetime();
@@ -691,6 +692,7 @@ public partial class MainWindow : Window
             CloseGallery(restoreOrigin: false);
             await _galleryCleanupTask;
             await FlushWindowPreferencesAsync();
+            await _readingPositionSave;
             Log.Debug("Shutdown: gallery media released; stopping the session.");
             await _session.StopAsync();
             Log.Debug("Shutdown: session stopped; disposing the session.");

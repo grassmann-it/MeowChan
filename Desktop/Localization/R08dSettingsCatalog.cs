@@ -4,6 +4,20 @@ internal static class R08dSettingsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("settings.unitSeconds", "Seconds", "Sekunden"),
+        ("settings.unitBandwidth", "Mebibytes per second (MiB/s)", "Mebibyte pro Sekunde (MiB/s)"),
+        ("settings.unitPercent", "Percent, from 0 to 100", "Prozent, von 0 bis 100"),
+        ("resume.remember", "Remember the last reading position locally", "Letzte Lesestelle lokal merken"),
+        ("resume.hint", "After saving, remembers one consciously opened reader position for this profile. Use Resume last reading beside Archive in the app menu after restarting. Disabling deletes the position; no content is fetched.", "Nach dem Speichern wird eine bewusst geöffnete Readerstelle für dieses Profil gemerkt. Nach Neustart im Appmenü neben Archiv „Zuletzt gelesen fortsetzen“ wählen. Ausschalten löscht die Stelle; es werden keine Inhalte abgerufen."),
+        ("resume.action", "Resume last reading", "Zuletzt gelesen fortsetzen"),
+        ("resume.forget", "Forget reading position", "Lesestelle vergessen"),
+        ("resume.forgotten", "Reading position forgotten. A new position is remembered only after your next reader action.", "Lesestelle vergessen. Erst die nächste bewusste Readeraktion merkt eine neue Stelle."),
+        ("resume.forgetFailed", "Could not forget the reading position: {0}", "Lesestelle konnte nicht vergessen werden: {0}"),
+        ("resume.saveFailed", "Could not save the reading position: {0}", "Lesestelle konnte nicht gespeichert werden: {0}"),
+        ("resume.readFailed", "The saved reading position is unavailable or unreadable. You can forget it in Settings. {0}", "Die gespeicherte Lesestelle ist nicht verfügbar oder unlesbar. Sie kann in den Einstellungen vergessen werden. {0}"),
+        ("resume.none", "No reading position is saved. Enable it in Settings, then consciously open the reader.", "Keine Lesestelle gespeichert. In den Einstellungen einschalten und anschließend den Reader bewusst öffnen."),
+        ("resume.missingThread", "This saved thread is no longer available locally. Nothing was fetched; the reading position is retained. You can forget it in Settings.", "Dieser gespeicherte Thread ist lokal nicht mehr verfügbar. Es wurde nichts abgerufen; die Lesestelle bleibt erhalten. Sie kann in den Einstellungen vergessen werden."),
+        ("resume.fallback", "The saved post is no longer available. Showing the first locally captured post as a replacement position; the saved position is retained until your next reader action.", "Der gespeicherte Post ist nicht mehr verfügbar. Als Ersatzposition wird der erste lokal erfasste Post angezeigt; die gespeicherte Stelle bleibt bis zur nächsten Readeraktion erhalten."),
         ("r08d.settings.readingMedia", "Reading & media", "Lesen & Medien"),
         ("r08d.settings.readingFontSize", "Reading font size", "Leseschriftgröße"),
         ("r08d.settings.fontSmall", "Small", "Klein"),

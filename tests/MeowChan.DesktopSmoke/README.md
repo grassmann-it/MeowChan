@@ -162,3 +162,12 @@ taskbar, native DBus activation restoring the window, missing host fallback,
 host loss, watcher restart/re-registration and watcher loss while hidden. This
 proves these protocol paths, while final native shell presentation on KDE,
 GNOME extensions, Windows and macOS remains a separate package acceptance check.
+
+
+`--reading-position` checks V27 and Settings V04/V32. The isolated runner supports
+`--mode reading-position`. For an actual two-process restart, run it twice with
+`MEOWCHAN_READING_TEST_PROFILE` pointing at the same fresh disposable path. The
+harness marks and retains that path, refuses unmarked existing directories, and
+the second process verifies normal startup followed by explicit reader resume.
+Remove the retained test profile after both runs. Without that variable the test
+uses its usual temporary profile and removes it after the run.

@@ -100,7 +100,7 @@ public partial class ArchivePage : UserControl
         InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
-        InitializeReaderInteraction(); InitializeReaderUpdates();
+        InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,

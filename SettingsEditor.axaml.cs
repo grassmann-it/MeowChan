@@ -19,6 +19,9 @@ namespace MeowChan
     {
         private readonly Config _config;
         private readonly Func<Config, Task>? _applySettings;
+        private readonly Func<Task>? _forgetReadingPosition;
+        private readonly bool _closeOnDiscard;
+        private bool _rememberReadingPosition;
         private string _downloadPath = string.Empty;
         private decimal? _recheckTimer;
         private decimal? _maxParallelDownloads;
@@ -62,7 +65,11 @@ namespace MeowChan
             set
             {
                 SetField(ref _isAvailable, value, nameof(IsAvailable));
-                if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
+                if (!_isClosed)
+                {
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanForgetReadingPosition)));
+                }
             }
         }
         public bool IsEditable => IsAvailable && !IsBusy;
@@ -77,7 +84,7 @@ namespace MeowChan
         }
 
         /// <param name="applySettings">Commits the validated candidate and applies it to the running session. The compatibility host can omit this to save an isolated profile directly.</param>
-        public SettingsEditor(Config config, Func<Config, Task>? applySettings = null)
+        public SettingsEditor(Config config, Func<Config, Task>? applySettings = null, Func<Task>? forgetReadingPosition = null, bool closeOnDiscard = false)
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
@@ -86,6 +93,9 @@ namespace MeowChan
             _initialReadingFontSize = config.ReadingFontSize;
             _initialWorkspaceMode = config.WorkspaceMode;
             _applySettings = applySettings;
+            _forgetReadingPosition = forgetReadingPosition ?? (applySettings == null
+                ? () => Task.Run(config.ForgetReadingPositionFile) : null);
+            _closeOnDiscard = closeOnDiscard;
             DownloadPath = config.DownloadPath;
             RecheckTimer = config.RecheckTimer;
             MaxParallelDownloads = config.MaxParallelDownloads;
@@ -99,6 +109,7 @@ namespace MeowChan
             VideoStartMuted = config.VideoStartMuted;
             VideoVolume = config.VideoVolume;
             ShowShortcutHelp = config.ShowShortcutHelp;
+            RememberReadingPosition = config.RememberReadingPosition;
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -139,7 +150,15 @@ namespace MeowChan
         public string CompactLabel => Texts.T("density.compact");
         public string ModeHint => Texts.T("settings.modeHint");
         public string SaveLabel => Texts.T("settings.save");
-        public string CancelLabel => Texts.T("settings.cancel");
+        public string CancelLabel => Texts.T(_closeOnDiscard ? "settings.cancel" : "rules.discard");
+        public string RememberReadingPositionLabel => Texts.T("resume.remember");
+        public string ReadingPositionHint => Texts.T("resume.hint");
+        public string ForgetReadingPositionLabel => Texts.T("resume.forget");
+        public string SecondsHelp => Texts.T("settings.unitSeconds");
+        public string BandwidthHelp => Texts.T("settings.unitBandwidth");
+        public string VolumeHelp => Texts.T("settings.unitPercent");
+        public bool CanForgetReadingPosition => _forgetReadingPosition != null && IsEditable;
+        public bool RememberReadingPosition { get => _rememberReadingPosition; set => SetField(ref _rememberReadingPosition, value, nameof(RememberReadingPosition)); }
         public string SupportedSources => Texts.T("settings.supportedSources");
 
         public SettingsChoice? SelectedTheme
@@ -234,6 +253,7 @@ namespace MeowChan
                 if (!_isClosed)
                 {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanForgetReadingPosition)));
                     BusyChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
@@ -314,6 +334,7 @@ namespace MeowChan
             VideoStartMuted = _config.VideoStartMuted;
             VideoVolume = _config.VideoVolume;
             ShowShortcutHelp = _config.ShowShortcutHelp;
+            RememberReadingPosition = _config.RememberReadingPosition;
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -419,6 +440,21 @@ namespace MeowChan
             if (IsBusy || !IsAvailable || _isClosed) return;
             CancelChanges();
             Cancelled?.Invoke(this, EventArgs.Empty);
+        }
+
+        private async void OnForgetReadingPositionClick(object? sender, RoutedEventArgs e)
+        {
+            if (!CanForgetReadingPosition || _isClosed) return;
+            IsBusy = true;
+            ErrorMessage = null;
+            StatusMessage = null;
+            try
+            {
+                await _forgetReadingPosition!();
+                StatusMessage = Texts.T("resume.forgotten");
+            }
+            catch (Exception exception) { ErrorMessage = Texts.T("resume.forgetFailed", exception.Message); }
+            finally { IsBusy = false; }
         }
 
         private async void OnAboutButtonClick(object? sender, RoutedEventArgs e)
@@ -528,6 +564,7 @@ namespace MeowChan
                 candidate.VideoStartMuted = VideoStartMuted;
                 candidate.VideoVolume = VideoVolume;
                 candidate.ShowShortcutHelp = ShowShortcutHelp;
+                candidate.RememberReadingPosition = RememberReadingPosition;
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
                     throw new ArgumentException(Texts.T("settings.bandwidthPositive"));
@@ -541,6 +578,7 @@ namespace MeowChan
                 }
                 else
                 {
+                    if (!candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
                     candidate.SaveConfig();
                 }
 
@@ -579,6 +617,7 @@ namespace MeowChan
             VideoStartMuted = _config.VideoStartMuted;
             VideoVolume = _config.VideoVolume;
             ShowShortcutHelp = _config.ShowShortcutHelp;
+            RememberReadingPosition = _config.RememberReadingPosition;
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);

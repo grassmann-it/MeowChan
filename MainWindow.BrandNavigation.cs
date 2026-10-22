@@ -13,6 +13,7 @@ public partial class MainWindow
 
     private void RefreshBrandNavigation()
     {
+        RefreshReadingResumeLabels();
         foreach (var (name, action) in new[]
         {
             ("DownloadsNavigationButton", "navigation.downloads"),

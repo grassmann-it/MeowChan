@@ -313,6 +313,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
+        if (!settings.RememberReadingPosition) InvalidateReadingPositionWrites();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -323,6 +324,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Config candidate = Config.Clone();
             candidate.CopySettingsFieldsFrom(settings);
             candidate.Validate();
+            if (!candidate.RememberReadingPosition) DeleteReadingPositionFile();
             SessionOptions options = new SessionOptions
             {
                 DownloadPath = candidate.DownloadPath,

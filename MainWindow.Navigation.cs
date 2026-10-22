@@ -29,7 +29,7 @@ public partial class MainWindow
 
     private void InitializeWorkspacePages()
     {
-        _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync);
+        _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
         _settingsEditor.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("SettingsPageHost")!.Content = _settingsEditor;
         _diagnosticsPage = new DiagnosticsPage(OpenDiagnosticWatch, async text =>
@@ -128,6 +128,7 @@ public partial class MainWindow
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
+        InitializeReadingResume();
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
         {
             if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
