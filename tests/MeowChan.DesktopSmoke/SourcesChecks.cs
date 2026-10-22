@@ -28,9 +28,19 @@ internal static class SourcesChecks
         {
             Texts.SetLanguage("en");
             window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            string? selectedIdentity = livePage.FindControl<TextBlock>("SourceIdentity")!.Text;
+            ProviderDescriptor selectedSource = window.SessionHost.GetProviderDescriptors().SingleOrDefault(provider =>
+                selectedIdentity == Texts.T("sources.identity", provider.SourceId, provider.BaseUri.AbsoluteUri))
+                ?? throw new InvalidOperationException("The productive Sources selection did not identify a registered canonical source: " + selectedIdentity);
+            Button selectedCard = livePage.FindControl<StackPanel>("SourceCards")!.Children.OfType<Button>()
+                .Single(card => card.Classes.Contains("selected"));
+            Require(selectedCard.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == selectedSource.BaseUri.AbsoluteUri),
+                "The productive Sources details disagreed with the selected source card.");
             livePage.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Console.WriteLine("SMOKE productive source rules: selected=" + selectedSource.SourceId
+                + "; actual=" + window.RulesPage.SelectedScopeChoice?.Scope + ".");
             Require(window.SelectedPage == MainWindow.WorkspacePage.Rules
-                && window.RulesPage.SelectedScopeChoice?.Scope == MeowChan.Rules.MediaRuleScope.ForSource("4chan"),
+                && window.RulesPage.SelectedScopeChoice?.Scope == MeowChan.Rules.MediaRuleScope.ForSource(selectedSource.SourceId),
                 "The productive Sources page did not open the shared canonical source rule editor.");
             window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             livePage.FindControl<TextBox>("SourceUrlInput")!.Text = "https://unknown.invalid/g/thread/123";
