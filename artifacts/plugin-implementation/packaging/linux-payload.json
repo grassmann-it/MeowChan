@@ -1,0 +1,10 @@
+{
+  "compiler_files_verified": 171,
+  "editable_sources": 3,
+  "passed": true,
+  "plugins": 5,
+  "root": "/home/tomka/Desktop/oChan-1.0-workers/packaging/artifacts/plugin-delivery-publish/relocated application",
+  "runtime": "linux-x64",
+  "sdk_sha256": "1f045fca6a140956b0f2cd1b26cee04be15fb7bf274c584fd08d6f44ba0e1d60",
+  "self_contained_required": true
+}

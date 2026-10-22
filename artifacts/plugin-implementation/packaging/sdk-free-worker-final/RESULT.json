@@ -1,0 +1,54 @@
+{
+  "sdkAccessible": false,
+  "networkAvailable": false,
+  "installationReadOnly": true,
+  "foreignWorkingDirectory": true,
+  "nativePlatform": "linux-x64",
+  "results": [
+    {
+      "manifest": "MeowChan.ImageDimensionsFilter.plugin.json",
+      "pluginId": "meowchan.example.image-dimensions",
+      "sourceIds": [],
+      "filterKeys": [
+        "dimensions"
+      ],
+      "exitCode": 0
+    },
+    {
+      "manifest": "MeowChan.Plugin.EightKun.plugin.json",
+      "pluginId": "meowchan.official.8kun",
+      "sourceIds": [
+        "8kun"
+      ],
+      "filterKeys": [],
+      "exitCode": 0
+    },
+    {
+      "manifest": "MeowChan.Plugin.FourChan.plugin.json",
+      "pluginId": "meowchan.official.4chan",
+      "sourceIds": [
+        "4chan"
+      ],
+      "filterKeys": [],
+      "exitCode": 0
+    },
+    {
+      "manifest": "MeowChan.Plugin.Kohlchan.plugin.json",
+      "pluginId": "meowchan.source.kohlchan",
+      "sourceIds": [
+        "kohlchan"
+      ],
+      "filterKeys": [],
+      "exitCode": 0
+    },
+    {
+      "manifest": "MeowChan.Plugin.Lainchan.plugin.json",
+      "pluginId": "meowchan.source.lainchan",
+      "sourceIds": [
+        "lainchan"
+      ],
+      "filterKeys": [],
+      "exitCode": 0
+    }
+  ]
+}

@@ -58,6 +58,9 @@ def main():
     if not shutil.which('bwrap'):
         raise SystemExit('bubblewrap is required for an SDK-inaccessible worker proof')
     results = []
+    expected_ids = {'MeowChan.Plugin.FourChan': 'meowchan.official.4chan', 'MeowChan.Plugin.EightKun': 'meowchan.official.8kun',
+                    'MeowChan.Plugin.Lainchan': 'meowchan.source.lainchan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
+                    'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert len(manifests) == 5
     for index, manifest_path in enumerate(manifests):
@@ -79,7 +82,8 @@ def main():
                     'assemblyPath': '/application/plugins/' + manifest['AssemblyRelativePath'], 'resourcePaths': {},
                     'configuration': {'revision': 'delivery-config', 'pluginSettings': {'schemaVersion': '1', 'values': []}, 'sourceSettings': {}},
                     'validateConfiguration': False}))
-                assert description['pluginId'] and (description['sources'] or description['filters'])
+                assert description['pluginId'] == expected_ids[manifest_path.name.removesuffix('.plugin.json')], description
+                assert description['sources'] or description['filters']
                 process.stdin.close()
                 assert process.wait(timeout=5) == 0
                 results.append({'manifest': manifest_path.name, 'pluginId': description['pluginId'],

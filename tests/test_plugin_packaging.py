@@ -46,7 +46,7 @@ class PluginPackagingTests(unittest.TestCase):
             self.json(directory + '/' + name + '.deps.json', {'libraries': {}})
             config = {'includedFrameworks': [{'name': 'Microsoft.NETCore.App', 'version': '10.0.11'}]} if self_contained else {'framework': {'name': 'Microsoft.NETCore.App', 'version': '10.0.0'}}
             self.json(directory + '/' + name + '.runtimeconfig.json', {'runtimeOptions': config})
-            natives = ('coreclr.dll', 'hostpolicy.dll') if runtime.startswith('win-') else (('libcoreclr.dylib', 'libhostpolicy.dylib') if runtime.startswith('osx-') else ('libcoreclr.so', 'libhostpolicy.so'))
+            natives = ('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll') if runtime.startswith('win-') else (('libcoreclr.dylib', 'libhostpolicy.dylib', 'libhostfxr.dylib') if runtime.startswith('osx-') else ('libcoreclr.so', 'libhostpolicy.so', 'libhostfxr.so'))
             if self_contained:
                 for native in natives:
                     self.put(directory + '/' + native)
@@ -90,6 +90,12 @@ class PluginPackagingTests(unittest.TestCase):
     def test_wrong_native_architecture_is_rejected(self):
         self.fixture('linux-arm64')
         with self.assertRaisesRegex(ValueError, 'architecture'):
+            PACKAGE.verify(self.root, 'linux-x64')
+
+    def test_missing_self_contained_host_resolver_is_rejected(self):
+        self.fixture()
+        (self.root / 'plugin-worker/libhostfxr.so').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing'):
             PACKAGE.verify(self.root, 'linux-x64')
 
     def test_changed_plugin_bytes_are_rejected(self):

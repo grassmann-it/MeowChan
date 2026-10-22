@@ -1,0 +1,10 @@
+{
+  "compiler_files_verified": 171,
+  "editable_sources": 3,
+  "passed": true,
+  "plugins": 5,
+  "root": "/home/tomka/Desktop/oChan-1.0-workers/packaging/tests/PluginDeliveryConsumerSmoke/bin/Release/net10.0",
+  "runtime": "linux-x64",
+  "sdk_sha256": "e9b1f16f76026fec3c63f2ff5f5cca5fabc5b31602133916bcfdbe9ff130929e",
+  "self_contained_required": false
+}

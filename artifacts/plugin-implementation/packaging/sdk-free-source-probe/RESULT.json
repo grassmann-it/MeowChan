@@ -1,0 +1,33 @@
+{
+  "compilerBundle": "/home/tomka/Desktop/oChan-1.0-workers/packaging/artifacts/plugin-delivery-publish/relocated application/plugin-compiler",
+  "toolchainFingerprint": "a5db04362139eb3e7fb1f445e15fb4b7b592d4bb5884cbc2a1e178c20b2c20e1",
+  "sdkAccessible": false,
+  "nugetHomeAccessible": false,
+  "networkAvailable": false,
+  "installationReadOnly": true,
+  "foreignWorkingDirectory": true,
+  "nativePlatform": "linux-x64",
+  "results": [
+    {
+      "source": "/home/tomka/Desktop/oChan-1.0-workers/packaging/artifacts/plugin-delivery-publish/relocated application/plugins/sources/Lainchan.cs",
+      "sourceSha256": "1379a71f3eb5e7dac62c1b8ebc0442cafbdc7dc4ae0aa808f4460d5a0f3e3900",
+      "assemblySha256": "86fd9b5ee61a35d6ae59989861f080588f13ada79df2cecaaa8f32aaf449ea0d",
+      "compilationFingerprint": "b5e387c76a3cf4545693fc943db1cf804d9e242917c4ee65880d1458c78d6b47",
+      "diagnostics": []
+    },
+    {
+      "source": "/home/tomka/Desktop/oChan-1.0-workers/packaging/artifacts/plugin-delivery-publish/relocated application/plugins/sources/Kohlchan.cs",
+      "sourceSha256": "576f0e43b143ee6158d214e8c23536c3239ef19df7b1b8f05e86931d15ea5441",
+      "assemblySha256": "9c5dd49e9bd842d13ad7855d157381916c9f78bc012550d47cd898c5ec9f82bc",
+      "compilationFingerprint": "9a5b4f8bac59d7a851fb2d81221d5afcb1fc3acb027d90bd9031463874fb4599",
+      "diagnostics": []
+    },
+    {
+      "source": "/home/tomka/Desktop/oChan-1.0-workers/packaging/artifacts/plugin-delivery-publish/relocated application/plugins/sources/ImageDimensionsFilter.cs",
+      "sourceSha256": "1d41db7ad4216f73062a1e8be7c1afb813e5a569bffb32369b7dd65b5875a454",
+      "assemblySha256": "a740f9048780d90574f490c46c5ae2f04503df4d31ceb3cbd152469c3466d4db",
+      "compilationFingerprint": "0d14b4b56e436177de4bb0e2c9c2c26e7cf0ed2a81bd6ac619575b0a5c18444d",
+      "diagnostics": []
+    }
+  ]
+}

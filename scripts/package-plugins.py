@@ -141,8 +141,9 @@ def verify(root, runtime, development=False):
         if not development:
             if config.get('framework') or config.get('frameworks') or not config.get('includedFrameworks'):
                 raise ValueError('Published helper requires an external .NET runtime: ' + directory)
-            native = ('coreclr.dll', 'hostpolicy.dll') if runtime.startswith('win-') else (
-                ('libcoreclr.dylib', 'libhostpolicy.dylib') if runtime.startswith('osx-') else ('libcoreclr.so', 'libhostpolicy.so'))
+            native = ('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll') if runtime.startswith('win-') else (
+                ('libcoreclr.dylib', 'libhostpolicy.dylib', 'libhostfxr.dylib') if runtime.startswith('osx-')
+                else ('libcoreclr.so', 'libhostpolicy.so', 'libhostfxr.so'))
             for filename in native:
                 regular(helper, filename)
     toolchain = verify_toolchain(root)
