@@ -40,3 +40,5 @@ MeowChan.Downloader.DownloadQueue.TargetWaitStates.get -> System.Collections.Gen
 MeowChan.Downloader.DownloadQueue.UpdateMinimumFreeSpaceBytes(long bytes) -> void
 MeowChan.Downloader.DownloadQueue.CheckTargetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 MeowChan.Persistence.MediaWorkStatus.Excluded = 5 -> MeowChan.Persistence.MediaWorkStatus
+MeowChan.Persistence.MediaWork.Variant.get -> string!
+MeowChan.Persistence.MediaWork.Variant.init -> void

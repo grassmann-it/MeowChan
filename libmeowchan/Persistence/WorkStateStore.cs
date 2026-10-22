@@ -42,6 +42,8 @@ public sealed record MediaWork
     public required string ResourceUrl { get; init; }
     public required long Generation { get; init; }
     public required string MediaIdentifier { get; init; }
+    /// <summary>The source attachment variant, independent of its raw media identifier.</summary>
+    public string Variant { get; init; } = "original";
     public required string DestinationPath { get; init; }
     public required string DownloadUrl { get; init; }
     public string? ExpectedMd5 { get; init; }
@@ -94,16 +96,16 @@ public sealed class WorkStateStore : IWorkStateStore
     {
         using SqliteConnection db = Open();
         using SqliteCommand command = db.CreateCommand();
-        command.CommandText = "SELECT media_id,target,payload FROM work_media WHERE resource_url=$url AND generation=$generation ORDER BY media_id,target";
+        command.CommandText = "SELECT media_id,variant,target,payload FROM work_media WHERE resource_url=$url AND generation=$generation ORDER BY media_id,variant,target";
         command.Parameters.AddWithValue("$url", url);
         command.Parameters.AddWithValue("$generation", generation);
         using SqliteDataReader reader = command.ExecuteReader();
         List<MediaWork> result = new();
         while (reader.Read())
         {
-            MediaWork media = Read<MediaWork>(reader.GetString(2));
+            MediaWork media = Read<MediaWork>(reader.GetString(3));
             if (media.ResourceUrl != url || media.Generation != generation || media.MediaIdentifier != reader.GetString(0)
-                || media.DestinationPath != reader.GetString(1)) throw new InvalidDataException("Media work key differs from its payload.");
+                || media.Variant != reader.GetString(1) || media.DestinationPath != reader.GetString(2)) throw new InvalidDataException("Media work key differs from its payload.");
             result.Add(media);
         }
         return (IReadOnlyList<MediaWork>)result;
@@ -166,10 +168,11 @@ public sealed class WorkStateStore : IWorkStateStore
         if (owner == null || owner.Generation != media.Generation || owner.Intent == WorkIntent.Suppressed) return false;
         using SqliteCommand command = db.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO work_media(resource_url,generation,media_id,target,payload) VALUES($url,$generation,$id,$target,$payload) ON CONFLICT(resource_url,generation,media_id,target) DO UPDATE SET payload=excluded.payload";
+        command.CommandText = "INSERT INTO work_media(resource_url,generation,media_id,variant,target,payload) VALUES($url,$generation,$id,$variant,$target,$payload) ON CONFLICT(resource_url,generation,media_id,variant,target) DO UPDATE SET payload=excluded.payload";
         command.Parameters.AddWithValue("$url", media.ResourceUrl);
         command.Parameters.AddWithValue("$generation", media.Generation);
         command.Parameters.AddWithValue("$id", media.MediaIdentifier);
+        command.Parameters.AddWithValue("$variant", media.Variant);
         command.Parameters.AddWithValue("$target", media.DestinationPath);
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(media, Json));
         command.ExecuteNonQuery();
@@ -189,9 +192,30 @@ public sealed class WorkStateStore : IWorkStateStore
 
     private static void Initialize(SqliteConnection db)
     {
+        using SqliteTransaction transaction = db.BeginTransaction();
         using SqliteCommand command = db.CreateCommand();
-        command.CommandText = "CREATE TABLE IF NOT EXISTS work_resources(url TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS work_media(resource_url TEXT NOT NULL,generation INTEGER NOT NULL,media_id TEXT NOT NULL,target TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(resource_url,generation,media_id,target));";
+        command.Transaction = transaction;
+        command.CommandText = "CREATE TABLE IF NOT EXISTS work_resources(url TEXT PRIMARY KEY,payload TEXT NOT NULL); " +
+            "CREATE TABLE IF NOT EXISTS work_media(resource_url TEXT NOT NULL,generation INTEGER NOT NULL,media_id TEXT NOT NULL," +
+            "variant TEXT NOT NULL DEFAULT 'original',target TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(resource_url,generation,media_id,variant,target));";
         command.ExecuteNonQuery();
+        command.CommandText = "PRAGMA table_info(work_media)";
+        bool hasVariant = false;
+        using (SqliteDataReader columns = command.ExecuteReader())
+            while (columns.Read()) hasVariant |= string.Equals(columns.GetString(1), "variant", StringComparison.Ordinal);
+        if (!hasVariant)
+        {
+            // SQLite cannot extend a primary key in place. Migrate the table in the same
+            // atomic transaction; legacy payloads deserialize with Variant=original.
+            command.CommandText = "ALTER TABLE work_media RENAME TO work_media_legacy; " +
+                "CREATE TABLE work_media(resource_url TEXT NOT NULL,generation INTEGER NOT NULL,media_id TEXT NOT NULL," +
+                "variant TEXT NOT NULL DEFAULT 'original',target TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(resource_url,generation,media_id,variant,target)); " +
+                "INSERT INTO work_media(resource_url,generation,media_id,variant,target,payload) " +
+                "SELECT resource_url,generation,media_id,'original',target,payload FROM work_media_legacy; " +
+                "DROP TABLE work_media_legacy;";
+            command.ExecuteNonQuery();
+        }
+        transaction.Commit();
     }
 
     private static WorkResource? FindResource(SqliteConnection db, SqliteTransaction transaction, string url)
@@ -233,7 +257,8 @@ public sealed class WorkStateStore : IWorkStateStore
     internal static void Validate(MediaWork media)
     {
         if (!Uri.TryCreate(media.ResourceUrl, UriKind.Absolute, out _) || !Uri.TryCreate(media.DownloadUrl, UriKind.Absolute, out _)
-            || !Path.IsPathFullyQualified(media.DestinationPath) || string.IsNullOrEmpty(media.MediaIdentifier) || media.Generation < 1
+            || !Path.IsPathFullyQualified(media.DestinationPath) || string.IsNullOrEmpty(media.MediaIdentifier)
+            || string.IsNullOrWhiteSpace(media.Variant) || media.Generation < 1
             || !Enum.IsDefined(media.Status) || media.Attempts < 0 || media.ConsecutiveNotFound < 0 || media.ExpectedSize < 0
             || media.HttpStatus is < 100 or > 599
             || media.DueAt != null && media.LastAttemptAt != null && media.DueAt < media.LastAttemptAt)
