@@ -72,6 +72,7 @@ internal static class VideoContrastChecks
             TextBlock status = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryVideoStatus");
             await Program.WaitUntilAsync(() => status.Text == "Playback ended.");
             Check(window, viewer, status, theme, "ended", failures);
+            await GalleryToolbarContrastChecks.RunAsync(window, viewer, theme, failures);
             Button next = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryNext");
             next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => status.Text?.StartsWith("Video playback is unavailable", StringComparison.Ordinal) == true);
@@ -81,7 +82,7 @@ internal static class VideoContrastChecks
             await Program.WaitUntilAsync(() => !host.IsVisible);
             await window.GalleryCleanupTask;
         }
-        if (failures.Count > 0) throw new InvalidOperationException("Video contrast below 4.5:1: " + string.Join(", ", failures));
+        if (failures.Count > 0) throw new InvalidOperationException("Video or gallery toolbar contrast failed: " + string.Join(", ", failures));
     }
 
     private static void Check(Window window, GalleryViewer viewer, TextBlock text, ThemeVariant theme, string state, List<string> failures)

@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
@@ -174,7 +176,9 @@ internal sealed class GalleryViewer : UserControl
         _helpButton = Command(toolbar, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(toolbar, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
-        _chrome.Child = toolbar;
+        // The overlay is permanently dark, including in a light workspace.
+        // Keep Semi's native control states in the matching local theme.
+        _chrome.Child = new ThemeVariantScope { RequestedThemeVariant = ThemeVariant.Dark, Child = toolbar };
         StackPanel infoContent = new() { Spacing = 2 };
         Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
         infoHeadline.Children.Add(_quality);
@@ -351,7 +355,11 @@ internal sealed class GalleryViewer : UserControl
         };
         if (label == null || CommandId(name) is not { } id) return;
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
-        content.Children.Add(CommandBindings.Icon(id, 14));
+        Border icon = (Border)CommandBindings.Icon(id, 14);
+        // Semi sets the checked/pressed/disabled foreground on the content
+        // presenter; inherit that same foreground for the icon and label.
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
+        content.Children.Add(icon);
         content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
         button.Content = content;
     }
