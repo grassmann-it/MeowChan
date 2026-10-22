@@ -45,7 +45,13 @@ internal static class ComparisonCaptures
             await PresentationChecks.SwitchModeAsync(window, "Simple");
             foreach (ThreadRow row in rows) window.UrlList.Add(row);
             window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
+            // Downloads reconcile their filtered ItemsSource in a coalesced UI update.
+            // Select only after these passive snapshots are actually present in the grid.
+            await Program.WaitUntilAsync(() => window.VisibleThreads.SequenceEqual(rows)
+                && grid.CollectionView.Cast<ThreadRow>().SequenceEqual(rows));
             grid.SelectedItem = rows[0];
+            await Program.WaitUntilAsync(() => grid.SelectedItems.Count == 1
+                && ReferenceEquals(grid.SelectedItems[0], rows[0]));
 
             await SetInspectorAsync(window, false);
             await CaptureAsync(window, rows, "smoke-comparison-simple-dark.png");
@@ -259,14 +265,17 @@ internal static class ComparisonCaptures
         if (!window.UrlList.SequenceEqual(rows) || !ReferenceEquals(grid.SelectedItem, rows[0]))
             throw new InvalidOperationException("Changing the comparison view replaced its passive rows or selection.");
         DataGridRow selected = grid.GetVisualDescendants().OfType<DataGridRow>().First(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, rows[0]));
+        if (!selected.IsSelected || grid.SelectedItems.Count != 1 || !ReferenceEquals(grid.SelectedItems[0], rows[0]))
+            throw new InvalidOperationException($"The comparison row is not selected: rowSelected={selected.IsSelected}; selectedItems={grid.SelectedItems.Count}; selectedIndex={grid.SelectedIndex}.");
         Border background = selected.GetVisualDescendants().OfType<Border>()
             .First(border => border.Name == "BackgroundBorder" && ReferenceEquals(border.TemplatedParent, selected));
         Color expectedSelection = Application.Current?.RequestedThemeVariant == ThemeVariant.Dark
             ? Color.Parse("#25344A") : Color.Parse("#E0EBFC");
         if (background.Background is not ISolidColorBrush selection || selection.Color != expectedSelection)
-            throw new InvalidOperationException("The row template overrode the workspace's selection color.");
+            throw new InvalidOperationException($"The row template overrode the workspace's selection color: expected={expectedSelection}; actual={background.Background}; theme={selected.ActualThemeVariant}.");
         Console.WriteLine("SMOKE comparison capture: " + fileName + "; bounds=" + window.Bounds
-            + "; rows=" + rows.Length + "; scale=" + window.RenderScaling + ";");
+            + "; rows=" + rows.Length + "; scale=" + window.RenderScaling + "; rowSelected=" + selected.IsSelected
+            + "; selectionColor=" + selection.Color + ";");
         Program.CaptureWindow(window, fileName);
     }
 
