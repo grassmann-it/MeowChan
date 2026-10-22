@@ -233,7 +233,7 @@ internal sealed class GalleryViewer : UserControl
             _chrome.MaxWidth = Math.Max(0, Bounds.Width - 20);
             LayoutContext();
         };
-        _viewport.SizeChanged += (_, _) => FitIfAutomatic();
+        _viewport.SizeChanged += (_, _) => { UpdateInfoOverlayPosition(); FitIfAutomatic(); };
         _viewport.PointerWheelChanged += (_, e) => { Focus(); Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), e.GetPosition(_viewport)); e.Handled = true; };
         _viewport.PointerPressed += (_, e) =>
         {
@@ -688,8 +688,15 @@ internal sealed class GalleryViewer : UserControl
         double bottom = _entry?.Kind == SavedMediaKind.Video && _viewport.IsVisible &&
             !_nativeOverlayActive && !_nativeOverlayFallback && _video != null
             ? Math.Ceiling(_video.TransportBottomInset) + 10 : 10;
-        if (_infoOverlay.Margin.Bottom == bottom) return;
-        _infoOverlay.Margin = new Thickness(10, 0, 10, bottom);
+        // Video transport can lift the caption well above its usual bottom
+        // reserve. Keep it inside the media column rather than across the post
+        // context. Native video chrome already has its own media-sized window;
+        // fallback chrome has a separate row, and compact context hides media.
+        double right = 10;
+        if (_contextOpen && _viewport.IsVisible && !_nativeOverlayActive && !_nativeOverlayFallback)
+            right += Math.Max(0, _body.Bounds.Width - _viewport.Bounds.Right);
+        Thickness margin = new(10, 0, right, bottom);
+        if (_infoOverlay.Margin != margin) _infoOverlay.Margin = margin;
     }
     private void Move(int delta) { if (delta < 0 ? _previous.IsEnabled : _next.IsEnabled) MoveRequested?.Invoke(delta); }
     private void OnKeyDown(object? sender, KeyEventArgs e)

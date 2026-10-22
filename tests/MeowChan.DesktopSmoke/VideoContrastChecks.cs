@@ -69,6 +69,7 @@ internal static class VideoContrastChecks
             await Program.WaitUntilAsync(() => player.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text?.Contains(" / ") == true));
             TextBlock time = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Text?.Contains(" / ") == true);
             Check(window, viewer, time, theme, "time", failures);
+            if (theme == ThemeVariant.Light) await GalleryCaptionChecks.RunAsync(window, viewer, video: true);
             TextBlock status = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryVideoStatus");
             await Program.WaitUntilAsync(() => status.Text == "Playback ended.");
             Check(window, viewer, status, theme, "ended", failures);

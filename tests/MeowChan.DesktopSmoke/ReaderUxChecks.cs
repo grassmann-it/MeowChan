@@ -127,6 +127,7 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
             .Any(image => image.Source is Bitmap));
         GalleryViewer viewer = (GalleryViewer)gallery.Content!;
+        await GalleryCaptionChecks.RunAsync(window, viewer, video: false);
         await CheckOverlayChromeAsync(window, gallery);
         await WindowChromeChecks.RunAsync(window);
         await CheckSmallOverlayChromeAsync(window, gallery);
