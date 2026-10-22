@@ -1,1 +1,621 @@
 #nullable enable
+const MeowChan.PluginSdk.SdkContract.Version = "1.0.0" -> string!
+const MeowChan.PluginSdk.SdkLimits.MaximumCollectionCount = 100000 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumDecodedPixels = 16777216 -> long
+const MeowChan.PluginSdk.SdkLimits.MaximumDiagnosticLength = 2048 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumIdentifierLength = 256 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumImageBytes = 33554432 -> long
+const MeowChan.PluginSdk.SdkLimits.MaximumImageChunkBytes = 65536 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumMetadataBytes = 8388608 -> int
+const MeowChan.PluginSdk.SdkLimits.MaximumTextLength = 1048576 -> int
+MeowChan.PluginSdk.CatalogDeferred
+MeowChan.PluginSdk.CatalogDeferred.Board.get -> MeowChan.PluginSdk.SourceBoardId!
+MeowChan.PluginSdk.CatalogDeferred.Board.init -> void
+MeowChan.PluginSdk.CatalogDeferred.CatalogDeferred(MeowChan.PluginSdk.SourceBoardId! Board, System.DateTimeOffset RetryAt, string! ReasonCode, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.CatalogDeferred.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.CatalogDeferred.HttpStatusCode.init -> void
+MeowChan.PluginSdk.CatalogDeferred.ReasonCode.get -> string!
+MeowChan.PluginSdk.CatalogDeferred.ReasonCode.init -> void
+MeowChan.PluginSdk.CatalogDeferred.RetryAt.get -> System.DateTimeOffset
+MeowChan.PluginSdk.CatalogDeferred.RetryAt.init -> void
+MeowChan.PluginSdk.CatalogFailure
+MeowChan.PluginSdk.CatalogFailure.Board.get -> MeowChan.PluginSdk.SourceBoardId!
+MeowChan.PluginSdk.CatalogFailure.Board.init -> void
+MeowChan.PluginSdk.CatalogFailure.CatalogFailure(MeowChan.PluginSdk.SourceBoardId! Board, MeowChan.PluginSdk.FailureDetail! Failure) -> void
+MeowChan.PluginSdk.CatalogFailure.Failure.get -> MeowChan.PluginSdk.FailureDetail!
+MeowChan.PluginSdk.CatalogFailure.Failure.init -> void
+MeowChan.PluginSdk.CatalogReadRequest
+MeowChan.PluginSdk.CatalogReadRequest.Board.get -> MeowChan.PluginSdk.SourceBoardId!
+MeowChan.PluginSdk.CatalogReadRequest.Board.init -> void
+MeowChan.PluginSdk.CatalogReadRequest.CatalogReadRequest(MeowChan.PluginSdk.SourceBoardId! Board, string? Cursor = null, int? Page = null, MeowChan.PluginSdk.SourceValidators? Validators = null, bool HasSnapshot = false) -> void
+MeowChan.PluginSdk.CatalogReadRequest.Cursor.get -> string?
+MeowChan.PluginSdk.CatalogReadRequest.Cursor.init -> void
+MeowChan.PluginSdk.CatalogReadRequest.HasSnapshot.get -> bool
+MeowChan.PluginSdk.CatalogReadRequest.HasSnapshot.init -> void
+MeowChan.PluginSdk.CatalogReadRequest.Page.get -> int?
+MeowChan.PluginSdk.CatalogReadRequest.Page.init -> void
+MeowChan.PluginSdk.CatalogReadRequest.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.CatalogReadRequest.Validators.init -> void
+MeowChan.PluginSdk.CatalogReadResult
+MeowChan.PluginSdk.CatalogSnapshot
+MeowChan.PluginSdk.CatalogSnapshot.CatalogSnapshot(MeowChan.PluginSdk.SourceCatalogSnapshot! Snapshot) -> void
+MeowChan.PluginSdk.CatalogSnapshot.Snapshot.get -> MeowChan.PluginSdk.SourceCatalogSnapshot!
+MeowChan.PluginSdk.CatalogSnapshot.Snapshot.init -> void
+MeowChan.PluginSdk.CatalogUnchanged
+MeowChan.PluginSdk.CatalogUnchanged.Board.get -> MeowChan.PluginSdk.SourceBoardId!
+MeowChan.PluginSdk.CatalogUnchanged.Board.init -> void
+MeowChan.PluginSdk.CatalogUnchanged.CatalogUnchanged(MeowChan.PluginSdk.SourceBoardId! Board, MeowChan.PluginSdk.SourceValidators! Validators) -> void
+MeowChan.PluginSdk.CatalogUnchanged.Validators.get -> MeowChan.PluginSdk.SourceValidators!
+MeowChan.PluginSdk.CatalogUnchanged.Validators.init -> void
+MeowChan.PluginSdk.FailureDetail
+MeowChan.PluginSdk.FailureDetail.Code.get -> string!
+MeowChan.PluginSdk.FailureDetail.Code.init -> void
+MeowChan.PluginSdk.FailureDetail.FailureDetail(string! Code, string! Message, int? HttpStatusCode = null, System.DateTimeOffset? RetryAt = null) -> void
+MeowChan.PluginSdk.FailureDetail.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.FailureDetail.HttpStatusCode.init -> void
+MeowChan.PluginSdk.FailureDetail.Message.get -> string!
+MeowChan.PluginSdk.FailureDetail.Message.init -> void
+MeowChan.PluginSdk.FailureDetail.RetryAt.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.FailureDetail.RetryAt.init -> void
+MeowChan.PluginSdk.FieldValidationError
+MeowChan.PluginSdk.FieldValidationError.Code.get -> string!
+MeowChan.PluginSdk.FieldValidationError.Code.init -> void
+MeowChan.PluginSdk.FieldValidationError.FieldKey.get -> string!
+MeowChan.PluginSdk.FieldValidationError.FieldKey.init -> void
+MeowChan.PluginSdk.FieldValidationError.FieldValidationError(string! FieldKey, string! Code, string! Message) -> void
+MeowChan.PluginSdk.FieldValidationError.Message.get -> string!
+MeowChan.PluginSdk.FieldValidationError.Message.init -> void
+MeowChan.PluginSdk.FilterCandidate
+MeowChan.PluginSdk.FilterCandidate.FilterCandidate(MeowChan.PluginSdk.SourceMediaId! Id, string! PostId, int Position, System.Uri! Url, string? OriginalFileName = null, string? MimeType = null) -> void
+MeowChan.PluginSdk.FilterCandidate.Id.get -> MeowChan.PluginSdk.SourceMediaId!
+MeowChan.PluginSdk.FilterCandidate.Id.init -> void
+MeowChan.PluginSdk.FilterCandidate.MimeType.get -> string?
+MeowChan.PluginSdk.FilterCandidate.MimeType.init -> void
+MeowChan.PluginSdk.FilterCandidate.OriginalFileName.get -> string?
+MeowChan.PluginSdk.FilterCandidate.OriginalFileName.init -> void
+MeowChan.PluginSdk.FilterCandidate.Position.get -> int
+MeowChan.PluginSdk.FilterCandidate.Position.init -> void
+MeowChan.PluginSdk.FilterCandidate.PostId.get -> string!
+MeowChan.PluginSdk.FilterCandidate.PostId.init -> void
+MeowChan.PluginSdk.FilterCandidate.Url.get -> System.Uri!
+MeowChan.PluginSdk.FilterCandidate.Url.init -> void
+MeowChan.PluginSdk.FilterDataAccess
+MeowChan.PluginSdk.FilterDataAccess.CandidateMetadata = 1 -> MeowChan.PluginSdk.FilterDataAccess
+MeowChan.PluginSdk.FilterDataAccess.None = 0 -> MeowChan.PluginSdk.FilterDataAccess
+MeowChan.PluginSdk.FilterDataAccess.OriginalImage = 2 -> MeowChan.PluginSdk.FilterDataAccess
+MeowChan.PluginSdk.FilterDescription
+MeowChan.PluginSdk.FilterDescription.Description.get -> string!
+MeowChan.PluginSdk.FilterDescription.Description.init -> void
+MeowChan.PluginSdk.FilterDescription.FilterDescription(string! Key, string! Name, string! Description, MeowChan.PluginSdk.FilterDataAccess RequiredAccess, MeowChan.PluginSdk.SettingsSchema! Settings, System.Collections.Generic.IReadOnlyList<string!>! SupportedMimeTypes) -> void
+MeowChan.PluginSdk.FilterDescription.Key.get -> string!
+MeowChan.PluginSdk.FilterDescription.Key.init -> void
+MeowChan.PluginSdk.FilterDescription.Name.get -> string!
+MeowChan.PluginSdk.FilterDescription.Name.init -> void
+MeowChan.PluginSdk.FilterDescription.RequiredAccess.get -> MeowChan.PluginSdk.FilterDataAccess
+MeowChan.PluginSdk.FilterDescription.RequiredAccess.init -> void
+MeowChan.PluginSdk.FilterDescription.Settings.get -> MeowChan.PluginSdk.SettingsSchema!
+MeowChan.PluginSdk.FilterDescription.Settings.init -> void
+MeowChan.PluginSdk.FilterDescription.SupportedMimeTypes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.PluginSdk.FilterDescription.SupportedMimeTypes.init -> void
+MeowChan.PluginSdk.HostHttpDeferred
+MeowChan.PluginSdk.HostHttpDeferred.HostHttpDeferred(System.DateTimeOffset RetryAt, string! ReasonCode, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.HostHttpDeferred.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.HostHttpDeferred.HttpStatusCode.init -> void
+MeowChan.PluginSdk.HostHttpDeferred.ReasonCode.get -> string!
+MeowChan.PluginSdk.HostHttpDeferred.ReasonCode.init -> void
+MeowChan.PluginSdk.HostHttpDeferred.RetryAt.get -> System.DateTimeOffset
+MeowChan.PluginSdk.HostHttpDeferred.RetryAt.init -> void
+MeowChan.PluginSdk.HostHttpFailure
+MeowChan.PluginSdk.HostHttpFailure.Failure.get -> MeowChan.PluginSdk.FailureDetail!
+MeowChan.PluginSdk.HostHttpFailure.Failure.init -> void
+MeowChan.PluginSdk.HostHttpFailure.HostHttpFailure(MeowChan.PluginSdk.FailureDetail! Failure) -> void
+MeowChan.PluginSdk.HostHttpMethod
+MeowChan.PluginSdk.HostHttpMethod.Get = 0 -> MeowChan.PluginSdk.HostHttpMethod
+MeowChan.PluginSdk.HostHttpMethod.Head = 1 -> MeowChan.PluginSdk.HostHttpMethod
+MeowChan.PluginSdk.HostHttpRequest
+MeowChan.PluginSdk.HostHttpRequest.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+MeowChan.PluginSdk.HostHttpRequest.Headers.init -> void
+MeowChan.PluginSdk.HostHttpRequest.HostHttpRequest(string! SourceId, MeowChan.PluginSdk.HostHttpMethod Method, System.Uri! Url, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? Headers = null, MeowChan.PluginSdk.SourceValidators? Validators = null) -> void
+MeowChan.PluginSdk.HostHttpRequest.Method.get -> MeowChan.PluginSdk.HostHttpMethod
+MeowChan.PluginSdk.HostHttpRequest.Method.init -> void
+MeowChan.PluginSdk.HostHttpRequest.SourceId.get -> string!
+MeowChan.PluginSdk.HostHttpRequest.SourceId.init -> void
+MeowChan.PluginSdk.HostHttpRequest.Url.get -> System.Uri!
+MeowChan.PluginSdk.HostHttpRequest.Url.init -> void
+MeowChan.PluginSdk.HostHttpRequest.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.HostHttpRequest.Validators.init -> void
+MeowChan.PluginSdk.HostHttpResponse
+MeowChan.PluginSdk.HostHttpResponse.Body.get -> byte[]!
+MeowChan.PluginSdk.HostHttpResponse.Body.init -> void
+MeowChan.PluginSdk.HostHttpResponse.FinalUri.get -> System.Uri!
+MeowChan.PluginSdk.HostHttpResponse.FinalUri.init -> void
+MeowChan.PluginSdk.HostHttpResponse.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+MeowChan.PluginSdk.HostHttpResponse.Headers.init -> void
+MeowChan.PluginSdk.HostHttpResponse.HostHttpResponse(int StatusCode, System.Uri! FinalUri, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Headers, byte[]! Body, MeowChan.PluginSdk.SourceValidators? Validators = null) -> void
+MeowChan.PluginSdk.HostHttpResponse.StatusCode.get -> int
+MeowChan.PluginSdk.HostHttpResponse.StatusCode.init -> void
+MeowChan.PluginSdk.HostHttpResponse.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.HostHttpResponse.Validators.init -> void
+MeowChan.PluginSdk.HostHttpResult
+MeowChan.PluginSdk.HttpHostDeclaration
+MeowChan.PluginSdk.HttpHostDeclaration.Host.get -> string!
+MeowChan.PluginSdk.HttpHostDeclaration.Host.init -> void
+MeowChan.PluginSdk.HttpHostDeclaration.HttpHostDeclaration(string! Host, MeowChan.PluginSdk.HttpHostPurpose Purpose) -> void
+MeowChan.PluginSdk.HttpHostDeclaration.Purpose.get -> MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.HttpHostDeclaration.Purpose.init -> void
+MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.HttpHostPurpose.Metadata = 1 -> MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.HttpHostPurpose.None = 0 -> MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.HttpHostPurpose.OriginalMedia = 2 -> MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.HttpHostPurpose.PreviewMedia = 4 -> MeowChan.PluginSdk.HttpHostPurpose
+MeowChan.PluginSdk.IHostHttp
+MeowChan.PluginSdk.IHostHttp.SendAsync(MeowChan.PluginSdk.HostHttpRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.HostHttpResult!>!
+MeowChan.PluginSdk.IImageAssetReader
+MeowChan.PluginSdk.IImageAssetReader.ReadImageAsync(string! assetToken, long offset, int count, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ImageAssetChunk!>!
+MeowChan.PluginSdk.IImageFilterPlugin
+MeowChan.PluginSdk.IImageFilterPlugin.EvaluateAsync(MeowChan.PluginSdk.ImageFilterRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ImageFilterResult!>!
+MeowChan.PluginSdk.ImageAssetChunk
+MeowChan.PluginSdk.ImageAssetChunk.Bytes.get -> byte[]!
+MeowChan.PluginSdk.ImageAssetChunk.Bytes.init -> void
+MeowChan.PluginSdk.ImageAssetChunk.ImageAssetChunk(long Offset, byte[]! Bytes, bool IsEnd) -> void
+MeowChan.PluginSdk.ImageAssetChunk.IsEnd.get -> bool
+MeowChan.PluginSdk.ImageAssetChunk.IsEnd.init -> void
+MeowChan.PluginSdk.ImageAssetChunk.Offset.get -> long
+MeowChan.PluginSdk.ImageAssetChunk.Offset.init -> void
+MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterOutcome.Error = 4 -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterOutcome.Match = 0 -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterOutcome.NoMatch = 1 -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterOutcome.Timeout = 3 -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterOutcome.Unavailable = 2 -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterRequest
+MeowChan.PluginSdk.ImageFilterRequest.AssetToken.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.AssetToken.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.Candidate.get -> MeowChan.PluginSdk.FilterCandidate!
+MeowChan.PluginSdk.ImageFilterRequest.Candidate.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.ConfigurationRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.ConfigurationRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.EffectiveRuleRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.EffectiveRuleRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.FilterKey.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.FilterKey.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.GrantRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.GrantRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.ImageFilterRequest(string! FilterKey, MeowChan.PluginSdk.FilterCandidate! Candidate, string! InputRevision, string! MediaRevision, string! AssetToken, long OriginalSize, string! OriginalSha256, string! EffectiveRuleRevision, MeowChan.PluginSdk.SettingsSnapshot! RuleSettings, string! PluginBuildRevision, string! ConfigurationRevision, string! GrantRevision) -> void
+MeowChan.PluginSdk.ImageFilterRequest.InputRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.InputRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.MediaRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.MediaRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.OriginalSha256.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.OriginalSha256.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.OriginalSize.get -> long
+MeowChan.PluginSdk.ImageFilterRequest.OriginalSize.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.PluginBuildRevision.get -> string!
+MeowChan.PluginSdk.ImageFilterRequest.PluginBuildRevision.init -> void
+MeowChan.PluginSdk.ImageFilterRequest.RuleSettings.get -> MeowChan.PluginSdk.SettingsSnapshot!
+MeowChan.PluginSdk.ImageFilterRequest.RuleSettings.init -> void
+MeowChan.PluginSdk.ImageFilterResult
+MeowChan.PluginSdk.ImageFilterResult.ImageFilterResult(MeowChan.PluginSdk.ImageFilterOutcome Outcome, string! ReasonCode, string? Message = null) -> void
+MeowChan.PluginSdk.ImageFilterResult.Message.get -> string?
+MeowChan.PluginSdk.ImageFilterResult.Message.init -> void
+MeowChan.PluginSdk.ImageFilterResult.Outcome.get -> MeowChan.PluginSdk.ImageFilterOutcome
+MeowChan.PluginSdk.ImageFilterResult.Outcome.init -> void
+MeowChan.PluginSdk.ImageFilterResult.ReasonCode.get -> string!
+MeowChan.PluginSdk.ImageFilterResult.ReasonCode.init -> void
+MeowChan.PluginSdk.InformationEntry
+MeowChan.PluginSdk.InformationEntry.AsOf.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.InformationEntry.AsOf.init -> void
+MeowChan.PluginSdk.InformationEntry.InformationEntry(string! Key, string! Label, MeowChan.PluginSdk.InformationKind Kind, string? Value = null, System.Collections.Generic.IReadOnlyList<string!>? Items = null, System.DateTimeOffset? AsOf = null, string? SourceId = null) -> void
+MeowChan.PluginSdk.InformationEntry.Items.get -> System.Collections.Generic.IReadOnlyList<string!>?
+MeowChan.PluginSdk.InformationEntry.Items.init -> void
+MeowChan.PluginSdk.InformationEntry.Key.get -> string!
+MeowChan.PluginSdk.InformationEntry.Key.init -> void
+MeowChan.PluginSdk.InformationEntry.Kind.get -> MeowChan.PluginSdk.InformationKind
+MeowChan.PluginSdk.InformationEntry.Kind.init -> void
+MeowChan.PluginSdk.InformationEntry.Label.get -> string!
+MeowChan.PluginSdk.InformationEntry.Label.init -> void
+MeowChan.PluginSdk.InformationEntry.SourceId.get -> string?
+MeowChan.PluginSdk.InformationEntry.SourceId.init -> void
+MeowChan.PluginSdk.InformationEntry.Value.get -> string?
+MeowChan.PluginSdk.InformationEntry.Value.init -> void
+MeowChan.PluginSdk.InformationKind
+MeowChan.PluginSdk.InformationKind.List = 2 -> MeowChan.PluginSdk.InformationKind
+MeowChan.PluginSdk.InformationKind.Text = 0 -> MeowChan.PluginSdk.InformationKind
+MeowChan.PluginSdk.InformationKind.Value = 1 -> MeowChan.PluginSdk.InformationKind
+MeowChan.PluginSdk.IPlugin
+MeowChan.PluginSdk.IPlugin.Describe() -> MeowChan.PluginSdk.PluginDescription!
+MeowChan.PluginSdk.IPluginLog
+MeowChan.PluginSdk.IPluginLog.Write(MeowChan.PluginSdk.PluginLogLevel level, string! message) -> void
+MeowChan.PluginSdk.IPluginResources
+MeowChan.PluginSdk.IPluginResources.ResolvePath(string! logicalName) -> string?
+MeowChan.PluginSdk.IPluginSettingsValidator
+MeowChan.PluginSdk.IPluginSettingsValidator.ValidateSettingsAsync(MeowChan.PluginSdk.SettingsValidationRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError!>!>!
+MeowChan.PluginSdk.ISourcePlugin
+MeowChan.PluginSdk.ISourcePlugin.ReadCatalogAsync(MeowChan.PluginSdk.CatalogReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.CatalogReadResult!>!
+MeowChan.PluginSdk.ISourcePlugin.ReadThreadAsync(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.ThreadReadResult!>!
+MeowChan.PluginSdk.PluginCallContext
+MeowChan.PluginSdk.PluginCallContext.Configuration.get -> MeowChan.PluginSdk.PluginConfiguration!
+MeowChan.PluginSdk.PluginCallContext.Configuration.init -> void
+MeowChan.PluginSdk.PluginCallContext.Http.get -> MeowChan.PluginSdk.IHostHttp!
+MeowChan.PluginSdk.PluginCallContext.Http.init -> void
+MeowChan.PluginSdk.PluginCallContext.Images.get -> MeowChan.PluginSdk.IImageAssetReader!
+MeowChan.PluginSdk.PluginCallContext.Images.init -> void
+MeowChan.PluginSdk.PluginCallContext.Log.get -> MeowChan.PluginSdk.IPluginLog!
+MeowChan.PluginSdk.PluginCallContext.Log.init -> void
+MeowChan.PluginSdk.PluginCallContext.PluginCallContext(MeowChan.PluginSdk.PluginConfiguration! Configuration, MeowChan.PluginSdk.IHostHttp! Http, MeowChan.PluginSdk.IImageAssetReader! Images, MeowChan.PluginSdk.IPluginResources! Resources, MeowChan.PluginSdk.IPluginLog! Log) -> void
+MeowChan.PluginSdk.PluginCallContext.Resources.get -> MeowChan.PluginSdk.IPluginResources!
+MeowChan.PluginSdk.PluginCallContext.Resources.init -> void
+MeowChan.PluginSdk.PluginConfiguration
+MeowChan.PluginSdk.PluginConfiguration.PluginConfiguration(string! Revision, MeowChan.PluginSdk.SettingsSnapshot! PluginSettings, System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.PluginSdk.SettingsSnapshot!>! SourceSettings) -> void
+MeowChan.PluginSdk.PluginConfiguration.PluginSettings.get -> MeowChan.PluginSdk.SettingsSnapshot!
+MeowChan.PluginSdk.PluginConfiguration.PluginSettings.init -> void
+MeowChan.PluginSdk.PluginConfiguration.Revision.get -> string!
+MeowChan.PluginSdk.PluginConfiguration.Revision.init -> void
+MeowChan.PluginSdk.PluginConfiguration.SourceSettings.get -> System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.PluginSdk.SettingsSnapshot!>!
+MeowChan.PluginSdk.PluginConfiguration.SourceSettings.init -> void
+MeowChan.PluginSdk.PluginDescription
+MeowChan.PluginSdk.PluginDescription.Author.get -> string?
+MeowChan.PluginSdk.PluginDescription.Author.init -> void
+MeowChan.PluginSdk.PluginDescription.AuthorUrl.get -> System.Uri?
+MeowChan.PluginSdk.PluginDescription.AuthorUrl.init -> void
+MeowChan.PluginSdk.PluginDescription.Description.get -> string!
+MeowChan.PluginSdk.PluginDescription.Description.init -> void
+MeowChan.PluginSdk.PluginDescription.DocumentationUrl.get -> System.Uri?
+MeowChan.PluginSdk.PluginDescription.DocumentationUrl.init -> void
+MeowChan.PluginSdk.PluginDescription.Filters.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FilterDescription!>!
+MeowChan.PluginSdk.PluginDescription.Filters.init -> void
+MeowChan.PluginSdk.PluginDescription.Information.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.InformationEntry!>!
+MeowChan.PluginSdk.PluginDescription.Information.init -> void
+MeowChan.PluginSdk.PluginDescription.Name.get -> string!
+MeowChan.PluginSdk.PluginDescription.Name.init -> void
+MeowChan.PluginSdk.PluginDescription.PluginDescription(string! PluginId, string! Name, string! PluginVersion, string! SdkVersion, string! Description, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceDescription!>! Sources, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FilterDescription!>! Filters, MeowChan.PluginSdk.SettingsSchema! Settings, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.InformationEntry!>! Information, string? Author = null, System.Uri? AuthorUrl = null, System.Uri? DocumentationUrl = null) -> void
+MeowChan.PluginSdk.PluginDescription.PluginId.get -> string!
+MeowChan.PluginSdk.PluginDescription.PluginId.init -> void
+MeowChan.PluginSdk.PluginDescription.PluginVersion.get -> string!
+MeowChan.PluginSdk.PluginDescription.PluginVersion.init -> void
+MeowChan.PluginSdk.PluginDescription.SdkVersion.get -> string!
+MeowChan.PluginSdk.PluginDescription.SdkVersion.init -> void
+MeowChan.PluginSdk.PluginDescription.Settings.get -> MeowChan.PluginSdk.SettingsSchema!
+MeowChan.PluginSdk.PluginDescription.Settings.init -> void
+MeowChan.PluginSdk.PluginDescription.Sources.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceDescription!>!
+MeowChan.PluginSdk.PluginDescription.Sources.init -> void
+MeowChan.PluginSdk.PluginLogLevel
+MeowChan.PluginSdk.PluginLogLevel.Debug = 0 -> MeowChan.PluginSdk.PluginLogLevel
+MeowChan.PluginSdk.PluginLogLevel.Error = 3 -> MeowChan.PluginSdk.PluginLogLevel
+MeowChan.PluginSdk.PluginLogLevel.Information = 1 -> MeowChan.PluginSdk.PluginLogLevel
+MeowChan.PluginSdk.PluginLogLevel.Warning = 2 -> MeowChan.PluginSdk.PluginLogLevel
+MeowChan.PluginSdk.PostOrderKind
+MeowChan.PluginSdk.PostOrderKind.DecimalPostId = 1 -> MeowChan.PluginSdk.PostOrderKind
+MeowChan.PluginSdk.PostOrderKind.StableOrdinal = 0 -> MeowChan.PluginSdk.PostOrderKind
+MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.AsciiWord = 1 -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.Decimal = 2 -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.RouteIdentifierKind.PortableSegment = 0 -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.SdkContract
+MeowChan.PluginSdk.SdkJson
+MeowChan.PluginSdk.SdkLimits
+MeowChan.PluginSdk.SdkValidation
+MeowChan.PluginSdk.SettingDefinition
+MeowChan.PluginSdk.SettingDefinition.Default.get -> MeowChan.PluginSdk.SettingValue?
+MeowChan.PluginSdk.SettingDefinition.Default.init -> void
+MeowChan.PluginSdk.SettingDefinition.Help.get -> string?
+MeowChan.PluginSdk.SettingDefinition.Help.init -> void
+MeowChan.PluginSdk.SettingDefinition.IsRequired.get -> bool
+MeowChan.PluginSdk.SettingDefinition.IsRequired.init -> void
+MeowChan.PluginSdk.SettingDefinition.Key.get -> string!
+MeowChan.PluginSdk.SettingDefinition.Key.init -> void
+MeowChan.PluginSdk.SettingDefinition.Kind.get -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingDefinition.Kind.init -> void
+MeowChan.PluginSdk.SettingDefinition.Label.get -> string!
+MeowChan.PluginSdk.SettingDefinition.Label.init -> void
+MeowChan.PluginSdk.SettingDefinition.Maximum.get -> long?
+MeowChan.PluginSdk.SettingDefinition.Maximum.init -> void
+MeowChan.PluginSdk.SettingDefinition.MaximumLength.get -> int?
+MeowChan.PluginSdk.SettingDefinition.MaximumLength.init -> void
+MeowChan.PluginSdk.SettingDefinition.Minimum.get -> long?
+MeowChan.PluginSdk.SettingDefinition.Minimum.init -> void
+MeowChan.PluginSdk.SettingDefinition.Options.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingOption!>?
+MeowChan.PluginSdk.SettingDefinition.Options.init -> void
+MeowChan.PluginSdk.SettingDefinition.Scope.get -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingDefinition.Scope.init -> void
+MeowChan.PluginSdk.SettingDefinition.SettingDefinition(string! Key, MeowChan.PluginSdk.SettingScope Scope, MeowChan.PluginSdk.SettingKind Kind, string! Label, string? Help = null, bool IsRequired = false, MeowChan.PluginSdk.SettingValue? Default = null, long? Minimum = null, long? Maximum = null, int? MaximumLength = null, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingOption!>? Options = null) -> void
+MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingKind.Boolean = 2 -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingKind.Enum = 3 -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingKind.Integer = 1 -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingKind.Text = 0 -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingKind.Uri = 4 -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingOption
+MeowChan.PluginSdk.SettingOption.Label.get -> string!
+MeowChan.PluginSdk.SettingOption.Label.init -> void
+MeowChan.PluginSdk.SettingOption.SettingOption(string! Value, string! Label) -> void
+MeowChan.PluginSdk.SettingOption.Value.get -> string!
+MeowChan.PluginSdk.SettingOption.Value.init -> void
+MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingScope.FilterRule = 2 -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingScope.Plugin = 0 -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingScope.Source = 1 -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingsSchema
+MeowChan.PluginSdk.SettingsSchema.Fields.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingDefinition!>!
+MeowChan.PluginSdk.SettingsSchema.Fields.init -> void
+MeowChan.PluginSdk.SettingsSchema.SettingsSchema(string! Version, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingDefinition!>! Fields) -> void
+MeowChan.PluginSdk.SettingsSchema.Version.get -> string!
+MeowChan.PluginSdk.SettingsSchema.Version.init -> void
+MeowChan.PluginSdk.SettingsSnapshot
+MeowChan.PluginSdk.SettingsSnapshot.SchemaVersion.get -> string!
+MeowChan.PluginSdk.SettingsSnapshot.SchemaVersion.init -> void
+MeowChan.PluginSdk.SettingsSnapshot.SettingsSnapshot(string! SchemaVersion, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingValue!>! Values) -> void
+MeowChan.PluginSdk.SettingsSnapshot.Values.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SettingValue!>!
+MeowChan.PluginSdk.SettingsSnapshot.Values.init -> void
+MeowChan.PluginSdk.SettingsValidationRequest
+MeowChan.PluginSdk.SettingsValidationRequest.FilterKey.get -> string?
+MeowChan.PluginSdk.SettingsValidationRequest.FilterKey.init -> void
+MeowChan.PluginSdk.SettingsValidationRequest.Scope.get -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SettingsValidationRequest.Scope.init -> void
+MeowChan.PluginSdk.SettingsValidationRequest.Settings.get -> MeowChan.PluginSdk.SettingsSnapshot!
+MeowChan.PluginSdk.SettingsValidationRequest.Settings.init -> void
+MeowChan.PluginSdk.SettingsValidationRequest.SettingsValidationRequest(MeowChan.PluginSdk.SettingScope Scope, MeowChan.PluginSdk.SettingsSnapshot! Settings, string? SourceId = null, string? FilterKey = null) -> void
+MeowChan.PluginSdk.SettingsValidationRequest.SourceId.get -> string?
+MeowChan.PluginSdk.SettingsValidationRequest.SourceId.init -> void
+MeowChan.PluginSdk.SettingValue
+MeowChan.PluginSdk.SettingValue.Boolean.get -> bool?
+MeowChan.PluginSdk.SettingValue.Boolean.init -> void
+MeowChan.PluginSdk.SettingValue.Integer.get -> long?
+MeowChan.PluginSdk.SettingValue.Integer.init -> void
+MeowChan.PluginSdk.SettingValue.Key.get -> string!
+MeowChan.PluginSdk.SettingValue.Key.init -> void
+MeowChan.PluginSdk.SettingValue.Kind.get -> MeowChan.PluginSdk.SettingKind
+MeowChan.PluginSdk.SettingValue.Kind.init -> void
+MeowChan.PluginSdk.SettingValue.SettingValue(string! Key, MeowChan.PluginSdk.SettingKind Kind, string? Text = null, long? Integer = null, bool? Boolean = null) -> void
+MeowChan.PluginSdk.SettingValue.Text.get -> string?
+MeowChan.PluginSdk.SettingValue.Text.init -> void
+MeowChan.PluginSdk.SourceAttachment
+MeowChan.PluginSdk.SourceAttachment.ExpectedMd5.get -> string?
+MeowChan.PluginSdk.SourceAttachment.ExpectedMd5.init -> void
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha256.get -> string?
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha256.init -> void
+MeowChan.PluginSdk.SourceAttachment.ExpectedSize.get -> long?
+MeowChan.PluginSdk.SourceAttachment.ExpectedSize.init -> void
+MeowChan.PluginSdk.SourceAttachment.Extension.get -> string?
+MeowChan.PluginSdk.SourceAttachment.Extension.init -> void
+MeowChan.PluginSdk.SourceAttachment.IsDeleted.get -> bool
+MeowChan.PluginSdk.SourceAttachment.IsDeleted.init -> void
+MeowChan.PluginSdk.SourceAttachment.MediaId.get -> string?
+MeowChan.PluginSdk.SourceAttachment.MediaId.init -> void
+MeowChan.PluginSdk.SourceAttachment.MimeType.get -> string?
+MeowChan.PluginSdk.SourceAttachment.MimeType.init -> void
+MeowChan.PluginSdk.SourceAttachment.OriginalFileName.get -> string?
+MeowChan.PluginSdk.SourceAttachment.OriginalFileName.init -> void
+MeowChan.PluginSdk.SourceAttachment.Position.get -> int
+MeowChan.PluginSdk.SourceAttachment.Position.init -> void
+MeowChan.PluginSdk.SourceAttachment.SourceAttachment(int Position, string? MediaId, string! Variant = "original", System.Uri? Url = null, string? OriginalFileName = null, string? Extension = null, long? ExpectedSize = null, string? ExpectedMd5 = null, string? ExpectedSha256 = null, string? MimeType = null, bool IsDeleted = false) -> void
+MeowChan.PluginSdk.SourceAttachment.Url.get -> System.Uri?
+MeowChan.PluginSdk.SourceAttachment.Url.init -> void
+MeowChan.PluginSdk.SourceAttachment.Variant.get -> string!
+MeowChan.PluginSdk.SourceAttachment.Variant.init -> void
+MeowChan.PluginSdk.SourceBoardId
+MeowChan.PluginSdk.SourceBoardId.BoardId.get -> string!
+MeowChan.PluginSdk.SourceBoardId.BoardId.init -> void
+MeowChan.PluginSdk.SourceBoardId.SourceBoardId(string! SourceId, string! BoardId) -> void
+MeowChan.PluginSdk.SourceBoardId.SourceId.get -> string!
+MeowChan.PluginSdk.SourceBoardId.SourceId.init -> void
+MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.BoardCatalog = 2 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.None = 0 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.OriginalMedia = 8 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.PostCapture = 4 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.Previews = 16 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCapabilities.ThreadRead = 1 -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceCatalogSnapshot
+MeowChan.PluginSdk.SourceCatalogSnapshot.Board.get -> MeowChan.PluginSdk.SourceBoardId!
+MeowChan.PluginSdk.SourceCatalogSnapshot.Board.init -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.IsComplete.get -> bool
+MeowChan.PluginSdk.SourceCatalogSnapshot.IsComplete.init -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.NextCursor.get -> string?
+MeowChan.PluginSdk.SourceCatalogSnapshot.NextCursor.init -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.NextPage.get -> int?
+MeowChan.PluginSdk.SourceCatalogSnapshot.NextPage.init -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.SourceCatalogSnapshot(MeowChan.PluginSdk.SourceBoardId! Board, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceThreadReference!>! Threads, bool IsComplete, string? NextCursor = null, int? NextPage = null, MeowChan.PluginSdk.SourceValidators? Validators = null) -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceThreadReference!>!
+MeowChan.PluginSdk.SourceCatalogSnapshot.Threads.init -> void
+MeowChan.PluginSdk.SourceCatalogSnapshot.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.SourceCatalogSnapshot.Validators.init -> void
+MeowChan.PluginSdk.SourceDescription
+MeowChan.PluginSdk.SourceDescription.BaseUri.get -> System.Uri!
+MeowChan.PluginSdk.SourceDescription.BaseUri.init -> void
+MeowChan.PluginSdk.SourceDescription.Capabilities.get -> MeowChan.PluginSdk.SourceCapabilities
+MeowChan.PluginSdk.SourceDescription.Capabilities.init -> void
+MeowChan.PluginSdk.SourceDescription.HttpHosts.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.HttpHostDeclaration!>!
+MeowChan.PluginSdk.SourceDescription.HttpHosts.init -> void
+MeowChan.PluginSdk.SourceDescription.Name.get -> string!
+MeowChan.PluginSdk.SourceDescription.Name.init -> void
+MeowChan.PluginSdk.SourceDescription.PostOrder.get -> MeowChan.PluginSdk.PostOrderKind
+MeowChan.PluginSdk.SourceDescription.PostOrder.init -> void
+MeowChan.PluginSdk.SourceDescription.Routes.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.UrlRoute!>!
+MeowChan.PluginSdk.SourceDescription.Routes.init -> void
+MeowChan.PluginSdk.SourceDescription.Settings.get -> MeowChan.PluginSdk.SettingsSchema!
+MeowChan.PluginSdk.SourceDescription.Settings.init -> void
+MeowChan.PluginSdk.SourceDescription.SourceDescription(string! SourceId, string! Name, System.Uri! BaseUri, MeowChan.PluginSdk.SourceCapabilities Capabilities, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.UrlRoute!>! Routes, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.HttpHostDeclaration!>! HttpHosts, MeowChan.PluginSdk.SettingsSchema! Settings, MeowChan.PluginSdk.PostOrderKind PostOrder = MeowChan.PluginSdk.PostOrderKind.StableOrdinal) -> void
+MeowChan.PluginSdk.SourceDescription.SourceId.get -> string!
+MeowChan.PluginSdk.SourceDescription.SourceId.init -> void
+MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.All = MeowChan.PluginSdk.SourceFieldPresence.PostedAt | MeowChan.PluginSdk.SourceFieldPresence.Subject | MeowChan.PluginSdk.SourceFieldPresence.Author | MeowChan.PluginSdk.SourceFieldPresence.Text | MeowChan.PluginSdk.SourceFieldPresence.IsDeleted | MeowChan.PluginSdk.SourceFieldPresence.Attachments -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.Attachments = 32 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.Author = 4 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.IsDeleted = 16 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.None = 0 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.PostedAt = 1 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.Subject = 2 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceFieldPresence.Text = 8 -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourceMediaId
+MeowChan.PluginSdk.SourceMediaId.MediaId.get -> string!
+MeowChan.PluginSdk.SourceMediaId.MediaId.init -> void
+MeowChan.PluginSdk.SourceMediaId.SourceMediaId(MeowChan.PluginSdk.SourceThreadId! Thread, string! MediaId, string! Variant = "original") -> void
+MeowChan.PluginSdk.SourceMediaId.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.SourceMediaId.Thread.init -> void
+MeowChan.PluginSdk.SourceMediaId.Variant.get -> string!
+MeowChan.PluginSdk.SourceMediaId.Variant.init -> void
+MeowChan.PluginSdk.SourcePost
+MeowChan.PluginSdk.SourcePost.Attachments.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceAttachment!>?
+MeowChan.PluginSdk.SourcePost.Attachments.init -> void
+MeowChan.PluginSdk.SourcePost.Author.get -> string?
+MeowChan.PluginSdk.SourcePost.Author.init -> void
+MeowChan.PluginSdk.SourcePost.Fields.get -> MeowChan.PluginSdk.SourceFieldPresence
+MeowChan.PluginSdk.SourcePost.Fields.init -> void
+MeowChan.PluginSdk.SourcePost.IsDeleted.get -> bool
+MeowChan.PluginSdk.SourcePost.IsDeleted.init -> void
+MeowChan.PluginSdk.SourcePost.Ordinal.get -> long
+MeowChan.PluginSdk.SourcePost.Ordinal.init -> void
+MeowChan.PluginSdk.SourcePost.PostedAt.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.SourcePost.PostedAt.init -> void
+MeowChan.PluginSdk.SourcePost.PostId.get -> string!
+MeowChan.PluginSdk.SourcePost.PostId.init -> void
+MeowChan.PluginSdk.SourcePost.SourcePost(string! PostId, long Ordinal, MeowChan.PluginSdk.SourceFieldPresence Fields, System.DateTimeOffset? PostedAt = null, string? Subject = null, string? Author = null, string? Text = null, MeowChan.PluginSdk.SourceTextFormat TextFormat = MeowChan.PluginSdk.SourceTextFormat.Html, bool IsDeleted = false, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourceAttachment!>? Attachments = null) -> void
+MeowChan.PluginSdk.SourcePost.Subject.get -> string?
+MeowChan.PluginSdk.SourcePost.Subject.init -> void
+MeowChan.PluginSdk.SourcePost.Text.get -> string?
+MeowChan.PluginSdk.SourcePost.Text.init -> void
+MeowChan.PluginSdk.SourcePost.TextFormat.get -> MeowChan.PluginSdk.SourceTextFormat
+MeowChan.PluginSdk.SourcePost.TextFormat.init -> void
+MeowChan.PluginSdk.SourceResourceKind
+MeowChan.PluginSdk.SourceResourceKind.Board = 0 -> MeowChan.PluginSdk.SourceResourceKind
+MeowChan.PluginSdk.SourceResourceKind.Thread = 1 -> MeowChan.PluginSdk.SourceResourceKind
+MeowChan.PluginSdk.SourceTextFormat
+MeowChan.PluginSdk.SourceTextFormat.Html = 1 -> MeowChan.PluginSdk.SourceTextFormat
+MeowChan.PluginSdk.SourceTextFormat.PlainText = 0 -> MeowChan.PluginSdk.SourceTextFormat
+MeowChan.PluginSdk.SourceThreadId
+MeowChan.PluginSdk.SourceThreadId.BoardId.get -> string!
+MeowChan.PluginSdk.SourceThreadId.BoardId.init -> void
+MeowChan.PluginSdk.SourceThreadId.SourceId.get -> string!
+MeowChan.PluginSdk.SourceThreadId.SourceId.init -> void
+MeowChan.PluginSdk.SourceThreadId.SourceThreadId(string! SourceId, string! BoardId, string! ThreadId) -> void
+MeowChan.PluginSdk.SourceThreadId.ThreadId.get -> string!
+MeowChan.PluginSdk.SourceThreadId.ThreadId.init -> void
+MeowChan.PluginSdk.SourceThreadReference
+MeowChan.PluginSdk.SourceThreadReference.AttachmentCount.get -> int?
+MeowChan.PluginSdk.SourceThreadReference.AttachmentCount.init -> void
+MeowChan.PluginSdk.SourceThreadReference.CreatedAt.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.SourceThreadReference.CreatedAt.init -> void
+MeowChan.PluginSdk.SourceThreadReference.Id.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.SourceThreadReference.Id.init -> void
+MeowChan.PluginSdk.SourceThreadReference.OpeningText.get -> string?
+MeowChan.PluginSdk.SourceThreadReference.OpeningText.init -> void
+MeowChan.PluginSdk.SourceThreadReference.OpeningTextFormat.get -> MeowChan.PluginSdk.SourceTextFormat
+MeowChan.PluginSdk.SourceThreadReference.OpeningTextFormat.init -> void
+MeowChan.PluginSdk.SourceThreadReference.ReplyCount.get -> int?
+MeowChan.PluginSdk.SourceThreadReference.ReplyCount.init -> void
+MeowChan.PluginSdk.SourceThreadReference.SourceThreadReference(MeowChan.PluginSdk.SourceThreadId! Id, System.Uri! Url, string? Title = null, string? OpeningText = null, MeowChan.PluginSdk.SourceTextFormat OpeningTextFormat = MeowChan.PluginSdk.SourceTextFormat.PlainText, System.DateTimeOffset? CreatedAt = null, int? ReplyCount = null, int? AttachmentCount = null) -> void
+MeowChan.PluginSdk.SourceThreadReference.Title.get -> string?
+MeowChan.PluginSdk.SourceThreadReference.Title.init -> void
+MeowChan.PluginSdk.SourceThreadReference.Url.get -> System.Uri!
+MeowChan.PluginSdk.SourceThreadReference.Url.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot
+MeowChan.PluginSdk.SourceThreadSnapshot.Posts.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourcePost!>!
+MeowChan.PluginSdk.SourceThreadSnapshot.Posts.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.SourceState.get -> MeowChan.PluginSdk.SourceThreadState
+MeowChan.PluginSdk.SourceThreadSnapshot.SourceState.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.SourceThreadSnapshot(MeowChan.PluginSdk.SourceThreadId! Thread, System.Uri! Url, string? Title, MeowChan.PluginSdk.SourceThreadState SourceState, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.SourcePost!>! Posts, MeowChan.PluginSdk.SourceValidators? Validators = null) -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.SourceThreadSnapshot.Thread.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.Title.get -> string?
+MeowChan.PluginSdk.SourceThreadSnapshot.Title.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.Url.get -> System.Uri!
+MeowChan.PluginSdk.SourceThreadSnapshot.Url.init -> void
+MeowChan.PluginSdk.SourceThreadSnapshot.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.SourceThreadSnapshot.Validators.init -> void
+MeowChan.PluginSdk.SourceThreadState
+MeowChan.PluginSdk.SourceThreadState.Active = 0 -> MeowChan.PluginSdk.SourceThreadState
+MeowChan.PluginSdk.SourceThreadState.Archived = 1 -> MeowChan.PluginSdk.SourceThreadState
+MeowChan.PluginSdk.SourceValidators
+MeowChan.PluginSdk.SourceValidators.EntityTag.get -> string?
+MeowChan.PluginSdk.SourceValidators.EntityTag.init -> void
+MeowChan.PluginSdk.SourceValidators.LastModified.get -> System.DateTimeOffset?
+MeowChan.PluginSdk.SourceValidators.LastModified.init -> void
+MeowChan.PluginSdk.SourceValidators.Revision.get -> string?
+MeowChan.PluginSdk.SourceValidators.Revision.init -> void
+MeowChan.PluginSdk.SourceValidators.SourceValidators(string? EntityTag = null, System.DateTimeOffset? LastModified = null, string? Revision = null) -> void
+MeowChan.PluginSdk.ThreadDeferred
+MeowChan.PluginSdk.ThreadDeferred.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.ThreadDeferred.HttpStatusCode.init -> void
+MeowChan.PluginSdk.ThreadDeferred.ReasonCode.get -> string!
+MeowChan.PluginSdk.ThreadDeferred.ReasonCode.init -> void
+MeowChan.PluginSdk.ThreadDeferred.RetryAt.get -> System.DateTimeOffset
+MeowChan.PluginSdk.ThreadDeferred.RetryAt.init -> void
+MeowChan.PluginSdk.ThreadDeferred.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.ThreadDeferred.Thread.init -> void
+MeowChan.PluginSdk.ThreadDeferred.ThreadDeferred(MeowChan.PluginSdk.SourceThreadId! Thread, System.DateTimeOffset RetryAt, string! ReasonCode, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.ThreadFailure
+MeowChan.PluginSdk.ThreadFailure.Failure.get -> MeowChan.PluginSdk.FailureDetail!
+MeowChan.PluginSdk.ThreadFailure.Failure.init -> void
+MeowChan.PluginSdk.ThreadFailure.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.ThreadFailure.Thread.init -> void
+MeowChan.PluginSdk.ThreadFailure.ThreadFailure(MeowChan.PluginSdk.SourceThreadId! Thread, MeowChan.PluginSdk.FailureDetail! Failure) -> void
+MeowChan.PluginSdk.ThreadNotFound
+MeowChan.PluginSdk.ThreadNotFound.HttpStatusCode.get -> int?
+MeowChan.PluginSdk.ThreadNotFound.HttpStatusCode.init -> void
+MeowChan.PluginSdk.ThreadNotFound.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.ThreadNotFound.Thread.init -> void
+MeowChan.PluginSdk.ThreadNotFound.ThreadNotFound(MeowChan.PluginSdk.SourceThreadId! Thread, int? HttpStatusCode = null) -> void
+MeowChan.PluginSdk.ThreadReadRequest
+MeowChan.PluginSdk.ThreadReadRequest.HasSnapshot.get -> bool
+MeowChan.PluginSdk.ThreadReadRequest.HasSnapshot.init -> void
+MeowChan.PluginSdk.ThreadReadRequest.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.ThreadReadRequest.Thread.init -> void
+MeowChan.PluginSdk.ThreadReadRequest.ThreadReadRequest(MeowChan.PluginSdk.SourceThreadId! Thread, MeowChan.PluginSdk.SourceValidators? Validators = null, bool HasSnapshot = false) -> void
+MeowChan.PluginSdk.ThreadReadRequest.Validators.get -> MeowChan.PluginSdk.SourceValidators?
+MeowChan.PluginSdk.ThreadReadRequest.Validators.init -> void
+MeowChan.PluginSdk.ThreadReadResult
+MeowChan.PluginSdk.ThreadSnapshot
+MeowChan.PluginSdk.ThreadSnapshot.Snapshot.get -> MeowChan.PluginSdk.SourceThreadSnapshot!
+MeowChan.PluginSdk.ThreadSnapshot.Snapshot.init -> void
+MeowChan.PluginSdk.ThreadSnapshot.ThreadSnapshot(MeowChan.PluginSdk.SourceThreadSnapshot! Snapshot) -> void
+MeowChan.PluginSdk.ThreadUnchanged
+MeowChan.PluginSdk.ThreadUnchanged.Thread.get -> MeowChan.PluginSdk.SourceThreadId!
+MeowChan.PluginSdk.ThreadUnchanged.Thread.init -> void
+MeowChan.PluginSdk.ThreadUnchanged.ThreadUnchanged(MeowChan.PluginSdk.SourceThreadId! Thread, MeowChan.PluginSdk.SourceValidators! Validators) -> void
+MeowChan.PluginSdk.ThreadUnchanged.Validators.get -> MeowChan.PluginSdk.SourceValidators!
+MeowChan.PluginSdk.ThreadUnchanged.Validators.init -> void
+MeowChan.PluginSdk.UrlRoute
+MeowChan.PluginSdk.UrlRoute.AllowTitleSegment.get -> bool
+MeowChan.PluginSdk.UrlRoute.AllowTitleSegment.init -> void
+MeowChan.PluginSdk.UrlRoute.AllowTrailingSlash.get -> bool
+MeowChan.PluginSdk.UrlRoute.AllowTrailingSlash.init -> void
+MeowChan.PluginSdk.UrlRoute.BoardIdentifierKind.get -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.UrlRoute.BoardIdentifierKind.init -> void
+MeowChan.PluginSdk.UrlRoute.Host.get -> string!
+MeowChan.PluginSdk.UrlRoute.Host.init -> void
+MeowChan.PluginSdk.UrlRoute.IsCanonical.get -> bool
+MeowChan.PluginSdk.UrlRoute.IsCanonical.init -> void
+MeowChan.PluginSdk.UrlRoute.Kind.get -> MeowChan.PluginSdk.SourceResourceKind
+MeowChan.PluginSdk.UrlRoute.Kind.init -> void
+MeowChan.PluginSdk.UrlRoute.LowercaseBoardId.get -> bool
+MeowChan.PluginSdk.UrlRoute.LowercaseBoardId.init -> void
+MeowChan.PluginSdk.UrlRoute.PathTemplate.get -> string!
+MeowChan.PluginSdk.UrlRoute.PathTemplate.init -> void
+MeowChan.PluginSdk.UrlRoute.ThreadIdentifierKind.get -> MeowChan.PluginSdk.RouteIdentifierKind
+MeowChan.PluginSdk.UrlRoute.ThreadIdentifierKind.init -> void
+MeowChan.PluginSdk.UrlRoute.UrlRoute(MeowChan.PluginSdk.SourceResourceKind Kind, string! Host, string! PathTemplate, bool IsCanonical = false, bool AllowTrailingSlash = true, bool AllowTitleSegment = false, bool LowercaseBoardId = false) -> void
+MeowChan.PluginSdk.ValidationIssue
+MeowChan.PluginSdk.ValidationIssue.Code.get -> string!
+MeowChan.PluginSdk.ValidationIssue.Code.init -> void
+MeowChan.PluginSdk.ValidationIssue.Message.get -> string!
+MeowChan.PluginSdk.ValidationIssue.Message.init -> void
+MeowChan.PluginSdk.ValidationIssue.Path.get -> string!
+MeowChan.PluginSdk.ValidationIssue.Path.init -> void
+MeowChan.PluginSdk.ValidationIssue.ValidationIssue(string! Path, string! Code, string! Message) -> void
+static MeowChan.PluginSdk.SdkContract.IsSupported(string? version) -> bool
+static MeowChan.PluginSdk.SdkJson.CreateOptions() -> System.Text.Json.JsonSerializerOptions!
+static MeowChan.PluginSdk.SdkJson.Deserialize<T>(System.ReadOnlySpan<byte> utf8Json) -> T
+static MeowChan.PluginSdk.SdkJson.Serialize<T>(T value) -> byte[]!
+static MeowChan.PluginSdk.SdkValidation.ThrowIfInvalid(System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>! issues) -> void
+static MeowChan.PluginSdk.SdkValidation.ValidateCatalogResult(MeowChan.PluginSdk.CatalogReadRequest! request, MeowChan.PluginSdk.CatalogReadResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateConfiguration(MeowChan.PluginSdk.PluginDescription! description, MeowChan.PluginSdk.PluginConfiguration! configuration) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateDescription(MeowChan.PluginSdk.PluginDescription! description) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateDescriptions(System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.PluginDescription!>! descriptions) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateHttpRequest(MeowChan.PluginSdk.HostHttpRequest! request, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateHttpResult(MeowChan.PluginSdk.HostHttpRequest! request, MeowChan.PluginSdk.HostHttpResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateImageFilterRequest(MeowChan.PluginSdk.ImageFilterRequest! request, MeowChan.PluginSdk.FilterDescription! filter) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateImageFilterResult(MeowChan.PluginSdk.ImageFilterResult! result) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateImageRead(string! assetToken, long offset, int count, long assetSize) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateSettings(MeowChan.PluginSdk.SettingsSchema! schema, MeowChan.PluginSdk.SettingsSnapshot! settings, MeowChan.PluginSdk.SettingScope scope) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+static MeowChan.PluginSdk.SdkValidation.ValidateThreadResult(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.ThreadReadResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
