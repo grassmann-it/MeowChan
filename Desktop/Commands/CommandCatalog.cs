@@ -11,26 +11,26 @@ public static class CommandCatalog
 {
     private static readonly CommandDefinition[] Entries =
     {
-        new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", null, CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
-        new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
+        new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
+        new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", "Primary+3", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", "Primary+4", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", "Primary+5", CommandScope.Sources | CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
         new("navigation.tools-menu", "command.navigation.tools-menu", "Tools", "Werkzeuge", "tool", null, CommandScope.Application, new[] { "footer" }),
         new("navigation.app-menu", "command.navigation.app-menu", "App menu", "Appmenü", "more-horizontal", null, CommandScope.Application, new[] { "header" }),
         new("app.show", "command.app.show", "Show MeowChan", "MeowChan anzeigen", "monitor", null, CommandScope.Application, new[] { "tray" }),
         new("app.quit", "command.app.quit", "Quit", "Beenden", "power", null, CommandScope.Application, new[] { "app-menu", "tray", "startup-error" }),
-        new("session.pause", "command.session.pause", "Pause / Resume", "Pausieren / Fortsetzen", "pause", null, CommandScope.Application, new[] { "header", "app-menu", "tray:planned" }),
+        new("session.pause", "command.session.pause", "Pause / Resume", "Pausieren / Fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray:planned" }),
         new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings" }),
         new("window.minimize", "command.window.minimize", "Minimize window", "Fenster minimieren", "minus", null, CommandScope.Application, new[] { "window-caption" }),
         new("window.maximize", "command.window.maximize", "Maximize / Restore window", "Fenster maximieren / Wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
         new("window.close", "command.window.close", "Close window", "Fenster schließen", "x", null, CommandScope.Application, new[] { "window-caption" }),
         new("input.focus-url", "command.input.focus-url", "Focus URL input", "URL-Eingabe fokussieren", "link", "Primary+L", CommandScope.Application, new[] { "workspace" }),
         new("watch.add-url", "command.watch.add-url", "Add URL", "URL hinzufügen", "plus", null, CommandScope.Sources | CommandScope.Downloads, new[] { "downloads-url-bar", "sources-url-bar" }),
-        new("watch.import-clipboard", "command.watch.import-clipboard", "Add URLs from clipboard", "URLs aus Zwischenablage hinzufügen", "clipboard", null, CommandScope.Application, new[] { "tray", "workspace-keyboard", "empty-add" }),
-        new("selection.select-all", "command.selection.select-all", "Select all", "Alle auswählen", "check-square", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-list", "downloads-board-list", "archive-cards", "archive-table" }),
+        new("watch.import-clipboard", "command.watch.import-clipboard", "Add URLs from clipboard", "URLs aus Zwischenablage hinzufügen", "clipboard", "Primary+V", CommandScope.Downloads, new[] { "tray", "downloads-list-keyboard", "empty-add" }),
+        new("selection.select-all", "command.selection.select-all", "Select all", "Alle auswählen", "check-square", "Primary+A", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-list", "downloads-board-list", "archive-cards", "archive-table" }),
         new("thread.read", "command.thread.read", "Read posts", "Beiträge lesen", "file-text", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
         new("gallery.open", "command.gallery.open", "Open in gallery", "In Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
@@ -46,6 +46,11 @@ public static class CommandCatalog
         new("watch.copy-all-links", "command.watch.copy-all-links", "Copy all URLs", "Alle URLs kopieren", "copy", null, CommandScope.Downloads | CommandScope.Application, new[] { "downloads-footer" }),
         new("watch.remove", "command.watch.remove", "Remove from watch list", "Aus Beobachtung entfernen", "eye-off", "Delete", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu" }),
         new("archive.delete-permanently", "command.archive.delete-permanently", "Delete permanently…", "Dauerhaft löschen …", "x-circle", "Shift+Delete", CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
+        new("archive.previous-page", "command.archive.previous-page", "Previous results page", "Vorherige Ergebnisseite", "chevron-left", "Alt+PageUp", CommandScope.Archive, new[] { "archive-results-list" }),
+        new("archive.next-page", "command.archive.next-page", "Next results page", "Nächste Ergebnisseite", "chevron-right", "Alt+PageDown", CommandScope.Archive, new[] { "archive-results-list" }),
+        new("archive.select-page", "command.archive.select-page", "Select all on this page", "Alle auf dieser Seite auswählen", "check-square", "Primary+A", CommandScope.Archive, new[] { "archive-results-list" }),
+        new("input.focus-download-search", "command.input.focus-download-search", "Search local downloads", "Lokale Downloads durchsuchen", "search", "Primary+F", CommandScope.Downloads, new[] { "downloads" }),
+        new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results as HTML…", "Alle Treffer als HTML exportieren…", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.refresh", "command.archive.refresh", "Refresh archive", "Archiv aktualisieren", "refresh-cw", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.search", "command.archive.search", "Search", "Suchen", "search", null, CommandScope.Archive, new[] { "archive-toolbar", "archive-search-field" }),
         new("archive.filters-toggle", "command.archive.filters-toggle", "Filters and sorting", "Filter und Sortierung", "filter", null, CommandScope.Archive, new[] { "archive-toolbar" }),
@@ -72,9 +77,9 @@ public static class CommandCatalog
         new("gallery.actual-size", "command.gallery.actual-size", "1:1", "1:1", "crosshair", "1", CommandScope.Gallery, new[] { "gallery-toolbar", "image-double-click" }),
         new("gallery.zoom-in", "command.gallery.zoom-in", "Zoom in", "Vergrößern", "zoom-in", "Plus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
         new("gallery.zoom-out", "command.gallery.zoom-out", "Zoom out", "Verkleinern", "zoom-out", "Minus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
-        new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Beitragskontext anzeigen", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar" }),
+        new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Beitragskontext anzeigen", "file-text", "P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Return to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
-        new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", "P", CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-context-menu:planned" }),
+        new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", null, CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-context-menu:planned" }),
         new("preview.close", "command.preview.close", "Close preview", "Vorschau schließen", "x", null, CommandScope.Media, new[] { "legacy-media-preview" }),
         new("video.play", "command.video.play", "Play", "Abspielen", "play", null, CommandScope.Gallery, new[] { "gallery-video-controls" }),
         new("video.pause", "command.video.pause", "Pause", "Pausieren", "pause", null, CommandScope.Gallery, new[] { "gallery-video-controls" }),
@@ -83,6 +88,8 @@ public static class CommandCatalog
         new("settings.discard", "command.settings.discard", "Discard draft", "Entwurf verwerfen", "rotate-ccw", null, CommandScope.Settings | CommandScope.Application, new[] { "settings-footer", "legacy-settings-window" }),
         new("settings.save", "command.settings.save", "Save", "Speichern", "save", null, CommandScope.Settings | CommandScope.Application, new[] { "settings-footer", "legacy-settings-window" }),
         new("rules.open-scope", "command.rules.open-scope", "Edit scope", "Bereich bearbeiten", "edit-2", null, CommandScope.Application, new[] { "rules-saved-scope", "rules-new-scope" }),
+        new("rules.open-origin", "command.rules.open-origin", "Open rule", "Regel öffnen", "corner-up-left", null, CommandScope.Application, new[] { "rules-effective-value" }),
+        new("rules.open-parent", "command.rules.open-parent", "Open parent scope", "Übergeordneten Bereich öffnen", "arrow-up", null, CommandScope.Application, new[] { "rules-editor" }),
         new("rules.discard", "command.rules.discard", "Discard draft", "Entwurf verwerfen", "rotate-ccw", null, CommandScope.Application, new[] { "rules-footer" }),
         new("rules.save", "command.rules.save", "Save rule", "Regel speichern", "save", null, CommandScope.Application, new[] { "rules-footer" }),
         new("admission.reinclude", "command.admission.reinclude", "Include previously excluded matches", "Ausgeschlossene Treffer wieder aufnehmen", "plus-circle", null, CommandScope.Application, new[] { "board-admission-summary" }),
@@ -182,13 +189,34 @@ public static class CommandCatalog
             ? definition.LabelDe : definition.LabelEn;
     }
 
-    public static string? ShortcutDisplay(string id)
+    public static string? ShortcutDisplay(string id) => ShortcutDisplay(id, OperatingSystem.IsMacOS());
+
+    internal static string? ShortcutDisplay(string id, bool macOS)
     {
         string? shortcut = Get(id).Shortcut;
         if (shortcut is null) return null;
-        return shortcut.Replace("Primary", OperatingSystem.IsMacOS() ? "⌘" : "Ctrl", StringComparison.Ordinal)
+        return shortcut.Replace("Primary", macOS ? "⌘" : "Ctrl", StringComparison.Ordinal)
             .Replace("+Left", "+←", StringComparison.Ordinal)
             .Replace("+Right", "+→", StringComparison.Ordinal);
+    }
+
+    public static string? ScopeHint(string id)
+    {
+        bool german = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);
+        return id switch
+        {
+            "archive.select-page" => german ? "Ergebnisliste · nur diese Seite" : "Results list · this page only",
+            "archive.previous-page" or "archive.next-page" => german ? "Fokus in der Ergebnisliste · innerhalb der Seitengrenzen" : "Results-list focus · within page boundaries",
+            "selection.select-all" => german ? "Fokussierte Downloadliste" : "Focused downloads list",
+            "menu.context-open" => german ? "Fokussierte Download- oder Archivliste" : "Focused downloads or archive list",
+            "watch.import-clipboard" => german ? "Downloads · URL-Eingabe fügt Text ein" : "Downloads · URL input pastes text",
+            "input.focus-download-search" => german ? "Downloads · lokale Liste" : "Downloads · local list",
+            "input.focus-search" => german ? "Archiv · Treffer durchsuchen" : "Archive · search results",
+            "export.open-all-results-html-dialog" => german ? "Eigener Button · alle Treffer der aktuellen Suche" : "Separate button · all results of the current search",
+            "navigation.downloads" or "navigation.archive" or "navigation.rules" or "navigation.sources" or "navigation.diagnostics" or "session.pause"
+                => german ? "Außerhalb von Eingaben und Overlays · bei verfügbarer Aktion" : "Outside inputs and overlays · when available",
+            _ => null
+        };
     }
 
     public static IEnumerable<CommandDefinition> Available(CommandScope scope, Func<CommandDefinition, bool> isAvailable) =>

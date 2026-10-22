@@ -121,7 +121,7 @@ public static class CommandBindings
             "reader.expand" => german ? "Lesen" : "Read",
             "gallery.open" => german ? "Galerie" : "Gallery",
             "window.fullscreen" => german ? "Vollbild" : "Full screen",
-            "export.open-html-dialog" => "Export",
+            "export.open-html-dialog" => "HTML…",
             _ => CommandCatalog.Label(id)
         };
     }
@@ -180,6 +180,13 @@ public static class CommandBindings
         using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
         using Stream output = png.AsStream();
         return new Bitmap(output);
+    }
+
+    /// <summary>Resolves the same platform gesture used by menu and help presentations.</summary>
+    public static bool Matches(KeyEventArgs e, string id)
+    {
+        KeyGesture? gesture = Gesture(CommandCatalog.Get(id));
+        return gesture != null && gesture.Key == e.Key && gesture.KeyModifiers == e.KeyModifiers;
     }
 
     private static KeyGesture? Gesture(CommandDefinition definition)
