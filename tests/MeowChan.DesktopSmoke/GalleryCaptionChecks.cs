@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -121,7 +122,9 @@ internal static class GalleryCaptionChecks
             TextBlock label = selector.GetVisualDescendants().OfType<TextBlock>().First(text => text.IsEffectivelyVisible && text.Text?.StartsWith("#") == true);
             PathIcon arrow = selector.GetVisualDescendants().OfType<PathIcon>().Single(icon => icon.Name == "DropDownGlyph");
             // Compare actual rendered template brushes to the permanent post surface.
-            Color background = ((ISolidColorBrush)Find<Border>(viewer, "GalleryContext").Background!).Color;
+            Color contextBackground = ((ISolidColorBrush)Find<Border>(viewer, "GalleryContext").Background!).Color;
+            Border selectorBackground = selector.GetTemplateDescendants().OfType<Border>().Single(border => border.Name == "Background");
+            Color background = Composite(selectorBackground.Background, contextBackground);
             double textContrast = Contrast(label.Foreground, background), arrowContrast = Contrast(arrow.Foreground, background);
             Console.WriteLine($"SMOKE gallery context selector: workspace={workspaceTheme}, enabled={enabled}, text={textContrast:0.###}, arrow={arrowContrast:0.###}");
             if (enabled && (textContrast < 4.5 || arrowContrast < 3))
@@ -132,7 +135,7 @@ internal static class GalleryCaptionChecks
         selector.IsDropDownOpen = true;
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
         Popup popup = selector.GetTemplateDescendants().OfType<Popup>().Single();
-        await Program.WaitUntilAsync(() => popup.IsOpen && popup.Child != null);
+        await Program.WaitUntilAsync(() => popup.IsOpen && popup.Child is { Bounds.Width: > 0, Bounds.Height: > 0 });
         Control child = popup.Child!;
         if (child.ActualThemeVariant != ThemeVariant.Dark || selector.SelectedIndex != selected)
             throw new InvalidOperationException("Post selector popup lost its local dark resources or changed the association.");
@@ -141,20 +144,55 @@ internal static class GalleryCaptionChecks
         if (items.Length == 0 || items.Any(item => item.ActualThemeVariant != ThemeVariant.Dark))
             throw new InvalidOperationException("Post selector popup rows lost the dark theme.");
         Program.CaptureWindow(window, $"smoke-gallery-context-selector-{workspaceTheme.ToString().ToLowerInvariant()}-open.png");
+        CaptureContextPopup(window, selector, child, workspaceTheme);
         selector.IsDropDownOpen = false;
+    }
+
+    private static void CaptureContextPopup(MainWindow owner, ComboBox selector, Control child, ThemeVariant workspaceTheme)
+    {
+        // Native popups have their own top level and are absent from owner captures.
+        TopLevel popupRoot = TopLevel.GetTopLevel(child)
+            ?? throw new InvalidOperationException("Post selector popup has no render root.");
+        child.UpdateLayout();
+        double scale = popupRoot.RenderScaling;
+        PixelSize pixels = PixelSize.FromSize(child.Bounds.Size, scale);
+        string stem = "smoke-gallery-context-selector-" + workspaceTheme.ToString().ToLowerInvariant() + "-popup";
+        using RenderTargetBitmap image = new(pixels, new Vector(96 * scale, 96 * scale));
+        image.Render(child);
+        image.Save(Path.Combine(AppContext.BaseDirectory, stem + ".png"), PngBitmapEncoderOptions.Default);
+        string metadata = JsonSerializer.Serialize(new
+        {
+            capture = "popup-child", workspaceTheme = workspaceTheme.ToString(),
+            popupTheme = child.ActualThemeVariant.ToString(), popupRootType = popupRoot.GetType().FullName,
+            popupRootBounds = popupRoot.Bounds.ToString(), childBounds = child.Bounds.ToString(),
+            popupScale = scale, ownerScale = owner.RenderScaling,
+            pixelWidth = pixels.Width, pixelHeight = pixels.Height,
+            selectedIndex = selector.SelectedIndex, totalAssociations = selector.ItemCount,
+            realizedItems = child.GetVisualDescendants().OfType<ComboBoxItem>()
+                .Select(item => new { label = item.Content?.ToString(), bounds = item.Bounds.ToString(), item.IsEffectivelyVisible })
+        }, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, stem + ".json"), metadata);
+        Console.WriteLine("SMOKE gallery context popup capture: " + stem + ", scale=" + scale + ", pixels=" + pixels);
     }
 
     private static double Contrast(IBrush? foreground, Color background)
     {
         if (foreground is not ISolidColorBrush brush) throw new InvalidOperationException("Post selector did not resolve a solid template brush.");
-        double alpha = brush.Color.A / 255d * brush.Opacity;
-        Color color = Color.FromRgb((byte)Math.Round(brush.Color.R * alpha + background.R * (1 - alpha)),
-            (byte)Math.Round(brush.Color.G * alpha + background.G * (1 - alpha)),
-            (byte)Math.Round(brush.Color.B * alpha + background.B * (1 - alpha)));
+        Color color = Composite(brush, background);
         static double Linear(byte channel) { double value = channel / 255d; return value <= .04045 ? value / 12.92 : Math.Pow((value + .055) / 1.055, 2.4); }
         static double Luminance(Color value) => .2126 * Linear(value.R) + .7152 * Linear(value.G) + .0722 * Linear(value.B);
         double first = Luminance(color), second = Luminance(background);
         return (Math.Max(first, second) + .05) / (Math.Min(first, second) + .05);
+    }
+
+    private static Color Composite(IBrush? foreground, Color background)
+    {
+        if (foreground == null) return background;
+        if (foreground is not ISolidColorBrush brush) throw new InvalidOperationException("Post selector did not resolve a solid background brush.");
+        double alpha = brush.Color.A / 255d * brush.Opacity;
+        return Color.FromRgb((byte)Math.Round(brush.Color.R * alpha + background.R * (1 - alpha)),
+            (byte)Math.Round(brush.Color.G * alpha + background.G * (1 - alpha)),
+            (byte)Math.Round(brush.Color.B * alpha + background.B * (1 - alpha)));
     }
 
     private static void SetContext(GalleryViewer viewer, bool open)
