@@ -100,7 +100,7 @@
     <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_CompilerDeliveryAssembly" />
     </MSBuild>
-    <MSBuild Projects="@(_ShippedPluginProject)" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
+    <MSBuild Projects="@(_ShippedPluginProject)" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" RemoveProperties="RuntimeIdentifier;SelfContained" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_PluginDeliveryAssembly" />
     </MSBuild>
     <StageMeowChanPlugins WorkerAssembly="@(_WorkerDeliveryAssembly)" CompilerAssembly="@(_CompilerDeliveryAssembly)" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" Destination="$(_PluginDeliveryStage)" />
