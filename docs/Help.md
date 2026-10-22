@@ -50,10 +50,21 @@ batch before any watch is added.
 Removed board threads remain durably excluded until explicitly reactivated.
 Editing a board's filters affects future admissions: existing watches continue
 and are not silently removed. The wizard labels existing manual/discovered
-watches. **Monitor all** clears the current board's text rules while retaining
-individual exceptions and removed-thread exclusions. Bypassing future previews
-is a separate explicit setting. Policies/exclusions persist independently of
-Save URLs on exit.
+watches. **Clear this board's text rules** (German: **Textregeln dieses Boards
+entfernen**) only changes the active board's draft, retaining individual
+exceptions, removed-thread exclusions and explicit reactivations. Other boards
+keep their rules. The preview updates locally without another catalog request,
+and the dialog stays open for review and tab switching.
+
+Choose **Apply all boards and monitor** to commit the prepared choices together.
+Every board's preview must load successfully and every text rule must contain
+search text; an empty catalog is valid. If a preview fails, retry its catalog or
+cancel. Retrying preserves prepared rules and individual choices. There is no
+partial admission from the dialog; errors during subsequent admission are still
+reported separately per URL. Cancel or Escape discards all dialog changes,
+including the setting for bypassing future previews, before any watch is added.
+Bypassing future previews remains a separate explicit setting. Policies/exclusions
+persist independently of Save URLs on exit.
 
 ### Selection and shortcuts
 

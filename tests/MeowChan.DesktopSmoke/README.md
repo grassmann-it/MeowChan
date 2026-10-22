@@ -26,6 +26,16 @@ group ownership, not a security sandbox: independently detached descendants and
 Windows children surviving an already exited parent need stronger OS containment.
 These guarantees have window-free fixtures in `tests/test_desktop_smoke_runner.py`.
 
+Use `--mode board-admission` for the detached multi-board admission dialog. It
+checks local text-rule clearing, preserved exceptions/reactivations, joint apply
+after all previews and rules are valid, retry without lost drafts, empty catalogs,
+and Cancel/Escape without committing the future-direct setting. Offline fixtures
+also capture the 640×600 minimum dialog in EN/DE and Light/Dark from all three
+workspace views, before and after keyboard activation of the local action. The
+minimum dialog's controls may scroll; commit and cancel stay visible. Repeat with
+`--scale 1`, `1.5` and `2` in fresh output directories. These checks validate
+Avalonia focus and accessibility properties, not native AT-SPI/Orca behavior.
+
 Use `--mode visual` for the release showcase in one retained main window:
 
 ```sh

@@ -42,7 +42,7 @@ internal static class BoardAdmissionChecks
             var list = modal.GetVisualDescendants().OfType<ListBox>().Single(control => control.Name == "BoardAdmissionPreview");
             // Catalog rows are virtualized. Scroll to the removed item and await
             // realization instead of assuming every catalog row has a visual.
-            list.ScrollIntoView(list.Items[2]);
+            list.ScrollIntoView(list.Items[2]!);
             CheckBox? Removed() => modal.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(check => check.Name == "BoardAdmissionInclude"
                 && check.Content is TextBlock text && text.Text!.Contains("#3", StringComparison.Ordinal));
             await Program.WaitUntilAsync(() => Removed() != null);
@@ -56,14 +56,7 @@ internal static class BoardAdmissionChecks
         }
         Texts.SetLanguage("en");
         await CheckRemovedMatchesAsync(owner);
-        var all = new BoardAdmissionWindow(urls, _ => saved, Preview, showWizard: true);
-        Task<BoardAdmissionSelection?> allResult = all.ShowDialog<BoardAdmissionSelection?>(owner);
-        await Program.WaitUntilAsync(() => all.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionAll"));
-        Click(all.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionAll"));
-        var accepted = await allResult ?? throw new InvalidOperationException("Monitor all did not return a selection.");
-        if (accepted.DirectFuture || accepted.Policies.Count != 2 || accepted.Policies.Values.Any(policy => policy.Rules.Count != 0)
-            || accepted.Policies[board].Exceptions[board + "thread/2"] != ThreadAdmissionException.Exclude)
-            throw new InvalidOperationException("Monitor all lost exclusions or silently changed the future default.");
+        await BoardAdmissionContractChecks.RunAsync(owner);
     }
     private static async Task CheckRemovedMatchesAsync(MainWindow owner)
     {
