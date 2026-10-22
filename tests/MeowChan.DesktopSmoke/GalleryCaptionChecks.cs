@@ -131,7 +131,7 @@ internal static class GalleryCaptionChecks
         selector.IsEnabled = true;
         selector.IsDropDownOpen = true;
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
-        Popup popup = selector.GetTemplateChildren().OfType<Popup>().Single();
+        Popup popup = selector.GetTemplateDescendants().OfType<Popup>().Single();
         await Program.WaitUntilAsync(() => popup.IsOpen && popup.Child != null);
         Control child = popup.Child!;
         if (child.ActualThemeVariant != ThemeVariant.Dark || selector.SelectedIndex != selected)
