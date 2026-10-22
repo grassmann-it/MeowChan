@@ -1,0 +1,124 @@
+<Project>
+  <PropertyGroup>
+    <MeowChanPluginDeliveryEnabled Condition="'$(MeowChanPluginDeliveryEnabled)' == ''">true</MeowChanPluginDeliveryEnabled>
+    <_PluginRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))/</_PluginRepositoryRoot>
+    <_PluginHelperProperties>Configuration=$(Configuration);TargetFramework=net10.0;PublishSingleFile=false;PublishTrimmed=false;CopyOutputSymbolsToPublishDirectory=false;PublishDocumentationFiles=false</_PluginHelperProperties>
+  </PropertyGroup>
+  <!-- These are restore/build graph edges only. No helper/Roslyn assembly is a Desktop reference. -->
+  <ItemGroup Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true'">
+    <_PluginHelperProject Include="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj;$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" />
+    <_ShippedPluginProject Include="$(_PluginRepositoryRoot)plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj;$(_PluginRepositoryRoot)plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj;$(_PluginRepositoryRoot)plugins/Examples/Lainchan/MeowChan.Plugin.Lainchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj" />
+    <ProjectReference Include="@(_PluginHelperProject);@(_ShippedPluginProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" ExcludeAssets="all" AdditionalProperties="PublishSingleFile=false;PublishTrimmed=false" />
+    <_PluginExampleSource Include="$(_PluginRepositoryRoot)plugins/Examples/Lainchan/Lainchan.cs;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/Kohlchan.cs;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs" />
+  </ItemGroup>
+
+  <UsingTask TaskName="StageMeowChanPlugins" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <WorkerAssembly ParameterType="System.String" Required="true" />
+      <CompilerAssembly ParameterType="System.String" Required="true" />
+      <Plugins ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Sources ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" /><Using Namespace="System.IO" /><Using Namespace="System.Linq" />
+      <Using Namespace="System.Text" /><Using Namespace="System.Text.RegularExpressions" />
+      <Using Namespace="System.Security.Cryptography" /><Using Namespace="System.Collections.Generic" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        try
+        {
+            string root = Path.GetFullPath(Destination);
+            Directory.CreateDirectory(root);
+            Func<string, string> hash = file => { using (var algorithm = SHA256.Create()) using (var data = File.OpenRead(file))
+                return BitConverter.ToString(algorithm.ComputeHash(data)).Replace("-", "").ToLowerInvariant(); };
+            Action<string, string> copy = (source, target) => {
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                if (!File.Exists(target) || new FileInfo(source).Length != new FileInfo(target).Length || hash(source) != hash(target))
+                    File.Copy(source, target, true);
+            };
+            Action<string, string> copyTree = (source, target) => {
+                HashSet<string> expected = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+                {
+                    if (Path.GetExtension(file) == ".pdb" || Path.GetExtension(file) == ".xml") continue;
+                    string relative = file.Substring(source.TrimEnd(Path.DirectorySeparatorChar).Length + 1);
+                    expected.Add(relative); copy(file, Path.Combine(target, relative));
+                }
+                if (Directory.Exists(target)) foreach (string file in Directory.GetFiles(target, "*", SearchOption.AllDirectories))
+                    if (!expected.Contains(file.Substring(target.TrimEnd(Path.DirectorySeparatorChar).Length + 1))) File.Delete(file);
+            };
+            string worker = Path.GetDirectoryName(Path.GetFullPath(WorkerAssembly));
+            string compiler = Path.GetDirectoryName(Path.GetFullPath(CompilerAssembly));
+            copyTree(worker, Path.Combine(root, "plugin-worker"));
+            copyTree(compiler, Path.Combine(root, "plugin-compiler"));
+            string toolchain = File.ReadAllText(Path.Combine(compiler, "toolchain.json"));
+            Func<string, string> fingerprint = key => {
+                Match match = Regex.Match(toolchain, "\"" + key + "\"\\s*:\\s*\"([0-9a-f]{64})\"");
+                if (!match.Success) throw new InvalidDataException("Missing compiler toolchain fingerprint: " + key);
+                return match.Groups[1].Value;
+            };
+            string sdk = fingerprint("SdkFingerprint"), compilerFingerprint = fingerprint("CompilerFingerprint");
+            if (hash(Path.Combine(worker, "MeowChan.PluginSdk.dll")) != sdk)
+                throw new InvalidDataException("Worker and compiler SDK bytes differ.");
+            string plugins = Path.Combine(root, "plugins"); Directory.CreateDirectory(plugins);
+            HashSet<string> pluginFiles = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in Plugins)
+            {
+                string assembly = item.ItemSpec, name = Path.GetFileName(assembly);
+                if (!Regex.IsMatch(name, "^[A-Za-z0-9._-]+[.]dll$")) throw new InvalidDataException("Invalid delivered assembly name.");
+                string relative = "assemblies/" + name;
+                copy(assembly, Path.Combine(plugins, relative)); pluginFiles.Add(relative);
+                string manifestName = Path.GetFileNameWithoutExtension(name) + ".plugin.json";
+                string json = "{\n  \"SchemaVersion\": 1,\n  \"AssemblyRelativePath\": \"" + relative + "\",\n  \"AssemblySha256\": \"" + hash(assembly) +
+                    "\",\n  \"SdkFingerprint\": \"" + sdk + "\",\n  \"CompilerFingerprint\": \"" + compilerFingerprint + "\",\n  \"Resources\": []\n}\n";
+                string manifest = Path.Combine(plugins, manifestName);
+                if (!File.Exists(manifest) || File.ReadAllText(manifest) != json) File.WriteAllText(manifest, json, new UTF8Encoding(false));
+                pluginFiles.Add(manifestName);
+            }
+            foreach (var item in Sources)
+            {
+                string relative = "sources/" + Path.GetFileName(item.ItemSpec);
+                copy(item.ItemSpec, Path.Combine(plugins, relative)); pluginFiles.Add(relative);
+            }
+            foreach (string file in Directory.GetFiles(plugins, "*", SearchOption.AllDirectories))
+                if (!pluginFiles.Contains(file.Substring(plugins.Length + 1).Replace(Path.DirectorySeparatorChar, '/'))) File.Delete(file);
+        }
+        catch (Exception exception) { Log.LogErrorFromException(exception, true); return false; }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PrepareMeowChanPluginBuildDelivery" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="ResolveProjectReferences"
+          Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_PluginDeliveryStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/build/</_PluginDeliveryStage>
+      <_PluginPublishStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/</_PluginPublishStage>
+    </PropertyGroup>
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_WorkerDeliveryAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CompilerDeliveryAssembly" />
+    </MSBuild>
+    <MSBuild Projects="@(_ShippedPluginProject)" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_PluginDeliveryAssembly" />
+    </MSBuild>
+    <StageMeowChanPlugins WorkerAssembly="@(_WorkerDeliveryAssembly)" CompilerAssembly="@(_CompilerDeliveryAssembly)" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" Destination="$(_PluginDeliveryStage)" />
+    <ItemGroup>
+      <_PluginBuildPayload Include="$(_PluginDeliveryStage)/**/*" />
+      <ContentWithTargetPath Include="@(_PluginBuildPayload)" TargetPath="%(_PluginBuildPayload.RecursiveDir)%(_PluginBuildPayload.Filename)%(_PluginBuildPayload.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PrepareMeowChanPluginPublishDelivery" BeforeTargets="ComputeFilesToPublish" DependsOnTargets="PrepareMeowChanPluginBuildDelivery"
+          Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(RuntimeIdentifier)' == '' or '$(SelfContained)' != 'true'" Text="Desktop plugin delivery requires an explicit RID and self-contained publish." />
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$(_PluginPublishStage)/worker/" BuildInParallel="false" />
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$(_PluginPublishStage)/compiler/" BuildInParallel="false" />
+    <StageMeowChanPlugins WorkerAssembly="$(_PluginPublishStage)/worker/MeowChan.PluginWorker.dll" CompilerAssembly="$(_PluginPublishStage)/compiler/MeowChan.PluginCompiler.dll" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" Destination="$(_PluginPublishStage)/payload/" />
+    <ItemGroup>
+      <_PluginPublishPayload Include="$(_PluginPublishStage)/payload/**/*" />
+      <ResolvedFileToPublish Include="@(_PluginPublishPayload)" RelativePath="%(_PluginPublishPayload.RecursiveDir)%(_PluginPublishPayload.Filename)%(_PluginPublishPayload.Extension)" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
+</Project>
