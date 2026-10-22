@@ -22,11 +22,11 @@ public sealed record CapturedAttachment(int Position, string? MediaId, string Va
 
 /// <summary>
 /// Fields distinguishes missing fields from explicitly delivered empty/null values. Ordinal is
-/// a provider order hint; providers with opaque identities should keep it stable across snapshots.
+/// a nonnegative 64-bit provider order hint; providers with opaque identities should keep it stable across snapshots.
 /// The built-in 4chan/8kun sources use their monotonically increasing decimal post identities
 /// for archive order because their response-array positions shift when posts disappear.
 /// </summary>
-public sealed record CapturedPost(string PostId, int Ordinal, PostFieldPresence Fields,
+public sealed record CapturedPost(string PostId, long Ordinal, PostFieldPresence Fields,
     DateTimeOffset? PostedAt = null, string? Subject = null, string? Author = null, string? Html = null,
     bool IsDeleted = false, IReadOnlyList<CapturedAttachment>? Attachments = null);
 

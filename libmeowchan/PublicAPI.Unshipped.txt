@@ -45,3 +45,8 @@ MeowChan.Persistence.MediaWork.Variant.init -> void
 MeowChan.Downloader.DownloadItem.Variant.get -> string!
 MeowChan.Downloader.DownloadItem.DownloadItem(System.Uri! downloadUri, string! destinationPath, MeowChan.Interfaces.IImageBoard! imageBoard, MeowChan.Interfaces.IThread! thread, string! mediaIdentifier, long? expectedSize, string? expectedMd5, string? originalFileName, string? legacyPath, string! variant) -> void
 static MeowChan.Storage.StorageLayout.GetMediaPath(string! root, string! source, string! board, string! thread, string! mediaId, string! ext, string! variant) -> string!
+
+*REMOVED*MeowChan.Archive.CapturedPost.CapturedPost(string! PostId, int Ordinal, MeowChan.Archive.PostFieldPresence Fields, System.DateTimeOffset? PostedAt = null, string? Subject = null, string? Author = null, string? Html = null, bool IsDeleted = false, System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedAttachment!>? Attachments = null) -> void
+*REMOVED*MeowChan.Archive.CapturedPost.Ordinal.get -> int
+MeowChan.Archive.CapturedPost.CapturedPost(string! PostId, long Ordinal, MeowChan.Archive.PostFieldPresence Fields, System.DateTimeOffset? PostedAt = null, string? Subject = null, string? Author = null, string? Html = null, bool IsDeleted = false, System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedAttachment!>? Attachments = null) -> void
+MeowChan.Archive.CapturedPost.Ordinal.get -> long

@@ -210,7 +210,7 @@ internal static partial class ArchiveSql
             string post = postsReader.GetString(0);
             PostFieldPresence fields = (PostFieldPresence)postsReader.GetInt32(2);
             if ((fields & ~PostFieldPresence.All) != 0) throw new InvalidDataException("The archive contains invalid post field flags.");
-            posts.Add(new CapturedPost(post, postsReader.GetInt32(1), fields,
+            posts.Add(new CapturedPost(post, postsReader.GetInt64(1), fields,
                 postsReader.IsDBNull(3) ? null : ParseDate(postsReader.GetString(3)), NullableString(postsReader, 4),
                 NullableString(postsReader, 5), NullableString(postsReader, 6), postsReader.GetInt32(7) == 1,
                 attachments.TryGetValue(post, out List<CapturedAttachment>? list)
