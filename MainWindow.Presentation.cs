@@ -276,6 +276,7 @@ public partial class MainWindow
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("AddUrlButton"), "watch.add-url", Texts.T("action.add"));
+        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("DownloadSearchButton"), "input.focus-download-search", Texts.T("downloads.search"));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("CopyAllUrlsButton"), "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenFolderButton"), "location.open-folder", Texts.T("action.openFolder"));
         CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenBrowserButton"), "location.open-source", Texts.T("action.openBrowser"));
