@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 2;
+    internal const int SchemaVersion = 3;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -44,7 +44,7 @@ internal static partial class ArchiveSql
 
     internal static void ValidateSchema(SqliteConnection connection)
     {
-        if (GetPragma(connection, "user_version") is not (1 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
+        if (GetPragma(connection, "user_version") is not (1 or 2 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         using SqliteCommand journal = connection.CreateCommand();
         journal.CommandText = "PRAGMA journal_mode";
@@ -61,7 +61,7 @@ internal static partial class ArchiveSql
         using SqliteDataReader reader = columns.ExecuteReader();
         while (reader.NextResult()) { }
         reader.Close();
-        if (GetPragma(connection, "user_version") == SchemaVersion)
+        if (GetPragma(connection, "user_version") >= 2)
         {
             using SqliteCommand indexed = connection.CreateCommand();
             indexed.CommandText = """
@@ -73,6 +73,12 @@ internal static partial class ArchiveSql
                 """;
             using SqliteDataReader indexReader = indexed.ExecuteReader();
             while (indexReader.NextResult()) { }
+        }
+        if (GetPragma(connection, "user_version") >= 3)
+        {
+            using SqliteCommand sourceContract = connection.CreateCommand();
+            sourceContract.CommandText = "SELECT source,board,thread,decimal_post_order FROM archive_source_contracts LIMIT 0";
+            using SqliteDataReader sourceContractReader = sourceContract.ExecuteReader();
         }
     }
 
@@ -210,7 +216,8 @@ internal static partial class ArchiveSql
                 attachments.TryGetValue(post, out List<CapturedAttachment>? list)
                     ? Array.AsReadOnly(list.ToArray()) : Array.Empty<CapturedAttachment>()));
         }
-        return new ArchivedThreadView(summary, posts, ReadMediaDirectories(connection, transaction, id));
+        return new ArchivedThreadView(summary, posts, ReadMediaDirectories(connection, transaction, id),
+            ReadPostOrder(connection, transaction, id));
     }
 
     internal static IReadOnlyList<string> ReadMediaDirectories(SqliteConnection connection, SqliteTransaction transaction, ResourceId id)

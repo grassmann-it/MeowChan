@@ -44,6 +44,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 ArchiveSql.CreateContentSchema(connection, transaction);
                 CreateDecisionSchema(connection, transaction);
                 ArchiveSql.CreateSearchSchema(connection, transaction);
+                ArchiveSql.CreateSourceContractSchema(connection, transaction);
                 using SqliteCommand schema = ArchiveSql.Command(connection, transaction,
                     $"PRAGMA application_id={ArchiveSql.ApplicationId}; PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
@@ -55,6 +56,17 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 ArchiveSql.ValidateSchema(connection);
                 using SqliteTransaction migration = connection.BeginTransaction();
                 ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
+                ArchiveSql.CreateSourceContractSchema(connection, migration);
+                cancellationToken.ThrowIfCancellationRequested();
+                migration.Commit();
+            }
+            if (version == 2 && application == ArchiveSql.ApplicationId)
+            {
+                ArchiveSql.ValidateSchema(connection);
+                using SqliteTransaction migration = connection.BeginTransaction();
+                ArchiveSql.CreateSourceContractSchema(connection, migration);
+                using SqliteCommand schema = ArchiveSql.Command(connection, migration, $"PRAGMA user_version={ArchiveSql.SchemaVersion};");
+                schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();
                 migration.Commit();
             }
@@ -124,6 +136,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             bool urlChanged = before != null && before.Url != captured.Url;
             Register(connection, transaction, new ArchiveThreadRegistration(captured.Id, captured.Url,
                 captured.Title, captured.MediaDirectory, true, captured.SourceState), captured.CapturedAt, observedContent: true);
+            ArchiveSql.WritePostOrder(connection, transaction, captured.Id, captured.DecimalPostOrder);
             ArchivedThreadView current = ArchiveSql.ReadThread(connection, transaction, captured.Id)!;
             Dictionary<string, CapturedPost> prior = current.Posts.ToDictionary(post => post.PostId, StringComparer.Ordinal);
             foreach (CapturedPost next in captured.Posts)

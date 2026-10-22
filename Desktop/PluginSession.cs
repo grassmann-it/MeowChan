@@ -150,10 +150,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
         IReadOnlyList<ValidationIssue> conflicts = SdkValidation.ValidateDescriptions(descriptions.Select(item => item.Description).ToArray());
         foreach (ValidationIssue conflict in conflicts.Where(issue => issue.Code == "route_conflict")) warnings.Add(conflict.Message);
         // A conflicting declaration must never win through registry array order.
-        foreach (PluginSourceImageBoard source in sources.ToArray())
-            if (sources.Any(other => !ReferenceEquals(other, source) && other.SupportedHosts.Intersect(source.SupportedHosts, StringComparer.OrdinalIgnoreCase).Any()
-                && RouteConflict(source, other)))
-            { source.SetEnabled(false); warnings.Add(source.NiceName + ": conflicting URL ownership; source unavailable."); sources.Remove(source); }
+        PluginSourceImageBoard[] conflicting = sources.Where(source => sources.Any(other => !ReferenceEquals(other, source)
+            && other.SupportedHosts.Intersect(source.SupportedHosts, StringComparer.OrdinalIgnoreCase).Any() && RouteConflict(source, other))).ToArray();
+        foreach (PluginSourceImageBoard source in conflicting)
+        {
+            warnings.Add(source.NiceName + ": conflicting URL ownership; source unavailable.");
+            sources.Remove(source); _sourceOwners.Remove(source); source.Dispose();
+        }
         Sources = sources.AsReadOnly();
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
     }
@@ -172,8 +175,15 @@ internal sealed partial class PluginSession : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         PluginDescription description = await DescribeTestAsync(artifact, cancellationToken).ConfigureAwait(false);
-        return await Runtime.StartAsync(_launch, artifact, configuration, CreateServices(description), testWorker: true,
-            cancellationToken: cancellationToken, filterWorker: description.Filters.Count > 0).ConfigureAwait(false);
+        PluginHostHttp http = new(_transport, _httpPolicy, description.Sources);
+        try
+        {
+            IPluginWorkerClient client = await Runtime.StartAsync(_launch, artifact, configuration,
+                new HostServices(http, _filterStages, description.PluginId), testWorker: true,
+                cancellationToken: cancellationToken, filterWorker: description.Filters.Count > 0).ConfigureAwait(false);
+            return new TestWorker(client, http);
+        }
+        catch { http.Dispose(); throw; }
     }
 
     private async Task<IPluginWorkerClient> GetWorkerAsync(string pluginId, CancellationToken cancellationToken)
@@ -264,5 +274,18 @@ internal sealed partial class PluginSession : IAsyncDisposable
         public Task<HostHttpResult> SendHttpAsync(HostHttpRequest request, PluginOperationContext operation, CancellationToken cancellationToken) => http.SendAsync(request, cancellationToken);
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken) =>
             stages.ReadImageAsync(pluginId, assetToken, offset, count, operation, cancellationToken);
+    }
+
+    private sealed class TestWorker(IPluginWorkerClient client, PluginHostHttp http) : IPluginWorkerClient
+    {
+        public PluginDescription Description => client.Description;
+        public PluginWorkerIdentity Identity => client.Identity;
+        public PluginWorkerSnapshot Snapshot => client.Snapshot;
+        public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => client.ReadCatalogAsync(request, operation, cancellationToken);
+        public Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => client.ReadThreadAsync(request, operation, cancellationToken);
+        public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => client.EvaluateAsync(request, operation, cancellationToken);
+        public Task RetryAsync(CancellationToken cancellationToken = default) => client.RetryAsync(cancellationToken);
+        public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, CancellationToken cancellationToken = default) => client.ValidateSettingsAsync(request, cancellationToken);
+        public async ValueTask DisposeAsync() { try { await client.DisposeAsync().ConfigureAwait(false); } finally { http.Dispose(); } }
     }
 }

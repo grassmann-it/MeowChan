@@ -116,7 +116,8 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         string title = snapshot.Title ?? Title;
         ThreadSourceState state = snapshot.SourceState == SourceThreadState.Archived ? ThreadSourceState.Archived : ThreadSourceState.Active;
         CapturedThreadSnapshot capture = new(new ResourceId(Source.Name, Board.BoardCode, ThreadId), Url, title,
-            state, DateTimeOffset.UtcNow, DownloadDirectory, posts.AsReadOnly());
+            state, DateTimeOffset.UtcNow, DownloadDirectory, posts.AsReadOnly())
+            { DecimalPostOrder = Source.Description.PostOrder == PostOrderKind.DecimalPostId };
         if (state == ThreadSourceState.Archived) await ObserveSourceEndAsync(state, capture).ConfigureAwait(false);
         Title = title;
         foreach (KeyValuePair<string, DownloadItem> item in observedMedia) _knownMedia[item.Key] = item.Value;

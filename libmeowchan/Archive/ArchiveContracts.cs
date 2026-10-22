@@ -32,7 +32,12 @@ public sealed record CapturedPost(string PostId, int Ordinal, PostFieldPresence 
 
 public sealed record CapturedThreadSnapshot(ResourceId Id, string Url, string Title,
     ThreadSourceState SourceState, DateTimeOffset CapturedAt, string MediaDirectory,
-    IReadOnlyList<CapturedPost> Posts);
+    IReadOnlyList<CapturedPost> Posts)
+{
+    // Persist the source's inert ordering contract with durable final snapshots as well as captures.
+    [System.Text.Json.Serialization.JsonInclude]
+    internal bool? DecimalPostOrder { get; init; }
+}
 
 public sealed record ArchiveThreadRegistration(ResourceId Id, string Url, string Title,
     string MediaDirectory, bool CaptureEnabled, ThreadSourceState SourceState = ThreadSourceState.Active);
@@ -54,11 +59,12 @@ public sealed record ArchiveDeletionPlan(IReadOnlyList<ArchiveDeletedThread> Thr
 public sealed class ArchivedThreadView
 {
     private readonly CapturedPost[] _posts;
-    internal ArchivedThreadView(ArchiveThreadSummary summary, IEnumerable<CapturedPost> posts, IEnumerable<string>? mediaDirectories = null)
+    internal ArchivedThreadView(ArchiveThreadSummary summary, IEnumerable<CapturedPost> posts, IEnumerable<string>? mediaDirectories = null,
+        bool? decimalPostOrder = null)
     {
         Summary = summary;
         MediaDirectories = Array.AsReadOnly((mediaDirectories ?? Array.Empty<string>()).ToArray());
-        _posts = ArchivePostOrder.Sort(summary.Id, posts.Select(ArchiveCaptureMerge.CopyPost));
+        _posts = ArchivePostOrder.Sort(summary.Id, posts.Select(ArchiveCaptureMerge.CopyPost), decimalPostOrder);
     }
     public ArchiveThreadSummary Summary { get; }
     public IReadOnlyList<string> MediaDirectories { get; }
@@ -91,7 +97,8 @@ public static class ArchiveCaptureMerge
         Dictionary<string, CapturedPost> posts = previous.Posts.ToDictionary(post => post.PostId, CopyPost, StringComparer.Ordinal);
         foreach (CapturedPost post in next.Posts)
             posts[post.PostId] = posts.TryGetValue(post.PostId, out CapturedPost? old) ? MergePost(old, post) : CopyPost(post);
-        return next with { Posts = Array.AsReadOnly(ArchivePostOrder.Sort(next.Id, posts.Values)) };
+        bool? order = next.DecimalPostOrder ?? previous.DecimalPostOrder;
+        return next with { Posts = Array.AsReadOnly(ArchivePostOrder.Sort(next.Id, posts.Values, order)), DecimalPostOrder = order };
     }
 
     public static CapturedPost MergePost(CapturedPost previous, CapturedPost next)
@@ -141,12 +148,12 @@ internal static class ArchivePostOrder
 {
     private static readonly IComparer<string> DecimalIdentityOrder = Comparer<string>.Create(CompareDecimalIdentity);
 
-    internal static CapturedPost[] Sort(ResourceId id, IEnumerable<CapturedPost> posts)
+    internal static CapturedPost[] Sort(ResourceId id, IEnumerable<CapturedPost> posts, bool? decimalPostOrder = null)
     {
         CapturedPost[] items = posts.ToArray();
         // This is a source contract, not an assumption that every provider's numeric IDs
         // are chronological. Opaque/custom providers retain control through Ordinal.
-        if ((id.Source is "4chan" or "8kun")
+        if ((decimalPostOrder ?? (id.Source is "4chan" or "8kun"))
             && items.All(post => post.PostId.Length > 0 && post.PostId.All(character => character is >= '0' and <= '9')))
             return items.OrderBy(post => post.PostId, DecimalIdentityOrder).ToArray();
         return items.OrderBy(post => post.Ordinal).ThenBy(post => post.PostId, StringComparer.Ordinal).ToArray();
