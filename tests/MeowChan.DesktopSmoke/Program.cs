@@ -38,13 +38,14 @@ internal static class Program
     private static bool _aboutLinksMode;
     private static bool _boardAdmissionMode;
     private static bool _readingPositionMode;
+    private static bool _accessibilityMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe]");
             return 2;
         }
 
@@ -52,6 +53,7 @@ internal static class Program
         _selectionMode = args.Contains("--selection", StringComparer.Ordinal);
         _aboutLinksMode = args.Contains("--about-links", StringComparer.Ordinal);
         _boardAdmissionMode = args.Contains("--board-admission", StringComparer.Ordinal);
+        _accessibilityMode = args.Contains("--accessibility-probe", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _galleryCloseOnly = _readerUxMode && Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_ONLY") == "1";
@@ -165,6 +167,7 @@ internal static class Program
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
                 : _visualMode ? "actual release showcase with original offline demo content, no watches or HTTP"
                 : _selectionMode ? "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"
+                : _accessibilityMode ? "native accessibility fixture stages completed; external AT-SPI/Orca results are separate"
                 : _boardAdmissionMode ? "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"
                 : _readingPositionMode ? "local reading position, explicit process restart and settings semantics"
                 : _aboutLinksMode ? "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"
@@ -244,6 +247,13 @@ internal static class Program
             if (_aboutLinksMode)
             {
                 await AboutLinkChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_accessibilityMode)
+            {
+                await AccessibilityNativeChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
