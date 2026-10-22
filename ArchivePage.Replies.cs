@@ -89,7 +89,7 @@ public partial class ArchivePage
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 row.Replies.Count, InlineReplyPageSize, token);
             if (!InlineReplyPageCurrent(rows, thread, request)) return;
-            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => new ArchiveQuoteRow(quote, true))).ToArray()),
+            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => new ArchiveQuoteRow(quote, true, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

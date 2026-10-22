@@ -71,6 +71,7 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
 {
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     public bool HasAttachments => Attachments.Count > 0;
+    public bool IsTextOnly => !HasAttachments;
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
     private int? _backlinkCount;
     private IReadOnlyList<ArchiveQuoteRow> _replies = Array.Empty<ArchiveQuoteRow>();
@@ -82,6 +83,10 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     public int? BacklinkCount => _backlinkCount;
     public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +
         (_backlinkCount?.ToString(Texts.Culture) ?? "…");
+    // Only a confirmed, successful zero is non-interactive. Unknown/error states
+    // retain the expander so a local retry remains possible.
+    public bool HasConfirmedNoReplies => _backlinkCount == 0 && !HasRepliesError;
+    public bool CanExpandReplies => !HasConfirmedNoReplies;
     public IReadOnlyList<ArchiveQuoteRow> Replies => _replies;
     public bool RepliesExpanded
     {
@@ -102,7 +107,8 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     public void SetBacklinkCount(int count)
     {
         _backlinkCount = count;
-        Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel));
+        Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel),
+            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies));
     }
     public void SetReplies(IReadOnlyList<ArchiveQuoteRow> replies, int total, int offset)
     {
@@ -113,17 +119,18 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     }
     public void SetRepliesLoading(bool loading) { _repliesLoading = loading; Changed(nameof(RepliesLoading)); }
     public void SetRepliesError(string? error)
-    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError)); }
+    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
     private void Changed(params string[] names)
     {
         foreach (string name in names) PropertyChanged?.Invoke(this,
             new System.ComponentModel.PropertyChangedEventArgs(name));
     }
 }
-internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false)
+internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false, ResourceId? ReaderThread = null)
 {
-    public string Label => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
+    public string AccessibleLabel => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
         + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
+    public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;
 }
 
 internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset)

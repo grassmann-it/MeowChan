@@ -11,6 +11,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#152233</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
@@ -49,6 +50,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#46556A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#1D5CB5</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E0EBFC</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ReaderActiveSurface">#F2F6FC</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Hover">#DCE3EC</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#174E9A</SolidColorBrush>

@@ -97,7 +97,10 @@
                                 <MenuItem x:Name="ArchiveTableRemoveMenu" Tag="selection.remove" Classes="localized" Header="Remove selection" InputGesture="Delete" Click="OnArchiveRemoveSelection" />
                             </ContextMenu></DataGrid.ContextMenu>
                         </DataGrid>
-                        <TextBlock x:Name="ArchiveEmpty" Tag="archive.empty" Classes="muted localized" TextWrapping="Wrap" Margin="12" />
+                        <StackPanel x:Name="ArchiveEmptyState" Margin="12" Spacing="8" IsVisible="False">
+                            <TextBlock x:Name="ArchiveEmpty" Classes="muted" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveResetFilters" HorizontalAlignment="Left" Click="OnResetArchiveFiltersClick" />
+                        </StackPanel>
                     </Grid>
                 </Border>
                 <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
@@ -124,8 +127,8 @@
                     <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
                     </WrapPanel>
-                    <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
-                    <WrapPanel Orientation="Horizontal">
+                    <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
+                        <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <CheckBox x:Name="ReaderFollowLive" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
                         <TextBlock x:Name="ReaderNewPostsNotice" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" IsVisible="False" Click="OnShowReaderUpdates" />
@@ -142,21 +145,25 @@
                                             <ListBox.Styles>
                                                 <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
                                                 <Style Selector="ListBoxItem:selected">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
                                                     <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
                                                     <Setter Property="BorderThickness" Value="3,0,0,0" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
                                                     <Setter Property="BorderThickness" Value="3,0,0,0" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:focus-visible /template/ ContentPresenter">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+                                                    <Setter Property="BorderThickness" Value="3,1,1,1" />
                                                 </Style>
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
@@ -173,32 +180,34 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
                                                             <StackPanel Grid.Column="1" Spacing="6">
-                                                                <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+                                                                <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" TextWrapping="Wrap" />
                                                                 <ItemsControl ItemsSource="{Binding Quotes}">
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                            <Button Content="{Binding Label}" Click="OnQuoteClick" Margin="0,2" HorizontalAlignment="Left" />
+                                                                            <Button Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
-                                                                <Expander Header="{Binding BacklinksLabel}" IsExpanded="{Binding RepliesExpanded, Mode=TwoWay}"
-                                                                          Expanded="OnRepliesExpanded" Collapsed="OnRepliesCollapsed" HorizontalAlignment="Stretch">
+                                                                <TextBlock Text="{Binding BacklinksLabel}" IsVisible="{Binding HasConfirmedNoReplies}" Classes="muted" FontSize="12" />
+                                                                <Expander Header="{Binding BacklinksLabel}" IsVisible="{Binding CanExpandReplies}" IsExpanded="{Binding RepliesExpanded, Mode=TwoWay}"
+                                                                          Expanded="OnRepliesExpanded" Collapsed="OnRepliesCollapsed" HorizontalAlignment="Left" MinHeight="0" Padding="0">
                                                                     <StackPanel Margin="12,4,0,4" Spacing="4">
                                                                         <ItemsControl ItemsSource="{Binding Replies}">
+                                                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                                             <ItemsControl.ItemTemplate>
                                                                                 <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                                    <Button Content="{Binding Label}" Click="OnQuoteClick" Margin="0,2" HorizontalAlignment="Left" />
+                                                                                    <Button Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
                                                                                 </DataTemplate>
                                                                             </ItemsControl.ItemTemplate>
                                                                         </ItemsControl>
                                                                         <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" />
-                                                                        <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" />
                                                                         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMoreReplies}">
                                                                             <Button Content="{Binding MoreRepliesLabel}" Click="OnMoreRepliesClick" />
                                                                             <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" />
                                                                         </StackPanel>
                                                                     </StackPanel>
                                                                 </Expander>
+                                                                <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
                                                         </Grid>
                                                     </StackPanel>

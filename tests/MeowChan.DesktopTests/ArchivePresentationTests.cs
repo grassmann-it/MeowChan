@@ -25,6 +25,35 @@ public sealed class ArchivePresentationTests
     }
 
     [Fact]
+    public void ReplyStateOnlyCollapsesConfirmedSuccessfulZero()
+    {
+        ArchivePostRow row = new("123", "#123", "", "", Array.Empty<ArchiveAttachmentRow>());
+        Assert.True(row.CanExpandReplies); // Count has not arrived yet.
+        row.SetRepliesError("local index unavailable");
+        Assert.False(row.HasConfirmedNoReplies);
+        row.SetBacklinkCount(0);
+        Assert.True(row.CanExpandReplies); // An error must never become silent zero.
+        row.SetRepliesError(null);
+        Assert.True(row.HasConfirmedNoReplies);
+        Assert.False(row.CanExpandReplies);
+        row.SetBacklinkCount(1);
+        Assert.True(row.CanExpandReplies);
+    }
+
+    [Fact]
+    public void CompactBacklinkKeepsFullIdentityAndDistinguishesForeignThread()
+    {
+        MeowChan.ResourceId thread = new("4chan", "g", "123");
+        ArchiveQuote quote = new(new ArchivePostId(thread, "124"), null, ">>123", null);
+        ArchiveQuoteRow local = new(quote, true, thread);
+        Assert.Equal("#124", local.Label);
+        Assert.Contains("/g/", local.AccessibleLabel);
+        Assert.Contains("123", local.AccessibleLabel);
+        ArchiveQuoteRow foreign = new(quote, true, new("4chan", "g", "999"));
+        Assert.Equal(foreign.AccessibleLabel, foreign.Label);
+    }
+
+    [Fact]
     public void SourceMarkupBecomesInactiveReadableText()
     {
         const string source = "<style>body { color:red }</style><script>throw 1</script><p>Hello &amp; welcome<br>&gt;&gt;123</p><a href='https://invalid.test'>quote</a><img src='https://invalid.test/x'>";
