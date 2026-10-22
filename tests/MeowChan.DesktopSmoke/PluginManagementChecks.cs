@@ -28,18 +28,18 @@ internal static class PluginManagementChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        string repository = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        string compilerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ?? Path.Combine(repository, "MeowChan.PluginCompiler/bin/Release/net10.0");
-        string workerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_WORKER_TEST_BUNDLE") ?? Path.Combine(repository, "MeowChan.PluginWorker/bin/Release/net10.0");
+        string compilerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ?? Path.Combine(AppContext.BaseDirectory, "plugin-compiler");
+        string workerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_WORKER_TEST_BUNDLE") ?? Path.Combine(AppContext.BaseDirectory, "plugin-worker");
+        string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
         string root = Path.Combine(Config.GetConfigDirectory(), "plugin-ui-fixture");
         Directory.CreateDirectory(root);
         string plugins = Path.Combine(root, "sources"); Directory.CreateDirectory(plugins);
         string source = Path.Combine(plugins, "editor fixture ' literal.cs");
         await File.WriteAllTextAsync(source, FixtureSource);
-        PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler"), compilerDirectory, Path.Combine(root, "cache")));
+        PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
         PluginInstallationInventory inventory = new();
         PluginProfileStore profile = new(root);
-        PluginWorkerLaunch launch = new(Path.Combine(workerDirectory, "MeowChan.PluginWorker"), Array.Empty<string>(), Path.Combine(root, "workers"));
+        PluginWorkerLaunch launch = new(Path.Combine(workerDirectory, "MeowChan.PluginWorker" + executableSuffix), Array.Empty<string>(), Path.Combine(root, "workers"));
         Directory.CreateDirectory(launch.WorkingDirectory);
         await using PluginWorkerManager runtime = new(new() { OperationTimeout = TimeSpan.FromSeconds(5) });
         FixtureTransport transportHandler = new();
