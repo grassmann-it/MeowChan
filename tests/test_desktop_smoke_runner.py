@@ -109,6 +109,32 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual("unavailable", result["results"][0]["status"])
 
+    def test_kwin_requires_its_own_tools_and_cannot_target_native_desktop(self):
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.dict(os.environ, {"DISPLAY": ":999", "WAYLAND_DISPLAY": "personal"}):
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--window-manager", "kwin", "--native-display", "--mode", "window-geometry", "--allow-native-desktop"])
+            with mock.patch.object(runner.shutil, "which", side_effect=lambda name: None if name == "kwin_wayland" else "fixture"), \
+                    mock.patch.object(runner.subprocess, "Popen") as start:
+                self.assertEqual(1, runner.main(self.args + ["--window-manager", "kwin", "--mode", "window-geometry"]))
+                start.assert_not_called()
+        result = json.loads((self.output / "results.json").read_text())
+        self.assertIn("kwin_wayland", result["results"][0]["reason"])
+
+    def test_kwin_launch_has_no_personal_display_or_xvfb_wrapper(self):
+        def fake_process(command, **kwargs):
+            self.assertIn("with-isolated-kwin.py", " ".join(command))
+            self.assertNotIn("xvfb-run", command)
+            self.assertNotIn("DISPLAY", kwargs["env"])
+            self.assertNotIn("WAYLAND_DISPLAY", kwargs["env"])
+            self.assertNotEqual("personal-bus", kwargs["env"].get("DBUS_SESSION_BUS_ADDRESS"))
+            kwargs["stdout"].write("SMOKE render scaling: actual=1;\nSMOKE PASS: fixture\n")
+            return mock.Mock(wait=mock.Mock(return_value=0))
+        environment = {"MEOWCHAN_DESKTOP_SMOKE_KWIN": "1", "DISPLAY": ":999", "WAYLAND_DISPLAY": "personal", "DBUS_SESSION_BUS_ADDRESS": "personal-bus"}
+        with mock.patch.object(runner.subprocess, "Popen", side_effect=fake_process), mock.patch.object(runner, "stop_owned_processes"):
+            result = runner.run_mode("window-geometry", self.assembly, self.output, environment, True, 1)
+        self.assertTrue(result["passed"])
+
     def test_failure_stops_sequence_and_records_unrun_scenarios(self):
         failure = {"mode": "normal", "passed": False, "status": "failed", "actual_render_scaling": 1}
         with mock.patch.object(runner.sys, "platform", "linux"), \

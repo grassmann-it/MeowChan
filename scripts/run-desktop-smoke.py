@@ -34,22 +34,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", STRESS_MODE),
+    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", STRESS_MODE),
                         help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
                         help="Use a dedicated Linux desktop for one explicitly selected scenario.")
     parser.add_argument("--allow-native-desktop", action="store_true",
                         help="Explicitly opt into native windows on a disposable desktop/CI (required outside Xvfb).")
     parser.add_argument("--scale", choices=("1", "1.5", "2"))
+    parser.add_argument("--window-manager", choices=("openbox", "kwin", "kwin-nested"), default="openbox",
+                        help="Isolated Linux WM: Openbox, headless KWin, or KWin nested in private Xvfb; KWin apps use XWayland.")
     args = parser.parse_args(argv)
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be finite and positive")
     args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
+    if args.window_manager != "openbox" and not sys.platform.startswith("linux"):
+        parser.error("--window-manager selects an isolated Linux session only")
     if STRESS_MODE in args.modes and len(args.modes) != 1:
         parser.error("tray-lifecycle must run separately with --mode tray-lifecycle")
     if "tray-host" in args.modes and (not sys.platform.startswith("linux") or args.native_display):
         parser.error("tray-host requires Linux with the isolated DBus/Xvfb runner")
     if args.native_display:
+        if args.window_manager != "openbox":
+            parser.error("--window-manager selects an isolated session only")
         if not sys.platform.startswith("linux"):
             parser.error("--native-display is only supported on Linux")
         if not args.mode or len(args.modes) != 1:
@@ -149,11 +155,17 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
             if mode == "tray-host":
                 host = Path(__file__).with_name("with-fake-tray-host.py").resolve()
                 command = ["/usr/bin/python3", str(host), "--", *command]
-            manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()
-            command = ["dbus-run-session", "--config-file=" + str(Path(working_directory) / "bus.conf"),
-                       "--", "xvfb-run", "--auto-servernum",
-                       "--server-args=-screen 0 3200x2000x24 -nolisten tcp",
-                       sys.executable, str(manager), "--", *command]
+            if environment.get("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1":
+                manager = Path(__file__).with_name("with-isolated-kwin.py").resolve()
+                command = [sys.executable, str(manager), "--", *command]
+                if environment.get("MEOWCHAN_DESKTOP_SMOKE_KWIN_NESTED") == "1":
+                    command = ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 3200x2000x24 -nolisten tcp", *command]
+            else:
+                manager = Path(__file__).with_name("with-isolated-window-manager.py").resolve()
+                command = ["xvfb-run", "--auto-servernum",
+                           "--server-args=-screen 0 3200x2000x24 -nolisten tcp",
+                           sys.executable, str(manager), "--", *command]
+            command = ["dbus-run-session", "--config-file=" + str(Path(working_directory) / "bus.conf"), "--", *command]
         with (destination / "output.log").open("w", encoding="utf-8") as log:
             process = None
             try:
@@ -206,6 +218,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     isolated = sys.platform.startswith("linux") and not args.native_display
     environment = os.environ.copy()
+    environment.pop("MEOWCHAN_DESKTOP_SMOKE_KWIN", None)
+    environment.pop("MEOWCHAN_DESKTOP_SMOKE_KWIN_NESTED", None)
+    environment.pop("MEOWCHAN_KWIN_INPUT_DISPLAY", None)
+    environment.pop("MEOWCHAN_KWIN_INPUT_XAUTHORITY", None)
+    if args.window_manager in ("kwin", "kwin-nested"):
+        environment["MEOWCHAN_DESKTOP_SMOKE_KWIN"] = "1"
+    if args.window_manager == "kwin-nested":
+        environment["MEOWCHAN_DESKTOP_SMOKE_KWIN_NESTED"] = "1"
     if args.scale is not None:
         environment["AVALONIA_GLOBAL_SCALE_FACTOR"] = args.scale
     assembly = Path(args.assembly).resolve(strict=True)
@@ -214,7 +234,10 @@ def main(argv: list[str] | None = None) -> int:
     # Avoid overwriting an earlier failed run, or mixing stale screenshots into new evidence.
     if (output / "results.json").exists() or any((output / mode).exists() for mode in args.modes):
         raise ValueError("Choose a fresh --output directory; existing evidence is preserved")
-    missing = [name for name in ISOLATED_TOOLS if shutil.which(name) is None] if isolated else []
+    required_tools = ("dbus-run-session", "kwin_wayland", "Xwayland", "xprop") if args.window_manager in ("kwin", "kwin-nested") else ISOLATED_TOOLS
+    if args.window_manager == "kwin-nested":
+        required_tools += ("xvfb-run", "Xvfb", "xauth")
+    missing = [name for name in required_tools if shutil.which(name) is None] if isolated else []
     results: list[dict[str, object]] = []
     failed = False
     for mode in args.modes:
@@ -234,7 +257,9 @@ def main(argv: list[str] | None = None) -> int:
     (output / "results.json").write_text(json.dumps({
         "kind": "source-built Avalonia harness; not published apphost",
         "platform": sys.platform,
-        "environment": "isolated Xvfb (3200x2000), Openbox, private DBus/runtime, software rendering, optional private tray-host fixture"
+        "environment": ("isolated KWin/Wayland nested in private Xvfb (3200x2000), XWayland, private DBus/runtime, software rendering"
+            if args.window_manager == "kwin-nested" else "isolated headless KWin/Wayland (3200x2000), XWayland, private DBus/runtime, software rendering"
+            if args.window_manager == "kwin" else "isolated Xvfb (3200x2000), Openbox, private DBus/runtime, software rendering, optional private tray-host fixture")
             if isolated else "explicit native graphical session; desktop isolation is not verified by this runner",
         "native_desktop_opt_in": args.allow_native_desktop and not isolated,
         "selected_modes": args.modes,

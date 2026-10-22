@@ -21,6 +21,7 @@ public partial class MainWindow
     {
         if (MinWidth != minimum.Width) MinWidth = minimum.Width;
         if (MinHeight != minimum.Height) MinHeight = minimum.Height;
+        X11WindowMinimum.Apply(this, minimum);
     }
 
     private void RefreshWorkspaceMinimumAfterResize()

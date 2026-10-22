@@ -39,13 +39,15 @@ internal static class Program
     private static bool _boardAdmissionMode;
     private static bool _readingPositionMode;
     private static bool _accessibilityMode;
+    private static bool _windowGeometryMode;
+    private static bool _videoContrastMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast]");
             return 2;
         }
 
@@ -54,6 +56,9 @@ internal static class Program
         _aboutLinksMode = args.Contains("--about-links", StringComparer.Ordinal);
         _boardAdmissionMode = args.Contains("--board-admission", StringComparer.Ordinal);
         _accessibilityMode = args.Contains("--accessibility-probe", StringComparer.Ordinal);
+        _windowGeometryMode = args.Contains("--window-geometry", StringComparer.Ordinal);
+        if (_windowGeometryMode) Environment.SetEnvironmentVariable("MEOWCHAN_NATIVE_GEOMETRY_TRACE", "1");
+        _videoContrastMode = args.Contains("--video-contrast", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
         _readerUxMode = args.Contains("--reader-ux", StringComparer.Ordinal);
         _galleryCloseOnly = _readerUxMode && Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_ONLY") == "1";
@@ -105,6 +110,7 @@ internal static class Program
                 File.WriteAllText(Path.Combine(profile, "reading-fixture-ready"), "ready");
             }
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
             if (_readerUxMode)
             {
@@ -121,7 +127,8 @@ internal static class Program
                 .WithInterFont();
             if (xvfbEnvironment)
             {
-                Console.WriteLine("SMOKE Xvfb environment: X11 software rendering; tray fixture=" + (_trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
+                Console.WriteLine("SMOKE isolated environment: " + (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1" ? "headless KWin/XWayland" : "Xvfb/Openbox")
+                    + "; X11 software rendering; tray fixture=" + (_trayHostMode ? "private StatusNotifier watcher/host" : "no native tray"));
                 appBuilder.With(new X11PlatformOptions
                 {
                     RenderingMode = new X11RenderingMode[] { X11RenderingMode.Software }
@@ -171,6 +178,8 @@ internal static class Program
                 : _boardAdmissionMode ? "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"
                 : _readingPositionMode ? "local reading position, explicit process restart and settings semantics"
                 : _aboutLinksMode ? "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"
+                : _windowGeometryMode ? "isolated native interactive resize; each edge/corner after pointer release and settled correction"
+                : _videoContrastMode ? "real decoded video time, ended and corrupt-media error contrast in Light/Dark"
                 : "startup, rendered thread/board bindings, background update, normal close";
             Console.WriteLine("SMOKE PASS: " + scenario + "; no binding errors.");
             return 0;
@@ -229,6 +238,13 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (_windowGeometryMode)
+            {
+                await NativeWindowMinimumChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POWERUSER_ONLY") == "1")
             {
                 await PowerUserCommandChecks.RunAsync(mainWindow);
@@ -240,6 +256,13 @@ internal static class Program
             if (_readingPositionMode)
             {
                 await ReadingPositionChecks.RunAsync(mainWindow, profile: Config.GetConfigDirectory());
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_videoContrastMode)
+            {
+                await VideoContrastChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
@@ -528,6 +551,13 @@ internal static class Program
         screenshot.Render(window);
         screenshot.Save(screenshotPath, PngBitmapEncoderOptions.Default);
         Console.WriteLine("SMOKE window render: " + screenshotPath);
+        Console.WriteLine("SMOKE capture metadata: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            fileName, mode = Config.LoadConfig().WorkspaceMode, theme = window.ActualThemeVariant.ToString(),
+            language = MeowChan.Desktop.Localization.Texts.Language, renderScaling = scale,
+            clientDip = window.ClientSize.ToString(), boundsDip = window.Bounds.ToString(),
+            imagePixels = screenshot.PixelSize.ToString(), window = window.GetType().Name
+        }));
     }
 
     internal static async Task WaitUntilAsync(Func<bool> condition)
