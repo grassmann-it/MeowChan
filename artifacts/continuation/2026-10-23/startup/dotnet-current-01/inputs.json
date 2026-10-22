@@ -1,0 +1,10 @@
+{
+  "ui-reader-board-02": [null, "Exact retained invocation is missing; source/runtime association unknown and excluded from main comparison"],
+  "ui-03/refinement-1": ["ui-03", "run-ui-03.py and ui-03/checks.json; overall GUI run failed"],
+  "ui-03-remaining/reader-board-1": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"],
+  "ui-03-remaining/downloads-1": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"],
+  "ui-03-remaining/reader-board-1.5": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"],
+  "ui-03-remaining/downloads-1.5": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"],
+  "ui-03-remaining/reader-board-2": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"],
+  "ui-03-remaining/downloads-2": ["ui-03", "run-ui-03-remaining.py and ui-03-remaining/checks.json"]
+}

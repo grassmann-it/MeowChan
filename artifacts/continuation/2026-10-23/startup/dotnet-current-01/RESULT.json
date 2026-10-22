@@ -1,0 +1,1711 @@
+{
+  "measurement": "Actual .NET PluginSession debug phases from frozen source-built Linux GUI harness",
+  "notPublishedApphostEvidence": true,
+  "notSpeedupEvidence": true,
+  "fileSystemCacheControlled": false,
+  "loadControlled": false,
+  "newGuiOrBuildExecuted": false,
+  "inputManifestSha256": "0d9a4a5c85a2b76d903675f652d75d0d1bbec97bb7c093d7af464e230c9d04f0",
+  "sources": {
+    "ui-03": {
+      "source": "artifacts/continuation/2026-10-23/integration/ui-03/source.json",
+      "sourceCommit": "04e676d9c76722fd31a70d271db5d107f3212f7f",
+      "sourceStatus": " M .gitignore\n M docs/screenshots/README.md\n M tests/MeowChan.DesktopSmoke/ComparisonCaptures.cs\n?? .claude/\n?? AGENTS.md\n?? docs/screenshots/v0.9.0-social-preview.png\n",
+      "runtimeHashes": "artifacts/continuation/2026-10-23/integration/ui-03/runtime-hashes.json",
+      "recordedFileCount": 1166,
+      "recordedPrimaryHashes": {
+        "MeowChan.PluginHost.dll": "7170385c36d1caad7d57100925d5765fb16703e5a8fa63edf8dec8796cc6fbb1",
+        "MeowChan.dll": "1ef8fd98c6f7a706b0551fc1c72f8ebbc470a9c20c4f0deba2b3dd805243c035",
+        "MeowChan.DesktopSmoke.dll": "6675a2ceec275c79b0b920f7b1fa6a71815e8823d379d294af66c2ac9f4149c4",
+        "plugin-compiler/toolchain.json": "b35107139b923048b3b60dbf0df50c80c7dde96be2c5086898055089956214f4",
+        "plugin-worker/MeowChan.PluginWorker": "fa417a861d059477321494562ecf1d7c1ae1b4386c37f3bc7174e4316f125841"
+      },
+      "primaryHashesVerifiedDuringAggregation": true
+    }
+  },
+  "referencesSha256": {
+    "artifacts/continuation/2026-10-23/integration/ui-03/source.json": "b9ff70b29d560ed4fe1b60e308f1f73c3946ee2aca68725c28cec1cba81e5f1f",
+    "artifacts/continuation/2026-10-23/integration/ui-03/runtime-hashes.json": "fcb12d6c71441a64fe851f1532f45c0025933273c31d64f960241dd5e6c50744",
+    "artifacts/continuation/2026-10-23/integration/run-ui-03.py": "f0ea7c22860f3a1dec9f443794369514eb9c52433233433e6d8d0c1e30689258",
+    "artifacts/continuation/2026-10-23/integration/run-ui-03-remaining.py": "f7f88036856001be3198bcfd32961da6f7a418bad9fba805331e5fa49f48de0b",
+    "artifacts/continuation/2026-10-23/integration/ui-03/checks.json": "4bd6dc1407465944875ddfac929bd914e15d7c374960375f0057707cc6c11d75",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/checks.json": "1b583f0253c84c40329cf285efa3c2cf9313abc0efc8d7ac6b76f72c2f1de604",
+    "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/results.json": "c60f6f1d146a237e42dcfc3aa7fec08e9f836c1e8a49e6dc86d2326d70a5929b",
+    "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/reader-ux/output.log": "26fd90174119413bd6f6977217e35acf6166935d6de05db6c6b37f2f095ac134",
+    "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/board-admission/output.log": "462c80e082afb46fa3ebd5ff987be6410a7b8a4e0e2c5f555655c6cbe17fadbf",
+    "artifacts/continuation/2026-10-23/integration/ui-03/refinement-1/results.json": "1758eb56df2966566e36b15bd48e49b1566ec9cd1d85ff9870aec34446ae6b64",
+    "artifacts/continuation/2026-10-23/integration/ui-03/refinement-1/normal/output.log": "fcbac13d055d63828a39d41b3cf86f50e7ff4170738f90da50ae470666a50057",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/results.json": "c60f6f1d146a237e42dcfc3aa7fec08e9f836c1e8a49e6dc86d2326d70a5929b",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/reader-ux/output.log": "88f8880998bb910ef71f39d3740c1b53caaab13a2a3ba15a7655fd972e7ee1e2",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/board-admission/output.log": "cdf671b3454496ed2e4b2911c42b4243dafdd67234aee59651e8996078ba4f9b",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1/results.json": "f226d55f1287ca6f6b6596f9e6ce844564b9f6c28cfccbadac8253d7988d3b32",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1/normal/output.log": "51b451b3fb64daca6435ecdefaaa96c15b7a4118a6ef9e1126d94101d83d6321",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/results.json": "99c04f5d17a573deb72e07e5fd2e8f910868eea387ccc7d5d0d990c7ce485e0c",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/reader-ux/output.log": "7f689c5f8034f8f5ded61a09e6af0d67a587eafed746f8502aaf0d81e1bb4f99",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/board-admission/output.log": "67bd931149f6d81d223893ec6530c96d6d1bd52cf09eb4726bb8e2e6b1d77026",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1.5/results.json": "f5ce5510ae5be091d0dc32a3220bc0b5df6dbab0af7e33f62772c4080ea9e832",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1.5/normal/output.log": "a2c7170caec11bc061f6f2a3edf09b61cb527e85e3fad9f4966a9a178c4d9bc5",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/results.json": "0c2213acca23945b53c747c93432a316fb0d94fd85310c12c89428762a6e0953",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/reader-ux/output.log": "80c4ed97f18d449c45849aac8c103b78f50822662e0666775258f3c9c350b43d",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/board-admission/output.log": "c14b6005847e92d0061b91ed0d2ebf31b3b26ec644460a3c9c9d92d45a3010c9",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-2/results.json": "7d8aa6467949cd93ff858cde1d756bd1a1daf8248396ae2eaa323fd16dd7ab54",
+    "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-2/normal/output.log": "239de0fdea2da9811e89c6248fa76a09ce4bbd10cdece2a558e943636825d938"
+  },
+  "samples": [
+    {
+      "group": "ui-reader-board-02",
+      "mode": "reader-ux",
+      "scale": "1",
+      "frozen": null,
+      "bindingEvidence": "Exact retained invocation is missing; source/runtime association unknown and excluded from main comparison",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/reader-ux/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-01fa79eeeaf4412a90dca4e4dbd6e290",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.8403,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 28.7458,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.288,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 357.098,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 766.039,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 133.0627,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 493.8486,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 38.2983,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 459.0151,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 51.1662,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 391.1238,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 67.5998,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 289.4897,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 91.1871,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 19.9289,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 3199.9162,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 3199.9162,
+      "importSumMs": 647.225,
+      "describeSumMs": 2399.5162,
+      "unattributedMs": 11.184900000000198
+    },
+    {
+      "group": "ui-reader-board-02",
+      "mode": "board-admission",
+      "scale": "1",
+      "frozen": null,
+      "bindingEvidence": "Exact retained invocation is missing; source/runtime association unknown and excluded from main comparison",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-reader-board-02/board-admission/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-eb9ba48d6d05402c8b19e956a633f113",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.3172,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 35.6704,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1662,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 249.5563,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 411.0046,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 58.1355,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 284.0548,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 38.9477,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 274.9509,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 41.3619,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 281.5217,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 31.9869,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 271.2553,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 83.3016,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 13.1302,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 2086.9526,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 2086.9526,
+      "importSumMs": 419.9883,
+      "describeSumMs": 1522.7873,
+      "unattributedMs": 10.591400000000249
+    },
+    {
+      "group": "ui-03/refinement-1",
+      "mode": "normal",
+      "scale": "1",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03.py and ui-03/checks.json; overall GUI run failed",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03/refinement-1/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03/refinement-1/normal/output.log",
+      "overallGroupPassed": false,
+      "overallPassed": false,
+      "overallExitCode": 1,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-0fcc22733ed74fc0a30bd67f224c1e1a",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.4328,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 49.4843,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1856,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 172.8259,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 455.3718,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 172.5262,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 327.1929,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 48.779,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 277.5805,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 769.2353,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 315.0345,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 261.2075,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 264.493,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 91.5543,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 15.8405,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 3231.4501,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 3231.4501,
+      "importSumMs": 1424.5739,
+      "describeSumMs": 1639.6727,
+      "unattributedMs": 8.706000000000131
+    },
+    {
+      "group": "ui-03-remaining/reader-board-1",
+      "mode": "reader-ux",
+      "scale": "1",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/reader-ux/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-ded6749de25f4270a2d74962e6b9363f",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 2.318,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 42.8541,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.5172,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 292.2612,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 1612.4751,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 484.4457,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 925.647,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 79.1865,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 650.9092,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 76.3403,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 547.5809,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 100.6668,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 523.3418,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 133.146,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 17.0402,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 5507.0505,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 5507.0505,
+      "importSumMs": 1032.9005,
+      "describeSumMs": 4259.954000000001,
+      "unattributedMs": 18.32049999999981
+    },
+    {
+      "group": "ui-03-remaining/reader-board-1",
+      "mode": "board-admission",
+      "scale": "1",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1/board-admission/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-dbddd6b789964f4996be004d1169ad2e",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.354,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 37.1062,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1703,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 160.6301,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 379.8478,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 59.7268,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 290.4224,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 49.5416,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 492.1312,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 48.2685,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 551.7708,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 44.3047,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 487.7947,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 142.3413,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 33.8983,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 2788.7155,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 2788.7155,
+      "importSumMs": 362.4717,
+      "describeSumMs": 2201.9669,
+      "unattributedMs": 9.406799999999748
+    },
+    {
+      "group": "ui-03-remaining/downloads-1",
+      "mode": "normal",
+      "scale": "1",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1/normal/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-dd7cc086f4cc413ea9f6c2cb581e174f",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 2.5579,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 401.9284,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.4446,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 1004.1055,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 1204.5084,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 234.7633,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 489.0914,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 97.7292,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 470.6675,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 79.7839,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 327.9766,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 43.1448,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 512.9009,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 199.0224,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 41.7535,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 5190.6004,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 5190.6004,
+      "importSumMs": 1459.5267,
+      "describeSumMs": 3005.1448,
+      "unattributedMs": 80.22209999999995
+    },
+    {
+      "group": "ui-03-remaining/reader-board-1.5",
+      "mode": "reader-ux",
+      "scale": "1.5",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/reader-ux/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-b5928200f79541ceb093094454269488",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.3546,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 15.355,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1974,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 236.5321,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 1869.4182,
+          "completed": true,
+          "line": 14
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 330.8895,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 640.8703,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 60.4935,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 407.2019,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 46.3594,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 328.932,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 44.9954,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 277.4326,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 88.6734,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 15.8866,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 4377.9913,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 4377.9913,
+      "importSumMs": 719.2699,
+      "describeSumMs": 3523.855,
+      "unattributedMs": 13.399399999999332
+    },
+    {
+      "group": "ui-03-remaining/reader-board-1.5",
+      "mode": "board-admission",
+      "scale": "1.5",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-1.5/board-admission/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-5c62b1ea2a184611b8b14b779a593c64",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.6553,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 42.333,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1908,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 201.294,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 413.9278,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 53.0728,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 364.0063,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 46.1494,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 363.3214,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 39.8243,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 356.5293,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 39.3565,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 336.1745,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 106.6404,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 14.9134,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 2389.7089,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 2389.7089,
+      "importSumMs": 379.697,
+      "describeSumMs": 1833.9593,
+      "unattributedMs": 10.319700000000012
+    },
+    {
+      "group": "ui-03-remaining/downloads-1.5",
+      "mode": "normal",
+      "scale": "1.5",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1.5/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-1.5/normal/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-dfa4e76280f446be9d89a0358d8380a9",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 2.7103,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 122.7268,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.5744,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 259.4292,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 832.0748,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 67.3148,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 631.5779,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 109.9165,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 904.2716,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 47.2245,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 446.4137,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 48.4275,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 330.5709,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 122.1159,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 23.251,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 3963.1745,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 3963.1745,
+      "importSumMs": 532.3125,
+      "describeSumMs": 3144.9089,
+      "unattributedMs": 14.57470000000012
+    },
+    {
+      "group": "ui-03-remaining/reader-board-2",
+      "mode": "reader-ux",
+      "scale": "2",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/reader-ux/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-2bc395faf1cb4b53a458bf9f08a94603",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.6984,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 58.1473,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 3.2141,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 311.6063,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 649.1925,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 65.8661,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 422.9581,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 43.8479,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 368.8576,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 72.4901,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 358.1908,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 43.9438,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 415.7416,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 97.3444,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 14.7547,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 2943.9635,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 2943.9635,
+      "importSumMs": 537.7542,
+      "describeSumMs": 2214.9406,
+      "unattributedMs": 16.109799999999723
+    },
+    {
+      "group": "ui-03-remaining/reader-board-2",
+      "mode": "board-admission",
+      "scale": "2",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/reader-board-2/board-admission/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-e92ba928cbdb43ff8d39d7137f31f596",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.7613,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 44.039,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.1952,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 248.8349,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 548.1507,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 77.9578,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 329.0786,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 160.496,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 324.352,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 45.3208,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 308.0439,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 41.3068,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 386.351,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 124.6535,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 17.3201,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 2670.2466,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 2670.2466,
+      "importSumMs": 573.9163,
+      "describeSumMs": 1895.9762,
+      "unattributedMs": 12.384999999999764
+    },
+    {
+      "group": "ui-03-remaining/downloads-2",
+      "mode": "normal",
+      "scale": "2",
+      "frozen": "ui-03",
+      "bindingEvidence": "run-ui-03-remaining.py and ui-03-remaining/checks.json",
+      "results": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-2/results.json",
+      "log": "artifacts/continuation/2026-10-23/integration/ui-03-remaining/downloads-2/normal/output.log",
+      "overallGroupPassed": true,
+      "overallPassed": true,
+      "overallExitCode": 0,
+      "startupReady": true,
+      "privateProfile": "/tmp/meowchan-desktop-smoke-2f6ac3fc88c94ed4996988025f52b156",
+      "phases": [
+        {
+          "phase": "profile-read",
+          "candidate": null,
+          "elapsedMs": 1.2858,
+          "completed": true,
+          "line": 10
+        },
+        {
+          "phase": "inventory-shipped",
+          "candidate": null,
+          "elapsedMs": 44.236,
+          "completed": true,
+          "line": 11
+        },
+        {
+          "phase": "inventory-local",
+          "candidate": null,
+          "elapsedMs": 0.2163,
+          "completed": true,
+          "line": 12
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 228.922,
+          "completed": true,
+          "line": 13
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.ImageDimensionsFilter.plugin.json",
+          "elapsedMs": 628.2225,
+          "completed": true,
+          "line": 18
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 86.8905,
+          "completed": true,
+          "line": 19
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.FourChan.plugin.json",
+          "elapsedMs": 450.7592,
+          "completed": true,
+          "line": 20
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 57.3217,
+          "completed": true,
+          "line": 21
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.EightKun.plugin.json",
+          "elapsedMs": 532.8514,
+          "completed": true,
+          "line": 22
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 54.3584,
+          "completed": true,
+          "line": 23
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Kohlchan.plugin.json",
+          "elapsedMs": 441.359,
+          "completed": true,
+          "line": 24
+        },
+        {
+          "phase": "import",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 119.5954,
+          "completed": true,
+          "line": 25
+        },
+        {
+          "phase": "describe",
+          "candidate": "MeowChan.Plugin.Lainchan.plugin.json",
+          "elapsedMs": 339.9149,
+          "completed": true,
+          "line": 26
+        },
+        {
+          "phase": "activation",
+          "candidate": null,
+          "elapsedMs": 92.6979,
+          "completed": true,
+          "line": 27
+        },
+        {
+          "phase": "adapters-routing",
+          "candidate": null,
+          "elapsedMs": 18.7254,
+          "completed": true,
+          "line": 28
+        },
+        {
+          "phase": "total",
+          "candidate": null,
+          "elapsedMs": 3106.5247,
+          "completed": true,
+          "line": 29
+        }
+      ],
+      "pluginStartupTotalMs": 3106.5247,
+      "importSumMs": 547.088,
+      "describeSumMs": 2393.107,
+      "unattributedMs": 9.168299999999817
+    }
+  ],
+  "summaries": {
+    "successfulGuiRunsWithExactRuntime": {
+      "samples": 9,
+      "pluginStartupTotalMs": {
+        "min": 2389.7089,
+        "median": 3106.5247,
+        "max": 5507.0505
+      },
+      "importSumMs": {
+        "min": 362.4717,
+        "median": 547.088,
+        "max": 1459.5267
+      },
+      "describeSumMs": {
+        "min": 1833.9593,
+        "median": 2393.107,
+        "max": 4259.954000000001
+      },
+      "unattributedMs": {
+        "min": 9.168299999999817,
+        "median": 13.399399999999332,
+        "max": 80.22209999999995
+      }
+    },
+    "failedGuiRunsWithReadyStartupAndExactRuntime": {
+      "samples": 1,
+      "pluginStartupTotalMs": {
+        "min": 3231.4501,
+        "median": 3231.4501,
+        "max": 3231.4501
+      },
+      "importSumMs": {
+        "min": 1424.5739,
+        "median": 1424.5739,
+        "max": 1424.5739
+      },
+      "describeSumMs": {
+        "min": 1639.6727,
+        "median": 1639.6727,
+        "max": 1639.6727
+      },
+      "unattributedMs": {
+        "min": 8.706000000000131,
+        "median": 8.706000000000131,
+        "max": 8.706000000000131
+      }
+    },
+    "successfulGuiRunsWithoutExactRuntime": {
+      "samples": 2,
+      "pluginStartupTotalMs": {
+        "min": 2086.9526,
+        "median": 2643.4344,
+        "max": 3199.9162
+      },
+      "importSumMs": {
+        "min": 419.9883,
+        "median": 533.60665,
+        "max": 647.225
+      },
+      "describeSumMs": {
+        "min": 1522.7873,
+        "median": 1961.15175,
+        "max": 2399.5162
+      },
+      "unattributedMs": {
+        "min": 10.591400000000249,
+        "median": 10.888150000000223,
+        "max": 11.184900000000198
+      }
+    }
+  }
+}
