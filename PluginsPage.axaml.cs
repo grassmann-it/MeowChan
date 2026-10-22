@@ -109,6 +109,8 @@ public partial class PluginsPage : UserControl
         AutomationProperties.SetName(C<TextBox>("PluginProbeUrl"), Texts.T("plugins.probeUrl"));
         AutomationProperties.SetName(C<TextBox>("PluginEditorExecutable"), Texts.T("plugins.editorExecutable"));
         AutomationProperties.SetName(C<TextBox>("PluginEditorArguments"), Texts.T("plugins.editorArguments"));
+        SetTestStatus(_testStatusKey, _testStatusArguments);
+        if (Selected is { } localizedEntry) { BuildSettings(localizedEntry); RenderInformation(localizedEntry); RenderGrants(localizedEntry); }
         _refreshing = true;
         int selected = C<ComboBox>("PluginCategory").SelectedIndex;
         C<ComboBox>("PluginCategory").ItemsSource = new[] { Texts.T("plugins.all"), Texts.T("plugins.sources"), Texts.T("plugins.filters") };
@@ -217,7 +219,7 @@ public partial class PluginsPage : UserControl
             PluginEditorOptions options = GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" });
             C<TextBox>("PluginEditorExecutable").Text = options.Executable;
             C<TextBox>("PluginEditorArguments").Text = string.Join(Environment.NewLine, options.Arguments);
-            C<TextBlock>("PluginTestStatus").Text = string.Empty;
+            SetTestStatus(null);
             C<TextBox>("PluginProbeResult").Text = string.Empty;
             C<StackPanel>("PluginBuildDiagnostics").Children.Clear();
         }

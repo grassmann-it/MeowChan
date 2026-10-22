@@ -19,6 +19,8 @@ using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Installation;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginSdk;
+using MeowChan.Rules;
+using MeowChan.Persistence;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -100,7 +102,8 @@ internal static class PluginManagementChecks
                 await page.ActivateAsync(); page.Select(candidateId);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Require(page.CurrentDraft!.Plugin.Text("label") == "retained draft", "Status/language/mode refresh discarded the draft.");
-                Require(page.FindControl<Button>("PluginBack")!.IsEffectivelyVisible, "Minimum size did not use list-to-detail navigation.");
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return page.Bounds.Width < 850 && page.FindControl<Button>("PluginBack")!.IsEffectivelyVisible; });
+                Require(page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.probeFinished"), "Test status did not follow the selected UI language.");
                 Program.CaptureWindow(window, "smoke-plugins-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
                 page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Button card = page.FindControl<StackPanel>("PluginCards")!.Children.OfType<Button>().First();
@@ -117,15 +120,85 @@ internal static class PluginManagementChecks
             await pending.WaitAsync(TimeSpan.FromSeconds(8));
             Require(page.FindControl<TextBox>("PluginProbeResult")!.Text == before, "Cancelled late probe changed the displayed result.");
             Require(production.Identity.InstanceId == productionIdentity, "Cancelling a test replaced the production worker.");
+            await CheckRuleFiltersAsync(window, management, profile, root);
+            OpenPlugins(window);
+            await page.ActivateAsync(); page.Select(candidateId);
+            page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/hang";
+            Task teardownProbe = page.ProbeAsync();
+            await Program.WaitUntilAsync(() => page.IsBusy);
+            page.EndLifetime();
+            string? teardownResult = page.FindControl<TextBox>("PluginProbeResult")!.Text;
+            await teardownProbe.WaitAsync(TimeSpan.FromSeconds(8));
+            Require(!page.IsEnabled && page.FindControl<TextBox>("PluginProbeResult")!.Text == teardownResult, "Ended page accepted a late test result or remained interactive.");
+            page = new PluginsPage(); page.Attach(management); host.Content = page;
+            await page.ActivateAsync(); page.Select(candidateId);
             await File.WriteAllTextAsync(source, "public class Broken { public int Value => ; }");
             await page.BuildAndTestAsync();
             Require(page.FindControl<StackPanel>("PluginBuildDiagnostics")!.Children.OfType<Button>().Any(), "Syntax error has no file/line editor action.");
             Require((await profile.ReadAsync()).Plugins.Single().Active!.ExecutionRevision == original.Artifact.ExecutionRevision, "Syntax failure changed the active build.");
+            page.FindControl<Expander>("PluginSourceExpander")!.IsExpanded = true;
+            await RevealAsync(window, page.FindControl<StackPanel>("PluginBuildDiagnostics")!.Children.OfType<Button>().First());
             Program.CaptureWindow(window, "smoke-plugins-syntax-error.png");
             Console.WriteLine("PLUGIN UI PASS: real compiler + worker + host HTTP; no watch/archive/original path; retained draft/focus; EN/DE Light/Dark B/S/A minima; real test cancellation.");
         }
         finally { page.EndLifetime(); host.Content = previous; }
     }
+    private static async Task CheckRuleFiltersAsync(MainWindow window, PluginManagementServices management, PluginProfileStore profile, string root)
+    {
+        string rulesDirectory = Path.Combine(root, "rule-profile"); Directory.CreateDirectory(rulesDirectory);
+        using ProfileLease lease = ProfileLease.Acquire(rulesDirectory);
+        MediaRuleStore store = new(rulesDirectory, lease); await store.LoadAsync();
+        MediaRule baseline = new(MediaRuleScope.Global) { ImageFilter = new(MediaImageFilterMode.Plugin, "fixture.management", "fixture-filter", "2", new Dictionary<string, string> { ["rule-label"] = "allowed" }) };
+        await store.SaveAsync(new[] { baseline }, store.Current.Revision);
+        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
+        RulesPage page = new(() => store.Current, (rules, revision) => store.SaveAsync(rules, revision)); page.AttachPluginServices(management); host.Content = page;
+        try
+        {
+            page.IsAvailable = true; page.EditScope(MediaRuleScope.Global); await page.RefreshPluginFiltersAsync();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            TextBox Field() => page.GetVisualDescendants().OfType<TextBox>().Single(input => input.Name == "PluginField_rule_label");
+            TextBox Grant(string key) => page.GetVisualDescendants().OfType<TextBox>().Single(input => Avalonia.Automation.AutomationProperties.GetName(input) == Texts.T(key));
+            string revision = store.Current.Revision;
+            Field().Text = "rejected"; await Program.WaitUntilAsync(() => page.CanSave); await page.SaveCurrentAsync();
+            Require(store.Current.Revision == revision && page.HasError, "Worker-rejected filter check failed: revision changed=" + (store.Current.Revision != revision) + ", error=" + page.ErrorMessage);
+            Require(page.GetVisualDescendants().OfType<TextBlock>().Any(label => label.IsVisible && label.Text == "Fixture rejects this label"), "Field validation disappeared after the save finally block.");
+            await RevealAsync(window, page.GetVisualDescendants().OfType<TextBlock>().Single(label => label.Text == "Fixture rejects this label"));
+            Program.CaptureWindow(window, "smoke-plugin-filter-domain-error.png");
+            Field().Text = "allowed again"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); await page.SaveCurrentAsync();
+            Require(store.Current.Rules.Single().ImageFilter.Parameters["rule-label"] == "allowed again", "Accepted parameters did not reach the real Core rule store.");
+            Grant("plugins.grantSource").Text = "fixture-source"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            page.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Texts.T("plugins.grantRequired"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => !page.IsBusy);
+            Require(Grant("plugins.grantSource").Text == "fixture-source", "Grant save lost the target source.");
+            Grant("plugins.grantBoard").Text = "b"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(page.GetVisualDescendants().OfType<TextBlock>().Single(label => label.Name == "RuleFilterGrantStatus").Text == Texts.T("plugins.accessGranted"), "A source-wide grant was not effective for its board.");
+            Button revoke = page.GetVisualDescendants().OfType<Button>().Single(button => button.Tag is PluginGrantScope);
+            Require(((PluginGrantScope)revoke.Tag!).BoardId == null, "The revoke action lost the broader grant origin.");
+            revoke.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Program.WaitUntilAsync(() => !page.IsBusy);
+            PluginProfileSnapshot revoked = await profile.ReadAsync();
+            Require(!PluginGrantAuthorization.Resolve(revoked, "fixture.management", "fixture-filter", "fixture-source", "b", MeowChan.PluginHost.Filters.FilterRuleIdentity.ForScope(MediaRuleScope.Global)).Allows(FilterDataAccess.OriginalImage), "Revocation left the displayed broader grant effective.");
+            Require(Grant("plugins.grantBoard").Text == "b", "Grant refresh lost the target board.");
+            await RevealAsync(window, Grant("plugins.grantBoard"));
+            Program.CaptureWindow(window, "smoke-plugin-filter-rule-grants.png");
+            MediaRule oldSchema = baseline with { ImageFilter = new(MediaImageFilterMode.Plugin, "fixture.management", "fixture-filter", "1", new Dictionary<string, string> { ["rule-label"] = "old label", ["removed"] = "do not silently drop" }) };
+            await store.SaveAsync(new[] { oldSchema }, store.Current.Revision); page.DiscardCurrentDraft(); await page.RefreshPluginFiltersAsync();
+            page.ExtensionsText = "gif"; string oldRevision = store.Current.Revision; await page.SaveCurrentAsync();
+            Require(store.Current.Revision == oldRevision && store.Current.Rules.Single().ImageFilter.Parameters.ContainsKey("removed"), "A schema change silently discarded old parameters.");
+            page.GetVisualDescendants().OfType<Button>().First(button => Equals(button.Content, Texts.T("plugins.acceptSchema"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await page.SaveCurrentAsync();
+            Require(store.Current.Rules.Single().ImageFilter.SchemaVersion == "2" && !store.Current.Rules.Single().ImageFilter.Parameters.ContainsKey("removed"), "Explicit schema migration did not save the new schema atomically.");
+            Console.WriteLine("PLUGIN RULE UI PASS: real worker domain rejection, persistent field errors, real Core commit, effective broader grant/revoke, retained targets and explicit schema migration.");
+        }
+        finally { page.EndLifetime(); host.Content = retained; }
+    }
+    private static Task RevealAsync(Window window, Control control) => Program.WaitUntilAsync(() =>
+    {
+        window.UpdateLayout(); control.BringIntoView();
+        ScrollViewer scroll = control.GetVisualAncestors().OfType<ScrollViewer>().First();
+        Point? position = control.TranslatePoint(default, scroll);
+        return position is { } point && point.Y >= -1 && point.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
+    });
     private static void OpenPlugins(MainWindow window) => window.GetLogicalDescendants().OfType<MenuItem>()
         .First(item => Equals(item.Tag, "nav.plugins")).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
@@ -156,7 +229,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.PluginSdk;
-public sealed class ManagementFixture : ISourcePlugin, IPluginSettingsValidator
+public sealed class ManagementFixture : ISourcePlugin, IImageFilterPlugin, IPluginSettingsValidator
 {
     public PluginDescription Describe() => new("fixture.management", "Management fixture", "1.0.0", SdkContract.Version,
         "A real local compiler and worker fixture with five setting types.",
@@ -164,7 +237,8 @@ public sealed class ManagementFixture : ISourcePlugin, IPluginSettingsValidator
             SourceCapabilities.ThreadRead | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
             new[] { new UrlRoute(SourceResourceKind.Thread, "fixture.example.test", "/{board}/thread/{thread}", IsCanonical: true) },
             new[] { new HttpHostDeclaration("fixture.example.test", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia) }, new("1", Array.Empty<SettingDefinition>())) },
-        Array.Empty<FilterDescription>(), new("1", new SettingDefinition[] {
+        new[] { new FilterDescription("fixture-filter", "Fixture filter", "Domain validated test filter", FilterDataAccess.CandidateMetadata | FilterDataAccess.OriginalImage,
+            new("2", new SettingDefinition[] { new("rule-label", SettingScope.FilterRule, SettingKind.Text, "Rule label", IsRequired: true, Default: new("rule-label", SettingKind.Text, Text: "allowed")) }), new[] { "image/png" }) }, new("1", new SettingDefinition[] {
             new("label", SettingScope.Plugin, SettingKind.Text, "Label", "A label for the fixture", true, new("label", SettingKind.Text, Text: "fixture")),
             new("number", SettingScope.Plugin, SettingKind.Integer, "Minimum count", Default: new("number", SettingKind.Integer, Integer: 2), Minimum: 1, Maximum: 10),
             new("flag", SettingScope.Plugin, SettingKind.Boolean, "Include replies", Default: new("flag", SettingKind.Boolean, Boolean: true)),
@@ -183,8 +257,10 @@ public sealed class ManagementFixture : ISourcePlugin, IPluginSettingsValidator
                 new SourcePost("2", 1, SourceFieldPresence.Text, Text: "Second post", TextFormat: SourceTextFormat.PlainText) }));
     }
     public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context, CancellationToken token = default) => Task.FromResult<CatalogReadResult>(new CatalogFailure(request.Board, new("unsupported", "No catalog")));
+    public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginCallContext context, CancellationToken token = default) => Task.FromResult(new ImageFilterResult(ImageFilterOutcome.Match, "fixture"));
     public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, PluginCallContext context, CancellationToken token = default) =>
-        Task.FromResult<IReadOnlyList<FieldValidationError>>(request.Settings.Values.Any(value => value.Key == "label" && value.Text == "rejected") ? new[] { new FieldValidationError("label", "rejected", "Fixture rejects this label") } : Array.Empty<FieldValidationError>());
+        Task.FromResult<IReadOnlyList<FieldValidationError>>(request.Settings.Values.Where(value => value.Key is "label" or "rule-label" && value.Text == "rejected")
+            .Select(value => new FieldValidationError(value.Key, "rejected", "Fixture rejects this label")).ToArray());
 }
 """;
 }

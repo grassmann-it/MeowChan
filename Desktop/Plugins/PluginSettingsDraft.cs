@@ -83,7 +83,10 @@ internal sealed class PluginSettingsDraft
                 else values.Add(new(field.Key, field.Kind, Integer: integer));
             }
             else if (field.Kind == SettingKind.Boolean)
-                values.Add(new(field.Key, field.Kind, Boolean: text == "true"));
+            {
+                if (!bool.TryParse(text, out bool boolean)) found.Add(new(field.Key, "boolean", Localization.Texts.T("plugins.booleanError")));
+                else values.Add(new(field.Key, field.Kind, Boolean: boolean));
+            }
             else values.Add(new(field.Key, field.Kind, Text: text));
         }
         SettingsSnapshot snapshot = new(Schema.Version, values);

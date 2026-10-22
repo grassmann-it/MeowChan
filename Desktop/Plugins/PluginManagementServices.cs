@@ -19,7 +19,7 @@ internal sealed record PluginCatalogEntry(string Key, string? PluginId, string? 
 {
     internal string? LoaderPath => InventoryPath ?? SourcePath ?? Candidate?.CandidatePath ?? Diagnostics.FirstOrDefault(diagnostic => diagnostic.FilePath != null)?.FilePath;
     internal string Name => Description?.Name ?? Path.GetFileName(LoaderPath) ?? PluginId ?? Key;
-    internal bool IsSource => SourcePath != null || Description?.Sources.Count > 0;
+    internal bool IsSource => Description == null ? SourcePath != null : Description.Sources.Count > 0;
     internal bool IsFilter => Description?.Filters.Count > 0;
     internal PluginReleaseSnapshot? EditableRelease => new[] { Activation?.Pending, Activation?.Pinned, Activation?.Active, Activation?.LastGood }
         .FirstOrDefault(release => release != null && release.CandidateId == CandidateId);

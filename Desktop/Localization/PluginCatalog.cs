@@ -56,6 +56,7 @@ internal static class PluginCatalog
         ("plugins.incompatibleField", "This field changed type. Set its value explicitly before saving.", "Der Feldtyp hat sich geändert. Vor dem Speichern einen Wert ausdrücklich setzen."),
         ("plugins.removedSettings", "This schema removed saved settings. The old release retains the values for rollback. Acknowledge their removal from the next configuration before saving:", "Dieses Schema entfernt gespeicherte Einstellungen. Die alte Fassung behält die Werte für einen Rückfall. Vor dem Speichern das Entfernen aus der nächsten Konfiguration bestätigen:"),
         ("plugins.acceptSchema", "Use the current schema", "Aktuelles Schema verwenden"),
+        ("plugins.booleanError", "Choose true or false.", "Wahr oder falsch wählen."),
         ("plugins.integerError", "Enter a whole number.", "Eine ganze Zahl eingeben."),
         ("plugins.save", "Save for next start", "Für nächsten Start speichern"),
         ("plugins.discard", "Discard draft and reload", "Entwurf verwerfen und neu laden"),

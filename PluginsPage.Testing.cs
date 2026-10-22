@@ -18,6 +18,13 @@ public partial class PluginsPage
 {
     private sealed record TestedCandidate(string Key, PluginArtifact Artifact, PluginDescription Description, PluginConfiguration Configuration);
     private TestedCandidate? _tested;
+    private string? _testStatusKey;
+    private object?[] _testStatusArguments = Array.Empty<object?>();
+    private void SetTestStatus(string? key, params object?[] arguments)
+    {
+        _testStatusKey = key; _testStatusArguments = arguments;
+        C<TextBlock>("PluginTestStatus").Text = key == null ? string.Empty : Texts.T(key, arguments);
+    }
 
     private void UpdateTestButtons()
     {
@@ -89,14 +96,14 @@ public partial class PluginsPage
         _tested = null;
         C<StackPanel>("PluginBuildDiagnostics").Children.Clear();
         C<TextBox>("PluginProbeResult").Text = string.Empty;
-        C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.building");
+        SetTestStatus("plugins.building");
         try
         {
             PluginBuildResult result = await _services.Compiler.BuildAsync(sourcePath, cancellationToken: token);
             if (!Current(generation)) return;
             RenderDiagnostics(result.Diagnostics, entry);
-            if (!result.Succeeded) { C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.buildFailed", result.Status); return; }
-            C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.testing", result.Artifact!.ExecutionRevision);
+            if (!result.Succeeded) { SetTestStatus("plugins.buildFailed", result.Status); return; }
+            SetTestStatus("plugins.testing", result.Artifact!.ExecutionRevision);
             PluginDescription description = await _services.DescribeTestAsync(result.Artifact, token);
             if (!Current(generation)) return;
             await _services.ProfileStore.ObserveCandidateAsync(new(entry.CandidateId!, description.PluginId, result.Artifact, description, CandidatePath: sourcePath), _catalog!.Profile.Revision, token);
@@ -104,20 +111,20 @@ public partial class PluginsPage
             await RefreshAsync();
             PluginConfigurationDraft testDraft = new(entry with { Description = description, Activation = entry.Activation is { } previous ? previous with { Pinned = null } : null }, _catalog!.Profile.Revision);
             PluginConfiguration configuration = testDraft.Configuration(out IReadOnlyList<FieldValidationError> errors);
-            if (errors.Count > 0) { ShowFieldErrors(errors); C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.testFailed"); return; }
+            if (errors.Count > 0) { ShowFieldErrors(errors); SetTestStatus("plugins.testFailed"); return; }
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(result.Artifact, configuration, token))
             {
                 errors = await ValidateInWorkerAsync(worker, configuration, token);
                 if (!Current(generation)) return;
-                if (errors.Count > 0) { ShowFieldErrors(errors); C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.testFailed"); return; }
+                if (errors.Count > 0) { ShowFieldErrors(errors); SetTestStatus("plugins.testFailed"); return; }
             }
             if (!Current(generation)) return;
             _tested = new(entry.Key, result.Artifact, description, configuration);
-            C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.testPassed", result.Artifact.ExecutionRevision);
+            SetTestStatus("plugins.testPassed", result.Artifact.ExecutionRevision);
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.testFailed"); } }
+        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); SetTestStatus("plugins.testFailed"); } }
         finally { FinishOperation(generation); }
     }
     private void RenderDiagnostics(IReadOnlyList<PluginBuildDiagnostic> diagnostics, PluginCatalogEntry entry)
@@ -129,7 +136,9 @@ public partial class PluginsPage
             if (diagnostic.FilePath != null)
             {
                 string file = diagnostic.FilePath;
-                Button location = new() { Content = file + ":" + diagnostic.Line + ":" + diagnostic.Column };
+                string label = file + ":" + diagnostic.Line + ":" + diagnostic.Column;
+                Button location = new() { Content = Label(label), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                Avalonia.Automation.AutomationProperties.SetName(location, label);
                 location.Click += async (_, _) =>
                 {
                     // The compiler reports the loader input. Never accept plugin-supplied executable strings.
@@ -148,7 +157,7 @@ public partial class PluginsPage
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) || parsed.Scheme is not ("https" or "http"))
         { Error(Texts.T("plugins.invalidUrl")); return; }
         (long generation, CancellationToken token) = BeginOperation();
-        C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.probing");
+        SetTestStatus("plugins.probing");
         try
         {
             object result;
@@ -156,7 +165,7 @@ public partial class PluginsPage
                 result = await _services.ProbeAsync(tested.Description, url, worker, new("plugin-probe:" + tested.Key, generation), token);
             if (!Current(generation)) return;
             C<TextBox>("PluginProbeResult").Text = FormatProbe(result);
-            C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.probeFinished");
+            SetTestStatus("plugins.probeFinished");
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
@@ -179,7 +188,7 @@ public partial class PluginsPage
         _ => throw new InvalidOperationException("Unexpected plugin probe result.")
     };
     private void OnCancelClick(object? sender, RoutedEventArgs e)
-    { CancelOperation(); C<TextBlock>("PluginTestStatus").Text = Texts.T("plugins.cancelled"); RenderDetails(); BusyChanged?.Invoke(this, EventArgs.Empty); }
+    { CancelOperation(); SetTestStatus("plugins.cancelled"); RenderDetails(); BusyChanged?.Invoke(this, EventArgs.Empty); }
     private async void OnEditClick(object? sender, RoutedEventArgs e) => await EditAsync(false);
     private async void OnDefaultEditorClick(object? sender, RoutedEventArgs e) => await EditAsync(true);
     private async Task EditAsync(bool defaultApplication)

@@ -5,6 +5,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class PluginManagementTests
 {
     [Fact]
@@ -121,6 +122,36 @@ public sealed class PluginManagementTests
         Assert.Empty(errors);
         Assert.Equal(3, Assert.Single(saved.Values).Integer);
         Assert.True(draft.Dirty);
+    }
+
+    [Fact]
+    public void InvalidLegacyBooleanIsRetainedUntilExplicitCorrection()
+    {
+        PluginSettingsDraft draft = new(new("2", new SettingDefinition[] { new("flag", SettingScope.FilterRule, SettingKind.Boolean, "Flag") }), SettingScope.FilterRule, null);
+        draft.SetInitialText("flag", "old-text");
+        _ = draft.Snapshot(out IReadOnlyList<FieldValidationError> errors);
+        Assert.Contains(errors, error => error.FieldKey == "flag" && error.Code == "boolean");
+        Assert.Equal("old-text", draft.Text("flag"));
+        draft.Set("flag", "false");
+        _ = draft.Snapshot(out errors); Assert.Empty(errors);
+    }
+
+    [Theory]
+    [InlineData("free-space-reserve", "targets.freeSpace")]
+    [InlineData("disk-full", "targets.diskFull")]
+    [InlineData("unavailable", "targets.unavailable")]
+    public void TargetWaitDiagnosticsPreservePathReasonAndRecheckTime(string reason, string key)
+    {
+        DateTimeOffset next = new(2026, 10, 22, 12, 34, 0, TimeSpan.Zero);
+        // The public snapshot intentionally has no public constructor; only this UI fixture creates it directly.
+        MeowChan.Downloader.DownloadTargetWaitState wait = (MeowChan.Downloader.DownloadTargetWaitState)Activator.CreateInstance(
+            typeof(MeowChan.Downloader.DownloadTargetWaitState), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null, new object[] { "/media/fixture", reason, next }, null)!;
+        MeowChan.Desktop.DesktopSessionView view = new(Array.Empty<MeowChan.Desktop.DesktopThreadEntry>(), Array.Empty<MeowChan.Desktop.DesktopBoardEntry>(), Array.Empty<string>(), MeowChan.Desktop.DesktopSessionState.Ready, null);
+        MeowChan.Desktop.DiagnosticEntry entry = Assert.Single(MeowChan.Desktop.DiagnosticsSnapshot.From(view, new[] { wait }).Entries);
+        Assert.Equal("/media/fixture", entry.DownloadTargetPath); Assert.Null(entry.Target);
+        Assert.Equal(Texts.T(key), entry.Summary);
+        Assert.Contains(Texts.T("targets.nextCheck", next.ToLocalTime()), entry.Details);
     }
 
     [Fact]
