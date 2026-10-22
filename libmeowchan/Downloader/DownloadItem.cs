@@ -11,6 +11,7 @@ public class DownloadItem
     public IImageBoard ImageBoard { get; }
     public IThread Thread { get; }
     public string MediaIdentifier { get; }
+    public string Variant { get; }
     public long? ExpectedSize { get; }
     public string? ExpectedMd5 { get; }
     public string? OriginalFileName { get; }
@@ -21,6 +22,10 @@ public class DownloadItem
 
     public DownloadItem(Uri downloadUri, string destinationPath, IImageBoard imageBoard, IThread thread, string mediaIdentifier,
         long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null, string? legacyPath = null)
+        : this(downloadUri, destinationPath, imageBoard, thread, mediaIdentifier, expectedSize, expectedMd5, originalFileName, legacyPath, "original") { }
+
+    public DownloadItem(Uri downloadUri, string destinationPath, IImageBoard imageBoard, IThread thread, string mediaIdentifier,
+        long? expectedSize, string? expectedMd5, string? originalFileName, string? legacyPath, string variant)
     {
         if (downloadUri == null)
         {
@@ -53,6 +58,8 @@ public class DownloadItem
         ImageBoard = imageBoard;
         Thread = thread;
         MediaIdentifier = mediaIdentifier;
+        MeowChan.Rules.MediaRuleScope.ValidateIdentity(variant, nameof(variant));
+        Variant = variant;
         if (expectedSize < 0) throw new ArgumentOutOfRangeException(nameof(expectedSize));
         ExpectedSize = expectedSize;
         ExpectedMd5 = expectedMd5;
