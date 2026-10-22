@@ -23,6 +23,12 @@ separate values. Routes use exact hosts and `{board}`/`{thread}` path segments;
 aliases, trailing slash, board case and optional inert title segments are
 explicit. Returned thread URLs must be canonical for the supplied identity.
 No provider callback, regex or synchronous IPC is needed for URL ownership.
+Literal route text follows `System.Uri` normalization, including percent-encoded
+unreserved characters. `AllowTrailingSlash` accepts both slash forms, even when
+the template ends in `/`; an optional title goes before that trailing slash.
+An identity cannot form a whole `.` or `..` path segment after substitution.
+Dot identities remain usable with a literal prefix/suffix that preserves the
+segment, and other opaque identity characters are escaped as data.
 
 Posts use explicit field-presence flags: absence preserves previously captured
 fields; a present empty/null value is distinguishable. Absent posts and catalog

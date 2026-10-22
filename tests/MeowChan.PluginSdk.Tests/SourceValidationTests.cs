@@ -50,6 +50,57 @@ public sealed class SourceValidationTests
             TestContracts.Source()), issue => issue.Code == "noncanonical_url");
     }
 
+    [Theory]
+    [InlineData(".", "123", "https://source.test/thread/123")]
+    [InlineData("..", "123", "https://source.test/thread/123")]
+    [InlineData("b", ".", "https://source.test/b/thread/")]
+    [InlineData("b", "..", "https://source.test/b/")]
+    public void ResourceDotSegmentsCannotBeNormalizedOutOfSnapshotsOrCatalogReferences(string board, string thread, string url)
+    {
+        SourceThreadId id = TestContracts.Thread with { BoardId = board, ThreadId = thread };
+        SourceThreadSnapshot snapshot = TestContracts.Snapshot() with { Thread = id, Url = new Uri(url) };
+        Assert.Contains(SdkValidation.ValidateThreadResult(new ThreadReadRequest(id), new ThreadSnapshot(snapshot),
+            TestContracts.Source()), issue => issue.Code == "noncanonical_url");
+        SourceBoardId boardId = new SourceBoardId(id.SourceId, id.BoardId);
+        CatalogReadResult catalog = new CatalogSnapshot(new SourceCatalogSnapshot(boardId,
+            [new SourceThreadReference(id, new Uri(url))], IsComplete: true));
+        Assert.Contains(SdkValidation.ValidateCatalogResult(new CatalogReadRequest(boardId), catalog,
+            TestContracts.Source()), issue => issue.Code == "noncanonical_url");
+    }
+
+    [Theory]
+    [InlineData("/b{board}/thread/{thread}", ".", "123", "/b./thread/123")]
+    [InlineData("/{board}.json/thread/{thread}", "..", "123", "/...json/thread/123")]
+    [InlineData("/{board}/thread/{thread}.html", "b", ".", "/b/thread/..html")]
+    [InlineData("/{board}/thread/{thread}.html", "b", "..", "/b/thread/...html")]
+    [InlineData("/{board}/thread/{thread}", "%2e", "%2e%2e", "/%252e/thread/%252e%252e")]
+    [InlineData("/{board}/thread/{thread}", "a/b", "a?b#c", "/a%2Fb/thread/a%3Fb%23c")]
+    public void AffixedDotAndOpaqueEscapedIdentitiesRemainCanonical(string template, string board, string thread, string path)
+    {
+        SourceDescription source = TestContracts.Source() with
+        {
+            Routes = [TestContracts.Source().Routes[0], new UrlRoute(SourceResourceKind.Thread, "source.test", template, true)]
+        };
+        Assert.Empty(SdkValidation.ValidateDescription(TestContracts.Plugin(source)));
+        SourceThreadId id = TestContracts.Thread with { BoardId = board, ThreadId = thread };
+        SourceThreadSnapshot snapshot = TestContracts.Snapshot() with { Thread = id, Url = new Uri("https://source.test" + path) };
+        Assert.Empty(SdkValidation.ValidateThreadResult(new ThreadReadRequest(id), new ThreadSnapshot(snapshot), source));
+    }
+
+    [Fact]
+    public void EncodedDotAffixesCannotCombineWithAnIdentityToMakeADotSegment()
+    {
+        SourceDescription source = TestContracts.Source() with
+        {
+            Routes = [TestContracts.Source().Routes[0], new UrlRoute(SourceResourceKind.Thread, "source.test", "/{board}%2E/thread/{thread}", true)]
+        };
+        Assert.Empty(SdkValidation.ValidateDescription(TestContracts.Plugin(source)));
+        SourceThreadId id = TestContracts.Thread with { BoardId = "." };
+        SourceThreadSnapshot snapshot = TestContracts.Snapshot() with { Thread = id, Url = new Uri("https://source.test/thread/123") };
+        Assert.Contains(SdkValidation.ValidateThreadResult(new ThreadReadRequest(id), new ThreadSnapshot(snapshot), source),
+            issue => issue.Code == "noncanonical_url");
+    }
+
     [Fact]
     public void CompleteAndPartialCatalogsDoNotExpressThreadDeletion()
     {

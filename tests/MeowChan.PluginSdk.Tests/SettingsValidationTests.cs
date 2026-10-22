@@ -73,4 +73,49 @@ public sealed class SettingsValidationTests
         Assert.Contains(issues, issue => issue.Code == "unknown_source");
         Assert.Contains(issues, issue => issue.Path.EndsWith("synthetic", StringComparison.Ordinal) && issue.Code == "missing");
     }
+
+    [Fact]
+    public void OversizedSchemaIsNeverVisitedBySettingsConfigurationOrFilterValidation()
+    {
+        SettingsSchema schema = new SettingsSchema("1", new CountOnlyList<SettingDefinition>(257));
+        SettingsSnapshot empty = new SettingsSnapshot("1", Array.Empty<SettingValue>());
+        Assert.Contains(SdkValidation.ValidateSettings(schema, empty, SettingScope.Plugin), issue => issue.Code == "too_large");
+        PluginDescription plugin = TestContracts.Plugin(TestContracts.Source() with { Settings = schema }) with { Settings = schema };
+        PluginConfiguration configuration = new PluginConfiguration("config-1", empty,
+            new Dictionary<string, SettingsSnapshot> { ["synthetic"] = empty });
+        Assert.Contains(SdkValidation.ValidateConfiguration(plugin, configuration), issue => issue.Code == "too_large");
+        Assert.Contains(SdkValidation.ValidateImageFilterRequest(TestContracts.FilterRequest(), TestContracts.Filter() with { Settings = schema }),
+            issue => issue.Code == "too_large");
+    }
+
+    [Fact]
+    public void OversizedEnumOptionsAreNeverVisitedForDefaultsOrSuppliedValues()
+    {
+        SettingValue value = new SettingValue("mode", SettingKind.Enum, Text: "safe");
+        SettingsSchema schema = new SettingsSchema("1",
+            [new SettingDefinition("mode", SettingScope.Plugin, SettingKind.Enum, "Mode", Default: value,
+                Options: new CountOnlyList<SettingOption>(257))]);
+        Assert.Contains(SdkValidation.ValidateSettings(schema, new SettingsSnapshot("1", [value]), SettingScope.Plugin),
+            issue => issue.Code == "too_large");
+    }
+
+    [Fact]
+    public void SchemaAndValuesAtTheExactLimitStillValidateAfterJsonRoundTrip()
+    {
+        SettingDefinition[] fields = Enumerable.Range(0, 256)
+            .Select(index => new SettingDefinition("flag" + index, SettingScope.Plugin, SettingKind.Boolean, "Flag", IsRequired: true)).ToArray();
+        SettingValue[] values = fields.Select(field => new SettingValue(field.Key, SettingKind.Boolean, Boolean: true)).ToArray();
+        SettingsSchema schema = SdkJson.Deserialize<SettingsSchema>(SdkJson.Serialize(new SettingsSchema("1", fields)));
+        SettingsSnapshot settings = SdkJson.Deserialize<SettingsSnapshot>(SdkJson.Serialize(new SettingsSnapshot("1", values)));
+        Assert.Empty(SdkValidation.ValidateSettings(schema, settings, SettingScope.Plugin));
+        Assert.Equal(256, settings.Values.Count);
+    }
+
+    private sealed class CountOnlyList<T>(int count) : IReadOnlyList<T>
+    {
+        public int Count => count;
+        public T this[int index] => throw new InvalidOperationException("Oversized settings must never be visited.");
+        public IEnumerator<T> GetEnumerator() => throw new InvalidOperationException("Oversized settings must never be enumerated.");
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }

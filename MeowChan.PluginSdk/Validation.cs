@@ -298,15 +298,16 @@ public static class SdkValidation
 
     private static bool RoutesOverlap(RouteShape first, RouteShape second)
     {
-        int leftLength = first.Segments.Length;
-        int rightLength = second.Segments.Length;
-        if (leftLength + 1 == rightLength && first.AllowTitleSegment) leftLength++;
-        if (rightLength + 1 == leftLength && second.AllowTitleSegment) rightLength++;
-        if (leftLength != rightLength) return false;
-        for (int index = 0; index < leftLength; index++)
+        return first.Variants.Any(left => second.Variants.Any(right => RouteVariantsOverlap(left, right)));
+    }
+
+    private static bool RouteVariantsOverlap(RouteSegment[] first, RouteSegment[] second)
+    {
+        if (first.Length != second.Length) return false;
+        for (int index = 0; index < first.Length; index++)
         {
-            RouteSegment left = index < first.Segments.Length ? first.Segments[index] : RouteSegment.Title;
-            RouteSegment right = index < second.Segments.Length ? second.Segments[index] : RouteSegment.Title;
+            RouteSegment left = first[index];
+            RouteSegment right = second[index];
             if (!left.Variable && !right.Variable && left.Literal != right.Literal) return false;
             if (left.Variable && !right.Variable && !MatchesSegment(left, right.Literal)) return false;
             if (!left.Variable && right.Variable && !MatchesSegment(right, left.Literal)) return false;
@@ -325,28 +326,47 @@ public static class SdkValidation
 
     private sealed class RouteShape
     {
-        internal bool AllowTitleSegment { get; }
-        internal RouteSegment[] Segments { get; }
+        internal IReadOnlyList<RouteSegment[]> Variants { get; }
 
         internal RouteShape(UrlRoute route)
         {
-            AllowTitleSegment = route.AllowTitleSegment;
-            string path = route.AllowTrailingSlash ? route.PathTemplate.TrimEnd('/') : route.PathTemplate;
-            Segments = path.Split('/').Select(value =>
+            bool hasTrailingSlash = route.PathTemplate.EndsWith('/');
+            RouteSegment[] segments = route.PathTemplate.TrimEnd('/').Split('/').Select(RouteSegment.Parse).ToArray();
+            List<RouteSegment[]> variants = new List<RouteSegment[]>();
+            AddVariants(segments);
+            if (route.AllowTitleSegment) AddVariants([.. segments, RouteSegment.Title]);
+            Variants = variants;
+
+            void AddVariants(RouteSegment[] path)
             {
-                int start = value.IndexOf('{');
-                int end = value.IndexOf('}');
-                return start >= 0 && end > start
-                    ? new RouteSegment(true, value, value[..start], value[(end + 1)..])
-                    : new RouteSegment(false, value, "", "");
-            }).ToArray();
+                if (route.AllowTrailingSlash || !hasTrailingSlash) variants.Add(path);
+                if (route.AllowTrailingSlash || hasTrailingSlash) variants.Add([.. path, RouteSegment.Empty]);
+            }
         }
     }
 
     private sealed record RouteSegment(bool Variable, string Literal, string Prefix, string Suffix)
     {
+        internal static readonly RouteSegment Empty = new RouteSegment(false, "", "", "");
         internal static readonly RouteSegment Title = new RouteSegment(true, "{title}", "", "");
+
+        internal static RouteSegment Parse(string value)
+        {
+            int start = value.IndexOf('{');
+            int end = value.IndexOf('}');
+            if (start < 0 || end <= start) return new RouteSegment(false, NormalizeLiteral(value), "", "");
+            string prefix = NormalizeLiteral(value[..start]);
+            string suffix = NormalizeLiteral(value[(end + 1)..]);
+            return new RouteSegment(true, prefix + value[start..(end + 1)] + suffix, prefix, suffix);
+        }
+
+        // Sentinels keep a literal dot/space at either edge inside its segment while
+        // applying the same escaping and unreserved-character normalization as Uri.
+        private static string NormalizeLiteral(string value)
+            => new Uri("https://route.invalid/_" + value + "_").AbsolutePath[2..^1];
     }
+
+    private static bool IsDotSegment(string value) => Uri.UnescapeDataString(value) is "." or "..";
 
     private sealed class Checks
     {
@@ -497,7 +517,7 @@ public static class SdkValidation
                 || remainder.Contains('{') || remainder.Contains('}') || template.Contains("//", StringComparison.Ordinal))
                 Add(path + ".pathTemplate", "invalid_template", "Use exactly one board placeholder and, for threads, exactly one thread placeholder.");
             foreach (string segment in template.Split('/'))
-                if (Count(segment, "{") > 1 || segment is "." or "..") Add(path + ".pathTemplate", "invalid_template", "One placeholder per segment; dot segments are forbidden.");
+                if (Count(segment, "{") > 1 || IsDotSegment(segment)) Add(path + ".pathTemplate", "invalid_template", "One placeholder per segment; dot segments are forbidden.");
             if (route.AllowTitleSegment && route.Kind != SourceResourceKind.Thread) Add(path + ".allowTitleSegment", "invalid_template", "Only thread aliases may have an inert title segment.");
         }
 
@@ -554,10 +574,13 @@ public static class SdkValidation
         internal void Settings(SettingsSchema? schema, SettingsSnapshot? settings, string path)
         {
             if (schema is null || settings is null) { Add(path, "missing", "Schema and settings snapshot are required."); return; }
+            if (schema.Fields?.Count > 256) { Add(path, "too_large", "Settings schema exceeds its field limit."); return; }
             if (settings.SchemaVersion != schema.Version) Add(path + ".schemaVersion", "schema_mismatch", "Settings require explicit migration to this schema version.");
             Dictionary<string, SettingDefinition> fields = new Dictionary<string, SettingDefinition>(StringComparer.Ordinal);
-            foreach (SettingDefinition field in schema.Fields ?? Array.Empty<SettingDefinition>())
+            List(schema.Fields, path + ".schema.fields", (field, _) =>
+            {
                 if (field is not null && field.Key is not null) fields.TryAdd(field.Key, field);
+            }, 256);
             HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
             List(settings.Values, path + ".values", (value, itemPath) =>
             {
@@ -582,7 +605,11 @@ public static class SdkValidation
                 Add(path, "wrong_payload", "Set exactly the payload matching the setting kind.");
             Text(value.Text, path + ".text", field.MaximumLength ?? SdkLimits.MaximumTextLength, required: field.IsRequired && text);
             if (value.Integer < field.Minimum || value.Integer > field.Maximum) Add(path + ".integer", "out_of_range", "Integer is outside its allowed range.");
-            if (value.Kind == SettingKind.Enum && !(field.Options?.Any(option => option is not null && option.Value == value.Text) ?? false)) Add(path + ".text", "unknown_option", "Enum value is not an allowed option.");
+            if (value.Kind == SettingKind.Enum)
+            {
+                if (field.Options?.Count > 256) Add(path, "too_large", "Enum setting exceeds its option limit.");
+                else if (!(field.Options?.Any(option => option is not null && option.Value == value.Text) ?? false)) Add(path + ".text", "unknown_option", "Enum value is not an allowed option.");
+            }
             if (value.Kind == SettingKind.Uri && !Uri.TryCreate(value.Text, UriKind.Absolute, out _)) Add(path + ".text", "invalid_uri", "Setting requires an absolute URI.");
         }
 
@@ -731,11 +758,13 @@ public static class SdkValidation
             if (canonical?.PathTemplate is null || source.BaseUri is null || !source.BaseUri.IsAbsoluteUri)
             { Add(path, "missing_canonical_route", "Source requires a canonical thread route."); return; }
             string boardId = canonical.LowercaseBoardId ? thread.BoardId.ToLowerInvariant() : thread.BoardId;
-            string expectedPath = canonical.PathTemplate.Replace("{board}", Uri.EscapeDataString(boardId), StringComparison.Ordinal)
+            string template = string.Join('/', canonical.PathTemplate.Split('/').Select(segment => RouteSegment.Parse(segment).Literal));
+            string expectedPath = template.Replace("{board}", Uri.EscapeDataString(boardId), StringComparison.Ordinal)
                 .Replace("{thread}", Uri.EscapeDataString(thread.ThreadId), StringComparison.Ordinal);
             string authority = source.BaseUri.Scheme + "://" + canonical.Host
                 + (source.BaseUri.IsDefaultPort ? "" : ":" + source.BaseUri.Port);
-            if (!Uri.TryCreate(authority + expectedPath, UriKind.Absolute, out Uri? expected)
+            if (expectedPath.Split('/').Any(IsDotSegment)
+                || !Uri.TryCreate(authority + expectedPath, UriKind.Absolute, out Uri? expected)
                 || !string.Equals(uri.IdnHost, expected.IdnHost, StringComparison.OrdinalIgnoreCase)
                 || uri.Scheme != expected.Scheme || uri.Port != expected.Port || uri.AbsolutePath != expected.AbsolutePath
                 || uri.Query.Length != 0 || uri.Fragment.Length != 0)

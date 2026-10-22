@@ -42,6 +42,64 @@ public sealed class DescriptionValidationTests
         Assert.Contains(issues, issue => issue.Code == "route_conflict");
     }
 
+    [Theory]
+    [InlineData("/{board}/thread/{thread}", true, false, "/{board}/thread/{thread}/", false, true)]
+    [InlineData("/{board}/thread/{thread}/", true, false, "/{board}/thread/{thread}", false, true)]
+    [InlineData("/{board}/thread/{thread}", false, false, "/{board}/thread/{thread}/", false, false)]
+    [InlineData("/{board}/thread/{thread}/", false, false, "/{board}/thread/{thread}/", false, true)]
+    [InlineData("/{board}/thread/{thread}/", true, true, "/{board}/thread/{thread}/details/", false, true)]
+    [InlineData("/{board}/thread/{thread}/", false, true, "/{board}/thread/{thread}/details/", false, true)]
+    [InlineData("/{board}/thread/{thread}/", false, true, "/{board}/thread/{thread}/details", false, false)]
+    [InlineData("/{board}/thread/{thread}", false, true, "/{board}/thread/{thread}/details/", false, false)]
+    public void SlashAndTitleAliasesRespectBothAcceptedAndDisjointPaths(string firstPath, bool firstSlash,
+        bool firstTitle, string secondPath, bool secondSlash, bool conflict)
+    {
+        PluginDescription first = RoutePlugin("first", firstPath, firstSlash, firstTitle);
+        PluginDescription second = RoutePlugin("second", secondPath, secondSlash);
+        Assert.Empty(SdkValidation.ValidateDescription(first));
+        Assert.Empty(SdkValidation.ValidateDescription(second));
+        Assert.Equal(conflict, SdkValidation.ValidateDescriptions([first, second]).Any(issue => issue.Code == "route_conflict"));
+        Assert.Equal(conflict, SdkValidation.ValidateDescriptions([second, first]).Any(issue => issue.Code == "route_conflict"));
+    }
+
+    [Theory]
+    [InlineData("/{board}/thread/{thread}", "/{board}/%74hread/{thread}", "/b/thread/123")]
+    [InlineData("/{board}/thread/{thread}.html", "/{board}/thread/{thread}%2Ehtml", "/b/thread/123.html")]
+    [InlineData("/prefix{board}/thread/{thread}", "/pre%66ix{board}/thread/{thread}", "/prefixb/thread/123")]
+    [InlineData("/{board}/café/{thread}", "/{board}/caf%C3%A9/{thread}", "/b/caf%C3%A9/123")]
+    public void UriEquivalentLiteralSegmentsAndAffixesConflict(string firstPath, string secondPath, string canonicalPath)
+    {
+        PluginDescription first = RoutePlugin("first", firstPath);
+        PluginDescription second = RoutePlugin("second", secondPath);
+        foreach (PluginDescription plugin in new[] { first, second })
+        {
+            Assert.Empty(SdkValidation.ValidateDescription(plugin));
+            SourceThreadId id = new SourceThreadId(plugin.Sources[0].SourceId, "b", "123");
+            SourceThreadSnapshot snapshot = TestContracts.Snapshot() with
+            {
+                Thread = id, Url = new Uri("https://source.test" + canonicalPath)
+            };
+            Assert.Empty(SdkValidation.ValidateThreadResult(new ThreadReadRequest(id), new ThreadSnapshot(snapshot), plugin.Sources[0]));
+        }
+        Assert.Contains(SdkValidation.ValidateDescriptions([first, second]), issue => issue.Code == "route_conflict");
+    }
+
+    [Theory]
+    [InlineData("/{board}/thread/{thread}", "/{board}/%2574hread/{thread}")]
+    [InlineData("/{board}/thread/{thread}", "/{board}/Thread/{thread}")]
+    [InlineData("/{board}/a%2Fb/{thread}", "/{board}/a/b/{thread}")]
+    [InlineData("/{board}/thread/{thread}.json", "/{board}/thread/{thread}.html")]
+    public void DistinctEscapedLiteralsCaseAndSuffixesRemainDisjoint(string firstPath, string secondPath)
+        => Assert.Empty(SdkValidation.ValidateDescriptions([RoutePlugin("first", firstPath), RoutePlugin("second", secondPath)]));
+
+    [Theory]
+    [InlineData("%2e")]
+    [InlineData(".%2E")]
+    [InlineData("%2E%2e")]
+    public void EncodedLiteralDotSegmentsCannotDisappearDuringUriNormalization(string segment)
+        => Assert.Contains(SdkValidation.ValidateDescription(RoutePlugin("first", "/{board}/" + segment + "/{thread}")),
+            issue => issue.Code == "invalid_template");
+
     [Fact]
     public void ExplicitNullTemplateReportsAnIssueWithoutCrashingConflictValidation()
     {
@@ -117,4 +175,11 @@ public sealed class DescriptionValidationTests
         public IEnumerator<UrlRoute> GetEnumerator() => throw new InvalidOperationException("Oversized routes must never be enumerated.");
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
+
+    private static PluginDescription RoutePlugin(string id, string path, bool slash = true, bool title = false)
+        => TestContracts.Plugin(TestContracts.Source(id) with
+        {
+            Capabilities = SourceCapabilities.ThreadRead | SourceCapabilities.PostCapture,
+            Routes = [new UrlRoute(SourceResourceKind.Thread, "source.test", path, true, slash, title)]
+        }) with { PluginId = id + ".plugin" };
 }
