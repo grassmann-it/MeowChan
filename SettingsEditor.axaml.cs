@@ -164,8 +164,6 @@ namespace MeowChan
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
 
-            App.ControlLanguageChanging += OnControlLanguageChanging;
-            App.ControlLanguageChanged += OnControlLanguageChanged;
             Texts.Changed += OnLanguageChanged;
         }
 
@@ -385,9 +383,6 @@ namespace MeowChan
             if (_isClosed) return;
             _isClosed = true;
             Texts.Changed -= OnLanguageChanged;
-            App.ControlLanguageChanging -= OnControlLanguageChanging;
-            App.ControlLanguageChanged -= OnControlLanguageChanged;
-            _controlLanguageDrafts = null;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
         }
@@ -475,9 +470,6 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
-                // Numeric controls keep malformed text separately from their last Value.
-                // Refreshing labels must never replace that text with the last valid value.
-                var numericDrafts = NumericFields().Select(field => (field.Input, field.Input.Text)).ToArray();
                 bool hadFieldError = _firstInvalidInput != null;
                 bool pathError = _firstInvalidInput == DownloadPathInput;
                 string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
@@ -485,9 +477,27 @@ namespace MeowChan
                     SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
                     SelectedLanguage?.Code ?? _config.Language);
                 SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
-                foreach (var draft in numericDrafts)
-                    if (draft.Input.Text != draft.Text) draft.Input.Text = draft.Text;
+                // Refresh only labels/help; a language change is not a numeric Value change.
+                foreach (string property in new[]
+                {
+                    nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
+                    nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel),
+                    nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
+                    nameof(FilterHeapMiBLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
+                    nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
+                    nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
+                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(RestoreSessionLabel),
+                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel),
+                    nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
+                    nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
+                    nameof(CancelLabel), nameof(RememberReadingPositionLabel), nameof(ReadingPositionHint), nameof(ForgetReadingPositionLabel),
+                    nameof(SecondsHelp), nameof(BandwidthHelp), nameof(VolumeHelp), nameof(IncreaseNumericValueFormat),
+                    nameof(DecreaseNumericValueFormat), nameof(SupportedSources), nameof(DownloadPathHelp), nameof(RecheckTimerHelp),
+                    nameof(BandwidthInputHelp), nameof(ParallelDownloadsHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
+                    nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
+                })
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 if (hadFieldError)
                 {
                     ClearFieldErrors();
@@ -775,8 +785,6 @@ namespace MeowChan
                 throw new ArgumentException(Texts.T("budgets.range", label, minimum, maximum));
             return decimal.ToInt32(value.Value);
         }
-
-        private static bool HasInvalidText(NumericUpDown input) => !decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out _);
 
         private static int GetPositiveInteger(decimal? value, string label)
         {

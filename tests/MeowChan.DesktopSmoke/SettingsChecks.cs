@@ -24,6 +24,7 @@ internal static class SettingsChecks
             await CheckDirectSaveAsync(owner, Path.Combine(profile, "direct-save"));
             await CheckPickerAsync(owner, Path.Combine(profile, "picker"));
             await CheckFieldErrorsAsync(owner, Path.Combine(profile, "field-errors"));
+            await CheckNumericBlurDraftAsync(owner, Path.Combine(profile, "blur-drafts"));
             await CheckCancelPreferencesAsync(owner, Path.Combine(profile, "cancel-preferences"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
@@ -31,6 +32,58 @@ internal static class SettingsChecks
         {
             if (Directory.Exists(profile))
                 Directory.Delete(profile, recursive: true);
+        }
+    }
+
+    private static async Task CheckNumericBlurDraftAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        int commits = 0;
+        SettingsWindow window = new SettingsWindow(config, _ => { commits++; return Task.CompletedTask; });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            Button save = window.Editor.FindControl<Button>("SaveSettingsButton")!;
+            foreach (var rejected in new (string Field, string Raw)[] { ("RecheckTimerInput", "invalid draft"),
+                ("RecheckTimerInput", "0"), ("RecheckTimerInput", "60.5"), ("ProductionWorkersInput", "9") })
+            {
+                window.Editor.CancelChanges();
+                NumericUpDown number = window.Editor.FindControl<NumericUpDown>(rejected.Field)!;
+                foreach (Expander group in number.GetVisualAncestors().OfType<Expander>()) group.IsExpanded = true;
+                number.BringIntoView();
+                TextBox input = number.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
+                await WaitUntilAsync(() => input.IsEffectivelyVisible && input.Bounds.Height > 0);
+                input.Focus();
+                decimal? previousValue = number.Value;
+                input.Text = rejected.Raw;
+                await WaitUntilAsync(() => number.Text == rejected.Raw);
+                if (rejected.Raw != "60.5")
+                    Require(number.Value == previousValue, "The raw/model mismatch fixture did not retain the last accepted numeric value.");
+                save.Focus(); // A genuine click changes focus before raising Click.
+                Require(number.Text == rejected.Raw, "Leaving the numeric text box silently replaced its rejected draft.");
+                Click(save);
+                TextBlock error = window.Editor.FindControl<TextBlock>(rejected.Field + "Error")!;
+                await WaitUntilAsync(() => error.IsEffectivelyVisible && input.IsFocused);
+                Require(number.Text == rejected.Raw && input.Text == rejected.Raw && commits == 0 && !window.Editor.HasErrorDetails,
+                    "Saving/revealing an invalid raw number corrected it, committed it or produced a storage error.");
+                input.Focus();
+                Require(number.Text == rejected.Raw, "Refocusing the same numeric editor changed its invalid draft.");
+            }
+            window.Editor.CancelChanges();
+            NumericUpDown timer = window.Editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
+            TextBox validInput = timer.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
+            validInput.Focus();
+            validInput.Text = "120";
+            save.Focus();
+            Click(save);
+            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+            Require(commits == 1 && config.RecheckTimer == 120, "Preserving rejected drafts changed valid numeric commit behavior.");
+        }
+        finally
+        {
+            if (window.IsVisible) window.Close();
+            await dialog;
         }
     }
 
@@ -159,12 +212,17 @@ internal static class SettingsChecks
                 window.Editor.MaxParallelDownloads = 3;
                 window.Editor.BandwidthLimiterMB = 2;
                 invalid.Edit();
+                decimal? rejectedModel = invalid.Field == "RecheckTimerInput" ? window.Editor.RecheckTimer
+                    : invalid.Field == "ParallelDownloadsInput" ? window.Editor.MaxParallelDownloads : window.Editor.BandwidthLimiterMB;
                 Click(save);
                 await WaitUntilAsync(() => !window.Editor.IsBusy);
                 TextBlock fieldError = window.Editor.FindControl<TextBlock>(invalid.Field + "Error")!;
                 await WaitUntilAsync(() => fieldError.IsEffectivelyVisible);
                 Require(window.Editor.HasError && !window.Editor.HasErrorDetails && applies == 1,
                     "An invalid setting entered the commit callback or became a technical storage error.");
+                decimal? retainedModel = invalid.Field == "RecheckTimerInput" ? window.Editor.RecheckTimer
+                    : invalid.Field == "ParallelDownloadsInput" ? window.Editor.MaxParallelDownloads : window.Editor.BandwidthLimiterMB;
+                Require(retainedModel == rejectedModel, "Revealing a direct model validation error corrected its draft value.");
                 Require(config.RecheckTimer == 60 && config.MaxParallelDownloads == 5, "An invalid setting changed the live configuration.");
             }
 

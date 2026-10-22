@@ -60,8 +60,10 @@ internal static class SettingsPageChecks
             await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
             Require(File.ReadAllText(file) == original && timer.Text == raw, "Invalid raw number was saved or discarded.");
             await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+            Require(timer.Text == raw, "Revealing the field error replaced the invalid numeric draft.");
             Program.CaptureWindow(window, "smoke-settings-page-dark.png");
-            TraceLanguageDraftTransition(window, editor, timer, raw);
+            Texts.SetLanguage("de");
+            window.UpdateLayout();
             Require(timer.Text == raw, $"Language refresh changed invalid numeric draft: expected '{raw}', actual '{timer.Text}'.");
             Require(editor.DownloadPath == draftPath, "Language refresh changed the download-path draft.");
             Require(editor.HasError && !editor.HasErrorDetails, "Language refresh lost field validation or replaced it with a storage error.");
@@ -320,45 +322,6 @@ internal static class SettingsPageChecks
         Config config = Config.LoadConfig(profile);
         config.DownloadPath = Path.Combine(profile, "downloads");
         config.SaveConfig();
-    }
-
-    private static void TraceLanguageDraftTransition(MainWindow window, SettingsEditor editor, NumericUpDown timer, string raw)
-    {
-        // Narrow diagnostic scope: capture the actual mutation before changing the implementation.
-        void Trace(string stage) => Console.WriteLine($"SMOKE settings language trace: {stage}; text='{timer.Text}'; value={timer.Value}; draft={editor.RecheckTimer}; error={editor.HasError}.");
-        void NumericChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
-        {
-            if (change.Property.Name is not ("Text" or "Value" or "CultureInfo" or "NumberFormat")) return;
-            Trace("numeric " + change.Property.Name + ": '" + change.OldValue + "' -> '" + change.NewValue + "'");
-            if (change.Property.Name == "Text" && change.NewValue is string text && text != raw)
-                Console.WriteLine("SMOKE settings numeric text transition stack: " + Environment.StackTrace);
-        }
-        void EditorChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs change)
-        {
-            if (string.IsNullOrEmpty(change.PropertyName) || change.PropertyName == nameof(SettingsEditor.RecheckTimer))
-                Trace("editor notification " + (string.IsNullOrEmpty(change.PropertyName) ? "<all>" : change.PropertyName));
-        }
-        void BeforeLocale() => Trace("before vendor locale");
-        void AfterLocale() => Trace("after vendor locale");
-        timer.PropertyChanged += NumericChanged;
-        editor.PropertyChanged += EditorChanged;
-        App.ControlLanguageChanging += BeforeLocale;
-        App.ControlLanguageChanged += AfterLocale;
-        try
-        {
-            Trace("before SetLanguage");
-            Texts.SetLanguage("de");
-            Trace("after SetLanguage");
-            window.UpdateLayout();
-            Trace("after UpdateLayout");
-        }
-        finally
-        {
-            timer.PropertyChanged -= NumericChanged;
-            editor.PropertyChanged -= EditorChanged;
-            App.ControlLanguageChanging -= BeforeLocale;
-            App.ControlLanguageChanged -= AfterLocale;
-        }
     }
 
     private static async Task RequireErrorVisibleAsync(SettingsEditor editor, string? fieldName = null)

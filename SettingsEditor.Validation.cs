@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -11,23 +12,6 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private Control? _firstInvalidInput;
-    private (NumericUpDown Input, string? Text)[]? _controlLanguageDrafts;
-
-    private void OnControlLanguageChanging()
-    {
-        if (!_isClosed)
-            _controlLanguageDrafts = NumericFields().Select(field => (field.Input, field.Input.Text)).ToArray();
-    }
-
-    private void OnControlLanguageChanged()
-    {
-        var drafts = _controlLanguageDrafts;
-        _controlLanguageDrafts = null;
-        if (_isClosed || drafts == null) return;
-        foreach (var draft in drafts)
-            if (draft.Input.Text != draft.Text) draft.Input.Text = draft.Text;
-    }
-
     private readonly Dictionary<string, string> _fieldHelpErrors = new();
     private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out string? error) ? error : baseline;
     public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);
@@ -103,11 +87,12 @@ public partial class SettingsEditor
         foreach (var field in NumericFields())
         {
             string? message = null;
-            if (HasInvalidText(field.Input) || DataValidationErrors.GetHasErrors(field.Input))
+            bool parsed = decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal raw);
+            bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||
+                (field.Integer && decimal.Truncate(value.Value) != value.Value) || (!field.Integer && value <= 0);
+            if (!parsed || DataValidationErrors.GetHasErrors(field.Input))
                 message = Texts.T("settings.fieldNumber", field.Label, field.Unit);
-            else if (!field.Value.HasValue || field.Value < field.Min || field.Value > field.Max ||
-                     (field.Integer && decimal.Truncate(field.Value.Value) != field.Value.Value) ||
-                     (!field.Integer && field.Value <= 0))
+            else if (InvalidNumber(raw) || InvalidNumber(field.Value))
                 message = field.Integer
                     ? Texts.T("settings.fieldInteger", field.Label + " (" + field.Unit + ")", field.Min, field.Max)
                     : Texts.T("settings.bandwidthRange", field.Label, decimal.Floor(field.Max));
@@ -134,7 +119,11 @@ public partial class SettingsEditor
             for (var parent = first.Parent; parent != null; parent = parent.Parent)
                 if (parent is Expander expander) expander.IsExpanded = true;
             (first.Parent as Control ?? first).BringIntoView();
-            first.Focus();
+            // Focusing NumericUpDown itself redirects to PART_TextBox and causes a
+            // root->inner LostFocus commit. Focus the actual editing surface directly.
+            if (first is NumericUpDown numeric)
+                numeric.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(text => text.Name == "PART_TextBox")?.Focus();
+            else first.Focus();
         }, DispatcherPriority.Loaded);
         return false;
     }
