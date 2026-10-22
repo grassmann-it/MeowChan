@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.0.0 (unreleased)
+
+MeowChan keeps its compact Barebones view and existing download, archive and
+reader workflows while moving the desktop to Semi + Ursa and adding editable
+source and image-filter plugins.
+
+### What's new
+
+- **Plugin sources.** The desktop runs 4chan and 8kun through isolated workers;
+  the standalone library still offers explicit provider registration. Lainchan,
+  Kohlchan and an image-dimensions filter are included as editable examples.
+  The bundled compiler builds local C# files without an installed .NET SDK or
+  runtime package downloads.
+- **Plugin management.** Inspect candidates, edit files, validate settings and
+  run an isolated test without creating watches or archive entries. Activation,
+  pending changes, pinned releases and explicit last-good selection are stored
+  per profile. Image access requires the applicable rule and source grants.
+- **Bounded work.** Separate metadata admission, worker limits and target-space
+  checks keep unrelated downloads moving. A blocked target retains its work and
+  can be checked explicitly. Image filters inspect the same original bytes that
+  are subsequently committed; exclusions and technical failures remain distinct.
+- **Desktop and reader refinements.** Local download search, explicit action
+  counts, clearer errors, keyboard navigation, accessible field labels and
+  optional last-reading-position resume accompany the theme migration. Reader
+  navigation sits at the lower right without covering posts, and video captions
+  stay clear of the post context. Barebones remains a complete persistent view.
+- **Update checks.** Settings and About expose version checking, a small update
+  notice and platform download links. Checks do not install updates.
+
+### Breaking (Library/SDK)
+
+`libmeowchan` and `MeowChan.PluginSdk` are not stable APIs in 1.x; minor releases
+may contain breaking changes. Recompile library consumers against this version.
+`CapturedPost.Ordinal` and its constructor parameter now use `long` to retain
+the full order value supplied by a source. Consumers with explicitly typed
+ordinal variables should use `long`; existing persisted integer values remain
+readable. Plugin SDK references remain independent of the desktop and library;
+the optional Host package supplies compiler and worker integration.
+
+### Upgrade and validation
+
+Existing source identities, original media paths, archives and watch state are
+retained. Archive and work-journal migrations preserve source ordering and keep
+media variants separate. Extract the complete desktop payload, including its
+`plugin-worker`, `plugin-compiler` and `plugins` directories. Authoring and
+hosting instructions are in the [plugin guide](docs/plugins/README.md).
+
+This entry describes the local 1.0 candidate, not a published release. Native
+platform acceptance and final package evidence are tracked separately.
+
 ## 0.9.0
 
 The first stable release under the **MeowChan** name introduces a redesigned Avalonia desktop interface, with Barebones as the simple default for new profiles and Simple and Advanced views for more detail. The 4chan/8kun download engine and durable sessions remain; the independently usable library is renamed to `libmeowchan`.
