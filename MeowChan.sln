@@ -51,12 +51,18 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.PluginFilters.Test
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.SourceAdapter.Tests", "tests/MeowChan.SourceAdapter.Tests/MeowChan.SourceAdapter.Tests.csproj", "{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.SourceAdapter.Fixture", "tests/MeowChan.SourceAdapter.Fixture/MeowChan.SourceAdapter.Fixture.csproj", "{06E3E80C-A57A-5F3B-B555-1E67AB42E959}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{06E3E80C-A57A-5F3B-B555-1E67AB42E959}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06E3E80C-A57A-5F3B-B555-1E67AB42E959}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06E3E80C-A57A-5F3B-B555-1E67AB42E959}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06E3E80C-A57A-5F3B-B555-1E67AB42E959}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2C767F0E-A9B5-5C31-84D6-C9E0F9AFC6D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
