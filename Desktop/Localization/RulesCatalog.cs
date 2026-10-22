@@ -5,7 +5,7 @@ internal static class RulesCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("nav.rules", "Rules", "Regeln"),
-        ("rules.subtitle", "Choose media by source, board or thread. More specific values override their parents.", "Medien je Quelle, Board oder Thread auswählen. Genauere Werte überschreiben ihre Elternwerte."),
+        ("rules.subtitle", "Choose media by source, board or thread. Thread rules take priority over board rules, then source rules and defaults.", "Medien je Quelle, Board oder Thread auswählen. Threadregeln haben Vorrang vor Boardregeln, dann folgen Quellenregeln und Standardwerte."),
         ("rules.savedScopes", "Rules and drafts", "Regeln und Entwürfe"),
         ("rules.open", "Edit scope", "Bereich bearbeiten"),
         ("rules.newScope", "Choose another scope", "Anderen Bereich wählen"),

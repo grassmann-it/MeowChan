@@ -2,6 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
              x:Class="MeowChan.DiagnosticsPage">
+    <UserControl.Styles>
+        <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+        <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+    </UserControl.Styles>
     <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
         <StackPanel Spacing="5">
             <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
@@ -16,9 +20,9 @@
                           GridLinesVisibility="None" SelectionMode="Single" RowHeight="44"
                           CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Width="110" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
+                        <DataGridTextColumn MinWidth="150" Width="150" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
                         <DataGridTextColumn Width="180" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
-                        <DataGridTextColumn Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
+                        <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                     </DataGrid.Columns>
                 </DataGrid>
                 <TextBlock x:Name="DiagnosticsEmpty" Tag="diagnostics.empty" Classes="muted localized"

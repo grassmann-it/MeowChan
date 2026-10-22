@@ -179,7 +179,8 @@ public partial class SourcesPage : UserControl
     private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        bool narrow = Bounds.Width < 760;
+        // The detail grid needs 520 DIP after list, gutters and panel padding.
+        bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (_narrow == narrow) return;
         _narrow = narrow;
         Grid split = this.FindControl<Grid>("SourcesSplit")!;

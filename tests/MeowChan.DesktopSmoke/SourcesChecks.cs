@@ -94,8 +94,7 @@ internal static class SourcesChecks
                 window.Height = mode == "Barebones" ? 480 : 560;
                 window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                if (mode == "Barebones")
-                    await Program.WaitUntilAsync(() => page.Bounds.Width > 0 && page.Bounds.Width < 760
+                await Program.WaitUntilAsync(() => page.Bounds.Width > 0 && page.Bounds.Width <= 760
                         && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions[0].ActualWidth < 1
                         && page.FindControl<Grid>("SourcesSplit")!.ColumnSpacing == 0);
                 foreach (string language in new[] { "en", "de" })
@@ -106,7 +105,7 @@ internal static class SourcesChecks
                     Button firstSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[0];
                     Require(firstSource.Content is StackPanel && !firstSource.GetVisualDescendants().OfType<Button>().Any(),
                         "Source row still requires a separate Select button.");
-                    if (page.Bounds.Width < 760)
+                    if (page.FindControl<Button>("SourceBackButton")!.IsVisible)
                     {
                         if (page.FindControl<Border>("SourceDetailsPanel")!.IsVisible)
                             page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -2,6 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
+    <UserControl.Styles>
+        <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+        <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+    </UserControl.Styles>
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20" Spacing="14">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -48,9 +52,9 @@
                               GridLinesVisibility="None" SelectionMode="Single" RowHeight="40"
                               MinHeight="100" MaxHeight="240" SelectionChanged="OnWatchSelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Width="2*" Binding="{Binding Resource, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn Width="140" Binding="{Binding Work, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn Width="*" Binding="{Binding Observation, DataType=desktop:SourceWatchRow}" />
+                            <DataGridTextColumn MinWidth="150" Width="2*" Binding="{Binding Resource, DataType=desktop:SourceWatchRow}" />
+                            <DataGridTextColumn MinWidth="140" Width="140" Binding="{Binding Work, DataType=desktop:SourceWatchRow}" />
+                            <DataGridTextColumn MinWidth="190" Width="*" Binding="{Binding Observation, DataType=desktop:SourceWatchRow}" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />

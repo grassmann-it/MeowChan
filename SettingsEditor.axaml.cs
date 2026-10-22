@@ -339,6 +339,7 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+                if (value == null) ClearFieldErrors();
                 SetField(ref _errorMessage, value, nameof(ErrorMessage));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasError)));
                 RevealErrorAfterLayout();
@@ -369,7 +370,10 @@ namespace MeowChan
                 _errorRevealPending = false;
                 if (!_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
                 {
-                    SettingsError.BringIntoView();
+                    if (_firstInvalidInput != null)
+                        (_firstInvalidInput.Parent as Control ?? _firstInvalidInput).BringIntoView();
+                    else
+                        SettingsError.BringIntoView();
                 }
             }, DispatcherPriority.Loaded);
         }
@@ -621,14 +625,8 @@ namespace MeowChan
             StatusMessage = null;
             try
             {
-                if (HasInvalidText(RecheckTimerInput) || HasInvalidText(BandwidthInput) || HasInvalidText(ParallelDownloadsInput) ||
-                    DataValidationErrors.GetHasErrors(RecheckTimerInput) ||
-                    DataValidationErrors.GetHasErrors(BandwidthInput) ||
-                    DataValidationErrors.GetHasErrors(ParallelDownloadsInput) ||
-                    new[] { ReserveInput, ProductionWorkersInput, WorkerIdleMinutesInput, SourceHeapMiBInput, FilterHeapMiBInput }.Any(input => HasInvalidText(input) || DataValidationErrors.GetHasErrors(input)))
-                {
-                    throw new ArgumentException(Texts.T("settings.invalidNumbers"));
-                }
+                if (!ValidateNumericDraft())
+                    return;
 
                 Config candidate = _config.Clone();
                 candidate.DownloadPath = DownloadPath;
@@ -668,7 +666,16 @@ namespace MeowChan
                 }
 
                 candidate.BandwidthLimiter = checked((long)(BandwidthLimiterMB.Value * 1024m * 1024m));
-                candidate.Validate();
+                try { candidate.Validate(); }
+                catch (ArgumentException exception) when (exception.ParamName == nameof(Config.DownloadPath))
+                {
+                    DownloadPathInputError.Text = Texts.T("settings.pathInvalid");
+                    DownloadPathInputError.IsVisible = true;
+                    Avalonia.Automation.AutomationProperties.SetHelpText(DownloadPathInput, DownloadPathInputError.Text);
+                    _firstInvalidInput = DownloadPathInput;
+                    FinishFieldValidation();
+                    return;
+                }
                 if (_applySettings != null)
                 {
                     await _applySettings(candidate);
@@ -696,7 +703,9 @@ namespace MeowChan
             }
             catch (Exception exception)
             {
-                ErrorMessage = Texts.T("settings.saveFailed", exception.Message);
+                ErrorDetails = exception.ToString();
+                ErrorMessage = Texts.T("settings.saveProblem");
+                StatusMessage = Texts.T("settings.unsaved");
             }
             finally
             {

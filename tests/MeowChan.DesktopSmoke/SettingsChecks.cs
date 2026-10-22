@@ -23,6 +23,7 @@ internal static class SettingsChecks
             await CheckOwnerCloseWhileBusyAsync(owner, Path.Combine(profile, "owner-close"));
             await CheckDirectSaveAsync(owner, Path.Combine(profile, "direct-save"));
             await CheckPickerAsync(owner, Path.Combine(profile, "picker"));
+            await CheckFieldErrorsAsync(owner, Path.Combine(profile, "field-errors"));
             await CheckCancelPreferencesAsync(owner, Path.Combine(profile, "cancel-preferences"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
@@ -30,6 +31,49 @@ internal static class SettingsChecks
         {
             if (Directory.Exists(profile))
                 Directory.Delete(profile, recursive: true);
+        }
+    }
+
+    private static async Task CheckFieldErrorsAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        int commits = 0;
+        SettingsWindow window = new SettingsWindow(config, _ => { commits++; return Task.CompletedTask; });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                foreach (string name in new[] { "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
+                    "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput" })
+                {
+                    window.Editor.CancelChanges();
+                    NumericUpDown input = window.Editor.FindControl<NumericUpDown>(name)!;
+                    input.Text = "invalid draft";
+                    Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+                    TextBlock error = window.Editor.FindControl<TextBlock>(name + "Error")!;
+                    await WaitUntilAsync(() => !window.Editor.IsBusy && error.IsEffectivelyVisible
+                        && (input.IsFocused || input.IsKeyboardFocusWithin));
+                    Require(commits == 0 && input.Text == "invalid draft", "Invalid field text was committed or corrected automatically.");
+                    Require(window.Editor.GetVisualDescendants().OfType<TextBlock>()
+                        .Count(text => text.Name?.EndsWith("InputError") == true && text.IsVisible) == 1,
+                        "An invalid field marked unrelated settings fields.");
+                    Require(Avalonia.Automation.AutomationProperties.GetHelpText(input) == error.Text,
+                        "The input's accessible help did not identify its validation error.");
+                    Point? position = error.TranslatePoint(default, window.Editor.FindControl<ScrollViewer>("SettingsScrollViewer")!);
+                    Require(position.HasValue && position.Value.Y >= -1, "The field error stayed above the scroll viewport.");
+                }
+                window.Editor.CancelChanges();
+                Require(!window.Editor.HasError && !window.Editor.HasErrorDetails, "Discard retained validation or technical error state.");
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage("en");
+            if (window.IsVisible) window.Close();
+            await dialog;
         }
     }
 
@@ -68,6 +112,9 @@ internal static class SettingsChecks
             pending.SetException(new IOException("Synthetic settings apply failure."));
             await WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError);
             Require(window.IsVisible && !dialog.IsCompleted, "Apply failure closed the settings dialog.");
+            Require(window.Editor.HasErrorDetails && window.Editor.ErrorDetails!.Contains("Synthetic settings apply failure.")
+                && !window.Editor.FindControl<Expander>("SettingsErrorDetails")!.IsExpanded,
+                "Save failure did not retain its technical details behind an explicit expander.");
             Require(config.RecheckTimer == 60, "Apply failure changed the live configuration.");
             Require(config.Theme == "Dark" && config.WorkspaceMode == "Barebones" && config.Language == "en" && !config.CompactDensity,
                 "Apply failure changed live appearance preferences.");
