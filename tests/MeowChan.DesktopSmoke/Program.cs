@@ -256,6 +256,19 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_UI_REFINEMENT_ONLY") == "1")
+            {
+                await ReaderLiveChecks.RunAsync(mainWindow);
+                await ReaderRepliesChecks.RunAsync(mainWindow);
+                await SettingsPageChecks.RunAsync(mainWindow);
+                await DiagnosticsChecks.RunAsync(mainWindow);
+                await SourcesChecks.RunAsync(mainWindow);
+                await RulesPageChecks.RunAsync(mainWindow);
+                await SettingsChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (_windowGeometryMode)
             {
                 await NativeWindowMinimumChecks.RunAsync(mainWindow);
