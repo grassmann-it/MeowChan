@@ -52,7 +52,7 @@ public sealed class LocalizationTests : IDisposable
 
         Assert.Equal("de", Texts.Language);
         Assert.Equal("Einstellungen", Texts.T("settings.title"));
-        Assert.Equal("1 / 8 (12,5 %)", Texts.T("progress.media", 1, 8, 12.5));
+        Assert.Equal("1 / 8 gespeichert / ausgewählt (12,5 %)", Texts.T("progress.media", 1, 8, 12.5));
         Assert.Equal(original, CultureInfo.CurrentCulture);
     }
 
@@ -192,7 +192,7 @@ public sealed class LocalizationTests : IDisposable
     public void TooFewFormatArgumentsDoNotCrashTheDesktop()
     {
         Texts.SetLanguage("de");
-        Assert.Equal("{0} / {1} ({2:0.##}%)", Texts.T("progress.media", 1));
+        Assert.Equal("{0} / {1} saved / selected ({2:0.##}%)", Texts.T("progress.media", 1));
         Assert.Equal("unknown.key", Texts.T("unknown.key", 1));
     }
 
@@ -230,7 +230,7 @@ public sealed class LocalizationTests : IDisposable
             for (int index = 0; index < 200; index++)
             {
                 string result = Texts.T("progress.media", 1, 8, 12.5);
-                Assert.True(result is "1 / 8 (12.5%)" or "1 / 8 (12,5 %)", result);
+                Assert.True(result is "1 / 8 saved / selected (12.5%)" or "1 / 8 gespeichert / ausgewählt (12,5 %)", result);
             }
         })).ToArray();
 
