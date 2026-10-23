@@ -2,6 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ursa="https://irihi.tech/ursa"
              xmlns:local="clr-namespace:MeowChan"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              x:Class="MeowChan.RulesPage" x:DataType="local:RulesPage"
              SizeChanged="OnRulesSizeChanged">
     <Grid RowDefinitions="Auto,*,Auto">
@@ -29,16 +31,18 @@
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsSource}">
                                 <TextBlock Text="{Binding SourceIdLabel}" VerticalAlignment="Center" />
-                                <TextBox x:Name="NewRuleSourceInput" Grid.Column="1" Text="{Binding NewSourceId, Mode=TwoWay}" PlaceholderText="4chan" />
+                                <desktop:IdentitySuggestionBox x:Name="NewRuleSourceInput" Grid.Column="1" Text="{Binding NewSourceId, Mode=TwoWay}" PlaceholderText="4chan" />
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsBoard}">
                                 <TextBlock Text="{Binding BoardIdLabel}" VerticalAlignment="Center" />
-                                <TextBox x:Name="NewRuleBoardInput" Grid.Column="1" Text="{Binding NewBoardId, Mode=TwoWay}" PlaceholderText="g" />
+                                <desktop:IdentitySuggestionBox x:Name="NewRuleBoardInput" Grid.Column="1" Text="{Binding NewBoardId, Mode=TwoWay}" PlaceholderText="g" />
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsThread}">
                                 <TextBlock Text="{Binding ThreadIdLabel}" VerticalAlignment="Center" />
                                 <TextBox x:Name="NewRuleThreadInput" Grid.Column="1" Text="{Binding NewThreadId, Mode=TwoWay}" PlaceholderText="123" />
                             </Grid>
+                            <TextBlock x:Name="RuleSuggestionsHint" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <Button x:Name="RuleRetrySuggestions" IsVisible="False" />
                             <TextBlock Text="{Binding IdentityHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                             <Button x:Name="OpenNewRuleScopeButton" Click="OnOpenNewScope" HorizontalAlignment="Right" />
                         </StackPanel>
@@ -46,8 +50,8 @@
                 </StackPanel>
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" Margin="0,0,0,10" />
-                    <Button x:Name="OpenParentRuleButton" IsEnabled="{Binding CanOpenParent}" IsVisible="{Binding CanOpenParent}"
-                            Click="OnOpenParentScope" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                    <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" Margin="0,0,0,10"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
+                    <Button x:Name="OpenParentRuleButton" IsVisible="False" Click="OnOpenParentScope" />
                     <CheckBox x:Name="RuleEnabledInput" Content="{Binding EnabledLabel}" IsChecked="{Binding RuleEnabled, Mode=TwoWay}" />
                     <TextBlock Text="{Binding EnabledHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4" />
                     <StackPanel IsEnabled="{Binding RuleEnabled}">
@@ -63,7 +67,8 @@
                         </Border>
                         <StackPanel IsVisible="{Binding HasTypeSelection}" Spacing="6" Margin="0,10,0,0">
                             <TextBlock Text="{Binding ExtensionsLabel}" FontWeight="Medium" />
-                            <TextBox x:Name="RuleExtensionsInput" Text="{Binding ExtensionsText, Mode=TwoWay}" PlaceholderText="JPG, PNG, WebM" />
+                            <controls:RuleExtensionsInput x:Name="RuleExtensionsInput" PlaceholderText="JPG, PNG, WebM" />
+                            <TextBlock Text="{Binding ExtensionsError}" Classes="error" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding ExtensionsHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                         </StackPanel>
                         <Border Classes="settings-divider">
@@ -84,10 +89,11 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel x:Name="RulePluginPanel" Spacing="8" />
+                <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" />
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
                     <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationError}">
-                        <TextBlock Text="{Binding ValidationMessage}" Classes="error" TextWrapping="Wrap" />
+                        <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     </ursa:Banner>
                     <StackPanel Spacing="0" IsVisible="{Binding HasPreview}">
                         <Border Classes="settings-divider">
@@ -123,9 +129,12 @@
                   HorizontalAlignment="Left" Width="{Binding Bounds.Width, ElementName=RulesContent}">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
+                            <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
                         <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
-                            <TextBlock x:Name="RuleActionError" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" />
+                            <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         </ursa:Banner>
                     </StackPanel>
                 </ScrollViewer>

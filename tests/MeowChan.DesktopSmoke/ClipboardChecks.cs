@@ -176,7 +176,7 @@ internal static class ClipboardChecks
         return data;
     }
 
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static void Click(Button button) => SmokeActionClick.Execute(button);
 
     private static INotification[] Notifications(Window window, string title) => window.GetVisualDescendants()
         .OfType<NotificationCard>()

@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="330"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="10">
+        <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />
+        <ListBox x:Name="SavedSearchList" Focusable="True" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <TextBlock x:Name="SavedSearchStatus" Grid.Row="2" TextWrapping="Wrap" />
+        <StackPanel x:Name="SavedSearchEditor" Grid.Row="3" Spacing="6" IsVisible="False">
+            <TextBlock x:Name="SavedSearchPrompt" TextWrapping="Wrap" />
+            <TextBox x:Name="SavedSearchName" />
+            <TextBlock x:Name="SavedSearchDefinition" TextWrapping="Wrap" MaxHeight="110" />
+            <WrapPanel ItemSpacing="6" LineSpacing="6">
+                <Button x:Name="SavedSearchConfirm" />
+                <Button x:Name="SavedSearchCancelEdit" />
+            </WrapPanel>
+        </StackPanel>
+        <WrapPanel Grid.Row="4" ItemSpacing="6" LineSpacing="6">
+            <Button x:Name="SavedSearchCreate" />
+            <Button x:Name="SavedSearchApply" />
+            <Button x:Name="SavedSearchRename" />
+            <Button x:Name="SavedSearchReplace" />
+            <Button x:Name="SavedSearchDelete" />
+            <Button x:Name="SavedSearchReload" />
+            <Button x:Name="SavedSearchRecover" IsVisible="False" />
+            <Button x:Name="SavedSearchClose" />
+        </WrapPanel>
+    </Grid>
+</Window>

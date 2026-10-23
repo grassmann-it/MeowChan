@@ -22,6 +22,7 @@ internal static class ArchivePageChecks
         OpenArchive(window);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
+        await ArchiveSearchStateChecks.RunAsync();
         await CheckArchiveColumnsAsync(page);
         await CheckEmptySearchAsync(window, page);
         ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;

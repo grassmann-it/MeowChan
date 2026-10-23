@@ -40,8 +40,7 @@ internal static class ArchiveMenuLayoutChecks
                         string scene = $"{language}-{theme.ToString().ToLowerInvariant()}-{(cards ? "cards" : "table")}-first";
                         Console.WriteLine("SMOKE archive menu opening " + scene);
                         string layout = cards ? "List" : "Table";
-                        page.FindControl<Button>(cards ? "ArchiveLayoutList" : "ArchiveLayoutTable")!
-                            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        SmokeActionClick.Execute(page.FindControl<Button>(cards ? "ArchiveLayoutList" : "ArchiveLayoutTable")!);
                         Control list = cards ? page.FindControl<ListBox>("ArchiveThreads")! : table;
                         await Program.WaitUntilAsync(() => !page.IsBusy && list.IsEffectivelyVisible
                             && window.SessionHost.Config.GetLayoutProfile(window.SessionHost.Config.WorkspaceMode).ArchiveThreadLayout == layout);
@@ -86,7 +85,7 @@ internal static class ArchiveMenuLayoutChecks
             window.Width = originalWidth;
             Application.Current.RequestedThemeVariant = originalTheme;
             Texts.SetLanguage(originalLanguage);
-            page.FindControl<Button>("ArchiveLayoutTable")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayoutTable")!);
             await Program.WaitUntilAsync(() => !page.IsBusy && table.IsEffectivelyVisible
                 && window.SessionHost.Config.GetLayoutProfile(window.SessionHost.Config.WorkspaceMode).ArchiveThreadLayout == "Table");
         }

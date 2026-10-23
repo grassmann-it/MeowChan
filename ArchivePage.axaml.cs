@@ -57,7 +57,7 @@ public partial class ArchivePage : UserControl
     private string? _previewPath;
     internal Func<ResourceId, GalleryEntryKey?, Control?, Task>? OpenGallery { get; set; }
     internal Func<IReadOnlyList<GalleryEntry>, GalleryEntryKey, Control?, Task>? OpenMediaGallery { get; set; }
-    internal Func<ArchiveThreadQuery, int, Control?, Task>? OpenResultsGallery { get; set; }
+    internal Func<ArchiveSearchRequest, int, Control?, Task>? OpenResultsGallery { get; set; }
     internal Func<IReadOnlyList<ThreadWorkSnapshot>>? GetWorkSnapshots { get; set; }
     private int _workFilter;
     private bool _threadTable;
@@ -95,15 +95,16 @@ public partial class ArchivePage : UserControl
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
     private bool _allVersions = true;
     private int _mediaSort;
+    private bool _localizingMediaChoices;
     private bool _archiveFavoritesOnly;
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeMediaPositionInput();
+        InitializeComponent(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
-        InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput();
+        InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -130,86 +131,99 @@ public partial class ArchivePage : UserControl
     internal async Task ActivateAsync()
     {
         if (_ended || !_available || _openReader == null || _busy) return;
+        InvalidateSuggestions();
         ClosePreview();
         await LoadListAsync();
     }
 
-    private async Task LoadListAsync()
+    private async Task<bool> LoadListAsync(ListLoad? pending = null, CancellationToken applicationToken = default)
     {
-        if (_ended || !_available || _openReader == null) return;
-        CancelReferences();
-        CancelInlineReplies();
-        int request = ++_contentRequest;
+        if (_ended || !_available || _openReader == null || _busy || applicationToken.IsCancellationRequested) return false;
+        pending ??= NewListLoad(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec()), _listOffset);
+        // Everything needed for membership and SQL is captured before opening the reader.
+        _runningList = pending;
+        _retryList = null;
+        CancelReferences(); CancelInlineReplies();
+        int generation = ++_contentRequest;
         _contentCancellation?.Cancel();
-        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, applicationToken);
         _contentCancellation = loading;
-        CancellationToken cancellationToken = loading.Token;
-        CancelMediaLoad();
-        ClosePreview();
+        CancellationToken token = loading.Token;
+        CancelMediaLoad(); ClosePreview();
         _busy = true;
-        Message(Texts.T("archive.loading"));
+        BeginContentFeedback();
+        Message(string.Empty);
         UpdateActions();
         ResourceId? selected = _selectedThread;
+        bool committed = false;
         try
         {
-            await using ArchiveReader reader = await _openReader(cancellationToken);
-            ArchiveThreadPage result;
-            if (_workFilter == 0)
-                result = await reader.SearchThreadsAsync(_query, _listOffset, PageSize, cancellationToken);
-            else
+            await using ArchiveReader reader = await _openReader(token);
+            int offset = pending.Offset;
+            int workFilter = WorkIndex(pending.Request.Spec.WorkFilter);
+            async Task<ArchiveThreadPage> ReadPage(int target)
             {
-                IReadOnlyList<ArchiveThreadSummary> all = await reader.SelectThreadSummariesAsync(_query, cancellationToken);
-                IReadOnlyDictionary<string, ThreadWorkSnapshot> work = (GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>())
-                    .GroupBy(item => item.Url, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-                ArchiveThreadSummary[] filtered = all.Where(item => WorkMatches(work.GetValueOrDefault(item.Url), _workFilter)).ToArray();
-                if (filtered.Length <= _listOffset && _listOffset > 0) _listOffset = 0;
-                result = new ArchiveThreadPage(Array.AsReadOnly(filtered.Skip(_listOffset).Take(PageSize).ToArray()), filtered.Length, _listOffset);
+                if (workFilter == 0)
+                    return await reader.SearchThreadsBySpecAsync(pending.Request, target, PageSize, token);
+                IReadOnlyList<ArchiveThreadSummary> all = await reader.SelectThreadSummariesBySpecAsync(pending.Request, token);
+                ArchiveThreadSummary[] matches = all.Where(item => WorkMatches(pending.Work.GetValueOrDefault(item.Url), workFilter)).ToArray();
+                return new ArchiveThreadPage(Array.AsReadOnly(matches.Skip(target).Take(PageSize).ToArray()), matches.Length, target);
             }
-            if (result.TotalCount <= _listOffset && _listOffset > 0)
+            ArchiveThreadPage result = await ReadPage(offset);
+            if (offset > 0 && (result.TotalCount <= offset || result.Items.Count == 0))
             {
-                _listOffset = 0;
-                result = await reader.SearchThreadsAsync(_query, _listOffset, PageSize, cancellationToken);
+                offset = 0; // Exactly one fallback, using the SAME request and work membership.
+                result = await ReadPage(offset);
             }
             IReadOnlyDictionary<ResourceId, ArchiveThreadPreview> previews = await reader.ReadThreadPreviewsAsync(
-                result.Items.Select(summary => summary.Id).ToArray(), cancellationToken);
-            if (_ended || request != _contentRequest) return;
-            _listTotal = result.TotalCount;
+                result.Items.Select(summary => summary.Id).ToArray(), token);
+            ArchiveThreadRow[] rows = result.Items.Select(summary =>
+            {
+                previews.TryGetValue(summary.Id, out ArchiveThreadPreview? preview);
+                return new ArchiveThreadRow(summary, pending.Work.GetValueOrDefault(summary.Url))
+                {
+                    PreviewText = preview?.FirstCapturedText ?? string.Empty,
+                    PreviewAttachment = preview?.FirstAttachment is CapturedAttachment attachment
+                        ? CreateListAttachmentRow(summary, attachment) : null
+                };
+            }).ToArray();
+            if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
             _updatingList = true;
             try
             {
-                IReadOnlyDictionary<string, ThreadWorkSnapshot> work = (GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>())
-                    .GroupBy(item => item.Url, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-                ArchiveThreadRow[] rows = result.Items.Select(summary =>
-                {
-                    previews.TryGetValue(summary.Id, out ArchiveThreadPreview? preview);
-                    return new ArchiveThreadRow(summary, work.GetValueOrDefault(summary.Url))
-                    {
-                        PreviewText = preview?.FirstCapturedText ?? string.Empty,
-                        PreviewAttachment = preview?.FirstAttachment is CapturedAttachment attachment
-                            ? CreateListAttachmentRow(summary, attachment) : null
-                    };
-                }).ToArray();
+                _appliedSearch = pending.Request; _query = pending.Request.Spec; _appliedWork = pending.Work;
+                _workFilter = workFilter; _listOffset = offset; _listTotal = result.TotalCount;
                 ListBox list = Control<ListBox>("ArchiveThreads");
-                list.ItemsSource = rows;
-                list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 DataGrid table = Control<DataGrid>("ArchiveThreadTable");
-                table.ItemsSource = rows;
+                list.ItemsSource = rows; table.ItemsSource = rows;
+                list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 RestoreArchiveSelection(rows, selected);
                 _listLoaded = true;
-                UpdateArchiveEmptyState();
+                pending.AfterCommit?.Invoke();
+                UpdateAppliedFilters(); UpdateArchiveEmptyState();
+                committed = true;
             }
             finally { _updatingList = false; }
             Message(string.Empty);
+            AppliedSearchChanged?.Invoke();
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _contentRequest) Message(exception.Message, true); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (!_ended && generation == _contentRequest && !token.IsCancellationRequested)
+            { _retryList = pending; OperationMessage("content", exception.Message, true); }
+        }
         finally
         {
             if (ReferenceEquals(_contentCancellation, loading)) _contentCancellation = null;
-            if (!_ended && request == _contentRequest) { _busy = false; UpdateActions(); }
+            if (ReferenceEquals(_runningList, pending)) _runningList = null;
+            if (!_ended && generation == _contentRequest)
+            { _busy = false; UpdateActions(); }
         }
-        if (_showReader && selected != null && !_ended && request == _contentRequest) await LoadThreadAsync(selected, resetPage: false);
+        if (committed && _showReader && selected != null && !_ended && generation == _contentRequest)
+            await LoadThreadAsync(selected, resetPage: false);
+        return committed;
     }
 
     internal static bool WorkMatches(ThreadWorkSnapshot? work, int choice) => work != null && (choice switch
@@ -224,7 +238,8 @@ public partial class ArchivePage : UserControl
 
     private void OnThreadSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
 
-    internal async Task LoadThreadAsync(ResourceId id, bool resetPage = true)
+    // URSA-12: a preflighted local snapshot keeps failed group navigation from clearing the current reader.
+    internal async Task LoadThreadAsync(ResourceId id, bool resetPage = true, ArchivedThreadView? preparedThread = null)
     {
         if (_ended || !_available || _openReader == null) return;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
@@ -244,6 +259,7 @@ public partial class ArchivePage : UserControl
         _thread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _busy = true;
+        BeginContentFeedback();
         _showReader = true;
         _updatingList = true;
         try
@@ -258,12 +274,16 @@ public partial class ArchivePage : UserControl
         finally { _updatingList = false; }
         RenderThread();
         UpdateLayoutMode();
-        Message(Texts.T("archive.loading"));
+        Message(string.Empty);
         try
         {
             // The catalog is local. Display its posts before touching potentially disconnected media drives.
-            await using ArchiveReader reader = await _openReader(cancellationToken);
-            ArchivedThreadView? thread = await reader.ReadThreadAsync(id, cancellationToken);
+            ArchivedThreadView? thread = preparedThread;
+            if (thread == null)
+            {
+                await using ArchiveReader reader = await _openReader(cancellationToken);
+                thread = await reader.ReadThreadAsync(id, cancellationToken);
+            }
             if (_ended || request != _contentRequest) return;
             _thread = thread;
             if (thread == null) _mediaProjectionPending = false;
@@ -282,7 +302,7 @@ public partial class ArchivePage : UserControl
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _contentRequest) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended && request == _contentRequest) OperationMessage("content", exception.Message, true); }
         finally
         {
             if (ReferenceEquals(_contentCancellation, loading)) _contentCancellation = null;
@@ -339,10 +359,10 @@ public partial class ArchivePage : UserControl
             }, cancellationToken);
             if (_ended || request != _mediaRequest) return;
             _assets = loaded.assets.AsReadOnly();
-            Message(string.Join(Environment.NewLine, loaded.warnings), loaded.warnings.Count > 0);
+            OperationMessage("media", string.Join(Environment.NewLine, loaded.warnings), loaded.warnings.Count > 0);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _mediaRequest) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended && request == _mediaRequest) OperationMessage("media", exception.Message, true); }
         finally
         {
             if (ReferenceEquals(_mediaCancellation, loading)) _mediaCancellation = null;
@@ -352,6 +372,7 @@ public partial class ArchivePage : UserControl
 
     private void CancelMediaLoad()
     {
+        ClearOperationError("media");
         ++_mediaRequest;
         _mediaReady.TrySetCanceled();
         _mediaReady = NewMediaReady();
@@ -410,6 +431,7 @@ public partial class ArchivePage : UserControl
     private void RenderMedia()
     {
         ConfigureArchiveMediaFavorites();
+        ConfigureMediaRatings();
         DataGrid grid = Control<DataGrid>("ArchiveMediaGrid");
         ListBox tiles = Control<ListBox>("ArchiveMediaTiles");
         MediaPosition? position = CaptureMediaPosition();
@@ -440,10 +462,12 @@ public partial class ArchivePage : UserControl
     {
         IEnumerable<ArchiveAssetRow> rows = _allVersions ? _assets : _assets.Where(row => row.Asset.IsCurrent);
         if (_archiveFavoritesOnly) rows = rows.Where(row => row.IsFavorite?.Invoke() == true);
+        if (_mediaRatingError == null) rows = rows.Where(row => MeowChan.Ratings.MediaRatingProjection.Matches(row.Rating, _mediaRatingFilter));
         IOrderedEnumerable<ArchiveAssetRow> ordered = _mediaSort switch
         {
             1 => rows.OrderBy(row => row.Asset.Length),
             2 => rows.OrderBy(row => row.Asset.Sha256, StringComparer.Ordinal),
+            3 when _mediaRatingError == null => rows.OrderByDescending(row => MeowChan.Ratings.MediaRatingProjection.SortRank(row.Rating)).ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase),
             _ => rows.OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
         };
         return ordered.ThenBy(row => MediaKey(_selectedThread, row).Directory, StringComparer.Ordinal)
@@ -452,10 +476,13 @@ public partial class ArchivePage : UserControl
 
     private void UpdateActions()
     {
+        UpdateFeedbackVisuals();
+        UpdateMediaRatingAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
+        UpdateSearchActions(ready);
         Control<Button>("ArchiveResetFilters").IsEnabled = ready;
         UpdateResultsExportAction(ready);
         Control<Button>("ExportArchiveButton").IsEnabled = ready && _selectedThread != null && !_exportRunning;
@@ -489,6 +516,7 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveResultsGallery").IsEnabled = ready && _listTotal > 0;
         Control<TextBlock>("ArchiveThreadPage").Text = PageLabel(_listOffset, _listTotal);
         Control<TextBlock>("ArchivePostPage").Text = PageLabel(_postOffset, _thread?.PostCount ?? 0);
+        RefreshArchiveResultActions();
     }
     private static string PageLabel(int offset, int total) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + PageSize, total), total);
 
@@ -501,6 +529,7 @@ public partial class ArchivePage : UserControl
         CancelInlineReplies();
         int request = ++_contentRequest;
         _busy = true;
+        ClearOperationError("action");
         UpdateActions();
         try { await _setCapture(id, enabled); }
         catch (Exception exception) { if (!_ended && request == _contentRequest) Message(exception.Message, true); return; }
@@ -686,8 +715,8 @@ public partial class ArchivePage : UserControl
         if (!_ended && _previewPath is string path && System.IO.Path.GetDirectoryName(path) is string directory) _openFolder?.Invoke(directory);
     }
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await ActivateAsync();
-    private async void OnPreviousThreads(object? sender, RoutedEventArgs e) { if (_busy || _listOffset == 0) return; _listOffset = Math.Max(0, _listOffset - PageSize); await LoadListAsync(); }
-    private async void OnNextThreads(object? sender, RoutedEventArgs e) { if (_busy || _listOffset + PageSize >= _listTotal) return; _listOffset += PageSize; await LoadListAsync(); }
+    private async void OnPreviousThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize);
+    private async void OnNextThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize + 2);
     private void OnPreviousPosts(object? sender, RoutedEventArgs e)
     {
         if (_busy || _postOffset == 0) return;
@@ -719,7 +748,11 @@ public partial class ArchivePage : UserControl
             Control<DataGrid>("ArchiveMediaGrid").SelectedItem = tileRow;
         UpdateActions();
     }
-    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateLayoutMode();
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateLayoutMode();
+        Control<ScrollViewer>("ArchiveSearchPanelScroll").MaxHeight = Math.Max(120, Bounds.Height * .55);
+    }
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
     private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
     {
@@ -782,13 +815,15 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveLayoutList").IsEnabled = _archiveLayout != "List";
         Control<Button>("ArchiveLayoutTable").IsEnabled = _archiveLayout != "Table";
         Control<Button>("ArchiveBackButton").IsVisible = narrow && !_largeReader;
+        RefreshArchiveResultActions();
     }
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (_ended) return;
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
         // Refresh computed labels without losing the chosen manifest version or thread.
-        ReaderAnchor? anchor = _showReader ? CaptureReaderAnchor() : null;
+        // Restoring a post anchor selects the Posts tab; preserve other active reader views.
+        ReaderAnchor? anchor = ReaderShowsPosts ? CaptureReaderAnchor() : null;
         _assets = Array.AsReadOnly(_assets.Select(row => new ArchiveAssetRow(row.Manifest, row.Asset)).ToArray());
         Localize();
         LocalizeReaderUpdates();
@@ -823,6 +858,7 @@ public partial class ArchivePage : UserControl
         UpdateArchiveEmptyState();
         Control<Button>("ArchiveLayoutList").Content = Texts.T("gallery.list");
         Control<Button>("ArchiveLayoutTable").Content = Texts.T("gallery.table");
+        RefreshArchiveResultActions();
         LocalizeArchiveColumns();
         CommandBindings.Apply(Control<Button>("RefreshArchiveButton"), "archive.refresh", iconOnly: true);
         CommandBindings.Apply(Control<Button>("SearchArchiveButton"), "archive.search", iconOnly: true);
@@ -844,18 +880,25 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(Control<Button>("ReaderPreviousPost"), "reader.previous-post", iconOnly: true);
         CommandBindings.Apply(Control<Button>("ReaderNextPost"), "reader.next-post", iconOnly: true);
         CommandBindings.Apply(Control<Button>("ReaderNextThread"), "reader.next-thread", iconOnly: true);
-        CommandBindings.Apply(Control<Button>("ArchiveResultsGallery"), "gallery.open-results", iconOnly: true);
-        CommandBindings.Apply(Control<Button>("ArchiveFavoritesOverview"), "favorites.open", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveResultsGallery"), "gallery.open-results", iconWithLabel: true);
+        CommandBindings.Apply(Control<Button>("ArchiveFavoritesOverview"), "favorites.open", iconWithLabel: true);
         Control<TabItem>("ArchiveReferencesTab").Header = Texts.T("archive.references");
         Control<TabItem>("ArchivePostsTab").Header = Texts.T("archive.posts");
         Control<TabItem>("ArchiveMediaTab").Header = Texts.T("archive.media");
         Control<Button>("ArchiveMediaMode").Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
         Control<Button>("ArchiveFavoritesFilter").Content = Texts.T(
             _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
-        Control<ComboBox>("ArchiveVersionScope").ItemsSource = new[] { Texts.T("gallery.latestVersions"), Texts.T("gallery.allVersions") };
-        Control<ComboBox>("ArchiveVersionScope").SelectedIndex = _allVersions ? 1 : 0;
-        Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion") };
-        Control<ComboBox>("ArchiveMediaSort").SelectedIndex = _mediaSort;
+        // Replacing translated labels clears selection synchronously; it is not a new user choice.
+        _localizingMediaChoices = true;
+        try
+        {
+            Control<ComboBox>("ArchiveVersionScope").ItemsSource = new[] { Texts.T("gallery.latestVersions"), Texts.T("gallery.allVersions") };
+            Control<ComboBox>("ArchiveVersionScope").SelectedIndex = _allVersions ? 1 : 0;
+            Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion"), MediaRatingText.Get("Rating descending", "Bewertung absteigend") };
+            Control<ComboBox>("ArchiveMediaSort").SelectedIndex = _mediaSort;
+        }
+        finally { _localizingMediaChoices = false; }
+        LocalizeMediaRatings();
         if (this.FindControl<MenuItem>("ArchiveTableGalleryMenu") is MenuItem gallery) gallery.Header = Texts.T("gallery.open");
         if (this.FindControl<MenuItem>("ArchiveTableReadMenu") is MenuItem read) read.Header = Texts.T("gallery.read");
         if (this.FindControl<MenuItem>("ArchiveTableExportMenu") is MenuItem export) export.Header = Texts.T("gallery.export");
@@ -863,23 +906,23 @@ public partial class ArchivePage : UserControl
         media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
     }
-    private void Message(string text, bool error = false)
-    {
-        TextBlock message = Control<TextBlock>("ArchiveMessage");
-        message.Text = text;
-        message.Classes.Set("error", error);
-        message.Classes.Set("muted", !error);
-    }
+    private void Message(string text, bool error = false) => OperationMessage("action", text, error);
     private T Control<T>(string name) where T : Control => this.FindControl<T>(name)!;
     internal void EndLifetime()
     {
         if (_ended) return;
         _ended = true;
+        _runningList = null; _retryList = null;
+        SearchStateChanged?.Invoke();
+        InvalidateSuggestions();
+        Control<IdentitySuggestionBox>("ArchiveSourceFilter").EndSuggestions();
+        Control<IdentitySuggestionBox>("ArchiveBoardFilter").EndSuggestions();
         _readerUpdateTimer?.Stop();
         CancelInlineReplies();
         EndExportDialog();
         ++_contentRequest;
         CancelMediaLoad();
+        UpdateFeedbackVisuals();
         CancelReferences();
         _exportCancellation?.Cancel();
         _lifetime.Cancel();

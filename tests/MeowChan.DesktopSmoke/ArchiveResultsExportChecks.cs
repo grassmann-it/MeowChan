@@ -37,15 +37,15 @@ internal static class ArchiveResultsExportChecks
         }
         page.GetWorkSnapshots = () => work;
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "resultneedle";
-        page.FindControl<TextBox>("ArchiveSourceFilter")!.Text = "exportfixture";
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
         page.FindControl<ComboBox>("ArchiveWorkFilter")!.SelectedIndex = 4;
-        await page.ApplySearchAsync();
+        await page.ApplySearchSpecAsync(new ArchiveSearchSpec("resultneedle", ["exportfixture"],
+            sort: ArchiveThreadSort.Title, workFilter: ArchiveWorkFilter.Completed));
         DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
         Check(table.ItemsSource.Cast<object>().Count() == 50, "Result export fixture must span multiple pages.");
         Button origin = page.FindControl<Button>("ArchiveResultsExport")!;
         Button Button(string name) => page.FindControl<Button>(name)!;
-        void Click(string name) => Button(name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        void Click(string name) => SmokeActionClick.Execute(Button(name));
         string Summary() => page.FindControl<TextBlock>("ArchiveExportSummary")!.Text!;
         string Status() => page.FindControl<TextBlock>("ArchiveExportStatus")!.Text!;
         await page.OpenExportForAllResultsAsync(origin);

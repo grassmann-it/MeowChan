@@ -12,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.Automation;
 using Avalonia.Controls.Templates;
 using MeowChan.Gallery;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -45,8 +46,8 @@ public partial class ArchivePage
         FavoriteEntry[] all = GetFavorites().ToArray();
         ResourceId? currentThread = _selectedThread;
         ResourceId[] selectedThreads = FrozenArchiveSelection();
-        var query = _query;
-        int workFilter = _workFilter;
+        var query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
+        var eligibleUrls = CaptureExportWorkUrls(_workFilter, GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>());
         Window dialog = new()
         {
             Name = "FavoritesOverviewDialog", Title = Texts.T("viewer.favorites.title"), Width = 760, Height = 580,
@@ -159,7 +160,7 @@ public partial class ArchivePage
                 {
                     FavoriteScope.CurrentThread => currentThread == null ? new HashSet<ResourceId>() : new HashSet<ResourceId> { currentThread },
                     FavoriteScope.SelectedThreads => selectedThreads.ToHashSet(),
-                    FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, workFilter, loading.Token),
+                    FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, eligibleUrls, loading.Token),
                     _ => null
                 };
                 all = GetFavorites().ToArray();
@@ -246,18 +247,12 @@ public partial class ArchivePage
             await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) _ = OpenFavoritesOverviewAsync(returnState); });
     }
 
-    private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveThreadQuery query,
-        int workFilter, CancellationToken token)
+    private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveSearchRequest query,
+        IReadOnlySet<string>? eligibleUrls, CancellationToken token)
     {
         if (_openReader == null) return new HashSet<ResourceId>();
         await using var reader = await _openReader(token);
-        var summaries = await reader.SelectThreadSummariesAsync(query, token);
-        if (workFilter == 0) return summaries.Select(item => item.Id).ToHashSet();
-        var work = (GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>())
-            .GroupBy(item => item.Url, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-        return summaries.Where(item => WorkMatches(work.GetValueOrDefault(item.Url), workFilter))
-            .Select(item => item.Id).ToHashSet();
+        return (await ResolveExportResultIdsAsync(reader, query, eligibleUrls, token)).ToHashSet();
     }
 
     private static string FavoriteLabel(FavoriteEntry entry) =>

@@ -1,0 +1,20 @@
+{
+  "basis": "f01b347518cfc821372a233f1b48a9e4b4aaae24 + preserved baseline WIP",
+  "files": {
+    "Desktop/GalleryImageDecoder.cs": "e285e19e905167f3d0159581ff8735343af46c74b4f3103d4a514aef5e571a27",
+    "Directory.Build.props": "53ac8d950e40bcc79f4d42334e9415d5080cf738ad6349ddcc56ea95ef1c8a61",
+    "libmeowchan/Gallery/GallerySelection.cs": "c193ec32ca18e16c6a5befc3777611bbf1b5383238fc53d6dc38cac5bc5cc710",
+    "libmeowchan/Storage/MediaAssetReader.cs": "e28892168e6cbaee15d872678a0e8540732f00abb73994e5f5bf6907018e1e1a",
+    "libmeowchan/libmeowchan.csproj": "e5967c74c69651fb4dc56902d2164dff6e2bbc5a89492195ed6f5cbcb237950b",
+    "samples/MeowChan.ImageViewerComparison/App.axaml": "1206997e1ae3c68ce950b823240c94aab2fb7ccca230f64d0eb5ff16ae765d69",
+    "samples/MeowChan.ImageViewerComparison/ComparisonRun.cs": "1b97bf1f5b377c315c7fac81782c07e0680d5bbb04a8e7d95c3720d791108505",
+    "samples/MeowChan.ImageViewerComparison/ComparisonViews.cs": "d9633cedd83b8ba4b8e671896aad97c9eb7a499ddc10e4858de674eed44af46d",
+    "samples/MeowChan.ImageViewerComparison/FixtureText.cs": "15cd3ab02f764b75bd910fff33112f0075504e8c005460004b73e4749f25f4a5",
+    "samples/MeowChan.ImageViewerComparison/MeowChan.ImageViewerComparison.csproj": "622ab400462bf883b012bf89e2ddd5b59fa2a2f56d661883c5afc1cf244251cc",
+    "samples/MeowChan.ImageViewerComparison/Program.cs": "f61168f03872ee4a39cbc905802030d47d8fbeb259afa5e27dfa81c1ad5d39d9",
+    "samples/MeowChan.ImageViewerComparison/README.md": "ea90ae702a067ec571a8e1ab09003d6530415dce28f7ffa6dbb37983b53c624c",
+    "samples/MeowChan.ImageViewerComparison/analyze.py": "25eb661090c058fda938ea885d60d9ba267c266a91499e316f826bd1779332bf",
+    "samples/MeowChan.ImageViewerComparison/fixtures/nasa-PIA18033.jpg": "5b47eb38676ad790c2e6245ed1025c88ee31ad23f55e516066865f2f601046ec",
+    "samples/MeowChan.ImageViewerComparison/generate-fixtures.py": "a2cde095922b6f62bbd9dbcb12ba1e32e674f99079e8d2403e3cce61f0d6d0a6"
+  }
+}

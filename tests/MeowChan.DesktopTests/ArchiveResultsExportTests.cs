@@ -40,6 +40,39 @@ public sealed class ArchiveResultsExportTests
     }
 
     [Fact]
+    public async Task FullExportUsesTheSameFrozenMultiSourceDateRequestBeyondTheVisiblePage()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+        List<ThreadWorkSnapshot> work = new();
+        for (int index = 0; index < 124; index++)
+        {
+            ResourceId id = new(index % 2 == 0 ? "A" : "B", index % 2 == 0 ? "x" : "y", index.ToString());
+            string url = "https://fixture.test/multi/" + index;
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(id, url, index.ToString("D3"),
+                ThreadSourceState.Active, DateTimeOffset.UtcNow, directory.Path,
+                [new CapturedPost(id.Thread!, 0, PostFieldPresence.All, Html: "needle")]));
+            work.Add(new ThreadWorkSnapshot(url, WorkIntent.Completed, ThreadSourceStateValue.Active, null, false, []));
+        }
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        ArchiveSearchRequest request = ArchiveSearchRequest.Create(new ArchiveSearchSpec("needle", ["A", "B"],
+            [new("A", "x"), new("B", "y")], sort: ArchiveThreadSort.Title, workFilter: ArchiveWorkFilter.Completed,
+            dateRange: new ArchiveDateRange(today.AddDays(-1), today.AddDays(1), "Etc/UTC")));
+        var frozenWindow = request.DateWindow;
+        IReadOnlySet<string>? membership = ArchivePage.CaptureExportWorkUrls(4, work);
+        work.Clear();
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        var page = await reader.SearchThreadsBySpecAsync(request, 50, 50);
+        ResourceId[] members = await ArchivePage.ResolveExportResultIdsAsync(reader, request, membership, CancellationToken.None);
+        Assert.Equal(124, page.TotalCount);
+        Assert.Equal(50, page.Items.Count);
+        Assert.Equal(124, members.Length);
+        Assert.Equal(Enumerable.Range(0, 124).Select(index => index.ToString()), members.Select(item => item.Thread));
+        Assert.Same(frozenWindow, request.DateWindow);
+    }
+
+    [Fact]
     public void NoWorkFilterIncludesThreadsWithoutAWorkSnapshot()
     {
         Assert.Null(ArchivePage.CaptureExportWorkUrls(0, Array.Empty<ThreadWorkSnapshot>()));

@@ -51,6 +51,7 @@ namespace MeowChan
         private Dictionary<string, PresentationProfile>? _deserializedLayoutProfiles;
         private string _lastExportDirectory = string.Empty;
 
+        public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
         public int RecheckTimer { get; set; } = 60;
@@ -67,6 +68,12 @@ namespace MeowChan
         public bool AutomaticUpdateChecks { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool IncludePrereleaseUpdates { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowInformationNotifications { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowWarningNotifications { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowErrorNotifications { get; set; } = true;
         public int MinimumFreeSpaceGiB { get; set; } = 1;
         public int PluginMaximumProductionWorkers { get; set; } = 4;
         public int PluginWorkerIdleMinutes { get; set; } = 5;
@@ -409,6 +416,9 @@ namespace MeowChan
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
                 AutomaticUpdateChecks = AutomaticUpdateChecks,
+                ShowInformationNotifications = ShowInformationNotifications,
+                ShowWarningNotifications = ShowWarningNotifications,
+                ShowErrorNotifications = ShowErrorNotifications,
                 IncludePrereleaseUpdates = IncludePrereleaseUpdates,
                 MinimumFreeSpaceGiB = MinimumFreeSpaceGiB,
                 PluginMaximumProductionWorkers = PluginMaximumProductionWorkers,
@@ -416,6 +426,7 @@ namespace MeowChan
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
 
+                ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
                 PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
                 Theme = Theme,
@@ -469,6 +480,9 @@ namespace MeowChan
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
             AutomaticUpdateChecks = source.AutomaticUpdateChecks;
+            ShowInformationNotifications = source.ShowInformationNotifications;
+            ShowWarningNotifications = source.ShowWarningNotifications;
+            ShowErrorNotifications = source.ShowErrorNotifications;
             IncludePrereleaseUpdates = source.IncludePrereleaseUpdates;
             MinimumFreeSpaceGiB = source.MinimumFreeSpaceGiB;
             PluginMaximumProductionWorkers = source.PluginMaximumProductionWorkers;
@@ -476,6 +490,7 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
 
+            ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
@@ -517,6 +532,9 @@ namespace MeowChan
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
             AutomaticUpdateChecks = source.AutomaticUpdateChecks;
+            ShowInformationNotifications = source.ShowInformationNotifications;
+            ShowWarningNotifications = source.ShowWarningNotifications;
+            ShowErrorNotifications = source.ShowErrorNotifications;
             IncludePrereleaseUpdates = source.IncludePrereleaseUpdates;
             MinimumFreeSpaceGiB = source.MinimumFreeSpaceGiB;
             PluginMaximumProductionWorkers = source.PluginMaximumProductionWorkers;
@@ -524,6 +542,7 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
 
+            ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
             Language = source.Language;
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
@@ -854,6 +873,7 @@ namespace MeowChan
         }
     }
 
+    [JsonSerializable(typeof(Desktop.Commands.ShortcutBindingsSection))]
     [JsonSerializable(typeof(Config))]
     [JsonSerializable(typeof(SavedUrls))]
     public partial class ConfigJsonContext : JsonSerializerContext

@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     private readonly DesktopSessionHost _session;
     private readonly CoalescedUiUpdate _sessionRefresh;
     private readonly WindowNotificationManager _notificationManager;
-    private readonly Queue<Notification> _startupNotifications = new Queue<Notification>();
+
     private readonly Dictionary<long, ThreadRow> _threadRows = new Dictionary<long, ThreadRow>();
     private readonly Dictionary<long, BoardRow> _boardRows = new Dictionary<long, BoardRow>();
     private readonly HashSet<string> _knownWarnings = new HashSet<string>(StringComparer.Ordinal);
@@ -105,7 +105,12 @@ public partial class MainWindow : Window
                 MaxItems = 3
             };
             InitializeWorkspacePages();
+            InitializeReaderGroups(); // URSA-12 shared initialization hunk.
             InitializeWorkspace();
+            RegisterReaderGroupCommands();
+            RegisterPostBookmarkCommands();
+            RegisterSectionCommands();
+            RegisterRuleTemplateCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             Texts.Changed += OnLanguageChanged;
@@ -135,17 +140,20 @@ public partial class MainWindow : Window
         BeginStartupWindowFit();
         if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
         {
-            ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning);
+            ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning, operation: "config.load");
         }
+
+        if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Count > 0)
+            ShowNotification(Texts.T("shortcuts.title"), Texts.T("shortcuts.warning"), NotificationType.Warning);
 
         foreach (string warning in Texts.Warnings)
         {
-            ShowNotification(Texts.T("notification.settings"), warning, NotificationType.Warning);
+            ShowNotification(Texts.T("notification.settings"), warning, NotificationType.Warning, operation: "localization.load");
         }
 
-        while (_startupNotifications.TryDequeue(out Notification? notification))
+        while (_startupNotifications.TryDequeue(out PendingFeedback? notification))
         {
-            _notificationManager.Show(notification);
+            RenderNotification(notification);
         }
     }
 
@@ -156,6 +164,7 @@ public partial class MainWindow : Window
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
         bool navigationReady = ready && !WorkspaceCommandBusy;
         UpdatePauseControls(navigationReady);
+        if (_postBookmarksMenu != null) _postBookmarksMenu.IsEnabled = navigationReady;
 
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
         if (_rulesPage != null) _rulesPage.IsAvailable = ready;
@@ -172,6 +181,7 @@ public partial class MainWindow : Window
         this.FindControl<Button>("ContinueReadingNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
+        RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.State == DesktopSessionState.RecoveryFailed);
@@ -243,7 +253,7 @@ public partial class MainWindow : Window
         {
             if (currentWarnings.Add(warning) && !_knownWarnings.Contains(warning))
             {
-                ShowNotification(Texts.T("notification.session"), warning, NotificationType.Warning);
+                ShowNotification(Texts.T("notification.session"), warning, NotificationType.Warning, operation: "session.warning");
             }
         }
 
@@ -262,7 +272,7 @@ public partial class MainWindow : Window
             if (!_restoreCompleted)
             {
                 ShowNotification(Texts.T("restore.title"),
-                    Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error);
+                    Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
             UpdateInteractionState();
         });
@@ -319,7 +329,7 @@ public partial class MainWindow : Window
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
-                    Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information);
+                    Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
             return allAccepted && _admissionResults.Count != 0;
         }
@@ -330,7 +340,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to read URLs from the clipboard.");
-            ShowNotification(Texts.T("notification.error"), Texts.T("clipboard.readFailed"), NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), Texts.T("clipboard.readFailed"), NotificationType.Error, operation: "clipboard.read");
             return false;
         }
         finally
@@ -405,16 +415,17 @@ public partial class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || IsNativeShortcutSource(e.Source) || !IsEnabled || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
+        if (RouteWorkspaceShortcut(e)) return;
+        if (e.Handled || HasBlockingPageDecision() || IsNativeShortcutSource(e.Source) || !IsEnabled || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
         TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
         KeyModifiers pasteModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-        if (e.KeyModifiers == pasteModifier && e.Key == Key.L)
+        if (CommandBindings.Matches(e, "input.focus-url"))
         {
             e.Handled = true;
             if (NavigateWorkspace(WorkspacePage.Downloads)) urlInput.Focus();
             return;
         }
-        if (e.KeyModifiers == pasteModifier && e.Key == Key.V && _selectedPage == WorkspacePage.Downloads
+        if (CommandBindings.Matches(e, "watch.import-clipboard") && _selectedPage == WorkspacePage.Downloads
             && CanExecuteShellPowerCommand(e.Source))
         {
             e.Handled = true;
@@ -689,8 +700,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_postBookmarkEditor != null && !await _postBookmarkEditor.PrepareToCloseAsync()) return;
+        if (_postBookmarksDialog != null && !await _postBookmarksDialog.PrepareToCloseAsync()) return;
         _archivePage?.FlushReadingPositionInput();
         _isClosing = true;
+        _postBookmarksDialog?.CloseForProfileEnd();
+        _postBookmarkEditor?.CloseForProfileEnd();
         _shutdownRunning = true;
         _settingsEditor?.EndLifetime();
         _pluginsPage?.EndLifetime();
@@ -751,29 +766,11 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to stop the application.");
-            ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
         }
         finally
         {
             _shutdownRunning = false;
-        }
-    }
-
-    private void ShowNotification(string title, string message, NotificationType type)
-    {
-        if (_allowClose)
-        {
-            return;
-        }
-
-        Notification notification = new Notification(title, message, type);
-        if (!_hasOpened)
-        {
-            _startupNotifications.Enqueue(notification);
-        }
-        else
-        {
-            _notificationManager.Show(notification);
         }
     }
 
@@ -790,7 +787,8 @@ public partial class MainWindow : Window
         if (!_isClosing && SelectedBoard is BoardRow row) OpenTarget(row.Url);
     }
 
-    private async void OpenTarget(string target)
+    private void OpenTarget(string target) => OpenTarget(target, null);
+    private async void OpenTarget(string target, Action<string>? localError)
     {
         try
         {
@@ -799,14 +797,21 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to open {Target}", target);
-            ShowNotification(Texts.T("notification.error"), Texts.T("location.openFailed"), NotificationType.Error);
+            if (_allowClose) return;
+            localError?.Invoke(Texts.T("location.openFailed"));
+            ShowNotification(Texts.T("notification.error"), Texts.T("location.openFailed"), NotificationType.Error, context: target, operation: "target.open");
         }
     }
 
-    private void OpenDirectory(string directory)
+    private void OpenDirectory(string directory) => OpenDirectory(directory, null);
+    private void OpenDirectory(string directory, Action<string>? localError)
     {
-        if (Directory.Exists(directory)) OpenTarget(directory);
-        else ShowNotification(Texts.T("location.missingTitle"), Texts.T("location.missing"), NotificationType.Warning);
+        if (Directory.Exists(directory)) OpenTarget(directory, localError);
+        else
+        {
+            localError?.Invoke(Texts.T("location.missing"));
+            ShowNotification(Texts.T("location.missingTitle"), Texts.T("location.missing"), NotificationType.Warning, context: directory, operation: "directory.open");
+        }
     }
 
     private void OnOpenThreadDirectoryClick(object? sender, RoutedEventArgs e)
@@ -890,8 +895,6 @@ public partial class MainWindow : Window
             candidate.Theme = ActualThemeVariant == ThemeVariant.Dark ? "Light" : "Dark";
             await SaveAppearanceAsync(candidate);
         };
-        this.FindControl<Button>("CopyAllUrlsButton")!.Click += async (sender, e) =>
-            await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url)));
         this.FindControl<Button>("InspectorCopyUrlButton")!.Click += async (sender, e) =>
             await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
@@ -914,11 +917,12 @@ public partial class MainWindow : Window
         {
             Log.Error(exception, "Could not save display preferences.");
             ApplyWorkspacePreferences();
-            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.appearance");
         }
     }
 
-    private async Task CopyUrlsAsync(IEnumerable<string> urls)
+    private Task CopyUrlsAsync(IEnumerable<string> urls) => CopyUrlsAsync(urls, null);
+    private async Task CopyUrlsAsync(IEnumerable<string> urls, Action<string>? localError)
     {
         string text = string.Join(Environment.NewLine, urls.Distinct(StringComparer.Ordinal));
         if (_isClosing || string.IsNullOrEmpty(text)) return;
@@ -930,7 +934,9 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             Log.Warning(exception, "Could not copy URLs.");
-            ShowNotification(Texts.T("notification.error"), Texts.T("clipboard.writeFailed"), NotificationType.Error);
+            if (_allowClose) return;
+            localError?.Invoke(Texts.T("clipboard.writeFailed"));
+            ShowNotification(Texts.T("notification.error"), Texts.T("clipboard.writeFailed"), NotificationType.Error, operation: "clipboard.write");
         }
     }
 
@@ -980,7 +986,7 @@ public partial class MainWindow : Window
         try { await _session.SetPausedAsync(!_session.IsPaused); }
         catch (Exception exception)
         {
-            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.pause");
         }
         finally { _applyingPreferences = false; UpdateInteractionState(); }
     }

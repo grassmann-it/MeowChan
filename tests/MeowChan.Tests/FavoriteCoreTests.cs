@@ -129,6 +129,30 @@ public sealed class FavoriteCoreTests
             Path.GetRelativePath(Path.Combine(directory.Path, "b"), b.Items[0].Path!));
     }
 
+    [Fact]
+    public async Task RatingsPreserveFavoritesAndBytesAcrossPathChangesAndMissingOriginal()
+    {
+        using TempDirectory directory = new(); using StubImageBoard board = new();
+        FavoriteExportAsset original = await Commit(directory.Path, board, [2, 4, 8], "456");
+        MediaAssetReference asset = original.Manifest.FindById(original.AssetId)!;
+        string profile = Path.Combine(directory.Path, "profile");
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        FavoriteStore favorites = new(profile, lease);
+        favorites.SetFavorite(new(original.Key, original.Length, original.OriginalFileName), true);
+        byte[] savedFavorites = await File.ReadAllBytesAsync(Path.Combine(profile, "media-favorites.json"));
+        MeowChan.Ratings.MediaRatingStore ratings = new(profile, lease);
+        ratings.Set(original.Key, 4);
+        MediaAssetReference moved = asset with { Path = Path.Combine(directory.Path, "renamed.png"), RequestedFileName = "renamed.png" };
+        Assert.Equal(original.Key, FavoriteAssetKey.From(Thread, moved));
+        Assert.Equal(new byte[] { 2, 4, 8 }, await File.ReadAllBytesAsync(asset.Path));
+        Assert.Equal(savedFavorites, await File.ReadAllBytesAsync(Path.Combine(profile, "media-favorites.json")));
+        File.Delete(asset.Path);
+        Assert.Equal(4, Assert.Single(ratings.List()).Value);
+        Assert.Equal(1, (await FavoriteOriginalExporter.ExportAsync([original], Path.Combine(directory.Path, "out"))).Missing);
+        ratings.Set(original.Key, null);
+        Assert.True(favorites.Contains(original.Key));
+    }
+
     private static async Task<FavoriteExportAsset> Commit(string root, StubImageBoard board, byte[] bytes, string mediaId)
     {
         DownloadItem item = new(new Uri($"https://stub.test/media/{mediaId}.bin"),

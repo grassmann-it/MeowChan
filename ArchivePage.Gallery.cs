@@ -87,16 +87,14 @@ public partial class ArchivePage
         int offset = _postOffset;
         int tab = Control<TabControl>("ArchiveContentTabs").SelectedIndex;
         ReaderAnchor? readerAnchor = reader && tab == 0 ? CaptureReaderAnchor() : null;
-        ArchiveThreadQuery query = _query;
+        ArchiveSearchSpec query = _query;
+        ArchiveSearchRequest? appliedSearch = _appliedSearch;
+        var appliedWork = _appliedWork;
+        Action restoreDraft = CaptureSearchDraft();
         int listOffset = _listOffset, listTotal = _listTotal, workFilter = _workFilter;
         int mediaSort = _mediaSort;
         bool allVersions = _allVersions;
         var listRows = (Control<ListBox>("ArchiveThreads").ItemsSource as IEnumerable<ArchiveThreadRow>)?.ToArray() ?? Array.Empty<ArchiveThreadRow>();
-        string? searchText = Control<TextBox>("ArchiveSearchText").Text;
-        string? sourceFilter = Control<TextBox>("ArchiveSourceFilter").Text;
-        string? boardFilter = Control<TextBox>("ArchiveBoardFilter").Text;
-        string[] filterNames = { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort" };
-        int[] filterIndices = filterNames.Select(name => Control<ComboBox>(name).SelectedIndex).ToArray();
         ResourceId[] listSelection = FrozenArchiveSelection();
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow? mediaSelection = SelectedMediaRow();
@@ -122,12 +120,9 @@ public partial class ArchivePage
             CancelReferences();
             CancelMediaLoad();
             _busy = false;
-            _query = query; _listOffset = listOffset; _listTotal = listTotal; _workFilter = workFilter;
+            _query = query; _appliedSearch = appliedSearch; _appliedWork = appliedWork; UpdateAppliedFilters(); _listOffset = listOffset; _listTotal = listTotal; _workFilter = workFilter;
             _mediaSort = mediaSort; _allVersions = allVersions;
-            Control<TextBox>("ArchiveSearchText").Text = searchText;
-            Control<TextBox>("ArchiveSourceFilter").Text = sourceFilter;
-            Control<TextBox>("ArchiveBoardFilter").Text = boardFilter;
-            for (int index = 0; index < filterNames.Length; index++) Control<ComboBox>(filterNames[index]).SelectedIndex = filterIndices[index];
+            restoreDraft();
             _history.Clear();
             foreach (ReaderHistoryEntry position in history) _history.AddLast(position);
             _backlinkOriginAnchor = backlinkOrigin;
@@ -251,7 +246,7 @@ public partial class ArchivePage
 
     private async void OnResultsGalleryClick(object? sender, RoutedEventArgs e)
     {
-        if (OpenResultsGallery != null) await OpenResultsGallery(_query, _workFilter, sender as Control);
+        if (OpenResultsGallery != null) await OpenResultsGallery(_appliedSearch ?? ArchiveSearchRequest.Create(_query), _workFilter, sender as Control);
     }
 
     private async void OnMediaDoubleTapped(object? sender, TappedEventArgs e)
@@ -266,8 +261,9 @@ public partial class ArchivePage
 
     private async void OnMediaKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || IsReaderDialogOpen || sender is not Control list) return;
-        if (!MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (e.Handled || IsReaderDialogOpen || sender is not Control list) return;
+        if (TryRouteArchiveMediaShortcut(list, e)) return;
+        if (!MeowChan.Desktop.Commands.CommandBindings.Matches(e, "media.open") || !MainWindow.IsListCommandSource(e.Source, list)) return;
         ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault() ?? SelectedMediaRow();
         if (row == null) return;
@@ -303,14 +299,14 @@ public partial class ArchivePage
 
     private void OnVersionScopeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!IsInitialized && !_largeReader) return;
+        if (_localizingMediaChoices || (!IsInitialized && !_largeReader)) return;
         _allVersions = Control<ComboBox>("ArchiveVersionScope").SelectedIndex == 1;
         RenderMedia();
     }
 
     private void OnMediaSortChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!IsInitialized && !_largeReader) return;
+        if (_localizingMediaChoices || (!IsInitialized && !_largeReader)) return;
         _mediaSort = Math.Max(0, Control<ComboBox>("ArchiveMediaSort").SelectedIndex);
         RenderMedia();
     }

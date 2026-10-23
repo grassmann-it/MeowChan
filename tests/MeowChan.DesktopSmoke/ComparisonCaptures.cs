@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
@@ -107,18 +109,111 @@ internal static class ComparisonCaptures
     private static async Task CaptureEmptyAsync(MainWindow window, string fileName)
     {
         Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
-        await Program.WaitUntilAsync(() =>
+        WriteEmptyDiagnostics(window, fileName, "before-wait");
+        try
         {
-            window.UpdateLayout();
-            Button action = copy.IsEffectivelyVisible ? copy : window.FindControl<Button>("DownloadsMoreButton")!;
-            Point? origin = action.TranslatePoint(new Point(0, 0), window);
-            return !copy.IsEnabled && action.IsEffectivelyVisible && action.Bounds.Width > 0
-                && Math.Abs(window.Bounds.Width - window.Width) <= 1 && Math.Abs(window.Bounds.Height - window.Height) <= 1
-                && origin.HasValue && origin.Value.X >= 0 && origin.Value.Y >= 0
-                && origin.Value.X + action.Bounds.Width <= window.Bounds.Width + 1
-                && window.FindControl<TextBlock>("ThreadsEmptyState")!.IsEffectivelyVisible;
-        });
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                Control action = EmptyAction(window, copy, window.FindControl<ActionToolBar>("WorkspaceListActions")!);
+                Point? origin = action.TranslatePoint(new Point(0, 0), window);
+                return !copy.IsEnabled && action.IsEffectivelyVisible && action.Bounds.Width > 0
+                    && Math.Abs(window.Bounds.Width - window.Width) <= 1 && Math.Abs(window.Bounds.Height - window.Height) <= 1
+                    && origin.HasValue && origin.Value.X >= 0 && origin.Value.Y >= 0
+                    && origin.Value.X + action.Bounds.Width <= window.Bounds.Width + 1
+                    && window.FindControl<TextBlock>("ThreadsEmptyState")!.IsEffectivelyVisible;
+            });
+        }
+        catch (TimeoutException)
+        {
+            // Record before RunAsync's finally restores mode/theme or removes fixtures.
+            WriteEmptyDiagnostics(window, fileName, "timeout");
+            try { Program.CaptureWindow(window, Path.GetFileNameWithoutExtension(fileName) + "-timeout.png"); }
+            catch (Exception captureError) { Console.WriteLine("SMOKE comparison-empty diagnostic capture failed: " + captureError); }
+            throw;
+        }
+        WriteEmptyDiagnostics(window, fileName, "ready");
         Program.CaptureWindow(window, fileName);
+    }
+
+    // Closed overflow items can report IsEffectivelyVisible while detached.
+    // Choose Copy only in its actual direct window presentation; otherwise test More.
+    private static Control EmptyAction(MainWindow window, Button copy, ActionToolBar toolbar) =>
+        copy.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(copy), window)
+            && copy.GetVisualAncestors().Contains(toolbar) ? copy : toolbar.More!;
+
+    // Passive diagnostics only: do not focus, navigate, open popups or alter the scene.
+    private static void WriteEmptyDiagnostics(MainWindow window, string fileName, string stage)
+    {
+        try
+        {
+            Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
+            ActionToolBar toolbar = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
+            TextBlock empty = window.FindControl<TextBlock>("ThreadsEmptyState")!;
+            Control? action = EmptyAction(window, copy, toolbar);
+            Point? origin = action?.TranslatePoint(default, window);
+            Control[] named = window.GetVisualDescendants().OfType<Control>().Where(control => control.Name != null).ToArray();
+            var state = new {
+                stage, fileName, utc = DateTimeOffset.UtcNow,
+                source_digest = Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_SOURCE_DIGEST"),
+                window = new { requested_width = window.Width, requested_height = window.Height,
+                    bounds = window.Bounds.ToString(), client = window.ClientSize.ToString(),
+                    minimum = new { window.MinWidth, window.MinHeight }, frame = window.FrameSize?.ToString(),
+                    work_area = window.Screens.ScreenFromWindow(window)?.WorkingArea.ToString(),
+                    state = window.WindowState.ToString(), window.IsVisible, window.IsActive, window.IsEnabled,
+                    scale = window.RenderScaling, theme = window.ActualThemeVariant.ToString() },
+                mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
+                tabs_selected_index = window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex,
+                settings_page_visible = window.SettingsPageVisible,
+                session = new { threads = window.UrlList.Count, boards = window.BoardsList.Count,
+                    visible_threads = window.VisibleThreads.Count, visible_boards = window.VisibleBoards.Count },
+                focus = Describe(window.FocusManager?.GetFocusedElement() as Control),
+                predicate = new {
+                    copy_disabled = !copy.IsEnabled, chosen_action = action?.Name,
+                    action_effectively_visible = action?.IsEffectivelyVisible == true,
+                    action_positive_width = action?.Bounds.Width > 0,
+                    width_matches = Math.Abs(window.Bounds.Width - window.Width) <= 1,
+                    height_matches = Math.Abs(window.Bounds.Height - window.Height) <= 1,
+                    origin_exists = origin.HasValue, origin = origin?.ToString(),
+                    origin_x_nonnegative = origin.HasValue && origin.Value.X >= 0,
+                    origin_y_nonnegative = origin.HasValue && origin.Value.Y >= 0,
+                    action_right_within_window = action != null && origin.HasValue
+                        && origin.Value.X + action.Bounds.Width <= window.Bounds.Width + 1,
+                    threads_empty_effectively_visible = empty.IsEffectivelyVisible },
+                copy = Describe(copy), empty = Describe(empty), toolbar = Describe(toolbar), more = Describe(toolbar.More),
+                more_checked = toolbar.More?.IsChecked,
+                overflow_root = toolbar.OverflowHost == null ? null : Describe(TopLevel.GetTopLevel(toolbar.OverflowHost) as Control),
+                toolbar_items = toolbar.Items.OfType<Control>().Select(control => new {
+                    control = Describe(control), overflow_mode = Ursa.Controls.ToolBar.GetOverflowMode(control).ToString(),
+                    in_overflow = toolbar.OverflowHost?.Children.Contains(control) == true,
+                    direct_ancestor = control.GetVisualAncestors().Contains(toolbar) }).ToArray(),
+                overflow_children = toolbar.OverflowHost?.Children.Select(Describe).ToArray(),
+                // Named controls include inactive page hosts and their actual visual ancestry.
+                page_tree = named.Select(Describe).ToArray()
+            };
+            string json = JsonSerializer.Serialize(state, new JsonSerializerOptions {
+                WriteIndented = true, NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals });
+            string path = Path.Combine(AppContext.BaseDirectory,
+                Path.GetFileNameWithoutExtension(fileName) + "-" + stage + "-state.json");
+            Console.WriteLine("SMOKE comparison-empty state " + json);
+            File.WriteAllText(path, json);
+            Console.WriteLine("SMOKE comparison-empty state file: " + path);
+
+            object? Describe(Control? control) => control == null ? null : new {
+                type = control.GetType().FullName, control.Name, control.IsVisible, control.IsEffectivelyVisible,
+                control.IsEnabled, control.IsEffectivelyEnabled, control.IsFocused, control.IsKeyboardFocusWithin,
+                bounds = control.Bounds.ToString(), desired = control.DesiredSize.ToString(),
+                origin_in_window = control.TranslatePoint(default, window)?.ToString(),
+                root = TopLevel.GetTopLevel(control)?.GetType().FullName,
+                ancestors = control.GetVisualAncestors().OfType<Control>().Select(parent => new {
+                    type = parent.GetType().Name, parent.Name, parent.IsVisible, parent.IsEffectivelyVisible,
+                    bounds = parent.Bounds.ToString() }).ToArray() };
+        }
+        catch (Exception diagnosticError)
+        {
+            // Diagnostic/render errors must not hide the original readiness timeout.
+            Console.WriteLine("SMOKE comparison-empty diagnostic state failed: " + diagnosticError);
+        }
     }
 
     private static async Task ResizeAsync(MainWindow window, double width, double height)

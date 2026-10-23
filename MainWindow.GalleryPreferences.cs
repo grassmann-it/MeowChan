@@ -53,7 +53,8 @@ public partial class MainWindow
             }
             catch (Exception error)
             {
-                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", error.Message), NotificationType.Error);
+                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", error.Message), NotificationType.Error, context: "gallery", operation: "preferences.gallery");
+                ApplyGalleryPreferences();
             }
         }
         _galleryPreferenceSave = SaveAsync();

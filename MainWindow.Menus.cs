@@ -70,7 +70,7 @@ public partial class MainWindow
                     Header = reason,
                     Icon = CommandBindings.Icon("thread.details"),
                     Command = new DelegateCommand(() => ShowNotification(Texts.T("notification.session"), reason,
-                        Avalonia.Controls.Notifications.NotificationType.Information))
+                        Avalonia.Controls.Notifications.NotificationType.Information, operation: "command.unavailable"))
                 };
                 Avalonia.Automation.AutomationProperties.SetName(explanation, reason);
                 menu.Items.Add(explanation);

@@ -33,10 +33,12 @@ public partial class AboutWindow : Window
         _updates = updates;
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
+        Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _version = informationalVersion?.Split('+', 2)[0] ?? assembly.GetName().Version?.ToString() ?? Texts.T("about.unknownVersion");
         _legal = OfflineLegalCatalog.Load(AppContext.BaseDirectory);
+        MeowChan.Desktop.Commands.CommandBindings.BindExisting(LicenseList, "about.open-license");
         LicenseList.ItemsSource = _legal.Entries;
         LicenseList.SelectedIndex = _legal.Entries.Count > 0 ? 0 : -1;
         ApplyTexts();
@@ -89,13 +91,21 @@ public partial class AboutWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         KeyModifiers searchModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-        if (e.Key == Key.F && e.KeyModifiers == searchModifier)
+        if (MeowChan.Desktop.Commands.CommandBindings.Matches(e, "input.focus-search"))
         {
             AboutTabs.SelectedIndex = 2;
             LicenseSearchBox.Focus();
             e.Handled = true;
             return;
         }
+        if (!e.Handled && MeowChan.Desktop.Commands.CommandBindings.Matches(e, "about.open-license"))
+        {
+            e.Handled = true;
+            if (LicenseList.SelectedItem is OfflineLegalCatalog.Entry)
+            { AboutTabs.SelectedIndex = 2; UpdateSelection(); LicenseFullText.Focus(); }
+            return;
+        }
+        MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
         base.OnKeyDown(e);
     }
 

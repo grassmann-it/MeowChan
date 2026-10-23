@@ -19,10 +19,11 @@ using MeowChan.PluginSdk;
 using MeowChan.Rules;
 using MeowChan.Storage;
 using MeowChan.Tests;
+using Xunit.Abstractions;
 
 namespace MeowChan.PluginFilters.Tests;
 
-public sealed class OriginalFilterTests
+public sealed class OriginalFilterTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task RealWorkerMatchCommitsOneTransferSameBytesAndRestoresOffline()
@@ -157,6 +158,40 @@ public sealed class OriginalFilterTests
         DownloadItem item = await h.ItemAsync(new());
         await h.RunAsync(item);
         Assert.Equal(1, h.Transfers); Assert.Equal(h.Bytes, await File.ReadAllBytesAsync(item.DestinationPath));
+        string workers = Path.Combine(h.Root.Path, "workers"), stages = Path.Combine(h.Root.Path, "filter-stages");
+        string[] Files(string directory) => Directory.GetFiles(directory, "*", SearchOption.AllDirectories);
+        object Receipt(string path)
+        {
+            string relative = Path.GetRelativePath(h.Root.Path, path);
+            try { return new { path = relative, bytes = new FileInfo(path).Length,
+                sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) }; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { return new { path = relative, receipt_error = error.Message }; }
+        }
+        void Record(string boundary, TimeSpan elapsed, string[] workerFiles, string[] stageFiles) => output.WriteLine("FILTER-TEMPORARY " + JsonSerializer.Serialize(new
+        {
+            boundary, profile = h.Root.Path, cached_worker_bytes = h.Manager.GetTemporaryBytes(),
+            elapsed_ms = elapsed.TotalMilliseconds, cache_deadline_ms = TestWait.Timeout.TotalMilliseconds,
+            worker_files = workerFiles.Select(Receipt).ToArray(), stage_files = stageFiles.Select(Receipt).ToArray(), stage = h.Stage.Snapshot,
+            worker = h.Worker.Snapshot
+        }));
+
+        // EvaluateAsync's finally deletes the helper copies before the worker replies.
+        // Real files must be gone now; do not turn physical cleanup into an eventual gate.
+        string[] workerFilesAfterRun = Files(workers), stageFilesAfterRun = Files(stages);
+        Record("run-completed-before-cache-wait", TimeSpan.Zero, workerFilesAfterRun, stageFilesAfterRun);
+        Assert.Empty(workerFilesAfterRun);
+        Assert.Empty(stageFilesAfterRun);
+
+        // GetTemporaryBytes exposes the last bounded one-second scan, not a fresh
+        // directory read (PluginHost README). Only this sampled statistic may settle.
+        Stopwatch elapsed = Stopwatch.StartNew();
+        while (h.Manager.GetTemporaryBytes() != 0 && elapsed.Elapsed < TestWait.Timeout)
+            await Task.Delay(5);
+        string[] workerFilesAfterWait = Files(workers), stageFilesAfterWait = Files(stages);
+        Record("cache-wait-finished", elapsed.Elapsed, workerFilesAfterWait, stageFilesAfterWait);
+        Assert.Empty(workerFilesAfterWait);
+        Assert.Empty(stageFilesAfterWait);
         Assert.Equal(0, h.Manager.GetTemporaryBytes());
     }
 

@@ -19,6 +19,7 @@ public sealed class ArchiveMediaTileView : UserControl
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
+    private readonly TextBlock _rating = new() { FontSize = 11 };
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new() { MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11 };
     private readonly TextBlock _message = new() { MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, FontSize = 11 };
@@ -36,12 +37,13 @@ public sealed class ArchiveMediaTileView : UserControl
         MaxWidth = 190; Height = 210;
         Grid preview = new() { Height = 125, MaxWidth = 170 };
         preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_favorite);
-        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,*"), RowSpacing = 5 };
+        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 5 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
-        grid.Children.Add(_status); Grid.SetRow(_status, 2); Content = grid;
+        grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
+        grid.Children.Add(_status); Grid.SetRow(_status, 3); Content = grid;
         DataContextChanged += (_, _) =>
         {
-            Reset(); RefreshFavorite();
+            Reset(); RefreshFavorite(); RefreshRating();
             ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
             _title.Text = row?.Name; _status.Text = row?.TileSummary;
             UpdateDescription();
@@ -91,6 +93,12 @@ public sealed class ArchiveMediaTileView : UserControl
         _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
     }
 
+    internal void RefreshRating()
+    {
+        _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.Label + ": " + row.RatingLabel : string.Empty;
+        UpdateDescription();
+    }
+
     private async Task LoadAsync()
     {
         if (DataContext is not ArchiveAssetRow row || _loading != null || _bitmap != null || !IsEffectivelyVisible) return;
@@ -119,7 +127,7 @@ public sealed class ArchiveMediaTileView : UserControl
 
     private void UpdateDescription()
     {
-        string description = string.Join(Environment.NewLine, new[] { _title.Text, _status.Text, _message.Text });
+        string description = string.Join(Environment.NewLine, new[] { _title.Text, _status.Text, _rating.Text, _message.Text });
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
     }

@@ -1,0 +1,3 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:semi="https://irihi.tech/semi" x:Class="MeowChan.SettingsComparison.ComparisonApp" RequestedThemeVariant="Dark">
+  <Application.Styles><semi:SemiTheme Locale="en-US"/><semi:UrsaSemiTheme Locale="en-US"/><StyleInclude Source="avares://MeowChan/Desktop/WorkspaceStyles.axaml"/></Application.Styles>
+</Application>

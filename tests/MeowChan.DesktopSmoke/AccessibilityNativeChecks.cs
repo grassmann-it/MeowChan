@@ -33,6 +33,13 @@ internal static class AccessibilityNativeChecks
             }
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "shortcuts")
+            {
+                await NativeFeatureCheckpoint.ShortcutsAsync(window.SettingsEditor);
+                window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
+                continue;
+            }
             if (numericOnly)
             {
                 foreach (string field in new[] { "VideoVolumeInput", "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput" })

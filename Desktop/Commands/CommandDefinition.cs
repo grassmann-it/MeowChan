@@ -12,12 +12,17 @@ public sealed record CommandDefinition(
     string Icon,
     string? Shortcut,
     CommandScope Scope,
-    IReadOnlyList<string> Contexts)
+    IReadOnlyList<string> Contexts,
+    IReadOnlyList<string>? ActiveContexts = null)
 {
+    public bool IsImplemented => Id is not ("post.copy-link" or "post.open-source" or "video.mute" or "viewer.focus-mode"
+        or "table.reset-layout" or "admission.monitor-all");
+    public IReadOnlyList<ShortcutGesture> DefaultGestures => EffectiveShortcutBindings.Defaults(this);
+    public IReadOnlyList<string> ExecutionContexts => EffectiveShortcutBindings.ExecutionContexts(Id);
     public string Label => CommandCatalog.Label(Id);
     public string? ShortcutDisplay => CommandCatalog.ShortcutDisplay(Id);
     /// <summary>Dynamic availability is resolved by each binding against its captured target.</summary>
-    public CommandAvailability Availability => Scope == CommandScope.Application
+    public CommandAvailability Availability => !IsImplemented ? CommandAvailability.Unavailable : Scope == CommandScope.Application
         ? CommandAvailability.Always : CommandAvailability.Contextual;
     public string IconForState(string? state) => CommandCatalog.IconForState(Id, state);
 }
@@ -25,7 +30,8 @@ public sealed record CommandDefinition(
 public enum CommandAvailability
 {
     Always,
-    Contextual
+    Contextual,
+    Unavailable
 }
 
 [Flags]

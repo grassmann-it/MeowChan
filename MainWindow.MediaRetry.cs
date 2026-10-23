@@ -27,11 +27,11 @@ public partial class MainWindow
             int accepted = await _session.RetryMissingMediaAsync(row.WatchId);
             ShowNotification(Texts.T("notification.session"), Texts.T(accepted == 0 ? "work.retryNone"
                 : _session.IsPaused ? "work.retryPaused" : "work.retryAccepted", accepted),
-                accepted == 0 ? NotificationType.Warning : NotificationType.Information);
+                NotificationType.Information, context: row.WatchId.ToString(), operation: "media.retry");
         }
         catch (Exception exception)
         {
-            ShowNotification(Texts.T("notification.error"), Texts.T("work.retryFailed", exception.Message), NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), Texts.T("work.retryFailed", exception.Message), NotificationType.Error, context: row.WatchId.ToString(), operation: "media.retry");
         }
         finally
         {

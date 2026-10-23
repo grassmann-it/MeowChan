@@ -11,6 +11,12 @@ active build, settings and tests. The [short installation recipe](plugins/using-
 explains the supplied examples and how to add a source file. These controls are
 part of 1.0; the stable 0.9.0 instructions below do not imply they are present there.
 
+The current 1.0 development workspace also adds [search filters and saved searches](#archive-filters-and-saved-searches),
+[reader groups](#reader-groups), [post bookmarks and notes](#post-bookmarks-and-notes),
+[media ratings](#media-ratings), [rule templates](#rule-templates) and
+[shortcut customization](#customizing-shortcuts). These sections describe those
+controls in the current workspace; check your installed version for availability.
+
 ## From a package to an offline picture
 
 1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
@@ -119,12 +125,61 @@ returns to the previous normal or maximized window. Escape dismisses the active
 menu, help or dialog first, then leaves fullscreen before closing a gallery or
 reader. Modal dialogs retain their own input.
 
+### Customizing shortcuts
+
+In 1.0 Settings → **Keyboard shortcuts** (German: **Tastenkürzel**), search for an
+action and select it. Choose **Record additional shortcut**, press the desired
+combination, then **Apply recording**. This adds a gesture to the Settings draft;
+use **Remove** on an existing gesture when replacing it. **Clear binding** leaves
+the action unbound; **Restore default** restores its supplied keys. Finish with
+Settings **Save** to activate and keep the changes for this profile in every view.
+**Discard draft** abandons unapplied changes.
+
+Review any conflict before saving. **Take over conflicting gesture** deliberately
+removes that gesture from conflicting actions in the draft. **Reset all known
+actions** restores defaults for the known actions in the draft. Escape cancels
+recording and Tab leaves the capture field. Text editing, Tab and Escape retain
+their normal roles; the operating system may intercept a combination. A custom
+binding still needs the action's normal context and selection. Menus, tooltips
+and F1 help show the active bindings; the table above lists defaults.
+
+### Rule templates
+
 In Rules, each effective media-type or size value names its own origin. **Open
 rule** opens that exact Global, Source, Board or Thread scope. **Open parent
 scope** moves up one scope. Unsaved drafts and conflicting edits remain available
 when returning to their scope; navigation does not save or retry downloads.
 Built-in defaults have no stored rule to open. Saving affects future work and
 does not delete previously saved files.
+
+In 1.0, open **Rule templates** in Rules. **Create from draft** opens a template
+editor: name it, choose whether to include media selection, size limit and/or
+image filter, then **Save template**. To reuse it, select the target rule scope
+and template, choose **Preview for this scope**, inspect the before/after values,
+then **Copy into draft**. Included groups replace their entire current input,
+including unfinished text; other groups retain their input. Save the rule
+explicitly to make the copied values active. A disabled target rule stays disabled.
+
+**Undo template copy** restores the previous input while available; further edits
+or rule/plugin changes can make it unavailable. **Discard draft** returns to the
+saved rule. Editing or deleting a template does not update rules that already
+received a copy. Plugin grants and runtime settings are excluded; an unavailable
+or incompatible filter must be resolved before copying its template.
+
+### Settings and session messages
+
+In 1.0 Settings, open **Sections** and choose a section link. In narrow windows,
+select the section and choose **Go to section** instead. Navigation keeps the
+draft; **Save** applies it and **Discard draft** reverts unapplied edits. Marked
+invalid fields must be corrected before saving.
+
+Under **Notifications** (German: **Benachrichtigungen**), independently enable or
+disable **Success and information popups**, **Warning popups** and **Error popups**,
+then Save. These control in-app popups. Warnings and errors remain at the affected
+action and in Diagnostics → **Messages this session**. Select an entry to inspect
+or copy its details. **Clear session messages** clears that list; it does not fix
+the underlying problem. The list ends with the app session. Field validation and
+confirmation dialogs still apply when popups are disabled.
 
 ## Linux packages and startup
 
@@ -218,6 +273,76 @@ Double-clicking one result thread opens only that thread. Changing filters or
 new archive arrivals does not silently replace an already opened sequence;
 close and reopen to take a new result snapshot.
 
+### Archive filters and saved searches
+
+In the 1.0 Archive, open **Filters and sorting**. Source and board fields offer
+bounded local suggestions and also accept values you type. Accepting a suggestion
+changes the input only. Use **Add** for each source, board or source state, or clear
+unfinished input before searching. Add several alternatives when needed: a thread
+may match any value within one category, and must match every restricted category.
+An empty category is unrestricted. **Board source (or all sources)** distinguishes
+a board in one source from the same board name across all sources; accepting a
+source-qualified board suggestion uses that source. A board outside the selected
+sources cannot match until you adjust the source or board choices.
+
+**First registered locally** filters the day a thread first entered the local
+archive catalog, including threads without captured posts. Enter **From** and/or
+**Through** as `YYYY-MM-DD`, or use the calendar. The end day is included; either
+end can remain empty. This is separate from the post's publication date or latest
+capture. The displayed time zone is captured from the device when entering a date;
+**Use this device’s time zone** explicitly changes it, including for a saved search.
+
+Choose **Search** to apply the draft. The tags beside the results describe the
+last successfully applied filters, even with the editors collapsed. Removing an
+applied tag searches again without that one restriction, from page 1, retaining
+the applied sort. Other unsearched edits stay in the editors. While loading or
+after a failed search, the old results and tags stay together; **Retry** repeats
+the failed request. Result paging and [all-results HTML export](#export-every-matching-archive-thread)
+use the applied search. Ctrl+A selects only the current results page.
+
+Choose **Save applied search…**, enter a name and **Save search**. This saves the
+applied text, filters, date zone and sort for this profile. Unsearched input,
+selected rows and reading positions are excluded. Open **Saved searches…**, select
+a definition and **Apply search** to run it against the current local archive,
+starting on page 1. Confirm replacement if you have an unsearched draft. The same
+definition may find different threads later. **Rename**, **Replace with applied
+search…** and **Delete search…** manage definitions; deleting one keeps the archive.
+
+### Reader groups
+
+In 1.0, open **Reader groups** (German: **Readergruppen**) from the app menu or
+Archive actions. Choose **Create group**, enter a name, find local threads by
+title or source/board/thread, select candidates and **Add threads**. **Move thread up**
+and **Move thread down** set the reading order; **Remove thread** changes membership. Choose
+**Save group** to keep the name, members and order in this profile. Save edits
+before **Read group**; otherwise the dialog asks whether to discard them.
+
+The reader follows the saved member order with its previous/next thread actions.
+Missing local posts are explained; **Read available** explicitly continues with
+readable members. Missing members stay in the group until you remove them.
+Closing the group reader returns to its manager. Groups organise local reading
+and start or change no watches, captures or downloads. Deleting a group removes
+its membership list. For the separate optional last reading position, see
+[local reading continuation](#images-search-and-navigation).
+
+### Post bookmarks and notes
+
+In 1.0, open a saved reader post's context menu and choose **Add / edit post
+bookmark…**. Enter an optional plain-text note and **Save bookmark**; an empty note
+also creates a bookmark. There is one bookmark and one note per post. Notes allow
+up to 8,000 Unicode codepoints; Enter inserts a line break. Closing or changing the
+selection asks before discarding changed text.
+
+Open **Post bookmarks** (German: **Post-Lesezeichen**) from the app menu or Archive,
+select an entry and choose **Open exact local post**. It opens that post's current
+local version; the bookmark does not keep a copy of its earlier text. Closing its
+reader returns to the overview. If the exact post is missing, the reference and
+your note remain editable, without a replacement post or a source request.
+**Remove bookmark…** removes the reference and its note after confirmation, keeping
+the archived post. [Permanent archive deletion](#permanently-deleting-archived-threads)
+keeps bookmarks and notes but can make their posts unavailable. Forgetting the
+last reading position does not remove bookmarks.
+
 Built-in image views support PNG, JPEG, GIF, WebP and BMP when the decoder accepts
 the file. Animated files show a still first frame. Image previews above 64 MiB
 or 80 million source pixels are refused by the gallery. Fit decoding is bounded to 16 million pixels; 1:1 may need substantially
@@ -241,6 +366,23 @@ organized by source, board and thread; existing files are not overwritten. The
 result reports copied, already-existing, missing, failed and cancelled items.
 This copies media files; use HTML export below when you want posts and a browser
 reading interface too.
+
+### Media ratings
+
+In 1.0, choose **Edit rating…** on a saved reader attachment, selected Archive
+medium or the gallery. Choose a whole value from 1 to 5: clicking saves it;
+with the keyboard, arrows choose and Enter saves. Escape closes without saving
+a pending keyboard choice. **Remove rating** returns the item to **Unrated**.
+The rating persists for that exact saved revision and is independent of its
+[favorite mark](#favorites-and-original-file-export); a replacement revision does
+not inherit it.
+
+In a thread's Archive media view, **Rating filter** offers **All ratings**,
+**Unrated** or **At least 1** through **At least 5**. A rating change can remove an
+item from that filtered view. This filters media within the thread, separately
+from the thread search above. Ratings do not alter saved files or download rules.
+Diagnostics → **Manage saved ratings…** lets you inspect stored entries and remove
+an individual rating, including one whose original is no longer available.
 
 ### Local video
 
@@ -300,6 +442,11 @@ count, size and paths before confirming. Cancel leaves everything unchanged.
 This removes captured posts, indexed search data, manifest-owned originals and
 versions, favorites and cached video posters. Watched boards keep these threads
 excluded; you can explicitly enable them again through board exclusions.
+
+In 1.0, reader-group memberships and post bookmarks with your notes remain;
+deleted posts become locally unavailable through them. Remove unwanted entries
+under **Reader groups** or **Post bookmarks**. Ratings for deleted media are
+cleaned up; if that fails, the deletion result offers **Retry rating cleanup**.
 
 Exports and unrelated files remain available. Directories shared with unselected
 archived threads or with unverifiable ownership block deletion. Changed files or

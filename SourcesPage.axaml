@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:ursa="https://irihi.tech/ursa"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
     <UserControl.Styles>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
@@ -59,7 +60,13 @@
                     </DataGrid>
                     <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />
                     <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
-                    <TextBlock x:Name="SourcesActionError" Classes="error" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" IsVisible="False" Focusable="False" />
+                        <TextBlock x:Name="SourcesOperationStatus" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" x:Name="SourcesActionErrorBanner" IsVisible="False">
+                        <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
+                    </ursa:Banner>
                 </StackPanel>
               </Border>
             </Grid>

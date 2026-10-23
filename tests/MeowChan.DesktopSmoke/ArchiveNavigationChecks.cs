@@ -40,12 +40,9 @@ internal static class ArchiveNavigationChecks
                 await fixture.ApplySearchAsync();
                 ListBox threads = fixture.FindControl<ListBox>("ArchiveThreads")!;
                 Require(threads.ItemCount == 1 && ((ArchiveThreadRow)threads.Items[0]!).Summary.Id == origin, "Post-text search failed.");
-                fixture.FindControl<TextBox>("ArchiveSourceFilter")!.Text = "8kun";
-                await fixture.ApplySearchAsync();
+                await fixture.ApplySearchSpecAsync(new ArchiveSearchSpec("navigationneedle", ["8kun"]));
                 Require(threads.ItemCount == 0, "Exact source filter was ignored.");
-                fixture.FindControl<TextBox>("ArchiveSourceFilter")!.Text = "4chan";
-                fixture.FindControl<TextBox>("ArchiveBoardFilter")!.Text = "g";
-                await fixture.ApplySearchAsync();
+                await fixture.ApplySearchSpecAsync(new ArchiveSearchSpec("navigationneedle", ["4chan"], [new("4chan", "g")]));
                 Require(threads.ItemCount == 1, "Combined search/filter failed.");
                 await fixture.LoadThreadAsync(origin);
                 ArchivePostRow originRow = fixture.FindControl<ListBox>("ArchivePosts")!.ItemsSource!.Cast<ArchivePostRow>().Single();

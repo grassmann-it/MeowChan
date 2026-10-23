@@ -7,8 +7,10 @@ using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
@@ -63,6 +65,7 @@ public partial class MainWindow
 
     private void InitializeShellPresentation()
     {
+        InitializeShortcutRouting();
         AddHandler(KeyDownEvent, OnShellKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         PositionChanged += OnShellPositionChanged;
         Resized += OnFullscreenRestoreResized;
@@ -76,6 +79,7 @@ public partial class MainWindow
 
     private void DisposeShellPresentation()
     {
+        DisposeShortcutRouting();
         RemoveHandler(KeyDownEvent, OnShellKeyDown);
         PositionChanged -= OnShellPositionChanged;
         Resized -= OnFullscreenRestoreResized;
@@ -291,6 +295,7 @@ public partial class MainWindow
             TraceFullscreen($"size property changed {e.Property.Name} old={e.OldValue} new={e.NewValue}");
         if (e.Property == WindowStateProperty)
         {
+            UpdateGalleryFullscreenPresentation();
             ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
             ContinuePendingFullscreenExitSizeRepair();
@@ -578,10 +583,15 @@ public partial class MainWindow
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
+        string activeContext = _largeReaderOpen ? "reader" : _selectedPage.ToString().ToLowerInvariant();
+        ids.AddRange(CommandCatalog.All.Where(command => command.IsImplemented
+            && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
+            && command.ShortcutDisplay != null).Select(command => command.Id));
         WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine,
             ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _))
                 .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
                     + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)));
+        WorkspaceControl<TextBlock>("ShellHelpText").Text += Environment.NewLine + Texts.T("viewer.help.escape");
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
         WorkspaceControl<Button>("ShellHelpClose").Focus();
@@ -602,15 +612,21 @@ public partial class MainWindow
 
     private void OnShellKeyDown(object? sender, KeyEventArgs e)
     {
+        if (ShortcutService.IsCapturing) return;
         if (e.Handled || _isClosing || !IsEnabled || HasVisibleShellDialog()) return;
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
             // Popups/editors own their first Escape; never cascade a handled key.
+            if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
                 (_archivePage?.TryDismissOverlay() ?? false))
             { e.Handled = true; return; }
             if (_archivePage?.IsReaderDialogOpen == true) return;
+            if (_selectedPage == WorkspacePage.Rules && _rulesPage?.TryDismissRuleDecision() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Plugins && _pluginsPage?.IsDiscardConfirmationOpen == true)
+            { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
@@ -622,12 +638,13 @@ public partial class MainWindow
             }
             return;
         }
-        if (e.Key == Key.F11 && e.KeyModifiers == KeyModifiers.None)
+        if (HasBlockingPageDecision()) return;
+        if (CommandBindings.Matches(e, "window.fullscreen"))
         {
             if (_archivePage?.IsReaderDialogOpen == true) return;
             e.Handled = true; ToggleFullscreen(); return;
         }
-        if (e.Key == Key.F1 && e.KeyModifiers == KeyModifiers.None && (_gallery == null || _gallerySuspended))
+        if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
         if (CanExecuteShellPowerCommand(e.Source))
@@ -661,27 +678,26 @@ public partial class MainWindow
                 return;
             }
         }
-        if (e.KeyModifiers != ListCommandModifier) return;
-        if (e.Key == Key.L)
+        if (CommandBindings.Matches(e, "input.focus-url"))
         {
             e.Handled = true;
             if (_gallery != null) CloseGallery(restoreOrigin: false);
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
             if (NavigateWorkspace(WorkspacePage.Downloads)) WorkspaceControl<TextBox>("UrlInput").Focus();
         }
-        else if (e.Key == Key.OemComma)
+        else if (CommandBindings.Matches(e, "navigation.settings"))
         {
             e.Handled = true;
             if (_gallery != null) CloseGallery(restoreOrigin: false);
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
             NavigateWorkspace(WorkspacePage.Settings);
         }
-        else if (e.Key == Key.F && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
     }
 
     internal bool CanExecuteShellPowerCommand(object? source) => _workspaceInitialized && _restoreCompleted
-        && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog()
+        && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
         && !IsNativeShortcutSource(source) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
         && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
@@ -693,6 +709,7 @@ public partial class MainWindow
 
     private void RefreshShellCommands()
     {
+        RefreshReaderGroupsEntry(); // URSA-12 shared localization/availability refresh.
         if (!_workspaceInitialized) return;
         CommandBindings.Apply(WorkspaceControl<Button>("FullscreenButton"), "window.fullscreen", iconOnly: true);
         WorkspaceControl<Button>("FullscreenButton").Content = CommandBindings.Icon("window.fullscreen", 16,

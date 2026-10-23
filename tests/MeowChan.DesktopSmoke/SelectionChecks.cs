@@ -299,6 +299,6 @@ internal static class SelectionChecks
         await Program.WaitUntilAsync(() => !help.IsVisible);
     }
 
-    private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
+    private static void Click(Control control) => SmokeActionClick.Execute(control);
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

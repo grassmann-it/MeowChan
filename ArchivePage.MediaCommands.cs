@@ -108,6 +108,24 @@ public partial class ArchivePage
         menu.Open(origin);
     }
 
+    private bool TryRouteArchiveMediaShortcut(Control owner, KeyEventArgs e)
+    {
+        if (e.Handled || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen) return false;
+        string[] ids = { "favorites.toggle", "media.export-original", "media.show-in-folder", "media.details", "gallery.show-in-thread" };
+        if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
+        if (_ended || !_available || _busy || _thread == null || _selectedThread == null) { e.Handled = true; return true; }
+        var ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
+        var attachmentView = ancestors.OfType<ArchiveAttachmentView>().FirstOrDefault();
+        var attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
+        var asset = ancestors.Select(c => c.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
+        if (asset == null && attachment == null && owner.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles") asset = SelectedMediaRow();
+        if (attachment != null) asset = FindMatchingAsset(attachment.Attachment, _assets);
+        if (asset == null && attachment == null) return false;
+        var origin = (Control?)attachmentView ?? owner;
+        string? postId = ancestors.Select(c => c.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId), e);
+    }
+
     private ContextMenu BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, Control origin, string? postId = null)
     {
         ContextMenu menu = new();
@@ -142,6 +160,8 @@ public partial class ArchivePage
             if (!available && reason != null) unavailable.Add(CommandCatalog.Label(id) + ": " + reason);
             menu.Items.Add(item);
         }
+        if (postId != null && EditPostBookmark != null)
+            menu.Items.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
         Add("gallery.open", async () =>
         {
             if (galleryTarget != null && OpenMediaGallery != null)
@@ -156,11 +176,15 @@ public partial class ArchivePage
             favorite.Header = Texts.T(IsArchiveFavorite?.Invoke(target) == true ? "viewer.favorite.remove" : "viewer.favorite.add");
             favorite.IsChecked = IsArchiveFavorite?.Invoke(target) == true;
             favorite.ToggleType = MenuItemToggleType.CheckBox;
-            favorite.InputGesture = null;
+            favorite.InputGesture = CommandBindings.Gesture("favorites.toggle");
             Avalonia.Automation.AutomationProperties.SetName(favorite, favorite.Header.ToString());
-            Avalonia.Automation.AutomationProperties.SetHelpText(favorite, favorite.Header.ToString());
-            ToolTip.SetTip(favorite, favorite.Header);
+            Avalonia.Automation.AutomationProperties.SetHelpText(favorite, CommandBindings.Tooltip("favorites.toggle"));
+            ToolTip.SetTip(favorite, CommandBindings.Tooltip("favorites.toggle"));
         }
+        Add("media.rating.edit", async () =>
+        {
+            if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target);
+        }, saved && EditMediaRatingAsync != null && _mediaRatingError == null, _mediaRatingError ?? missing);
         Add("media.export-original", async () =>
         {
             if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);

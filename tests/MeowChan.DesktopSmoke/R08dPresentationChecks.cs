@@ -186,7 +186,7 @@ internal static class R08dPresentationChecks
         finally { Directory.Delete(profile, recursive: true); }
     }
 
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static void Click(Button button) => SmokeActionClick.Execute(button);
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
     private static bool FitsWindow(Window window, Control control)
     {

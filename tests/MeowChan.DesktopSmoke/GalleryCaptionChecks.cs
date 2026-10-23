@@ -81,9 +81,20 @@ internal static class GalleryCaptionChecks
         bool outsideMediaWidth = contextOpen && viewport.IsVisible && infoBounds.Intersects(viewportBounds)
             && (infoBounds.Left < viewportBounds.Left || infoBounds.Right > viewportBounds.Right);
         Button? readPost = viewer.GetGalleryVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "GalleryReadPost");
-        bool actionOverlap = contextOpen && readPost != null && infoBounds.Intersects(Bounds(readPost, viewer));
+        Rect actionBounds = readPost == null ? default : Bounds(readPost, viewer);
+        Rect visibleActionBounds = readPost == null ? default : VisibleBounds(readPost, viewer);
+        string[] actionClips = readPost == null ? Array.Empty<string>() : readPost.GetVisualAncestors()
+            .OfType<Control>().Where(control => control.ClipToBounds)
+            .Select(control => control.GetType().Name + ": " + Bounds(control, viewer)).ToArray();
+        bool rawActionOverlap = contextOpen && readPost != null && infoBounds.Intersects(actionBounds);
+        // A scrolled-out action can have layout bounds underneath the caption,
+        // while the ScrollContentPresenter clips every one of those pixels.
+        bool actionOverlap = contextOpen && visibleActionBounds.Width > 0 && visibleActionBounds.Height > 0
+            && infoBounds.Intersects(visibleActionBounds);
         Console.WriteLine("SMOKE gallery caption geometry: " + JsonSerializer.Serialize(new { video, theme, width, state,
-            contextOpen, contextOverlap, actionOverlap, outsideMediaWidth, info = infoBounds.ToString(), context = contextBounds.ToString(),
+            contextOpen, contextOverlap, actionOverlap, rawActionOverlap,
+            action = actionBounds.ToString(), visibleAction = visibleActionBounds.ToString(), actionClips,
+            outsideMediaWidth, info = infoBounds.ToString(), context = contextBounds.ToString(),
             viewport = viewportBounds.ToString(), info.Margin, window.RenderScaling,
             transportInset = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().FirstOrDefault()?.TransportBottomInset }));
         Program.CaptureWindow(window, $"smoke-gallery-caption-{(video ? "video" : "image")}-{theme.ToLowerInvariant()}-{width}-{contextOpen}-{state}.png");
@@ -100,8 +111,19 @@ internal static class GalleryCaptionChecks
         {
             scroll.ScrollToEnd();
             window.UpdateLayout();
-            if (readPost == null || !readPost.IsEffectivelyVisible || Bounds(readPost, viewer).Bottom > contextBounds.Bottom
-                || infoBounds.Intersects(Bounds(readPost, viewer)))
+            Rect reachedAction = readPost == null ? default : Bounds(readPost, viewer);
+            Rect reachedVisibleAction = readPost == null ? default : VisibleBounds(readPost, viewer);
+            Console.WriteLine("SMOKE gallery caption action after scroll: " + JsonSerializer.Serialize(new
+            {
+                video, theme, width, state, action = reachedAction.ToString(),
+                visibleAction = reachedVisibleAction.ToString(), context = contextBounds.ToString(),
+                offset = scroll.Offset.ToString(), viewport = scroll.Viewport.ToString(), extent = scroll.Extent.ToString()
+            }));
+            if (readPost == null || !readPost.IsEffectivelyVisible || reachedAction.Bottom > contextBounds.Bottom
+                || infoBounds.Intersects(reachedAction)
+                || reachedVisibleAction.Width <= 0 || reachedVisibleAction.Height <= 0
+                || reachedVisibleAction.Left > reachedAction.Left || reachedVisibleAction.Top > reachedAction.Top
+                || reachedVisibleAction.Right < reachedAction.Right || reachedVisibleAction.Bottom < reachedAction.Bottom)
                 throw new InvalidOperationException("Show in thread cannot be reached clear of the gallery caption.");
             scroll.ScrollToHome();
         }
@@ -202,6 +224,18 @@ internal static class GalleryCaptionChecks
     }
     private static T Find<T>(GalleryViewer viewer, string name) where T : Control =>
         viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
+    private static Rect VisibleBounds(Control control, Control root)
+    {
+        if (!control.IsEffectivelyVisible) return default;
+        Rect visible = Bounds(control, root);
+        foreach (Control ancestor in control.GetVisualAncestors().OfType<Control>())
+        {
+            if (ancestor.ClipToBounds) visible = visible.Intersect(Bounds(ancestor, root));
+            if (ReferenceEquals(ancestor, root)) break;
+        }
+        return visible;
+    }
+
     private static Rect Bounds(Control control, Control root)
     {
         if (control.TranslatePoint(default, root) is Point translated) return new Rect(translated, control.Bounds.Size);

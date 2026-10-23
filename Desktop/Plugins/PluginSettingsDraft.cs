@@ -15,9 +15,31 @@ internal sealed class PluginSettingsDraft
     internal SettingsSchema Schema { get; }
     internal SettingScope Scope { get; }
     internal bool Dirty { get; private set; }
+    internal long EditGeneration { get; private set; }
     internal event Action? Changed;
+    private Dictionary<string, string> _initialText = new(StringComparer.Ordinal);
+    private HashSet<string> _initialSet = new(StringComparer.Ordinal);
+    private HashSet<string> _initialIncompatible = new(StringComparer.Ordinal);
+    internal bool HasDiscardableChanges => !_set.SetEquals(_initialSet) || !_incompatible.SetEquals(_initialIncompatible)
+        || _text.Count != _initialText.Count || _text.Any(pair => !_initialText.TryGetValue(pair.Key, out string? text) || text != pair.Value);
+    internal void CaptureInitialState()
+    {
+        _initialText = new(_text, StringComparer.Ordinal); _initialSet = new(_set, StringComparer.Ordinal);
+        _initialIncompatible = new(_incompatible, StringComparer.Ordinal);
+    }
+    internal PluginSettingsDraft DeepClone()
+    {
+        PluginSettingsDraft copy = new(Schema, Scope, null);
+        copy._text.Clear(); foreach (var pair in _text) copy._text.Add(pair.Key, pair.Value);
+        copy._set.Clear(); copy._set.UnionWith(_set); copy._incompatible.Clear(); copy._incompatible.UnionWith(_incompatible);
+        copy._initialText = new(_initialText, StringComparer.Ordinal); copy._initialSet = new(_initialSet, StringComparer.Ordinal);
+        copy._initialIncompatible = new(_initialIncompatible, StringComparer.Ordinal); copy.Dirty = Dirty; copy.EditGeneration = EditGeneration;
+        return copy;
+    }
+    internal string EditorFingerprint => string.Join("|", _text.OrderBy(p => p.Key, StringComparer.Ordinal)
+        .Select(p => p.Key.Length + ":" + p.Key + ":" + p.Value.Length + ":" + p.Value + ":" + _set.Contains(p.Key) + ":" + _incompatible.Contains(p.Key)));
 
-    internal PluginSettingsDraft(SettingsSchema schema, SettingScope scope, SettingsSnapshot? saved)
+    internal PluginSettingsDraft(SettingsSchema schema, SettingScope scope, SettingsSnapshot? saved, bool applyDefaults = true)
     {
         Schema = schema;
         Scope = scope;
@@ -33,7 +55,7 @@ internal sealed class PluginSettingsDraft
         }
         foreach (SettingDefinition field in schema.Fields)
         {
-            SettingValue? value = saved?.Values.FirstOrDefault(value => value.Key == field.Key) ?? field.Default;
+            SettingValue? value = saved?.Values.FirstOrDefault(value => value.Key == field.Key) ?? (applyDefaults ? field.Default : null);
             if (value == null) continue;
             _set.Add(field.Key);
             if (value.Kind != field.Kind) _incompatible.Add(field.Key);
@@ -44,6 +66,8 @@ internal sealed class PluginSettingsDraft
                 _ => value.Text ?? string.Empty
             };
         }
+        foreach (SettingDefinition field in schema.Fields) _text.TryAdd(field.Key, string.Empty);
+        CaptureInitialState();
     }
 
     internal IReadOnlyDictionary<string, string> UnmappedValues => _text.Where(pair => !Schema.Fields.Any(definition => definition.Key == pair.Key))
@@ -51,9 +75,9 @@ internal sealed class PluginSettingsDraft
     internal void AcknowledgeRemovedFields()
     {
         foreach (string key in UnmappedValues.Keys) { _text.Remove(key); _set.Remove(key); }
-        Dirty = true; Changed?.Invoke();
+        Dirty = true; EditGeneration++; Changed?.Invoke();
     }
-    internal void SetInitialText(string key, string text) { _text[key] = text; _set.Add(key); }
+    internal void SetInitialText(string key, string text) { _text[key] = text; _set.Add(key); _initialText[key] = text; _initialSet.Add(key); }
     internal string Text(string key) => _text.GetValueOrDefault(key) ?? string.Empty;
     internal bool IsSet(string key) => _set.Contains(key);
     internal void Set(string key, string value, bool isSet = true)
@@ -62,7 +86,7 @@ internal sealed class PluginSettingsDraft
         _incompatible.Remove(key);
         _text[key] = value;
         if (isSet) _set.Add(key); else _set.Remove(key);
-        Dirty = true;
+        Dirty = true; EditGeneration++;
         Changed?.Invoke();
     }
 

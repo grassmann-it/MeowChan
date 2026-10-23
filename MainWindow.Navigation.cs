@@ -44,11 +44,16 @@ public partial class MainWindow
             if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
             await Clipboard.SetTextAsync(text);
         }, _session.RequestCheckAsync, _session.CanRequestCheck);
+        _diagnosticsPage.AttachFeedback(_feedback);
+        _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         this.FindControl<ContentControl>("DiagnosticsPageHost")!.Content = _diagnosticsPage;
         _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
+        _rulesPage.GetSuggestionContexts = GetRuleSuggestionContexts;
+        _rulesPage.AttachTemplateServices(_session.LoadRuleTemplatesAsync, _session.SaveRuleTemplatesAsync);
         _rulesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
-        _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, OpenDirectory);
+        _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
+        _archivePage.AttachSavedSearches(_session);
         _archivePage.ExportHistory = _session.ExportHistory;
         _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
@@ -103,6 +108,10 @@ public partial class MainWindow
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
         _archivePage.GetFavorites = _session.GetFavorites;
+        _archivePage.GetMediaRating = _session.GetMediaRating;
+        _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;
+        _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
+        _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
         _archivePage.ToggleArchiveFavoriteAsync = async entry =>
         {
@@ -138,6 +147,7 @@ public partial class MainWindow
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         this.FindControl<ContentControl>("ArchivePageHost")!.Content = _archivePage;
         InitializeReadingResume();
+        InitializePostBookmarks();
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
         {
             if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
@@ -176,6 +186,7 @@ public partial class MainWindow
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
+        if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
         this.FindControl<Grid>("WorkspaceBody")!.IsVisible = page == WorkspacePage.Downloads;
         this.FindControl<ContentControl>("SettingsPageHost")!.IsVisible = page == WorkspacePage.Settings;
@@ -319,6 +330,15 @@ public partial class MainWindow
         // neither a snapshot nor a rebuilt presentation for background progress.
         if (_selectedPage != WorkspacePage.Diagnostics) return;
         _diagnosticsPage?.Refresh(view ?? _session.GetView(), !WorkspaceCommandBusy);
+    }
+
+    private System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardIdentity> GetRuleSuggestionContexts()
+    {
+        // Enumerate passive session snapshots without keeping another watch-object cache.
+        var view = _session.GetView();
+        foreach (var item in view.Threads) yield return new(item.Snapshot.Id.Source, item.Snapshot.Id.Board);
+        foreach (var item in view.Boards) yield return new(item.Snapshot.Id.Source, item.Snapshot.Id.Board);
+        foreach (var item in _session.GetProviderDescriptors()) yield return new(item.SourceId, "");
     }
 
     private void RefreshSourcesPage(DesktopSessionView? view = null)

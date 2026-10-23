@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MeowChan.PostBookmarksDialog" Width="680" Height="620" MinWidth="360" MinHeight="380"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,2*,Auto,Auto" RowSpacing="8">
+        <TextBlock x:Name="Intro" TextWrapping="Wrap" />
+        <ListBox x:Name="Bookmarks" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <TextBlock x:Name="Target" Grid.Row="2" TextWrapping="Wrap" />
+        <TextBlock x:Name="NoteLabel" Grid.Row="3" TextWrapping="Wrap" />
+        <TextBox x:Name="Note" Grid.Row="4" AcceptsReturn="True" TextWrapping="Wrap" />
+        <TextBlock x:Name="Status" Grid.Row="5" TextWrapping="Wrap" Focusable="True" />
+        <WrapPanel Grid.Row="6" HorizontalAlignment="Right">
+            <Button x:Name="Reload" Margin="3" />
+            <Button x:Name="OpenTarget" Margin="3" />
+            <Button x:Name="Remove" Margin="3" />
+            <Button x:Name="Save" Margin="3" />
+            <Button x:Name="Cancel" Margin="3" />
+        </WrapPanel>
+    </Grid>
+</Window>

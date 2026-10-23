@@ -15,9 +15,14 @@ public partial class ArchivePage
         || query.SourceState != null || query.CaptureEnabled != null || query.HasPosts != null
         || workFilter != 0;
 
+    internal static bool HasArchiveConstraints(ArchiveSearchSpec spec) =>
+        !string.IsNullOrWhiteSpace(spec.Text) || spec.Sources.Count > 0 || spec.Boards.Count > 0
+        || spec.SourceStates.Count > 0 || spec.CaptureEnabled != null || spec.HasPosts != null
+        || spec.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All || spec.DateRange != null;
+
     private void UpdateArchiveEmptyState()
     {
-        bool constrained = HasArchiveConstraints(_query, _workFilter);
+        bool constrained = HasArchiveConstraints(_query);
         Control<StackPanel>("ArchiveEmptyState").IsVisible = _listLoaded && _listTotal == 0;
         Control<TextBlock>("ArchiveEmpty").Text = Texts.T(constrained ? "archive.noResults" : "archive.empty");
         Button reset = Control<Button>("ArchiveResetFilters");
@@ -28,12 +33,10 @@ public partial class ArchivePage
     private async void OnResetArchiveFiltersClick(object? sender, RoutedEventArgs e)
     {
         if (_busy || _ended || !_available) return;
-        foreach (string name in new[] { "ArchiveSearchText", "ArchiveSourceFilter", "ArchiveBoardFilter" })
-            Control<TextBox>(name).Text = string.Empty;
-        foreach (string name in new[] { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter" })
-            Control<ComboBox>(name).SelectedIndex = 0;
-        // Sorting does not restrict results. Preserve it and use the normal explicit search path.
-        await ApplySearchAsync();
+        ArchiveSearchSpec reset = new(sort: _query.Sort);
+        WriteSearchDraft(reset);
+        _showReader = false; UpdateLayoutMode();
+        await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(reset)));
         Control<TextBox>("ArchiveSearchText").Focus();
     }
 }

@@ -6,7 +6,7 @@
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
         Title="MeowChan" Icon="avares://MeowChan/Assets/meowchan.png" TextOptions.TextRenderingMode="Antialias">
     <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
-        <Border Classes="shell-bar" BorderThickness="0,0,0,1">
+        <Border x:Name="WorkspaceTitleBarFrame" Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
                 <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
@@ -39,6 +39,8 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <MenuItem x:Name="WorkspaceMenuItem" Header="⋯">
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
+                            <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
+                            <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem x:Name="PluginsMenuItem" Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
                             <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
@@ -68,14 +70,21 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <Grid x:Name="WorkspacePages" Grid.Row="1">
-        <Grid x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
+        <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,*">
+        <ursa:Banner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="20,8,20,0">
+            <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
+                <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
+                <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left"><TextBlock Tag="feedback.open" Classes="localized" /></Button>
+            </Grid>
+        </ursa:Banner>
+        <Grid Grid.Row="1" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
             <Grid x:Name="WorkspaceHeading" ColumnDefinitions="*,Auto" ColumnSpacing="16">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
                 <TextBlock Grid.Column="1" Tag="shell.supported" Classes="localized muted" Text="4chan · 8kun" VerticalAlignment="Center" />
             </Grid>
-            <Border x:Name="WorkspaceIntakeCard" Grid.Row="1" Classes="panel" Padding="12,10">
-                <StackPanel Spacing="7">
+            <ScrollViewer x:Name="WorkspaceIntakeScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+            <Border x:Name="WorkspaceIntakeCard" Classes="panel" Padding="12,10">
+                <StackPanel x:Name="WorkspaceIntakeStack" Spacing="7">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox x:Name="UrlInput" PlaceholderText="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
                                  MinHeight="36" MaxHeight="72" VerticalContentAlignment="Center" />
@@ -96,9 +105,10 @@
                     </Border>
                 </StackPanel>
             </Border>
+            </ScrollViewer>
             <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
                 <Border x:Name="DownloadsPanel" Classes="panel" ClipToBounds="True">
-                    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*">
                         <TabControl x:Name="DownloadsTabs" MinHeight="38" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
                             <TabControl.Styles>
                                 <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="12" /></Style>
@@ -244,14 +254,13 @@
                                                VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"
                                                MaxWidth="360" Margin="28" TextWrapping="Wrap" IsHitTestVisible="False" />
                                 </Grid>
-                        <StackPanel x:Name="WorkspaceListActions" Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,8,0">
-                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" FontSize="12" />
-                            <Button x:Name="DownloadsMoreButton" Classes="localized subtle" Tag="downloads.more" Click="OnDownloadsMoreClick" FontSize="12" IsVisible="False" />
-                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" Click="OnDownloadsColumnsClick" FontSize="12" />
-                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" FontSize="12" />
-                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" FontSize="12" />
-                        </StackPanel>
+                        <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">
+                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="12" />
+                            <Button x:Name="DownloadsColumnsButton" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="12" />
+                            <Button x:Name="CopyAllUrlsButton" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="12" />
+                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="12" />
+                        </desktop:ActionToolBar>
                         <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
                             <TextBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                             <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
@@ -326,12 +335,12 @@
                 </Border>
             </Grid>
         </Grid>
-        <ContentControl x:Name="SettingsPageHost" IsVisible="False" />
-        <ContentControl x:Name="DiagnosticsPageHost" IsVisible="False" />
-        <ContentControl x:Name="RulesPageHost" IsVisible="False" />
-        <ContentControl x:Name="ArchivePageHost" IsVisible="False" />
-        <ContentControl x:Name="SourcesPageHost" IsVisible="False" />
-        <ContentControl x:Name="PluginsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="SettingsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="DiagnosticsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="RulesPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="ArchivePageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="SourcesPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="1" x:Name="PluginsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">

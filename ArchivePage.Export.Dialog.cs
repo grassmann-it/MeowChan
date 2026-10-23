@@ -24,6 +24,7 @@ public partial class ArchivePage
     {
         Control<Border>("ArchiveExportDialog").IsVisible = true;
         ResizeExportDialog();
+        if (_exportCard != null) MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(_exportCard);
         if (_exportTopLevel != null) return;
         TopLevel? top = _exportTopLevel = TopLevel.GetTopLevel(Control<Border>("ArchiveExportDialog")) ?? TopLevel.GetTopLevel(this);
         top?.AddHandler(PointerPressedEvent, ExportModalPointer, RoutingStrategies.Tunnel);
@@ -31,6 +32,11 @@ public partial class ArchivePage
     }
     private void EndExportDialog()
     {
+        if (_exportCard != null)
+        {
+            Control<Ursa.Controls.LoadingIcon>("ArchiveExportLoading").IsLoading = false;
+            Control<Ursa.Controls.LoadingIcon>("ArchiveExportLoading").IsVisible = false;
+        }
         _exportLookupCancellation?.Cancel();
         _exportTopLevel?.RemoveHandler(PointerPressedEvent, ExportModalPointer);
         _exportTopLevel?.RemoveHandler(KeyDownEvent, ExportModalKey);
@@ -74,7 +80,17 @@ public partial class ArchivePage
         content.Children.Add(ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination"));
         Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
-        content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportStatus"));
+        StackPanel statusLine = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        statusLine.Children.Add(ExportName(new Ursa.Controls.LoadingIcon { Width = 16, Height = 16, IsVisible = false, Focusable = false }, "ArchiveExportLoading"));
+        TextBlock status = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportStatus");
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(status, Avalonia.Automation.AutomationLiveSetting.Polite);
+        statusLine.Children.Add(status); content.Children.Add(statusLine);
+        TextBlock error = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportError");
+        error.Classes.Add("error");
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(error, Avalonia.Automation.AutomationLiveSetting.Assertive);
+        content.Children.Add(ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
+            CanClose = false, IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner"));
         Grid body = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 10 };
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         body.Children.Add(fixedScope);

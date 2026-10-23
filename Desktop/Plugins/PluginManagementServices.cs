@@ -95,6 +95,8 @@ internal sealed class PluginConfigurationDraft
         _migrationAcknowledged = true; Plugin.AcknowledgeRemovedFields();
         foreach (PluginSettingsDraft draft in Sources.Values) draft.AcknowledgeRemovedFields();
     }
+    internal long EditGeneration => Plugin.EditGeneration + Sources.Values.Sum(draft => draft.EditGeneration);
+    internal bool HasDiscardableChanges => _migrationAcknowledged || Plugin.HasDiscardableChanges || Sources.Values.Any(draft => draft.HasDiscardableChanges);
     internal bool Dirty => _migrationAcknowledged || Plugin.Dirty || Sources.Values.Any(draft => draft.Dirty);
     internal PluginConfigurationDraft(PluginCatalogEntry entry, long revision)
     {

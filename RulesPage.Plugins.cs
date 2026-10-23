@@ -35,6 +35,9 @@ public partial class RulesPage
         {
             PluginProfileSnapshot profile = await _pluginServices.ProfileStore.ReadAsync(_filterLifetime.Token);
             if (_ended) return;
+            if (_pluginProfile?.Revision != profile.Revision)
+                foreach (RuleDraft draft in _drafts.Values)
+                    if (draft.TemplateUndo != null) { draft.TemplateUndo = null; draft.TemplateUndoInvalidated = true; }
             _pluginProfile = profile; _filterRenderedDraft = null; RefreshFilterEditor();
         }
         catch (OperationCanceledException) { }
@@ -94,7 +97,7 @@ public partial class RulesPage
             if (_draft.FilterParameters == null)
             {
                 _draft.FilterParameters = CreateRuleParametersDraft(selectedFilter.Filter.Settings, _draft.ImageFilter.Parameters);
-                _draft.FilterParameters.Changed += () => { _draft.FilterValidationErrors = Array.Empty<FieldValidationError>(); DraftChanged(); };
+                BindFilterParameterChanges(_draft);
             }
             if (_draft.ImageFilter.SchemaVersion != selectedFilter.Filter.Settings.Version && !_draft.FilterSchemaAcknowledged)
             {
@@ -104,12 +107,24 @@ public partial class RulesPage
                 accept.Click += (_, _) => { _draft.FilterSchemaAcknowledged = true; _draft.FilterParameters.AcknowledgeRemovedFields(); _filterRenderedDraft = null; DraftChanged(); };
                 panel.Children.Add(accept);
             }
-            _filterEditor = new(_draft.FilterParameters); _filterEditor.ShowErrors(_draft.FilterValidationErrors); panel.Children.Add(_filterEditor);
+            BindFilterParameterChanges(_draft);
+            _filterEditor = new(_draft.FilterParameters, FilterScopeIdentity(_draft.Scope)); _filterEditor.ShowErrors(_draft.FilterValidationErrors); panel.Children.Add(_filterEditor);
             panel.Children.Add(FilterLabel(selectedFilter.Filter.Description));
             panel.Children.Add(FilterLabel(Texts.T("plugins.filterFormats", string.Join(", ", selectedFilter.Filter.SupportedMimeTypes))));
             AddGrantControls(panel, selectedFilter);
         }
         finally { _filterRefreshing = false; }
+    }
+    private void BindFilterParameterChanges(RuleDraft draft)
+    {
+        if (draft.FilterParameters == null || ReferenceEquals(draft.BoundFilterParameters, draft.FilterParameters)) return;
+        draft.BoundFilterParameters = draft.FilterParameters;
+        draft.FilterParameters.Changed += () =>
+        {
+            draft.FilterValidationErrors = Array.Empty<FieldValidationError>();
+            if (ReferenceEquals(draft, _draft)) DraftChanged();
+            else { draft.Dirty = true; draft.Generation++; draft.TemplateUndo = null; }
+        };
     }
     private FilterChoice[] FilterChoices() => (_pluginProfile?.Plugins ?? Array.Empty<MeowChan.PluginHost.Activation.PluginActivationSnapshot>())
         .Where(plugin => plugin.Active != null).SelectMany(plugin => plugin.Active!.Description.Filters.Select(filter => new FilterChoice(plugin.PluginId, filter,
@@ -125,17 +140,19 @@ public partial class RulesPage
             else if (field.Kind == SettingKind.Boolean && bool.TryParse(text, out bool boolean)) saved.Add(new(field.Key, field.Kind, Boolean: boolean));
             else if (field.Kind is SettingKind.Text or SettingKind.Enum or SettingKind.Uri) saved.Add(new(field.Key, field.Kind, Text: text));
         }
-        PluginSettingsDraft draft = new(schema, SettingScope.FilterRule, new(schema.Version, saved));
+        PluginSettingsDraft draft = new(schema, SettingScope.FilterRule, new(schema.Version, saved), applyDefaults: false);
         foreach ((string key, string text) in parameters) draft.SetInitialText(key, text);
         return draft;
     }
-    private MediaImageFilterRule BuildImageFilter()
+    private MediaImageFilterRule BuildImageFilter() => BuildImageFilter(_draft);
+    private MediaImageFilterRule BuildImageFilter(RuleDraft draft)
     {
-        if (_draft.ImageFilter.Mode != MediaImageFilterMode.Plugin || _draft.FilterParameters == null) return _draft.ImageFilter;
-        if (_draft.ImageFilter.SchemaVersion != _draft.FilterParameters.Schema.Version && !_draft.FilterSchemaAcknowledged)
+        if (draft.ImageFilter.Mode != MediaImageFilterMode.Plugin || draft.FilterParameters == null) return draft.ImageFilter;
+        if (draft.ImageFilter.SchemaVersion != draft.FilterParameters.Schema.Version && !draft.FilterSchemaAcknowledged)
             throw new RuleInputException("plugins.invalidFilterSettings");
-        SettingsSnapshot settings = _draft.FilterParameters.Snapshot(out IReadOnlyList<FieldValidationError> errors);
-        _filterEditor?.ShowErrors(errors.Concat(_draft.FilterValidationErrors).ToArray());
+        SettingsSnapshot settings = draft.FilterParameters.Snapshot(out IReadOnlyList<FieldValidationError> errors);
+        draft.FilterValidationErrors = errors.Concat(draft.FilterValidationErrors.Where(error => !errors.Contains(error))).ToArray();
+        if (ReferenceEquals(draft, _draft)) _filterEditor?.ShowErrors(draft.FilterValidationErrors);
         if (errors.Count > 0) throw new RuleInputException("plugins.invalidFilterSettings");
         Dictionary<string, string> parameters = settings.Values.ToDictionary(value => value.Key, value => value.Kind switch
         {
@@ -143,7 +160,7 @@ public partial class RulesPage
             SettingKind.Boolean => value.Boolean == true ? "true" : "false",
             _ => value.Text!
         }, StringComparer.Ordinal);
-        return new(MediaImageFilterMode.Plugin, _draft.ImageFilter.PluginId, _draft.ImageFilter.FilterKey, settings.SchemaVersion, parameters);
+        return new(MediaImageFilterMode.Plugin, draft.ImageFilter.PluginId, draft.ImageFilter.FilterKey, settings.SchemaVersion, parameters);
     }
     private async Task<bool> ValidateRuleFilterAsync(MediaRule rule)
     {
@@ -155,7 +172,7 @@ public partial class RulesPage
         {
             // Existing unavailable references can be retained while other rule fields are edited.
             if (FindRule(_draft.Baseline, _draft.Scope) is { } previous && ImageFiltersEqual(previous.ImageFilter, rule.ImageFilter)) return true;
-            _operationErrorKey = "plugins.noFilters"; return false;
+            _operationErrorKey = "plugins.noFilters"; FocusFilterSettingError(); return false;
         }
         PluginSettingsDraft parameters = CreateRuleParametersDraft(filter.Settings, rule.ImageFilter.Parameters);
         SettingsSnapshot settings = parameters.Snapshot(out IReadOnlyList<FieldValidationError> errors);
@@ -170,6 +187,7 @@ public partial class RulesPage
         _filterEditor?.ShowErrors(errors);
         _operationErrorKey = "plugins.invalidFilterSettings";
         _operationErrorDetail = string.Join("; ", errors.Select(error => error.Message));
+        FocusFilterSettingError();
         return false;
     }
     private static bool ImageFiltersEqual(MediaImageFilterRule first, MediaImageFilterRule second) => first.Mode == second.Mode

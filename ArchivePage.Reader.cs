@@ -16,6 +16,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 
@@ -47,7 +48,10 @@ public partial class ArchivePage
     private void InitializeReaderInteraction()
     {
         foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
+        {
+            CommandBindings.BindExisting(media, "media.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
+        }
         Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
         ListBox posts = Control<ListBox>("ArchivePosts");
         posts.SelectionChanged += (_, _) =>
@@ -55,6 +59,7 @@ public partial class ArchivePage
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
             UpdateReaderNavigation();
         };
+        posts.AddHandler(KeyDownEvent, (_, e) => TryRouteArchiveMediaShortcut(posts, e), RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
@@ -174,20 +179,17 @@ public partial class ArchivePage
     internal async Task FreezeReaderScopeAsync()
     {
         int request = ++_readerScopeRequest;
-        ArchiveThreadQuery query = _query;
+        ArchiveSearchRequest query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
         int filter = _workFilter;
-        var work = GetWorkSnapshots?.Invoke().GroupBy(item => item.Url, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        IReadOnlySet<string>? eligibleUrls = CaptureExportWorkUrls(filter,
+            GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>());
         try
         {
             if (_openReader == null) return;
             IReadOnlyList<ResourceId> ids = await Task.Run(async () =>
             {
                 await using ArchiveReader reader = await _openReader(_lifetime.Token);
-                if (filter == 0) return await reader.SelectThreadIdsAsync(query, _lifetime.Token);
-                var summaries = await reader.SelectThreadSummariesAsync(query, _lifetime.Token);
-                return (IReadOnlyList<ResourceId>)summaries.Where(summary => WorkMatches(work?.GetValueOrDefault(summary.Url), filter))
-                    .Select(summary => summary.Id).ToArray();
+                return (IReadOnlyList<ResourceId>)await ResolveExportResultIdsAsync(reader, query, eligibleUrls, _lifetime.Token);
             }, _lifetime.Token);
             if (_largeReader && request == _readerScopeRequest) { _readerThreads = ids; UpdateReaderNavigation(); }
         }
@@ -217,8 +219,9 @@ public partial class ArchivePage
         int thread = ReaderThreadIndex;
         Control<Button>("ReaderPreviousPost").IsEnabled = !_busy && post > 0;
         Control<Button>("ReaderNextPost").IsEnabled = !_busy && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
-        Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && thread > 0;
-        Control<Button>("ReaderNextThread").IsEnabled = !_busy && thread >= 0 && thread + 1 < _readerThreads.Count;
+        Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
+        Control<Button>("ReaderNextThread").IsEnabled = !_busy && thread >= 0 && thread + 1 < _readerThreads.Count
+            && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
         Control<WrapPanel>("ReaderNavigation").IsVisible = _largeReader;
         UpdateReaderNavigationLayout();
     }
@@ -252,7 +255,7 @@ public partial class ArchivePage
 
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || !_largeReader || IsReaderDialogOpen) return;
+        if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
         if (e.Source is Visual source)
         {
             if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;
@@ -260,14 +263,14 @@ public partial class ArchivePage
                 .Any(text => text.SelectionStart != text.SelectionEnd)) return;
         }
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-        if (e.KeyModifiers == primary && e.Key == Key.E && _thread != null)
+        if (CommandBindings.Matches(e, "export.open-html-dialog") && _thread != null)
         {
             if (_busy || _ended) return;
             e.Handled = true;
             await OpenExportForThreadsAsync(new[] { _thread.Summary.Id }, e.Source as Control);
             return;
         }
-        if (e.KeyModifiers == KeyModifiers.Shift && e.Key == Key.Enter && _thread != null && OpenGallery != null)
+        if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
             if (_busy || _ended) return;
             // Buttons and native editors retain their activation gestures.
@@ -276,11 +279,10 @@ public partial class ArchivePage
             await OpenGallery(_thread.Summary.Id, null, e.Source as Control);
             return;
         }
-        if (e.KeyModifiers != KeyModifiers.None) return;
-        if (e.Key == Key.Escape) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (ReaderArrowBelongsToNativeControl(e.Source)) return;
-        int post = e.Key == Key.Up ? -1 : e.Key == Key.Down ? 1 : 0;
-        int thread = e.Key == Key.Left ? -1 : e.Key == Key.Right ? 1 : 0;
+        int post = CommandBindings.Matches(e, "reader.previous-post") ? -1 : CommandBindings.Matches(e, "reader.next-post") ? 1 : 0;
+        int thread = CommandBindings.Matches(e, "reader.previous-thread") ? -1 : CommandBindings.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return;
         e.Handled = true;
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
@@ -304,10 +306,16 @@ public partial class ArchivePage
         ++_readerInteractionRevision;
         if (threadDelta != 0)
         {
-            int index = ReaderThreadIndex + threadDelta;
+            // URSA-12 shared navigation hook; only explicitly skipped missing members are omitted.
+            int index = _readerGroupScope ? ReaderGroupTargetIndex(threadDelta) : ReaderThreadIndex + threadDelta;
             if (ReaderThreadIndex < 0 || index < 0 || index >= _readerThreads.Count) return;
             ResourceId target = _readerThreads[index];
-            await LoadThreadAsync(target);
+            if (_readerGroupScope)
+            {
+                _readerGroupFailedDirection = threadDelta;
+                if (!await LoadReaderGroupThreadAsync(target)) return;
+            }
+            else await LoadThreadAsync(target);
             if (!_largeReader || _ended || _thread?.Summary.Id != target) return;
             _readerPostId = null;
             string? first = _thread?.GetPosts(0, 1).FirstOrDefault()?.PostId;

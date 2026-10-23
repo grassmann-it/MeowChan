@@ -11,6 +11,34 @@ public static class CommandCatalog
 {
     private static readonly CommandDefinition[] Entries =
     {
+        new("sections.open-navigation", "command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "list", null, CommandScope.Settings, new[] { "settings", "plugins" }),
+        new("sections.go-to", "command.sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "arrow-right", null, CommandScope.Settings, new[] { "settings-sections", "plugins-sections" }),
+        new("reader.skip-unavailable-group-member", "command.reader.skip-unavailable-group-member", "Skip unavailable member", "Fehlendes Mitglied überspringen", "arrow-right", null, CommandScope.Reader, new[] { "large-reader-navigation" }),
+        new("reader-groups.open-manager", "command.reader-groups.open-manager", "Reader groups", "Readergruppen", "file-text", null, CommandScope.Application, new[] { "shell" }),
+        new("reader-groups.create", "command.reader-groups.create", "Create group", "Gruppe erstellen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.rename", "command.reader-groups.rename", "Rename group", "Gruppe umbenennen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.delete", "command.reader-groups.delete", "Delete group", "Gruppe löschen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.add-members", "command.reader-groups.add-members", "Add threads", "Threads hinzufügen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.remove-member", "command.reader-groups.remove-member", "Remove thread", "Thread entfernen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.move-up", "command.reader-groups.move-up", "Move thread up", "Thread nach oben", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.move-down", "command.reader-groups.move-down", "Move thread down", "Thread nach unten", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
+        new("media.rating.edit", "command.media.rating.edit", "Edit rating…", "Bewertung bearbeiten …", "star", null, CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
+        new("media.rating.clear", "command.media.rating.clear", "Remove rating", "Bewertung entfernen", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("media.rating.manage", "command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten …", "star", null, CommandScope.Diagnostics, new[] { "diagnostics" }),
+        new("media.rating.remove-selected", "command.media.rating.remove-selected", "Remove selected rating…", "Ausgewählte Bewertung entfernen …", "star", null, CommandScope.Dialog, new[] { "media-ratings-manager" }),
+        new("media.rating.cleanup-retry", "command.media.rating.cleanup-retry", "Retry rating cleanup", "Bewertungsbereinigung wiederholen", "star", null, CommandScope.Dialog, new[] { "archive-deletion-result" }),
+        new("media.rating.set-1", "command.media.rating.set-1", "Rating: 1 of 5", "Bewertung: 1 von 5", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("media.rating.set-2", "command.media.rating.set-2", "Rating: 2 of 5", "Bewertung: 2 von 5", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("media.rating.set-3", "command.media.rating.set-3", "Rating: 3 of 5", "Bewertung: 3 von 5", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("media.rating.set-4", "command.media.rating.set-4", "Rating: 4 of 5", "Bewertung: 4 von 5", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("media.rating.set-5", "command.media.rating.set-5", "Rating: 5 of 5", "Bewertung: 5 von 5", "star", null, CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
+        new("post-bookmarks.open-manager", "bookmarks.title", "Post bookmarks", "Post-Lesezeichen", "file-text", null, CommandScope.Application, new[] { "app-menu", "archive-results-toolbar" }),
+        new("post-bookmarks.edit-post", "bookmarks.edit", "Add / edit post bookmark…", "Post-Lesezeichen hinzufügen / bearbeiten …", "file-text", null, CommandScope.Reader, new[] { "reader-post-menu" }),
+        new("post-bookmarks.open-target", "bookmarks.open", "Open exact local post", "Exakten lokalen Post öffnen", "file-text", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
+        new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
+        new("post-bookmarks.remove", "bookmarks.remove", "Remove bookmark…", "Lesezeichen entfernen …", "x", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
         new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "file-text", null, CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
@@ -45,6 +73,7 @@ public static class CommandCatalog
         new("selection.select-all", "command.selection.select-all", "Select all", "Alle auswählen", "check-square", "Primary+A", CommandScope.Downloads, new[] { "downloads-thread-list", "downloads-board-list" }),
         new("thread.read", "command.thread.read", "Read posts", "Beiträge lesen", "file-text", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
         new("gallery.open", "command.gallery.open", "Open in gallery", "In Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
+        new("media.open", "command.media.open", "Open selected media", "Ausgewähltes Medium öffnen", "image", "Enter", CommandScope.Media, new[] { "media-list", "media-tiles" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("thread.details", "command.thread.details", "Show details", "Details anzeigen", "info", "Alt+Enter", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-toolbar", "archive-card-menu", "archive-table-menu" }),
         new("inspector.close", "command.inspector.close", "Close details", "Details schließen", "x", null, CommandScope.Downloads, new[] { "downloads-inspector" }),
@@ -64,6 +93,12 @@ public static class CommandCatalog
         new("input.focus-download-search", "command.input.focus-download-search", "Search local downloads", "Lokale Downloads durchsuchen", "search", "Primary+F", CommandScope.Downloads, new[] { "downloads" }),
         new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results as HTML…", "Alle Treffer als HTML exportieren…", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.refresh", "command.archive.refresh", "Refresh archive", "Archiv aktualisieren", "refresh-cw", null, CommandScope.Archive, new[] { "archive-toolbar" }),
+        new("archive.saved-searches.open-manager", "savedSearch.openManager", "Saved searches…", "Gespeicherte Suchen …", "folder", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("archive.saved-searches.save-current", "savedSearch.saveCurrent", "Save applied search…", "Angewandte Suche speichern …", "save", null, CommandScope.Archive | CommandScope.Dialog, new[] { "archive-results-toolbar" }),
+        new("archive.saved-searches.apply", "savedSearch.apply", "Apply search", "Suche anwenden", "search", null, CommandScope.Dialog, new[] { "saved-searches-dialog" }),
+        new("archive.saved-searches.rename", "savedSearch.rename", "Rename", "Umbenennen", "edit-2", null, CommandScope.Dialog, new[] { "saved-searches-dialog" }),
+        new("archive.saved-searches.replace", "savedSearch.replace", "Replace with applied search…", "Durch angewandte Suche ersetzen …", "refresh-cw", null, CommandScope.Dialog, new[] { "saved-searches-dialog" }),
+        new("archive.saved-searches.delete", "savedSearch.delete", "Delete search…", "Suche löschen …", "x-circle", null, CommandScope.Dialog, new[] { "saved-searches-dialog" }),
         new("archive.search", "command.archive.search", "Search", "Suchen", "search", null, CommandScope.Archive, new[] { "archive-toolbar", "archive-search-field" }),
         new("archive.filters-toggle", "command.archive.filters-toggle", "Filters and sorting", "Filter und Sortierung", "filter", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.thread-view", "command.archive.thread-view", "Choose archive view", "Archivansicht wählen", "columns", null, CommandScope.Archive, new[] { "archive-toolbar" }),
@@ -103,6 +138,12 @@ public static class CommandCatalog
         new("rules.open-origin", "command.rules.open-origin", "Open rule", "Regel öffnen", "corner-up-left", null, CommandScope.Application, new[] { "rules-effective-value" }),
         new("rules.open-parent", "command.rules.open-parent", "Open parent scope", "Übergeordneten Bereich öffnen", "arrow-up", null, CommandScope.Application, new[] { "rules-editor" }),
         new("rules.discard", "command.rules.discard", "Discard draft", "Entwurf verwerfen", "rotate-ccw", null, CommandScope.Application, new[] { "rules-footer" }),
+        new("rules.template-create", "templates.create", "Create template", "Vorlage erstellen", "plus", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-edit", "templates.edit", "Edit template", "Vorlage bearbeiten", "edit-2", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-delete", "templates.delete", "Delete template", "Vorlage löschen", "x", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-preview", "templates.preview", "Preview template", "Vorlage ansehen", "eye", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-apply", "templates.apply", "Copy into draft", "In Entwurf übernehmen", "copy", null, CommandScope.Dialog, new[] { "rules-page" }),
+        new("rules.template-undo-apply", "templates.undo-apply", "Undo template copy", "Übernahme rückgängig", "rotate-ccw", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.save", "command.rules.save", "Save rule", "Regel speichern", "save", null, CommandScope.Application, new[] { "rules-footer" }),
         new("admission.reinclude", "command.admission.reinclude", "Include previously excluded matches", "Ausgeschlossene Treffer wieder aufnehmen", "plus-circle", null, CommandScope.Application, new[] { "board-admission-summary" }),
         new("admission.add-rule", "command.admission.add-rule", "Add text rule", "Textregel hinzufügen", "plus", null, CommandScope.Application, new[] { "board-admission-rule-editor" }),
@@ -205,11 +246,10 @@ public static class CommandCatalog
 
     internal static string? ShortcutDisplay(string id, bool macOS)
     {
-        string? shortcut = Get(id).Shortcut;
-        if (shortcut is null) return null;
-        return shortcut.Replace("Primary", macOS ? "⌘" : "Ctrl", StringComparison.Ordinal)
-            .Replace("+Left", "+←", StringComparison.Ordinal)
-            .Replace("+Right", "+→", StringComparison.Ordinal);
+        var snapshot = ShortcutService.Current;
+        var platform = macOS ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows;
+        var gestures = snapshot.For(id);
+        return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(g => g.Display(platform)));
     }
 
     public static string? ScopeHint(string id, CommandScope context = CommandScope.None)

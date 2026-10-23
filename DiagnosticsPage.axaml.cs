@@ -24,8 +24,28 @@ public partial class DiagnosticsPage : UserControl
     private bool _ended;
     internal Func<IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>>? GetTargetWaitStates { get; set; }
     internal Func<Task>? CheckTargetsAsync { get; set; }
+    internal Func<Task>? ManageMediaRatingsAsync { get; set; }
+    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || !_available || ManageMediaRatingsAsync == null) return;
+        try { await ManageMediaRatingsAsync(); }
+        catch (Exception error) { this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = error.Message; }
+    }
 
-    public DiagnosticsPage() { InitializeComponent(); InitializeContextMenu(); }
+    public DiagnosticsPage()
+    {
+        InitializeComponent(); InitializeContextMenu();
+        CommandRouter? ratings = null;
+        AttachedToVisualTree += (_, _) =>
+        {
+            ratings?.Dispose(); ratings = new(this);
+            ratings.Register(new("media.rating.manage", this, () => IsEffectivelyVisible,
+                () => !_ended && _available && ManageMediaRatingsAsync != null,
+                () => OnManageMediaRatingsClick(this, new RoutedEventArgs()), Priority: 100));
+        };
+        DetachedFromVisualTree += (_, _) => { ratings?.Dispose(); ratings = null; };
+        KeyDown += (_, e) => ratings?.Route(e);
+    }
     internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy,
         Func<DiagnosticTarget, Task<CheckRequestStatus>>? retry = null, Func<DiagnosticTarget, bool>? canRetry = null) : this()
     {
@@ -62,7 +82,10 @@ public partial class DiagnosticsPage : UserControl
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
+        CommandBindings.Apply(this.FindControl<Button>("ManageMediaRatingsButton")!, "media.rating.manage");
+        this.FindControl<Button>("ManageMediaRatingsButton")!.IsEnabled = _available && ManageMediaRatingsAsync != null;
         RefreshSelection();
+        RefreshFeedback();
     }
 
     private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry;
@@ -86,7 +109,12 @@ public partial class DiagnosticsPage : UserControl
         try { await _copy(selected.Details); }
         catch (Exception)
         {
-            if (!_ended) this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = Texts.T("clipboard.writeFailed");
+            if (!_ended)
+            {
+                string message = Texts.T("clipboard.writeFailed");
+                this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
+                _feedback?.Record(Desktop.Feedback.FeedbackCategory.Error, "diagnostics.copy", selected.Key, message);
+            }
         }
     }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
@@ -127,5 +155,5 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
         this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", failed);
     }
-    internal void EndLifetime() { _ended = true; _available = false; }
+    internal void EndLifetime() { _ended = true; _available = false; if (_feedback != null) _feedback.Changed -= RefreshFeedback; }
 }

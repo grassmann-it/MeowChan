@@ -131,10 +131,22 @@ internal static class PresentationChecks
     private static async Task CheckModeColumnProfilesAsync(MainWindow window, DataGrid grid)
     {
         Button columnsButton = window.FindControl<Button>("DownloadsColumnsButton")!;
+        ActionToolBar toolbar = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
+        async Task OpenColumnsAsync()
+        {
+            window.UpdateLayout();
+            if (toolbar.OverflowHost?.Children.Contains(columnsButton) == true)
+            {
+                Require(toolbar.More?.IsEffectivelyVisible == true, "The columns overflow action is not reachable.");
+                toolbar.More!.IsChecked = true;
+            }
+            await Program.WaitUntilAsync(() => columnsButton.IsEffectivelyVisible && columnsButton.IsEffectivelyEnabled);
+            SmokeActionClick.Execute(columnsButton);
+        }
         DataGridColumn completion = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Completion));
         Require(completion.IsVisible && !grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Status)).IsVisible,
             "Barebones download columns did not start with compact defaults.");
-        Click(columnsButton);
+        await OpenColumnsAsync();
         ContextMenu menu = columnsButton.ContextMenu ?? throw new InvalidOperationException("Download columns menu did not open.");
         MenuItem completionItem = menu.Items.OfType<MenuItem>().ElementAt(grid.Columns.IndexOf(completion));
         Require(completionItem.IsChecked && completionItem.ToggleType == MenuItemToggleType.CheckBox,
@@ -143,6 +155,7 @@ internal static class PresentationChecks
         await Program.WaitUntilAsync(() => !completion.IsVisible &&
             Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.TryGetValue("ThreadsDataGrid.Completion", out bool visible) && !visible);
         menu.Close();
+        if (toolbar.More != null) toolbar.More.IsChecked = false;
 
         await SwitchModeAsync(window, "Advanced");
         Require(completion.IsVisible && grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Status)).IsVisible,
@@ -150,12 +163,13 @@ internal static class PresentationChecks
         await SwitchModeAsync(window, "Barebones");
         Require(!completion.IsVisible, "The Barebones column choice did not return after switching modes.");
 
-        Click(columnsButton);
+        await OpenColumnsAsync();
         MenuItem reset = columnsButton.ContextMenu!.Items.OfType<MenuItem>().Last();
         reset.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => completion.IsVisible &&
             !Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"));
         columnsButton.ContextMenu?.Close();
+        if (toolbar.More != null) toolbar.More.IsChecked = false;
         Config restarted = Config.LoadConfig();
         Require(restarted.WorkspaceMode == "Barebones" &&
             !restarted.GetLayoutProfile("Advanced").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"),
@@ -272,7 +286,25 @@ internal static class PresentationChecks
             Console.WriteLine("SMOKE " + scenario + " layout failure: window=" + window.Bounds + "; state=" + window.WindowState
                 + "; original state=" + originalState + "; requested=" + window.Width + "×" + window.Height
                 + "; scale=" + window.RenderScaling);
-            foreach (string name in new[] { "WorkspaceHeader", "WorkspaceBody", "UrlInput", "AddUrlButton", "AdmissionResultsPanel",
+            Console.WriteLine("SMOKE " + scenario + " compact admission gates: " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                inputInViewport = InViewport(window, input), addInViewport = InViewport(window, add),
+                grid.IsEffectivelyVisible, gridHeight = grid.Bounds.Height.ToString(), rowHeight = grid.RowHeight.ToString(),
+                gridAtLeastOneRow = grid.Bounds.Height >= grid.RowHeight,
+                resultsBeforeDownloads = IsBelow(results, window.FindControl<Border>("DownloadsPanel")!, window),
+                selectedMatches = ReferenceEquals(grid.SelectedItem, selected),
+                selectedRows = grid.GetVisualDescendants().OfType<DataGridRow>()
+                    .Where(row => ReferenceEquals(row.DataContext, selected)).Select(row => new
+                    {
+                        row.IsEffectivelyVisible, bounds = row.Bounds.ToString(),
+                        origin = row.TranslatePoint(default, window)?.ToString(), fitsVertically = FitsVertically(row, grid),
+                        ancestors = row.GetVisualAncestors().OfType<Control>().Select(control => new
+                        { type = control.GetType().Name, control.Name, bounds = control.Bounds.ToString(),
+                            control.ClipToBounds, clip = control.Clip?.Bounds.ToString() }).ToArray()
+                    }).ToArray()
+            }));
+            foreach (string name in new[] { "WorkspaceHeader", "WorkspacePages", "ShellActionErrorBanner", "WorkspaceBody", "WorkspaceIntakeCard",
+                "WorkspaceContentGrid", "UrlInput", "AddUrlButton", "AdmissionResultsPanel",
                 "AdmissionResultsScroll", "DownloadsPanel", "DownloadsTabs", "ThreadsDataGrid", "WorkspaceInspector", "InspectorCloseButton" })
             {
                 Control? control = window.FindControl<Control>(name);

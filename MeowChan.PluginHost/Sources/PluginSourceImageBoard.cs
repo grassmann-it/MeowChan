@@ -13,7 +13,7 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
 {
     private readonly object _lifecycle = new();
     private readonly Func<CancellationToken, Task<IPluginWorkerClient>> _worker;
-    private CancellationTokenSource _enabledLifetime = new();
+    private CancellationTokenSource? _enabledLifetime = new();
     private bool _enabled = true;
     private bool _disposed;
     public SourceDescription Description { get; }
@@ -68,10 +68,9 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
             if (_enabled == enabled) return;
             _enabled = enabled;
             if (enabled) _enabledLifetime = new CancellationTokenSource();
-            else previous = _enabledLifetime;
+            else { previous = _enabledLifetime; _enabledLifetime = null; }
         }
-        previous?.Cancel();
-        previous?.Dispose();
+        CancelAndDispose(previous);
     }
 
     internal async Task<T> InvokeAsync<T>(Func<IPluginWorkerClient, CancellationToken, Task<T>> call, CancellationToken token)
@@ -89,7 +88,7 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
         lock (_lifecycle)
         {
             if (!_enabled || _disposed) throw new PluginWorkerException("source_unavailable", "The source plugin is disabled or unavailable.");
-            return CancellationTokenSource.CreateLinkedTokenSource(token, _enabledLifetime.Token);
+            return CancellationTokenSource.CreateLinkedTokenSource(token, _enabledLifetime!.Token);
         }
     }
 
@@ -100,12 +99,23 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
 
     public void Dispose()
     {
+        CancellationTokenSource? previous;
         lock (_lifecycle)
         {
             if (_disposed) return;
             _disposed = true;
-            _enabledLifetime.Cancel();
-            _enabledLifetime.Dispose();
+            previous = _enabledLifetime;
+            _enabledLifetime = null;
         }
+        CancelAndDispose(previous);
+    }
+
+    private static void CancelAndDispose(CancellationTokenSource? lifetime)
+    {
+        // Detaching under _lifecycle gives one caller ownership of this generation.
+        // Invoke callbacks outside the lock; a concurrent disable/dispose cannot
+        // cancel or dispose the same source while its callbacks are still running.
+        try { lifetime?.Cancel(); }
+        finally { lifetime?.Dispose(); }
     }
 }

@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Updates;
@@ -40,6 +41,9 @@ namespace MeowChan
         private bool _isBusy;
         private bool _isClosed;
         private bool _errorRevealPending;
+        private bool _suppressPassiveErrorReveal;
+        private long _errorRevealRevision;
+        private bool _refreshingLanguageLabels;
         private string? _errorMessage;
         private SettingsChoice? _selectedTheme;
         private SettingsChoice? _selectedWorkspaceMode;
@@ -53,6 +57,9 @@ namespace MeowChan
         private bool _videoStartMuted;
         private int _videoVolume;
         private bool _showShortcutHelp;
+        private bool _showInformationNotifications = true;
+        private bool _showWarningNotifications = true;
+        private bool _showErrorNotifications = true;
         private bool _automaticUpdateChecks;
         private bool _includePrereleaseUpdates;
         private decimal? _minimumFreeSpaceGiB;
@@ -107,10 +114,15 @@ namespace MeowChan
             }
         }
         public bool IsEditable => IsAvailable && !IsBusy;
+        public string? BusyStatusMessage => IsBusy ? Texts.T("feedback.working") : StatusMessage;
         public string? StatusMessage
         {
             get => _statusMessage;
-            private set => SetField(ref _statusMessage, value, nameof(StatusMessage));
+            private set
+            {
+                SetField(ref _statusMessage, value, nameof(StatusMessage));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
+            }
         }
 
         public SettingsEditor() : this(new Config())
@@ -123,6 +135,7 @@ namespace MeowChan
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
             _config = config;
+            ShortcutsEditor.Load(config.ShortcutBindings);
             _initialCompactDensity = config.CompactDensity;
             _initialReadingFontSize = config.ReadingFontSize;
             _initialWorkspaceMode = config.WorkspaceMode;
@@ -145,6 +158,9 @@ namespace MeowChan
             ShowShortcutHelp = config.ShowShortcutHelp;
             RememberReadingPosition = config.RememberReadingPosition;
             AutomaticUpdateChecks = config.AutomaticUpdateChecks;
+            ShowInformationNotifications = config.ShowInformationNotifications;
+            ShowWarningNotifications = config.ShowWarningNotifications;
+            ShowErrorNotifications = config.ShowErrorNotifications;
             IncludePrereleaseUpdates = config.IncludePrereleaseUpdates;
             MinimumFreeSpaceGiB = config.MinimumFreeSpaceGiB;
             ProductionWorkers = config.PluginMaximumProductionWorkers;
@@ -155,6 +171,7 @@ namespace MeowChan
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
+            InitializeSectionNavigation();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
@@ -167,6 +184,14 @@ namespace MeowChan
             Texts.Changed += OnLanguageChanged;
         }
 
+        public string NotificationsTitle => Texts.T("feedback.settings");
+        public string InformationNotificationsLabel => Texts.T("feedback.information");
+        public string WarningNotificationsLabel => Texts.T("feedback.warnings");
+        public string ErrorNotificationsLabel => Texts.T("feedback.errors");
+        public string NotificationsHint => Texts.T("feedback.hint");
+        public bool ShowInformationNotifications { get => _showInformationNotifications; set => SetField(ref _showInformationNotifications, value, nameof(ShowInformationNotifications)); }
+        public bool ShowWarningNotifications { get => _showWarningNotifications; set => SetField(ref _showWarningNotifications, value, nameof(ShowWarningNotifications)); }
+        public bool ShowErrorNotifications { get => _showErrorNotifications; set => SetField(ref _showErrorNotifications, value, nameof(ShowErrorNotifications)); }
         public string UpdatesTitle => Texts.T("updates.title");
         public string AutomaticUpdateChecksLabel => Texts.T("updates.automatic");
         public string IncludePrereleaseUpdatesLabel => Texts.T("updates.prereleases");
@@ -323,6 +348,7 @@ namespace MeowChan
             {
                 if (_isBusy == value) return;
                 SetField(ref _isBusy, value, nameof(IsBusy));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
                 if (!_isClosed)
                 {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
@@ -340,9 +366,10 @@ namespace MeowChan
                 if (_isClosed)
                     return;
                 if (value == null) ClearFieldErrors();
+                else if (!_refreshingLanguageLabels) { _suppressPassiveErrorReveal = false; _sectionNavigation?.CancelPendingNavigation(); }
                 SetField(ref _errorMessage, value, nameof(ErrorMessage));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasError)));
-                RevealErrorAfterLayout();
+                if (!_refreshingLanguageLabels) RevealErrorAfterLayout();
             }
         }
 
@@ -361,14 +388,15 @@ namespace MeowChan
 
         private void RevealErrorAfterLayout()
         {
-            if (_isClosed || !IsVisible || !HasError || _errorRevealPending)
+            if (_isClosed || !IsVisible || !HasError || _errorRevealPending || _suppressPassiveErrorReveal)
                 return;
 
             _errorRevealPending = true;
+            long revealRevision = _errorRevealRevision;
             Dispatcher.UIThread.Post(() =>
             {
                 _errorRevealPending = false;
-                if (!_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
+                if (!_suppressPassiveErrorReveal && revealRevision == _errorRevealRevision && !_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
                 {
                     if (_firstInvalidInput != null)
                         (_firstInvalidInput.Parent as Control ?? _firstInvalidInput).BringIntoView();
@@ -382,6 +410,7 @@ namespace MeowChan
         {
             if (_isClosed) return;
             _isClosed = true;
+            _sectionNavigation?.Dispose();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
@@ -399,6 +428,7 @@ namespace MeowChan
         internal void CancelChanges()
         {
             if (IsBusy || !IsAvailable || _isClosed) return;
+            ShortcutsEditor.Load(_config.ShortcutBindings);
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
@@ -414,6 +444,9 @@ namespace MeowChan
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
+            ShowInformationNotifications = _config.ShowInformationNotifications;
+            ShowWarningNotifications = _config.ShowWarningNotifications;
+            ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
             MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
             ProductionWorkers = _config.PluginMaximumProductionWorkers;
@@ -480,7 +513,7 @@ namespace MeowChan
                 // Refresh only labels/help; a language change is not a numeric Value change.
                 foreach (string property in new[]
                 {
-                    nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
+                    nameof(BusyStatusMessage), nameof(NotificationsTitle), nameof(InformationNotificationsLabel), nameof(WarningNotificationsLabel), nameof(ErrorNotificationsLabel), nameof(NotificationsHint), nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
                     nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
@@ -500,6 +533,9 @@ namespace MeowChan
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 if (hadFieldError)
                 {
+                    _refreshingLanguageLabels = true;
+                    try
+                    {
                     ClearFieldErrors();
                     if (pathError)
                     {
@@ -507,11 +543,14 @@ namespace MeowChan
                         DownloadPathInputError.IsVisible = true;
                         SetFieldErrorHelp(DownloadPathInput, DownloadPathInputError.Text!);
                         _firstInvalidInput = DownloadPathInput;
-                        FinishFieldValidation();
+                        FinishFieldValidation(focusError: false);
                     }
-                    else ValidateNumericDraft();
+                    else ValidateNumericDraft(focusError: false);
+                    }
+                    finally { _refreshingLanguageLabels = false; }
                 }
                 ApplyCommandIcons();
+                RefreshSectionNavigation();
             }
 
             if (Dispatcher.UIThread.CheckAccess())
@@ -602,49 +641,22 @@ namespace MeowChan
             StatusMessage = null;
             try
             {
-                IStorageProvider? storage = TopLevel.GetTopLevel(this)?.StorageProvider;
-                if (storage == null || !storage.CanPickFolder)
+                LocalFolderPickResult result = await LocalFolderPicker.PickAsync(
+                    TopLevel.GetTopLevel(this)?.StorageProvider, Texts.T("settings.pickerTitle"));
+                if (_isClosed) return;
+                switch (result.Status)
                 {
-                    ErrorMessage = Texts.T("settings.pickerUnavailable");
-                    return;
+                    case LocalFolderPickStatus.Selected: DownloadPath = result.Path!; break;
+                    case LocalFolderPickStatus.Unavailable: ErrorMessage = Texts.T("settings.pickerUnavailable"); break;
+                    case LocalFolderPickStatus.NonLocal: ErrorMessage = Texts.T("settings.pickerLocalOnly"); break;
+                    case LocalFolderPickStatus.Failed: ErrorMessage = Texts.T("settings.pickerFailed", result.Error); break;
                 }
-
-                IReadOnlyList<IStorageFolder> folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
-                {
-                    Title = Texts.T("settings.pickerTitle"),
-                    AllowMultiple = false
-                });
-
-                try
-                {
-                    if (!_isClosed && folders.Count > 0)
-                    {
-                        string? selectedPath = folders[0].TryGetLocalPath();
-                        if (string.IsNullOrWhiteSpace(selectedPath))
-                        {
-                            ErrorMessage = Texts.T("settings.pickerLocalOnly");
-                        }
-                        else
-                        {
-                            DownloadPath = selectedPath;
-                        }
-                    }
-                }
-                finally
-                {
-                    foreach (IStorageFolder folder in folders)
-                    {
-                        folder.Dispose();
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                ErrorMessage = Texts.T("settings.pickerFailed", exception.Message);
             }
             finally
             {
                 IsBusy = false;
+                if (!_isClosed && IsEffectivelyVisible && IsAvailable)
+                    BrowseButton.Focus();
             }
         }
 
@@ -663,7 +675,9 @@ namespace MeowChan
                 if (!ValidateNumericDraft())
                     return;
 
+                if (!ShortcutsEditor.ValidateDraft()) return;
                 Config candidate = _config.Clone();
+                candidate.ShortcutBindings = ShortcutsEditor.Draft.Clone();
                 candidate.DownloadPath = DownloadPath;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
                 candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
@@ -688,6 +702,9 @@ namespace MeowChan
                 candidate.ShowShortcutHelp = ShowShortcutHelp;
                 candidate.RememberReadingPosition = RememberReadingPosition;
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
+                candidate.ShowInformationNotifications = ShowInformationNotifications;
+                candidate.ShowWarningNotifications = ShowWarningNotifications;
+                candidate.ShowErrorNotifications = ShowErrorNotifications;
                 candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
                 candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue);
                 candidate.PluginMaximumProductionWorkers = GetInteger(ProductionWorkers, ProductionWorkersLabel, 1, 8);
@@ -719,6 +736,7 @@ namespace MeowChan
                 {
                     if (!candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
                     candidate.SaveConfig();
+                    ShortcutService.Publish(candidate.ShortcutBindings);
                 }
 
                 if (_applySettings == null)
@@ -750,6 +768,7 @@ namespace MeowChan
 
         private void CancelChangesAfterSave()
         {
+            ShortcutsEditor.Load(_config.ShortcutBindings);
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
@@ -760,6 +779,9 @@ namespace MeowChan
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
+            ShowInformationNotifications = _config.ShowInformationNotifications;
+            ShowWarningNotifications = _config.ShowWarningNotifications;
+            ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
             MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
             ProductionWorkers = _config.PluginMaximumProductionWorkers;

@@ -10,10 +10,10 @@ using MeowChan.Interfaces;
 
 namespace MeowChan.Desktop;
 
-internal sealed record ArchivePermanentDeletionPlan(ArchiveDeletionPlan Catalog, ArchiveFilesPlan Files);
+internal sealed record ArchivePermanentDeletionPlan(ArchiveDeletionPlan Catalog, ArchiveFilesPlan Files, int RatingCount = 0);
 
 internal sealed record ArchivePermanentDeletionResult(IReadOnlyList<ResourceId> DeletedThreads,
-    IReadOnlyList<string> Errors, ArchiveFilesResult? Files);
+    IReadOnlyList<string> Errors, ArchiveFilesResult? Files, IReadOnlyList<ResourceId>? RatingCleanupThreads = null);
 
 internal sealed partial class DesktopSessionHost
 {
@@ -25,10 +25,11 @@ internal sealed partial class DesktopSessionHost
         {
             EnsureReady();
             ArchiveDeletionPlan catalog = await _content.Catalog.PrepareDeletionAsync(ids, token).ConfigureAwait(false);
+            int ratingCount = ValidateMediaRatingsForDeletion(catalog.Threads.Select(thread => thread.Summary.Id).ToArray());
             ArchiveFilesPlan files = await ArchiveDeletionFiles.PrepareAsync(
                 catalog.Threads.SelectMany(thread => thread.MediaDirectories), ProfileDirectory, token)
                 .ConfigureAwait(false);
-            return new ArchivePermanentDeletionPlan(catalog, files);
+            return new ArchivePermanentDeletionPlan(catalog, files, ratingCount);
         }
         finally { _commands.Release(); }
     }
@@ -41,7 +42,9 @@ internal sealed partial class DesktopSessionHost
         try
         {
             EnsureReady();
+            ValidateMediaRatingsForDeletion(plan.Catalog.Threads.Select(thread => thread.Summary.Id).ToArray());
             List<string> errors = new();
+            IReadOnlyList<ResourceId>? ratingCleanupThreads = null;
             List<ResourceId> deleted = new();
             HashSet<string> evictedPosters = new(StringComparer.Ordinal);
             ArchiveFilesResult? files = null;
@@ -149,6 +152,14 @@ internal sealed partial class DesktopSessionHost
                 }
                 if (deleted.Count > 0)
                 {
+                    try { CleanupMediaRatings(deleted); }
+                    catch (Exception exception) when (exception is not OutOfMemoryException)
+                    {
+                        ratingCleanupThreads = Array.AsReadOnly(deleted.ToArray());
+                        errors.Add(MediaRatingText.Get("The archive was deleted, but ratings were not cleaned up. Reimporting the same media identities may restore their ratings. ",
+                            "Das Archiv wurde gelöscht, aber Bewertungen wurden nicht bereinigt. Beim erneuten Import derselben Medienidentitäten können deren Bewertungen wieder erscheinen. ")
+                            + string.Join(", ", deleted.Select(id => id.Source + "/" + id.Board + "/" + id.Thread)) + ": " + exception.Message);
+                    }
                     try
                     {
                         lock (_favoritesSync)
@@ -166,7 +177,7 @@ internal sealed partial class DesktopSessionHost
                 }
                 SignalChanged();
                 return new ArchivePermanentDeletionResult(Array.AsReadOnly(deleted.ToArray()),
-                    Array.AsReadOnly(errors.ToArray()), files);
+                    Array.AsReadOnly(errors.ToArray()), files, ratingCleanupThreads);
             }
             finally
             {

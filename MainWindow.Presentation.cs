@@ -42,6 +42,8 @@ public partial class MainWindow
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
         SizeChanged += OnWorkspaceSizeChanged;
+        WorkspaceControl<Grid>("WorkspaceBody").SizeChanged += OnWorkspaceBodySizeChanged;
+        WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").PropertyChanged += OnShellFeedbackVisibilityChanged;
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
@@ -71,6 +73,8 @@ public partial class MainWindow
         BoardsList.CollectionChanged -= OnWorkspaceCollectionChanged;
         Texts.Changed -= OnWorkspaceLanguageChanged;
         SizeChanged -= OnWorkspaceSizeChanged;
+        WorkspaceControl<Grid>("WorkspaceBody").SizeChanged -= OnWorkspaceBodySizeChanged;
+        WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").PropertyChanged -= OnShellFeedbackVisibilityChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
         KeyDown -= OnWorkspaceKeyDown;
         DisposeShellPresentation();
@@ -81,6 +85,13 @@ public partial class MainWindow
         ?? throw new InvalidOperationException("The workspace control is missing: " + name);
 
     private void OnWorkspaceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => _workspaceRefresh?.Request();
+    // Visibility selects compact feedback immediately, including while Downloads is hidden.
+    private void OnShellFeedbackVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty) UpdateWorkspaceLayout();
+    }
+    // A persistent shell error changes the page allocation without resizing the window.
+    private void OnWorkspaceBodySizeChanged(object? sender, SizeChangedEventArgs e) => UpdateWorkspaceLayout();
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
@@ -447,19 +458,41 @@ public partial class MainWindow
             bool compactIntake = Bounds.Height > 0 && Bounds.Height < 840;
             bool barebones = _config.WorkspaceMode == "Barebones";
             bool reducedChrome = barebones || shortWindow;
+            bool retainedErrorLayout = shortWindow && WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").IsVisible;
+            Grid feedbackLayout = WorkspaceControl<Grid>("ShellFeedbackLayout");
+            ScrollViewer shellError = WorkspaceControl<ScrollViewer>("ShellActionErrorScroll");
+            Button diagnostics = WorkspaceControl<Button>("ShellFeedbackDiagnosticsButton");
+            Grid.SetColumnSpan(shellError, retainedErrorLayout ? 1 : 2);
+            Grid.SetColumn(diagnostics, retainedErrorLayout ? 1 : 0);
+            Grid.SetRow(diagnostics, retainedErrorLayout ? 0 : 1);
+            feedbackLayout.RowSpacing = retainedErrorLayout ? 0 : 4;
+            feedbackLayout.ColumnSpacing = retainedErrorLayout ? 8 : 0;
+            shellError.MaxHeight = retainedErrorLayout ? 32 : 64;
+            WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").Padding = retainedErrorLayout ? new Thickness(8, 4) : new Thickness(12);
             WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !reducedChrome;
             WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
             UpdatePageNavigation();
             // All pages and the mode selector remain reachable in compact windows.
             WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = true;
             // Keep the shared footer's height and padding from XAML in every view.
-            WorkspaceControl<Grid>("WorkspaceBody").RowSpacing = reducedChrome ? 8 : 10;
-            WorkspaceControl<Grid>("WorkspaceBody").Margin = barebones ? new Thickness(12)
-                : shortWindow ? new Thickness(16, 12) : new Thickness(20);
+            Grid body = WorkspaceControl<Grid>("WorkspaceBody");
+            body.RowSpacing = retainedErrorLayout ? 4 : reducedChrome ? 8 : 10;
+            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : 12, 6)
+                : barebones ? new Thickness(12) : shortWindow ? new Thickness(16, 12) : new Thickness(20);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
-            WorkspaceControl<TextBox>("UrlInput").MaxHeight = compactIntake ? 40 : 72;
-            WorkspaceControl<Border>("WorkspaceIntakeCard").Padding = compactIntake ? new Thickness(8) : new Thickness(12, 10);
+            WorkspaceControl<TextBox>("UrlInput").MaxHeight = retainedErrorLayout ? 36 : compactIntake ? 40 : 72;
+            WorkspaceControl<Border>("WorkspaceIntakeCard").Padding = retainedErrorLayout ? new Thickness(4)
+                : compactIntake ? new Thickness(8) : new Thickness(12, 10);
+            WorkspaceControl<StackPanel>("WorkspaceIntakeStack").Spacing = retainedErrorLayout ? 3 : 7;
+            // Reserve tabs, the column header and one complete data row. Extra-long
+            // repair/report content scrolls in intake instead of reducing the table to zero.
+            double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
+            double tableMinimum = Math.Max(38, WorkspaceControl<TabControl>("DownloadsTabs").Bounds.Height) + 32 + rowHeight + 4;
+            content.MinHeight = retainedErrorLayout ? tableMinimum : 0;
+            WorkspaceControl<ScrollViewer>("WorkspaceIntakeScroll").MaxHeight = retainedErrorLayout
+                ? Math.Max(0, body.Bounds.Height - 2 * body.RowSpacing - tableMinimum)
+                : double.PositiveInfinity;
             WorkspaceControl<Ursa.Controls.Banner>("AdmissionRepairPanel").Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
             Expander admissionResults = WorkspaceControl<Expander>("AdmissionResultsExpander");
             // Semi's expander spaces its header/content through resource keys rather

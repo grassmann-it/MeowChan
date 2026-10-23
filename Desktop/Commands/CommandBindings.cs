@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -14,6 +16,8 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
+using Avalonia.Interactivity;
 using SkiaSharp;
 
 namespace MeowChan.Desktop.Commands;
@@ -25,6 +29,20 @@ public static class CommandBindings
     // controls/brushes remain separate so foreground and theme bindings stay local.
     private static readonly Dictionary<string, Bitmap> IconMasks = new(StringComparer.Ordinal);
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
+    private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
+    private sealed record RefreshCallback(Action Refresh);
+    private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
+    private sealed record ActionPresentation(string Id);
+    private static void Track(Control control, string id)
+    { Actions.Remove(control); Actions.Add(control, new(id)); }
+    private static void Observe(object owner, Action refresh)
+    {
+        Action? guarded = null;
+        guarded = () => { if (Presentations.TryGetValue(owner, out var current) && ReferenceEquals(current.Refresh, guarded)) refresh(); };
+        Presentations.Remove(owner);
+        Presentations.Add(owner, new(guarded));
+        ShortcutService.Observe(guarded);
+    }
 
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 
@@ -55,6 +73,8 @@ public static class CommandBindings
 
     public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null)
     {
+        Track(item, id);
+        Observe(item, () => Apply(item, id, unavailableReason));
         var definition = CommandCatalog.Get(id);
         item.Header = CommandCatalog.Label(id);
         item.Icon = Icon(id);
@@ -67,17 +87,20 @@ public static class CommandBindings
 
     public static void Apply(NativeMenuItem item, string id)
     {
+        Observe(item, () => Apply(item, id));
         var definition = CommandCatalog.Get(id);
-        item.Header = CommandCatalog.Label(id);
+        item.Header = CommandCatalog.Label(id) + (CommandCatalog.ShortcutDisplay(id) is string display ? "  " + display : "");
         // Clipboard import is a Downloads shortcut. The native tray action remains
         // explicit and must not register an application-wide paste accelerator.
-        item.Gesture = id == "watch.import-clipboard" ? null : Gesture(definition);
+        item.Gesture = null; // Routed context checks own execution; native accelerators cannot enforce them.
         item.Icon = NativeIcon(id);
     }
 
     public static void Apply(Button button, string id, Func<string?>? unavailableReason = null,
         bool iconOnly = false, int iconSize = 16, bool iconWithLabel = false)
     {
+        Track(button, id);
+        Observe(button, () => Apply(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel));
         string label = CommandCatalog.Label(id);
         button.Classes.Set("command-icon", iconOnly || iconWithLabel);
         if (iconOnly || iconWithLabel)
@@ -96,6 +119,8 @@ public static class CommandBindings
     /// <summary>Uses a context-specific visible label while retaining the catalog icon and shortcut.</summary>
     public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
     {
+        Track(button, id);
+        Observe(button, () => ApplyLabeled(button, id, visibleLabel, iconSize));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
         string tip = CommandCatalog.ShortcutDisplay(id) is string shortcut
@@ -224,28 +249,113 @@ public static class CommandBindings
         return new Bitmap(output);
     }
 
+    internal static void BindShortcutHelp(Control control, IReadOnlyList<string> ids, Func<string> fixedHelp)
+    {
+        void RefreshHint()
+        {
+            string help = fixedHelp();
+            var bound = ids.Where(id => CommandCatalog.ShortcutDisplay(id) != null).Select(TooltipFor);
+            string dynamicHelp = string.Join(Environment.NewLine, bound);
+            if (dynamicHelp.Length > 0) help += Environment.NewLine + dynamicHelp;
+            ToolTip.SetTip(control, help);
+            AutomationProperties.SetHelpText(control, help);
+            Observe(control, RefreshHint);
+        }
+        static string TooltipFor(string id) => Tooltip(id);
+        RefreshHint();
+    }
+
+    internal static void BindExisting(Control control, string id)
+    {
+        if (Actions.TryGetValue(control, out var current) && current.Id == id) return;
+        Track(control, id);
+        void RefreshHint()
+        {
+            string tip = Tooltip(id);
+            ToolTip.SetTip(control, tip);
+            AutomationProperties.SetHelpText(control, tip);
+            Observe(control, RefreshHint);
+        }
+        RefreshHint();
+    }
+
+    /// <summary>Continuation of the owning context's routed handler for visible actions without custom key logic.
+    /// Invokes the existing button/menu executor. Multiple contextual targets require an explicit registration.</summary>
+    public static bool RouteVisibleActions(Control context, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key)
+            || !CommandRouter.IsRoutingContextActive(context, e.Source)) return false;
+        LegacyCommandAdapters.Register(context);
+        var controls = context.GetVisualDescendants().Prepend(context).OfType<Control>()
+            .Where(c => c.IsEffectivelyVisible && Actions.TryGetValue(c, out var a) && !CommandRouter.HasExplicitRegistration(a.Id, context) && Matches(e, a.Id))
+            .Where(c => c is Button or MenuItem or ComboBox or TabItem or Expander or Ursa.Controls.ClosableTag).ToArray();
+        if (controls.Length == 0) return false;
+        Control? focused = controls.FirstOrDefault(c => e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(c));
+        // Do not invent a target when several per-post/per-media actions are materialized.
+        if (focused == null && (controls.Length > 1 || controls[0] is Ursa.Controls.ClosableTag))
+        { e.Handled = true; return true; }
+        var target = focused ?? controls[0];
+        e.Handled = true;
+        if (!target.IsEffectivelyEnabled) return true;
+        InvokeExistingControl(target);
+        return true;
+    }
+    internal static bool RouteMenuAction(ContextMenu menu, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;
+        var matches = menu.Items.OfType<MenuItem>().Where(item => Actions.TryGetValue(item, out var a) && Matches(e, a.Id)).ToArray();
+        if (matches.Length == 0) return false;
+        e.Handled = true;
+        if (matches.Length == 1 && matches[0].IsEnabled) InvokeExistingControl(matches[0]);
+        return true;
+    }
+    private static void InvokeExistingControl(Control target)
+    {
+        switch (target)
+        {
+            case Button button when button.Command != null:
+                if (button.Command.CanExecute(button.CommandParameter)) button.Command.Execute(button.CommandParameter);
+                break;
+            case ToggleButton toggle:
+                toggle.IsChecked = toggle.IsChecked != true;
+                toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); break;
+            case Button button: button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); break;
+            case MenuItem item when item.Command != null:
+                if (item.Command.CanExecute(item.CommandParameter)) item.Command.Execute(item.CommandParameter);
+                break;
+            case MenuItem item:
+                if (item.ItemCount > 0) item.IsSubMenuOpen = true;
+                else item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); break;
+            case Ursa.Controls.ClosableTag tag:
+                if (tag.Command?.CanExecute(null) == true) tag.Command.Execute(null);
+                break;
+            case ComboBox combo: combo.Focus(); combo.IsDropDownOpen = true; break;
+            case TabItem tab: tab.IsSelected = true; tab.Focus(); break;
+            case Expander expander: expander.IsExpanded = !expander.IsExpanded; break;
+        }
+    }
+
     /// <summary>Resolves the same platform gesture used by menu and help presentations.</summary>
     public static bool Matches(KeyEventArgs e, string id)
     {
-        KeyGesture? gesture = Gesture(CommandCatalog.Get(id));
-        return gesture != null && gesture.Key == e.Key && gesture.KeyModifiers == e.KeyModifiers;
+        if (ShortcutService.IsCapturing) return false;
+        if (CommandRouter.IsNativeInput(e.Source, e.Key) && !AllowsInputShortcut(id, e)) return false;
+        return ShortcutService.Current.Matches(e, id);
+    }
+
+    private static bool AllowsInputShortcut(string id, KeyEventArgs e)
+    {
+        bool functionKey = e.Key >= Key.F1 && e.Key <= Key.F24;
+        bool primaryModifier = (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "navigation.settings")
+            && (primaryModifier || functionKey)
+            || (id is "window.fullscreen" or "viewer.shortcut-help") && functionKey;
     }
 
     public static KeyGesture? Gesture(string id) => Gesture(CommandCatalog.Get(id));
+    private static KeyGesture? Gesture(CommandDefinition definition) =>
+        ShortcutService.Current.For(definition.Id).FirstOrDefault()?.Resolve(ShortcutService.Current.Platform);
 
-    private static KeyGesture? Gesture(CommandDefinition definition)
-    {
-        if (definition.Shortcut is null) return null;
-        string shortcut = definition.Shortcut.Replace("Primary",
-            OperatingSystem.IsMacOS() ? "Meta" : "Ctrl", StringComparison.Ordinal);
-        // Enum.Parse interprets bare digits as Key enum ordinals ("1" is Cancel).
-        // Keep the catalog/display human readable while parsing digit-row keys explicitly.
-        int keyStart = shortcut.LastIndexOf('+') + 1;
-        string key = shortcut[keyStart..];
-        if (key.Length == 1 && char.IsAsciiDigit(key[0])) shortcut = shortcut[..keyStart] + "D" + key;
-        try { return KeyGesture.Parse(shortcut); }
-        catch (FormatException) { return null; }
-    }
 }
 
 public sealed class DelegateCommand(Action execute, Func<bool>? canExecute = null) : ICommand

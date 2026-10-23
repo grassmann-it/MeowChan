@@ -1,44 +1,70 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
              x:Class="MeowChan.DiagnosticsPage">
     <UserControl.Styles>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
     </UserControl.Styles>
-    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
-        <StackPanel Spacing="5">
-            <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
-            <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
-        </StackPanel>
-        <Border Grid.Row="1" Classes="panel" Padding="12,8">
-            <TextBlock x:Name="DiagnosticsSummary" TextWrapping="Wrap" />
-        </Border>
-        <Border Grid.Row="2" Classes="panel">
-            <Grid>
-                <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                          GridLinesVisibility="None" SelectionMode="Single" RowHeight="44"
-                          CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn MinWidth="150" Width="150" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
-                        <DataGridTextColumn Width="180" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
-                        <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-                <TextBlock x:Name="DiagnosticsEmpty" Tag="diagnostics.empty" Classes="muted localized"
-                           Margin="16,55,16,16" TextWrapping="Wrap" HorizontalAlignment="Center" />
-            </Grid>
-        </Border>
-        <StackPanel Grid.Row="3" Spacing="8">
-            <TextBox x:Name="DiagnosticDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="50" MaxHeight="110" />
-            <StackPanel Spacing="8">
-                <TextBlock x:Name="DiagnosticsActionError" Classes="error" TextWrapping="Wrap" VerticalAlignment="Center" />
-                <WrapPanel Orientation="Horizontal">
-                    <Button x:Name="RetryDiagnosticButton" Margin="0,0,8,4" Tag="check.action" Classes="localized" Click="OnRetryClick" />
-                    <Button x:Name="CopyDiagnosticButton" Margin="0,0,8,4" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
-                    <Button x:Name="OpenDiagnosticWatchButton" Margin="0,0,8,4" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
-                </WrapPanel>
+    <Grid Margin="20,12" RowDefinitions="*,Auto" RowSpacing="8">
+        <!-- Keep page content scrollable at the shell minimum, including with a retained error banner.
+             The explicit grid height preserves its own bounded, virtualized row viewport. -->
+        <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="5">
+                    <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
+                    <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Classes="panel" Padding="12,8">
+                    <TextBlock x:Name="DiagnosticsSummary" TextWrapping="Wrap" />
+                </Border>
+                <Expander x:Name="SessionFeedbackSection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="6">
+                        <TextBlock x:Name="SessionFeedbackEmpty" Tag="feedback.empty" Classes="muted localized" TextWrapping="Wrap" />
+                        <DataGrid x:Name="SessionFeedbackGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="160"
+                                  SelectionMode="Single" GridLinesVisibility="None" SelectionChanged="OnFeedbackSelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="130" Binding="{Binding TimeLabel, DataType=feedback:SessionFeedback}" />
+                                <DataGridTextColumn Width="100" Binding="{Binding CategoryLabel, DataType=feedback:SessionFeedback}" />
+                                <DataGridTextColumn Width="*" MinWidth="160" Binding="{Binding Description, DataType=feedback:SessionFeedback}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <TextBox x:Name="SessionFeedbackDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="36" MaxHeight="90" />
+                        <WrapPanel>
+                            <Button x:Name="CopySessionFeedbackButton" Margin="0,0,8,4" Tag="feedback.copy" Classes="localized" Click="OnCopyFeedback" />
+                            <Button x:Name="ClearSessionFeedbackButton" Margin="0,0,8,4" Tag="feedback.clear" Classes="localized" Click="OnClearFeedback" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Expander>
+                <Border Classes="panel">
+                    <Grid>
+                        <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" Height="200"
+                                  GridLinesVisibility="None" SelectionMode="Single" RowHeight="44"
+                                  CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn MinWidth="150" Width="150" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
+                                <DataGridTextColumn Width="180" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
+                                <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <TextBlock x:Name="DiagnosticsEmpty" Tag="diagnostics.empty" Classes="muted localized"
+                                   Margin="16,55,16,16" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <TextBox x:Name="DiagnosticDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="50" MaxHeight="110" />
             </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Spacing="8">
+            <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
+                <TextBlock x:Name="DiagnosticsActionError" Classes="error" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </ScrollViewer>
+            <WrapPanel Orientation="Horizontal">
+                <Button x:Name="ManageMediaRatingsButton" Margin="0,0,8,4" Click="OnManageMediaRatingsClick" />
+                <Button x:Name="RetryDiagnosticButton" Margin="0,0,8,4" Tag="check.action" Classes="localized" Click="OnRetryClick" />
+                <Button x:Name="CopyDiagnosticButton" Margin="0,0,8,4" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
+                <Button x:Name="OpenDiagnosticWatchButton" Margin="0,0,8,4" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
+            </WrapPanel>
         </StackPanel>
     </Grid>
 </UserControl>

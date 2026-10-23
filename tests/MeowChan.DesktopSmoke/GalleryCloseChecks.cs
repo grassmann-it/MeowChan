@@ -48,10 +48,18 @@ internal static class GalleryCloseChecks
             "Gallery fullscreen control is not reachable.");
         WindowState expectedExit = maximizedOrigin ? WindowState.Maximized : WindowState.Normal;
         Exception? exitFailure = null;
+        await ObserveFullscreenPresentationAsync(window, host, "before", immersive: false);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_SKIP_FULLSCREEN") != "1")
         {
             fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => IsNativeFullscreen(window) && host.IsEffectivelyVisible);
+            await ObserveFullscreenPresentationAsync(window, host, "entered", immersive: true);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FULLSCREEN_CHECK") == "1")
+            {
+                viewer = await CheckFullscreenGalleryLifecycleAsync(window, host, viewer, id, expectedExit, normalOrigin);
+                fullscreen = viewer.GetGalleryVisualDescendants().OfType<Button>()
+                    .Single(button => button.Name == "GalleryFullscreen");
+            }
             Console.WriteLine($"SMOKE gallery close: before fullscreen exit state={window.WindowState}, client={window.ClientSize}, frame={window.FrameSize}, position={window.Position}.");
             fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             try
@@ -83,6 +91,7 @@ internal static class GalleryCloseChecks
         }
         else Console.WriteLine("SMOKE gallery close: fullscreen toggles skipped for native caption input control.");
 
+        await ObserveFullscreenPresentationAsync(window, host, "exited", immersive: false);
         Button close = window.FindControl<Button>("WindowCloseButton")!;
         RevealGalleryChrome(viewer);
         await CaptureNativeAsync(videoFixture ? "video-exit" : "image-exit");
@@ -121,6 +130,104 @@ internal static class GalleryCloseChecks
         if (exitFailure != null)
             throw new InvalidOperationException("Close caption did close the window, but gallery fullscreen exit failed.", exitFailure);
         Console.WriteLine("SMOKE gallery fullscreen exit and close-caption shutdown passed.");
+    }
+
+    // Opt-in, independently reproducible diagnosis: "observe" logs the old layout;
+    // "1" additionally enforces the fullscreen contract and its lifecycle regressions.
+    private static async Task ObserveFullscreenPresentationAsync(MainWindow window, ContentControl host,
+        string stage, bool immersive)
+    {
+        string? mode = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FULLSCREEN_CHECK");
+        if (mode is not ("1" or "observe")) return;
+        window.UpdateLayout();
+        Grid title = window.FindControl<Grid>("WorkspaceTitleBar")!;
+        Border frame = (Border)title.Parent!;
+        Point? top = host.TranslatePoint(default, window);
+        Point? headerBottom = frame.TranslatePoint(new Point(0, frame.Bounds.Height), window);
+        Console.WriteLine("SMOKE gallery fullscreen presentation: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            stage, state = window.WindowState.ToString(), window.RenderScaling,
+            client = window.ClientSize.ToString(), frame = window.FrameSize?.ToString(),
+            titleVisible = title.IsEffectivelyVisible, titleBounds = title.Bounds.ToString(),
+            galleryVisible = host.IsEffectivelyVisible, galleryOrigin = top?.ToString(),
+            galleryBounds = host.Bounds.ToString(), headerBottom = headerBottom?.ToString(),
+            row = Grid.GetRow(host), rowSpan = Grid.GetRowSpan(host)
+        }));
+        if (OperatingSystem.IsLinux() && (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1"
+            || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_KWIN") == "1"))
+        {
+            var handle = window.TryGetPlatformHandle() ?? throw new InvalidOperationException("Missing native window handle.");
+            System.Diagnostics.ProcessStartInfo info = new("xprop")
+            { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (string arg in new[] { "-id", handle.Handle.ToString(), "_NET_WM_STATE", "_NET_FRAME_EXTENTS" })
+                info.ArgumentList.Add(arg);
+            using System.Diagnostics.Process process = System.Diagnostics.Process.Start(info)!;
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            Task<string> error = process.StandardError.ReadToEndAsync();
+            try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch { if (!process.HasExited) process.Kill(); throw; }
+            string native = await output;
+            Console.WriteLine($"SMOKE gallery fullscreen native {stage}: {native.Replace('\n', ';')}; stderr={await error}");
+            Require(process.ExitCode == 0, "Native fullscreen state observation failed.");
+            if (mode == "1") Require(native.Contains("_NET_WM_STATE_FULLSCREEN", StringComparison.Ordinal)
+                == (window.WindowState == WindowState.FullScreen), "Native and managed fullscreen state differ.");
+        }
+        await CaptureNativeAsync("fullscreen-" + stage);
+        if (mode != "1") return;
+        Require(title.IsEffectivelyVisible == !immersive, "Fullscreen gallery titlebar visibility is wrong: " + stage);
+        if (!host.IsEffectivelyVisible) return;
+        Require(top.HasValue && Math.Abs(top.Value.X) <= 1
+            && Math.Abs(host.Bounds.Width - window.ClientSize.Width) <= 1
+            && Math.Abs(top.Value.Y + host.Bounds.Height - window.ClientSize.Height) <= 1,
+            "Gallery does not span the client width/bottom: " + stage);
+        Require(immersive ? Math.Abs(top!.Value.Y) <= 1
+            && Math.Abs(host.Bounds.Height - window.ClientSize.Height) <= 1
+            : headerBottom.HasValue && Math.Abs(top!.Value.Y - headerBottom.Value.Y) <= 1,
+            "Gallery top edge does not match fullscreen/header state: " + stage);
+    }
+
+    private static async Task<GalleryViewer> CheckFullscreenGalleryLifecycleAsync(MainWindow window,
+        ContentControl host, GalleryViewer viewer, ResourceId id, WindowState expectedExit, Size expectedSize)
+    {
+        static Button ButtonFor(GalleryViewer current, string name) => current.GetGalleryVisualDescendants()
+            .OfType<Button>().Single(button => button.Name == name);
+        static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        static void Key(GalleryViewer current, Avalonia.Input.Key key) => current.RaiseEvent(
+            new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+        while (viewer.TryDismissOverlay()) { }
+        Click(ButtonFor(viewer, "GalleryToggleContext"));
+        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>()
+            .Any(button => button.Name == "GalleryReadPost" && button.IsEffectivelyVisible));
+        Click(ButtonFor(viewer, "GalleryReadPost"));
+        await Program.WaitUntilAsync(() => !host.IsVisible && window.ArchivePage.CurrentThread?.Summary.Id == id);
+        await window.GalleryCleanupTask;
+        Require(IsNativeFullscreen(window), "Reader suspension changed the shell fullscreen state.");
+        await ObserveFullscreenPresentationAsync(window, host, "reader-suspended", immersive: false);
+        Click(window.ArchivePage.FindControl<Button>("ArchiveGalleryReturn")!);
+        await Program.WaitUntilAsync(() => host.IsVisible);
+        Require(ReferenceEquals(host.Content, viewer), "Gallery return replaced its media viewer.");
+        await window.GalleryCleanupTask;
+        await ObserveFullscreenPresentationAsync(window, host, "reader-returned", immersive: true);
+        while (viewer.TryDismissOverlay()) { }
+        Key(viewer, Avalonia.Input.Key.Escape);
+        await Program.WaitUntilAsync(() => expectedExit == WindowState.Maximized
+            ? IsNativeMaximized(window) : window.WindowState == WindowState.Normal
+                && Math.Abs(window.Bounds.Width - expectedSize.Width) <= 2
+                && Math.Abs(window.Bounds.Height - expectedSize.Height) <= 2);
+        Require(host.IsVisible, "Escape closed the gallery instead of leaving fullscreen.");
+        await ObserveFullscreenPresentationAsync(window, host, "escape-exited", immersive: false);
+        Key(viewer, Avalonia.Input.Key.F11);
+        await Program.WaitUntilAsync(() => IsNativeFullscreen(window));
+        await ObserveFullscreenPresentationAsync(window, host, "f11-entered", immersive: true);
+        Click(ButtonFor(viewer, "GalleryClose"));
+        Require(!host.IsVisible && IsNativeFullscreen(window), "Closing the gallery changed shell fullscreen state.");
+        await ObserveFullscreenPresentationAsync(window, host, "gallery-closed", immersive: false);
+        await window.OpenGalleryAsync(id);
+        await Program.WaitUntilAsync(() => host.IsVisible && host.Content is GalleryViewer);
+        viewer = (GalleryViewer)host.Content!;
+        await ObserveFullscreenPresentationAsync(window, host, "gallery-reopened", immersive: true);
+        Console.WriteLine("SMOKE gallery fullscreen lifecycle: reader suspend/return, Escape, F11, close and reopen passed.");
+        return viewer;
     }
 
     private static bool IsNativeFullscreen(MainWindow window) => window.WindowState == WindowState.FullScreen

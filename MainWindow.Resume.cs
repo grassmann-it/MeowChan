@@ -54,8 +54,9 @@ public partial class MainWindow
             }
             catch (Exception error)
             {
-                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", error.Message), true);
-                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", error.Message), NotificationType.Error);
+                if (!_isClosing && ArchivePage.CurrentThread?.Summary.Id == position.ThreadId)
+                    ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", error.Message), true);
+                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", error.Message), NotificationType.Error, context: position.ThreadId.ToString(), operation: "preferences.reading-position");
             }
         }
         _readingPositionSave = SaveAsync();

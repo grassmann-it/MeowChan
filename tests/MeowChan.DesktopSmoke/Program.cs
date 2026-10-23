@@ -22,6 +22,7 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class Program
 {
+    private static bool _savedSearchesOnly;
     private static bool _checksPassed;
     private static bool _closed;
     private static Exception? _failure;
@@ -47,6 +48,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
+        _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
         if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins")))
         {
             Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins]");
@@ -79,6 +81,16 @@ internal static class Program
             Directory.CreateDirectory(profile);
             File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
         }
+        if (_savedSearchesOnly)
+        {
+            string savedProfile = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_TEST_PROFILE")
+                ?? throw new InvalidOperationException("Saved-search restart smoke requires an explicit disposable test profile.");
+            profile = Path.GetFullPath(savedProfile);
+            if (Directory.Exists(profile) && !File.Exists(Path.Combine(profile, ".saved-search-smoke-profile")))
+                throw new IOException("Saved-search smoke refuses an unmarked existing profile.");
+            Directory.CreateDirectory(profile);
+            File.WriteAllText(Path.Combine(profile, ".saved-search-smoke-profile"), "Disposable saved-search acceptance profile");
+        }
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", null);
@@ -105,13 +117,25 @@ internal static class Program
                 DownloadsPaused = _selectionMode,
                 SaveUrlsOnExit = true
             };
+            if (_savedSearchesOnly)
+            {
+                config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_MODE") ?? "Advanced";
+                config.Language = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_LANGUAGE") ?? "en";
+                config.Theme = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_THEME") ?? "Dark";
+                config.DownloadsPaused = true; config.SaveUrlsOnExit = false;
+            }
             if (_galleryCloseOnly) config.WorkspaceMode = "Advanced";
-            if (!_readingPositionMode || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
+                config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced";
+            if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            if (_savedSearchesOnly) SavedArchiveSearchChecks.PrepareAsync(profile).GetAwaiter().GetResult();
             if (_readingPositionMode && !File.Exists(Path.Combine(profile, "reading-fixture-ready")))
             {
                 ReaderUxChecks.SeedAsync(profile).GetAwaiter().GetResult();
                 File.WriteAllText(Path.Combine(profile, "reading-fixture-ready"), "ready");
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
+                MediaRatingFixture.SeedAsync(profile).GetAwaiter().GetResult();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
@@ -167,9 +191,15 @@ internal static class Program
             {
                 using ProfileLease reacquired = ProfileLease.Acquire(profile);
                 Console.WriteLine("SMOKE profile lease released after normal close.");
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
+                    MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1"
+                ? Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
+                    ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
+                    : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"
+                : _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
@@ -192,7 +222,7 @@ internal static class Program
             if (Application.Current is DownloadSessionSmokeApp fixtureApp)
                 fixtureApp.DisposeFixture();
             Log.CloseAndFlush();
-            if (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE")))
+            if (!_savedSearchesOnly && (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE"))))
                 Directory.Delete(showcaseRoot ?? profile, recursive: true);
         }
     }
@@ -242,6 +272,18 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SUGGESTIONS_ONLY") == "1")
+            {
+                await SuggestionsPresentationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "groups")
+            {
+                await ReaderGroupChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_FIT_BENCHMARK") == "1")
             {
                 GalleryImageDecoder.DecodeStarted = request => Console.WriteLine("MEDIA_DECODE " + request.GetType().Name);
@@ -251,11 +293,53 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
+            {
+                await MediaRatingChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SECTION_COMPARISON_ONLY") == "1")
+            {
+                await SectionComparisonChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             CommandRefreshChecks.Run();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_TEMPLATE_COMPARISON") == "1")
+            {
+                await TemplateComparisonChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON") == "1")
+            {
+                await ArchiveComparisonChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (_savedSearchesOnly)
+            {
+                await SavedArchiveSearchChecks.RunAsync(mainWindow, Config.GetConfigDirectory());
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FOOTER_NAVIGATION_ONLY") == "1")
             {
                 await FooterNavigationChecks.RunAsync(mainWindow);
                 await BrandNavigationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PATH_INPUT_ONLY") == "1")
+            {
+                await SettingsPathInputChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
@@ -313,9 +397,37 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_LOCALE_ONLY") == "1")
+            {
+                await PostBookmarkLocaleChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")
+            {
+                await PostBookmarkComparisonChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARKS_ONLY") == "1")
+            {
+                await PostBookmarkChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_COMMAND_CONTRAST_ONLY") == "1")
             {
                 await CommandButtonContrastChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_ACTION_OVERFLOW_ONLY") == "1")
+            {
+                await ActionToolBarPresentationChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
@@ -347,9 +459,17 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_PRESENTATION_ONLY") == "1")
+            {
+                await ShortcutPresentationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POWERUSER_ONLY") == "1")
             {
                 await PowerUserCommandChecks.RunAsync(mainWindow);
+                await ShortcutRebindingChecks.RunAsync(mainWindow);
                 await RulesPageChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
@@ -495,6 +615,7 @@ internal static class Program
             await BrandNavigationChecks.RunAsync(mainWindow);
             await ReaderLiveChecks.RunAsync(mainWindow);
             await ReaderRepliesChecks.RunAsync(mainWindow);
+            await PostBookmarkChecks.RunAsync(mainWindow);
 
             DesktopThreadEntry thread = SnapshotFixtures.Thread(123, "123", "Desktop smoke initial title");
             DesktopBoardEntry board = SnapshotFixtures.Board(124);

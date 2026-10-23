@@ -75,21 +75,19 @@ public partial class MainWindow
         else if (!_isClosing) completed();
     }
 
-    internal async Task OpenSearchGalleryAsync(ArchiveThreadQuery query, int workFilter = 0, Control? origin = null)
+    internal Task OpenSearchGalleryAsync(ArchiveThreadQuery query, int workFilter = 0, Control? origin = null) =>
+        OpenSearchGalleryAsync(ArchiveSearchRequest.Create(ArchiveSearchSpec.FromLegacy(query, MeowChan.ArchivePage.WorkChoice(workFilter))), workFilter, origin);
+
+    internal async Task OpenSearchGalleryAsync(ArchiveSearchRequest query, int workFilter = 0, Control? origin = null)
     {
         // Freeze the work projection with the query before asynchronous selection begins.
-        IReadOnlyDictionary<string, ThreadWorkSnapshot> work = _session.GetThreadWorkSnapshots()
-            .GroupBy(item => item.Url, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        IReadOnlySet<string>? eligibleUrls = MeowChan.ArchivePage.CaptureExportWorkUrls(workFilter, _session.GetThreadWorkSnapshots());
         _galleryStart = null;
         _galleryAllVersions = false;
         await StartGalleryAsync(Array.Empty<ResourceId>(), origin, selectThreads: async token =>
         {
             await using ArchiveReader reader = await _session.OpenArchiveReaderAsync(token);
-            if (workFilter == 0) return await reader.SelectThreadIdsAsync(query, token);
-            IReadOnlyList<ArchiveThreadSummary> summaries = await reader.SelectThreadSummariesAsync(query, token);
-            return summaries.Where(summary => MeowChan.ArchivePage.WorkMatches(work.GetValueOrDefault(summary.Url), workFilter))
-                .Select(summary => summary.Id).ToArray();
+            return await MeowChan.ArchivePage.ResolveExportResultIdsAsync(reader, query, eligibleUrls, token);
         });
     }
 
@@ -147,6 +145,7 @@ public partial class MainWindow
         ContentControl host = this.FindControl<ContentControl>("GalleryHost")!;
         host.Content = _gallery;
         host.IsVisible = true;
+        UpdateGalleryFullscreenPresentation();
         _gallery.Focus();
         UpdateGalleryScope();
         if (selectThreads != null)
@@ -333,6 +332,7 @@ public partial class MainWindow
         _gallerySuspended = true;
         _galleryVisitedReader = true;
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = false;
+        UpdateGalleryFullscreenPresentation();
         ArchivePage.GalleryReturn = ReturnToGallery;
         ArchivePage.ShowGalleryReturn(true);
     }
@@ -343,6 +343,7 @@ public partial class MainWindow
         _gallerySuspended = false;
         ArchivePage.ShowGalleryReturn(false);
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
+        UpdateGalleryFullscreenPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
         TrackGalleryCleanup(_gallery.ResumeMediaAsync());
         RefreshGalleryFavorite();
@@ -368,11 +369,14 @@ public partial class MainWindow
         _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
+        UpdateGalleryFullscreenPresentation();
         if (retiring != null) TrackGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
         _galleryRestoreOrigin = null;
         if (followReader)
         {
-            if (current?.Post != null) _ = FollowGalleryPostAsync(current);
+            // Preserve explicit group/bookmark reader origins when closing a gallery.
+            if (_readerGroupReturn != null || _postBookmarkReaderReturn != null) restore?.Invoke();
+            else if (current?.Post != null) _ = FollowGalleryPostAsync(current);
             else restore?.Invoke();
         }
         else if (restorePage)
@@ -380,12 +384,24 @@ public partial class MainWindow
             if (!_galleryLargeReaderOrigin) CloseLargeReader(restoreOrigin: false);
             restore?.Invoke();
             if (_selectedPage != _galleryOriginPage) NavigateWorkspace(_galleryOriginPage, activateArchive: false);
-            _galleryOrigin?.Focus();
+            (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         }
-        else if (restoreOrigin) _galleryOrigin?.Focus();
+        else if (restoreOrigin) (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
         if (restoreOrigin && !_isClosing) completed?.Invoke();
+    }
+
+    private void UpdateGalleryFullscreenPresentation()
+    {
+        ContentControl host = WorkspaceControl<ContentControl>("GalleryHost");
+        bool immersive = WindowState == WindowState.FullScreen
+            && _gallery != null && !_gallerySuspended && host.IsVisible;
+        // The shell caption is client content, so native fullscreen cannot hide it.
+        // Span its existing row without changing the underlying page/reader layout.
+        WorkspaceControl<Border>("WorkspaceTitleBarFrame").IsVisible = !immersive;
+        Grid.SetRow(host, immersive ? 0 : 1);
+        Grid.SetRowSpan(host, immersive ? 4 : 3);
     }
 
     private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)

@@ -8,16 +8,22 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
+using Ursa.Controls;
 
 namespace MeowChan;
 
 public partial class MainWindow
 {
-    private bool _measuringDownloadsHeader;
 
     private void InitializeDownloadsHeader()
     {
-        WorkspaceControl<Border>("DownloadsPanel").SizeChanged += (_, _) => UpdateDownloadsHeaderLayout();
+        WorkspaceControl<Button>("DownloadsColumnsButton").Command = new DelegateCommand(
+            () => OnDownloadsColumnsClick(WorkspaceControl<Button>("DownloadsColumnsButton"), new RoutedEventArgs()),
+            () => !_isClosing);
+        WorkspaceControl<Button>("CopyAllUrlsButton").Command = new DelegateCommand(
+            async () => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url))),
+            () => !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0));
         WorkspaceControl<ComboBox>("WorkspaceModeComboBox").SelectionBoxItemTemplate = new FuncDataTemplate<object>((value, _) => new TextBlock
         {
             Text = value is StackPanel panel ? panel.Children.OfType<TextBlock>().FirstOrDefault()?.Text
@@ -50,54 +56,18 @@ public partial class MainWindow
 
     private void UpdateDownloadsHeaderLayout()
     {
-        if (!_workspaceInitialized || _measuringDownloadsHeader) return;
-        _measuringDownloadsHeader = true;
-        try
+        if (!_workspaceInitialized) return;
+        OverflowMode mode = _config.WorkspaceMode == "Barebones" ? OverflowMode.Always : OverflowMode.AsNeeded;
+        foreach (string name in new[] { "DownloadsColumnsButton", "CopyAllUrlsButton" })
         {
-            double width = WorkspaceControl<Border>("DownloadsPanel").Bounds.Width;
-            if (width <= 0) return;
-            Button columns = WorkspaceControl<Button>("DownloadsColumnsButton");
-            Button copy = WorkspaceControl<Button>("CopyAllUrlsButton");
-            Button more = WorkspaceControl<Button>("DownloadsMoreButton");
-            columns.IsVisible = true; copy.IsVisible = true; more.IsVisible = false;
-            Size unconstrained = new(double.PositiveInfinity, double.PositiveInfinity);
-            TabControl tabs = WorkspaceControl<TabControl>("DownloadsTabs");
-            StackPanel actions = WorkspaceControl<StackPanel>("WorkspaceListActions");
-            double tabWidth = tabs.Padding.Left + tabs.Padding.Right;
-            foreach (TabItem item in tabs.Items.OfType<TabItem>())
-            {
-                item.Measure(unconstrained);
-                tabWidth += item.DesiredSize.Width;
-            }
-            Control[] fullActions = actions.Children.Where(item => item.IsVisible).ToArray();
-            double actionWidth = actions.Margin.Left + actions.Margin.Right + Math.Max(0, fullActions.Length - 1) * actions.Spacing;
-            foreach (Control action in fullActions)
-            {
-                action.Measure(unconstrained);
-                actionWidth += action.DesiredSize.Width;
-            }
-            // Barebones keeps its quiet header at every width; the other modes
-            // retain the measured overflow behavior. Both actions remain in More.
-            bool compact = _config.WorkspaceMode == "Barebones" || tabWidth + actionWidth + 8 > width;
-            columns.IsVisible = !compact; copy.IsVisible = !compact; more.IsVisible = compact;
+            Button button = WorkspaceControl<Button>(name);
+            ToolBar.SetOverflowMode(button, mode);
+            CommandBindings.Refresh(button);
         }
-        finally { _measuringDownloadsHeader = false; }
-    }
-
-    private void OnDownloadsMoreClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button) return;
-        ContextMenu menu = new();
-        MenuItem columns = new() { Header = Texts.T("downloads.columns") };
-        // Use the same column menu and commands as the full-width header.
-        columns.Click += (_, args) => OnDownloadsColumnsClick(button, args);
-        MenuItem copy = new() { Header = Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count), IsEnabled = WorkspaceControl<Button>("CopyAllUrlsButton").IsEnabled };
-        copy.Click += async (_, _) => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url)));
-        ToolTip.SetTip(copy, Texts.T("downloads.copySessionUrlsHint"));
-        AutomationProperties.SetHelpText(copy, Texts.T("downloads.copySessionUrlsHint"));
-        menu.Items.Add(columns); menu.Items.Add(copy);
-        button.ContextMenu = menu;
-        menu.Open(button);
+        ActionToolBar toolbar = WorkspaceControl<ActionToolBar>("WorkspaceListActions");
+        AutomationProperties.SetName(toolbar, Texts.T("downloads.title"));
+        toolbar.RefreshOverflowLabel();
+        toolbar.InvalidateMeasure();
     }
 
     private static bool IsAdvancedWorkColumn(DataGridColumn column) => column.SortMemberPath is nameof(ThreadRow.MissingMedia) or nameof(ThreadRow.EarliestRetry);

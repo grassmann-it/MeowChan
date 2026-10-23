@@ -13,9 +13,9 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private static readonly string[] ThreadColumnKeys = ["identity", "title", "posts", "media", "source", "work", "lastCapture"];
-    private static readonly string[] MediaColumnKeys = ["name", "size", "version"];
+    private static readonly string[] MediaColumnKeys = ["name", "size", "version", "rating"];
     private static readonly double[] ThreadDefaultWidths = [150, 0, 65, 80, 90, 110, 145];
-    private static readonly double[] MediaDefaultWidths = [0, 85, 125];
+    private static readonly double[] MediaDefaultWidths = [0, 85, 125, 130];
     private Dictionary<string, double> _archiveColumnWidths = new(StringComparer.Ordinal);
     private Dictionary<string, bool> _archiveColumnVisibility = new(StringComparer.Ordinal);
     private Dictionary<string, int> _archiveColumnOrder = new(StringComparer.Ordinal);
@@ -131,7 +131,7 @@ public partial class ArchivePage
             threads.Columns[i].Header = Texts.T("archive.columns." + ThreadColumnKeys[i]);
         DataGrid media = Control<DataGrid>("ArchiveMediaGrid");
         for (int i = 0; i < MediaColumnKeys.Length; i++)
-            media.Columns[i].Header = Texts.T("archive.columns." + MediaColumnKeys[i]);
+            media.Columns[i].Header = MediaColumnKeys[i] == "rating" ? MeowChan.Desktop.MediaRatingText.Label : Texts.T("archive.columns." + MediaColumnKeys[i]);
     }
 
     private void OnArchiveColumnsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

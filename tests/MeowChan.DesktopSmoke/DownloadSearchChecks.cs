@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Styling;
 using System.ComponentModel;
 using MeowChan.Persistence;
@@ -13,6 +14,7 @@ internal static class DownloadSearchChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        await ActionToolBarFocusChecks.RunAsync(window);
         ThreadRow[] rows = Enumerable.Range(2000, 300).Select(value => new ThreadRow(SnapshotFixtures.Thread(value,
             value.ToString(), value % 2 == 0 ? "Alpha local fixture" : "Beta local fixture", board: "local"))).ToArray();
         ThreadRow complete = rows[0], waiting = rows[1];
@@ -86,11 +88,20 @@ internal static class DownloadSearchChecks
             DataGridColumn retryColumn = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.EarliestRetry));
             Require(!missingColumn.IsVisible && !retryColumn.IsVisible, "Optional work columns were visible by default.");
             Button columnsButton = window.FindControl<Button>("DownloadsColumnsButton")!;
-            Click(columnsButton);
+            ActionToolBar columnActions = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
+            window.UpdateLayout();
+            if (columnActions.OverflowHost?.Children.Contains(columnsButton) == true)
+            {
+                Require(columnActions.More?.IsEffectivelyVisible == true, "The columns overflow action is not reachable.");
+                columnActions.More!.IsChecked = true;
+            }
+            await Program.WaitUntilAsync(() => columnsButton.IsEffectivelyVisible && columnsButton.IsEffectivelyEnabled);
+            SmokeActionClick.Execute(columnsButton);
             MenuItem missingItem = columnsButton.ContextMenu!.Items.OfType<MenuItem>()
                 .Single(item => Equals(item.Header, Texts.T("column.missingMedia")));
             missingItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             columnsButton.ContextMenu.Close();
+            if (columnActions.More != null) columnActions.More.IsChecked = false;
             await Program.WaitUntilAsync(() => missingColumn.IsVisible);
             grid.CollectionView.SortDescriptions.Clear();
             missingColumn.Sort(ListSortDirection.Ascending);
@@ -114,7 +125,7 @@ internal static class DownloadSearchChecks
                     window.Height = mode == "Barebones" ? 480 : 500;
                     await Task.Delay(80);
                     window.UpdateLayout();
-                    Control actions = window.FindControl<StackPanel>("WorkspaceListActions")!;
+                    Control actions = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
                     Point? actionStart = actions.TranslatePoint(default, window);
                     Point? tabEnd = tabs.TranslatePoint(new Point(tabs.Bounds.Width, 0), window);
                     Require(actionStart != null && tabEnd != null && tabEnd.Value.X <= actionStart.Value.X + 1,
@@ -134,25 +145,35 @@ internal static class DownloadSearchChecks
                         window.UpdateLayout();
                         Button columns = window.FindControl<Button>("DownloadsColumnsButton")!;
                         Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
-                        Button more = window.FindControl<Button>("DownloadsMoreButton")!;
-                        Require(mode != "Barebones" || more.IsEffectivelyVisible && !columns.IsVisible && !copy.IsVisible,
+                        ActionToolBar toolbar = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
+                        var more = toolbar.More!;
+                        bool columnsOverflow = toolbar.OverflowHost!.Children.Contains(columns);
+                        bool copyOverflow = toolbar.OverflowHost!.Children.Contains(copy);
+                        Require(mode != "Barebones" || more.IsEffectivelyVisible && columnsOverflow && copyOverflow,
                             "Barebones exposed rare actions outside More after resizing.");
-                        Require(mode == "Barebones" || width < 1380 || columns.IsEffectivelyVisible && copy.IsEffectivelyVisible && !more.IsVisible,
+                        Require(mode == "Barebones" || width < 1380 || !columnsOverflow && !copyOverflow && !more.IsVisible,
                             "A wide Simple/Advanced header retained its overflow menu.");
                         Require(window.FindControl<Button>("DownloadSearchButton")!.IsEffectivelyVisible
                             && window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible,
                             "Header resizing hid a primary action.");
                         if (more.IsVisible)
                         {
-                            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                            MenuItem[] items = more.ContextMenu!.Items.OfType<MenuItem>().ToArray();
-                            Require(items.Length == 2 && items[0].Header?.ToString() == Texts.T("downloads.columns")
-                                && items[1].Header?.ToString() == Texts.T("downloads.copySessionUrls", window.UrlList.Count + window.BoardsList.Count)
-                                && items[1].IsEnabled == copy.IsEnabled, "More lost a list action, session count or command availability.");
-                            // Exercise the real nested column menu, not only its label.
-                            items[0].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                            Require(more.ContextMenu!.Items.OfType<MenuItem>().Any(), "More did not open column choices.");
-                            more.ContextMenu.Close();
+                            var command = columns.Command;
+                            more.IsChecked = true;
+                            await Task.Delay(40);
+                            Require(toolbar.OverflowHost!.Children.Contains(columns) == columnsOverflow
+                                && toolbar.OverflowHost.Children.Contains(copy) == copyOverflow
+                                && ReferenceEquals(command, columns.Command), "Overflow duplicated or replaced action commands.");
+                            if (columnsOverflow)
+                            {
+                                SmokeActionClick.Execute(columns);
+                                Require(columns.ContextMenu!.Items.OfType<MenuItem>().Any(), "Overflow did not open column choices.");
+                                columns.ContextMenu.Close();
+                            }
+                            toolbar.OverflowHost.RaiseEvent(new KeyEventArgs
+                                { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                            await Task.Delay(40);
+                            Require(more.IsFocused, "Closing overflow lost its return focus.");
                         }
                         Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language
                             + "-" + theme.Key.ToString()!.ToLowerInvariant() + "-" + (width == 1380 ? "wide" : "minimum") + ".png");

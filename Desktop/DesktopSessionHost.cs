@@ -81,6 +81,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         try
         {
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            Commands.ShortcutService.Publish(Config.ShortcutBindings);
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
@@ -328,6 +329,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
+        Commands.ShortcutService.ValidateForCommit(settings.ShortcutBindings);
         if (!settings.RememberReadingPosition) InvalidateReadingPositionWrites();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -350,6 +352,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
             Config.CopyFrom(candidate);
+            Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
@@ -479,6 +482,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             if (_disposed) return;
             _disposed = true;
             _startupCancellation.Dispose();
+            lock (_ratingsSync)
+            {
+                _ratingsStore = null; _ratingEntries = null; _ratingValues = null; _ratingLoadError = null;
+            }
             _profileLease.Dispose();
             StateChanged = null;
         }

@@ -16,6 +16,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop;
 using MeowChan.Rules;
 using SkiaSharp;
+using PopConfirm = Ursa.Controls.PopConfirm;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -50,7 +51,14 @@ internal static class CommandButtonContrastChecks
                 enabled.IsChecked = enabled.IsChecked != true;
                 await Program.WaitUntilAsync(() => window.RulesPage.CanSave);
                 await InspectStatesAsync(window, window.RulesPage.FindControl<Button>("SaveRuleButton")!, theme, mouse, failures);
-                Click(window.RulesPage.FindControl<Button>("DiscardRuleButton")!);
+                Button discard = window.RulesPage.FindControl<Button>("DiscardRuleButton")!;
+                Click(discard);
+                PopConfirm confirmation = discard.GetVisualAncestors().OfType<PopConfirm>().Single();
+                await Program.WaitUntilAsync(() => window.RulesPage.IsDiscardConfirmationOpen
+                    && confirmation.IsDropdownOpen);
+                confirmation.ConfirmCommand!.Execute(null);
+                await Program.WaitUntilAsync(() => !window.RulesPage.IsDiscardConfirmationOpen
+                    && !confirmation.IsDropdownOpen && !window.RulesPage.HasDiscardableChanges);
                 await InspectToggleAsync(window, theme, mouse, failures);
             }
         }
@@ -120,6 +128,19 @@ internal static class CommandButtonContrastChecks
                 catch
                 {
                     Console.WriteLine($"SMOKE command input failed: {button.Name}/{context}/{state}: over={button.IsPointerOver}, pressed={button.IsPressed}, enabled={button.IsEffectivelyEnabled}, bounds={button.Bounds}, window={window.Bounds}");
+                    Point? center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window);
+                    Visual? hit = center.HasValue ? window.InputHitTest(center.Value) as Visual : null;
+                    Console.WriteLine("SMOKE command input target: " + JsonSerializer.Serialize(new
+                    {
+                        center = center?.ToString(), root = TopLevel.GetTopLevel(button)?.GetType().Name,
+                        button.IsHitTestVisible, window.IsEnabled, window.IsActive,
+                        hit = hit?.GetType().Name,
+                        hitAncestors = hit?.GetSelfAndVisualAncestors().Select(visual => visual is Control control
+                            ? control.GetType().Name + ":" + control.Name : visual.GetType().Name).ToArray(),
+                        openConfirmations = window.GetVisualDescendants().OfType<PopConfirm>()
+                            .Where(surface => surface.IsDropdownOpen).Select(surface => surface.GetType().Name).ToArray(),
+                        ownedWindows = window.OwnedWindows.Select(child => new { child.Name, child.IsVisible, child.IsEnabled }).ToArray()
+                    }));
                     throw;
                 }
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);

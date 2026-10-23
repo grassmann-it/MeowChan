@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using MeowChan.Rules;
@@ -10,7 +11,7 @@ using MeowChan.Rules;
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>Uses the existing isolated smoke window; no watches, HTTP, or additional native windows.</summary>
-internal static class RulesPageChecks
+internal static partial class RulesPageChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
@@ -42,19 +43,26 @@ internal static class RulesPageChecks
             Texts.SetLanguage("en");
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             await OpenRulesAsync(window);
+            await RuleExtensionsLifetimeChecks.RunAsync(window);
             page.EditScope(MediaRuleScope.Global);
             await FlushAsync();
             RequireScopeSelection(page, MediaRuleScope.Global);
             page.FindControl<CheckBox>("RuleEnabledInput")!.IsChecked = true;
             page.FindControl<ComboBox>("RuleTypesModeInput")!.SelectedIndex = (int)MediaTypeSelectionMode.Selected;
-            page.FindControl<TextBox>("RuleExtensionsInput")!.Text = "JPG, WebM";
+            (await WaitForRuleExtensionsEditorAsync(window, page)).Text = "JPG, WebM";
             page.FindControl<ComboBox>("RuleSizeModeInput")!.SelectedIndex = (int)MediaSizeLimitMode.Limited;
             page.FindControl<TextBox>("RuleMegabytesInput")!.Text = "1.5";
+            Require(page.ExtensionsText.Contains(".jpg", StringComparison.Ordinal) && page.ExtensionsText.Contains(".webm", StringComparison.Ordinal),
+                "The first focused edit was not synchronously attached to the rule tag draft: " + page.ExtensionsText);
+            Console.WriteLine("SMOKE rules before global save: types=" + page.TypesMode + "; raw=" + page.ExtensionsText
+                + "; sizeMode=" + page.SizeMode + "; MB=" + page.MegabytesText);
             await SaveThroughButtonAsync(window, page);
             MediaRuleSet savedGlobal = window.SessionHost.MediaRules;
             EffectiveMediaRule global = new MediaRuleResolver(savedGlobal).Resolve(MediaRuleScope.Global);
             Require(global.Types.Extensions.SequenceEqual(new[] { ".jpg", ".webm" }) && global.SizeLimit.Bytes == 1_500_000,
-                "The global Rules editor did not commit normalized types and decimal MB through the session host.");
+                "The global Rules editor did not commit normalized types and decimal MB through the session host. Actual: mode=" + global.Types.Mode
+                + "; extensions=" + string.Join(",", global.Types.Extensions) + "; bytes=" + global.SizeLimit.Bytes
+                + "; draft=" + page.ExtensionsText + "; draftMB=" + page.MegabytesText + "; revision=" + savedGlobal.Revision);
             Require(File.ReadAllText(Path.Combine(Config.GetConfigDirectory(), "media_rules.json")).Contains(savedGlobal.Revision, StringComparison.Ordinal),
                 "The visible saved rule revision was not present in the isolated profile.");
 
@@ -63,7 +71,7 @@ internal static class RulesPageChecks
             RequireScopeSelection(page, board);
             page.FindControl<CheckBox>("RuleEnabledInput")!.IsChecked = true;
             page.FindControl<ComboBox>("RuleTypesModeInput")!.SelectedIndex = (int)MediaTypeSelectionMode.Selected;
-            page.FindControl<TextBox>("RuleExtensionsInput")!.Text = "PNG";
+            (await WaitForRuleExtensionsEditorAsync(window, page)).Text = "PNG";
             page.FindControl<ComboBox>("RuleSizeModeInput")!.SelectedIndex = (int)MediaSizeLimitMode.Inherit;
             await FlushAsync();
             Require(page.EffectiveTypesLabel == ".png" && page.TypesOriginLabel.Contains("4chan/g", StringComparison.Ordinal)
@@ -124,7 +132,7 @@ internal static class RulesPageChecks
             await FlushAsync();
             RequireScopeSelection(page, thread);
             page.FindControl<ComboBox>("RuleTypesModeInput")!.SelectedIndex = (int)MediaTypeSelectionMode.Selected;
-            page.FindControl<TextBox>("RuleExtensionsInput")!.Text = "image/jpeg";
+            (await WaitForRuleExtensionsEditorAsync(window, page)).Text = "image/jpeg";
             page.FindControl<ComboBox>("RuleSizeModeInput")!.SelectedIndex = (int)MediaSizeLimitMode.Limited;
             page.FindControl<TextBox>("RuleMegabytesInput")!.Text = "not-a-number";
             await FlushAsync();
@@ -221,6 +229,7 @@ internal static class RulesPageChecks
 
             await CheckOriginNavigationAsync(window);
             await CheckFailedSaveInSameWindowAsync(window);
+            await CheckUrsaDraftWorkflowAsync(window);
         }
         finally
         {
@@ -246,6 +255,13 @@ internal static class RulesPageChecks
         Require(SameCatalog(window.SessionHost.MediaRules, originalRules),
             "The Rules smoke did not restore the original catalog.");
         Console.WriteLine("SMOKE rules: durable global/board rules, field origins, disabled inheritance, retained invalid drafts, locale precision, guarded save failures and compact EN/DE layouts passed.");
+    }
+
+    private static void ClickParentBreadcrumb(RulesPage page)
+    {
+        var parent = page.FindControl<Ursa.Controls.Breadcrumb>("RuleScopeBreadcrumb")!.Items.OfType<Ursa.Controls.BreadcrumbItem>()
+            .Single(item => Equals(item.Tag, page.ParentScope));
+        Click(parent);
     }
 
     private static async Task CheckOriginNavigationAsync(MainWindow window)
@@ -277,7 +293,7 @@ internal static class RulesPageChecks
             Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
             Require(fixture.ActiveScope == board, "Types origin did not open the actual board rule.");
             fixture.ExtensionsText = "gif";
-            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
+            ClickParentBreadcrumb(fixture);
             Require(fixture.ActiveScope == source, "Board parent navigation did not open the source scope.");
             fixture.ExtensionsText = "webm";
             Click(fixture.FindControl<Button>("OpenTypesOriginButton")!);
@@ -299,8 +315,8 @@ internal static class RulesPageChecks
                 "Origin navigation lost manually entered unknown object identities.");
             confirmed = new MediaRuleSet("origins-2", confirmed.Rules.Where(rule => rule.Scope != source)
                 .Append(new MediaRule(source, types: MediaTypeSelection.All)));
-            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
-            Click(fixture.FindControl<Button>("OpenParentRuleButton")!);
+            ClickParentBreadcrumb(fixture);
+            ClickParentBreadcrumb(fixture);
             Require(fixture.ActiveScope == source && fixture.HasValidationError && !fixture.CanSave && fixture.ExtensionsText == "webm",
                 "Parent navigation erased an externally conflicting draft or its stale marker.");
             fixture.EditScope(thread);
@@ -418,6 +434,42 @@ internal static class RulesPageChecks
     {
         window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && window.RulesPage.IsEditable);
+    }
+
+    private static async Task<TextBox> WaitForRuleExtensionsEditorAsync(Window window, RulesPage page)
+    {
+        var tags = page.FindControl<MeowChan.Desktop.Controls.RuleExtensionsInput>("RuleExtensionsInput")!;
+        TextBox? input = null;
+        try
+        {
+            // The Selected mode reveals a previously hidden TagInput. Its inner template
+            // is materialized by layout, rather than by the SelectedIndex assignment.
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                input = tags.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(value => value.IsAttachedToVisualTree()
+                    && value.IsEffectivelyVisible && value.IsEffectivelyEnabled && value.Bounds.Width > 0 && value.Bounds.Height > 0);
+                if (input == null) return false;
+                input.BringIntoView(); window.UpdateLayout();
+                if (!Fits(window, input)) return false;
+                foreach (ScrollViewer scroll in input.GetVisualAncestors().OfType<ScrollViewer>())
+                {
+                    Point? point = input.TranslatePoint(default, scroll);
+                    if (point == null || point.Value.Y < -1 || point.Value.Y + input.Bounds.Height > scroll.Bounds.Height + 1) return false;
+                }
+                input.Focus(NavigationMethod.Tab);
+                return ReferenceEquals(window.FocusManager?.GetFocusedElement(), input);
+            });
+        }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException("The visible rule extension editor did not materialize as an attached, enabled, on-screen, focusable TextBox. "
+                + "Scope=" + page.ActiveScope + "; mode=" + page.TypesMode + "; selectionVisible=" + page.HasTypeSelection
+                + "; tagAttached=" + tags.IsAttachedToVisualTree() + "; tagVisible=" + tags.IsEffectivelyVisible
+                + "; tagEnabled=" + tags.IsEffectivelyEnabled + "; textBoxes=" + tags.GetVisualDescendants().OfType<TextBox>().Count()
+                + "; tagBounds=" + tags.Bounds, exception);
+        }
+        return input!;
     }
 
     private static Task WaitLayoutAsync(Window window, Func<bool> condition) => Program.WaitUntilAsync(() =>

@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -17,7 +18,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
-        .Any(node => node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem or Slider or TabItem);
+        .Any(node => node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem);
 
     private long? _threadLeadId;
     private long? _boardLeadId;
@@ -32,7 +33,7 @@ public partial class MainWindow
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
             if (ReferenceEquals(node, list)) return true;
-            if (node is TextBox or SelectableTextBlock or ComboBox or Button or MenuItem or Slider or TabItem
+            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem
                 or DataGridColumnHeader) return false;
         }
         return false;
@@ -62,12 +63,12 @@ public partial class MainWindow
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
         ArchivePage.CanRemoveWatch = id => _threadRows.Values.Any(row => row.Snapshot.Id == id);
         ArchivePage.CheckSelectedWatches = CheckArchiveWatchesAsync;
-        ArchivePage.CopySelectedUrls = CopyUrlsAsync;
+        ArchivePage.CopySelectedUrls = urls => CopyUrlsAsync(urls, ArchivePage.CaptureActionErrorReporter());
         ArchivePage.SelectionLeadAction = (id, action) =>
         {
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
-            if (action == "browser") { OpenTarget(row?.Url ?? ArchivePage.ArchiveUrlFor(id)); return; }
-            if (action == "folder") { string? directory = row?.DownloadDirectory ?? ArchivePage.ArchiveDirectoryFor(id); if (directory != null) OpenDirectory(directory); return; }
+            if (action == "browser") { OpenTarget(row?.Url ?? ArchivePage.ArchiveUrlFor(id), ArchivePage.CaptureActionErrorReporter()); return; }
+            if (action == "folder") { string? directory = row?.DownloadDirectory ?? ArchivePage.ArchiveDirectoryFor(id); if (directory != null) OpenDirectory(directory, ArchivePage.CaptureActionErrorReporter()); return; }
             if (action == "rules" && NavigateWorkspace(WorkspacePage.Rules))
                 _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
         };
@@ -83,8 +84,7 @@ public partial class MainWindow
         foreach (MenuItem item in menu.Items.OfType<MenuItem>())
         {
             if (item.Tag is string key && item.Classes.Contains("localized")) item.Header = Texts.T(key);
-            if (OperatingSystem.IsMacOS() && item.InputGesture is KeyGesture gesture && gesture.KeyModifiers.HasFlag(KeyModifiers.Control))
-                item.InputGesture = new KeyGesture(gesture.Key, (gesture.KeyModifiers & ~KeyModifiers.Control) | KeyModifiers.Meta);
+
         }
     }
 
@@ -147,6 +147,15 @@ public partial class MainWindow
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
             || _selectedPage != WorkspacePage.Downloads || WorkspaceCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
+        if (CommandBindings.Matches(e, "menu.context-open"))
+        {
+            e.Handled = true;
+            if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
+            { BuildDownloadMenu(grid, menu); if (menu.ItemCount > 0) menu.Open(grid); }
+            return;
+        }
+        // The dedicated Menu key remains native. An overridden free Shift+F10 does not.
+        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
         {
             // Native grid navigation handles range selection and moves CurrentItem.
@@ -159,40 +168,40 @@ public partial class MainWindow
             return;
         }
         KeyModifiers mods = e.KeyModifiers;
-        if (mods == ListCommandModifier && e.Key == Key.A)
+        if (CommandBindings.Matches(e, "selection.select-all"))
         {
             e.Handled = true; grid.SelectAll(); return;
         }
-        if (mods == ListCommandModifier && e.Key == Key.C)
+        if (CommandBindings.Matches(e, "selection.copy-links"))
         {
             e.Handled = true; await CopyUrlsAsync(boards ? SelectedBoards().Select(row => row.Url).ToArray() : SelectedThreads().Select(row => row.Url).ToArray()); return;
         }
-        if (mods == ListCommandModifier && e.Key == Key.E && !boards)
+        if (CommandBindings.Matches(e, "export.open-html-dialog") && !boards)
         { e.Handled = true; await ExportDownloadSelectionAsync(grid); return; }
-        if (mods == KeyModifiers.None && e.Key == Key.Delete)
+        if (CommandBindings.Matches(e, "watch.remove"))
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
-        if (e.Key == Key.Enter && mods == KeyModifiers.Alt)
+        if (CommandBindings.Matches(e, "thread.details"))
         { e.Handled = true; OpenWorkspaceDetails(); return; }
-        if (e.Key == Key.Enter && mods is KeyModifiers.None or KeyModifiers.Shift)
+        if (CommandBindings.Matches(e, "thread.read") || CommandBindings.Matches(e, "gallery.open"))
         {
             e.Handled = true;
             if (boards) OpenWorkspaceDetails();
             else if (LeadThread is ThreadRow row)
             {
-                if (mods == KeyModifiers.Shift) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
+                if (CommandBindings.Matches(e, "gallery.open")) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
                 else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
             }
             return;
         }
-        if (e.Key == Key.F5 && mods is KeyModifiers.None or KeyModifiers.Shift)
-        { e.Handled = true; await CheckDownloadSelectionAsync(boards, mods == KeyModifiers.Shift); return; }
-        if (boards && mods == (ListCommandModifier | KeyModifiers.Shift) && e.Key == Key.R)
+        if (CommandBindings.Matches(e, "watch.check") || CommandBindings.Matches(e, "watch.retry-media"))
+        { e.Handled = true; await CheckDownloadSelectionAsync(boards, CommandBindings.Matches(e, "watch.retry-media")); return; }
+        if (boards && CommandBindings.Matches(e, "board.filters"))
         { e.Handled = true; if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); return; }
-        if (mods == ListCommandModifier && e.Key == Key.R)
+        if (CommandBindings.Matches(e, "rules.edit-scope"))
         { e.Handled = true; OnEditSelectionRules(sender, new RoutedEventArgs()); return; }
-        if (mods == ListCommandModifier && e.Key == Key.O)
+        if (CommandBindings.Matches(e, "location.open-folder"))
         { e.Handled = true; if (boards) OnOpenBoardDirectoryClick(sender, new RoutedEventArgs()); else OnOpenThreadDirectoryClick(sender, new RoutedEventArgs()); return; }
-        if (mods == (ListCommandModifier | KeyModifiers.Shift) && e.Key == Key.O)
+        if (CommandBindings.Matches(e, "location.open-source"))
         { e.Handled = true; if (boards) OnOpenBoardInBrowserClick(sender, new RoutedEventArgs()); else OnOpenThreadInBrowserClick(sender, new RoutedEventArgs()); }
     }
 
@@ -209,7 +218,7 @@ public partial class MainWindow
                 catch (Exception error) { failures.Add(error.Message); }
             }
             if (failures.Count > 0) ShowNotification(Texts.T("notification.error"),
-                Texts.T("selection.failed", failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error);
+                Texts.T("selection.failed", failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
         }
         finally { _selectionCommandRunning = false; RefreshWorkspace(); }
     }
@@ -262,11 +271,11 @@ public partial class MainWindow
         {
             string text = CheckActionText.ForResult(responses[0].Status, responses[0].Target.Kind);
             if (frozen.Length > 1) text += " · " + responses.Count + "/" + frozen.Length;
-            ShowNotification(Texts.T("notification.session"), text, NotificationType.Information);
+            ShowNotification(Texts.T("notification.session"), text, NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.check");
         }
         if (retried) ShowNotification(Texts.T("notification.session"), Texts.T(acceptedMedia == 0 ? "work.retryNone"
             : _session.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
-            acceptedMedia == 0 ? NotificationType.Warning : NotificationType.Information);
+            NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }
 
     private Task RemoveArchiveWatchesAsync(IReadOnlyList<ResourceId> ids)

@@ -23,23 +23,25 @@ public partial class MainWindow
     private void WireGalleryActions()
     {
         if (_gallery == null) return;
-        _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry));
+        _gallery.RatingSetRequested += (entry, value) => _ = SetGalleryRatingAsync(entry, value);
+        _gallery.RatingEditRequested += entry => _ = RunGalleryActionAsync(() => EditMediaRatingAsync(entry), entry.Key.ToString());
+        _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry), entry.Key.ToString());
         _gallery.ExportOriginalRequested += entry => _ = RunGalleryActionAsync(() => ArchivePage.OpenOriginalExportAsync(
-            new[] { FavoriteExportAsset.From(entry.Key.Thread, entry.Manifest, entry.Asset) }, _gallery));
+            new[] { FavoriteExportAsset.From(entry.Key.Thread, entry.Manifest, entry.Asset) }, _gallery), entry.Key.ToString());
         _gallery.ShowInFolderRequested += entry =>
         {
             string? directory = Path.GetDirectoryName(entry.Asset.Path);
             if (directory != null) OpenDirectory(directory);
         };
-        _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry));
+        _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry), entry.Key.ToString());
     }
 
-    private async Task RunGalleryActionAsync(Func<Task> command)
+    private async Task RunGalleryActionAsync(Func<Task> command, string? context = null)
     {
         try { await command(); }
         catch (OperationCanceledException) when (_isClosing) { }
         catch (Exception error) when (error is not OutOfMemoryException)
-        { if (!_isClosing) ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error); }
+        { if (!_isClosing) ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: context, operation: "gallery.action"); }
     }
 
     private async Task ToggleGalleryFavoriteAsync(GalleryEntry entry)
@@ -64,6 +66,7 @@ public partial class MainWindow
 
     private void RefreshGalleryFavorite()
     {
+        RefreshGalleryRating();
         _archivePage?.RefreshArchiveFavoriteControls();
         if (_gallery != null && _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count)
         {

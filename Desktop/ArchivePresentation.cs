@@ -134,8 +134,14 @@ internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false
     public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;
 }
 
-internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset)
+internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private int? _rating;
+    private bool _ratingUnavailable;
+    public int? Rating { get => _rating; set { _rating = value; PropertyChanged?.Invoke(this, new(nameof(RatingLabel))); } }
+    public bool RatingUnavailable { get => _ratingUnavailable; set { _ratingUnavailable = value; PropertyChanged?.Invoke(this, new(nameof(RatingLabel))); } }
+    public string RatingLabel => RatingUnavailable ? MediaRatingText.Get("Unavailable", "Nicht verfügbar") : MediaRatingText.Value(Rating);
     public Func<bool>? FavoriteAvailable { get; set; }
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }

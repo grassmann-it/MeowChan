@@ -50,5 +50,7 @@ public partial class MainWindow
         }
         _readerRestoreOrigin = null;
         _readerOriginFocus = null;
+        ReturnToReaderGroups(restoreOrigin); // URSA-12 shared close hook.
+        if (restoreOrigin) ReturnToPostBookmarks();
     }
 }

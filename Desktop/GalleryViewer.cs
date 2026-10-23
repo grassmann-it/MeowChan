@@ -118,6 +118,37 @@ internal sealed class GalleryViewer : UserControl
     internal event Action? FullscreenRequested;
     internal event EventHandler<KeyEventArgs>? ShellKeyRequested;
     internal event Action<GalleryEntry>? FavoriteToggleRequested;
+    internal event Action<GalleryEntry>? RatingEditRequested;
+    internal event Action<GalleryEntry, int?>? RatingSetRequested;
+    private CommandRouter? _ratingRouter;
+    private CommandRouter? _nativeRatingRouter;
+    private CommandRouter CreateRatingRouter(Control owner)
+    {
+        CommandRouter router = new(owner);
+        bool Ready() => _entry != null && _ratingButton.IsEnabled;
+        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, Ready,
+            () => { if (_entry != null) RatingEditRequested?.Invoke(_entry); }, Priority: 200));
+        router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
+            () => { if (_entry != null) RatingSetRequested?.Invoke(_entry, null); }, Priority: 200));
+        for (int value = 1; value <= 5; value++)
+        {
+            int selected = value;
+            router.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
+                () => { if (_entry != null) RatingSetRequested?.Invoke(_entry, selected); }, Priority: 200));
+        }
+        return router;
+    }
+    private int? _ratingValue;
+    private string? _ratingError;
+    private bool _ratingAvailable;
+    private readonly Button _ratingButton = new() { Name = "GalleryRating" };
+    private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+    internal void SetRating(int? value, string? error, bool available = true)
+    {
+        _ratingValue = value; _ratingError = error; _ratingAvailable = available;
+        _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value) + (error == null ? string.Empty : " · " + error);
+        _ratingButton.IsEnabled = available && _entry != null;
+    }
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
     internal event Action<GalleryEntry>? DetailsRequested;
@@ -163,6 +194,12 @@ internal sealed class GalleryViewer : UserControl
 
     internal GalleryViewer()
     {
+        AttachedToVisualTree += (_, _) =>
+        {
+            _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose();
+            _ratingRouter = CreateRatingRouter(this); _nativeRatingRouter = CreateRatingRouter(_nativeVideoOverlay);
+        };
+        DetachedFromVisualTree += (_, _) => { _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose(); };
         _image.RenderTransform = _imageTranslation;
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
@@ -178,6 +215,9 @@ internal sealed class GalleryViewer : UserControl
         _zoomIn = Command(toolbar, "GalleryPlus", "+", () => Zoom(1.1));
         _contextToggle = (ToggleButton)Command(toolbar, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
         _favorite = (ToggleButton)Command(toolbar, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
+        CommandBindings.Apply(_ratingButton, "media.rating.edit");
+        _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
+        toolbar.Children.Add(_ratingButton);
         _exportOriginal = Command(toolbar, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); });
         Command(toolbar, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
@@ -195,6 +235,7 @@ internal sealed class GalleryViewer : UserControl
         infoContent.Children.Add(_scope);
         infoContent.Children.Add(_warnings);
         infoContent.Children.Add(_favoriteError);
+        infoContent.Children.Add(_ratingStatus);
         AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
         _infoOverlay.Child = infoContent;
         _helpPanel.Child = new ScrollViewer { Content = _helpContent,
@@ -273,6 +314,7 @@ internal sealed class GalleryViewer : UserControl
         AttachedToVisualTree += (_, _) =>
         {
             Texts.Changed += OnLanguageChanged;
+            ShortcutService.Changed += OnShortcutBindingsChanged;
             _scaleOwner = TopLevel.GetTopLevel(this);
             if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
             RevealChrome();
@@ -280,6 +322,7 @@ internal sealed class GalleryViewer : UserControl
         DetachedFromVisualTree += (_, _) =>
         {
             Texts.Changed -= OnLanguageChanged;
+            ShortcutService.Changed -= OnShortcutBindingsChanged;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
             _scaleOwner = null;
             _chromeTimer.Stop();
@@ -320,6 +363,8 @@ internal sealed class GalleryViewer : UserControl
     {
         if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
         { Avalonia.Threading.Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
+        CommandBindings.Apply(_ratingButton, "media.rating.edit");
+        SetRating(_ratingValue, _ratingError, _ratingAvailable);
         var labels = new Dictionary<string, string>
         {
             ["GalleryClose"] = "gallery.viewer0", ["GalleryPrevious"] = "gallery.viewer1",
@@ -343,9 +388,11 @@ internal sealed class GalleryViewer : UserControl
         UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp();
     }
 
+    private void OnShortcutBindingsChanged() => OnLanguageChanged(this, EventArgs.Empty);
+
     private void UpdateHelpButtonTooltip()
     {
-        string tip = _showShortcutHelp ? Texts.T("viewer.help.hint") : CommandBindings.Tooltip("viewer.shortcut-help");
+        string tip = string.Join(" · ", (_showShortcutHelp ? new[] { "viewer.shortcut-help", "favorites.toggle", "gallery.context-toggle" } : new[] { "viewer.shortcut-help" }).Select(id => CommandBindings.Tooltip(id)));
         ToolTip.SetTip(_helpButton, tip);
         AutomationProperties.SetHelpText(_helpButton, tip);
     }
@@ -437,13 +484,15 @@ internal sealed class GalleryViewer : UserControl
         string label = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
         _favorite.IsChecked = _favoriteSelected;
         AutomationProperties.SetName(_favorite, label);
-        ToolTip.SetTip(_favorite, label + " · F");
+        ToolTip.SetTip(_favorite, CommandBindings.Tooltip("favorites.toggle"));
+        AutomationProperties.SetHelpText(_favorite, CommandBindings.Tooltip("favorites.toggle"));
         _favorite.IsEnabled = _entry != null;
     }
 
     private void UpdateContextButton()
     {
-        string label = Texts.T(_contextOpen ? "viewer.context.hide" : "viewer.context.show");
+        string label = Texts.T(_contextOpen ? "viewer.context.hide" : "viewer.context.show")
+            + (CommandCatalog.ShortcutDisplay("gallery.context-toggle") is string gesture ? " · " + gesture : "");
         _contextToggle.IsChecked = _contextOpen;
         AutomationProperties.SetName(_contextToggle, label);
         ToolTip.SetTip(_contextToggle, label);
@@ -465,11 +514,13 @@ internal sealed class GalleryViewer : UserControl
         _helpContent.Children.Clear();
         if (!_helpOpen) return;
         _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Foreground = Brushes.White, FontWeight = FontWeight.Bold });
-        string[] keys = _helpExpanded
-            ? new[] { "viewer.help.move", "viewer.help.zoom", "viewer.help.favorite", "viewer.help.context", "viewer.help.video", "viewer.help.fullscreen", "viewer.help.escape" }
-            : new[] { "viewer.help.move", "viewer.help.zoom", "viewer.help.favorite", "viewer.help.context" };
-        foreach (string key in keys)
-            _helpContent.Children.Add(new TextBlock { Text = Texts.T(key), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
+        string[] ids = _helpExpanded
+            ? new[] { "gallery.previous", "gallery.next", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
+            : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle" };
+        foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
+            && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
+            _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
         WrapPanel actions = new() { ItemSpacing = 6 };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
         Command(actions, "GalleryHelpClose", Texts.T("action.close"), () => SetHelp(false));
@@ -493,11 +544,12 @@ internal sealed class GalleryViewer : UserControl
         favorite.ToggleType = MenuItemToggleType.CheckBox;
         favorite.IsChecked = _favoriteSelected;
         AutomationProperties.SetName(favorite, favorite.Header.ToString());
-        AutomationProperties.SetHelpText(favorite, favorite.Header + " · F");
-        ToolTip.SetTip(favorite, favorite.Header + " · F");
+        AutomationProperties.SetHelpText(favorite, CommandBindings.Tooltip("favorites.toggle"));
+        ToolTip.SetTip(favorite, CommandBindings.Tooltip("favorites.toggle"));
         ContextMenu menu = new() { ItemsSource = new object[]
         {
             favorite,
+            Item("media.rating.edit", () => RatingEditRequested?.Invoke(entry), _ratingButton.IsEnabled),
             new Separator(),
             Item("media.export-original", () => ExportOriginalRequested?.Invoke(entry)),
             Item("media.show-in-folder", () => ShowInFolderRequested?.Invoke(entry)),
@@ -595,6 +647,8 @@ internal sealed class GalleryViewer : UserControl
         UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = true;
         SetFavorite(false);
+        _ratingValue = null; _ratingError = null; _ratingAvailable = false;
+        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; SetImageCommands(false); UpdateContext();
         if (entry.Kind == SavedMediaKind.Video)
         {
@@ -770,28 +824,32 @@ internal sealed class GalleryViewer : UserControl
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         RevealChrome();
-        if (e.Handled) return;
-        if (e.Key == Key.F11 && e.KeyModifiers == KeyModifiers.None) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
-        if (e.Key == Key.F1 || e.KeySymbol == "?" || (e.Key == Key.OemQuestion && e.KeyModifiers == KeyModifiers.Shift))
+        if (e.Handled || ShortcutService.IsCapturing) return;
+        Control routingOwner = sender is Control control ? control : this;
+        if (!CommandRouter.IsRoutingContextActive(routingOwner, e.Source)) return;
+        if (CommandBindings.Matches(e, "window.fullscreen")) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "viewer.shortcut-help"))
         { SetHelp(!_helpOpen); e.Handled = true; return; }
-        if (e.KeyModifiers != KeyModifiers.None && !(e.KeyModifiers == KeyModifiers.Shift && (e.Key == Key.OemPlus || e.KeySymbol == "+"))) return;
+        if (_helpOpen) return;
+        if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control =>
             control is TextBox or ComboBox or Slider or TabControl or DataGrid or SelectableTextBlock)) return;
-        if (e.Key == Key.F) { ToggleFavorite(); e.Handled = true; return; }
-        if (e.Key == Key.P) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
-        if (e.Key is Key.D0 or Key.NumPad0 || e.KeySymbol == "0") { Fit(); e.Handled = true; return; }
-        if (e.Key is Key.D1 or Key.NumPad1 || e.KeySymbol == "1") { ActualPixels(); e.Handled = true; return; }
-        if (e.Key == Key.Space && _entry?.Kind == SavedMediaKind.Video && _video != null &&
+        if (CommandBindings.Matches(e, "favorites.toggle")) { ToggleFavorite(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "video.play-pause") && _entry?.Kind == SavedMediaKind.Video && _video != null &&
             !(e.Source is Visual spaceSource && spaceSource.GetVisualAncestors().Prepend(spaceSource).Any(control => control is Button)))
         { _ = _video.TogglePlaybackAsync(); e.Handled = true; return; }
-        switch (e.Key)
-        {
-            case Key.Left: Move(-1); break;
-            case Key.Right: Move(1); break;
-            case Key.Add: case Key.OemPlus: Zoom(1.1); break;
-            case Key.Subtract: case Key.OemMinus: Zoom(1 / 1.1); break;
-            default: return;
-        }
+        if (CommandBindings.Matches(e, "gallery.previous")) Move(-1);
+        else if (CommandBindings.Matches(e, "gallery.next")) Move(1);
+        else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
+        else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
+        else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
+        else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
+        else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
+        else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) ReadPostRequested?.Invoke(_entry); }
+        else { CommandBindings.RouteVisibleActions(this, e); return; }
         e.Handled = true;
     }
 

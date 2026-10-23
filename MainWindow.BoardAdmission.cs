@@ -85,7 +85,7 @@ public partial class MainWindow
         }
         catch (Exception exception)
         {
-            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error);
+            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error, context: board.Url, operation: "board.admission");
         }
         finally { _importing = false; UpdateInteractionState(); }
     }

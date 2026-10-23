@@ -3,6 +3,9 @@ using System.Net.Http;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
+using Avalonia.Automation;
+using Ursa.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -24,7 +27,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopSmoke;
 
-internal static class PluginManagementChecks
+internal static partial class PluginManagementChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
@@ -63,6 +66,11 @@ internal static class PluginManagementChecks
         {
             OpenPlugins(window);
             await page.ActivateAsync();
+            Require(page.Selected == null && page.FindControl<SelectionList>("PluginCards")!.SelectedIndex == -1,
+                "The initial catalog selected a candidate automatically.");
+            PluginCatalogSnapshot catalog = await management.ReadCatalogAsync(CancellationToken.None);
+            Require(Equals(page.FindControl<Badge>("PluginInventoryBadge")!.Header, catalog.Diagnostics.Count),
+                "The inventory badge does not show the actual inventory diagnostic count.");
             Require(transportHandler.Requests == 0, "Selecting/refreshing a plugin fetched a site.");
             await File.AppendAllTextAsync(source, "\n// saved source revision two\n");
             page.Select(candidateId);
@@ -88,29 +96,59 @@ internal static class PluginManagementChecks
             await page.RefreshAsync();
             page.Select(candidateId);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            TextBox name = page.GetVisualDescendants().OfType<TextBox>().Single(input => input.Name == "PluginField_label");
+            await PluginSettingsFormChecks.RunManagedScopesAsync(page, profile);
+            TextBox name = (TextBox)page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == SettingScope.Plugin).FindField("label")!;
             name.Text = "retained draft";
+            await CheckResponsivePluginFocusAsync(window, page, candidateId);
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             foreach (string language in new[] { "en", "de" })
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
-                window.Width = mode == "Barebones" ? 640 : 760;
-                window.Height = mode == "Barebones" ? 480 : 500;
+                double matrixWidth = mode == "Barebones" ? 640 : 760;
+                double matrixHeight = mode == "Barebones" ? 480 : 500;
+                window.Width = matrixWidth;
+                window.Height = matrixHeight;
+                // Wait for the native resize before explicit detail selection.
+                // A late shrink must not reinterpret ActivateAsync's category
+                // focus as the user's current pane after Select opened details.
+                await WaitForPluginMatrixGeometryAsync(window, page, mode, language, theme,
+                    matrixWidth, matrixHeight, requireDetails: false);
                 OpenPlugins(window);
                 await page.ActivateAsync(); page.Select(candidateId);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Require(page.CurrentDraft!.Plugin.Text("label") == "retained draft", "Status/language/mode refresh discarded the draft.");
-                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return page.Bounds.Width < 850 && page.FindControl<Button>("PluginBack")!.IsEffectivelyVisible; });
+                await WaitForPluginMatrixGeometryAsync(window, page, mode, language, theme,
+                    matrixWidth, matrixHeight, requireDetails: true);
                 Require(page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.probeFinished"), "Test status did not follow the selected UI language.");
                 Program.CaptureWindow(window, "smoke-plugins-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
                 page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Button card = page.FindControl<StackPanel>("PluginCards")!.Children.OfType<Button>().First();
-                Require(card.IsFocused && page.FindControl<Grid>("PluginListPane")!.IsVisible, "Back did not restore focus to the same plugin card.");
-                card.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
+                SelectionListItem card = (SelectionListItem)list.SelectedItem!;
+                Require(card.IsFocused && page.FindControl<Grid>("PluginListPane")!.IsVisible, "Back did not restore focus to the same selected plugin item.");
+                await page.RefreshAsync(); await page.RefreshAsync();
+                Require(ReferenceEquals(card, list.SelectedItem) && card.IsFocused, "Status refresh replaced the selection container or stole focus.");
+                bool filtered = page.Selected?.IsFilter != true;
+                page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 2;
+                Require((!filtered || list.SelectedItem == null) && !page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsVisible,
+                    "Filtering a source selected a replacement or kept stale details visible.");
+                page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 0;
+                Require(ReferenceEquals(card, list.SelectedItem) && page.FindControl<Grid>("PluginListPane")!.IsVisible,
+                    "Returning to the category did not restore the exact candidate or opened narrow details.");
+                Require(page.CurrentDraft!.Plugin.Text("label") == "retained draft", "Category navigation discarded the draft.");
+                list.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Home });
+                Require(page.FindControl<Grid>("PluginListPane")!.IsVisible, "Directional selection unexpectedly opened narrow details.");
+                if (!page.FindControl<Button>("PluginRollback")!.IsEnabled)
+                    Require(page.FindControl<SelectableTextBlock>("PluginActivationReasons")!.IsVisible &&
+                        !string.IsNullOrEmpty(AutomationProperties.GetHelpText(page.FindControl<Button>("PluginRollback")!)),
+                        "The disabled rollback reason is not reachable without hovering.");
+                list.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                Require(page.FindControl<Button>("PluginBack")!.IsFocused, "Enter did not open narrow details with Back focused.");
+                page.Select(candidateId);
             }
             await CapturePluginDraftAndPendingAsync(window, page, profile, original.Artifact!, production, productionIdentity);
+            await CheckDelayedDiscardFocusAsync(window, management, candidateId);
             Texts.SetLanguage("en");
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/hang";
             Task pending = page.ProbeAsync();
@@ -121,7 +159,9 @@ internal static class PluginManagementChecks
             await pending.WaitAsync(TimeSpan.FromSeconds(8));
             Require(page.FindControl<TextBox>("PluginProbeResult")!.Text == before, "Cancelled late probe changed the displayed result.");
             Require(production.Identity.InstanceId == productionIdentity, "Cancelling a test replaced the production worker.");
+            await PluginSettingsFormChecks.RunAdapterAsync(host);
             await CheckRuleFiltersAsync(window, management, profile, root);
+            await CheckTemplateParameterValidationAsync(window, management);
             OpenPlugins(window);
             await page.ActivateAsync(); page.Select(candidateId);
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/hang";
@@ -166,6 +206,9 @@ internal static class PluginManagementChecks
             Require(page.GetVisualDescendants().OfType<TextBlock>().Any(label => label.IsVisible && label.Text == "Fixture rejects this label"), "Field validation disappeared after the save finally block.");
             await RevealAsync(window, page.GetVisualDescendants().OfType<TextBlock>().Single(label => label.Text == "Fixture rejects this label"));
             Program.CaptureWindow(window, "smoke-plugin-filter-domain-error.png");
+            await PluginSettingsErrorMatrixChecks.CaptureAsync(window, page, "filter-worker", "rule-label", "rejected", "Fixture rejects this label",
+                () => page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == SettingScope.FilterRule),
+                () => page.SaveCurrentAsync(), () => store.Current.Revision == revision);
             Field().Text = "allowed again"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); await page.SaveCurrentAsync();
             Require(store.Current.Rules.Single().ImageFilter.Parameters["rule-label"] == "allowed again", "Accepted parameters did not reach the real Core rule store.");
             Grant("plugins.grantSource").Text = "fixture-source"; await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -196,6 +239,73 @@ internal static class PluginManagementChecks
         }
         finally { page.EndLifetime(); host.Content = retained; }
     }
+    private static async Task CheckResponsivePluginFocusAsync(MainWindow window, PluginsPage page, string candidateId)
+    {
+        async Task ResizeAsync(double width, bool narrow)
+        {
+            window.Width = width;
+            await Program.WaitUntilAsync(() => { window.UpdateLayout(); return (page.Bounds.Width < 850) == narrow; });
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+        await ResizeAsync(1150, narrow: false);
+        SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
+        // Category navigation leaves the explicit detail-open flag false, just as
+        // directional selection does. Wide details remain available for Tab.
+        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 1;
+        list.Focus();
+        list.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Home });
+        Require(page.Selected?.Key == candidateId, "Responsive fixture selected an unexpected candidate.");
+        PluginSettingsDraft pluginDraft = page.CurrentDraft!.Plugin;
+        TopLevel? topLevel = TopLevel.GetTopLevel(page);
+        PluginSettingsEditor editor = page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(current =>
+            ReferenceEquals(current.Draft, pluginDraft) && current.IsEffectivelyVisible &&
+            ReferenceEquals(TopLevel.GetTopLevel(current), topLevel));
+        TextBox field = (TextBox)editor.FindField("label")!;
+        Require(topLevel != null && field.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(field), topLevel),
+            "Responsive fixture did not resolve a visible attached field of the current plugin draft.");
+        var sourceLabels = page.CurrentDraft!.Sources.ToDictionary(pair => pair.Key, pair => pair.Value.Text("label"));
+        field.Focus(); field.Text = "resize retained draft";
+        Require(field.IsFocused && ReferenceEquals(topLevel?.FocusManager?.GetFocusedElement(), field),
+            "Responsive fixture did not focus the actual detail editor.");
+        await ResizeAsync(760, narrow: true);
+        Require(field.IsFocused && field.IsEffectivelyVisible && page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsVisible,
+            "Shrinking hid the focused wide detail field.");
+        await page.RefreshAsync(); await page.RefreshAsync();
+        Require(page.CurrentDraft!.Plugin.Text("label") == "resize retained draft" && field.IsFocused,
+            "Refresh after shrinking changed the detail draft or focus.");
+        await ResizeAsync(1150, narrow: false);
+        Require(field.IsFocused && field.IsEffectivelyVisible, "Widening lost the detail editor focus.");
+        // Enter opens narrow details and focuses Back. Widening hides Back itself,
+        // so its meaningful visible successor is the detail heading.
+        await ResizeAsync(760, narrow: true);
+        page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        list.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Require(page.FindControl<Button>("PluginBack")!.IsFocused, "Responsive fixture did not focus Back.");
+        await ResizeAsync(1150, narrow: false);
+        Require(page.FindControl<TextBlock>("PluginHeading")!.IsFocused,
+            "Widening left focus on the now-hidden Back button.");
+        SelectionListItem card = (SelectionListItem)list.SelectedItem!;
+        card.Focus();
+        await ResizeAsync(760, narrow: true);
+        Require(card.IsFocused && card.IsEffectivelyVisible && page.FindControl<Grid>("PluginListPane")!.IsVisible,
+            "Shrinking hid the focused wide list because of an earlier detail-open flag.");
+        await ResizeAsync(1150, narrow: false);
+        Require(card.IsFocused && card.IsEffectivelyVisible, "Widening lost the list focus.");
+        Button outside = window.FindControl<Button>("DownloadsNavigationButton")!;
+        outside.Focus();
+        Require(outside.IsFocused, "Responsive fixture did not focus the footer outside the plugin page.");
+        await ResizeAsync(760, narrow: true);
+        Require(outside.IsFocused, "A pane resize stole focus from outside the plugin page.");
+        Require(page.Selected?.Key == candidateId && ReferenceEquals(page.CurrentDraft!.Plugin, pluginDraft)
+            && pluginDraft.Text("label") == "resize retained draft"
+            && sourceLabels.All(pair => page.CurrentDraft!.Sources[pair.Key].Text("label") == pair.Value),
+            "Responsive pane navigation changed selection, raw plugin draft text, or a different scope's field.");
+        field.Text = "retained draft";
+        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 0;
+        page.Select(candidateId);
+        Console.WriteLine("PLUGIN RESPONSIVE FOCUS PASS: wide detail/list to narrow and back; hidden Back repair; unrelated focus and draft retained.");
+    }
+
     private static async Task CapturePluginDraftAndPendingAsync(MainWindow window, PluginsPage page, PluginProfileStore profile,
         PluginArtifact activeArtifact, IPluginWorkerClient production, string productionIdentity)
     {
@@ -205,7 +315,7 @@ internal static class PluginManagementChecks
             {
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                TextBox field = page.GetVisualDescendants().OfType<TextBox>().Single(input => input.Name == "PluginField_label");
+                TextBox field = (TextBox)page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == SettingScope.Plugin).FindField("label")!;
                 Button save = page.FindControl<Button>("PluginSave")!;
                 TextBlock draftStatus = page.FindControl<TextBlock>("PluginDraftStatus")!;
                 Require(field.Text == "retained draft" && page.CurrentDraft?.Dirty == true && save.IsEnabled
@@ -229,14 +339,19 @@ internal static class PluginManagementChecks
             {
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                TextBlock status = page.FindControl<TextBlock>("PluginStatus")!;
-                string statusText = status.Text ?? string.Empty;
-                Require(statusText.Contains(Texts.T("plugins.activeRevision", string.Empty).Trim(), StringComparison.Ordinal)
-                    && statusText.Contains(Texts.T("plugins.pendingRevision", string.Empty).Trim(), StringComparison.Ordinal)
-                    && statusText.Contains(active.ExecutionRevision[..12], StringComparison.Ordinal)
-                    && statusText.Contains(pending.ExecutionRevision[..12], StringComparison.Ordinal),
-                    "The active/pending capture omits a persisted revision or its distinct status label.");
-                await RevealAsync(window, status);
+                Descriptions identity = page.FindControl<Descriptions>("PluginIdentity")!;
+                var rows = identity.Items.OfType<DescriptionsItem>().ToDictionary(row => row.Label!.ToString()!,
+                    row => ((SelectableTextBlock)row.Content!).Text ?? string.Empty);
+                Require(rows[Texts.T("plugins.detail.active")].Contains(active.ExecutionRevision, StringComparison.Ordinal)
+                    && rows[Texts.T("plugins.detail.pending")].Contains(pending.ExecutionRevision, StringComparison.Ordinal)
+                    && !rows[Texts.T("plugins.detail.active")].Contains(pending.ExecutionRevision, StringComparison.Ordinal),
+                    "Descriptions did not distinguish the full active/pending persisted revisions.");
+                Require(!page.FindControl<Button>("PluginSave")!.IsEnabled &&
+                    page.FindControl<SelectableTextBlock>("PluginDraftReasons")!.IsVisible,
+                    "The unchanged draft's disabled Save has no keyboard reachable reason.");
+                await RevealRangeAsync(window,
+                    identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.active"))),
+                    identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.pending"))));
                 Program.CaptureWindow(window, "smoke-plugins-active-pending-barebones-" + language + ".png");
             }
             Console.WriteLine("PLUGIN SETTINGS CAPTURE: real UI save retained active " + active.ExecutionRevision
@@ -433,9 +548,10 @@ public sealed class ManagementFixture : ISourcePlugin, IImageFilterPlugin, IPlug
         new[] { new SourceDescription("fixture-source", "Fixture source", new Uri("https://fixture.example.test/"),
             SourceCapabilities.ThreadRead | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
             new[] { new UrlRoute(SourceResourceKind.Thread, "fixture.example.test", "/{board}/thread/{thread}", IsCanonical: true) },
-            new[] { new HttpHostDeclaration("fixture.example.test", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia) }, new("1", Array.Empty<SettingDefinition>())) },
+            new[] { new HttpHostDeclaration("fixture.example.test", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia) }, new("1", new SettingDefinition[] { new("label", SettingScope.Source, SettingKind.Text, "Source label", IsRequired: true, Default: new("label", SettingKind.Text, Text: "source fixture")) })) },
         new[] { new FilterDescription("fixture-filter", "Fixture filter", "Domain validated test filter", FilterDataAccess.CandidateMetadata | FilterDataAccess.OriginalImage,
-            new("2", new SettingDefinition[] { new("rule-label", SettingScope.FilterRule, SettingKind.Text, "Rule label", IsRequired: true, Default: new("rule-label", SettingKind.Text, Text: "allowed")) }), new[] { "image/png" }) }, new("1", new SettingDefinition[] {
+            new("2", new SettingDefinition[] { new("rule-label", SettingScope.FilterRule, SettingKind.Text, "Rule label", IsRequired: true, Default: new("rule-label", SettingKind.Text, Text: "allowed")),
+                new("rule-count", SettingScope.FilterRule, SettingKind.Integer, "Rule count", Minimum: 1, Maximum: 10) }), new[] { "image/png" }) }, new("1", new SettingDefinition[] {
             new("label", SettingScope.Plugin, SettingKind.Text, "Label", "A label for the fixture", true, new("label", SettingKind.Text, Text: "fixture")),
             new("number", SettingScope.Plugin, SettingKind.Integer, "Minimum count", Default: new("number", SettingKind.Integer, Integer: 2), Minimum: 1, Maximum: 10),
             new("flag", SettingScope.Plugin, SettingKind.Boolean, "Include replies", Default: new("flag", SettingKind.Boolean, Boolean: true)),
@@ -457,7 +573,9 @@ public sealed class ManagementFixture : ISourcePlugin, IImageFilterPlugin, IPlug
     public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginCallContext context, CancellationToken token = default) => Task.FromResult(new ImageFilterResult(ImageFilterOutcome.Match, "fixture"));
     public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, PluginCallContext context, CancellationToken token = default) =>
         Task.FromResult<IReadOnlyList<FieldValidationError>>(request.Settings.Values.Where(value => value.Key is "label" or "rule-label" && value.Text == "rejected")
-            .Select(value => new FieldValidationError(value.Key, "rejected", "Fixture rejects this label")).ToArray());
+            .Select(value => new FieldValidationError(value.Key, "rejected", "Fixture rejects this label"))
+            .Concat(request.Settings.Values.Where(value => value.Key == "rule-count" && value.Integer == 9)
+                .Select(value => new FieldValidationError(value.Key, "rejected_count", "Fixture rejects count nine"))).ToArray());
 }
 """;
 }

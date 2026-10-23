@@ -28,26 +28,31 @@ public partial class PluginsPage
 
     private void UpdateTestButtons()
     {
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = _busy;
+        if (_busy && _testStatusKey == null) C<TextBlock>("PluginTestStatus").Text = Texts.T("feedback.working");
         bool source = Selected?.SourcePath != null;
-        C<Button>("PluginBuild").IsEnabled = source && !_busy && _services != null;
-        C<Button>("PluginEdit").IsEnabled = source && !_busy;
-        C<Button>("PluginDefaultEditor").IsEnabled = source && !_busy;
+        SetAction("PluginBuild", source ? "plugins.unavailable" : "plugins.reason.noSource", source && _services != null);
+        SetAction("PluginEdit", "plugins.reason.noSource", source);
+        SetAction("PluginDefaultEditor", "plugins.reason.noSource", source);
         C<Button>("PluginCancel").IsEnabled = _busy;
         C<Button>("PluginCancel").IsVisible = _busy;
-        C<Button>("PluginProbe").IsEnabled = !_busy && _tested is { } tested && tested.Key == _selectedKey && tested.Description.Sources.Count > 0;
+        SetAction("PluginProbe", "plugins.reason.noTest", _tested is { } tested && tested.Key == _selectedKey && tested.Description.Sources.Count > 0);
         C<TextBox>("PluginProbeUrl").IsEnabled = !_busy;
-        C<Button>("PluginEditorSave").IsEnabled = !_busy && SaveEditorOptionsAsync != null;
+        SetAction("PluginEditorSave", "plugins.reason.noEditorStore", SaveEditorOptionsAsync != null);
+        ShowReasons("PluginSourceReasons", "PluginBuild", "PluginEdit", "PluginDefaultEditor", "PluginProbe", "PluginEditorSave");
         C<StackPanel>("PluginSettings").IsEnabled = !_busy;
     }
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
+        _pluginSectionNavigation?.CancelPendingNavigation();
         if (_ended || _busy || _services == null || CurrentDraft is not { } draft || Selected is not { } entry || entry.PluginId == null) return;
         PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<FieldValidationError> errors);
-        ShowFieldErrors(errors);
+        ShowFieldErrors(errors, focusFirstError: true);
         if (errors.Count > 0) return;
         PluginArtifact? artifact = entry.ConfigurationArtifact;
-        if (artifact == null) { Error(Texts.T("plugins.noArtifact")); return; }
+        if (artifact == null) { Error(Texts.T("plugins.noArtifact")); FocusFirstSettingError(); return; }
         (long generation, CancellationToken token) = BeginOperation();
+        bool focusSaveError = false;
         try
         {
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(artifact, configuration, token))
@@ -55,7 +60,7 @@ public partial class PluginsPage
                 errors = await ValidateInWorkerAsync(worker, configuration, token);
                 if (!Current(generation)) return;
                 ShowFieldErrors(errors);
-                if (errors.Count > 0) return;
+                if (errors.Count > 0) { focusSaveError = true; return; }
             }
             await _services.ProfileStore.SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token);
             if (!Current(generation)) return;
@@ -63,10 +68,16 @@ public partial class PluginsPage
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
-        finally { FinishOperation(generation); }
+        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); focusSaveError = true; } }
+        finally
+        {
+            FinishOperation(generation);
+            // The test worker's asynchronous disposal must finish before focusing enabled controls.
+            if (focusSaveError && !_ended && generation == _operationGeneration && ReferenceEquals(CurrentDraft, draft))
+                FocusFirstSettingError();
+        }
     }
-    private void ShowFieldErrors(IReadOnlyList<FieldValidationError> errors)
+    private void ShowFieldErrors(IReadOnlyList<FieldValidationError> errors, bool focusFirstError = false)
     {
         foreach ((string scope, PluginSettingsEditor editor) in _editors)
         {
@@ -76,6 +87,7 @@ public partial class PluginsPage
             editor.ShowErrors(scoped);
         }
         Error(errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(error => error.Message)));
+        if (focusFirstError && errors.Count > 0) FocusFirstSettingError();
     }
     private static async Task<IReadOnlyList<FieldValidationError>> ValidateInWorkerAsync(IPluginWorkerClient worker,
         PluginConfiguration configuration, CancellationToken token)
@@ -102,13 +114,14 @@ public partial class PluginsPage
             PluginBuildResult result = await _services.Compiler.BuildAsync(sourcePath, cancellationToken: token);
             if (!Current(generation)) return;
             RenderDiagnostics(result.Diagnostics, entry);
-            if (!result.Succeeded) { SetTestStatus("plugins.buildFailed", result.Status); return; }
+            if (!result.Succeeded) { Error(Texts.T("plugins.buildFailed", result.Status)); SetTestStatus("plugins.buildFailed", result.Status); return; }
             SetTestStatus("plugins.testing", result.Artifact!.ExecutionRevision);
             PluginDescription description = await _services.DescribeTestAsync(result.Artifact, token);
             if (!Current(generation)) return;
             await _services.ProfileStore.ObserveCandidateAsync(new(entry.CandidateId!, description.PluginId, result.Artifact, description, CandidatePath: sourcePath), _catalog!.Profile.Revision, token);
             if (!Current(generation)) return;
             await RefreshAsync();
+            if (!Current(generation)) return;
             PluginConfigurationDraft testDraft = new(entry with { Description = description, Activation = entry.Activation is { } previous ? previous with { Pinned = null } : null }, _catalog!.Profile.Revision);
             PluginConfiguration configuration = testDraft.Configuration(out IReadOnlyList<FieldValidationError> errors);
             if (errors.Count > 0) { ShowFieldErrors(errors); SetTestStatus("plugins.testFailed"); return; }
@@ -143,7 +156,7 @@ public partial class PluginsPage
                 {
                     // The compiler reports the loader input. Never accept plugin-supplied executable strings.
                     try { await PluginEditorLauncher.OpenAsync(GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), file, diagnostic.Line ?? 1, diagnostic.Column ?? 1, _lifetime.Token); }
-                    catch (Exception error) { if (!_ended) Error(error.Message); }
+                    catch (Exception error) { if (!_ended && _selectedKey == entry.Key) Error(error.Message); }
                 };
                 panel.Children.Add(location);
             }
@@ -164,7 +177,9 @@ public partial class PluginsPage
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(tested.Artifact, tested.Configuration, token))
                 result = await _services.ProbeAsync(tested.Description, url, worker, new("plugin-probe:" + tested.Key, generation), token);
             if (!Current(generation)) return;
-            C<TextBox>("PluginProbeResult").Text = FormatProbe(result);
+            string formatted = FormatProbe(result);
+            C<TextBox>("PluginProbeResult").Text = formatted;
+            if (result is ThreadFailure or CatalogFailure) Error(formatted);
             SetTestStatus("plugins.probeFinished");
         }
         catch (OperationCanceledException) { }
@@ -194,16 +209,18 @@ public partial class PluginsPage
     private async Task EditAsync(bool defaultApplication)
     {
         if (_ended || Selected?.SourcePath is not { } path) return;
+        string? key = _selectedKey;
         try { await PluginEditorLauncher.OpenAsync(defaultApplication ? new(null, new[] { "{file}" }) : GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), path, cancellationToken: _lifetime.Token); }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (!_ended) Error(Texts.T("plugins.editorFallback", exception.Message)); }
+        catch (Exception exception) { if (!_ended && key == _selectedKey) Error(Texts.T("plugins.editorFallback", exception.Message)); }
     }
     private async void OnEditorSaveClick(object? sender, RoutedEventArgs e)
     {
         if (_ended || SaveEditorOptionsAsync == null) return;
         PluginEditorOptions options = new(C<TextBox>("PluginEditorExecutable").Text?.Trim(),
             (C<TextBox>("PluginEditorArguments").Text ?? "{file}").Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n'));
+        string? key = _selectedKey;
         try { _ = PluginEditorLauncher.CreateStartInfo(options, Selected?.SourcePath ?? "plugin.cs"); await SaveEditorOptionsAsync(options); }
-        catch (Exception exception) { if (!_ended) Error(exception.Message); }
+        catch (Exception exception) { if (!_ended && key == _selectedKey) Error(exception.Message); }
     }
 }

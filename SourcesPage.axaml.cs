@@ -74,9 +74,9 @@ public partial class SourcesPage : UserControl
                 string sourceId = row.Id;
                 select.Click += (_, _) =>
                 {
+                    if (_selectedId != sourceId) SetActionError(string.Empty);
                     _selectedId = sourceId;
                     _showDetails = true;
-                    this.FindControl<TextBlock>("SourcesActionError")!.Text = string.Empty;
                     RenderDetails();
                     if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
                 };
@@ -96,6 +96,7 @@ public partial class SourcesPage : UserControl
     private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
     private void RenderDetails()
     {
+        RenderOperationFeedback();
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
         {
             source.Value.Name.Text = (source.Key == _selectedId ? "● " : "")
@@ -231,7 +232,7 @@ public partial class SourcesPage : UserControl
     {
         if (_ended || _busy || Selected is not SourceRow row) return;
         try { await ExternalLauncher.OpenAsync(row.Address); }
-        catch (Exception exception) { if (!_ended) this.FindControl<TextBlock>("SourcesActionError")!.Text = exception.Message; }
+        catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
     private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDiagnostics?.Invoke(); }
     private void OnDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
@@ -239,7 +240,7 @@ public partial class SourcesPage : UserControl
     {
         if (!_available || _busy || SelectedWatch == null) return;
         if (_openWatch?.Invoke(SelectedWatch.Target) != true)
-            this.FindControl<TextBlock>("SourcesActionError")!.Text = Texts.T("diagnostics.removed");
+            SetActionError(Texts.T("diagnostics.removed"));
     }
     private async void OnAddClick(object? sender, RoutedEventArgs e) => await SubmitAsync();
     private async void OnUrlKeyDown(object? sender, KeyEventArgs e)
@@ -252,6 +253,7 @@ public partial class SourcesPage : UserControl
     {
         if (_ended || !_available || _busy || _submit == null) return;
         string input = this.FindControl<TextBox>("SourceUrlInput")!.Text ?? string.Empty;
+        SetActionError(null);
         _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
         try
         {
@@ -263,7 +265,7 @@ public partial class SourcesPage : UserControl
         }
         catch (Exception exception)
         {
-            if (!_ended) this.FindControl<TextBlock>("SourcesActionError")!.Text = exception.Message;
+            if (!_ended) SetActionError(exception.Message);
         }
         finally
         {

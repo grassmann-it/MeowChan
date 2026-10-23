@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
 using Microsoft.Data.Sqlite;
 
@@ -10,35 +9,42 @@ namespace MeowChan.Archive;
 internal static partial class ArchiveSql
 {
     internal static IReadOnlyList<ResourceId> SearchIds(SqliteConnection connection, SqliteTransaction transaction,
-        ArchiveThreadQuery query, CancellationToken cancellationToken)
-    {
-        return Array.AsReadOnly(SearchSummaries(connection, transaction, query, cancellationToken)
-            .Select(item => item.Id).ToArray());
-    }
+        ArchiveSearchRequest request, CancellationToken cancellationToken)
+        => ReadAllSearchRows(connection, transaction, request, "t.source,t.board,t.thread",
+            rows => new ResourceId(rows.GetString(0), rows.GetString(1), rows.GetString(2)), cancellationToken);
 
     internal static IReadOnlyList<ArchiveThreadSummary> SearchSummaries(SqliteConnection connection, SqliteTransaction transaction,
-        ArchiveThreadQuery query, CancellationToken cancellationToken)
+        ArchiveSearchRequest request, CancellationToken cancellationToken)
+        => ReadAllSearchRows(connection, transaction, request, SummaryColumns, ReadSummaryRow, cancellationToken);
+
+    private static IReadOnlyList<T> ReadAllSearchRows<T>(SqliteConnection connection, SqliteTransaction transaction,
+        ArchiveSearchRequest request, string columns, Func<SqliteDataReader, T> readRow, CancellationToken cancellationToken)
     {
-        // All pages use the caller's single deferred read transaction. This deliberately keeps
-        // only compact identities, never retained posts, manifests or image data.
-        List<ArchiveThreadSummary> summaries = new List<ArchiveThreadSummary>();
-        int offset = 0;
-        while (true)
+        // A full result is a single ordered stream in the caller's read snapshot. Reusing
+        // SearchPage here would repeat COUNT and sort/discard every preceding OFFSET for each
+        // 500 rows. ID consumers also do not need titles, dates or correlated post counts.
+        ArchiveSearchCompiler compiled = PrepareSearch(connection, request, cancellationToken);
+        using SqliteCommand command = Command(connection, transaction,
+            $"SELECT {columns} FROM archive_threads t {compiled.Where} ORDER BY {compiled.Order}");
+        compiled.Bind(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        using SqliteDataReader rows = command.ExecuteReader();
+        List<T> items = new();
+        while (rows.Read())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ArchiveThreadPage page = SearchPage(connection, transaction, query, offset, 500, cancellationToken);
-            summaries.AddRange(page.Items);
-            offset += page.Items.Count;
-            if (offset >= page.TotalCount || page.Items.Count == 0) break;
+            items.Add(readRow(rows));
         }
-        return Array.AsReadOnly(summaries.ToArray());
+        cancellationToken.ThrowIfCancellationRequested();
+        return Array.AsReadOnly(items.ToArray());
     }
 
-    internal static ArchiveThreadPage SearchPage(SqliteConnection connection, SqliteTransaction transaction,
-        ArchiveThreadQuery query, int offset, int limit, CancellationToken cancellationToken)
+    private static ArchiveSearchCompiler PrepareSearch(SqliteConnection connection,
+        ArchiveSearchRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         bool indexed = GetPragma(connection, "user_version") >= 2;
-        string text = query.Text.Trim();
+        string text = request.Spec.Text.Trim();
         // FTS trigram has no matches for one/two-character terms. Those terms, and passive
         // schema-1 reads, use a cancellable literal scan instead of inventing empty results.
         bool fullText = indexed && System.Globalization.StringInfo.ParseCombiningCharacters(text).Length >= 3;
@@ -56,33 +62,30 @@ internal static partial class ArchiveSql
                 JOIN archive_threads t2 ON t2.source=p.source AND t2.board=p.board AND t2.thread=p.thread
                 WHERE archive_post_search MATCH $match))
             """ : $"(meowchan_contains({threadText}) OR EXISTS (SELECT 1 FROM archive_posts p WHERE p.source=t.source AND p.board=t.board AND p.thread=t.thread AND meowchan_contains({postText})))";
-        string where = $"""
-            WHERE ($sourceFilter IS NULL OR t.source=$sourceFilter) AND ($boardFilter IS NULL OR t.board=$boardFilter)
-              AND ($stateFilter IS NULL OR t.source_state=$stateFilter) AND ($captureFilter IS NULL OR t.capture_enabled=$captureFilter)
-              AND ($postsFilter IS NULL OR EXISTS(SELECT 1 FROM archive_posts p WHERE p.source=t.source AND p.board=t.board AND p.thread=t.thread)=$postsFilter)
-              AND {match}
-            """;
-        string order = query.Sort switch
-        {
-            ArchiveThreadSort.OldestFirst => "t.first_seen_at ASC,t.source,t.board,t.thread",
-            ArchiveThreadSort.Title => "meowchan_text(t.title) COLLATE meowchan_case ASC,t.source,t.board,t.thread",
-            _ => "COALESCE(t.last_captured_at,t.first_seen_at) DESC,t.source,t.board,t.thread"
-        };
-        void Parameters(SqliteCommand command)
-        {
-            command.Parameters.AddWithValue("$sourceFilter", (object?)query.Source ?? DBNull.Value);
-            command.Parameters.AddWithValue("$boardFilter", (object?)query.Board ?? DBNull.Value);
-            command.Parameters.AddWithValue("$stateFilter", query.SourceState.HasValue ? (int)query.SourceState.Value : DBNull.Value);
-            command.Parameters.AddWithValue("$captureFilter", query.CaptureEnabled.HasValue ? query.CaptureEnabled.Value ? 1 : 0 : DBNull.Value);
-            command.Parameters.AddWithValue("$postsFilter", query.HasPosts.HasValue ? query.HasPosts.Value ? 1 : 0 : DBNull.Value);
-            if (fullText && text.Length > 0) command.Parameters.AddWithValue("$match", "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"");
-        }
+        // Supported catalogs write canonical O-format UTC. Normalize any valid offset-based
+        // legacy O value without mutating the passive catalog, preserving all seven fraction digits.
+        // Invalid dates fail visibly instead of silently disappearing from a date-filtered result.
+        if (request.DateWindow != null)
+            connection.CreateFunction<string, string>("meowchan_utc", value =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Date(DateTimeOffset.ParseExact(value, "O", CultureInfo.InvariantCulture));
+            });
+        return new ArchiveSearchCompiler(request, match, fullText);
+    }
+
+    internal static ArchiveThreadPage SearchPage(SqliteConnection connection, SqliteTransaction transaction,
+        ArchiveSearchRequest request, int offset, int limit, CancellationToken cancellationToken)
+    {
+        ArchiveSearchCompiler compiled = PrepareSearch(connection, request, cancellationToken);
+        string where = compiled.Where;
+        string order = compiled.Order;
         using SqliteCommand total = Command(connection, transaction, "SELECT count(*) FROM archive_threads t " + where);
-        Parameters(total);
+        compiled.Bind(total);
         int count = checked(Convert.ToInt32(total.ExecuteScalar(), CultureInfo.InvariantCulture));
         cancellationToken.ThrowIfCancellationRequested();
         using SqliteCommand page = Command(connection, transaction, $"SELECT {SummaryColumns} FROM archive_threads t {where} ORDER BY {order} LIMIT $limit OFFSET $offset");
-        Parameters(page);
+        compiled.Bind(page);
         page.Parameters.AddWithValue("$limit", limit);
         page.Parameters.AddWithValue("$offset", offset);
         using SqliteDataReader rows = page.ExecuteReader();

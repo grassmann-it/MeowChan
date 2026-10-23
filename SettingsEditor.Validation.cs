@@ -93,7 +93,7 @@ public partial class SettingsEditor
 
     // Parse validation runs before the existing shared Config validation/commit path.
     // Never replace malformed text with a previous NumericUpDown.Value.
-    private bool ValidateNumericDraft()
+    private bool ValidateNumericDraft(bool focusError = true)
     {
         foreach (var field in NumericFields())
         {
@@ -114,14 +114,15 @@ public partial class SettingsEditor
             SetFieldErrorHelp(field.Input, message);
             _firstInvalidInput ??= field.Input;
         }
-        return FinishFieldValidation();
+        return FinishFieldValidation(focusError);
     }
 
-    private bool FinishFieldValidation()
+    private bool FinishFieldValidation(bool focusError = true)
     {
         if (_firstInvalidInput == null) return true;
         ErrorMessage = Texts.T("settings.notSaved");
         StatusMessage = Texts.T("settings.unsaved");
+        if (!focusError) return false;
         Control first = _firstInvalidInput;
         Dispatcher.UIThread.Post(() =>
         {

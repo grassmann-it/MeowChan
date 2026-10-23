@@ -21,8 +21,7 @@ public partial class ArchivePage
     {
         Button button = Control<Button>("ArchiveResultsExport");
         string label = Texts.T("export.resultsAction", _listTotal);
-        button.IsEnabled = ready && _openReader != null && _listTotal > 0
-            && !Control<Border>("ArchiveExportDialog").IsVisible;
+        button.IsEnabled = CanExportResults;
         button.Content = Texts.T("export.resultsShortAction");
         ToolTip.SetTip(button, label);
         AutomationProperties.SetName(button, label);
@@ -47,14 +46,14 @@ public partial class ArchivePage
 
     internal async Task OpenExportForAllResultsAsync(Control? origin)
     {
-        if (_ended || !_available || _busy || _openReader == null) return;
+        if (_ended || !_available || _busy || _openReader == null || _appliedSearch == null) return;
         EnsureExportDialog();
         if (Control<Border>("ArchiveExportDialog").IsVisible)
         { Control<Button>("ArchiveExportClose").Focus(); return; }
 
         // Freeze applied inputs before yielding. Work membership is evaluated now,
         // independently of the catalog read; this is not a session/catalog transaction.
-        ArchiveThreadQuery query = _query;
+        ArchiveSearchRequest query = _appliedSearch ?? throw new InvalidOperationException();
         IReadOnlySet<string>? eligibleUrls = CaptureExportWorkUrls(_workFilter,
             GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>());
         int request = ++_exportRequest;
@@ -70,6 +69,7 @@ public partial class ArchivePage
         Control<RadioButton>("ArchiveExportNew").IsChecked = true;
         Control<TextBox>("ArchiveExportDestination").Text = string.Empty;
         ExportStatus(string.Empty);
+        ExportError(string.Empty);
         ShowExportDialog();
         UpdateExportActions();
         UpdateActions();
@@ -91,7 +91,7 @@ public partial class ArchivePage
         catch (Exception exception)
         {
             if (!_ended && request == _exportRequest)
-                ExportStatus(Texts.T("export.resultsFailed", exception.Message));
+                ExportError(Texts.T("export.resultsFailed", exception.Message));
         }
         finally
         {
@@ -111,12 +111,16 @@ public partial class ArchivePage
             .Where(item => WorkMatches(item, workFilter)).Select(item => item.Url).ToHashSet(StringComparer.Ordinal);
     }
 
+    internal static Task<ResourceId[]> ResolveExportResultIdsAsync(ArchiveReader reader,
+        ArchiveThreadQuery query, IReadOnlySet<string>? eligibleUrls, CancellationToken token) =>
+        ResolveExportResultIdsAsync(reader, ArchiveSearchRequest.Create(ArchiveSearchSpec.FromLegacy(query)), eligibleUrls, token);
+
     internal static async Task<ResourceId[]> ResolveExportResultIdsAsync(ArchiveReader reader,
-        ArchiveThreadQuery query, IReadOnlySet<string>? eligibleUrls, CancellationToken token)
+        ArchiveSearchRequest query, IReadOnlySet<string>? eligibleUrls, CancellationToken token)
     {
         if (eligibleUrls == null)
-            return (await reader.SelectThreadIdsAsync(query, token)).Distinct().ToArray();
-        IReadOnlyList<ArchiveThreadSummary> summaries = await reader.SelectThreadSummariesAsync(query, token);
+            return (await reader.SelectThreadIdsBySpecAsync(query, token)).Distinct().ToArray();
+        IReadOnlyList<ArchiveThreadSummary> summaries = await reader.SelectThreadSummariesBySpecAsync(query, token);
         return summaries.Where(item => eligibleUrls.Contains(item.Url)).Select(item => item.Id).Distinct().ToArray();
     }
 }

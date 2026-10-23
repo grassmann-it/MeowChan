@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MeowChan.ReaderGroupsDialog" Width="720" Height="620" MinWidth="480" MinHeight="400"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+    <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="GroupMessage" TextWrapping="Wrap" /></ScrollViewer>
+    <ScrollViewer x:Name="GroupEditorScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="8">
+        <ListBox x:Name="Groups" Height="90" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <WrapPanel x:Name="GroupActions" />
+        <TextBlock x:Name="GroupNameLabel" />
+        <TextBox x:Name="GroupName" />
+        <TextBlock x:Name="GroupNameError" TextWrapping="Wrap" />
+        <TextBlock x:Name="GroupMembersLabel" />
+        <ListBox x:Name="GroupMembers" Height="130" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <WrapPanel x:Name="MemberActions" />
+        <TextBlock x:Name="GroupSearchLabel" />
+        <TextBox x:Name="GroupSearch" MaxLength="512" />
+        <TextBlock x:Name="GroupSearchStatus" TextWrapping="Wrap" />
+        <ListBox x:Name="GroupCandidates" Height="100" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <WrapPanel x:Name="CandidateActions" />
+      </StackPanel>
+    </ScrollViewer>
+    <WrapPanel x:Name="GroupFooter" Grid.Row="2" HorizontalAlignment="Right" />
+  </Grid>
+</Window>

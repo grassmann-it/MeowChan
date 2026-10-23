@@ -23,6 +23,7 @@ internal static class SettingsChecks
             await CheckOwnerCloseWhileBusyAsync(owner, Path.Combine(profile, "owner-close"));
             await CheckDirectSaveAsync(owner, Path.Combine(profile, "direct-save"));
             await CheckPickerAsync(owner, Path.Combine(profile, "picker"));
+            await SettingsSectionChecks.RunAsync(owner, Path.Combine(profile, "sections"));
             await CheckFieldErrorsAsync(owner, Path.Combine(profile, "field-errors"));
             await CheckNumericBlurDraftAsync(owner, Path.Combine(profile, "blur-drafts"));
             await CheckCancelPreferencesAsync(owner, Path.Combine(profile, "cancel-preferences"));
@@ -407,7 +408,7 @@ internal static class SettingsChecks
         }
     }
 
-    private static async Task CheckPickerAsync(MainWindow owner, string profile)
+    internal static async Task CheckPickerAsync(MainWindow owner, string profile)
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         FixtureStorageProvider provider = new FixtureStorageProvider();
@@ -461,6 +462,16 @@ internal static class SettingsChecks
             provider.Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(new IStorageFolder[] { remote });
             Click(browse);
             Require(window.Editor.HasError && window.Editor.DownloadPath == selectedPath && remote.Disposed, "Nonlocal folder was accepted or not disposed.");
+            // A provider response after the editor lifetime ends must still be disposed.
+            var late = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            provider.Result = late.Task;
+            Click(browse);
+            window.Editor.EndLifetime();
+            var ignored = new FixtureStorageFolder(new Uri(Path.Combine(profile, "late ignored")));
+            late.SetResult(new IStorageFolder[] { ignored });
+            await WaitUntilAsync(() => !window.Editor.IsBusy);
+            Require(ignored.Disposed && window.Editor.DownloadPath == selectedPath && config.DownloadPath == originalPath,
+                "A late picker result escaped disposal or changed a completed editor/live config.");
             window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }

@@ -53,7 +53,18 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         _getRules = getRules ?? throw new ArgumentNullException(nameof(getRules));
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
         InitializeComponent();
+        InitializeRuleSuggestions();
         _drafts.Add(_draft.Scope, _draft);
+        RuleExtensionsInput.Edited += DraftChanged;
+        _discardConfirmation = new(DiscardRuleButton);
+        KeyDown += (_, e) =>
+        {
+            if (e.Handled || e.Key != Avalonia.Input.Key.Escape || e.KeyModifiers != Avalonia.Input.KeyModifiers.None
+                || Desktop.Commands.ShortcutService.IsCapturing) return;
+            if (e.Source is Avalonia.Visual source && source.GetSelfAndVisualAncestors().Any(v =>
+                v is ComboBox { IsDropDownOpen: true } or Ursa.Controls.AutoCompleteBox)) return;
+            if (TryDismissRuleDecision()) e.Handled = true;
+        };
         RefreshChoiceLabels();
         RefreshConfirmedRules();
         DataContext = this;
@@ -69,7 +80,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         {
             if (_ended || _available == value) return;
             _available = value;
-            if (value) RefreshConfirmedRules();
+            if (value) { RefreshConfirmedRules(); _ = LoadTemplatesAsync(); }
             RaiseAll();
         }
     }
@@ -125,8 +136,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
     public string ExtensionsText
     {
-        get => _draft.Extensions;
-        set { string text = value ?? string.Empty; if (_draft.Extensions == text) return; _draft.Extensions = text; DraftChanged(); }
+        get => string.Join(", ", _draft.ExtensionInput.Tags.Concat(string.IsNullOrEmpty(_draft.ExtensionInput.Rest) ? Array.Empty<string>() : new[] { _draft.ExtensionInput.Rest }));
+        set { string text = value ?? string.Empty; if (ExtensionsText == text) return; _draft.ExtensionInput.Tags.Clear(); _draft.ExtensionInput.Rest = text; DraftChanged(); }
     }
     public int SizeMode
     {
@@ -150,6 +161,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             DraftChanged();
         }
     }
+    public string ExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes" ? Texts.T("rules.invalidTypes") : string.Empty;
     public bool HasTypeSelection => _draft.TypesMode == MediaTypeSelectionMode.Selected;
     public bool HasSizeLimit => _draft.SizeMode == MediaSizeLimitMode.Limited;
 
@@ -229,7 +241,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public void EndLifetime()
     {
         if (_ended) return;
+        _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
         _ended = true;
+        EndRuleSuggestions();
         IsEnabled = false;
         _available = false;
         Texts.Changed -= OnLanguageChanged;
@@ -268,6 +282,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             draft = new RuleDraft(scope, _confirmed);
             _drafts.Add(scope, draft);
         }
+        DeactivateRuleDecisions();
         _draft = draft;
         _selectedScope = null;
         _statusKey = null;
@@ -286,7 +301,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         foreach (KeyValuePair<MediaRuleScope, RuleDraft> entry in _drafts.ToArray())
         {
             RuleDraft draft = entry.Value;
-            if (!draft.Dirty) _drafts[entry.Key] = new RuleDraft(entry.Key, confirmed);
+            if (draft.Baseline.Revision != confirmed.Revision && draft.TemplateUndo != null) { draft.TemplateUndo = null; draft.TemplateUndoInvalidated = true; }
+            // A preview captures this draft's identity. Re-reading the same immutable
+            // revision must not invalidate a clean target; a new revision still does.
+            if (!draft.Dirty && draft.Baseline.Revision != confirmed.Revision) _drafts[entry.Key] = new RuleDraft(entry.Key, confirmed);
             else if (!RulesEqual(FindRule(draft.Baseline, entry.Key), FindRule(confirmed, entry.Key))) draft.Stale = true;
             else { draft.Baseline = confirmed; draft.Stale = false; }
         }
@@ -296,6 +314,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void DraftChanged()
     {
         if (_ended) return;
+        _discardConfirmation.Close();
+        _templatePreview = null;
+        _draft.Generation++;
+        if (_draft.TemplateUndo != null) _draft.TemplateUndoInvalidated = true;
+        _draft.TemplateUndo = null;
         bool wasDirty = _draft.Dirty;
         _draft.Dirty = true;
         _statusKey = null;
@@ -320,25 +343,23 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         catch (RuleInputException exception) { _validationKey = exception.Key; }
     }
 
-    private MediaRule BuildDraft()
+    private MediaRule BuildDraft() => BuildDraft(_draft);
+    private MediaRule BuildDraft(RuleDraft draft)
     {
         MediaTypeSelection types;
         try
         {
-            string[] extensions = _draft.TypesMode == MediaTypeSelectionMode.Selected
-                ? _draft.Extensions.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                : Array.Empty<string>();
-            types = new MediaTypeSelection(_draft.TypesMode, extensions);
+            types = draft.ExtensionInput.Build(draft.TypesMode);
         }
         catch (ArgumentException) { throw new RuleInputException("rules.invalidTypes"); }
         long? maximum = null;
-        if (_draft.SizeMode == MediaSizeLimitMode.Limited)
+        if (draft.SizeMode == MediaSizeLimitMode.Limited)
         {
-            if (!TryReadMegabytes(_draft.Megabytes, _draft.NumberCulture, out long bytes))
+            if (!TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
                 throw new RuleInputException("rules.invalidSize");
             maximum = bytes;
         }
-        return new MediaRule(_draft.Scope, _draft.Enabled, types, new MediaSizeLimit(_draft.SizeMode, maximum)) { ImageFilter = BuildImageFilter() };
+        return new MediaRule(draft.Scope, draft.Enabled, types, new MediaSizeLimit(draft.SizeMode, maximum)) { ImageFilter = BuildImageFilter(draft) };
     }
 
     private static bool TryReadMegabytes(string text, CultureInfo culture, out long bytes)
@@ -360,11 +381,12 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     internal async Task SaveCurrentAsync()
     {
         if (!IsEditable) return;
+        RuleExtensionsInput.FlushPendingText();
         RefreshConfirmedRules();
         if (!IsEditable || _draft.Stale) return;
         MediaRule rule;
         try { rule = BuildDraft(); }
-        catch (RuleInputException exception) { _validationKey = exception.Key; RaiseAll(); return; }
+        catch (RuleInputException exception) { _validationKey = exception.Key; RaiseAll(); if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else if (exception.Key == "rules.invalidTypes") RuleExtensionsInput.FocusInput(); return; }
         if (!_draft.Dirty) return;
         MediaRule[] proposed = _draft.Baseline.Rules.Where(item => item.Scope != _draft.Scope).Append(rule).ToArray();
         string revision = _draft.Baseline.Revision;
@@ -415,7 +437,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
 
     private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveCurrentAsync();
-    private void OnDiscardDraft(object? sender, RoutedEventArgs e) => DiscardCurrentDraft();
+    private void OnDiscardDraft(object? sender, RoutedEventArgs e) => RequestDiscardCurrentDraft();
     private void OnOpenSavedScope(object? sender, RoutedEventArgs e)
     {
         if (IsEditable && _selectedScope != null) EditScope(_selectedScope.Scope);
@@ -466,6 +488,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
 
     private void RefreshScopeChoices()
     {
+        RebuildRuleSuggestions();
         MediaRuleScope selected = _selectedScope?.Scope ?? _draft.Scope;
         RuleScopeChoice[] choices = _confirmed.Rules.Select(rule => rule.Scope).Concat(_drafts.Keys).Append(MediaRuleScope.Global).Distinct()
             .OrderBy(scope => scope.Kind).ThenBy(scope => scope.Source, StringComparer.Ordinal)
@@ -494,10 +517,14 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             if (_ended) return;
             foreach (RuleDraft draft in _drafts.Values)
             {
+                draft.ReformatInitialNumber(Texts.Culture);
                 if (TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
+                {
                     draft.Megabytes = FormatMegabytes(bytes, Texts.Culture);
-                draft.NumberCulture = Texts.Culture;
+                    draft.NumberCulture = Texts.Culture;
+                }
             }
+            ReformatTemplateEditor();
             RefreshChoiceLabels();
             _filterRenderedDraft = null;
             UpdatePreview();
@@ -544,6 +571,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void SetBusy(bool busy)
     {
         if (_busy == busy) return;
+        if (busy) { _discardConfirmation.Close(); _templatePreview = null; }
         _busy = busy;
         RaiseAll();
         if (!_ended) BusyChanged?.Invoke(this, EventArgs.Empty);
@@ -555,6 +583,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         SynchronizeModeSelections();
         RefreshOriginActionLabels();
         RefreshFilterEditor();
+        RuleExtensionsInput.Bind(_draft.ExtensionInput);
+        RefreshBreadcrumb();
+        RefreshTemplatesPanel();
     }
     private void RefreshOriginActionLabels()
     {
@@ -594,13 +625,13 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
 
     private sealed class RuleInputException(string key) : Exception { internal string Key { get; } = key; }
 
-    private sealed class RuleDraft
+    internal sealed partial class RuleDraft
     {
         internal MediaRuleScope Scope { get; }
         internal MediaRuleSet Baseline { get; set; }
         internal bool Enabled { get; set; }
         internal MediaTypeSelectionMode TypesMode { get; set; }
-        internal string Extensions { get; set; }
+        internal MeowChan.Desktop.Controls.ExtensionTagDraft ExtensionInput { get; set; } = new();
         internal MediaSizeLimitMode SizeMode { get; set; }
         internal string Megabytes { get; set; }
         internal CultureInfo NumberCulture { get; set; }
@@ -620,10 +651,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             Enabled = rule.Enabled;
             ImageFilter = rule.ImageFilter;
             TypesMode = rule.Types.Mode;
-            Extensions = string.Join(", ", rule.Types.Extensions);
+            ExtensionInput.Tags.AddRange(rule.Types.Extensions);
             SizeMode = rule.SizeLimit.Mode;
             NumberCulture = Texts.Culture;
             Megabytes = rule.SizeLimit.Bytes.HasValue ? FormatMegabytes(rule.SizeLimit.Bytes.Value, NumberCulture) : "10";
+            CaptureInitial();
         }
     }
 }

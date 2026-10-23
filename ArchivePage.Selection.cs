@@ -194,6 +194,11 @@ public partial class ArchivePage
             return;
         }
         e.Handled = true;
+        OpenArchiveKeyboardMenu(list);
+    }
+
+    private void OpenArchiveKeyboardMenu(Control list)
+    {
         if (ArchiveLead is not ArchiveThreadRow lead) return;
         Control? owner = list.ContextMenu != null ? list : list.GetVisualDescendants().OfType<Control>()
             .FirstOrDefault(control => control.ContextMenu != null && control.DataContext is ArchiveThreadRow row && row.Summary.Id == lead.Summary.Id);
@@ -209,15 +214,18 @@ public partial class ArchivePage
     {
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
             || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
+        if (MatchesArchiveCommand(e, "menu.context-open"))
+        { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
+        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
         if (MatchesArchiveCommand(e, "archive.previous-page") || MatchesArchiveCommand(e, "archive.next-page"))
         {
             e.Handled = true;
-            Button pageButton = Control<Button>(e.Key == Key.PageUp ? "PreviousThreadsButton" : "NextThreadsButton");
+            Button pageButton = Control<Button>(MatchesArchiveCommand(e, "archive.previous-page") ? "PreviousThreadsButton" : "NextThreadsButton");
             if (pageButton.IsEnabled)
             {
-                if (e.Key == Key.PageUp) OnPreviousThreads(sender, e);
+                if (MatchesArchiveCommand(e, "archive.previous-page")) OnPreviousThreads(sender, e);
                 else OnNextThreads(sender, e);
             }
             return;
@@ -260,7 +268,7 @@ public partial class ArchivePage
         if (MatchesArchiveCommand(e, "watch.remove"))
         { e.Handled = true; await RemoveArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "watch.check") || MatchesArchiveCommand(e, "watch.retry-media"))
-        { e.Handled = true; if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(e.KeyModifiers == KeyModifiers.Shift); return; }
+        { e.Handled = true; if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(MatchesArchiveCommand(e, "watch.retry-media")); return; }
         if (MatchesArchiveCommand(e, "thread.details"))
         { e.Handled = true; if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); return; }
         if (MatchesArchiveCommand(e, "thread.read") || MatchesArchiveCommand(e, "gallery.open"))
@@ -268,7 +276,7 @@ public partial class ArchivePage
             e.Handled = true;
             if (ArchiveLead is not ArchiveThreadRow row) return;
             ResourceId id = row.Summary.Id;
-            if (e.KeyModifiers == KeyModifiers.Shift) { if (OpenGallery != null) await OpenGallery(id, null, list); }
+            if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery != null) await OpenGallery(id, null, list); }
             else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
             else { OpenReaderRequested?.Invoke(list); await LoadThreadAsync(id); }
             return;

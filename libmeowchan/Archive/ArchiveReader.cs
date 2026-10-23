@@ -44,29 +44,42 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     public Task<ArchiveThreadPage> SearchThreadsAsync(ArchiveThreadQuery query, int offset = 0, int limit = 100,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        query.Validate();
-        ArchiveValidation.ValidatePage(offset, limit);
-        return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, query, offset, limit, cancellationToken), cancellationToken);
+        return SearchThreadsBySpecAsync(ArchiveSearchRequest.Create(ArchiveSearchSpec.FromLegacy(query)), offset, limit, cancellationToken);
     }
 
-    /// <summary>Freezes the complete ordered matching thread identities in one local catalog read transaction.
-    /// Media directories and posts are deliberately not opened. Consumers may resolve them lazily.</summary>
+    /// <summary>Freezes the complete ordered matching identities in one local read transaction.</summary>
     public Task<IReadOnlyList<ResourceId>> SelectThreadIdsAsync(ArchiveThreadQuery query,
         CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        query.Validate();
-        return ReadAsync((connection, transaction) => ArchiveSql.SearchIds(connection, transaction, query, cancellationToken), cancellationToken);
-    }
+        => SelectThreadIdsBySpecAsync(ArchiveSearchRequest.Create(ArchiveSearchSpec.FromLegacy(query)), cancellationToken);
 
     /// <summary>Freezes complete matching local thread metadata without accessing media directories.</summary>
     public Task<IReadOnlyList<ArchiveThreadSummary>> SelectThreadSummariesAsync(ArchiveThreadQuery query,
         CancellationToken cancellationToken = default)
+        => SelectThreadSummariesBySpecAsync(ArchiveSearchRequest.Create(ArchiveSearchSpec.FromLegacy(query)), cancellationToken);
+
+    /// <summary>Uses the request's frozen date window. WorkFilter is evaluated separately by the desktop.</summary>
+    public Task<ArchiveThreadPage> SearchThreadsBySpecAsync(ArchiveSearchRequest request, int offset = 0, int limit = 100,
+        CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        query.Validate();
-        return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, query, cancellationToken), cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+        ArchiveValidation.ValidatePage(offset, limit);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, request, offset, limit, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Uses the same predicate as count and paging in one local read transaction.</summary>
+    public Task<IReadOnlyList<ResourceId>> SelectThreadIdsBySpecAsync(ArchiveSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchIds(connection, transaction, request, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Freezes all matching metadata; the desktop applies its captured WorkFilter membership.</summary>
+    public Task<IReadOnlyList<ArchiveThreadSummary>> SelectThreadSummariesBySpecAsync(ArchiveSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken), cancellationToken);
     }
 
     /// <summary>Captures posts and attachment metadata in one transaction; its pages never change afterward.</summary>

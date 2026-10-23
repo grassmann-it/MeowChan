@@ -138,7 +138,13 @@ internal sealed class BoardAdmissionWindow : Window
         footer.Children.Add(buttons); Grid.SetRow(footer, 2); shell.Children.Add(footer); Content = shell;
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Closing += (_, _) => { _closing = true; _cancel.Cancel(); };
-        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); } };
+        KeyDown += (_, e) =>
+        {
+            if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
+            if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); }
+            else MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
+        };
+        Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
     }
     private static TextBlock Wrapped(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
     private static FuncDataTemplate<PreviewRow> MakeTemplate() => new((row, _) =>
@@ -181,7 +187,7 @@ internal sealed class BoardAdmissionWindow : Window
         AutomationProperties.SetName(field, Texts.T("wizard.ruleField"));
         AutomationProperties.SetName(action, Texts.T("wizard.ruleAction"));
         AutomationProperties.SetName(text, Texts.T("wizard.ruleText"));
-        var remove = new Button { Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
+        var remove = new Button { Name = "BoardAdmissionRemoveRule", Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 6 };
         grid.Children.Add(field); Grid.SetColumn(action, 1); grid.Children.Add(action); Grid.SetColumn(text, 2); grid.Children.Add(text); Grid.SetColumn(remove, 3); grid.Children.Add(remove);
         var editor = new RuleEditor(field, action, text, grid); draft.Editors.Add(editor); draft.RulePanel.Children.Add(grid);

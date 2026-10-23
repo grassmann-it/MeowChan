@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ursa="https://irihi.tech/ursa"
              xmlns:local="clr-namespace:MeowChan"
+             xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
              xmlns:localization="clr-namespace:MeowChan.Desktop.Localization"
              x:Class="MeowChan.SettingsEditor" x:DataType="local:SettingsEditor"
@@ -34,12 +35,13 @@
         <StackPanel x:Name="SettingsHeader" Margin="20,20,20,16" Spacing="5" MaxWidth="880" HorizontalAlignment="Center">
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+            <desktop:SectionNavigationControl x:Name="SettingsSections" />
         </StackPanel>
         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" Margin="20,0,20,16"
                       HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
             <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="20">
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,6" />
+                    <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,6" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                             <StackPanel VerticalAlignment="Center" Spacing="3">
@@ -81,7 +83,7 @@
                     </Expander>
                 </StackPanel>
                 <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding ReadingMediaTitle}" Classes="section-title" />
+                    <TextBlock x:Name="SettingsReadingMediaHeading" Text="{Binding ReadingMediaTitle}" Classes="section-title" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                             <TextBlock x:Name="ReadingFontSizeFieldLabel" Text="{Binding ReadingFontSizeLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
@@ -99,10 +101,10 @@
                     <CheckBox x:Name="RememberReadingPositionInput" Content="{Binding RememberReadingPositionLabel}" IsChecked="{Binding RememberReadingPosition, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReadingPositionHint}" />
                     <TextBlock Text="{Binding ReadingPositionHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                     <Button x:Name="ForgetReadingPositionButton" Content="{Binding ForgetReadingPositionLabel}" AutomationProperties.Name="{Binding ForgetReadingPositionLabel}" Click="OnForgetReadingPositionClick" IsEnabled="{Binding CanForgetReadingPosition}" HorizontalAlignment="Left" />
-                    <CheckBox Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
+                    <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
                 </StackPanel>
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,10" />
+                    <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,10" />
                     <StackPanel Spacing="6" Margin="0,0,0,10">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" FontWeight="Medium" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -149,7 +151,7 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ReserveHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
-                    <Expander Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="10" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
@@ -184,7 +186,7 @@
                     </Expander>
                 </StackPanel>
                 <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding UpdatesTitle}" Classes="section-title" />
+                    <TextBlock x:Name="SettingsUpdatesHeading" Text="{Binding UpdatesTitle}" Classes="section-title" />
                     <CheckBox x:Name="AutomaticUpdatesInput" AutomationProperties.Name="{Binding AutomaticUpdateChecksLabel}" AutomationProperties.HelpText="{Binding UpdatePrivacyHint}" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding AutomaticUpdateChecks, Mode=TwoWay}">
                         <TextBlock Text="{Binding AutomaticUpdateChecksLabel}" TextWrapping="Wrap" />
                     </CheckBox>
@@ -194,8 +196,15 @@
                     <TextBlock x:Name="UpdatePrivacyText" Text="{Binding UpdatePrivacyHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                     <TextBlock x:Name="UpdateDisabledText" Text="{Binding UpdateDisabledReason}" IsVisible="{Binding UpdatesDisabled}" TextWrapping="Wrap" />
                 </StackPanel>
+                <StackPanel x:Name="SettingsNotificationsSection" Spacing="8" IsEnabled="{Binding IsEditable}">
+                    <TextBlock x:Name="SettingsNotificationsHeading" Text="{Binding NotificationsTitle}" Classes="section-title" />
+                    <CheckBox x:Name="InformationNotificationsInput" IsChecked="{Binding ShowInformationNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding InformationNotificationsLabel}"><TextBlock Text="{Binding InformationNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox x:Name="WarningNotificationsInput" IsChecked="{Binding ShowWarningNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding WarningNotificationsLabel}"><TextBlock Text="{Binding WarningNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox x:Name="ErrorNotificationsInput" IsChecked="{Binding ShowErrorNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding ErrorNotificationsLabel}"><TextBlock Text="{Binding ErrorNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding NotificationsHint}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
                 <StackPanel Spacing="10" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Text="{Binding BehaviorTitle}" Classes="section-title" />
+                    <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" />
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
@@ -203,6 +212,7 @@
                     <TextBlock Text="{Binding SupportedSources}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                     <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
                 </StackPanel>
+                <commands:ShortcutEditor x:Name="ShortcutsEditor" IsEnabled="{Binding IsEditable}" />
                 <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
                     <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     <Expander x:Name="SettingsErrorDetails" Header="{Binding ErrorDetailsLabel}" IsVisible="{Binding HasErrorDetails}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -214,7 +224,10 @@
         <Border Grid.Row="2" Padding="20,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}">
             <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6" HorizontalAlignment="Center"
                   Width="{Binding Bounds.Width, ElementName=SettingsContent}">
-                <TextBlock Text="{Binding StatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
+                    <TextBlock Text="{Binding BusyStatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
                 <StackPanel x:Name="SettingsFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right">
                     <Button x:Name="CancelSettingsButton" Click="OnCancelButtonClick" />
                     <Button x:Name="SaveSettingsButton" Classes="primary" Click="OnSaveButtonClick" />

@@ -15,7 +15,7 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private ArchiveThreadQuery _query = new ArchiveThreadQuery();
+    private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
         int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error);
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor,
@@ -53,9 +53,10 @@ public partial class ArchivePage
 
     private void LocalizeSearch()
     {
+        UpdateSuggestionHint();
         Control<TextBox>("ArchiveSearchText").PlaceholderText = Texts.T("archive.searchHint");
-        Control<TextBox>("ArchiveSourceFilter").PlaceholderText = Texts.T("archive.sourceFilter");
-        Control<TextBox>("ArchiveBoardFilter").PlaceholderText = Texts.T("archive.boardFilter");
+        Control<IdentitySuggestionBox>("ArchiveSourceFilter").PlaceholderText = Texts.T("archive.sourceFilter");
+        Control<IdentitySuggestionBox>("ArchiveBoardFilter").PlaceholderText = Texts.T("archive.boardFilter");
         Control<Expander>("ArchiveFilters").Header = Texts.T("archive.filters");
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
@@ -63,6 +64,7 @@ public partial class ArchivePage
         SetOptions("ArchiveWorkFilter", "gallery.allWork", "gallery.watching", "gallery.followup",
             "gallery.intervention", "gallery.completed", "gallery.stopped");
         SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort");
+        LocalizeSearchEditors(); UpdateAppliedFilters(); UpdateSuggestionHint();
     }
     private void SetOptions(string name, params string[] keys)
     {
@@ -81,20 +83,19 @@ public partial class ArchivePage
     internal async Task ApplySearchAsync()
     {
         if (_busy || _ended || !_available) return;
-        string? Filter(string name) => string.IsNullOrWhiteSpace(Control<TextBox>(name).Text)
-            ? null : Control<TextBox>(name).Text!.Trim();
-        bool? Choice(string name) => Control<ComboBox>(name).SelectedIndex switch { 1 => true, 2 => false, _ => null };
-        _query = new ArchiveThreadQuery(Control<TextBox>("ArchiveSearchText").Text ?? string.Empty,
-            Filter("ArchiveSourceFilter"), Filter("ArchiveBoardFilter"),
-            Control<ComboBox>("ArchiveStateFilter").SelectedIndex switch
-            { 1 => ThreadSourceState.Active, 2 => ThreadSourceState.Archived, 3 => ThreadSourceState.NotFound, _ => null },
-            Choice("ArchiveCaptureFilter"), Choice("ArchivePostsFilter"),
-            (ArchiveThreadSort)Math.Max(0, Control<ComboBox>("ArchiveSort").SelectedIndex));
-        _workFilter = Math.Max(0, Control<ComboBox>("ArchiveWorkFilter").SelectedIndex);
-        _listOffset = 0;
-        _showReader = false;
-        UpdateLayoutMode();
-        await LoadListAsync();
+        long validation = ++_searchValidationGeneration;
+        try
+        {
+            ArchiveSearchRequest request = ArchiveSearchRequest.Create(ReadSearchDraft());
+            SearchEditorError(string.Empty);
+            _showReader = false; UpdateLayoutMode();
+            await LoadListAsync(NewListLoad(request));
+        }
+        catch (Exception exception)
+        {
+            SearchEditorError(exception.Message);
+            RevealSearchValidationError(validation);
+        }
     }
     private void CancelReferences()
     {
@@ -119,6 +120,7 @@ public partial class ArchivePage
         int request = _referenceRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
+        ClearOperationError("reference");
         try
         {
             await using ArchiveReader reader = await _openReader(loading.Token);
@@ -140,12 +142,13 @@ public partial class ArchivePage
             await FocusPostAsync(resolved.Post.PostId);
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _referenceRequest) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
     private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
     {
         ++_contentRequest;
+        BeginContentFeedback();
         _contentCancellation?.Cancel();
         CancelMediaLoad();
         ClosePreview();
@@ -194,6 +197,7 @@ public partial class ArchivePage
         _referenceCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
+        ClearOperationError("reference");
         ArchivePostId post = _backlinkPost;
         Control<TabControl>("ArchiveContentTabs").SelectedIndex = 2;
         Control<TextBlock>("ArchiveReferencesTitle").Text = Texts.T("archive.loading");
@@ -210,7 +214,7 @@ public partial class ArchivePage
             Control<Button>("NextReferences").IsEnabled = _referenceOffset + PageSize < _referenceTotal;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _referenceRequest) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
     private async void OnPreviousReferences(object? sender, RoutedEventArgs e)
