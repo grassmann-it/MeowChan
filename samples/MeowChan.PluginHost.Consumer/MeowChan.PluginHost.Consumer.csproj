@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
-    <MeowChanPluginHostVersion Condition="'$(MeowChanPluginHostVersion)' == ''">1.0.0</MeowChanPluginHostVersion>
-    <MeowChanPluginSdkVersion Condition="'$(MeowChanPluginSdkVersion)' == ''">1.0.0</MeowChanPluginSdkVersion>
+    <MeowChanPluginHostVersion Condition="'$(MeowChanPluginHostVersion)' == ''">$(Version)</MeowChanPluginHostVersion>
+    <MeowChanPluginSdkVersion Condition="'$(MeowChanPluginSdkVersion)' == ''">$(Version)</MeowChanPluginSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MeowChan.PluginHost" Version="[$(MeowChanPluginHostVersion)]" />

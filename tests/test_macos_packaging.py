@@ -101,6 +101,7 @@ class MacosPackagingTests(unittest.TestCase):
         self.assertEqual("org.meowchan.desktop", metadata["CFBundleIdentifier"])
         self.assertEqual("1.0.0", metadata["CFBundleShortVersionString"])
         self.assertEqual("1.0.0", metadata["CFBundleVersion"])
+        self.assertEqual("1.0.0", metadata["MeowChanProductVersion"])
         self.assertEqual("15.0", metadata["LSMinimumSystemVersion"])
         self.assertEqual("MeowChan", metadata["CFBundleExecutable"])
         self.assertEqual("meowchan.icns", metadata["CFBundleIconFile"])
@@ -175,10 +176,35 @@ class MacosPackagingTests(unittest.TestCase):
         self.assert_no_bundle()
 
     def test_invalid_version_is_rejected(self):
-        for version in ("", "v1.0.0", "1.0", "1.0.0-beta", "01.0.0", "../../other"):
+        for version in ("", "v1.0.0", "1.0", "01.0.0", "../../other", "1.0.0-", "1.0.0-alpha.02",
+                        "1.0.0-01", "1.0.0-alpha..2", "1.0.0+", "1.0.0+build..2", "1.0.0-alpha_2",
+                        "1.0.0-alpha.2\n", "1.0.0/alpha.2"):
             with self.subTest(version=version), self.assertRaises(packaging.PackagingError):
                 self.package(version=version)
         self.assert_no_bundle()
+
+    def test_prerelease_archive_preserves_full_identity_with_numeric_apple_fields(self):
+        version = "1.0.0-alpha.2"
+        archive_path = self.output / f"MeowChan-{version}-osx-arm64.tar.gz"
+        bundle, archive_path = self.package(version=version, archive_path=archive_path)
+        self.assertEqual(f"MeowChan-{version}-osx-arm64.tar.gz", archive_path.name)
+        metadata = plistlib.loads((bundle / "Contents/Info.plist").read_bytes())
+        self.assertEqual("1.0.0", metadata["CFBundleShortVersionString"])
+        self.assertEqual("1.0.0", metadata["CFBundleVersion"])
+        self.assertEqual(version, metadata["MeowChanProductVersion"])
+        with tarfile.open(archive_path, "r:gz") as archive:
+            archived_metadata = plistlib.load(archive.extractfile("MeowChan.app/Contents/Info.plist"))
+        self.assertEqual(metadata, archived_metadata)
+
+    def test_semantic_version_identifiers_preserve_exact_product_version(self):
+        for version in ("1.0.0-beta", "1.0.0-rc.1", "1.0.0-alpha.0", "1.0.0-0a.2",
+                        "1.0.0-alpha.2+build.001", "2.10.3+source.f01b347"):
+            with self.subTest(version=version):
+                metadata = packaging.bundle_metadata(version)
+                self.assertEqual(version, metadata["MeowChanProductVersion"])
+                numeric = version.split("-", 1)[0].split("+", 1)[0]
+                self.assertEqual(numeric, metadata["CFBundleVersion"])
+                self.assertEqual(numeric, metadata["CFBundleShortVersionString"])
 
     def test_invalid_icons_are_rejected_before_output(self):
         wrong_dimensions = make_ico(make_png(128, 256))

@@ -16,16 +16,18 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal event Action<LocalReadingPosition>? ConsciousReadingPositionChanged;
+    internal Func<bool>? ReadingPositionCaptureAllowed { get; set; }
     private bool _resumingPosition;
     private int _readingInputEpoch;
     private int? _pendingReadingInputEpoch;
+    private int? _queuedReadingInputEpoch;
     private readonly TextBlock _readingPositionStatus = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false, Focusable = true };
     internal void InvalidatePendingReadingInput() { ++_readingInputEpoch; _pendingReadingInputEpoch = null; }
     internal void FlushReadingPositionInput()
     {
         int? epoch = _pendingReadingInputEpoch;
         _pendingReadingInputEpoch = null;
-        if (epoch == _readingInputEpoch)
+        if (epoch == _readingInputEpoch && CanCaptureReadingPosition)
         {
             Control<ListBox>("ArchivePosts").UpdateLayout();
             ReaderPositionChanged(true);
@@ -34,13 +36,20 @@ public partial class ArchivePage
 
     private void QueueReadingPositionCapture(DispatcherPriority priority)
     {
+        if (!CanCaptureReadingPosition) return;
         int epoch = _readingInputEpoch;
         _pendingReadingInputEpoch = epoch;
+        if (_queuedReadingInputEpoch == epoch) return;
+        _queuedReadingInputEpoch = epoch;
         Dispatcher.UIThread.Post(() =>
         {
+            if (_queuedReadingInputEpoch == epoch) _queuedReadingInputEpoch = null;
             if (epoch == _readingInputEpoch) FlushReadingPositionInput();
         }, priority);
     }
+
+    private bool CanCaptureReadingPosition => !_resumingPosition && _largeReader && ReaderShowsPosts
+        && !_busy && !_ended && ReadingPositionCaptureAllowed?.Invoke() != false;
 
     internal Func<bool> CaptureReadingRequestGuard()
     {
@@ -72,7 +81,7 @@ public partial class ArchivePage
 
     partial void ReaderPositionChanged(bool deliberate)
     {
-        if (!deliberate || _resumingPosition || !_largeReader || !ReaderShowsPosts || _busy || _ended) return;
+        if (!deliberate || !CanCaptureReadingPosition) return;
         ReaderAnchor? anchor = CaptureReaderAnchor();
         if (anchor == null || anchor.Thread.Thread == null) return;
         _readingPositionStatus.IsVisible = false;

@@ -3,7 +3,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.0.0</Version>
     <AssemblyName>MeowChan.PluginSdk</AssemblyName>
     <RootNamespace>MeowChan.PluginSdk</RootNamespace>
     <PackageId>MeowChan.PluginSdk</PackageId>

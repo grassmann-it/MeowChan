@@ -10,13 +10,15 @@ internal static class BrandNavigationChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        foreach (string name in new[] { "Downloads", "Archive", "Rules", "Sources", "Diagnostics", "Settings", "Tools" })
+        foreach (string name in new[] { "Downloads", "Archive", "Rules", "Plugins", "Sources", "Diagnostics", "ContinueReading", "Settings", "Tools" })
         {
             Button button = window.FindControl<Button>(name + "NavigationButton")!;
-            if (button.Content is not StackPanel { Children.Count: 2 } panel
-                || panel.Children[0] is not Border { OpacityMask: not null }
-                || panel.Children[1] is not TextBlock { Text.Length: > 0 }
-                || string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)))
+            bool labeledIcon = button.Content is StackPanel { Children.Count: 2 } panel
+                && panel.Children[0] is Border { OpacityMask: not null }
+                && panel.Children[1] is TextBlock { Text.Length: > 0 };
+            bool compactIcon = name is "Downloads" or "Settings" or "Tools"
+                && button.Content is Border { OpacityMask: not null };
+            if ((!labeledIcon && !compactIcon) || string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)))
                 throw new InvalidOperationException(name + " navigation lacks an icon, visible label or accessible name.");
         }
 
@@ -29,6 +31,6 @@ internal static class BrandNavigationChecks
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
         about.FindControl<Button>("CloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => !about.IsVisible);
-        Console.WriteLine("SMOKE brand navigation: seven labeled icons and header-logo About entry passed.");
+        Console.WriteLine("SMOKE brand navigation: nine accessible icons (compact footer labels where needed) and header-logo About entry passed.");
     }
 }

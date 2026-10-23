@@ -28,6 +28,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
     private Exception? _failure;
     private Task _failureCancellation = Task.CompletedTask;
     private int _disposed;
+    private readonly object _disposeGate = new();
+    private Task? _disposeTask;
     public PluginWorkerIdentity Identity { get; }
     public PluginDescription Description { get; private set; } = null!;
     public bool IsAlive
@@ -92,7 +94,17 @@ internal sealed class WorkerConnection : IAsyncDisposable
         catch
         {
             if (connection != null) await connection.DisposeAsync().ConfigureAwait(false);
-            else { if (process != null) { Kill(process); process.Dispose(); } processLease.Dispose(); TryDeleteWorkspace(workingDirectory); }
+            else
+            {
+                if (process != null)
+                {
+                    Kill(process);
+                    try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+                    catch (TimeoutException) { }
+                    process.Dispose();
+                }
+                processLease.Dispose(); TryDeleteWorkspace(workingDirectory);
+            }
             throw;
         }
     }
@@ -339,17 +351,30 @@ internal sealed class WorkerConnection : IAsyncDisposable
         try { ProcessGroup.KillWorkerGroup(process.Id); if (!process.HasExited) process.Kill(entireProcessTree: true); }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception) { }
     }
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        Fail(new PluginWorkerException("stopped", "Plugin worker was stopped."));
-        await _lifetime.CancelAsync().ConfigureAwait(false);
-        await _failureCancellation.ConfigureAwait(false);
-        _processTree.Kill();
-        try { await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (TimeoutException) { }
-        try { await Task.WhenAll(new[] { _reader, _logs, _temporaryMonitor }.Concat(_serviceTasks.Values)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (Exception) { }
-        _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); TryDeleteWorkspace(_workingDirectory);
-        if (!Directory.Exists(_workingDirectory)) Interlocked.Exchange(ref _observedTemporaryBytes, 0);
+        lock (_disposeGate) return new(_disposeTask ??= DisposeCoreAsync());
+    }
+    private async Task DisposeCoreAsync()
+    {
+        Volatile.Write(ref _disposed, 1);
+        try
+        {
+            Fail(new PluginWorkerException("stopped", "Plugin worker was stopped."));
+            await _lifetime.CancelAsync().ConfigureAwait(false);
+            await _failureCancellation.ConfigureAwait(false);
+            _processTree.Kill();
+            using CancellationTokenSource exitDeadline = new(TimeSpan.FromSeconds(5));
+            try { await _processTree.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false); } catch (OperationCanceledException) when (exitDeadline.IsCancellationRequested) { }
+            try { await Task.WhenAll(new[] { _reader, _logs, _temporaryMonitor }.Concat(_serviceTasks.Values)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (Exception) { }
+        }
+        finally
+        {
+            // In particular, a failed native job query must still release handles and
+            // admission before propagating its diagnostic to the owner.
+            _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); TryDeleteWorkspace(_workingDirectory);
+            if (!Directory.Exists(_workingDirectory)) Interlocked.Exchange(ref _observedTemporaryBytes, 0);
+        }
     }
     private sealed record Pending(WireEnvelope Envelope, PluginOperationContext? Context, CancellationToken Token, object? Request)
     {

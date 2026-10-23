@@ -29,8 +29,11 @@ GUI scenario passed, and the Linux user confirmed the new-window behavior after
 restarting. Window-manager focus policy still controls foreground activation.
 
 The Linux user also completed a personal click-through acceptance on 22 October
-2026. Personal Windows/macOS testing is deferred until before 1.0.0; the native
-runner checks do not establish every physical device, audible hardware output,
+2026. On 23 October, the user confirmed a personal 0.9.0 Apple Silicon test using
+a GitHub Actions download: startup after a manual macOS security exception, tray
+and shortcuts worked. Windows testing is still planned. This report does not
+validate the new 1.0.0 candidate. The native runner checks do not establish every
+physical device, audible hardware output,
 Gatekeeper approval or desktop environment. macOS remains ad-hoc signed without
 Developer ID signing or notarization. The final artifact assembly additionally
 checks source identity, package hashes, legal-source pairing and the complete

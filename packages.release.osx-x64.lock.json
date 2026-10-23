@@ -77,6 +77,12 @@
           "LibVLCSharp": "3.10.2"
         }
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "IBf7lbovvjGWVWXZX5cJ/cO0WXbId0Zq4BuSeT94mGZuOAP66oMeH9PTBZ9Jpp3Jb6jtK0qm/NyUbPRo1gC/wQ=="
+      },
       "Semi.Avalonia": {
         "type": "Direct",
         "requested": "[12.1.0.1, )",
@@ -414,8 +420,8 @@
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )",
-          "libmeowchan": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )",
+          "libmeowchan": "[1.0.0-alpha.2, )"
         }
       },
       "meowchan.pluginsdk": {

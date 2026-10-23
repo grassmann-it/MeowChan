@@ -19,7 +19,8 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
     private PluginWorkerSnapshot? _lastSnapshot;
     private bool _hadFailure;
     private bool _disposed;
-    private int _disposeStarted;
+    private readonly object _disposeGate = new();
+    private Task? _disposeTask;
     private int _busy;
     private string _state = "starting";
     private PluginWorkerIdentity _identity;
@@ -197,9 +198,12 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         }
         finally { _connectionGate.Release(); }
     }
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        lock (_disposeGate) return new(_disposeTask ??= DisposeCoreAsync());
+    }
+    private async Task DisposeCoreAsync()
+    {
         _disposed = true;
         await _lifetime.CancelAsync().ConfigureAwait(false);
         await _connectionGate.WaitAsync().ConfigureAwait(false);

@@ -1,9 +1,12 @@
 using System;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -187,6 +190,7 @@ public partial class MainWindow
         this.FindControl<Button>("RulesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Rules);
         this.FindControl<Button>("ArchiveNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Archive);
         this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
+        this.FindControl<Button>("PluginsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Plugins);
         UpdatePageNavigation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
@@ -205,25 +209,124 @@ public partial class MainWindow
         return true;
     }
 
+    private bool _measuringPageNavigation;
+
     private void UpdatePageNavigation()
     {
-        bool full = _config.WorkspaceMode == "Advanced" && (Bounds.Width <= 0 || Bounds.Width >= 1120);
-        bool archive = _config.WorkspaceMode != "Barebones";
-        this.FindControl<Button>("DiagnosticsNavigationButton")!.IsVisible = full;
-        this.FindControl<Button>("RulesNavigationButton")!.IsVisible = full;
-        this.FindControl<Button>("SourcesNavigationButton")!.IsVisible = full;
-        this.FindControl<Button>("ArchiveNavigationButton")!.IsVisible = archive;
-        Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
-        tools.IsVisible = true;
-        tools.Classes.Set("selected", _selectedPage == WorkspacePage.Plugins || !full && (_selectedPage is WorkspacePage.Diagnostics or WorkspacePage.Rules or WorkspacePage.Sources
-            || (!archive && _selectedPage == WorkspacePage.Archive)));
+        if (_measuringPageNavigation) return;
+        _measuringPageNavigation = true;
+        try
+        {
+            bool advanced = _config.WorkspaceMode == "Advanced";
+            Button downloads = this.FindControl<Button>("DownloadsNavigationButton")!;
+            Button resume = this.FindControl<Button>("ContinueReadingNavigationButton")!;
+            Button settings = this.FindControl<Button>("SettingsNavigationButton")!;
+            Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
+            StackPanel panel = this.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
+            Border footer = this.FindControl<Border>("WorkspaceNavigation")!;
+            ComboBox modes = this.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+            var destinations = new[]
+            {
+                (Page: WorkspacePage.Archive, Button: this.FindControl<Button>("ArchiveNavigationButton")!, Tag: "nav.archive"),
+                (Page: WorkspacePage.Rules, Button: this.FindControl<Button>("RulesNavigationButton")!, Tag: "nav.rules"),
+                (Page: WorkspacePage.Plugins, Button: this.FindControl<Button>("PluginsNavigationButton")!, Tag: "nav.plugins"),
+                (Page: WorkspacePage.Sources, Button: this.FindControl<Button>("SourcesNavigationButton")!, Tag: "nav.sources"),
+                (Page: WorkspacePage.Diagnostics, Button: this.FindControl<Button>("DiagnosticsNavigationButton")!, Tag: "nav.diagnostics")
+            };
+            bool[] direct = destinations.Select(destination => destination.Page == WorkspacePage.Archive
+                ? _config.WorkspaceMode != "Barebones" : advanced).ToArray();
+
+            // Measure the localized labels instead of guessing a breakpoint. Hidden
+            // destinations move into Tools exactly once, including in compact Advanced.
+            CommandBindings.Apply(downloads, "navigation.downloads", iconWithLabel: true);
+            CommandBindings.Apply(settings, "navigation.settings", iconWithLabel: true);
+            CommandBindings.Apply(tools, "navigation.tools-menu", iconWithLabel: true);
+            Size unconstrained = new(double.PositiveInfinity, double.PositiveInfinity);
+            double Measure(Button button)
+            {
+                // ContentPresenter may still hold the previous command presentation
+                // until layout runs. Measure the new content itself so compacting one
+                // label immediately releases space for the remaining labeled actions.
+                Control content = button.Content as Control ?? new TextBlock { Text = button.Content?.ToString() };
+                TextElement.SetFontFamily(content, button.FontFamily);
+                TextElement.SetFontSize(content, button.FontSize);
+                TextElement.SetFontStyle(content, button.FontStyle);
+                TextElement.SetFontWeight(content, button.FontWeight);
+                TextElement.SetFontStretch(content, button.FontStretch);
+                content.Measure(unconstrained);
+                return Math.Max(button.MinWidth, content.DesiredSize.Width
+                    + button.Padding.Left + button.Padding.Right
+                    + button.BorderThickness.Left + button.BorderThickness.Right);
+            }
+            double downloadsWidth = Measure(downloads);
+            double resumeWidth = Measure(resume);
+            double settingsWidth = Measure(settings);
+            double toolsWidth = Measure(tools);
+            double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
+            double width = ClientSize.Width > 0 ? ClientSize.Width : Width;
+            Grid layout = (Grid)panel.Parent!;
+            double available = width - footer.Padding.Left - footer.Padding.Right - modes.Width - layout.ColumnSpacing;
+            double RequiredWidth()
+            {
+                bool overflow = direct.Any(visible => !visible);
+                int count = 3 + direct.Count(visible => visible) + (overflow ? 1 : 0);
+                return downloadsWidth + resumeWidth + settingsWidth
+                    + destinationWidths.Where((_, index) => direct[index]).Sum()
+                    + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
+            }
+            // Preserve Archive longest; remove the rarer destinations first.
+            foreach (int index in new[] { 4, 3, 2, 1, 0 })
+            {
+                if (RequiredWidth() <= available) break;
+                direct[index] = false;
+            }
+            // A small screen can shrink even below the usual workspace minimum.
+            // Keep Continue reading written out and compact the familiar icons first.
+            if (RequiredWidth() > available)
+            {
+                CommandBindings.Apply(settings, "navigation.settings", iconOnly: true);
+                settingsWidth = Measure(settings);
+            }
+            if (RequiredWidth() > available)
+            {
+                CommandBindings.Apply(downloads, "navigation.downloads", iconOnly: true);
+                downloadsWidth = Measure(downloads);
+            }
+            if (RequiredWidth() > available)
+                CommandBindings.Apply(tools, "navigation.tools-menu", iconOnly: true);
+
+            bool hasOverflow = direct.Any(visible => !visible);
+            tools.IsVisible = hasOverflow;
+            tools.Classes.Set("selected", destinations.Where((_, index) => !direct[index])
+                .Any(destination => destination.Page == _selectedPage));
+            for (int index = 0; index < destinations.Length; index++)
+            {
+                var destination = destinations[index];
+                destination.Button.IsVisible = direct[index];
+                destination.Button.Classes.Set("selected", destination.Page == _selectedPage);
+                if (tools.Flyout is MenuFlyout menu)
+                    foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+                        if (item.Tag as string == destination.Tag) item.IsVisible = !direct[index];
+            }
+            if (!hasOverflow) tools.Flyout?.Hide();
+        }
+        finally { _measuringPageNavigation = false; }
     }
 
-    private void RefreshDiagnosticPage(DesktopSessionView? view = null) => _diagnosticsPage?.Refresh(view ?? _session.GetView(),
-        !WorkspaceCommandBusy);
+    private void RefreshDiagnosticPage(DesktopSessionView? view = null)
+    {
+        // Navigation refreshes the page after selecting it, so hidden pages need
+        // neither a snapshot nor a rebuilt presentation for background progress.
+        if (_selectedPage != WorkspacePage.Diagnostics) return;
+        _diagnosticsPage?.Refresh(view ?? _session.GetView(), !WorkspaceCommandBusy);
+    }
 
-    private void RefreshSourcesPage(DesktopSessionView? view = null) => _sourcesPage?.Refresh(_session.GetProviderDescriptors(),
-        view ?? _session.GetView(), _restoreCompleted && !WorkspaceCommandBusy && !_importing);
+    private void RefreshSourcesPage(DesktopSessionView? view = null)
+    {
+        if (_selectedPage != WorkspacePage.Sources) return;
+        _sourcesPage?.Refresh(_session.GetProviderDescriptors(), view ?? _session.GetView(),
+            _restoreCompleted && !WorkspaceCommandBusy && !_importing);
+    }
 
     private void OnSourcesNavigationClick(object? sender, RoutedEventArgs e)
     {

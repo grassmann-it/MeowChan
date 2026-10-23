@@ -168,6 +168,8 @@ public partial class MainWindow : Window
         this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
+        this.FindControl<Button>("ContinueReadingNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;

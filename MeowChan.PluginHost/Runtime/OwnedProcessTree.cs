@@ -33,7 +33,27 @@ internal sealed class OwnedProcessTree : IDisposable
         try { if (!_process.HasExited) _process.Kill(entireProcessTree: true); }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception) { }
     }
+    public async Task WaitForExitAsync(CancellationToken token)
+    {
+        await _process.WaitForExitAsync(token).ConfigureAwait(false);
+        if (_job is null) return;
+        // The parent can exit before descendants release their current directory and
+        // loaded assemblies. Keep the job alive until its entire owned tree is gone.
+        while (true)
+        {
+            if (!QueryInformationJobObject(_job, 1, out BasicAccounting accounting,
+                    (uint)Marshal.SizeOf<BasicAccounting>(), IntPtr.Zero))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            if (accounting.ActiveProcesses == 0) return;
+            await Task.Delay(10, token).ConfigureAwait(false);
+        }
+    }
     public void Dispose() { Kill(); _job?.Dispose(); }
+    [StructLayout(LayoutKind.Sequential)] private struct BasicAccounting
+    {
+        public long TotalUserTime, TotalKernelTime, ThisPeriodTotalUserTime, ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount, TotalProcesses, ActiveProcesses, TotalTerminatedProcesses;
+    }
     [StructLayout(LayoutKind.Sequential)] private struct BasicLimit
     {
         public long PerProcessUserTimeLimit, PerJobUserTimeLimit;
@@ -57,4 +77,5 @@ internal sealed class OwnedProcessTree : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetInformationJobObject(SafeFileHandle job, int informationClass, ref ExtendedLimit information, uint length);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool TerminateJobObject(SafeFileHandle job, uint exitCode);
+    [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool QueryInformationJobObject(SafeFileHandle job, int informationClass, out BasicAccounting information, uint length, IntPtr returnLength);
 }

@@ -12,6 +12,7 @@ public static class CommandCatalog
     private static readonly CommandDefinition[] Entries =
     {
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
+        new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "file-text", null, CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", "Primary+3", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", "Primary+4", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
@@ -26,7 +27,7 @@ public static class CommandCatalog
         new("plugins.cancel", "plugins.cancel", "Cancel operation", "Vorgang abbrechen", "x", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.probe", "plugins.probe", "Fetch test URL", "Test-URL abrufen", "download", null, CommandScope.Settings, new[] { "plugins" }),
         new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
-        new("navigation.plugins", "command.navigation.plugins", "Plugins", "Plugins", "tool", null, CommandScope.Application, new[] { "app-menu", "tools-menu", "sources" }),
+        new("navigation.plugins", "command.navigation.plugins", "Plugins", "Plugins", "tool", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
         new("navigation.tools-menu", "command.navigation.tools-menu", "Tools", "Werkzeuge", "tool", null, CommandScope.Application, new[] { "footer" }),

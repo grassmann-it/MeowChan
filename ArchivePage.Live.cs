@@ -116,7 +116,8 @@ public partial class ArchivePage
         int interactionRevision = _readerInteractionRevision;
         bool follow = _followReader;
         await LoadThreadAsync(id, resetPage: false);
-        if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0) return;
+        if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0
+            || (!deliberate && (interactionRevision != _readerInteractionRevision || !MayRefreshReaderNow))) return;
         // Manual refresh reveals the first appended post; live following stays at the newest.
         int index = follow ? _thread.PostCount - 1 : Math.Min(previousCount, _thread.PostCount - 1);
         await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId, deliberate ? null : interactionRevision);

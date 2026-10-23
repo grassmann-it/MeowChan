@@ -1,7 +1,14 @@
 using System.Reflection;
+using Pointer = Avalonia.Input.Pointer;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -22,6 +29,7 @@ internal static class ReadingPositionChecks
         }
         await CheckSettingsSemanticsAsync(window);
         Require(!window.SessionHost.Config.RememberReadingPosition, "New profile opted in automatically.");
+        await CheckEmptyFooterResumeAsync(window);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
@@ -31,6 +39,7 @@ internal static class ReadingPositionChecks
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
         Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Reader wrote before opt-in.");
+        await CheckWheelCaptureBatchAsync(window, page, expectedCaptures: 0);
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
         window.SettingsEditor.RememberReadingPosition = true;
@@ -42,12 +51,19 @@ internal static class ReadingPositionChecks
         Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Enabling or passive preview created an entry.");
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
+        await CheckWheelCaptureBatchAsync(window, page, expectedCaptures: 1);
         Click(page.FindControl<Button>("NextPostsButton")!);
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.PostId == "1050");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
         LocalReadingPosition? captured = await window.SessionHost.ReadReadingPositionAsync();
         Require(captured?.Thread == "1000", "Reader movement captured a different thread.");
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        FooterNavigationChecks.RequireResumeAction(window);
+        Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
+        await WaitForFooterResumeAsync(window, "1022");
+        Require(await window.SessionHost.ReadReadingPositionAsync() == captured,
+            "Explicit footer resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
         string positionFile = Path.Combine(profile, "reading-position.json");
@@ -67,13 +83,15 @@ internal static class ReadingPositionChecks
         Click(window.SettingsEditor.FindControl<Button>("ForgetReadingPositionButton")!);
         await Program.WaitUntilAsync(() => !window.SettingsEditor.IsBusy && window.SettingsEditor.StatusMessage == Texts.T("resume.forgotten"));
         Require(window.SessionHost.Config.RememberReadingPosition, "Forget unexpectedly disabled the option.");
+        await CheckEmptyFooterResumeAsync(window);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1001"), resetPage: false);
         Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Refresh restored a forgotten position.");
         await window.SessionHost.RememberReadingPositionAsync(new LocalReadingPosition("4chan", "g", "1000", "missing", -25, "missing"), window.SessionHost.ReadingPositionGeneration);
-        await window.ResumeLastReadingAsync();
-        await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
+        FooterNavigationChecks.RequireResumeAction(window);
+        Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
+        await WaitForFooterResumeAsync(window, "1000");
         Require(page.FindControl<TextBlock>("ArchiveMessage")!.Text == Texts.T("resume.fallback"), "Missing-post replacement was not explained.");
         Require((await window.SessionHost.ReadReadingPositionAsync())?.PostId == "missing", "Fallback silently replaced the saved anchor.");
         Program.CaptureWindow(window, "smoke-reading-position-fallback.png");
@@ -129,6 +147,43 @@ internal static class ReadingPositionChecks
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
     }
 
+    private static async Task CheckEmptyFooterResumeAsync(MainWindow window)
+    {
+        string languageBefore = window.SessionHost.Config.Language;
+        try
+        {
+            foreach (string language in new[] { "en", "de" })
+            {
+                await FooterNavigationChecks.PersistLanguageAsync(window, language);
+                FooterNavigationChecks.RequireLanguage(window, language);
+                FooterNavigationChecks.RequireResumeAction(window);
+                Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
+                string expectedEmpty = language == "de"
+                    ? "Keine Lesestelle gespeichert. In den Einstellungen einschalten und anschließend den Reader bewusst öffnen."
+                    : "No reading position is saved. Enable it in Settings, then consciously open the reader.";
+                await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive
+                    && window.ArchivePage.FindControl<TextBlock>("ArchiveMessage")!.Text == expectedEmpty);
+                FooterNavigationChecks.RequireLanguage(window, language);
+                Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
+                    "Continue reading without a saved position opened the reader.");
+                Require(await window.SessionHost.ReadReadingPositionAsync() == null,
+                    "Continue reading without a saved position created one.");
+            }
+        }
+        finally { await FooterNavigationChecks.PersistLanguageAsync(window, languageBefore); }
+    }
+
+    private static async Task WaitForFooterResumeAsync(MainWindow window, string selectedPost)
+    {
+        ArchivePage page = window.ArchivePage;
+        FieldInfo resuming = typeof(ArchivePage).GetField("_resumingPosition", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        // The reader becomes visible before anchor restoration and its final
+        // fallback message complete. Synchronize with the existing operation
+        // lifetime before asserting its observable result or navigating away.
+        await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+            && SelectedPost(page) == selectedPost && resuming.GetValue(page) is false);
+    }
+
     private static async Task CheckSettingsSemanticsAsync(MainWindow window)
     {
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
@@ -177,6 +232,37 @@ internal static class ReadingPositionChecks
             await Task.Delay(30);
         }
         throw new TimeoutException("Reading position was not persisted.");
+    }
+
+    private static async Task CheckWheelCaptureBatchAsync(MainWindow window, ArchivePage page, int expectedCaptures)
+    {
+        // Settle opening/focus work before counting only the wheel input below.
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
+        ScrollContentPresenter viewport = scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().First();
+        double before = scroll.Offset.Y;
+        int captures = 0;
+        void Captured(LocalReadingPosition _) => ++captures;
+        page.ConsciousReadingPositionChanged += Captured;
+        try
+        {
+            using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+            Point point = viewport.TranslatePoint(new Point(20, 20), window)!.Value;
+            // Both inputs run in this dispatcher turn: their final visible anchor
+            // should be captured once, after normal scrolling/layout has settled.
+            for (int index = 0; index < 2; ++index)
+                viewport.RaiseEvent(new PointerWheelEventArgs(viewport, pointer, window, point, 0,
+                    new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+                    KeyModifiers.None, new Vector(0, -1)));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(scroll.Offset.Y > before + 10, "The reading-position batch fixture did not actually scroll.");
+            Require(captures == expectedCaptures,
+                $"Reader wheel batch published {captures} conscious positions; expected {expectedCaptures} with opt-in {(expectedCaptures == 0 ? "off" : "on")}.");
+        }
+        finally { page.ConsciousReadingPositionChanged -= Captured; }
     }
 
     private static string? SelectedPost(ArchivePage page) => (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id;

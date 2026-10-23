@@ -99,10 +99,11 @@ public sealed class PluginManagementTests
     [Fact]
     public void EditorTemplateRequiresFileArgumentAndNoShell()
     {
-        Assert.Throws<ArgumentException>(() => PluginEditorLauncher.CreateStartInfo(new("editor", new[] { "--line", "{line}" }), "/tmp/plugin.cs"));
-        ProcessStartInfo info = PluginEditorLauncher.CreateStartInfo(new("editor", new[] { "{file}:{line}:{column}" }), "/tmp/a b.cs", 8, 2);
+        string path = Path.Combine(Path.GetTempPath(), "a b.cs");
+        Assert.Throws<ArgumentException>(() => PluginEditorLauncher.CreateStartInfo(new("editor", new[] { "--line", "{line}" }), path));
+        ProcessStartInfo info = PluginEditorLauncher.CreateStartInfo(new("editor", new[] { "{file}:{line}:{column}" }), path, 8, 2);
         Assert.False(info.UseShellExecute);
-        Assert.Equal("/tmp/a b.cs:8:2", Assert.Single(info.ArgumentList));
+        Assert.Equal(Path.GetFullPath(path) + ":8:2", Assert.Single(info.ArgumentList));
     }
 
     [Fact]

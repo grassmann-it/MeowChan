@@ -80,6 +80,7 @@ public partial class ArchivePage : UserControl
         get => _mediaTiles;
         set
         {
+            MediaPosition? position = _shownMedia.Count > 0 ? CaptureMediaPosition() : null;
             _mediaTiles = value;
             if (IsInitialized || _largeReader)
             {
@@ -87,6 +88,7 @@ public partial class ArchivePage : UserControl
                 Control<ListBox>("ArchiveMediaTiles").IsVisible = value;
                 Control<Button>("ArchiveMediaColumnsButton").IsVisible = !value;
                 Control<Button>("ArchiveMediaMode").Content = Texts.T(value ? "gallery.list" : "gallery.tiles");
+                if (position != null) RestoreMediaPosition(position);
             }
         }
     }
@@ -97,9 +99,10 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands();
+        InitializeComponent(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeMediaPositionInput();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
+        Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
         InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
@@ -235,6 +238,8 @@ public partial class ArchivePage : UserControl
         CancelMediaLoad();
         ClosePreview();
         if (resetPage || _selectedThread != id) _postOffset = 0;
+        _retainedMediaPosition = CaptureMediaPosition();
+        _mediaProjectionPending = true;
         _selectedThread = id;
         _thread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
@@ -261,6 +266,7 @@ public partial class ArchivePage : UserControl
             ArchivedThreadView? thread = await reader.ReadThreadAsync(id, cancellationToken);
             if (_ended || request != _contentRequest) return;
             _thread = thread;
+            if (thread == null) _mediaProjectionPending = false;
             ReaderSnapshotLoaded();
             if (_thread != null && _postOffset >= _thread.PostCount) _postOffset = 0;
             _busy = false;
@@ -280,7 +286,17 @@ public partial class ArchivePage : UserControl
         finally
         {
             if (ReferenceEquals(_contentCancellation, loading)) _contentCancellation = null;
-            if (!_ended && request == _contentRequest) { _busy = false; UpdateActions(); }
+            if (!_ended && request == _contentRequest)
+            {
+                _busy = false;
+                if (_thread == null)
+                {
+                    _mediaProjectionPending = false;
+                    _retainedMediaPosition = null;
+                    ++_mediaPositionRequest;
+                }
+                UpdateActions();
+            }
         }
     }
 
@@ -303,7 +319,7 @@ public partial class ArchivePage : UserControl
                 {
                     List<ArchiveAssetRow> assets = new List<ArchiveAssetRow>();
                     List<string> warnings = new List<string>();
-                    foreach (string directory in thread.MediaDirectories)
+                    foreach (string directory in thread.MediaDirectories.DistinctBy(CanonicalMediaDirectory, StringComparer.Ordinal))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         try
@@ -330,7 +346,7 @@ public partial class ArchivePage : UserControl
         finally
         {
             if (ReferenceEquals(_mediaCancellation, loading)) _mediaCancellation = null;
-            if (!_ended && request == _mediaRequest) { _mediaLoading = false; _mediaReady.TrySetResult(_assets); RenderMedia(); }
+            if (!_ended && request == _mediaRequest) { _mediaLoading = false; _mediaProjectionPending = false; _mediaReady.TrySetResult(_assets); RenderMedia(); }
         }
     }
 
@@ -341,6 +357,9 @@ public partial class ArchivePage : UserControl
         _mediaReady = NewMediaReady();
         _mediaCancellation?.Cancel();
         _mediaLoading = false;
+        _mediaProjectionPending = false;
+        ++_mediaPositionRequest;
+        if (_ended) _retainedMediaPosition = null;
     }
 
     private void RenderThread()
@@ -373,7 +392,14 @@ public partial class ArchivePage : UserControl
                 { Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                     .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
             }).ToArray();
-            Control<ListBox>("ArchivePosts").ItemsSource = posts;
+            ListBox postList = Control<ListBox>("ArchivePosts");
+            // A new page is a new index space. Do not carry its predecessor's
+            // virtualized realization window and estimated item positions over.
+            postList.ItemsSource = null;
+            postList.ItemsPanel = new Avalonia.Controls.Templates.FuncTemplate<Panel?>(() => new VirtualizingStackPanel());
+            postList.ItemsSource = posts;
+            if (!posts.Any(post => post.Id == _readerPostId)) _readerPostId = posts.FirstOrDefault()?.Id;
+            UpdateReaderNavigation();
             RefreshInlineReplies(posts);
         }
         else { Control<ListBox>("ArchivePosts").ItemsSource = null; CancelInlineReplies(); }
@@ -386,16 +412,22 @@ public partial class ArchivePage : UserControl
         ConfigureArchiveMediaFavorites();
         DataGrid grid = Control<DataGrid>("ArchiveMediaGrid");
         ListBox tiles = Control<ListBox>("ArchiveMediaTiles");
-        ArchiveAssetRow? selected = (grid.SelectedItem ?? tiles.SelectedItem) as ArchiveAssetRow;
+        MediaPosition? position = CaptureMediaPosition();
         IReadOnlyList<ArchiveAssetRow> shown = VisibleAssets();
-        grid.ItemsSource = shown;
-        tiles.ItemsSource = shown;
-        if (selected != null)
+        _rebindingMedia = true;
+        try { grid.ItemsSource = shown; tiles.ItemsSource = shown; }
+        finally { _rebindingMedia = false; }
+        _shownMedia = shown;
+        _shownMediaThread = _selectedThread;
+        if (shown.Count > 0)
         {
-            ArchiveAssetRow? rebound = shown.FirstOrDefault(row => row.Manifest.Directory == selected.Manifest.Directory
-                && row.Asset.AssetId == selected.Asset.AssetId);
-            grid.SelectedItem = rebound;
-            tiles.SelectedItem = rebound;
+            _retainedMediaPosition = null;
+            RestoreMediaPosition(position);
+        }
+        else
+        {
+            ++_mediaPositionRequest;
+            _retainedMediaPosition = _mediaProjectionPending || _mediaLoading || _busy ? position : null;
         }
         TextBlock empty = Control<TextBlock>("ArchiveNoMedia");
         empty.Text = Texts.T(_mediaLoading ? "archive.loadingMedia"
@@ -414,7 +446,7 @@ public partial class ArchivePage : UserControl
             2 => rows.OrderBy(row => row.Asset.Sha256, StringComparer.Ordinal),
             _ => rows.OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
         };
-        return ordered.ThenBy(row => row.Manifest.Directory, StringComparer.Ordinal)
+        return ordered.ThenBy(row => MediaKey(_selectedThread, row).Directory, StringComparer.Ordinal)
             .ThenBy(row => row.Asset.AssetId, StringComparer.Ordinal).ToArray();
     }
 
@@ -530,8 +562,8 @@ public partial class ArchivePage : UserControl
             }
         };
 
-    private async Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary,
-        CapturedAttachment attachment, CancellationToken cancellationToken)
+    private Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary,
+        CapturedAttachment attachment, CancellationToken cancellationToken) => Task.Run(async () =>
     {
         string? path = attachment.PlannedPath;
         if (attachment.IsDeleted || string.IsNullOrEmpty(path) ||
@@ -540,9 +572,12 @@ public partial class ArchivePage : UserControl
         string relative = Path.GetRelativePath(summary.MediaDirectory, path);
         if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             return null;
-        await _thumbnailGate.WaitAsync(cancellationToken);
+        // File opening, codec inspection and decoding are synchronous even for an
+        // asynchronous FileStream. Keep the whole operation off the UI thread.
+        await _thumbnailGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
                 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
             if (stream.Length > 64L * 1024 * 1024) return null;
@@ -560,7 +595,7 @@ public partial class ArchivePage : UserControl
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
         finally { _thumbnailGate.Release(); }
-    }
+    }, cancellationToken);
 
     internal static ArchiveAssetRow? FindMatchingAsset(CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)
         => assets.LastOrDefault(asset => attachment.MediaId != null
@@ -658,6 +693,8 @@ public partial class ArchivePage : UserControl
         if (_busy || _postOffset == 0) return;
         ++_readerInteractionRevision;
         _postOffset = Math.Max(0, _postOffset - PageSize);
+        ++_readerFocusRequest;
+        _readerPostId = null;
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
@@ -666,36 +703,21 @@ public partial class ArchivePage : UserControl
         if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
         ++_readerInteractionRevision;
         _postOffset += PageSize;
+        ++_readerFocusRequest;
+        _readerPostId = null;
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
     private void OnBackClick(object? sender, RoutedEventArgs e) { _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {
+        if (_rebindingMedia) return;
+        if (!_applyingMediaRestore && !IsPendingMediaSelectionEcho(sender)) ++_mediaPositionRequest;
         if (sender is DataGrid && Control<DataGrid>("ArchiveMediaGrid").SelectedItem is ArchiveAssetRow gridRow)
             Control<ListBox>("ArchiveMediaTiles").SelectedItem = gridRow;
         if (sender is ListBox && Control<ListBox>("ArchiveMediaTiles").SelectedItem is ArchiveAssetRow tileRow)
             Control<DataGrid>("ArchiveMediaGrid").SelectedItem = tileRow;
         UpdateActions();
-    }
-    private void OnPostLayoutChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (sender is not Grid grid || grid.Children.Count < 2) return;
-        bool beside = grid.Bounds.Width >= (_largeReader ? 760 : 600);
-        if (grid.Children[0] is Control media)
-        {
-            media.MaxWidth = _largeReader ? 376 : 268;
-            media.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
-        }
-        // SizeChanged can run while an ancestor Grid is measuring. Keep its
-        // definition collections intact so cached cell ranges remain valid.
-        grid.ColumnDefinitions[0].Width = beside ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
-        grid.ColumnDefinitions[1].Width = beside ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        grid.RowDefinitions[1].Height = beside ? new GridLength(0) : GridLength.Auto;
-        grid.ColumnSpacing = beside ? 12 : 0;
-        grid.RowSpacing = beside ? 0 : 8;
-        Grid.SetColumn(grid.Children[1], beside ? 1 : 0);
-        Grid.SetRow(grid.Children[1], beside ? 0 : 1);
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateLayoutMode();
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);

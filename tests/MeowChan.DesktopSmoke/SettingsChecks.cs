@@ -66,6 +66,14 @@ internal static class SettingsChecks
                     Require(number.Value == previousValue, "The raw/model mismatch fixture did not retain the last accepted numeric value.");
                 save.Focus(); // A genuine click changes focus before raising Click.
                 Require(number.Text == rejected.Raw, "Leaving the numeric text box silently replaced its rejected draft.");
+                foreach (string part in new[] { "PART_IncreaseButton", "PART_DecreaseButton" })
+                {
+                    Button spinner = number.GetVisualDescendants().OfType<Button>().Single(button => button.Name == part);
+                    spinner.Focus();
+                    Require(spinner.IsFocused && number.Text == rejected.Raw && input.Text == rejected.Raw,
+                        "Explicit spinner focus redirected to the editor or replaced a rejected draft.");
+                    save.Focus();
+                }
                 Click(save);
                 TextBlock error = window.Editor.FindControl<TextBlock>(rejected.Field + "Error")!;
                 await WaitUntilAsync(() => error.IsEffectivelyVisible && input.IsFocused);

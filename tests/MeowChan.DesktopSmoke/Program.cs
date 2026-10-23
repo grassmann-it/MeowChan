@@ -242,6 +242,77 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_FIT_BENCHMARK") == "1")
+            {
+                GalleryImageDecoder.DecodeStarted = request => Console.WriteLine("MEDIA_DECODE " + request.GetType().Name);
+                try { await GalleryFitBenchmark.RunAsync(mainWindow); }
+                finally { GalleryImageDecoder.DecodeStarted = null; }
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            CommandRefreshChecks.Run();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FOOTER_NAVIGATION_ONLY") == "1")
+            {
+                await FooterNavigationChecks.RunAsync(mainWindow);
+                await BrandNavigationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_NUMERIC_FOCUS_ONLY") == "1")
+            {
+                await SettingsAccessibilityChecks.RunAsync(mainWindow);
+                await SettingsChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PERFORMANCE_ONLY") == "1")
+            {
+                string language = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_TEST_LANGUAGE") ?? "en";
+                string theme = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_TEST_THEME") ?? "Light";
+                MeowChan.Desktop.Localization.Texts.SetLanguage(language);
+                Application.Current!.RequestedThemeVariant = theme.Equals("dark", StringComparison.OrdinalIgnoreCase)
+                    ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
+                await MediaTilePanelChecks.RunAsync(mainWindow);
+                await MediaTileIntegrationChecks.RunAsync(mainWindow);
+                await GalleryFitChecks.RunAsync(mainWindow);
+                await GalleryViewerChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTEGRATION_ONLY") == "1")
+            {
+                await MediaTileIntegrationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FIT_ONLY") == "1")
+            {
+                await GalleryFitChecks.RunAsync(mainWindow);
+                await GalleryViewerChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_PANEL_ONLY") == "1")
+            {
+                await MediaTilePanelChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PAGE_REFRESH_ONLY") == "1")
+            {
+                await DiagnosticsChecks.RunAsync(mainWindow);
+                await SourcesChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_COMMAND_CONTRAST_ONLY") == "1")
             {
                 await CommandButtonContrastChecks.RunAsync(mainWindow);

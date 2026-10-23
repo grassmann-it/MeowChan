@@ -4,6 +4,7 @@ internal static class R08dViewerCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("viewer.decodeWarning", "Could not improve image quality; the previous image is still shown. ", "Die Bildqualität konnte nicht verbessert werden; das bisherige Bild bleibt sichtbar. "),
         ("viewer.favorite.add", "Add to favorites", "Zu Favoriten hinzufügen"),
         ("viewer.favorite.remove", "Remove from favorites", "Aus Favoriten entfernen"),
         ("viewer.favorites.view", "View", "Ansehen"),

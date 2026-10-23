@@ -78,7 +78,7 @@ public partial class ArchivePage
         finally { if (ReferenceEquals(_gallerySelectionCancellation, loading)) _gallerySelectionCancellation = null; }
     }
 
-    internal Action CaptureGalleryOrigin()
+    internal Action CaptureGalleryOrigin(bool restoreReaderFocus = true)
     {
         ArchivedThreadView? thread = _thread;
         ResourceId? selected = _selectedThread;
@@ -100,9 +100,9 @@ public partial class ArchivePage
         ResourceId[] listSelection = FrozenArchiveSelection();
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow? mediaSelection = SelectedMediaRow();
+        MediaPosition? mediaPosition = CaptureMediaPosition();
         string? postSelection = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
-        string[] expandedReplies = (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
-            .Where(post => post.RepliesExpanded).Select(post => post.Id).ToArray() ?? Array.Empty<string>();
+        InlineReplyState[] inlineReplies = CaptureInlineReplyState();
         var history = _history.ToArray();
         ReaderAnchor? backlinkOrigin = _backlinkOriginAnchor;
         ArchivePostId? backlinkPost = _backlinkPost;
@@ -141,6 +141,7 @@ public partial class ArchivePage
             Control<Button>("PreviousReferences").IsEnabled = backlinkPost != null && referenceOffset > 0;
             Control<Button>("NextReferences").IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
             _thread = thread; _selectedThread = selected; _assets = assets;
+            ReaderSnapshotLoaded();
             _postOffset = offset; _showReader = reader;
             _mediaReady.TrySetResult(assets);
             _updatingList = true;
@@ -155,16 +156,15 @@ public partial class ArchivePage
             }
             finally { _updatingList = false; }
             RenderThread(); UpdateLayoutMode();
-            if (expandedReplies.Length > 0 && Control<ListBox>("ArchivePosts").ItemsSource is IEnumerable<ArchivePostRow> restoredPosts)
-                foreach (ArchivePostRow post in restoredPosts)
-                    if (expandedReplies.Contains(post.Id, StringComparer.Ordinal)) post.RepliesExpanded = true;
+            RestoreInlineReplyState(inlineReplies);
             Control<TabControl>("ArchiveContentTabs").SelectedIndex = tab;
             Control<DataGrid>("ArchiveMediaGrid").SelectedItem = mediaSelection;
             Control<ListBox>("ArchiveMediaTiles").SelectedItem = mediaSelection;
             if (Control<ListBox>("ArchivePosts").ItemsSource is IEnumerable<ArchivePostRow> posts)
                 Control<ListBox>("ArchivePosts").SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
-            if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor);
+            RestoreMediaPosition(mediaPosition);
+            if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus);
         };
     }
 
@@ -286,10 +286,13 @@ public partial class ArchivePage
 
     private async void OnMediaModeClick(object? sender, RoutedEventArgs e)
     {
+        MediaPosition? position = CaptureMediaPosition();
         _mediaTiles = !_mediaTiles;
         Control<DataGrid>("ArchiveMediaGrid").IsVisible = !_mediaTiles;
         Control<ListBox>("ArchiveMediaTiles").IsVisible = _mediaTiles;
         Control<Button>("ArchiveMediaMode").Content = Desktop.Localization.Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
+        Control<Button>("ArchiveMediaColumnsButton").IsVisible = !_mediaTiles;
+        RestoreMediaPosition(position);
         try { if (SaveMediaTiles != null) await SaveMediaTiles(_mediaTiles); }
         catch (Exception exception)
         {

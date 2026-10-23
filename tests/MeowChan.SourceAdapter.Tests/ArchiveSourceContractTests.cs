@@ -60,7 +60,8 @@ public sealed class ArchiveSourceContractTests
                 ThreadSourceState.Archived, DateTimeOffset.UtcNow, Path.Combine(profile.Path, "media"),
                 new[] { "100", "2", "10" }.Select(post => new CapturedPost(post, 0, PostFieldPresence.Html, Html: post)).ToArray()));
         }
-        using (SqliteConnection connection = new("Data Source=" + Path.Combine(profile.Path, "archive.db")))
+        using (SqliteConnection connection = new(new SqliteConnectionStringBuilder
+        { DataSource = Path.Combine(profile.Path, "archive.db"), Pooling = false }.ToString()))
         {
             connection.Open();
             using SqliteCommand command = connection.CreateCommand();

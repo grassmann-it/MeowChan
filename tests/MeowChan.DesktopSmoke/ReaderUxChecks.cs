@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
 using System.ComponentModel;
+using System.Reflection;
+using Pointer = Avalonia.Input.Pointer;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -67,10 +70,21 @@ internal static class ReaderUxChecks
             await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/" + thread,
                 "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, threadMedia, posts));
         }
+        if (!deletionFixture) await ReaderStabilityChecks.SeedAsync(catalog, media);
     }
 
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
+        {
+            await ReaderReturnChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_STABILITY_ONLY") == "1")
+        {
+            await ReaderStabilityChecks.RunAsync(window);
+            return;
+        }
         window.Width = 1440; window.Height = 920;
         // Exercise the hidden ArchivePage before it has ever been navigated to.
         await CheckDownloadOriginAsync(window);
@@ -204,6 +218,8 @@ internal static class ReaderUxChecks
         Require(!reader.IsVisible && page.FindControl<TextBlock>("ArchiveThreadPage")!.Text == listPage
             && page.FindControl<TextBox>("ArchiveSearchText")!.Text == "Reader UX", "List-origin gallery close lost search or page.");
         Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), page.FindControl<Button>("ArchiveResultsGallery")), "List-origin focus was not restored.");
+        await ReaderReturnChecks.RunAsync(window);
+        await ReaderStabilityChecks.RunAsync(window);
         Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
     }
 
@@ -402,6 +418,7 @@ internal static class ReaderUxChecks
         if (viewer.CaptureState().ContextOpen) Click(GalleryButton(viewer, "GalleryToggleContext"));
         Click(GalleryButton(viewer, "GalleryFit"));
         await ResizeGalleryAsync(new Size(850, 530), "baseline");
+        await CheckGalleryDragAsync(window, viewer, viewport);
         GalleryViewerState fit = viewer.CaptureState();
         for (int i = 0; i < 40; i++) Click(GalleryButton(viewer, "GalleryMinus"));
         Require(viewer.CaptureState().PhysicalZoom == fit.PhysicalZoom, "Minus shrank below Fit.");
@@ -469,6 +486,62 @@ internal static class ReaderUxChecks
         window.Position = originalPosition;
         Program.CaptureWindow(window, "smoke-gallery-fit-floor.png");
     }
+    private static async Task CheckGalleryDragAsync(MainWindow window, GalleryViewer viewer, Grid viewport)
+    {
+        Image image = viewer.GetGalleryVisualDescendants().OfType<Image>().Single(value => value.Name == "GalleryImage");
+        Click(GalleryButton(viewer, "GalleryActual"));
+        for (int i = 0; i < 5; i++) Click(GalleryButton(viewer, "GalleryPlus"));
+        await Program.WaitUntilAsync(() => image.Source is Bitmap bitmap && bitmap.PixelSize.Width == 1800);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        Require(image.RenderTransform is TranslateTransform, "Gallery image has no translation transform.");
+        var transform = (TranslateTransform)image.RenderTransform!;
+        double width = image.Width, height = image.Height;
+        TextBlock[] captions = viewer.GetGalleryVisualDescendants().OfType<Border>()
+            .Single(value => value.Name == "GalleryOverlayInfo").GetVisualDescendants().OfType<TextBlock>().ToArray();
+        string?[] captionText = captions.Select(value => value.Text).ToArray();
+        double limitX = Math.Max(0, (width - viewport.Bounds.Width) / 2);
+        double limitY = Math.Max(0, (height - viewport.Bounds.Height) / 2);
+        Require(limitX > 20 && limitY > 20, "Drag fixture does not exceed the viewport on both axes.");
+        Point start = viewport.TranslatePoint(new Point(viewport.Bounds.Width / 2, viewport.Bounds.Height / 2), window)!.Value;
+        MouseDevice mouse = new();
+        void Input(RawPointerEventType type, Point point, RawInputModifiers modifiers = RawInputModifiers.None)
+            => AvaloniaLocator.Current.GetRequiredService<IInputManager>().ProcessInput(new RawPointerEventArgs(mouse,
+                (ulong)Environment.TickCount64,
+                typeof(TopLevel).GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window) as IInputRoot
+                    ?? throw new InvalidOperationException("No gallery input root."), type, point, modifiers));
+        void CheckUnchanged()
+        {
+            Require(ReferenceEquals(transform, image.RenderTransform), "Dragging replaced the image transform.");
+            Require(image.Width == width && image.Height == height, "Dragging resized the image.");
+            Require(captions.Select(value => value.Text).SequenceEqual(captionText), "Dragging changed gallery quality/caption text.");
+        }
+        try
+        {
+            Input(RawPointerEventType.Move, start);
+            Input(RawPointerEventType.LeftButtonDown, start, RawInputModifiers.LeftMouseButton);
+            Input(RawPointerEventType.Move, start + new Vector(20, 15), RawInputModifiers.LeftMouseButton);
+            GalleryViewerState moved = viewer.CaptureState();
+            Require(Math.Abs(moved.PanX - 20) < 0.01 && Math.Abs(moved.PanY - 15) < 0.01,
+                "A captured pointer drag did not move the gallery image.");
+            CheckUnchanged();
+            Input(RawPointerEventType.Move, start + new Vector(100000, 100000), RawInputModifiers.LeftMouseButton);
+            Require(Math.Abs(transform.X - limitX) < 0.01 && Math.Abs(transform.Y - limitY) < 0.01,
+                "Dragging escaped the positive pan bounds.");
+            CheckUnchanged();
+            Input(RawPointerEventType.Move, start - new Vector(100000, 100000), RawInputModifiers.LeftMouseButton);
+            Require(Math.Abs(transform.X + limitX) < 0.01 && Math.Abs(transform.Y + limitY) < 0.01,
+                "Dragging escaped the negative pan bounds.");
+            CheckUnchanged();
+        }
+        finally { Input(RawPointerEventType.LeftButtonUp, start); }
+        Click(GalleryButton(viewer, "GalleryFit"));
+        GalleryViewerState fit = viewer.CaptureState();
+        Require(!fit.ManualZoom && fit.PanX == 0 && fit.PanY == 0 && transform.X == 0 && transform.Y == 0,
+            "Fit did not reset the dragged image and its translation.");
+        Require(ReferenceEquals(transform, image.RenderTransform), "Fit replaced the reusable image transform.");
+        Console.WriteLine("SMOKE gallery drag: raw captured pointer movement, stable transform/size/captions, both pan bounds and Fit reset.");
+    }
+
     private static void Wheel(MainWindow window, Control viewport, double delta)
     {
         using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
@@ -482,7 +555,7 @@ internal static class ReaderUxChecks
         ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
         return list.GetVisualDescendants().OfType<ListBoxItem>().Select(item =>
             (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(value => value.Item.DataContext is ArchivePostRow && value.Top + value.Item.Bounds.Height > 0)
+            .Where(value => value.Item.DataContext is ArchivePostRow && value.Top < list.Bounds.Height && value.Top + value.Item.Bounds.Height > 0)
             .OrderBy(value => value.Top).Select(value => ((ArchivePostRow)value.Item.DataContext!).Id).FirstOrDefault();
     }
     private static string? SelectedPost(ArchivePage page) => (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id;

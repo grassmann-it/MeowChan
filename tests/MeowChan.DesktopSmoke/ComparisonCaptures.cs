@@ -67,6 +67,13 @@ internal static class ComparisonCaptures
             if (visualReview) await ResizeAsync(window, 880, 680);
             await SetInspectorAsync(window, false);
             await CaptureAsync(window, rows, "smoke-comparison-barebones-dark.png");
+            if (visualReview)
+            {
+                // GitHub social preview: retain the entire real header and footer at 2:1.
+                await ResizeAsync(window, 1280, 640);
+                await CaptureAsync(window, rows, "v0.9.0-social-preview.png");
+                await ResizeAsync(window, 880, 680);
+            }
 
             await PresentationChecks.SwitchModeAsync(window, "Simple");
             await SetInspectorAsync(window, false);

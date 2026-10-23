@@ -8,6 +8,37 @@ Both runs passed on Manjaro Linux in a private 3200×2000 Xvfb display with Open
 
 This is **source-built UI evidence**. It does not establish native acceptance of extracted Windows, macOS or Linux release packages, physical-device playback, host integrations or live provider behavior.
 
+## GitHub social preview
+
+[Barebones social preview](v0.9.0-social-preview.png) is an additional **1280×640** PNG
+(83,971 bytes), ready to upload under the repository's **Settings → General → Social
+preview**. It includes the full logo/title bar, minimize/maximize/close controls,
+six passive example rows, status line and footer navigation. It is an unedited
+render at 1.0 scaling, with no cropping or stretching.
+
+Captured on 2026-10-22 from source checkpoint `8ec0cf50b270e0551a06d3ad61eff0f448bd70ff`
+with the additional social-preview capture in `ComparisonCaptures`. The Release
+build and isolated visual harness passed, with no binding errors. The original
+16 release screenshots above retain their existing provenance.
+
+```sh
+dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj \
+  -c Release --artifacts-path artifacts/social-preview-build -v minimal
+PATH="$PWD/artifacts/gui-test-tools/usr/bin:$PATH" \
+LD_LIBRARY_PATH="$PWD/artifacts/gui-test-tools/usr/lib" \
+XDG_DATA_DIRS="$PWD/artifacts/gui-test-tools/usr/share:/usr/share" \
+python3 scripts/run-desktop-smoke.py \
+  --assembly artifacts/social-preview-build/bin/MeowChan.DesktopSmoke/release/MeowChan.DesktopSmoke.dll \
+  --mode visual --scale 1 --output artifacts/social-preview-capture --timeout 180
+```
+
+The three environment overrides use this checkout's private GUI prerequisites;
+omit them where those tools are installed normally. Use a fresh output directory
+for subsequent captures. The delivered PNG is byte-identical to
+`artifacts/social-preview-capture/visual/v0.9.0-social-preview.png`; the run result
+is retained at `artifacts/social-preview-capture/results.json`.
+SHA-256: `82a4217f9f41d6c12baadf09ce0ff0bf1e61da3379d64bd14485f2e77c5a519e`.
+
 ## Final Barebones, Advanced, gallery, Settings and Rules
 
 The final capture used the existing Release DesktopSmoke binary, without a rebuild, in a fresh isolated output directory:

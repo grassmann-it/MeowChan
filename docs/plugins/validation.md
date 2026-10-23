@@ -18,14 +18,17 @@ For a local candidate feed, development commands from the repository root are:
 
 ```sh
 dotnet pack MeowChan.PluginSdk/MeowChan.PluginSdk.csproj -c Release -o artifacts/plugin-sdk-feed
-dotnet restore samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj --source artifacts/plugin-sdk-feed --packages artifacts/plugin-sdk-consumer-cache -p:MeowChanPluginSdkVersion=1.0.0
-dotnet run --project samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj --no-restore -p:MeowChanPluginSdkVersion=1.0.0
+dotnet restore samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj --source artifacts/plugin-sdk-feed --packages artifacts/plugin-sdk-consumer-cache -p:MeowChanPluginSdkVersion=1.0.0-alpha.2
+dotnet run --project samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj --no-restore -p:MeowChanPluginSdkVersion=1.0.0-alpha.2
 ```
 
 Choose a fresh feed/cache for a reproducible package check and inspect the restored
 package identity/hash. These are development instructions, not a claim that the
 package has been published. A project-reference build alone does not establish
 that the packaged SDK contains everything an independent author needs.
+The example uses the current `1.0.0-alpha.2` package version; when checking another
+candidate, use its exact package version in both commands. The separate SDK
+protocol contract remains `1.0.0`.
 
 ## Source and filter validation
 

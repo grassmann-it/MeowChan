@@ -22,6 +22,7 @@ public partial class MainWindow
             ("SourcesNavigationButton", "navigation.sources"),
             ("DiagnosticsNavigationButton", "navigation.diagnostics"),
             ("SettingsNavigationButton", "navigation.settings"),
+            ("PluginsNavigationButton", "navigation.plugins"),
             ("ToolsNavigationButton", "navigation.tools-menu")
         })
             CommandBindings.Apply(WorkspaceControl<Button>(name), action, iconWithLabel: true);
@@ -48,5 +49,6 @@ public partial class MainWindow
         ToolTip.SetTip(brand, about);
         AutomationProperties.SetName(brand, about);
         AutomationProperties.SetHelpText(brand, about);
+        UpdatePageNavigation();
     }
 }

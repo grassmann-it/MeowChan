@@ -8,7 +8,10 @@
   <ItemGroup Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true'">
     <_PluginHelperProject Include="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj;$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" />
     <_ShippedPluginProject Include="$(_PluginRepositoryRoot)plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj;$(_PluginRepositoryRoot)plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj;$(_PluginRepositoryRoot)plugins/Examples/Lainchan/MeowChan.Plugin.Lainchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj" />
-    <ProjectReference Include="@(_PluginHelperProject);@(_ShippedPluginProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" ExcludeAssets="all" AdditionalProperties="PublishSingleFile=false;PublishTrimmed=false" />
+    <!-- Helpers/plugins select their own multifile defaults. Setting false as
+         extra global properties creates separate solution build nodes sharing
+         the same obj/bin paths; concurrent apphost generation then races. -->
+    <ProjectReference Include="@(_PluginHelperProject);@(_ShippedPluginProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" ExcludeAssets="all" GlobalPropertiesToRemove="PublishSingleFile;PublishTrimmed" />
     <_PluginExampleSource Include="$(_PluginRepositoryRoot)plugins/Examples/Lainchan/Lainchan.cs;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/Kohlchan.cs;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs" />
   </ItemGroup>
 

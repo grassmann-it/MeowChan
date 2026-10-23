@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import importlib.util
 import io
 import json
 from pathlib import Path, PurePosixPath
@@ -21,6 +22,9 @@ import zipfile
 
 INPUT_MANIFEST = "docs/native-video-macos-source-manifest.json"
 RIDS = ("osx-arm64", "osx-x64")
+METADATA_SPEC = importlib.util.spec_from_file_location("macos_source_bundle_metadata", Path(__file__).with_name("package-macos.py"))
+METADATA = importlib.util.module_from_spec(METADATA_SPEC)
+METADATA_SPEC.loader.exec_module(METADATA)
 REQUIRED = (
     INPUT_MANIFEST, "docs/native-video-macos-sources.md",
     "docs/native-video-macos-COPYING", "docs/native-video-licenses.txt",
@@ -95,8 +99,16 @@ def inventory_zip(path: Path, rid: str, inputs: dict, version: str) -> dict:
                 raise ValueError("Unsafe ZIP path.")
         import plistlib
         metadata = plistlib.loads(archive.read("MeowChan.app/Contents/Info.plist"))
-        if metadata.get("CFBundleShortVersionString") != version:
+        expected_metadata = METADATA.bundle_metadata(version)
+        if metadata.get("CFBundleShortVersionString") != expected_metadata["CFBundleShortVersionString"]:
             raise ValueError("ZIP bundle version does not match --version.")
+        numeric = expected_metadata["CFBundleVersion"]
+        if metadata.get("CFBundleVersion", numeric if version == numeric else None) != numeric:
+            raise ValueError("ZIP numeric build version does not match --version.")
+        # Older stable inventories predate the custom identity field. Prereleases
+        # must carry it; numeric Apple metadata alone loses the alpha identity.
+        if metadata.get("MeowChanProductVersion", version if version == expected_metadata["CFBundleShortVersionString"] else None) != version:
+            raise ValueError("ZIP product version does not match --version.")
         for other in RIDS:
             if other != rid and any(f"/libvlc/{other}/" in name for name in names):
                 raise ValueError("ZIP includes the other native architecture.")
@@ -129,8 +141,7 @@ def inventory_zip(path: Path, rid: str, inputs: dict, version: str) -> dict:
 
 def generate(repository: Path, commit: str, base: Path, binaries: dict[str, Path], dmgs: dict[str, Path],
              reports: dict[str, Path], version: str, output: Path) -> dict:
-    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
-        raise ValueError("Version must have three numeric components.")
+    METADATA.bundle_metadata(version)  # Share the packager's canonical SemVer contract.
     if not binaries or binaries.keys() != dmgs.keys() or not reports.keys() <= binaries.keys():
         raise ValueError("Supply a DMG and inventory ZIP per selected RID; validation reports must refer to selected RIDs.")
     exact, application_archive, sources = committed_sources(repository, commit)

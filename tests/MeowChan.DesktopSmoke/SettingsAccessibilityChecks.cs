@@ -40,8 +40,21 @@ internal static class SettingsAccessibilityChecks
                         NumericUpDown input = editor.FindControl<NumericUpDown>(field)!;
                         TextBox text = input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
                         text.BringIntoView();
+                        Button outside = editor.FindControl<Button>("SaveSettingsButton")!;
+                        foreach (string part in new[] { "PART_IncreaseButton", "PART_DecreaseButton" })
+                        {
+                            Require(outside.Focus(), "Could not prepare focus outside the numeric control.");
+                            Button button = input.GetVisualDescendants().OfType<Button>().Single(control => control.Name == part);
+                            AutomationPeer buttonPeer = ControlAutomationPeer.CreatePeerForElement(button)!;
+                            buttonPeer.SetFocus();
+                            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), button),
+                                $"{language}/{theme}: first explicit focus on {field}/{part} was redirected.");
+                        }
+                        Require(outside.Focus(), "Could not prepare ordinary keyboard entry.");
                         Require(text.Focus(NavigationMethod.Tab) && ReferenceEquals(window.FocusManager?.GetFocusedElement(), text),
                             field + " did not focus its editable text box.");
+                        Require(text.SelectionStart == 0 && text.SelectionEnd == text.Text?.Length,
+                            field + " lost normal entry text selection.");
                         AutomationPeer peer = ControlAutomationPeer.CreatePeerForElement(text)!;
                         string label = Texts.T(labelKey);
                         Require(peer.GetName() == label && peer.GetLabeledBy()?.GetName() == label,
@@ -63,7 +76,7 @@ internal static class SettingsAccessibilityChecks
             if (!settingsWasVisible)
                 window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
-        Console.WriteLine("SMOKE Settings V04: focused numeric text boxes expose localized labels, label relations and units; named increase/decrease actions change and restore values in EN/DE and Light/Dark (native speech checked separately).");
+        Console.WriteLine("SMOKE Settings V04: first explicit Increase/Decrease focus from outside is honored; normal text entry/selection, labels, relations, units and named actions pass in EN/DE and Light/Dark (native speech checked separately).");
     }
 
     private static async Task CheckStepActionsAsync(NumericUpDown input, string label, string context)

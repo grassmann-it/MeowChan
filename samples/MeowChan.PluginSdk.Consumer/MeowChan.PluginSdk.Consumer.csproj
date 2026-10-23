@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
-    <MeowChanPluginSdkVersion Condition="'$(MeowChanPluginSdkVersion)' == ''">1.0.0</MeowChanPluginSdkVersion>
+    <MeowChanPluginSdkVersion Condition="'$(MeowChanPluginSdkVersion)' == ''">$(Version)</MeowChanPluginSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MeowChan.PluginSdk" Version="[$(MeowChanPluginSdkVersion)]" />

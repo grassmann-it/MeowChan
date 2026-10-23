@@ -16,7 +16,33 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private ArchiveThreadQuery _query = new ArchiveThreadQuery();
-    private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor);
+    private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
+        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error);
+    private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor,
+        IReadOnlyList<InlineReplyState> Replies);
+
+    private InlineReplyState[] CaptureInlineReplyState() =>
+        (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
+            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
+            .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
+                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError))
+            .ToArray() ?? Array.Empty<InlineReplyState>();
+
+    private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
+    {
+        if (Control<ListBox>("ArchivePosts").ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
+        Dictionary<string, InlineReplyState> byId = states.ToDictionary(state => state.PostId, StringComparer.Ordinal);
+        foreach (ArchivePostRow row in rows)
+        {
+            if (!byId.TryGetValue(row.Id, out InlineReplyState? state)) continue;
+            // Restore all loaded pages before expanding so materialization cannot
+            // replace a 20+ reply origin with a freshly loaded first page.
+            if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
+            else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
+            row.SetRepliesError(state.Error);
+            row.RepliesExpanded = state.Expanded;
+        }
+    }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;
     private CancellationTokenSource? _referenceCancellation;
@@ -108,7 +134,7 @@ public partial class ArchivePage
             {
                 // Keep a bounded immutable navigation history, independent of later captures.
                 if (_history.Count == 32) _history.RemoveFirst();
-                _history.AddLast(new ReaderHistoryEntry(_thread, _postOffset, originAnchor));
+                _history.AddLast(new ReaderHistoryEntry(_thread, _postOffset, originAnchor, CaptureInlineReplyState()));
             }
             ShowCapturedView(resolved.View, resolved.PostIndex.Value / PageSize * PageSize, resolved.Post!.PostId);
             await FocusPostAsync(resolved.Post.PostId);
@@ -148,6 +174,7 @@ public partial class ArchivePage
         _history.RemoveLast();
         CancelReferences();
         ShowCapturedView(previous.View, previous.Offset);
+        RestoreInlineReplyState(previous.Replies);
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }

@@ -5,7 +5,7 @@ using Avalonia.Input;
 namespace MeowChan.Desktop;
 
 /// <summary>Settings drafts must retain rejected text until explicit correction or discard.</summary>
-public sealed class SettingsNumberInput : NumericUpDown
+public sealed class SettingsNumberInput : AccessibleNumberInput
 {
     protected override Type StyleKeyOverride => typeof(NumericUpDown);
 

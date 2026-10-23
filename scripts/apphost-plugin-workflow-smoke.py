@@ -305,7 +305,9 @@ def sandbox(apphost, root, working):
 
 
 def validate_metrics(metrics, phase, profile, working, scale, closure):
-    required = COMMON | ({'real-source-and-filter-workers', 'delivered-compiler-uncached'} if phase == 'download' else {'paused-offline-restore'})
+    required = COMMON | ({'real-source-and-filter-workers', 'delivered-compiler-uncached',
+                          'delivered-plugin-source-described', 'delivered-plugin-source-cache-hit'}
+                         if phase == 'download' else {'paused-offline-restore', 'delivered-plugin-source-offline-cache-hit'})
     if (metrics.get('schemaVersion') != 1 or metrics.get('completed') is not True
             or metrics.get('failure') is not None or metrics.get('phase') != phase
             or not required.issubset(metrics.get('checks', []))
@@ -318,6 +320,17 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
     requests = metrics.get('requests')
     if not isinstance(requests, list) or (phase == 'download' and (len(requests) != 6 or set(requests) != REQUESTS)) or (phase == 'restore' and requests):
         raise ValueError('Terminal fixture request inventory differs')
+    proof = metrics.get('sourceCompilation')
+    member = (Path(closure['apphostMember']).parent / 'plugins/sources/Lainchan.cs').as_posix()
+    source = next((entry for entry in closure['entries'] if entry['path'] == member), {})
+    if (not isinstance(proof, dict) or proof.get('source') != 'plugins/sources/Lainchan.cs'
+            or not source.get('sha256') or proof.get('sourceSha256') != source['sha256']
+            or proof.get('cachedBuild') is not True
+            or any(not isinstance(proof.get(key), str) or not re.fullmatch('[0-9a-fA-F]{64}', proof[key])
+                   for key in ('executionRevision', 'assemblySha256'))
+            or phase == 'download' and (proof.get('pluginId') != 'meowchan.source.lainchan' or proof.get('sdkVersion') != '1.0.0'
+                                       or proof.get('uncachedBuild') is not True or proof.get('describedInWorker') is not True)):
+        raise ValueError('Compiled plugin source proof differs from delivered source')
     return validate_assembly_bindings(metrics, closure)
 
 
@@ -368,7 +381,7 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
         shutil.copy2(source, destination / 'metrics.json')
         metrics = json.loads(source.read_text())
         result['managedAssemblyBindings'] = validate_metrics(metrics, phase, profile, working, scale, closure)
-        result.update(passed=True, revisions=metrics['revisions'], processId=metrics['processId'])
+        result.update(passed=True, revisions=metrics['revisions'], processId=metrics['processId'], sourceCompilation=metrics['sourceCompilation'])
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         result['error'] = str(error)
         source = profile / 'apphost-workflow.json'
@@ -423,7 +436,9 @@ def main(argv=None):
                 break
         if len(report['phases']) == 2 and all(item['passed'] for item in report['phases']):
             report['passed'] = (report['phases'][0]['revisions'] == report['phases'][1]['revisions']
-                                and report['phases'][0]['processId'] != report['phases'][1]['processId'])
+                                and report['phases'][0]['processId'] != report['phases'][1]['processId']
+                                and all(report['phases'][0]['sourceCompilation'][key] == report['phases'][1]['sourceCompilation'][key]
+                                        for key in ('sourceSha256', 'executionRevision', 'assemblySha256')))
         closure['afterContentSha256'] = workflow.verify_extracted_closure(package, closure)
         closure['verifiedAfterRun'] = True
         report['archiveClosure'] = closure

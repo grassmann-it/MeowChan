@@ -20,15 +20,21 @@ spec.loader.exec_module(runner)
 
 class PluginWorkflowRunnerTests(unittest.TestCase):
     def metrics(self, phase='download'):
-        checks = runner.COMMON | ({'delivered-compiler-uncached', 'real-source-and-filter-workers'} if phase == 'download' else {'paused-offline-restore'})
+        checks = runner.COMMON | ({'delivered-compiler-uncached', 'real-source-and-filter-workers',
+                                   'delivered-plugin-source-described', 'delivered-plugin-source-cache-hit'}
+                                  if phase == 'download' else {'paused-offline-restore', 'delivered-plugin-source-offline-cache-hit'})
         return dict(schemaVersion=1, completed=True, failure=None, phase=phase, checks=list(checks),
                     profile='/profile', workingDirectory='/work', renderScaling=1, unexpectedRequests=0,
                     revisions={str(i): str(i) for i in range(5)}, processId=123,
-                    requests=sorted(runner.REQUESTS) if phase == 'download' else [])
+                    requests=sorted(runner.REQUESTS) if phase == 'download' else [],
+                    sourceCompilation=dict(source='plugins/sources/Lainchan.cs', pluginId='meowchan.source.lainchan',
+                                           sdkVersion='1.0.0', sourceSha256='a' * 64, executionRevision='b' * 64,
+                                           assemblySha256='c' * 64, uncachedBuild=True, describedInWorker=True, cachedBuild=True))
 
     def validate(self, metrics):
         with patch.object(runner, 'validate_assembly_bindings', return_value=['bound']):
-            return runner.validate_metrics(metrics, metrics['phase'], Path('/profile'), Path('/work'), 1, {})
+            return runner.validate_metrics(metrics, metrics['phase'], Path('/profile'), Path('/work'), 1,
+                                           dict(apphostMember='MeowChan', entries=[dict(path='plugins/sources/Lainchan.cs', sha256='a' * 64)]))
 
     def test_valid_download_and_restore(self):
         self.assertEqual(['bound'], self.validate(self.metrics()))
@@ -37,6 +43,30 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
     def test_missing_compiler_proof_fails(self):
         metrics = self.metrics()
         metrics['checks'].remove('delivered-compiler-uncached')
+        with self.assertRaises(ValueError): self.validate(metrics)
+
+    def test_plain_class_compile_cannot_replace_plugin_description_and_cache_proof(self):
+        for required in ('delivered-plugin-source-described', 'delivered-plugin-source-cache-hit'):
+            metrics = self.metrics()
+            metrics['checks'].remove(required)
+            with self.assertRaises(ValueError): self.validate(metrics)
+
+    def test_compiled_source_must_match_the_actual_delivered_source_bytes(self):
+        metrics = self.metrics()
+        metrics['sourceCompilation']['sourceSha256'] = 'd' * 64
+        with self.assertRaisesRegex(ValueError, 'delivered source'): self.validate(metrics)
+
+    def test_missing_compiled_plugin_evidence_fails(self):
+        metrics = self.metrics()
+        metrics['sourceCompilation'] = None
+        with self.assertRaisesRegex(ValueError, 'delivered source'): self.validate(metrics)
+
+    def test_restore_must_reuse_compiled_source_cache(self):
+        metrics = self.metrics('restore')
+        metrics['sourceCompilation']['cachedBuild'] = False
+        with self.assertRaisesRegex(ValueError, 'delivered source'): self.validate(metrics)
+        metrics = self.metrics('restore')
+        metrics['checks'].remove('delivered-plugin-source-offline-cache-hit')
         with self.assertRaises(ValueError): self.validate(metrics)
 
     def test_restore_network_attempt_fails(self):

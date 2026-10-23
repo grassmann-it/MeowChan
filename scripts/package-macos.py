@@ -116,8 +116,20 @@ def validate_icns(icon: bytes) -> bytes:
 
 
 def bundle_metadata(version: str) -> dict[str, object]:
-    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
-        raise PackagingError("Version must contain three numeric components, for example 1.0.0.")
+    numeric = r"(?:0|[1-9][0-9]*)"
+    prerelease_identifier = rf"(?:{numeric}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+    match = re.fullmatch(
+        rf"(?P<release>{numeric}\.{numeric}\.{numeric})"
+        rf"(?:-{prerelease_identifier}(?:\.{prerelease_identifier})*)?"
+        r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+        version,
+    )
+    if match is None:
+        raise PackagingError("Version must be a canonical semantic version, for example 1.0.0-alpha.2.")
+    # Apple bundle version fields stay numeric. Preserve the complete release
+    # identity separately; stripping the suffix everywhere would label an alpha
+    # as stable and prevent package inventories from detecting that mismatch.
+    release = match.group("release")
     return {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleDisplayName": "MeowChan",
@@ -127,8 +139,9 @@ def bundle_metadata(version: str) -> dict[str, object]:
         "CFBundleInfoDictionaryVersion": "6.0",
         "CFBundleName": "MeowChan",
         "CFBundlePackageType": "APPL",
-        "CFBundleShortVersionString": version,
-        "CFBundleVersion": version,
+        "CFBundleShortVersionString": release,
+        "CFBundleVersion": release,
+        "MeowChanProductVersion": version,
         "LSMinimumSystemVersion": MINIMUM_MACOS_VERSION,
         "NSHighResolutionCapable": True,
     }

@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using MeowChan.Gallery;
 using SkiaSharp;
 
@@ -13,12 +15,56 @@ internal sealed record GalleryImageInfo(int Width, int Height, string Format, bo
     internal long Pixels => (long)Width * Height;
 }
 
+internal abstract record GalleryDecodeRequest
+{
+    internal sealed record Fit(double PhysicalWidth, double PhysicalHeight) : GalleryDecodeRequest;
+    internal sealed record Original : GalleryDecodeRequest;
+}
+
+internal static class GalleryFitTarget
+{
+    internal const long MaximumPixels = 16_000_000;
+
+    // Round the long axis down and the other axis up. The conservative bounds
+    // also cover the codec's aspect-ratio rounding, including very thin images.
+    internal static PixelSize Calculate(GalleryImageInfo source, GalleryDecodeRequest.Fit viewport)
+    {
+        double width = double.IsFinite(viewport.PhysicalWidth) ? Math.Max(1, viewport.PhysicalWidth) : 1;
+        double height = double.IsFinite(viewport.PhysicalHeight) ? Math.Max(1, viewport.PhysicalHeight) : 1;
+        double ratio = Math.Min(1, Math.Min(width / source.Width, height / source.Height));
+        ratio = Math.Min(ratio, Math.Sqrt((double)MaximumPixels / source.Pixels));
+        bool wide = source.Width >= source.Height;
+        int major = wide ? source.Width : source.Height;
+        int minor = wide ? source.Height : source.Width;
+        int length = Math.Max(1, (int)Math.Floor(major * ratio + 1e-8));
+        int other = Math.Max(1, (int)Math.Ceiling((double)length * minor / major));
+        if ((long)length * other > MaximumPixels)
+        {
+            int low = 1, high = length;
+            while (low < high)
+            {
+                int candidate = low + (high - low + 1) / 2;
+                int shortAxis = Math.Max(1, (int)Math.Ceiling((double)candidate * minor / major));
+                if ((long)candidate * shortAxis <= MaximumPixels) low = candidate;
+                else high = candidate - 1;
+            }
+            length = low;
+            other = Math.Max(1, (int)Math.Ceiling((double)length * minor / major));
+        }
+        return wide ? new PixelSize(length, other) : new PixelSize(other, length);
+    }
+
+    internal static bool Covers(PixelSize buffer, PixelSize target) =>
+        buffer.Width >= target.Width && buffer.Height >= target.Height;
+}
+
 /// <summary>Only verified manifest handles enter this decoder. No path/filename cache or network access.</summary>
 internal static class GalleryImageDecoder
 {
     internal const long MaximumBytes = 64L * 1024 * 1024;
     // A canceled waiter leaves immediately; a noncancelable codec holds just this single worker.
     private static readonly SemaphoreSlim Gate = new(1, 1);
+    internal static Action<GalleryDecodeRequest>? DecodeStarted { get; set; }
 
     internal static GalleryImageInfo Inspect(Stream stream, long maximumPixels = 80_000_000)
     {
@@ -33,27 +79,53 @@ internal static class GalleryImageDecoder
     }
 
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry,
-        int maximumWidth, int maximumHeight, bool original, CancellationToken cancellationToken) => Task.Run(async () =>
+        GalleryDecodeRequest request, CancellationToken cancellationToken) => Task.Run(async () =>
     {
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            DecodeStarted?.Invoke(request);
             if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(GalleryViewerText.Get(
                 "Image exceeds the 64 MiB file limit.", "Das Bild überschreitet die Dateigrenze von 64 MiB."));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
             GalleryImageInfo info = Inspect(stream);
             cancellationToken.ThrowIfCancellationRequested();
             stream.Position = 0;
-            double ratio = Math.Min(1, Math.Min((double)Math.Max(1, maximumWidth) / info.Width,
-                (double)Math.Max(1, maximumHeight) / info.Height));
-            // Fit buffers are capped at 16 MP (64 MB), including on exceptionally large displays.
-            ratio = Math.Min(ratio, Math.Sqrt(16_000_000d / info.Pixels));
-            Bitmap bitmap = original ? new Bitmap(stream) : Bitmap.DecodeToWidth(stream, Math.Max(1, (int)Math.Ceiling(info.Width * ratio)));
+            PixelSize target = request is GalleryDecodeRequest.Fit fit
+                ? GalleryFitTarget.Calculate(info, fit) : new PixelSize(info.Width, info.Height);
+            Bitmap bitmap = request is GalleryDecodeRequest.Original ? new Bitmap(stream)
+                : DecodeFit(stream, target);
             if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
             return (bitmap, info);
         }
         finally { Gate.Release(); }
     }, cancellationToken);
+
+    // Avalonia's width/height convenience decoders truncate the other dimension
+    // to zero on very thin images. Explicit dimensions keep the published Fit
+    // buffer and adequacy checks on the same rounded target. Codecs without
+    // native scaling (such as PNG) still need a source-sized temporary buffer.
+    internal static Bitmap DecodeFit(Stream stream, PixelSize target)
+    {
+        using SKManagedStream managed = new(stream, disposeManagedStream: false);
+        using SKCodec codec = SKCodec.Create(managed) ?? throw new InvalidDataException(
+            GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+        SKSizeI supported = codec.GetScaledDimensions(Math.Min((float)target.Width / codec.Info.Width,
+            (float)target.Height / codec.Info.Height));
+        using SKBitmap decoded = SKBitmap.Decode(codec,
+            new SKImageInfo(supported.Width, supported.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
+            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+        if (decoded.Width == target.Width && decoded.Height == target.Height)
+            return CopyPixels(decoded);
+        using SKBitmap scaled = decoded.Resize(new SKImageInfo(target.Width, target.Height,
+            SKColorType.Bgra8888, SKAlphaType.Premul), new SKSamplingOptions(SKCubicResampler.Mitchell))
+            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
+        return CopyPixels(scaled);
+    }
+
+    private static Bitmap CopyPixels(SKBitmap bitmap) => new(PixelFormats.Bgra8888, AlphaFormat.Premul,
+        bitmap.GetPixels(), new PixelSize(bitmap.Width, bitmap.Height), new Vector(96, 96), bitmap.RowBytes);
+
 }
 
 internal static class GalleryViewerText

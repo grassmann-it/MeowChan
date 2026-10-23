@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -19,6 +21,13 @@ namespace MeowChan.Desktop.Commands;
 /// <summary>UI wiring for the shared action inventory. Targets are captured by the caller.</summary>
 public static class CommandBindings
 {
+    // Catalog icons are immutable app resources. Keep one decoded mask per icon;
+    // controls/brushes remain separate so foreground and theme bindings stay local.
+    private static readonly Dictionary<string, Bitmap> IconMasks = new(StringComparer.Ordinal);
+    private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
+
+    private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
+
     public static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute = null,
         Func<string?>? unavailableReason = null)
     {
@@ -71,23 +80,13 @@ public static class CommandBindings
     {
         string label = CommandCatalog.Label(id);
         button.Classes.Set("command-icon", iconOnly || iconWithLabel);
-        if (iconWithLabel)
+        if (iconOnly || iconWithLabel)
+            ApplyButtonContent(button, id, iconSize, iconWithLabel ? CompactLabel(id) : null);
+        else
         {
-            TextBlock text = new TextBlock { Text = CompactLabel(id), VerticalAlignment = VerticalAlignment.Center };
-            var content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 5,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children =
-                {
-                    ButtonIcon(id, iconSize, text),
-                    text
-                }
-            };
-            button.Content = content;
+            ButtonContents.Remove(button);
+            button.Content = label;
         }
-        else button.Content = iconOnly ? ButtonIcon(id, iconSize) : label;
         string tip = Tooltip(id, unavailableReason?.Invoke());
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, label);
@@ -98,23 +97,39 @@ public static class CommandBindings
     public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
     {
         button.Classes.Set("command-icon", true);
-        TextBlock text = new TextBlock { Text = visibleLabel, VerticalAlignment = VerticalAlignment.Center };
-        button.Content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 5,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                ButtonIcon(id, iconSize, text),
-                text
-            }
-        };
+        ApplyButtonContent(button, id, iconSize, visibleLabel);
         string tip = CommandCatalog.ShortcutDisplay(id) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, visibleLabel);
         AutomationProperties.SetHelpText(button, tip);
+    }
+
+    private static void ApplyButtonContent(Button button, string id, int iconSize, string? label)
+    {
+        bool withLabel = label != null;
+        if (ButtonContents.TryGetValue(button, out ButtonContent? current)
+            && current.Id == id && current.Size == iconSize && current.WithLabel == withLabel
+            && ReferenceEquals(button.Content, current.Root))
+        {
+            if (current.Label != null) current.Label.Text = label;
+            return;
+        }
+
+        TextBlock? text = withLabel
+            ? new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } : null;
+        Control content = ButtonIcon(id, iconSize, text);
+        if (text != null)
+            content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { content, text }
+            };
+        button.Content = content;
+        ButtonContents.Remove(button);
+        ButtonContents.Add(button, new ButtonContent(id, iconSize, withLabel, content, text));
     }
 
     private static string CompactLabel(string id)
@@ -157,7 +172,6 @@ public static class CommandBindings
     public static Control Icon(string id, int size = 16, string? state = null)
     {
         string icon = CommandCatalog.IconForState(id, state);
-        using Stream stream = AssetLoader.Open(new Uri(IconUri(icon)));
         return new Border
         {
             Width = size,
@@ -165,10 +179,22 @@ public static class CommandBindings
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
             OpacityMask = new ImageBrush
             {
-                Source = new Bitmap(stream),
+                Source = IconMask(icon),
                 Stretch = Stretch.Uniform
             }
         };
+    }
+
+    private static Bitmap IconMask(string icon)
+    {
+        lock (IconMasks)
+        {
+            if (IconMasks.TryGetValue(icon, out Bitmap? bitmap)) return bitmap;
+            using Stream stream = AssetLoader.Open(new Uri(IconUri(icon)));
+            bitmap = new Bitmap(stream);
+            IconMasks.Add(icon, bitmap);
+            return bitmap;
+        }
     }
 
     private static Control ButtonIcon(string id, int size, TextBlock? label = null)

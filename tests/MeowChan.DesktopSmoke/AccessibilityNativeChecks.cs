@@ -36,7 +36,10 @@ internal static class AccessibilityNativeChecks
             if (numericOnly)
             {
                 foreach (string field in new[] { "VideoVolumeInput", "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput" })
+                {
+                    window.SettingsEditor.FindControl<NumericUpDown>(field)!.BringIntoView();
                     await CheckpointAsync("numeric-" + field + "-" + language);
+                }
                 window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
                 continue;

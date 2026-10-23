@@ -1,0 +1,12 @@
+# These shipped legal assets are hashed against their committed bytes by the
+# prerelease inventory. Preserve them verbatim on Windows too; combined upstream
+# notices may already contain mixed endings and must not be renormalized.
+/LICENSE -text
+/THIRD-PARTY-NOTICES.md -text
+/docs/native-video-licenses.txt -text
+/docs/native-video-sources.md -text
+/docs/native-video-linux-sources.md -text
+/docs/native-video-source-manifest.json -text
+/docs/native-video-macos-sources.md -text
+/docs/native-video-macos-source-manifest.json -text
+/docs/native-video-macos-COPYING -text

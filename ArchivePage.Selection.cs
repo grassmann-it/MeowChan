@@ -108,9 +108,34 @@ public partial class ArchivePage
         _selectedThread = ArchiveLead?.Summary.Id;
         _showReader = false;
         SynchronizeArchiveSelection(ArchiveVisibleRows, sender);
+        if (_selectedThread == null)
+        {
+            ClearDeselectedArchiveThread();
+            return;
+        }
         UpdateLayoutMode(); UpdateActions();
         if (CanShowArchivePreviewBesideList && ArchiveLead is ArchiveThreadRow lead)
             await LoadThreadAsync(lead.Summary.Id);
+    }
+
+    private void ClearDeselectedArchiveThread()
+    {
+        ++_contentRequest;
+        _contentCancellation?.Cancel();
+        CancelMediaLoad();
+        CancelPendingGalleryOpen();
+        CancelReferences();
+        CancelInlineReplies();
+        ClosePreview();
+        _thread = null;
+        _selectedThread = null;
+        _assets = Array.Empty<ArchiveAssetRow>();
+        _retainedMediaPosition = null;
+        _mediaReady.TrySetResult(_assets);
+        _showReader = false;
+        _busy = false;
+        RenderThread();
+        UpdateLayoutMode();
     }
 
     private void UpdateArchiveSelectionActions()
@@ -142,6 +167,7 @@ public partial class ArchivePage
         {
             _archiveSelectionIds.Clear(); _archiveLeadId = null; _selectedThread = null;
             SynchronizeArchiveSelection(ArchiveVisibleRows);
+            ClearDeselectedArchiveThread();
             list.ContextMenu?.Close();
         }
         else

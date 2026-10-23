@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -8,6 +9,9 @@ namespace MeowChan.Desktop;
 public sealed class BoardRow : INotifyPropertyChanged, IDisposable
 {
     private bool _disposed;
+    private string? _presentationLanguage;
+    // Initialize replaces this immutable list even when reloading the same language.
+    private IReadOnlyList<LanguageInfo>? _presentationLanguages;
 
     public long WatchId { get; }
     public BoardSnapshot Snapshot { get; private set; }
@@ -40,7 +44,13 @@ public sealed class BoardRow : INotifyPropertyChanged, IDisposable
         if (entry.WatchId != WatchId)
             throw new ArgumentException("A row cannot be rebound to another watch lifetime.", nameof(entry));
         BoardSnapshot snapshot = entry.Snapshot;
+        bool unchanged = _presentationLanguage == Texts.Language
+            && ReferenceEquals(_presentationLanguages, Texts.Languages)
+            && HostName == entry.HostName && NiceName == entry.BoardName && Snapshot == snapshot;
         Snapshot = snapshot;
+        if (unchanged) return;
+        _presentationLanguage = Texts.Language;
+        _presentationLanguages = Texts.Languages;
         HostName = entry.HostName;
         NiceName = entry.BoardName;
         DownloadDirectory = snapshot.DownloadDirectory;

@@ -231,29 +231,31 @@ internal static class SourcesChecks
             $"Sources navigation did not reach the requested Advanced geometry: wide={wide}; mode={window.SessionHost.Config.WorkspaceMode}; width={window.Bounds.Width}.");
         window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads, "Sources navigation fixture did not leave the Sources page.");
-        // Tools also owns Plugins, so it stays reachable beside the wide direct buttons.
-        await Program.WaitUntilAsync(() => sources.IsVisible == wide && tools.IsVisible);
-        Require(Fits(window, tools) && tools.IsEffectivelyEnabled, "Tools navigation is outside the usable window or disabled.");
-        if (wide)
+        // Label measurement decides which optional destinations fit. The same
+        // destination must have exactly one footer route at either width.
+        MenuFlyout flyout = tools.Flyout as MenuFlyout
+            ?? throw new InvalidOperationException("Tools has no productive menu.");
+        MenuItem item = flyout.Items.OfType<MenuItem>().Single(item => item.Tag as string == "nav.sources");
+        Require(item.IsVisible == !sources.IsVisible, "Sources is duplicated or absent between the footer and Tools.");
+        bool direct = sources.IsVisible;
+        if (direct)
         {
             Require(Fits(window, sources) && sources.IsEffectivelyEnabled, "Wide Sources navigation is outside the usable window.");
             sources.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
         else
         {
-            MenuFlyout flyout = tools.Flyout as MenuFlyout
-                ?? throw new InvalidOperationException("Compact Tools has no productive menu.");
+            Require(Fits(window, tools) && tools.IsEffectivelyEnabled, "Tools navigation is outside the usable window or disabled.");
             flyout.ShowAt(tools);
-            MenuItem item = flyout.Items.OfType<MenuItem>().Single(item => item.Tag as string == "nav.sources");
             await Program.WaitUntilAsync(() => flyout.IsOpen && item.IsEffectivelyVisible && item.Bounds.Width > 0);
             Require(item.IsEffectivelyEnabled, "Compact Sources menu action is disabled.");
             item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => !flyout.IsOpen);
         }
         Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && sources.Classes.Contains("selected")
-            && tools.Classes.Contains("selected") == !wide,
+            && tools.Classes.Contains("selected") == !direct,
             "The available Advanced navigation did not open and select the productive Sources page.");
-        Console.WriteLine($"SMOKE sources navigation: {(wide ? "wide button" : "compact Tools menu")}; actual-width={window.Bounds.Width}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+        Console.WriteLine($"SMOKE sources navigation: {(direct ? "direct button" : "Tools menu")}; actual-width={window.Bounds.Width}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
     }
     private static void RequireIconLabel(Button button, string expected)
     {

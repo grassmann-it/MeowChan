@@ -5,9 +5,39 @@ native acceptance are tracked separately in [validation](validation.md). Extract
 a complete candidate application: its worker, compiler and reference files are
 required for the corresponding plugin operations.
 
+## First session
+
+1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied examples include
+   **Lainchan**, **Kohlchan** and **Image dimensions (example)**; selecting an entry shows
+   whether it is active or unavailable and why. Sources → source details →
+   **Plugin settings and tests** is another route to that source's entry.
+2. To test source code, use **Open plugin folder** and put a trusted complete
+   `.cs` file directly there, for example the maintained
+   [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs). Choose **Refresh**
+   and select that file's candidate. **Source, editor and test** is available for
+   source-file candidates; the supplied prebuilt bundle has no source editor.
+   Choose **Build and test**, then enter a small supported thread URL and choose
+   **Fetch test URL**. The delivered compiler needs no installed .NET SDK.
+3. The probe reads metadata only; it creates no watch. To use that source-file
+   candidate for acquisition, explicitly choose **Use this candidate next start**
+   and restart, then add the URL in Downloads. An example copied beside its
+   supplied bundle keeps the same IDs, so the two are candidates of the same
+   plugin. Follow [Install a source file](#install-a-source-file) below for new
+   files and conflicts; a test or Refresh never silently replaces the active build.
+4. To try the supplied dimensions filter, open Media rules for one intended
+   source/thread, choose it under **Image filter**, set its width/height or
+   orientation criteria, and **Grant required access for this scope**. Save the
+   rule. It examines supported JPEG/PNG originals for new decisions; previously
+   saved originals remain available. See [filter settings and grants](filters-and-settings.md).
+
+Use an isolated preview profile and media folder for experiments. Only run plugin
+code you trust: a separate process still has your user permissions. A successful
+test leaves the active production build unchanged; saved plugin/source settings
+and candidate selections take effect at the next app start.
+
 ## Install a source file
 
-1. Open **Plugins** from the application menu or Tools menu. The source detail
+1. Open **Plugins** from the application menu or footer (under **Tools** in compact views). The source detail
    action **Plugin settings and tests** opens the same catalog for that source.
 2. Select **Open plugin folder**. The displayed directory is
    `<active profile>/plugins`; it is independent of the media download directory.
@@ -36,7 +66,7 @@ new source, not as a way to bypass an update or recover existing watches.
 
 ## Edit and test
 
-In the selected plugin, expand **Source, editor and test**. **Open in editor**
+In the selected source-file candidate, expand **Source, editor and test**. **Open in editor**
 opens the saved source externally; MeowChan does not contain an embedded code
 editor. Editor preferences accept an executable and one argument per line, with
 `{file}`, `{line}` and `{column}` placeholders. A custom argument template must

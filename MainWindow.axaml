@@ -349,6 +349,7 @@
                     </StackPanel>
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
+                <Button x:Name="ContinueReadingNavigationButton" Classes="nav" Content="Continue reading" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="SourcesNavigationButton" Classes="nav localized" Tag="nav.sources" Content="Sources" Click="OnSourcesNavigationClick" />
                 <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">
@@ -357,6 +358,7 @@
                         <TextBlock Tag="nav.diagnostics" Classes="localized" Text="Diagnostics" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="PluginsNavigationButton" Classes="nav" Content="Plugins" Click="OnPluginsNavigationClick" />
                 <Button x:Name="ToolsNavigationButton" Classes="nav localized" Tag="nav.tools" Content="Tools">
                     <Button.Flyout>
                         <MenuFlyout>

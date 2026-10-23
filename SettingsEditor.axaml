@@ -94,7 +94,7 @@
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                         <TextBlock x:Name="VideoVolumeFieldLabel" Text="{Binding VideoVolumeLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
-                        <NumericUpDown x:Name="VideoVolumeInput" AutomationProperties.LabeledBy="{Binding ElementName=VideoVolumeFieldLabel}" AutomationProperties.Name="{Binding VideoVolumeLabel}" AutomationProperties.HelpText="{Binding VolumeHelp}" Grid.Column="1" Value="{Binding VideoVolume, Mode=TwoWay}" Minimum="0" Maximum="100" Increment="1" />
+                        <desktop:AccessibleNumberInput x:Name="VideoVolumeInput" AutomationProperties.LabeledBy="{Binding ElementName=VideoVolumeFieldLabel}" AutomationProperties.Name="{Binding VideoVolumeLabel}" AutomationProperties.HelpText="{Binding VolumeHelp}" Grid.Column="1" Value="{Binding VideoVolume, Mode=TwoWay}" Minimum="0" Maximum="100" Increment="1" />
                     </Grid>
                     <CheckBox x:Name="RememberReadingPositionInput" Content="{Binding RememberReadingPositionLabel}" IsChecked="{Binding RememberReadingPosition, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReadingPositionHint}" />
                     <TextBlock Text="{Binding ReadingPositionHint}" Classes="muted" TextWrapping="Wrap" FontSize="12" />

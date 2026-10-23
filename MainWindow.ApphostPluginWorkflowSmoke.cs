@@ -29,6 +29,7 @@ public partial class MainWindow
         List<string> checks = new();
         bool completed = false;
         string? failure = null;
+        object? sourceCompilation = null;
         Dictionary<string, string> revisions = new();
         int[] workerPids = Array.Empty<int>();
 #pragma warning disable IL3000
@@ -67,10 +68,29 @@ public partial class MainWindow
             if (descriptor.Phase == "download")
             {
                 string compilerSource = Path.Combine(descriptor.Profile, "offline-compiler-probe.cs");
-                await File.WriteAllTextAsync(compilerSource, "public sealed class OfflineCompilerProbe { public int Value => 1; }");
+                string deliveredSource = Path.Combine(app, "plugins", "sources", "Lainchan.cs");
+                File.Copy(deliveredSource, compilerSource);
                 var compiled = await plugins.CompilationService.BuildAsync(compilerSource);
                 RequireWorkflow(compiled.Succeeded && !compiled.CacheHit, "Delivered compiler did not compile uncached source: " + string.Join("; ", compiled.Diagnostics));
                 checks.Add("delivered-compiler-uncached");
+                PluginArtifact compiledArtifact = compiled.Artifact!;
+                var description = await plugins.DescribeTestAsync(compiledArtifact);
+                RequireWorkflow(description.PluginId == "meowchan.source.lainchan" && description.SdkVersion == SdkContract.Version
+                    && description.Sources.Count == 1 && description.Sources[0].SourceId == "lainchan", "Compiled delivered source did not describe the expected plugin.");
+                checks.Add("delivered-plugin-source-described");
+                var cached = await plugins.CompilationService.BuildAsync(compilerSource);
+                RequireWorkflow(cached.Succeeded && cached.CacheHit && cached.Artifact is { } cachedArtifact
+                    && cachedArtifact.ExecutionRevision == compiledArtifact.ExecutionRevision
+                    && cachedArtifact.AssemblySha256 == compiledArtifact.AssemblySha256, "Unchanged delivered plugin source did not reuse its build.");
+                checks.Add("delivered-plugin-source-cache-hit");
+                sourceCompilation = new
+                {
+                    source = "plugins/sources/Lainchan.cs", pluginId = description.PluginId, sdkVersion = description.SdkVersion,
+                    sourceSha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(compilerSource))).ToLowerInvariant(),
+                    executionRevision = compiledArtifact.ExecutionRevision, assemblySha256 = compiledArtifact.AssemblySha256,
+                    uncachedBuild = !compiled.CacheHit, describedInWorker = true, cachedBuild = cached.CacheHit,
+                    acquisition = "Shipped prebuilt bundles; compiled source is described in a separate test worker."
+                };
                 foreach (string source in ApphostPluginFixtures.Sources)
                     installed = await plugins.ProfileStore.SetGrantAsync(filterId, "dimensions", new(source, "demo"),
                         FilterDataAccess.CandidateMetadata | FilterDataAccess.OriginalImage, installed.Revision);
@@ -93,6 +113,18 @@ public partial class MainWindow
             }
             else
             {
+                string compilerSource = Path.Combine(descriptor.Profile, "offline-compiler-probe.cs");
+                var cached = await plugins.CompilationService.BuildAsync(compilerSource);
+                RequireWorkflow(cached.Succeeded && cached.CacheHit, "Offline restart did not reuse the compiled delivered plugin source.");
+                PluginArtifact cachedArtifact = cached.Artifact!;
+                sourceCompilation = new
+                {
+                    source = "plugins/sources/Lainchan.cs",
+                    sourceSha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(compilerSource))).ToLowerInvariant(),
+                    executionRevision = cachedArtifact.ExecutionRevision, assemblySha256 = cachedArtifact.AssemblySha256,
+                    cachedBuild = cached.CacheHit
+                };
+                checks.Add("delivered-plugin-source-offline-cache-hit");
                 RequireWorkflow(_session.IsPaused && PluginWorkflowCompleted() && installed.Grants.Count == 2, "Paused work/filter grants were not restored.");
                 RequireWorkflow(plugins.Runtime.GetSnapshots().Count == 0 && fixture.Http.Requests.IsEmpty && _session.ReceivedMediaBytes == 0, "Paused offline restart attempted work.");
                 checks.Add("paused-offline-restore");
@@ -143,7 +175,7 @@ public partial class MainWindow
             File.WriteAllText(Path.Combine(descriptor.Profile, "apphost-workflow.json"), JsonSerializer.Serialize(new
             {
                 schemaVersion = 1, completed, failure, phase = descriptor.Phase, checks, revisions, workerPids,
-                managedAssemblies, processPath = Environment.ProcessPath,
+                managedAssemblies, sourceCompilation, processPath = Environment.ProcessPath,
                 processSha256 = Environment.ProcessPath == null ? null
                     : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Environment.ProcessPath))).ToLowerInvariant(),
                 processId = Environment.ProcessId, renderScaling = RenderScaling, appBaseDirectory = AppContext.BaseDirectory,

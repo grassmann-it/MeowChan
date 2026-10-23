@@ -28,6 +28,7 @@ internal sealed record GalleryViewerState(GalleryAssetKey? Key, string? PostId, 
 
 internal sealed class GalleryViewer : UserControl
 {
+    private readonly TranslateTransform _imageTranslation = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.White, IsHitTestVisible = false };
@@ -76,8 +77,14 @@ internal sealed class GalleryViewer : UserControl
     private bool _nativeOverlayUnsupported;
     private Window? _nativeOverlayWindow;
     private CancellationToken _sessionCancellation;
-    private CancellationTokenSource? _load;
-    private CancellationTokenSource? _detailLoad;
+    private readonly GalleryDecodeQueue _decodeQueue = new();
+    private GalleryDecodeRequest? _desiredDecode;
+    private int _decodeGeneration;
+    private int? _pendingOriginalGeneration;
+    private TopLevel? _scaleOwner;
+    // Instance seam keeps controlled decodes isolated from other viewers.
+    internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken,
+        Task<(Bitmap Bitmap, GalleryImageInfo Info)>> DecodeImageAsync { get; set; } = GalleryImageDecoder.DecodeAsync;
     private Bitmap? _fitBitmap;
     private Bitmap? _highBitmap;
     private GalleryImageInfo? _info;
@@ -156,6 +163,7 @@ internal sealed class GalleryViewer : UserControl
 
     internal GalleryViewer()
     {
+        _image.RenderTransform = _imageTranslation;
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         Background = new SolidColorBrush(Color.FromRgb(13, 16, 22));
@@ -253,7 +261,7 @@ internal sealed class GalleryViewer : UserControl
         {
             if (!_dragging || !_manualZoom) return;
             Point point = e.GetPosition(_viewport);
-            _panX += point.X - _dragPoint.X; _panY += point.Y - _dragPoint.Y; _dragPoint = point; ApplyTransform();
+            _panX += point.X - _dragPoint.X; _panY += point.Y - _dragPoint.Y; _dragPoint = point; ApplyPan();
         };
         _viewport.DoubleTapped += (_, e) => { if (_manualZoom) Fit(); else ActualPixels(); e.Handled = true; };
         _viewport.ContextRequested += (_, e) =>
@@ -262,8 +270,20 @@ internal sealed class GalleryViewer : UserControl
             if (_entry != null) { ShowMediaMenu(); e.Handled = true; }
         };
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
-        AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; RevealChrome(); };
-        DetachedFromVisualTree += (_, _) => { Texts.Changed -= OnLanguageChanged; _chromeTimer.Stop(); };
+        AttachedToVisualTree += (_, _) =>
+        {
+            Texts.Changed += OnLanguageChanged;
+            _scaleOwner = TopLevel.GetTopLevel(this);
+            if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
+            RevealChrome();
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            Texts.Changed -= OnLanguageChanged;
+            if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
+            _scaleOwner = null;
+            _chromeTimer.Stop();
+        };
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
         UpdateContextButton();
@@ -599,45 +619,87 @@ internal sealed class GalleryViewer : UserControl
             return;
         }
         if (entry.Kind == SavedMediaKind.Other) { _status.Text = Texts.T("gallery.fileOnly"); return; }
-        // Capture all UI state before entering the decoder's worker.
-        double scale = DisplayScale;
-        Size available = _viewport.Bounds.Size;
-        // A frozen saved-media entry can start decoding before the new overlay's first layout.
-        // Use the window's real client area instead of a 1px decode with a zero-height result.
-        if (available.Width <= 0 || available.Height <= 0)
-            available = TopLevel.GetTopLevel(this)?.ClientSize ?? new Size(1280, 720);
-        int width = (int)Math.Max(1, available.Width * scale);
-        int height = (int)Math.Max(1, available.Height * scale);
-        using CancellationTokenSource load = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _load = load;
-        try
-        {
-            (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageDecoder.DecodeAsync(entry, width, height, false, load.Token);
-            if (request != _request || load.IsCancellationRequested) { bitmap.Dispose(); return; }
-            _fitBitmap = bitmap; _info = info; _image.Source = bitmap; _status.Text = string.Empty; SetImageCommands(true);
-            Fit(); ApplyRestoredState();
-        }
-        catch (OperationCanceledException) when (load.IsCancellationRequested) { }
-        catch (Exception exception) { if (request == _request) _status.Text = exception.Message; }
-        finally { if (ReferenceEquals(_load, load)) _load = null; }
+        await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
     }
 
-    private async Task EnsureDetailAsync()
+    private GalleryDecodeRequest.Fit CurrentFitRequest()
     {
-        if (_entry == null || _info == null || _highBitmap != null || _detailLoad != null) return;
-        GalleryEntry entry = _entry; int request = _request;
-        using CancellationTokenSource load = new(); _detailLoad = load;
-        _quality.Text = Texts.T("gallery.viewer5");
-        try
-        {
-            (Bitmap bitmap, _) = await GalleryImageDecoder.DecodeAsync(entry, 1, 1, true, load.Token);
-            if (request != _request || load.IsCancellationRequested) { bitmap.Dispose(); return; }
-            _highBitmap = bitmap; _image.Source = bitmap; ApplyTransform();
-        }
-        catch (OperationCanceledException) when (load.IsCancellationRequested) { }
-        catch (Exception exception) { if (request == _request) _status.Text = Texts.T("gallery.viewer6") + exception.Message; }
-        finally { if (ReferenceEquals(_detailLoad, load)) { _detailLoad = null; UpdateQuality(); } }
+        Size available = _viewport.Bounds.Size;
+        if (available.Width <= 0 || available.Height <= 0)
+            available = TopLevel.GetTopLevel(this)?.ClientSize ?? new Size(1280, 720);
+        return new(available.Width * DisplayScale, available.Height * DisplayScale);
     }
+
+    private Task EnsureDetailAsync()
+    {
+        if (_entry == null || _info == null || HasOriginal) return Task.CompletedTask;
+        return RequestDecodeAsync(new GalleryDecodeRequest.Original(), debounce: false);
+    }
+
+    private bool HasOriginal => _highBitmap != null || (_info != null && _fitBitmap != null &&
+        _fitBitmap.PixelSize.Width == _info.Width && _fitBitmap.PixelSize.Height == _info.Height);
+
+    private Task RequestDecodeAsync(GalleryDecodeRequest decode, bool debounce, bool retry = false)
+    {
+        if (_entry == null) return Task.CompletedTask;
+        // Automatic geometry can return to Fit while a manual Original is still
+        // loading. Keep that explicit quality request ahead of resize upgrades.
+        if (decode is GalleryDecodeRequest.Fit && debounce && _pendingOriginalGeneration.HasValue)
+            return Task.CompletedTask;
+        // Normalise known Fit requests to the capped target, so tiny viewport
+        // changes and changes above the cap cannot queue identical work.
+        if (decode is GalleryDecodeRequest.Fit fit && _info != null)
+        {
+            PixelSize target = GalleryFitTarget.Calculate(_info, fit);
+            decode = new GalleryDecodeRequest.Fit(target.Width, target.Height);
+            if (HasOriginal || (_fitBitmap != null && GalleryFitTarget.Covers(_fitBitmap.PixelSize, target)))
+            {
+                // A shrink can make the retained bitmap sufficient while an upgrade runs.
+                if (_desiredDecode is GalleryDecodeRequest.Fit)
+                { ++_decodeGeneration; _decodeQueue.Cancel(); _desiredDecode = null; }
+                return Task.CompletedTask;
+            }
+        }
+        if (!retry && decode == _desiredDecode) return Task.CompletedTask;
+        _desiredDecode = decode;
+        GalleryEntry entry = _entry;
+        int session = _request, generation = ++_decodeGeneration;
+        _pendingOriginalGeneration = decode is GalleryDecodeRequest.Original ? generation : null;
+        CancellationToken sessionToken = _sessionCancellation;
+        return _decodeQueue.Replace(async token =>
+        {
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, sessionToken);
+            try
+            {
+                (Bitmap bitmap, GalleryImageInfo info) = await DecodeImageAsync(entry, decode, linked.Token);
+                if (session != _request || generation != _decodeGeneration || linked.IsCancellationRequested)
+                { bitmap.Dispose(); return; }
+                Bitmap? previous = decode is GalleryDecodeRequest.Original ? _highBitmap : _fitBitmap;
+                if (decode is GalleryDecodeRequest.Original) _highBitmap = bitmap;
+                else _fitBitmap = bitmap;
+                _info = info;
+                _image.Source = _highBitmap ?? bitmap;
+                previous?.Dispose(); // Source is switched before its old backing bitmap is released.
+                _status.Text = string.Empty;
+                SetImageCommands(true);
+                FitIfAutomatic();
+                ApplyRestoredState();
+                if (_manualZoom && !HasOriginal) _ = EnsureDetailAsync();
+            }
+            catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+            catch (Exception error)
+            {
+                if (session == _request && generation == _decodeGeneration)
+                    _status.Text = (_image.Source != null ? Texts.T("viewer.decodeWarning") : string.Empty) + error.Message;
+            }
+            finally
+            {
+                if (_pendingOriginalGeneration == generation) _pendingOriginalGeneration = null;
+            }
+        }, debounce);
+    }
+
+    private void OnScaleOwnerChanged(object? sender, EventArgs change) => FitIfAutomatic();
 
     private void UpdateContext()
     {
@@ -754,7 +816,7 @@ internal sealed class GalleryViewer : UserControl
             : GalleryGeometry.ClampZoom(old * factor, CurrentFit);
         _actualZoom = belowFitActual && _zoom < CurrentFit;
         _manualZoom = _actualZoom || _zoom > CurrentFit * (1 + 1e-10);
-        if (!_manualZoom) { _zoom = CurrentFit; _panX = _panY = 0; ApplyTransform(); return; }
+        if (!_manualZoom) { Fit(retry: false); return; }
         Point offset = anchor is { } point ? new Point(point.X - _viewport.Bounds.Width / 2, point.Y - _viewport.Bounds.Height / 2) : default;
         _panX = offset.X - (offset.X - _panX) * _zoom / old;
         _panY = offset.Y - (offset.Y - _panY) * _zoom / old;
@@ -766,37 +828,43 @@ internal sealed class GalleryViewer : UserControl
     private void FitIfAutomatic()
     {
         if (_actualZoom && _zoom < CurrentFit) { ApplyTransform(); return; }
-        if (!_manualZoom || _zoom <= CurrentFit) Fit();
+        if (!_manualZoom || _zoom <= CurrentFit) Fit(retry: false);
         else { _zoom = GalleryGeometry.ClampZoom(_zoom, CurrentFit); ApplyTransform(); }
     }
-    private void Fit()
+    private void Fit() => Fit(retry: true);
+    private void Fit(bool retry)
     {
         if (_info == null) return;
         _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _zoom = GalleryGeometry.Fit(_info.Width, _info.Height, _viewport.Bounds.Width, _viewport.Bounds.Height, DisplayScale);
         ApplyTransform();
-        // A larger viewport can require more pixels than the initial fit decode supplied.
-        if (_fitBitmap != null && _fitBitmap.PixelSize.Width < _info.Width && (_info.Width * _zoom > _fitBitmap.PixelSize.Width + 1
-            || _info.Height * _zoom > _fitBitmap.PixelSize.Height + 1)) _ = EnsureDetailAsync();
+        _ = RequestDecodeAsync(CurrentFitRequest(), debounce: !retry, retry: retry);
     }
     private void ApplyTransform()
     {
         if (_info == null) return;
         double scale = DisplayScale;
         _image.Width = _info.Width * _zoom / scale; _image.Height = _info.Height * _zoom / scale;
+        ApplyPan();
+        UpdateQuality();
+    }
+    private void ApplyPan()
+    {
+        if (_info == null) return;
+        double scale = DisplayScale;
         _panX = GalleryGeometry.Pan(_panX, _info.Width, _zoom, scale, _viewport.Bounds.Width);
         _panY = GalleryGeometry.Pan(_panY, _info.Height, _zoom, scale, _viewport.Bounds.Height);
-        _image.RenderTransform = new TranslateTransform(_panX, _panY); UpdateQuality();
+        _imageTranslation.X = _panX; _imageTranslation.Y = _panY;
     }
     private void UpdateQuality()
     {
         if (_info == null) return;
         _quality.Text = _info.Width + " × " + _info.Height + " · " + _info.Format + " · " +
             (_manualZoom ? (_zoom * 100).ToString("0", Texts.Culture) + "%" : Texts.T("gallery.fit")) +
-            (_manualZoom && _highBitmap == null ? Texts.T("gallery.viewer11") : string.Empty) +
+            (_manualZoom && !HasOriginal ? Texts.T("gallery.viewer11") : string.Empty) +
             (_info.StillFrame ? Texts.T("gallery.viewer12") : string.Empty);
     }
-    private void CancelLoads() { _load?.Cancel(); _detailLoad?.Cancel(); _detailLoad = null; }
+    private void CancelLoads() { ++_decodeGeneration; _decodeQueue.Cancel(); _desiredDecode = null; _pendingOriginalGeneration = null; }
     private void ClearBitmaps() { _image.Source = null; _highBitmap?.Dispose(); _highBitmap = null; _fitBitmap?.Dispose(); _fitBitmap = null; }
     internal Task SuspendMediaAsync()
     {

@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -12,39 +13,31 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private MenuItem? _resumeReadingMenu;
-    private MenuItem? _resumeReadingToolsMenu;
     private Task _readingPositionSave = Task.CompletedTask;
     private bool _readingPositionForgetPending;
     private int _readingResumeNavigationRevision;
 
     private void InitializeReadingResume()
     {
+        ArchivePage.ReadingPositionCaptureAllowed = () => !_isClosing && !_readingPositionForgetPending
+            && _config.RememberReadingPosition;
         ArchivePage.ConsciousReadingPositionChanged += SaveConsciousReadingPosition;
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
         this.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.Insert(1, _resumeReadingMenu);
-        if (this.FindControl<Button>("ToolsNavigationButton")!.Flyout is MenuFlyout tools)
-        {
-            _resumeReadingToolsMenu = new MenuItem();
-            _resumeReadingToolsMenu.Click += async (_, _) =>
-            {
-                this.FindControl<Button>("ToolsNavigationButton")!.Flyout?.Hide();
-                await ResumeLastReadingAsync();
-            };
-            tools.Items.Insert(1, _resumeReadingToolsMenu);
-        }
+        this.FindControl<Button>("ContinueReadingNavigationButton")!.Click += async (_, _) => await ResumeLastReadingAsync();
         RefreshReadingResumeLabels();
     }
 
     private void RefreshReadingResumeLabels()
     {
-        foreach (MenuItem? item in new[] { _resumeReadingMenu, _resumeReadingToolsMenu })
-        {
-            if (item == null) continue;
-            item.Header = Texts.T("resume.action");
-            AutomationProperties.SetName(item, Texts.T("resume.action"));
-            AutomationProperties.SetHelpText(item, Texts.T("resume.hint"));
-        }
+        Button button = this.FindControl<Button>("ContinueReadingNavigationButton")!;
+        CommandBindings.Apply(button, "navigation.continue-reading", iconWithLabel: true);
+        ToolTip.SetTip(button, Texts.T("resume.hint"));
+        AutomationProperties.SetHelpText(button, Texts.T("resume.hint"));
+        if (_resumeReadingMenu == null) return;
+        CommandBindings.Apply(_resumeReadingMenu, "navigation.continue-reading");
+        AutomationProperties.SetHelpText(_resumeReadingMenu, Texts.T("resume.hint"));
     }
 
     private void SaveConsciousReadingPosition(LocalReadingPosition position)

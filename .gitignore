@@ -63,3 +63,5 @@ __pycache__/
 # Local Avalonia relaunch prototype
 /samples/oChan.RelaunchMock/
 /samples/MeowChan.RelaunchMock/
+/.architecture-sparring/
+/samples/MeowChan.SemiUrsaMock/

@@ -171,15 +171,15 @@
                                                     <StackPanel Margin="8,8,8,12" Spacing="6">
                                                         <TextBlock Text="{Binding Header}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,0" ColumnSpacing="12" RowSpacing="8" SizeChanged="OnPostLayoutChanged">
-                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" MaxWidth="268" HorizontalAlignment="Left">
+                                                        <desktop:ReaderPostLayout>
+                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
                                                                         <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
-                                                            <StackPanel Grid.Column="1" Spacing="6">
+                                                            <StackPanel Spacing="6">
                                                                 <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference. -->
                                                                 <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}" TextWrapping="Wrap" />
                                                                 <ItemsControl ItemsSource="{Binding Quotes}">
@@ -210,7 +210,7 @@
                                                                 </Expander>
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
-                                                        </Grid>
+                                                        </desktop:ReaderPostLayout>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -242,13 +242,10 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
-                                            <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
+                                            <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
-                                                <StackPanel Width="170" Margin="6" Spacing="5">
-                                                    <desktop:ArchiveMediaTileView Height="125" />
-                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding TileSummary}" TextWrapping="Wrap" Classes="muted" FontSize="11" />
-                                                </StackPanel>
+                                                <desktop:ArchiveMediaTileView />
                                             </DataTemplate></ListBox.ItemTemplate>
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />

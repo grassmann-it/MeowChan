@@ -17,6 +17,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _eviction;
     private bool _disposed;
+    private Task? _disposeTask;
 
     public PluginWorkerManager(PluginWorkerOptions? options = null)
     {
@@ -115,7 +116,11 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { }
     }
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
+    {
+        lock (_sync) return new(_disposeTask ??= DisposeCoreAsync());
+    }
+    private async Task DisposeCoreAsync()
     {
         PluginWorkerClient[] clients;
         lock (_sync) { if (_disposed) return; _disposed = true; clients = _clients.ToArray(); }

@@ -55,10 +55,14 @@ class MacSourceOverlayTests(unittest.TestCase):
     def git(self, *arguments):
         return subprocess.check_output(["git", "-C", str(self.repository), *arguments], text=True)
 
-    def write_zip(self, omit=None, stale_notice=False):
+    def write_zip(self, omit=None, stale_notice=False, version="0.9.0", product_version=None):
         with zipfile.ZipFile(self.binary, "w") as archive:
+            metadata = {"CFBundleShortVersionString": version.split("-")[0],
+                        "CFBundleVersion": version.split("-")[0]}
+            if product_version is not None:
+                metadata["MeowChanProductVersion"] = product_version
             archive.writestr("MeowChan.app/Contents/Info.plist",
-                             plistlib.dumps({"CFBundleShortVersionString": "0.9.0"}))
+                             plistlib.dumps(metadata))
             for name in self.native_names:
                 if name != omit:
                     data = b"new signed native bytes" if name.endswith(".dylib") else self.data
@@ -102,6 +106,29 @@ class MacSourceOverlayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "native path set differs"):
             self.generate("rejected.tar.gz")
         self.assertFalse((self.root / "rejected.tar.gz").exists())
+
+    def test_alpha_overlay_preserves_full_identity_and_numeric_apple_version(self):
+        version = "1.0.0-alpha.2"
+        self.binary = self.root / f"MeowChan-{version}-osx-arm64.zip"
+        self.dmg = self.root / f"MeowChan-{version}-osx-arm64.dmg"
+        self.dmg.write_bytes(b"alpha fixture dmg")
+        self.write_zip(version=version, product_version=version)
+        output = self.root / "alpha-overlay.tar.gz"
+        SOURCES.generate(self.repository, self.commit, self.base, {"osx-arm64": self.binary},
+                         {"osx-arm64": self.dmg}, {}, version, output)
+        with tarfile.open(output) as archive:
+            manifest = json.load(archive.extractfile("manifest.json"))
+        self.assertEqual(version, manifest["version"])
+        self.assertEqual(self.dmg.name, manifest["architectures"]["osx-arm64"]["signed_dmg"]["file"])
+
+    def test_alpha_rejects_missing_or_stale_full_product_identity(self):
+        version = "1.0.0-alpha.2"
+        inputs = json.loads(self.files[SOURCES.INPUT_MANIFEST])
+        for identity in (None, "1.0.0", "1.0.0-alpha.1"):
+            with self.subTest(identity=identity):
+                self.write_zip(version=version, product_version=identity)
+                with self.assertRaisesRegex(ValueError, "product version"):
+                    SOURCES.inventory_zip(self.binary, "osx-arm64", inputs, version)
 
     def test_stale_notices_are_rejected(self):
         self.write_zip(stale_notice=True)

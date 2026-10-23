@@ -217,6 +217,7 @@ public sealed class RuntimeProcessTests
         int child = int.Parse(Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread("spawn"), Operation)).Snapshot.Posts.Single().Text!);
         if (crash) await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("crash"), Operation));
         await worker.DisposeAsync();
+        Assert.Empty(Directory.GetDirectories(workspace.Path));
         await WaitExited(child);
     }
     [Fact]
@@ -313,6 +314,35 @@ public sealed class RuntimeProcessTests
         Assert.Equal("validation", error.Code);
     }
     [Fact]
+    public async Task ConcurrentDisposalWaitsForTheSameOwnedCleanup()
+    {
+        using Workspace workspace = new();
+        await using PluginWorkerManager manager = new();
+        DrainingHttp http = new();
+        IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
+        Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread("http"), Operation);
+        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task first = worker.DisposeAsync().AsTask();
+        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Task second = worker.DisposeAsync().AsTask();
+            Assert.Same(first, second);
+            Assert.False(second.IsCompleted);
+            Task managerFirst = manager.DisposeAsync().AsTask();
+            Task managerSecond = manager.DisposeAsync().AsTask();
+            Assert.Same(managerFirst, managerSecond);
+            Assert.False(managerSecond.IsCompleted);
+            http.Release.TrySetResult();
+            await Task.WhenAll(first, second, managerFirst, managerSecond).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Empty(manager.GetSnapshots());
+            Assert.Empty(Directory.GetDirectories(workspace.Path));
+        }
+        finally { http.Release.TrySetResult(); await worker.DisposeAsync(); }
+        await Assert.ThrowsAnyAsync<Exception>(() => call);
+    }
+
+    [Fact]
     public async Task QueuedPluginStartsAsSoonAsBusyWorkerBecomesIdle()
     {
         using Workspace workspace = new(); await using PluginWorkerManager manager = new(new() { MaximumProductionWorkers = 1 });
@@ -340,6 +370,18 @@ public sealed class RuntimeProcessTests
             Started.TrySetResult();
             try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); throw new InvalidOperationException(); }
             catch (OperationCanceledException) { Cancelled.TrySetResult(); throw; }
+        }
+    }
+    private sealed class DrainingHttp : IHostHttp
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); throw new InvalidOperationException(); }
+            catch (OperationCanceledException) { Cancelled.TrySetResult(); await Release.Task; throw; }
         }
     }
     private static async Task WaitExited(int pid)

@@ -5,6 +5,12 @@ and optionally captures posts for local reading and search. The library and
 local archive work independently of the desktop interface. See the
 [0.9.0 release notes](releases/v0.9.0.md) for downloads and upgrade details.
 
+Trying a **1.0 preview**? Start with the [plugin guide](plugins/README.md).
+Open **Plugins** from the app menu or footer (under **Tools** in compact views), then select a plugin to see its
+active build, settings and tests. The [short installation recipe](plugins/using-plugins.md#first-session)
+explains the supplied examples and how to add a source file. These controls are
+part of 1.0; the stable 0.9.0 instructions below do not imply they are present there.
+
 ## From a package to an offline picture
 
 1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
@@ -21,6 +27,11 @@ a compact speed-history graph. This is separate from saved/selected media progre
 MeowChan 0.9.0 starts new profiles in **Barebones**; missing or invalid view
 preferences also fall back to Barebones. Saved **Barebones**, **Simple** and
 **Advanced** choices remain unchanged. Use the footer view selector to switch.
+
+In 1.0, **Tools** contains only destinations that are not already shown in the
+footer. Advanced shows all destinations, including Plugins, directly when there
+is enough room; a narrow window moves the extra destinations into Tools.
+**Continue reading** (German: **Weiterlesen**) stays directly in the footer.
 
 ### Close and minimize to tray
 
@@ -169,8 +180,8 @@ and F1 or ? opens keyboard help. Space plays or pauses an active local video.
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps exactly one deliberately opened reader position for this profile. After
-restarting, choose **Resume last reading** beside Archive in the app menu (or
-Tools). The app keeps its normal start page until you choose that action. Only
+restarting, choose **Continue reading** in the footer or beside Archive in the app
+menu. The app keeps its normal start page until you choose that action. Only
 locally captured posts are read; no source request or download is started.
 
 **Forget reading position** removes the entry immediately and keeps the setting

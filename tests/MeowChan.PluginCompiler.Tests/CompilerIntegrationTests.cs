@@ -244,6 +244,21 @@ public sealed class CompilerIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task CompilerExitBeforeReadingLargeRequestRetainsCrashDiagnostics()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string path = await SourceAsync(ValidSource + new string(' ', 256 * 1024));
+        string crash = await WrapperAsync("echo 'controlled unread-request crash' >&2\nexit 37\n");
+        PluginBuildResult result = await Service(crash).BuildAsync(path);
+        Assert.Equal(PluginBuildStatus.CompilerError, result.Status);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "MCCOMPILER"
+            && diagnostic.Message.Contains("37", StringComparison.Ordinal)
+            && diagnostic.Message.Contains("controlled unread-request crash", StringComparison.Ordinal));
+        Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));
+        Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "staging")));
+    }
+
+    [Fact]
     public async Task CompilerCrashAndBoundedAdmissionRemainExplicitFailures()
     {
         if (OperatingSystem.IsWindows()) return;

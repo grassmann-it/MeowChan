@@ -286,14 +286,23 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
         try
         {
             byte[] requestJson = JsonSerializer.SerializeToUtf8Bytes(request, CompilerWire.JsonOptions);
-            await process.StandardInput.BaseStream.WriteAsync(requestJson, linked.Token).ConfigureAwait(false);
-            process.StandardInput.Close();
+            IOException? inputFailure = null;
+            try
+            {
+                await process.StandardInput.BaseStream.WriteAsync(requestJson, linked.Token).ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
+            catch (IOException exception) { inputFailure = exception; }
             Task exit = process.WaitForExitAsync(linked.Token);
             Task first = await Task.WhenAny(exit, outputTask).ConfigureAwait(false);
             if (first == outputTask && !outputTask.IsCompletedSuccessfully) await outputTask.ConfigureAwait(false);
             await exit.ConfigureAwait(false);
             byte[] output = await outputTask.ConfigureAwait(false);
             byte[] stderr = await errorTask.ConfigureAwait(false);
+            // A crashing helper may close stdin before the host finishes its request.
+            // Observe its exit and stderr before classifying that broken pipe.
+            if (inputFailure is not null)
+                throw new CompilerProcessException($"Compiler exited with code {process.ExitCode} before accepting its request: {Encoding.UTF8.GetString(stderr)} ({inputFailure.Message})");
             if (output.Length == 0) throw new CompilerProcessException($"Compiler exited with code {process.ExitCode}: {Encoding.UTF8.GetString(stderr)}");
             CompilerResponse response = JsonSerializer.Deserialize<CompilerResponse>(output, CompilerWire.JsonOptions)
                 ?? throw new CompilerProcessException("The compiler returned an empty response.");

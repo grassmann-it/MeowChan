@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <!-- The build host runs this IL assembly only to hash target payloads. RID still selects native apphost/runtime. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <Version>1.0.0</Version><IsPackable>false</IsPackable>
+    <IsPackable>false</IsPackable>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CompilerLockRuntime>$(RuntimeIdentifier)</CompilerLockRuntime>
     <CompilerLockRuntime Condition="'$(CompilerLockRuntime)' == ''">$(RuntimeIdentifiers)</CompilerLockRuntime>

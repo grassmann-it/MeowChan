@@ -5,6 +5,11 @@ processes. This guide describes that implementation; it does not announce a
 published package or certify a desktop release. See [validation and current
 limits](validation.md) for what each check establishes.
 
+For a first try, open **Plugins** in the app menu or footer (under **Tools** in compact views) and follow the
+[first-session recipe](using-plugins.md#first-session). The supplied prebuilt
+examples are already listed. Testing editable source uses a separate single-file
+candidate and the delivered compiler, with no developer SDK required.
+
 - [Install, edit, test and activate a plugin](using-plugins.md)
 - [Write an SDK-only source](source-plugins.md)
 - [Settings, image filters and scoped data access](filters-and-settings.md)

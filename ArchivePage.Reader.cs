@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Data;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -40,12 +42,19 @@ public partial class ArchivePage
     private string? _readerPostId;
     private int _readerFocusRequest;
     private int _readerInteractionRevision;
+    private IDisposable? _readerTabScope;
+    internal Task ReaderNavigationTask { get; private set; } = Task.CompletedTask;
     private void InitializeReaderInteraction()
     {
         foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
         ListBox posts = Control<ListBox>("ArchivePosts");
+        posts.SelectionChanged += (_, _) =>
+        {
+            if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
+            UpdateReaderNavigation();
+        };
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
@@ -67,7 +76,11 @@ public partial class ArchivePage
         Control<Grid>("ArchiveRoot").Children.Remove(export);
         pane.Children.Add(export);
         _largeReader = true;
-        KeyboardNavigation.SetTabNavigation(pane, KeyboardNavigationMode.Cycle);
+        // A disposable override preserves the original value source (including
+        // styles, bindings and an unset local value) when the pane is reattached.
+        _readerTabScope?.Dispose();
+        _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
+        pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
         pane.Margin = new Thickness(20);
@@ -84,6 +97,9 @@ public partial class ArchivePage
     {
         ++_readerFocusRequest;
         _largeReader = false;
+        _readerTabScope?.Dispose();
+        _readerTabScope = null;
+        pane.ClearValue(ReaderPostLayout.LargeReaderProperty);
         Border export = Control<Border>("ArchiveExportDialog");
         ((Grid)pane).Children.Remove(export);
         Control<Grid>("ArchiveRoot").Children.Add(export);
@@ -102,38 +118,51 @@ public partial class ArchivePage
     }
 
     internal Task FocusPostAsync(string postId) => FocusPostAsync(postId, null);
-    private async Task FocusPostAsync(string postId, int? interactionRevision)
+    private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true)
     {
+        // A live continuation can already be stale before its first dispatcher
+        // yield. Validate before ShowPost changes the page or selection.
+        if (_ended || _thread?.FindPostIndex(postId) is not >= 0
+            || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         int focusRequest = ++_readerFocusRequest;
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
         ShowPost(postId);
         UpdateReaderNavigation();
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
+            && _thread?.Summary.Id == threadId
+            && (!interactionRevision.HasValue || interactionRevision == _readerInteractionRevision);
+        // ScrollIntoView realizes a virtualized target. Its measured height can
+        // replace an estimate on the next layout; retry only while the request
+        // remains current, and correct offsets only after layout has settled.
+        for (int pass = 0; pass < 4; pass++)
         {
-            if (_ended || focusRequest != _readerFocusRequest || request != _contentRequest || _thread?.Summary.Id != threadId
-                || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)
-                || _thread?.FindPostIndex(postId) is not >= 0) return;
-            ListBox posts = Control<ListBox>("ArchivePosts");
-            if (posts.ItemsSource is not System.Collections.Generic.IEnumerable<ArchivePostRow> rows) return;
-            ArchivePostRow? row = rows.FirstOrDefault(post => post.Id == postId);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            if (!IsCurrent()) return;
+            ArchivePostRow? row = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(post => post.Id == postId);
             if (row == null) return;
             posts.SelectedItem = row;
             posts.UpdateLayout();
-            posts.ScrollIntoView(row);
+            if (pass == 0 || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
-            if (posts.ContainerFromItem(row) is Control container)
+            if (posts.ContainerFromItem(row) is not Control container) continue;
+            ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+            if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
+            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - 8, 0,
+                Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
+            if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
-                ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-                Point? position = container.TranslatePoint(default, posts);
-                if (scroll != null && position != null)
-                    scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + position.Value.Y - 8));
-                container.Focus();
+                scroll.Offset = new Vector(scroll.Offset.X, offset);
+                continue;
             }
-            else posts.Focus();
+            // Focus must not cause a second competing BringIntoView request.
+            if (restoreFocus) container.Focus();
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
-        }, DispatcherPriority.Loaded);
+            return;
+        }
     }
     internal void SetReaderScope(IReadOnlyList<ResourceId> threads)
     {
@@ -171,8 +200,11 @@ public partial class ArchivePage
         get
         {
             if (_thread == null) return -1;
-            return _thread.FindPostIndex((Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id
-                ?? _readerPostId ?? _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId ?? string.Empty);
+            string? selected = (Control<ListBox>("ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
+            int retained = _readerPostId == null ? -1 : _thread.FindPostIndex(_readerPostId);
+            return _thread.FindPostIndex(selected
+                ?? (retained >= _postOffset && retained < _postOffset + PageSize ? _readerPostId : null)
+                ?? _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId ?? string.Empty);
         }
     }
     private int ReaderThreadIndex => _thread == null ? -1 : Array.IndexOf(_readerThreads.ToArray(), _thread.Summary.Id);
@@ -214,8 +246,8 @@ public partial class ArchivePage
     private async void OnReaderNavigationClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        await NavigateReaderAsync(button.Name switch { "ReaderPreviousPost" => -1, "ReaderNextPost" => 1, _ => 0 },
-            button.Name switch { "ReaderPreviousThread" => -1, "ReaderNextThread" => 1, _ => 0 });
+        await (ReaderNavigationTask = NavigateReaderAsync(button.Name switch { "ReaderPreviousPost" => -1, "ReaderNextPost" => 1, _ => 0 },
+            button.Name switch { "ReaderPreviousThread" => -1, "ReaderNextThread" => 1, _ => 0 }));
     }
 
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
@@ -251,7 +283,7 @@ public partial class ArchivePage
         int thread = e.Key == Key.Left ? -1 : e.Key == Key.Right ? 1 : 0;
         if (post == 0 && thread == 0) return;
         e.Handled = true;
-        await NavigateReaderAsync(post, thread);
+        await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
     }
 
     internal bool ReaderArrowBelongsToNativeControl(object? source)
@@ -269,6 +301,7 @@ public partial class ArchivePage
     internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
     {
         if (!_largeReader || _busy || _ended) return;
+        ++_readerInteractionRevision;
         if (threadDelta != 0)
         {
             int index = ReaderThreadIndex + threadDelta;
@@ -298,7 +331,7 @@ public partial class ArchivePage
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         var visible = list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow && item.Top + item.Item.Bounds.Height > 0)
+            .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
             return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
@@ -306,20 +339,20 @@ public partial class ArchivePage
         return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0, selected);
     }
 
-    private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor)
+    private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true)
     {
         if (_thread?.Summary.Id != anchor.Thread) return;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
             string? fallback = _thread.GetPosts(Math.Min(_postOffset, Math.Max(0, _thread.PostCount - 1)), 1).FirstOrDefault()?.PostId;
             Message(Texts.T(fallback == null ? "archive.noPosts" : "reader.anchorUnavailable"));
-            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision);
+            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus);
             return;
         }
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;
         int focusRequest = _readerFocusRequest + 1;
-        await FocusPostAsync(anchor.PostId, interactionRevision);
+        await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest

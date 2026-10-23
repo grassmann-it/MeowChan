@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using MeowChan.Desktop.Localization;
@@ -12,6 +13,10 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
 {
     private bool _disposed;
     private bool _isPaused;
+    private bool _presentedPaused;
+    private string? _presentationLanguage;
+    // Initialize replaces this immutable list even when reloading the same language.
+    private IReadOnlyList<LanguageInfo>? _presentationLanguages;
 
     public long WatchId { get; }
     public ThreadSnapshot Snapshot { get; private set; }
@@ -68,7 +73,17 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (entry.WatchId != WatchId)
             throw new ArgumentException("A row cannot be rebound to another watch lifetime.", nameof(entry));
         ThreadSnapshot snapshot = entry.Snapshot;
+        bool unchanged = _presentationLanguage == Texts.Language
+            && ReferenceEquals(_presentationLanguages, Texts.Languages)
+            && _presentedPaused == _isPaused
+            && HostName == entry.HostName && BoardName == entry.BoardName
+            && SameSnapshot(Snapshot, snapshot);
+        // Keep the latest immutable capture even when its presentation is unchanged.
         Snapshot = snapshot;
+        if (unchanged) return;
+        _presentationLanguage = Texts.Language;
+        _presentationLanguages = Texts.Languages;
+        _presentedPaused = _isPaused;
         HostName = entry.HostName;
         BoardName = entry.BoardName;
         ThreadId = snapshot.Id.Thread ?? string.Empty;
@@ -134,6 +149,24 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         }
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
+
+    private static bool SameSnapshot(ThreadSnapshot previous, ThreadSnapshot current) =>
+        ReferenceEquals(previous, current) ||
+        previous.Id == current.Id && previous.Url == current.Url && previous.Title == current.Title
+        && previous.DownloadDirectory == current.DownloadDirectory && previous.Activity == current.Activity
+        && previous.SourceState == current.SourceState && previous.RequestProgress == current.RequestProgress
+        && previous.KnownMedia == current.KnownMedia && previous.CompletedMedia == current.CompletedMedia
+        && previous.LastCheckFailure == current.LastCheckFailure && previous.Downloads == current.Downloads
+        && previous.Content == current.Content
+        && (ReferenceEquals(previous.MediaFailures, current.MediaFailures)
+            || previous.MediaFailures.SequenceEqual(current.MediaFailures))
+        && SameWork(previous.Work, current.Work);
+
+    private static bool SameWork(ThreadWorkSnapshot? previous, ThreadWorkSnapshot? current) =>
+        ReferenceEquals(previous, current) || previous != null && current != null
+        && previous.Url == current.Url && previous.Intent == current.Intent && previous.Source == current.Source
+        && previous.EndObservedAt == current.EndObservedAt && previous.CapturePending == current.CapturePending
+        && (ReferenceEquals(previous.Media, current.Media) || previous.Media.SequenceEqual(current.Media));
 
     public void SetPaused(bool isPaused)
     {

@@ -4,6 +4,8 @@
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <IsPackable>false</IsPackable>
+    <!-- The delivered worker is a separate executable tree beside the desktop. -->
+    <PublishSingleFile>false</PublishSingleFile><PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../MeowChan.PluginSdk/MeowChan.PluginSdk.csproj" />

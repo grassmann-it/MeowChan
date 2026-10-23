@@ -10,12 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Full validation, package-media playback, Linux distributions, native macOS DMG packaging, offline diagnosis, or optional Homebrew
+        description: Full validation, current-source prerelease candidate, package-media playback, native packaging, diagnosis, or optional Homebrew
         type: choice
         required: true
         default: validate
         options:
           - validate
+          - prerelease-candidate
           - macos-diagnose
           - macos-package
           - package-media
@@ -55,7 +56,7 @@ concurrency:
 
 jobs:
   validate:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate'
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate'
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +65,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+      - name: Require the complete prerelease candidate matrix
+        if: inputs.mode == 'prerelease-candidate'
+        shell: bash
+        run: |
+          test "${{ inputs.platform }}" = all
+          test "${{ inputs.scenario }}" = all
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -104,6 +111,7 @@ jobs:
           python -m unittest discover -s tests -p test_macos_packaging.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python -m unittest discover -s tests -p test_prerelease.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: python -m unittest discover -s tests -p test_local_package.py -v
@@ -186,7 +194,7 @@ jobs:
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   library-package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection')
+    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate') && inputs.scenario != 'selection')
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -204,9 +212,9 @@ jobs:
           dotnet restore MeowChan.PluginHost/MeowChan.PluginHost.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Pack the library, SDK and Host into one local feed
         run: |
-          dotnet pack libmeowchan/libmeowchan.csproj --configuration Release --no-restore --output artifacts/packages
-          dotnet pack MeowChan.PluginSdk/MeowChan.PluginSdk.csproj --configuration Release --no-restore --output artifacts/packages
-          dotnet pack MeowChan.PluginHost/MeowChan.PluginHost.csproj --configuration Release --no-restore --output artifacts/packages
+          dotnet pack libmeowchan/libmeowchan.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
+          dotnet pack MeowChan.PluginSdk/MeowChan.PluginSdk.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
+          dotnet pack MeowChan.PluginHost/MeowChan.PluginHost.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
       - name: Consume the actual local package in a fresh cache
         run: python scripts/test-local-package.py --feed artifacts/packages --consumer samples/LibMeowChan.Consumer/LibMeowChan.Consumer.csproj
       # PackageReference evidence only; delivered helper/product probes run separately.
@@ -218,8 +226,16 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: library-package-candidate
-          path: artifacts/packages/*
+          path: artifacts/packages/*.nupkg
           if-no-files-found: error
+          retention-days: 7
+      - name: Retain local library package consumer evidence separately
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: library-package-consumer-evidence
+          path: artifacts/packages/consumer-evidence.json
+          if-no-files-found: warn
           retention-days: 7
       - name: Retain plugin package consumer evidence
         if: always()
@@ -323,7 +339,7 @@ jobs:
           retention-days: 7
 
   macos-package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
     strategy:
       fail-fast: false
       matrix:
@@ -396,13 +412,13 @@ jobs:
       - name: Start and gracefully stop the actual DMG-installed apphost
         run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
       - name: Exercise native gallery playback from the DMG-installed apphost
-        if: inputs.mode == 'package-media'
+        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
       - name: Exercise the DMG-installed apphost download, restore, export and desktop workflow
-        if: inputs.mode == 'package-media'
+        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
         run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
       - name: Retain playback-verified native DMG candidate, inventory ZIP and evidence
-        if: inputs.mode == 'package-media'
+        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
         uses: actions/upload-artifact@v7
         with:
           name: macos-native-candidate-${{ matrix.runtime }}
@@ -422,7 +438,7 @@ jobs:
           retention-days: 7
 
   package-media:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate')
     strategy:
       fail-fast: false
       matrix:
@@ -501,7 +517,7 @@ jobs:
           retention-days: 7
 
   linux-distribution:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution')
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution' || inputs.mode == 'prerelease-candidate')
     strategy:
       fail-fast: false
       matrix:
@@ -613,7 +629,7 @@ jobs:
           retention-days: 7
 
   macos-source-candidate:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-media'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate')
     needs: [macos-package, package-media, linux-distribution]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -761,6 +777,41 @@ jobs:
         with:
           name: macos-paired-candidate-${{ github.sha }}
           path: artifacts/macos-candidate/**
+          if-no-files-found: error
+          retention-days: 7
+
+  # Explicit opt-in: same-run full validation plus all five native package jobs.
+  # Actions artifacts only. The retained v0.9 upload workflow is deliberately separate.
+  prerelease-inventory:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'prerelease-candidate'
+    needs: [validate, library-package, macos-source-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: '*candidate*'
+          path: artifacts/prerelease-inputs
+      - name: Fetch the pinned corresponding-source base
+        shell: bash
+        run: |
+          mkdir -p artifacts/source-base
+          base=artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz
+          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/tfgrass/MeowChan/releases/download/v0.9.0-preview.3/MeowChan-0.9.0-video-sources.tar.gz
+          test "$(stat -c %s "$base")" = 725131331
+          echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
+      - name: Verify actual managed identities, source pairing, legal files and asset inventory
+        shell: bash
+        run: |
+          version="$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('Directory.Build.props').findtext('.//Version'))")"
+          python3 scripts/assemble-prerelease.py --artifacts-root artifacts/prerelease-inputs --source-commit "$GITHUB_SHA" --version "$version" --source-base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz --run-id "$GITHUB_RUN_ID" --output artifacts/prerelease-candidate
+          (cd artifacts/prerelease-candidate && sha256sum --check --strict SHA256SUMS)
+      - name: Retain current-source prerelease inventory and assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: prerelease-candidate-${{ github.sha }}
+          path: artifacts/prerelease-candidate/*
           if-no-files-found: error
           retention-days: 7
 
