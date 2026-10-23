@@ -56,6 +56,12 @@ internal sealed class ReaderGroupStore
         string json = JsonSerializer.Serialize(snapshot, ReaderGroupsJsonContext.Default.ReaderGroupsSnapshot);
         if (Encoding.UTF8.GetByteCount(json) > ReaderGroupsValidation.MaximumBytes)
             throw new InvalidDataException("Reader groups exceed the 16 MiB file limit.");
+        if (backup && File.Exists(_path))
+        {
+            Read(_path + ".bak", out bool futureBackup, out _);
+            if (futureBackup) throw new InvalidOperationException(
+                "The available backup uses a newer reader groups schema. No files were changed.");
+        }
         try { AtomicJsonFile.WriteAllText(_path, json, backup, cancellationToken); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

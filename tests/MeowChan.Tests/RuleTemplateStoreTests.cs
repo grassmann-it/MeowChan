@@ -62,6 +62,39 @@ public sealed class RuleTemplateStoreTests
         Assert.Equal(future, File.ReadAllText(path)); Assert.Equal(backup, File.ReadAllText(path + ".bak"));
     }
     [Fact]
+    public async Task FutureBackupBesideValidPrimaryBlocksSaveAndPreservesCurrent()
+    {
+        using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        RuleTemplateStore store = new(directory.Path, lease); await store.LoadAsync();
+        var saved = await store.SaveAsync(new[] { new RuleTemplate(Guid.NewGuid(), "known template", MediaTypeSelection.All) }, store.Current.Revision);
+        string path = Path.Combine(directory.Path, "rule_templates.json");
+        byte[] primary = File.ReadAllBytes(path);
+        const string future = "{\"schemaVersion\":99,\"foreign\":true}";
+        File.WriteAllText(path + ".bak", future);
+        await Assert.ThrowsAsync<NotSupportedException>(() => store.SaveAsync(Array.Empty<RuleTemplate>(), saved.Revision));
+        Assert.Same(saved, store.Current);
+        Assert.Equal(primary, File.ReadAllBytes(path));
+        Assert.Equal(future, File.ReadAllText(path + ".bak"));
+    }
+
+    [Fact]
+    public async Task MalformedUtf8NameIsNotLoadedOrRewrittenWithReplacementCharacters()
+    {
+        using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        RuleTemplateStore store = new(directory.Path, lease); await store.LoadAsync();
+        var saved = await store.SaveAsync(new[] { new RuleTemplate(Guid.NewGuid(), "encoded-name", MediaTypeSelection.All) }, store.Current.Revision);
+        string path = Path.Combine(directory.Path, "rule_templates.json");
+        byte[] corrupt = File.ReadAllBytes(path);
+        int offset = System.Text.Encoding.UTF8.GetString(corrupt).IndexOf("encoded-name", StringComparison.Ordinal);
+        Assert.True(offset >= 0); corrupt[offset] = 0xFF; File.WriteAllBytes(path, corrupt);
+        await Assert.ThrowsAsync<InvalidDataException>(() => new RuleTemplateStore(directory.Path, lease).LoadAsync());
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.SaveAsync(Array.Empty<RuleTemplate>(), saved.Revision));
+        Assert.Equal(corrupt, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".bak"));
+        Assert.Same(saved, store.Current);
+    }
+
+    [Fact]
     public async Task CorruptPrimaryRecoversWithWarningAndWriteFailureKeepsCurrent()
     {
         using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);

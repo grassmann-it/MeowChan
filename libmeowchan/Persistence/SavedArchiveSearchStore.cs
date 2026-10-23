@@ -116,6 +116,8 @@ internal sealed class SavedArchiveSearchStore
         if (candidate.Count > MaximumSearches) throw new InvalidDataException("At most 500 saved searches are supported.");
         long next = checked(revision + 1);
         string json = SerializeForCommit(next, candidate);
+        if (File.Exists(_path) && !Read(_path + ".bak", missingIsEmpty: true).CanWrite)
+            throw new InvalidOperationException("The saved searches backup contains unsupported data. No files were changed.");
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         return _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
     });

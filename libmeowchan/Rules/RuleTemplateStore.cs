@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -15,6 +16,7 @@ public sealed class RuleTemplateStore
 {
     private readonly string _path;
     private readonly ProfileLease _lease;
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private RuleTemplateSet? _current;
     public RuleTemplateSet Current => Volatile.Read(ref _current) ?? throw new InvalidOperationException("Load rule templates first.");
     public RuleTemplateStore(string profileDirectory, ProfileLease lease)
@@ -57,9 +59,14 @@ public sealed class RuleTemplateStore
     private static ReadResult Read(string path)
     {
         string json;
-        try { json = File.ReadAllText(path); }
+        try
+        {
+            json = StrictUtf8.GetString(File.ReadAllBytes(path));
+            if (json.Length > 0 && json[0] == '\uFEFF') json = json[1..];
+        }
         catch (FileNotFoundException) { return new(); }
         catch (DirectoryNotFoundException) { return new(); }
+        catch (DecoderFallbackException exception) { return new(Invalid: true, Error: exception.Message); }
         try
         {
             using JsonDocument header = JsonDocument.Parse(json);

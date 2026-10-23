@@ -1591,3 +1591,119 @@ virtual MeowChan.Boards.Base.BaseThread.SupportsContent.get -> bool
 virtual MeowChan.Boards.Base.BaseThread.Title.get -> string!
 virtual MeowChan.Boards.Base.BaseThread.Title.set -> void
 virtual MeowChan.Boards.Base.BaseThread.WaitForNextCheckAsync(System.TimeSpan interval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+
+MeowChan.Archive.ArchiveBoardIdentity
+MeowChan.Archive.ArchiveBoardIdentity.ArchiveBoardIdentity(string! Source, string! Board) -> void
+MeowChan.Archive.ArchiveBoardIdentity.Board.get -> string!
+MeowChan.Archive.ArchiveBoardIdentity.Board.init -> void
+MeowChan.Archive.ArchiveBoardIdentity.Source.get -> string!
+MeowChan.Archive.ArchiveBoardIdentity.Source.init -> void
+MeowChan.Archive.ArchiveIdentityPage<T>
+MeowChan.Archive.ArchiveIdentityPage<T>.ArchiveIdentityPage(System.Collections.Generic.IEnumerable<T>! items, bool hasMore) -> void
+MeowChan.Archive.ArchiveIdentityPage<T>.HasMore.get -> bool
+MeowChan.Archive.ArchiveIdentityPage<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
+MeowChan.Archive.ArchiveReader.ReadBoardIdentitiesAsync(string? source = null, int limit = 2048, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<MeowChan.Archive.ArchiveBoardIdentity!>!>!
+MeowChan.Archive.ArchiveReader.ReadSourceIdentitiesAsync(int limit = 256, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveIdentityPage<string!>!>!
+MeowChan.Archive.ArchiveBoardConstraint
+MeowChan.Archive.ArchiveBoardConstraint.ArchiveBoardConstraint(string? Source, string! Board) -> void
+MeowChan.Archive.ArchiveBoardConstraint.Board.get -> string!
+MeowChan.Archive.ArchiveBoardConstraint.Board.init -> void
+MeowChan.Archive.ArchiveBoardConstraint.Source.get -> string?
+MeowChan.Archive.ArchiveBoardConstraint.Source.init -> void
+MeowChan.Archive.ArchiveDateRange
+MeowChan.Archive.ArchiveDateRange.ArchiveDateRange(System.DateOnly? startDate, System.DateOnly? endDate, string! timeZoneId, string! basis = "first-seen") -> void
+MeowChan.Archive.ArchiveDateRange.Basis.get -> string!
+MeowChan.Archive.ArchiveDateRange.EndDate.get -> System.DateOnly?
+MeowChan.Archive.ArchiveDateRange.StartDate.get -> System.DateOnly?
+MeowChan.Archive.ArchiveDateRange.TimeZoneId.get -> string!
+MeowChan.Archive.ArchiveDateResolver
+MeowChan.Archive.ArchiveReader.SearchThreadsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, int offset = 0, int limit = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Archive.ArchiveThreadPage!>!
+MeowChan.Archive.ArchiveReader.SelectThreadIdsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!>!
+MeowChan.Archive.ArchiveReader.SelectThreadSummariesBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
+MeowChan.Archive.ArchiveSearchRequest
+MeowChan.Archive.ArchiveSearchRequest.DateWindow.get -> MeowChan.Archive.ResolvedDateWindow?
+MeowChan.Archive.ArchiveSearchRequest.Spec.get -> MeowChan.Archive.ArchiveSearchSpec!
+MeowChan.Archive.ArchiveSearchSpec
+MeowChan.Archive.ArchiveSearchSpec.ArchiveSearchSpec(string! text = "", System.Collections.Generic.IEnumerable<string!>? sources = null, System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardConstraint!>? boards = null, System.Collections.Generic.IEnumerable<MeowChan.Interfaces.ThreadSourceState>? sourceStates = null, bool? captureEnabled = null, bool? hasPosts = null, MeowChan.Archive.ArchiveThreadSort sort = MeowChan.Archive.ArchiveThreadSort.LatestCapture, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All, MeowChan.Archive.ArchiveDateRange? dateRange = null, int schemaVersion = 1) -> void
+MeowChan.Archive.ArchiveSearchSpec.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveBoardConstraint!>!
+MeowChan.Archive.ArchiveSearchSpec.CaptureEnabled.get -> bool?
+MeowChan.Archive.ArchiveSearchSpec.DateRange.get -> MeowChan.Archive.ArchiveDateRange?
+MeowChan.Archive.ArchiveSearchSpec.Equals(MeowChan.Archive.ArchiveSearchSpec? other) -> bool
+MeowChan.Archive.ArchiveSearchSpec.HasPosts.get -> bool?
+MeowChan.Archive.ArchiveSearchSpec.SchemaVersion.get -> int
+MeowChan.Archive.ArchiveSearchSpec.Sort.get -> MeowChan.Archive.ArchiveThreadSort
+MeowChan.Archive.ArchiveSearchSpec.SourceStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Interfaces.ThreadSourceState>!
+MeowChan.Archive.ArchiveSearchSpec.Sources.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.Archive.ArchiveSearchSpec.Text.get -> string!
+MeowChan.Archive.ArchiveSearchSpec.WorkFilter.get -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveSearchSpecJson
+MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.All = 0 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Completed = 4 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Followup = 2 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Intervention = 3 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Stopped = 5 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ArchiveWorkFilter.Watching = 1 -> MeowChan.Archive.ArchiveWorkFilter
+MeowChan.Archive.ResolvedDateWindow
+MeowChan.Archive.ResolvedDateWindow.EndExclusive.get -> System.DateTimeOffset?
+MeowChan.Archive.ResolvedDateWindow.EndExclusive.init -> void
+MeowChan.Archive.ResolvedDateWindow.ResolvedDateWindow(System.DateTimeOffset? StartInclusive, System.DateTimeOffset? EndExclusive, string! TimeZoneId) -> void
+MeowChan.Archive.ResolvedDateWindow.StartInclusive.get -> System.DateTimeOffset?
+MeowChan.Archive.ResolvedDateWindow.StartInclusive.init -> void
+MeowChan.Archive.ResolvedDateWindow.TimeZoneId.get -> string!
+MeowChan.Archive.ResolvedDateWindow.TimeZoneId.init -> void
+override MeowChan.Archive.ArchiveSearchSpec.Equals(object? obj) -> bool
+override MeowChan.Archive.ArchiveSearchSpec.GetHashCode() -> int
+static MeowChan.Archive.ArchiveDateResolver.GetLocalTimeZoneId() -> string!
+static MeowChan.Archive.ArchiveDateResolver.Resolve(MeowChan.Archive.ArchiveDateRange? range) -> MeowChan.Archive.ResolvedDateWindow?
+static MeowChan.Archive.ArchiveSearchRequest.Create(MeowChan.Archive.ArchiveSearchSpec! spec) -> MeowChan.Archive.ArchiveSearchRequest!
+static MeowChan.Archive.ArchiveSearchSpec.FromLegacy(MeowChan.Archive.ArchiveThreadQuery! query, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All) -> MeowChan.Archive.ArchiveSearchSpec!
+static MeowChan.Archive.ArchiveSearchSpecJson.Deserialize(string! json) -> MeowChan.Archive.ArchiveSearchSpec!
+static MeowChan.Archive.ArchiveSearchSpecJson.Serialize(MeowChan.Archive.ArchiveSearchSpec! spec) -> string!
+MeowChan.Rules.RuleTemplate
+MeowChan.Rules.RuleTemplate.Id.get -> System.Guid
+MeowChan.Rules.RuleTemplate.ImageFilter.get -> MeowChan.Rules.MediaImageFilterRule?
+MeowChan.Rules.RuleTemplate.Name.get -> string!
+MeowChan.Rules.RuleTemplate.RuleTemplate(System.Guid id, string! name, MeowChan.Rules.MediaTypeSelection? types = null, MeowChan.Rules.MediaSizeLimit? sizeLimit = null, MeowChan.Rules.MediaImageFilterRule? imageFilter = null) -> void
+MeowChan.Rules.RuleTemplate.SizeLimit.get -> MeowChan.Rules.MediaSizeLimit?
+MeowChan.Rules.RuleTemplate.Types.get -> MeowChan.Rules.MediaTypeSelection?
+MeowChan.Rules.RuleTemplateLoadResult
+MeowChan.Rules.RuleTemplateLoadResult.Catalog.get -> MeowChan.Rules.RuleTemplateSet!
+MeowChan.Rules.RuleTemplateLoadResult.Catalog.init -> void
+MeowChan.Rules.RuleTemplateLoadResult.Recovered.get -> bool
+MeowChan.Rules.RuleTemplateLoadResult.Recovered.init -> void
+MeowChan.Rules.RuleTemplateLoadResult.RuleTemplateLoadResult(MeowChan.Rules.RuleTemplateSet! Catalog, string? Warning, bool Recovered) -> void
+MeowChan.Rules.RuleTemplateLoadResult.Warning.get -> string?
+MeowChan.Rules.RuleTemplateLoadResult.Warning.init -> void
+MeowChan.Rules.RuleTemplateSet
+MeowChan.Rules.RuleTemplateSet.Revision.get -> string!
+MeowChan.Rules.RuleTemplateSet.RuleTemplateSet(string! revision, System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates) -> void
+MeowChan.Rules.RuleTemplateSet.Templates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Rules.RuleTemplate!>!
+MeowChan.Rules.RuleTemplateStore
+MeowChan.Rules.RuleTemplateStore.Current.get -> MeowChan.Rules.RuleTemplateSet!
+MeowChan.Rules.RuleTemplateStore.LoadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateLoadResult!>!
+MeowChan.Rules.RuleTemplateStore.RuleTemplateStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
+MeowChan.Rules.RuleTemplateStore.SaveAsync(System.Collections.Generic.IEnumerable<MeowChan.Rules.RuleTemplate!>! templates, string! expectedRevision, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Rules.RuleTemplateSet!>!
+static MeowChan.Rules.RuleTemplateSet.Empty.get -> MeowChan.Rules.RuleTemplateSet!
+MeowChan.Ratings.MediaRatingEntry
+MeowChan.Ratings.MediaRatingEntry.MediaRatingEntry(MeowChan.Favorites.FavoriteAssetKey! Key, int Value) -> void
+MeowChan.Ratings.MediaRatingEntry.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
+MeowChan.Ratings.MediaRatingEntry.Key.init -> void
+MeowChan.Ratings.MediaRatingEntry.Value.get -> int
+MeowChan.Ratings.MediaRatingEntry.Value.init -> void
+MeowChan.Ratings.MediaRatingCommit
+MeowChan.Ratings.MediaRatingCommit.MediaRatingCommit(MeowChan.Favorites.FavoriteAssetKey! Key, int? Value, bool Changed) -> void
+MeowChan.Ratings.MediaRatingCommit.Key.get -> MeowChan.Favorites.FavoriteAssetKey!
+MeowChan.Ratings.MediaRatingCommit.Key.init -> void
+MeowChan.Ratings.MediaRatingCommit.Value.get -> int?
+MeowChan.Ratings.MediaRatingCommit.Value.init -> void
+MeowChan.Ratings.MediaRatingCommit.Changed.get -> bool
+MeowChan.Ratings.MediaRatingCommit.Changed.init -> void
+MeowChan.Ratings.MediaRatingStore
+MeowChan.Ratings.MediaRatingStore.MediaRatingStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
+MeowChan.Ratings.MediaRatingStore.List() -> System.Collections.Generic.IReadOnlyList<MeowChan.Ratings.MediaRatingEntry!>!
+MeowChan.Ratings.MediaRatingStore.Set(MeowChan.Favorites.FavoriteAssetKey! key, int? value, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Ratings.MediaRatingCommit!
+MeowChan.Ratings.MediaRatingStore.RemoveThreads(System.Collections.Generic.IReadOnlyCollection<MeowChan.ResourceId!>! threads, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> int
+static MeowChan.Ratings.MediaRatingStore.ValidateKey(MeowChan.Favorites.FavoriteAssetKey! key) -> void
+const MeowChan.Ratings.MediaRatingStore.MaximumEntries = 50000 -> int
+const MeowChan.Ratings.MediaRatingStore.MaximumBytes = 8000000 -> int

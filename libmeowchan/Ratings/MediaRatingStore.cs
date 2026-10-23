@@ -72,7 +72,10 @@ public sealed class MediaRatingStore
     {
         string json = JsonSerializer.Serialize(document);
         if (Encoding.UTF8.GetByteCount(json) > MaximumBytes) throw new InvalidDataException("The ratings index has reached its size limit.");
-        RejectLink(_path + ".bak");
+        // The backup is replaced by the current primary only after its existing
+        // contents are known to be supported. Never rotate away unknown data.
+        try { ReadDocument(_path + ".bak"); }
+        catch (FileNotFoundException) { }
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
     }
     private static void RejectLink(string path)
@@ -89,13 +92,18 @@ public sealed class MediaRatingStore
             if (File.Exists(_path + ".bak")) throw new InvalidDataException("The ratings index is missing but a backup exists. Explicit validated recovery is required; deleted ratings will not be restored automatically.");
             return new(1, new());
         }
-        if (new FileInfo(_path).Length > MaximumBytes) throw new InvalidDataException("The ratings index exceeds its size limit.");
+        return ReadDocument(_path);
+    }
+    private static Document ReadDocument(string path)
+    {
+        RejectLink(path);
+        if (new FileInfo(path).Length > MaximumBytes) throw new InvalidDataException("The ratings index exceeds its size limit.");
         Document? document;
         try
         {
             // Never replace malformed bytes inside an identity with U+FFFD. Decode before
             // parsing so every property, including otherwise ignored properties, is validated.
-            string json = StrictUtf8.GetString(File.ReadAllBytes(_path));
+            string json = StrictUtf8.GetString(File.ReadAllBytes(path));
             // Accept an optional UTF-8 BOM without enabling UTF-16/32 encoding detection.
             if (json.Length > 0 && json[0] == '\uFEFF') json = json[1..];
             document = JsonSerializer.Deserialize<Document>(json);

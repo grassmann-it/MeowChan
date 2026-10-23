@@ -83,6 +83,25 @@ public sealed class MediaRatingCoreTests
         }
     }
     [Fact]
+    public void FutureBackupBesideValidPrimaryBlocksMutationWithoutHidingKnownRatings()
+    {
+        using TempDirectory temp = new(); using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        MediaRatingStore store = new(temp.Path, lease); store.Set(Key, 4);
+        string file = Path.Combine(temp.Path, "media-ratings.json");
+        byte[] primary = File.ReadAllBytes(file);
+        const string future = "{\"Version\":99,\"Foreign\":true}";
+        File.WriteAllText(file + ".bak", future);
+        Assert.Equal(4, Assert.Single(store.List()).Value);
+        Assert.False(store.Set(Key, 4).Changed);
+        Assert.Throws<InvalidDataException>(() => store.Set(Key, 3));
+        Assert.Throws<InvalidDataException>(() => store.Set(Key, null));
+        Assert.Throws<InvalidDataException>(() => store.RemoveThreads([Key.Thread]));
+        Assert.Equal(primary, File.ReadAllBytes(file));
+        Assert.Equal(future, File.ReadAllText(file + ".bak"));
+        Assert.Empty(Directory.GetFiles(temp.Path, ".media-ratings.json.*.tmp"));
+    }
+
+    [Fact]
     public void MalformedUtf8IdentityBlocksReadsAndAllMutationsWithoutReplacingPrimaryOrBackup()
     {
         using TempDirectory temp = new(); using ProfileLease lease = ProfileLease.Acquire(temp.Path);

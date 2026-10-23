@@ -85,6 +85,27 @@ public sealed class ReaderGroupStoreTests
     }
 
     [Fact]
+    public async Task FutureBackupBesideValidPrimaryBlocksSaveAndNeverReplacesEitherFile()
+    {
+        using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        ReaderGroupStore store = new(directory.Path, lease);
+        ReaderGroupsSnapshot saved = await store.SaveAsync(Snapshot(A), 0);
+        string path = Path.Combine(directory.Path, "reader-groups.json");
+        byte[] primary = File.ReadAllBytes(path);
+        const string future = "{\"schemaVersion\":99,\"foreign\":true}";
+        File.WriteAllText(path + ".bak", future);
+        ReaderGroupsLoadResult loaded = await store.LoadAsync();
+        Assert.Equal(ReaderGroupsLoadState.Ready, loaded.State);
+        Assert.True(loaded.CanWrite);
+        Assert.True(ReaderGroupsValidation.SameGroups(saved.Groups, loaded.Snapshot!.Groups));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(saved with
+            { Groups = [saved.Groups[0] with { Name = "must not replace backup" }] }, saved.Revision));
+        Assert.Equal(primary, File.ReadAllBytes(path));
+        Assert.Equal(future, File.ReadAllText(path + ".bak"));
+        Assert.Empty(Directory.GetFiles(directory.Path, ".reader-groups.json.*.tmp"));
+    }
+
+    [Fact]
     public async Task InvalidPrimaryWithoutBackupIsNeverReplacedByEmptySnapshot()
     {
         using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);

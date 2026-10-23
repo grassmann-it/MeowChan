@@ -48,7 +48,7 @@ public static class ArchiveSearchSpecJson
             dateRange = new ArchiveDateRange(Day(date.GetProperty("startDate")), Day(date.GetProperty("endDate")),
                 Text(date.GetProperty("timeZoneId")), Text(date.GetProperty("basis")));
         }
-        return new ArchiveSearchSpec(Text(root.GetProperty("text")),
+        return ArchiveSearchSpec.FromExactIdentities(Text(root.GetProperty("text")),
             root.GetProperty("sources").EnumerateArray().Select(Text),
             root.GetProperty("boards").EnumerateArray().Select(board =>
             {

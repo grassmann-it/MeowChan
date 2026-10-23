@@ -39,6 +39,11 @@ ordinal variables should use `long`; existing persisted integer values remain
 readable. Plugin SDK references remain independent of the desktop and library;
 the optional Host package supplies compiler and worker integration.
 
+The draft-only `ArchiveSearchSpec.WorkFilterFromIndex` / `WorkFilterToIndex` and
+`MediaRatingProjection` UI helpers are now internal. Consumers should use
+`ArchiveWorkFilter` and rating values 1–5 / null, mapping their own UI filter
+indices and sort order. Stored search and rating formats are unchanged.
+
 ### Upgrade and validation
 
 Existing source identities, original media paths, archives and watch state are

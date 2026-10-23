@@ -83,6 +83,26 @@ public sealed class SavedArchiveSearchStoreTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => store.Recover(0)); Assert.Equal(raw, File.ReadAllText(FilePath));
     }
     [Fact]
+    public void FutureBackupBesideValidPrimaryBlocksSaveAndNeverReplacesEitherFile()
+    {
+        using var lease = Lease(); var store = new SavedArchiveSearchStore(_directory, lease);
+        Guid id = Guid.NewGuid(); var saved = store.Create(id, "known search", FullDefinition(), 0);
+        byte[] primary = File.ReadAllBytes(FilePath);
+        const string future = "{\"schemaVersion\":99,\"foreign\":true}";
+        File.WriteAllText(FilePath + ".bak", future);
+        var loaded = store.Load();
+        Assert.Equal(SavedSearchStoreState.Ready, loaded.State);
+        Assert.True(loaded.CanWrite);
+        Assert.Equal(saved.Revision, loaded.Revision);
+        Assert.Equal(FullDefinition(), Assert.Single(loaded.Searches).Definition);
+        Assert.True(loaded.Searches[0].CanApply);
+        Assert.Throws<InvalidOperationException>(() => store.Rename(id, "must not replace backup", saved.Revision));
+        Assert.Equal(primary, File.ReadAllBytes(FilePath));
+        Assert.Equal(future, File.ReadAllText(FilePath + ".bak"));
+        Assert.Empty(Directory.GetFiles(_directory, ".archive-searches.json.*.tmp"));
+    }
+
+    [Fact]
     public void DamagedPrimaryRequiresExplicitRecoveryAndPreservesOriginal()
     {
         using var lease = Lease(); var store = new SavedArchiveSearchStore(_directory, lease); store.Load();

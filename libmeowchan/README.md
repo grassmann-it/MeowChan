@@ -171,6 +171,80 @@ state, capture preference, posts/media-only and sort order are separate filters.
 Text is limited to 512 characters. Counts and rows share one read transaction,
 and page limits remain 1–500. Search never opens media directories.
 
+### Multiple filters and calendar dates
+
+`ArchiveSearchSpec` is the immutable, validated definition for multi-value searches.
+Use the named `BySpec` methods with one `ArchiveSearchRequest`; the older positional
+`ArchiveThreadQuery` and its reader methods remain available. For example:
+
+```csharp
+ArchiveSearchSpec spec = new ArchiveSearchSpec(
+    text: "search phrase",
+    sources: new[] { "4chan", "8kun" },
+    boards: new[] { new ArchiveBoardConstraint("4chan", "g"),
+                   new ArchiveBoardConstraint("8kun", "tech") },
+    hasPosts: true,
+    sort: ArchiveThreadSort.OldestFirst,
+    dateRange: new ArchiveDateRange(new DateOnly(2026, 10, 1),
+                                   new DateOnly(2026, 10, 31), "Europe/Berlin"));
+ArchiveSearchRequest request = ArchiveSearchRequest.Create(spec);
+ArchiveThreadPage firstPage = await reader.SearchThreadsBySpecAsync(request, limit: 50);
+IReadOnlyList<ResourceId> allIds = await reader.SelectThreadIdsBySpecAsync(request);
+IReadOnlyList<ArchiveThreadSummary> allMetadata = await reader.SelectThreadSummariesBySpecAsync(request);
+string savedDefinition = ArchiveSearchSpecJson.Serialize(spec);
+ArchiveSearchRequest reopened = ArchiveSearchRequest.Create(
+    ArchiveSearchSpecJson.Deserialize(savedDefinition));
+```
+
+Values are ORed within a category and categories are ANDed. A board selector with
+a source matches that exact pair; a null source explicitly matches that board name
+in all sources. The example selects `4chan/g` or `8kun/tech`, never their cross
+product. Empty sets impose no restriction; unknown identities yield no matches,
+not a broader search. Inputs are defensively copied and ordinally deduplicated and
+sorted. The public constructor trims source/board IDs from new input; `FromLegacy`
+and the JSON codec preserve authoritative IDs exactly, including surrounding spaces.
+The limit is 128 source inputs and 128 board
+selectors; excess values and unknown enum values are rejected rather than truncated.
+
+Dates mean **first registered locally**, including threads with no captured posts.
+They are inclusive calendar days, years 0002–9998, in the stored IANA time zone.
+Either endpoint can be absent; both absent remove the date filter. Request creation
+resolves the days once into UTC `[StartInclusive, EndExclusive)`, accounting for
+short/long days and skipped local dates. Reuse that request for paging, retries and
+full-result selection to retain the same date bounds. Separate reader calls still
+observe separate catalog transactions; a frozen date window does not freeze the
+whole database. Reopening a saved definition resolves its stored zone again using
+the installed time-zone rules. Unknown zones or unsupported date bases fail; there
+is no silent local-zone or UTC fallback.
+
+Persist through `ArchiveSearchSpecJson.Serialize` and `Deserialize`, which define
+the strict `schemaVersion: 1` contract with stable string keys and ISO calendar
+dates. Do not substitute automatic serialization of the C# object: derived UTC
+bounds belong to the request, not the saved definition. Unknown, duplicate or missing
+JSON fields are rejected. Invalid constructor values raise `ArgumentException`
+(including its argument subclasses); malformed JSON and unknown semantic string
+keys raise `JsonException`. Wrong JSON field types can also raise
+`InvalidOperationException` or `FormatException` from the JSON reader. Preserve the
+invalid definition and report the error instead of retrying with unrestricted defaults.
+
+`ArchiveWorkFilter` is stored as part of the definition but is **not applied by
+`ArchiveReader`**: watching/follow-up/completion status is external session state.
+A library caller using a non-`All` work filter must capture and apply that membership
+to the complete matching metadata before paging or export, as the desktop does.
+
+Full ID selection reads only identities; full summaries also validate/materialize
+summary fields. Both return immutable lists from one read transaction. Pass the
+resolved ID list to `ArchiveCollectionHtmlExporter.ExportAsync` to freeze export
+membership; the exporter later reads thread content and media separately. It does
+not provide an atomic snapshot spanning selection, session state and export content.
+
+Query/argument validation can throw before a task is returned. Cancellation throws
+`OperationCanceledException` without publishing a partial result. `DisposeAsync`
+closes admission without waiting for already-running reads, which own their own
+connections and may finish; later reads fail with `ObjectDisposedException`.
+Dispose a reader after dependent exports have finished. The library never acquires
+a writer lease for these reads or creates a missing archive.
+
 Archive schema 2 indexes decoded inert text with bundled SQLite FTS5/trigram.
 One/two-character terms use a cancellable scan so short terms do not become false
 empty results. Opening `ArchiveCatalog` with its writer lease transactionally
