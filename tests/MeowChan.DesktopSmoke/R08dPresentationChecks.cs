@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
@@ -129,13 +130,68 @@ internal static class R08dPresentationChecks
                 Button list = fixture.FindControl<Button>("ArchiveLayoutList")!;
                 Button table = fixture.FindControl<Button>("ArchiveLayoutTable")!;
                 Button favorites = fixture.FindControl<Button>("ArchiveFavoritesOverview")!;
-                Require(threads.IsEffectivelyVisible && list.IsEffectivelyVisible && table.IsEffectivelyVisible
-                    && favorites.IsEffectivelyVisible && favorites.Bounds.Width > 0,
-                    "Archive layout choices or favorites entry were absent from the real page.");
+                ActionToolBar actions = fixture.FindControl<ActionToolBar>("ArchiveResultActions")!;
+                bool ActionHit(Button button)
+                {
+                    TopLevel? root = TopLevel.GetTopLevel(button);
+                    Point? center = root == null ? null : button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), root);
+                    return root?.IsVisible == true && center.HasValue && root.InputHitTest(center.Value) is Visual hit
+                        && hit.GetSelfAndVisualAncestors().Contains(button);
+                }
+                void TraceActions(string stage) => Console.WriteLine("SMOKE r08d archive actions: " + System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    stage, columnMode = fixture.ArchiveColumnModePreference,
+                    moreVisible = actions.More?.IsEffectivelyVisible, moreOpen = actions.More?.IsChecked,
+                    entries = new[] { list, table, favorites }.Select(button => new
+                    {
+                        button.Name, inOverflow = actions.OverflowHost?.Children.Contains(button),
+                        button.IsEffectivelyVisible, button.IsEffectivelyEnabled, bounds = button.Bounds.ToString(),
+                        root = TopLevel.GetTopLevel(button)?.GetType().Name, hit = ActionHit(button),
+                        focused = ReferenceEquals(TopLevel.GetTopLevel(button)?.FocusManager?.GetFocusedElement(), button),
+                        ancestors = button.GetVisualAncestors().OfType<Control>().Select(control => new
+                        { type = control.GetType().Name, control.Name, control.ClipToBounds, bounds = control.Bounds.ToString() }).ToArray()
+                    }).ToArray()
+                }));
+                window.UpdateLayout();
+                TraceActions("before favorites reveal");
+                await Program.WaitUntilAsync(() => FitsWindow(window, list) && FitsWindow(window, table)
+                    && ReferenceEquals(TopLevel.GetTopLevel(list), window) && ReferenceEquals(TopLevel.GetTopLevel(table), window));
+                Require(actions.OverflowHost?.Children.Contains(list) != true && actions.OverflowHost?.Children.Contains(table) != true,
+                    "The archive layout choices were not direct toolbar actions.");
+                bool favoritesOverflow = actions.OverflowHost?.Children.Contains(favorites) == true;
+                if (favoritesOverflow)
+                {
+                    Require(actions.More?.IsEffectivelyVisible == true, "The archive favorites overflow is not reachable.");
+                    actions.More!.IsChecked = true;
+                }
+                try
+                {
+                    await Program.WaitUntilAsync(() => favorites.IsEffectivelyVisible && favorites.IsEffectivelyEnabled
+                        && favorites.Bounds.Width > 0 && favorites.Bounds.Height > 0 && ActionHit(favorites));
+                    Require(favorites.Focus(NavigationMethod.Tab), "The archive favorites entry could not receive real focus.");
+                    await Program.WaitUntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(favorites)?.FocusManager?.GetFocusedElement(), favorites));
+                    TraceActions("favorites reachable and focused");
+                    Require(threads.IsEffectivelyVisible && list.IsEffectivelyVisible && table.IsEffectivelyVisible
+                        && favorites.IsEffectivelyVisible && favorites.Bounds.Width > 0,
+                        "Archive layout choices or favorites entry were absent from the real page.");
+                    if (favoritesOverflow)
+                    {
+                        var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+                        favorites.RaiseEvent(escape);
+                        Require(escape.Handled, "The actual favorites overflow did not handle Escape.");
+                        await Program.WaitUntilAsync(() => actions.More!.IsChecked != true
+                            && ReferenceEquals(window.FocusManager?.GetFocusedElement(), actions.More));
+                    }
+                }
+                catch { TraceActions("favorites reveal failed"); throw; }
+                finally { if (favoritesOverflow && actions.More != null) actions.More.IsChecked = false; }
+                TraceActions("favorites inspection complete");
                 Program.CaptureWindow(window, "smoke-r08d-archive-list.png");
+                await Program.WaitUntilAsync(() => table.IsEffectivelyEnabled && FitsWindow(window, table) && ActionHit(table));
                 Click(table);
                 await Program.WaitUntilAsync(() => fixture.FindControl<DataGrid>("ArchiveThreadTable")!.IsEffectivelyVisible);
                 Program.CaptureWindow(window, "smoke-r08d-archive-table.png");
+                await Program.WaitUntilAsync(() => list.IsEffectivelyEnabled && FitsWindow(window, list) && ActionHit(list));
                 Click(list);
                 await Program.WaitUntilAsync(() => threads.IsEffectivelyVisible);
                 threads.SelectedIndex = 0;

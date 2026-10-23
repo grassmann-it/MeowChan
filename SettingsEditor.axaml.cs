@@ -348,9 +348,9 @@ namespace MeowChan
             {
                 if (_isBusy == value) return;
                 SetField(ref _isBusy, value, nameof(IsBusy));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
                 if (!_isClosed)
                 {
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanForgetReadingPosition)));
                     BusyChanged?.Invoke(this, EventArgs.Empty);

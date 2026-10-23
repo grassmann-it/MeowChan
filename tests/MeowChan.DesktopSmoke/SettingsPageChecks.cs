@@ -256,11 +256,31 @@ internal static class SettingsPageChecks
             Click(save);
             await Program.WaitUntilAsync(() => editor.IsBusy && store.Calls == before + 3);
             bool lateUpdate = false;
-            editor.PropertyChanged += (_, _) => lateUpdate = true;
+            List<object> shutdownChanges = new();
+            bool previousBusy = editor.IsBusy, previousAvailable = editor.IsAvailable;
+            decimal? previousTimer = editor.RecheckTimer;
+            editor.PropertyChanged += (_, args) =>
+            {
+                lateUpdate = true;
+                shutdownChanges.Add(new
+                {
+                    property = args.PropertyName,
+                    beforeBusy = previousBusy, afterBusy = editor.IsBusy,
+                    beforeAvailable = previousAvailable, afterAvailable = editor.IsAvailable,
+                    beforeRecheckTimer = previousTimer, afterRecheckTimer = editor.RecheckTimer
+                });
+                previousBusy = editor.IsBusy; previousAvailable = editor.IsAvailable; previousTimer = editor.RecheckTimer;
+            };
             window.Close();
             Require(window.IsVisible, "Shutdown did not wait for the accepted settings commit.");
             pending.SetResult();
             await Program.WaitUntilAsync(() => !window.IsVisible && !editor.IsBusy);
+            Console.WriteLine("SMOKE pending settings shutdown: " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                lateUpdate, persistedRecheckTimer = Config.LoadConfig(profile).RecheckTimer,
+                expectedRecheckTimer = 121, editor.RecheckTimer, editor.IsBusy, editor.IsAvailable, window.IsVisible,
+                changes = shutdownChanges
+            }));
             Require(!lateUpdate && Config.LoadConfig(profile).RecheckTimer == 121,
                 "Shutdown dropped the accepted save or changed the ended editor.");
             using ProfileLease lease = ProfileLease.Acquire(profile);

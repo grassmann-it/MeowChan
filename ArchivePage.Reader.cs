@@ -281,8 +281,14 @@ public partial class ArchivePage
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (ReaderArrowBelongsToNativeControl(e.Source)) return;
-        int post = CommandBindings.Matches(e, "reader.previous-post") ? -1 : CommandBindings.Matches(e, "reader.next-post") ? 1 : 0;
-        int thread = CommandBindings.Matches(e, "reader.previous-thread") ? -1 : CommandBindings.Matches(e, "reader.next-thread") ? 1 : 0;
+        // The reader guard deliberately permits its post list and tab content.
+        // A second generic native-input check would reject those same arrows
+        // because ListBox/TabControl are SelectingItemsControl ancestors. Keep
+        // that generic check for non-arrow remaps, including native Enter/Space.
+        bool MatchesNavigation(string id) => e.Key is Key.Up or Key.Down or Key.Left or Key.Right
+            ? ShortcutService.Current.Matches(e, id) : CommandBindings.Matches(e, id);
+        int post = MatchesNavigation("reader.previous-post") ? -1 : MatchesNavigation("reader.next-post") ? 1 : 0;
+        int thread = MatchesNavigation("reader.previous-thread") ? -1 : MatchesNavigation("reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return;
         e.Handled = true;
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
@@ -295,7 +301,8 @@ public partial class ArchivePage
         {
             if (ReferenceEquals(node, Control<ListBox>("ArchivePosts"))) return false;
             if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
-                or TextBox or ComboBox or NumericUpDown or MenuItem || node is SelectingItemsControl and not TabControl) return true;
+                or TextBox or ComboBox or NumericUpDown or MenuItem or Ursa.Controls.AutoCompleteBox
+                || node is SelectingItemsControl and not TabControl) return true;
         }
         return false;
     }
