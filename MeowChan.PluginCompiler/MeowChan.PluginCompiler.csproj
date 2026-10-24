@@ -20,20 +20,23 @@
     <Compile Include="../MeowChan.PluginHost/Compilation/CompilerWire.cs" Link="CompilerWire.cs" />
   </ItemGroup>
   <Target Name="IncludeDeliveredCompilerReferences" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolvePackageAssets">
-    <GetFileHash Files="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/microsoft.netcore.app.ref.$(CompilerFrameworkReferenceVersion).nupkg" Algorithm="SHA512">
+    <PropertyGroup>
+      <_CompilerNuGetPackageRoot>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))</_CompilerNuGetPackageRoot>
+    </PropertyGroup>
+    <GetFileHash Files="$(_CompilerNuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/microsoft.netcore.app.ref.$(CompilerFrameworkReferenceVersion).nupkg" Algorithm="SHA512">
       <Output TaskParameter="Hash" PropertyName="CompilerReferencePackageHash" />
     </GetFileHash>
     <Error Condition="'$(CompilerReferencePackageHash)' != 'B471DE6FE6B157748760FC9A7D911B70416E265BD194EDFDE60BAC940AD46425ABE095F4C76BDDD1913CF7955CEBE1D09D045044F649298AA9E235AB9F130B84'" Text="Pinned framework reference package failed its SHA512 integrity check." />
     <ItemGroup>
-      <_FrameworkRef Include="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/ref/net10.0/*.dll" />
+      <_FrameworkRef Include="$(_CompilerNuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/ref/net10.0/*.dll" />
       <Content Include="@(_FrameworkRef)">
         <Link>references/%(_FrameworkRef.Filename)%(_FrameworkRef.Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </Content>
-      <_FrameworkNotice Include="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/LICENSE.TXT;$(NuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/THIRD-PARTY-NOTICES.TXT" />
+      <_FrameworkNotice Include="$(_CompilerNuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/LICENSE.TXT;$(_CompilerNuGetPackageRoot)microsoft.netcore.app.ref/$(CompilerFrameworkReferenceVersion)/THIRD-PARTY-NOTICES.TXT" />
       <Content Include="@(_FrameworkNotice)">
         <Link>licenses/framework/%(_FrameworkNotice.Filename)%(_FrameworkNotice.Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </Content>
-      <Content Include="$(NuGetPackageRoot)microsoft.codeanalysis.common/5.0.0/ThirdPartyNotices.rtf">
+      <Content Include="$(_CompilerNuGetPackageRoot)microsoft.codeanalysis.common/5.0.0/ThirdPartyNotices.rtf">
         <Link>licenses/roslyn/ThirdPartyNotices.rtf</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </Content>
       <_RoslynNotice Include="provenance.json;LICENSE-Roslyn.txt" />
