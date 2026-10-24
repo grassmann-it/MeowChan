@@ -107,6 +107,7 @@ public partial class MainWindow : Window
             InitializeWorkspacePages();
             InitializeReaderGroups(); // URSA-12 shared initialization hunk.
             InitializeWorkspace();
+            RegisterReadingResumeCommand();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             RegisterSectionCommands();
@@ -178,7 +179,7 @@ public partial class MainWindow : Window
         this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
         this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("ContinueReadingNavigationButton")!.IsEnabled = navigationReady;
+        RefreshReadingResumeState();
         this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
         this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = navigationReady;
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
@@ -851,6 +852,7 @@ public partial class MainWindow : Window
         {
             await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
+            InvalidateReadingResumeState();
             ApplyAppearance();
         }
         finally

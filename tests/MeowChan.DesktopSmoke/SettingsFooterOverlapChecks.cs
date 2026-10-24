@@ -85,8 +85,8 @@ internal static class SettingsFooterOverlapChecks
         }
         Require(overlaps.All(overlap => overlap.disjoint), "Actual footer controls overlap: "
             + string.Join("; ", overlaps.Where(overlap => !overlap.disjoint).Select(overlap => $"{overlap.first}/{overlap.second} {overlap.intersection}")));
-        Require(window.FindControl<Button>("ContinueReadingNavigationButton")!.IsEffectivelyVisible,
-            "Continue reading ceased to be a direct footer action.");
+        Require(!panel.Children.OfType<Button>().Any(button => button.Name?.Contains("ContinueReading") == true),
+            "Continue reading remains duplicated in the footer.");
         foreach (string name in new[] { "DownloadsNavigationButton", "SettingsNavigationButton", "ToolsNavigationButton", "WorkspaceModeComboBox" })
         {
             Control control = window.FindControl<Control>(name)!;
@@ -97,7 +97,6 @@ internal static class SettingsFooterOverlapChecks
         if (requireFullLabels)
             foreach (var (name, command) in new[] {
                 ("DownloadsNavigationButton", "navigation.downloads"),
-                ("ContinueReadingNavigationButton", "navigation.continue-reading"),
                 ("ToolsNavigationButton", "navigation.tools-menu"),
                 ("SettingsNavigationButton", "navigation.settings") })
             {

@@ -205,6 +205,7 @@ public partial class MainWindow
         this.FindControl<Button>("SourcesNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Sources);
         this.FindControl<Button>("PluginsNavigationButton")!.Classes.Set("selected", page == WorkspacePage.Plugins);
         UpdatePageNavigation();
+        RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
         if (page == WorkspacePage.Settings)
@@ -232,7 +233,6 @@ public partial class MainWindow
         {
             bool advanced = _config.WorkspaceMode == "Advanced";
             Button downloads = this.FindControl<Button>("DownloadsNavigationButton")!;
-            Button resume = this.FindControl<Button>("ContinueReadingNavigationButton")!;
             Button settings = this.FindControl<Button>("SettingsNavigationButton")!;
             Button tools = this.FindControl<Button>("ToolsNavigationButton")!;
             StackPanel panel = this.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
@@ -283,7 +283,6 @@ public partial class MainWindow
                     + button.BorderThickness.Left + button.BorderThickness.Right);
             }
             double downloadsWidth = Measure(downloads);
-            double resumeWidth = Measure(resume);
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
@@ -293,8 +292,8 @@ public partial class MainWindow
             double RequiredWidth()
             {
                 bool overflow = direct.Any(visible => !visible);
-                int count = 3 + direct.Count(visible => visible) + (overflow ? 1 : 0);
-                return downloadsWidth + resumeWidth + settingsWidth
+                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0);
+                return downloadsWidth + settingsWidth
                     + destinationWidths.Where((_, index) => direct[index]).Sum()
                     + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
             }
@@ -305,7 +304,7 @@ public partial class MainWindow
                 direct[index] = false;
             }
             // A small screen can shrink even below the usual workspace minimum.
-            // Keep Continue reading written out and compact the familiar icons first.
+            // Compact familiar icons only when the actual localized destinations do not fit.
             if (RequiredWidth() > available)
             {
                 CommandBindings.Apply(settings, "navigation.settings", iconOnly: true);

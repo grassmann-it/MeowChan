@@ -28,6 +28,7 @@ public partial class MainWindow
         host.Content = ArchivePage.DetachReader();
         host.IsVisible = true;
         _largeReaderOpen = true;
+        RefreshReadingResumePresentation();
         if (frozenThreads != null) ArchivePage.SetReaderScope(frozenThreads);
         else _ = ArchivePage.FreezeReaderScopeAsync();
     }
@@ -42,6 +43,7 @@ public partial class MainWindow
         host.IsVisible = false;
         ArchivePage.AttachReader(pane);
         _largeReaderOpen = false;
+        RefreshReadingResumePresentation();
         if (restoreOrigin)
         {
             _readerRestoreOrigin?.Invoke();

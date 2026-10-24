@@ -402,6 +402,7 @@ public partial class MainWindow
         WorkspaceControl<Border>("WorkspaceTitleBarFrame").IsVisible = !immersive;
         Grid.SetRow(host, immersive ? 0 : 1);
         Grid.SetRowSpan(host, immersive ? 4 : 3);
+        RefreshReadingResumePresentation();
     }
 
     private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)

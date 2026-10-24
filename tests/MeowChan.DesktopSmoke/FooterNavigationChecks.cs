@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -54,8 +55,6 @@ internal static class FooterNavigationChecks
                         RequireLanguage(window, language);
                         RequireSelection(window, tools);
                         RequireResumeAction(window);
-                        Require(Fits(window, window.FindControl<Button>("ContinueReadingNavigationButton")!),
-                            scenario + ": Continue reading is clipped.");
                         Require(Fits(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!),
                             scenario + ": the footer view switch is clipped.");
 
@@ -162,15 +161,76 @@ internal static class FooterNavigationChecks
             "Tools must retain its visible localized label at the supported workspace minimum width.");
     }
 
-    internal static void RequireResumeAction(MainWindow window)
+    internal static Task WaitForResumeHitAsync(MainWindow window) => Program.WaitUntilAsync(() =>
     {
-        Button action = window.FindControl<Button>("ContinueReadingNavigationButton")!;
-        Require(action.IsEffectivelyVisible && action.IsEffectivelyEnabled,
-            "Continue reading must remain available, including when it needs to explain that no position is saved.");
-        string expected = Texts.Language == "de" ? "Weiterlesen" : "Continue reading";
-        Require(AutomationProperties.GetName(action) == expected
-            && action.GetVisualDescendants().OfType<TextBlock>().Any(label => label.IsEffectivelyVisible && label.Text == expected),
-            "Continue reading lost its visible localized label or accessible name.");
+        // Layout can lead the rendered hit-test scene after resize or revealing
+        // the book. Observe natural presentation readiness; do not render/repair it.
+        Button action = window.FindControl<Button>("ContinueReadingButton")!;
+        return action.IsEffectivelyVisible && action.IsEffectivelyEnabled
+            && action.IsMeasureValid && action.IsArrangeValid
+            && ReferenceEquals(TopLevel.GetTopLevel(action), window)
+            && action.Bounds is { Width: > 0, Height: > 0 }
+            && action.TranslatePoint(default, window) is { } origin
+            && window.InputHitTest(new Rect(origin, action.Bounds.Size).Center) is Visual hit
+            && hit.GetSelfAndVisualAncestors().Contains(action);
+    });
+
+    internal static void RequireResumeAction(MainWindow window, bool expectedVisible = false)
+    {
+        Button action = window.FindControl<Button>("ContinueReadingButton")!;
+        StackPanel footer = window.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
+        Require(!footer.Children.Contains(action)
+            && !footer.Children.Any(control => control.Name?.Contains("ContinueReading") == true),
+            "Continue reading is still presented as a footer destination.");
+        Require(action.IsVisible == expectedVisible, "Unexpected header reading action visibility.");
+        Grid header = window.FindControl<Grid>("WorkspaceHeader")!;
+        Control[] headerControls = new[] { header.Children[0] }.Concat(new[] {
+            "WorkspaceSubtitle", "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton",
+            "ThemeToggleButton", "WorkspaceMenuItem", "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton"
+        }.Select(name => window.FindControl<Control>(name)!))
+            .Where(control => control.IsEffectivelyVisible && control.Bounds.Width > 0).ToArray();
+        if (expectedVisible)
+        {
+            Require(action.IsEffectivelyVisible && action.IsEffectivelyEnabled && Fits(window, action),
+                "The available header reading action is disabled or clipped.");
+            Button pause = window.FindControl<Button>("PauseButton")!;
+            Require(action.Parent is StackPanel utilities && utilities.Children.IndexOf(pause) == utilities.Children.IndexOf(action) + 1,
+                "The header book action is not directly left of Pause.");
+            foreach (Control control in headerControls) Require(Fits(window, control), "Header control is clipped: " + control.Name);
+            for (int first = 0; first < headerControls.Length; first++)
+                for (int second = first + 1; second < headerControls.Length; second++)
+                {
+                    Control x = headerControls[first], y = headerControls[second];
+                    Rect intersection = new Rect(x.TranslatePoint(default, window)!.Value, x.Bounds.Size)
+                        .Intersect(new Rect(y.TranslatePoint(default, window)!.Value, y.Bounds.Size));
+                    Require(intersection.Width <= 1 || intersection.Height <= 1, "Header controls overlap: " + x.Name + "/" + y.Name);
+                }
+            Point a = action.TranslatePoint(default, window)!.Value;
+            Point b = pause.TranslatePoint(default, window)!.Value;
+            Rect box = new(a, action.Bounds.Size);
+            Rect overlap = box.Intersect(new Rect(b, pause.Bounds.Size));
+            Require((overlap.Width <= 1 || overlap.Height <= 1)
+                && window.InputHitTest(box.Center) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(action),
+                "The book action overlaps Pause or cannot receive a real pointer hit.");
+        }
+        string expected = Texts.T("resume.action");
+        Require(action.Content is Border { OpacityMask: not null } && AutomationProperties.GetName(action) == expected
+            && ToolTip.GetTip(action) is string tip && tip.Contains(expected),
+            "Continue reading lost its book icon, localized tooltip or accessible name.");
+        MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
+            .Single(item => item.Header as string == expected);
+        Require(menu.IsEnabled, "Continue reading must remain available in the app menu for empty-state explanation.");
+        Console.WriteLine("SMOKE reading header " + System.Text.Json.JsonSerializer.Serialize(new {
+            expected_visible = expectedVisible, action.IsVisible, action.IsEffectivelyVisible, action.IsEnabled,
+            scale = window.RenderScaling, client = window.ClientSize.ToString(), window_bounds = window.Bounds.ToString(),
+            header_controls = headerControls.Select(control => new { name = control.Name ?? "brand-group",
+                bounds = control.Bounds.ToString(), origin = control.TranslatePoint(default, window)?.ToString(),
+                root = TopLevel.GetTopLevel(control)?.GetType().Name, control.IsEffectivelyVisible }).ToArray(),
+            mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
+            bounds = action.Bounds.ToString(), footer_duplicate = footer.Children.Contains(action),
+            name = AutomationProperties.GetName(action), tooltip = ToolTip.GetTip(action)?.ToString(),
+            menu_enabled = menu.IsEnabled, focus = (window.FocusManager?.GetFocusedElement() as Control)?.Name
+        }));
     }
 
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name + "NavigationButton")!;

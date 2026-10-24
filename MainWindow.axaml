@@ -28,6 +28,7 @@
                             <TextBlock x:Name="TransferSpeedLabel" Grid.Column="1" Width="78" FontSize="11" Classes="mono muted"
                                        VerticalAlignment="Center" Text="↓ 0 B/s" />
                         </Grid>
+                        <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False" />
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
                             <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
                         </Button>
@@ -358,7 +359,6 @@
                     </StackPanel>
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
-                <Button x:Name="ContinueReadingNavigationButton" Classes="nav" Content="Continue reading" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="SourcesNavigationButton" Classes="nav localized" Tag="nav.sources" Content="Sources" Click="OnSourcesNavigationClick" />
                 <Button x:Name="DiagnosticsNavigationButton" Classes="nav" Click="OnDiagnosticsNavigationClick">

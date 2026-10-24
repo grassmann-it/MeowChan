@@ -64,6 +64,8 @@ internal static class ReadingPositionAnchorChecks
             && Math.Abs(window.ClientSize.Width - expected.Width) < 1
             && Math.Abs(window.ClientSize.Height - expected.Height) < 1,
             "The restart fixture must compare offsets at the same scale and client size.");
+        await FooterNavigationChecks.WaitForResumeHitAsync(window);
+        FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
         Program.CaptureWindow(window, "smoke-reading-position-restart-before-resume.png");
         MenuItem resume = window.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
             .Single(item => item.Header as string == Texts.T("resume.action"));

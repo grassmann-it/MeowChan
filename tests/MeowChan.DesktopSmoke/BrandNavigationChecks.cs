@@ -10,7 +10,7 @@ internal static class BrandNavigationChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        foreach (string name in new[] { "Downloads", "Archive", "Rules", "Plugins", "Sources", "Diagnostics", "ContinueReading", "Settings", "Tools" })
+        foreach (string name in new[] { "Downloads", "Archive", "Rules", "Plugins", "Sources", "Diagnostics", "Settings", "Tools" })
         {
             Button button = window.FindControl<Button>(name + "NavigationButton")!;
             bool labeledIcon = button.Content is StackPanel { Children.Count: 2 } panel
@@ -22,6 +22,10 @@ internal static class BrandNavigationChecks
                 throw new InvalidOperationException(name + " navigation lacks an icon, visible label or accessible name.");
         }
 
+        Button resume = window.FindControl<Button>("ContinueReadingButton")!;
+        if (resume.Content is not Border { OpacityMask: not null }
+            || string.IsNullOrWhiteSpace(AutomationProperties.GetName(resume)))
+            throw new InvalidOperationException("The header reading action lacks its book icon or accessible name.");
         Button brand = window.FindControl<Button>("BrandAboutButton")!;
         if (!brand.IsEffectivelyVisible || window.FindControl<Image>("WorkspaceLogo")!.Source is not Bitmap)
             throw new InvalidOperationException("The clickable header logo is not visible.");
@@ -31,6 +35,6 @@ internal static class BrandNavigationChecks
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
         about.FindControl<Button>("CloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => !about.IsVisible);
-        Console.WriteLine("SMOKE brand navigation: nine accessible icons (compact footer labels where needed) and header-logo About entry passed.");
+        Console.WriteLine("SMOKE brand navigation: eight accessible footer icons, separate accessible header book icon and header-logo About entry passed.");
     }
 }

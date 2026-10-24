@@ -40,7 +40,7 @@ public static class CommandCatalog
         new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.remove", "bookmarks.remove", "Remove bookmark…", "Lesezeichen entfernen …", "x", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", "Primary+1", CommandScope.Sources | CommandScope.Application, new[] { "footer", "sources" }),
-        new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "file-text", null, CommandScope.Application, new[] { "footer", "app-menu" }),
+        new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", null, CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", "Primary+2", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", "Primary+3", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", "Primary+4", CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),

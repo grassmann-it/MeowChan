@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -28,8 +29,9 @@ internal static class ReadingPositionChecks
             return;
         }
         await CheckSettingsSemanticsAsync(window);
+        await CheckHiddenResumeShortcutAsync(window);
         Require(!window.SessionHost.Config.RememberReadingPosition, "New profile opted in automatically.");
-        await CheckEmptyFooterResumeAsync(window);
+        await CheckEmptyResumeAsync(window);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
@@ -59,11 +61,20 @@ internal static class ReadingPositionChecks
         LocalReadingPosition? captured = await window.SessionHost.ReadReadingPositionAsync();
         Require(captured?.Thread == "1000", "Reader movement captured a different thread.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
-        FooterNavigationChecks.RequireResumeAction(window);
-        Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
-        await WaitForFooterResumeAsync(window, "1022");
+        await CheckSavedHeaderModesAsync(window);
+        await CheckSavedHeaderGalleryAsync(window);
+        await FooterNavigationChecks.WaitForResumeHitAsync(window);
+        FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
+        Require(window.FindControl<Button>("ContinueReadingButton")!.Focus(), "Cannot focus the available top-bar reading action.");
+        Click(window.FindControl<Button>("ContinueReadingButton")!);
+        await WaitForResumeAsync(window, "1022");
+        Require(!window.FindControl<Button>("ContinueReadingButton")!.IsVisible,
+            "Continue reading remains visible over the open reader.");
+        Require(window.FocusManager?.GetFocusedElement() is Control focused && focused.IsEffectivelyVisible
+            && focused.IsEffectivelyEnabled && !ReferenceEquals(focused, window.FindControl<Button>("ContinueReadingButton")),
+            "Opening the reader retained focus on a hidden top-bar action.");
         Require(await window.SessionHost.ReadReadingPositionAsync() == captured,
-            "Explicit footer resume changed the saved reading position.");
+            "Explicit top-bar resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
         string positionFile = Path.Combine(profile, "reading-position.json");
@@ -78,20 +89,20 @@ internal static class ReadingPositionChecks
             window.UpdateLayout();
             Program.CaptureWindow(window, "smoke-settings-reading-position-error.png");
             Require(File.Exists(retained), "Failed forgetting destroyed the retained fixture.");
+            FooterNavigationChecks.RequireResumeAction(window);
         }
         finally { Directory.Delete(positionFile); File.Move(retained, positionFile); }
         Click(window.SettingsEditor.FindControl<Button>("ForgetReadingPositionButton")!);
         await Program.WaitUntilAsync(() => !window.SettingsEditor.IsBusy && window.SettingsEditor.StatusMessage == Texts.T("resume.forgotten"));
         Require(window.SessionHost.Config.RememberReadingPosition, "Forget unexpectedly disabled the option.");
-        await CheckEmptyFooterResumeAsync(window);
+        await CheckEmptyResumeAsync(window);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1001"), resetPage: false);
         Require(await window.SessionHost.ReadReadingPositionAsync() == null, "Refresh restored a forgotten position.");
         await window.SessionHost.RememberReadingPositionAsync(new LocalReadingPosition("4chan", "g", "1000", "missing", -25, "missing"), window.SessionHost.ReadingPositionGeneration);
-        FooterNavigationChecks.RequireResumeAction(window);
-        Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
-        await WaitForFooterResumeAsync(window, "1000");
+        Click(ResumeMenu(window));
+        await WaitForResumeAsync(window, "1000");
         Require(page.FindControl<TextBlock>("ArchiveMessage")!.Text == Texts.T("resume.fallback"), "Missing-post replacement was not explained.");
         Require((await window.SessionHost.ReadReadingPositionAsync())?.PostId == "missing", "Fallback silently replaced the saved anchor.");
         Program.CaptureWindow(window, "smoke-reading-position-fallback.png");
@@ -120,6 +131,7 @@ internal static class ReadingPositionChecks
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
         await commands.WaitAsync();
         delayedResume = window.ResumeLastReadingAsync();
+        Require(delayedResume.IsCompletedSuccessfully, "Continue reading should be unavailable while already reading.");
         Func<bool>? pagedReaderUnchanged = null;
         try
         {
@@ -135,10 +147,10 @@ internal static class ReadingPositionChecks
             LocalReadingPosition? position = await window.SessionHost.ReadReadingPositionAsync();
             return int.TryParse(position?.PostId, out int post) && post is >= 1050 and <= 1054;
         });
-        Require(pagedReaderUnchanged?.Invoke() == true, "The stale resume rebuilt the newly chosen reader page.");
+        Require(pagedReaderUnchanged?.Invoke() == true, "The reader-scope resume changed the newly chosen page.");
         Require(reader.IsVisible && page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> pagedRows
-            && pagedRows.FirstOrDefault()?.Id == "1050", "A delayed resume replaced a newer reader page.");
-        Program.CaptureWindow(window, "smoke-reading-position-delayed-pagination.png");
+            && pagedRows.FirstOrDefault()?.Id == "1050", "A reader-scope resume replaced a newer reader page.");
+        Program.CaptureWindow(window, "smoke-reading-position-reader-scope-pagination.png");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await window.SessionHost.ReadReadingPositionAsync())?.SelectedPostId == "1022");
         await ReaderLiveChecks.RunAsync(window);
@@ -147,7 +159,97 @@ internal static class ReadingPositionChecks
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
     }
 
-    private static async Task CheckEmptyFooterResumeAsync(MainWindow window)
+    private static async Task CheckSavedHeaderModesAsync(MainWindow window)
+    {
+        string mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language;
+        double width = window.Width, height = window.Height;
+        try
+        {
+            foreach (string targetLanguage in new[] { "en", "de" })
+            {
+                await FooterNavigationChecks.PersistLanguageAsync(window, targetLanguage);
+                foreach (string target in new[] { "Barebones", "Simple", "Advanced" })
+                {
+                    await PresentationChecks.SwitchModeAsync(window, target);
+                    window.Width = window.MinWidth;
+                    await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - window.Width) <= 1
+                        && window.FindControl<Button>("ContinueReadingButton")!.IsEffectivelyVisible);
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    await FooterNavigationChecks.WaitForResumeHitAsync(window);
+                    FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
+                    Program.CaptureWindow(window, "smoke-reading-topbar-" + targetLanguage + "-" + target.ToLowerInvariant() + ".png");
+                }
+            }
+        }
+        finally
+        {
+            await FooterNavigationChecks.PersistLanguageAsync(window, language);
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            window.Width = width; window.Height = height;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            await Program.WaitUntilAsync(() => !window.ArchivePage.IsBusy);
+        }
+    }
+
+    private static async Task CheckSavedHeaderGalleryAsync(MainWindow window)
+    {
+        Button book = window.FindControl<Button>("ContinueReadingButton")!;
+        await Program.WaitUntilAsync(() => book.IsEffectivelyVisible);
+        Click(window.ArchivePage.FindControl<Button>("ArchiveOpenGallery")!);
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        await Program.WaitUntilAsync(() => host.IsEffectivelyVisible && host.Content is Control);
+        Require(!book.IsVisible, "Continue reading remains visible over the active gallery.");
+        Program.CaptureWindow(window, "smoke-reading-topbar-gallery-hidden.png");
+        Click(((Control)host.Content!).GetVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
+        await Program.WaitUntilAsync(() => !host.IsVisible && book.IsEffectivelyVisible);
+        await FooterNavigationChecks.WaitForResumeHitAsync(window);
+        FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
+    }
+
+    private static MenuItem ResumeMenu(MainWindow window) => window.FindControl<MenuItem>("WorkspaceMenuItem")!
+        .Items.OfType<MenuItem>().Single(item => item.Header as string == Texts.T("resume.action"));
+
+    private static async Task CheckHiddenResumeShortcutAsync(MainWindow window)
+    {
+        var original = window.SessionHost.Config.ShortcutBindings;
+        try
+        {
+            Config candidate = window.SessionHost.Config.Clone();
+            candidate.ShortcutBindings = original.Set("navigation.continue-reading", new[] {
+                ShortcutGesture.Parse("Primary+Shift+J") });
+            long revision = ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(candidate);
+            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            window.Activate();
+            await Program.WaitUntilAsync(() => window.IsActive);
+            FooterNavigationChecks.RequireResumeAction(window);
+            Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+            KeyGesture gesture = CommandBindings.Gesture("navigation.continue-reading")!;
+            KeyEventArgs Press(Control source)
+            {
+                var e = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = gesture.Key,
+                    KeyModifiers = gesture.KeyModifiers, Source = source };
+                source.RaiseEvent(e); return e;
+            }
+            Require(!Press(window.FindControl<TextBox>("UrlInput")!).Handled
+                && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
+                "The reading shortcut bypassed native text input.");
+            Require(Press(window).Handled, "The reading shortcut depended on the hidden top-bar button.");
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive
+                && window.ArchivePage.FindControl<TextBlock>("ArchiveMessage")!.Text == Texts.T("resume.none"));
+            Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
+                "An empty reading shortcut opened the reader.");
+        }
+        finally
+        {
+            Config candidate = window.SessionHost.Config.Clone();
+            candidate.ShortcutBindings = original;
+            await window.SessionHost.ApplySettingsAsync(candidate);
+        }
+    }
+
+    private static async Task CheckEmptyResumeAsync(MainWindow window)
     {
         string languageBefore = window.SessionHost.Config.Language;
         try
@@ -157,7 +259,7 @@ internal static class ReadingPositionChecks
                 await FooterNavigationChecks.PersistLanguageAsync(window, language);
                 FooterNavigationChecks.RequireLanguage(window, language);
                 FooterNavigationChecks.RequireResumeAction(window);
-                Click(window.FindControl<Button>("ContinueReadingNavigationButton")!);
+                Click(ResumeMenu(window));
                 string expectedEmpty = language == "de"
                     ? "Keine Lesestelle gespeichert. In den Einstellungen einschalten und anschließend den Reader bewusst öffnen."
                     : "No reading position is saved. Enable it in Settings, then consciously open the reader.";
@@ -173,7 +275,7 @@ internal static class ReadingPositionChecks
         finally { await FooterNavigationChecks.PersistLanguageAsync(window, languageBefore); }
     }
 
-    private static async Task WaitForFooterResumeAsync(MainWindow window, string selectedPost)
+    private static async Task WaitForResumeAsync(MainWindow window, string selectedPost)
     {
         ArchivePage page = window.ArchivePage;
         FieldInfo resuming = typeof(ArchivePage).GetField("_resumingPosition", BindingFlags.Instance | BindingFlags.NonPublic)!;
