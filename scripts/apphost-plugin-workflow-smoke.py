@@ -352,6 +352,8 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
                'AVALONIA_GLOBAL_SCALE_FACTOR', 'XDG_RUNTIME_DIR', 'XDG_CONFIG_HOME',
                'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'MEOWCHAN_DESKTOP_SMOKE_XVFB', 'XDG_SESSION_TYPE'}
     environment = {key: value for key, value in environment.items() if key in allowed}
+    # Keep the app's owned-root guard consistent with Python's selected temporary parent.
+    environment['TMPDIR'] = str(root.parent)
     environment['PATH'] = '/usr/bin:/bin'
     # The private Xvfb display uses Mesa. Selecting the NVIDIA vendor here can
     # crash Xvfb before the packaged application starts on NVIDIA hosts.

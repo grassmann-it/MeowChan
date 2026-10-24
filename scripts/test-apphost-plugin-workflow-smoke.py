@@ -11,7 +11,7 @@ import subprocess
 import shutil
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('plugin_workflow', Path(__file__).with_name('apphost-plugin-workflow-smoke.py'))
 runner = importlib.util.module_from_spec(spec)
@@ -153,6 +153,37 @@ print(json.dumps({'homeExists': home.is_dir(), 'mode': home.stat().st_mode & 511
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
             self.assertEqual(dict(homeExists=True, mode=0o700, home=str(home), hostHomeAbsent=True,
                                   sdkAbsent=True, nugetAbsent=True), json.loads(result.stdout))
+
+
+
+class PluginTemporaryRootTests(unittest.TestCase):
+    def test_both_phase_children_use_owned_root_parent_without_changing_profiles(self):
+        # Mock the process boundary: no DBus/GUI/apphost process is started.
+        with tempfile.TemporaryDirectory(prefix='meowchan-workflow-tmpdir-test-') as temporary:
+            root = Path(temporary).resolve()
+            (root / '.workflow-owner').write_text('a' * 32)
+            def phase_environment(root, phase, profile, isolated, scale):
+                working = root / ('cwd-' + phase)
+                working.mkdir()
+                return working, {'TMPDIR': '/wrong-parent', 'MEOWCHAN_PROFILE': str(profile), 'XDG_RUNTIME_DIR': str(working / 'runtime')}
+            process = Mock()
+            process.wait.return_value = 2
+            with patch.object(runner.workflow, 'phase_environment', side_effect=phase_environment), \
+                    patch.object(runner, 'sandbox', side_effect=lambda *args: ['bwrap', '--smoke-plugin-workflow']), \
+                    patch.object(runner.subprocess, 'Popen', return_value=process) as popen, \
+                    patch.object(runner.desktop, 'stop_owned_processes'):
+                for phase in ('download', 'restore'):
+                    runner.run_phase(root / 'package/MeowChan', root, phase, root / ('evidence-' + phase), 1, 1, {})
+                    if phase == 'download':
+                        (root / 'profile-download').mkdir()  # Stand in for the mocked app's first profile.
+            self.assertEqual(2, popen.call_count)
+            for call, phase in zip(popen.call_args_list, ('download', 'restore')):
+                environment = call.kwargs['env']
+                self.assertEqual(str(root.parent), environment['TMPDIR'])
+                self.assertEqual(str(root / ('profile-' + phase)), environment['MEOWCHAN_PROFILE'])
+                self.assertEqual(str(root / ('cwd-' + phase) / 'runtime'), environment['XDG_RUNTIME_DIR'])
+                self.assertIn('--smoke-plugin-workflow', call.args[0])
+                self.assertEqual(str(root / (phase + '.json')), call.args[0][-1])
 
 
 def managed_pe(mvid):
