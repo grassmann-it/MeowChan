@@ -295,24 +295,24 @@
                                         <TextBlock Tag="detail.error" Classes="localized muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorError" TextWrapping="Wrap" FontSize="12" />
                                     </StackPanel>
-                                    <WrapPanel x:Name="InspectorLocalActions" Orientation="Horizontal" IsVisible="False">
-                                        <Button x:Name="InspectorReadPosts" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorReadPosts" />
-                                        <Button x:Name="InspectorGallery" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorGallery" />
-                                        <Button x:Name="InspectorHtmlExport" Classes="subtle" Margin="0,0,6,6" Click="OnInspectorHtmlExport" />
+                                    <WrapPanel x:Name="InspectorLocalActions" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" IsVisible="False">
+                                        <Button x:Name="InspectorReadPosts" Classes="subtle" Click="OnInspectorReadPosts" />
+                                        <Button x:Name="InspectorGallery" Classes="subtle" Click="OnInspectorGallery" />
+                                        <Button x:Name="InspectorHtmlExport" Classes="subtle" Click="OnInspectorHtmlExport" />
                                     </WrapPanel>
-                                    <WrapPanel Orientation="Horizontal">
-                                        <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Margin="0,0,6,6" Click="OnInspectorOpenFolderClick" />
-                                        <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Margin="0,0,6,6" Click="OnInspectorOpenBrowserClick" />
-                                        <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Margin="0,0,6,6" Click="OnCheckSelectionClick" />
-                                        <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Margin="0,0,6,6" Click="OnRetryMissingMediaClick" />
-                                        <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" Margin="0,0,6,6" />
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                                        <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Click="OnInspectorOpenFolderClick" />
+                                        <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
+                                        <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
+                                        <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />
+                                        <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" />
                                     </WrapPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Spacing="6">
                                         <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
                                         <TextBlock x:Name="InspectorKnownMedia" Classes="muted" TextWrapping="Wrap" />
                                         <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
-                                        <TextBlock x:Name="InspectorQueue" Classes="muted" Margin="0,6,0,0" />
+                                        <TextBlock x:Name="InspectorQueue" Classes="muted" />
                                     </StackPanel>
                                     <StackPanel Spacing="5">
                                         <TextBlock Tag="detail.url" Classes="localized muted" FontSize="12" />

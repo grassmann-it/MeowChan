@@ -13,7 +13,7 @@ using MeowChan.Interfaces;
 
 namespace MeowChan.Desktop;
 
-internal sealed record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWorkSnapshot? Work = null)
+internal sealed partial record ArchiveThreadRow(ArchiveThreadSummary Summary, ThreadWorkSnapshot? Work = null)
 {
     public string PreviewText { get; init; } = string.Empty;
     public ArchiveAttachmentRow? PreviewAttachment { get; init; }

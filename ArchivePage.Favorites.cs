@@ -83,7 +83,7 @@ public partial class ArchivePage
         Button close = new() { Content = Texts.T("action.close") };
         WrapPanel filters = new() { ItemSpacing = 8, LineSpacing = 8 };
         filters.Children.Add(scope); filters.Children.Add(search);
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(view); actions.Children.Add(remove); actions.Children.Add(export); actions.Children.Add(close);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 10, Margin = new Thickness(16) };
         layout.Children.Add(filters);
@@ -286,7 +286,7 @@ public partial class ArchivePage
         openFolder.IsEnabled = !string.IsNullOrEmpty(destination.Text);
         Button cancel = CommandBindings.CreateButton("export.close", () => { });
         cancel.Name = "OriginalExportClose";
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(browse); actions.Children.Add(openFolder); actions.Children.Add(start); actions.Children.Add(cancel);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 12, Margin = new Thickness(16) };
         layout.Children.Add(scope);

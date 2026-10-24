@@ -164,8 +164,22 @@ internal static partial class RulesPageChecks
                         "Page, language or mode navigation discarded or normalized an invalid rule draft.");
                     Require(intake.Text == retainedUrl && settings.DownloadPath == retainedSettings,
                         "Rules navigation discarded a Downloads or Settings draft.");
-                    Require(window.FindControl<Button>("RulesNavigationButton")!.IsVisible == (mode == "Advanced" && window.Bounds.Width >= 1120),
-                        "Rules navigation was not restricted to the Advanced bar while its menu remained available.");
+                    Button rulesNavigation = window.FindControl<Button>("RulesNavigationButton")!;
+                    Require(!rulesNavigation.IsVisible || (mode == "Advanced" && rulesNavigation.IsEffectivelyEnabled
+                        && Fits(window, rulesNavigation)), "Direct Rules navigation was outside Advanced, clipped or disabled.");
+                    Button toolsNavigation = window.FindControl<Button>("ToolsNavigationButton")!;
+                    MenuFlyout toolsMenu = toolsNavigation.Flyout as MenuFlyout
+                        ?? throw new InvalidOperationException("Tools has no navigation menu.");
+                    MenuItem[] rulesOverflow = toolsMenu.Items.OfType<MenuItem>()
+                        .Where(item => item.IsVisible && item.Tag as string == "nav.rules").ToArray();
+                    Require(rulesOverflow.Length == (rulesNavigation.IsVisible ? 0 : 1),
+                        "Tools duplicated direct Rules navigation or lost its hidden destination.");
+                    Require(rulesNavigation.IsVisible || (toolsNavigation.IsVisible && toolsNavigation.IsEffectivelyEnabled
+                        && Fits(window, toolsNavigation) && rulesOverflow[0].IsEnabled),
+                        "Hidden Rules navigation did not retain a usable Tools route.");
+                    MenuItem rulesMenu = window.FindControl<MenuItem>("RulesMenuItem")!;
+                    Require(rulesMenu.IsVisible && rulesMenu.IsEnabled,
+                        "Rules navigation did not retain its normal app-menu route.");
                     RequireIconLabel(page.FindControl<Button>("OpenSavedRuleButton")!, page.OpenLabel);
                     RequireIconLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, page.OpenLabel);
                     RequireIconLabel(page.FindControl<Button>("DiscardRuleButton")!, page.DiscardLabel);

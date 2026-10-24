@@ -244,8 +244,8 @@ public partial class RulesPage
         }
         source.TextChanged += (_, _) => { target.Source = source.Text ?? string.Empty; Status(); };
         board.TextChanged += (_, _) => { target.Board = board.Text ?? string.Empty; Status(); }; Status();
-        WrapPanel actions = new();
-        Button allow = new() { Content = Texts.T("plugins.grantRequired"), Margin = new Avalonia.Thickness(0, 0, 8, 6) };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 };
+        Button allow = new() { Content = Texts.T("plugins.grantRequired") };
         allow.Click += async (_, _) => await ChangeRuleGrantAsync(filter, Scope(), filter.Filter.RequiredAccess);
         actions.Children.Add(allow); panel.Children.Add(actions);
     }

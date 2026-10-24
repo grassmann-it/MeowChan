@@ -1,1 +1,26 @@
 #nullable enable
+MeowChan.Favorites.ThreadFavoriteSnapshot
+MeowChan.Favorites.ThreadFavoriteSnapshot.ThreadFavoriteSnapshot(System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>! Threads, long Revision, string! Fingerprint) -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.get -> System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!
+MeowChan.Favorites.ThreadFavoriteSnapshot.Threads.init -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.get -> long
+MeowChan.Favorites.ThreadFavoriteSnapshot.Revision.init -> void
+MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.get -> string!
+MeowChan.Favorites.ThreadFavoriteSnapshot.Fingerprint.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit
+MeowChan.Favorites.ThreadFavoriteCommit.ThreadFavoriteCommit(MeowChan.ResourceId! Thread, bool Favorite, bool Changed, MeowChan.Favorites.ThreadFavoriteSnapshot! Snapshot) -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Thread.get -> MeowChan.ResourceId!
+MeowChan.Favorites.ThreadFavoriteCommit.Thread.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Favorite.get -> bool
+MeowChan.Favorites.ThreadFavoriteCommit.Favorite.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Changed.get -> bool
+MeowChan.Favorites.ThreadFavoriteCommit.Changed.init -> void
+MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.get -> MeowChan.Favorites.ThreadFavoriteSnapshot!
+MeowChan.Favorites.ThreadFavoriteCommit.Snapshot.init -> void
+MeowChan.Favorites.ThreadFavoriteStore
+MeowChan.Favorites.ThreadFavoriteStore.ThreadFavoriteStore(string! profileDirectory, MeowChan.Persistence.ProfileLease! lease) -> void
+MeowChan.Favorites.ThreadFavoriteStore.ReadSnapshot() -> MeowChan.Favorites.ThreadFavoriteSnapshot!
+MeowChan.Favorites.ThreadFavoriteStore.Set(MeowChan.ResourceId! thread, bool favorite, System.Threading.CancellationToken token = default(System.Threading.CancellationToken)) -> MeowChan.Favorites.ThreadFavoriteCommit!
+static MeowChan.Favorites.ThreadFavoriteStore.Validate(MeowChan.ResourceId! thread) -> void
+const MeowChan.Favorites.ThreadFavoriteStore.MaximumEntries = 50000 -> int
+const MeowChan.Favorites.ThreadFavoriteStore.MaximumBytes = 8000000 -> int

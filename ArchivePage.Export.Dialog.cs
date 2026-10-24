@@ -59,13 +59,13 @@ public partial class ArchivePage
         ComboBox previous = ExportName(new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportHistory");
         previous.SelectionChanged += (_, _) => UpdateExportMode();
         content.Children.Add(previous);
-        WrapPanel modes = new() { Orientation = Orientation.Horizontal };
-        RadioButton fresh = ExportName(new RadioButton { GroupName = "exportMode", IsChecked = true, Margin = new Thickness(0, 0, 12, 0) }, "ArchiveExportNew");
+        WrapPanel modes = new() { Orientation = Orientation.Horizontal, ItemSpacing = 12, LineSpacing = 6 };
+        RadioButton fresh = ExportName(new RadioButton { GroupName = "exportMode", IsChecked = true }, "ArchiveExportNew");
         RadioButton update = ExportName(new RadioButton { GroupName = "exportMode" }, "ArchiveExportUpdate");
         fresh.IsCheckedChanged += (_, _) => UpdateExportMode();
         update.IsCheckedChanged += (_, _) => UpdateExportMode();
         modes.Children.Add(fresh); modes.Children.Add(update); content.Children.Add(modes);
-        WrapPanel historyActions = new();
+        WrapPanel historyActions = new() { ItemSpacing = 8, LineSpacing = 6 };
         Button prior = ExportName(new Button(), "ArchiveExportPrevious"); prior.Click += OnExportPrevious;
         Button associate = ExportName(new Button(), "ArchiveExportAssociate"); associate.Click += OnExportAssociate;
         historyActions.Children.Add(prior); historyActions.Children.Add(associate); content.Children.Add(historyActions);
@@ -96,7 +96,7 @@ public partial class ArchivePage
         body.Children.Add(fixedScope);
         ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Grid.SetRow(scroll, 1); body.Children.Add(scroll);
-        WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right };
+        WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;

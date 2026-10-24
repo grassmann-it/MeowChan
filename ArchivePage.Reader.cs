@@ -229,19 +229,34 @@ public partial class ArchivePage
     private void UpdateReaderNavigationLayout()
     {
         TabControl tabs = Control<TabControl>("ArchiveContentTabs");
-        bool postsSelected = tabs.SelectedIndex == 0;
+        Control<WrapPanel>("ReaderStatusLine").IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = Control<Grid>("ReaderContentSurface");
         ListBox posts = Control<ListBox>("ArchivePosts");
-        // Use the spare horizontal space beside the capped reading width when
-        // available. At smaller sizes reserve a shallow band outside the scroll
-        // viewport; a final spacer would still let other posts pass underneath.
-        bool sideSpace = _largeReader && surface.Bounds.Width >= posts.MaxWidth + 186;
-        posts.Margin = !_largeReader ? default : sideSpace ? new Thickness(0, 0, 186, 0) : new Thickness(0, 0, 0, 42);
-        tabs.Margin = _largeReader && !postsSelected ? new Thickness(0, 0, 0, 66) : default;
+        const double navigationSize = 108; // Three 32-DIP buttons, two 2-DIP gaps, 4-DIP padding.
+        const double sideReserve = navigationSize + 24 + 12;
+        const double bottomReserve = navigationSize + 2;
+        // Keep the whole cross outside the scrolling area. Short windows use
+        // a side lane too, preserving a usable reading height instead of
+        // spending it on three rows of navigation buttons.
+        bool shortReadingArea = posts.Parent is Control postArea && postArea.Bounds.Height < bottomReserve + 120;
+        bool sideSpace = _largeReader && (surface.Bounds.Width >= posts.MaxWidth + sideReserve || shortReadingArea);
+        posts.Margin = !_largeReader ? default : sideSpace ? new Thickness(0, 0, sideReserve, 0) : new Thickness(0, 0, 0, bottomReserve);
+        // Secondary tabs keep full-width filters and footers. Reserve only
+        // their scrolling surface, so the cross cannot consume their height
+        // or force another line of media filters in a narrow window.
+        tabs.Margin = default;
+        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, sideReserve, 0) : default;
+        Control<Grid>("ArchiveMediaSurface").Margin = secondaryLane;
+        Control<ListBox>("ArchiveReferences").Margin = secondaryLane;
         if (!_largeReader) return;
-        Grid pageBar = Control<Grid>("ArchivePostNavigation");
+        Control footer = tabs.SelectedIndex switch
+        {
+            1 => Control<StackPanel>("ArchiveMediaFooter"),
+            2 => Control<Grid>("ArchiveReferencesNavigation"),
+            _ => Control<Grid>("ArchivePostNavigation")
+        };
         double bottom = 16;
-        if (postsSelected && pageBar.IsEffectivelyVisible && pageBar.TranslatePoint(default, surface) is Point position)
+        if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
         Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, 24, bottom);
     }

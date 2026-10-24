@@ -106,21 +106,27 @@ internal static class ReaderUxChecks
             await ReaderStabilityChecks.RunAsync(window);
             return;
         }
-        window.Width = 1440; window.Height = 920;
+        window.Width = 1520; window.Height = 920;
         // Exercise the hidden ArchivePage before it has ever been navigated to.
         await CheckDownloadOriginAsync(window);
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
         await page.ApplySearchAsync();
+        await CheckArchiveThreadFavoritesAsync(window, page);
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
+        await CheckEmbeddedArchiveFooterAsync(window, page);
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
         await page.MediaLoadTask;
         await CheckDetachedReaderIconsAsync(window, page, reader);
+        await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
@@ -375,6 +381,213 @@ internal static class ReaderUxChecks
         await WindowChromeChecks.CheckReachableAsync(window);
     }
 
+    private static async Task CheckArchiveThreadFavoritesAsync(MainWindow window, ArchivePage page)
+    {
+        string originalLayout = page.ArchiveLayoutPreference;
+        try
+        {
+            foreach (string layout in new[] { "List", "Table" })
+            {
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + layout)!);
+                await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == layout);
+                DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
+                ListBox cards = page.FindControl<ListBox>("ArchiveThreads")!;
+                ArchiveThreadRow[] rows = table.ItemsSource.Cast<ArchiveThreadRow>().Take(2).ToArray();
+                Require(rows.Length == 2 && rows.All(row => !window.SessionHost.GetThreadFavorites().Contains(row.Summary.Id)),
+                    "Thread-favorite fixture must start with two unmarked threads.");
+                Control surface = layout == "Table" ? table : cards;
+                void Select(ArchiveThreadRow row)
+                {
+                    if (layout == "Table") { table.SelectedItems.Clear(); table.SelectedItem = row; }
+                    else { cards.SelectedItems!.Clear(); cards.SelectedItem = row; }
+                }
+                Select(rows[0]);
+                await Program.WaitUntilAsync(() => !page.IsBusy);
+                void TraceVisibility(string stage)
+                {
+                    object Describe(Control control) => new { type = control.GetType().Name, control.Name,
+                        control.IsVisible, control.IsEffectivelyVisible, bounds = control.Bounds.ToString() };
+                    Console.WriteLine("SMOKE thread-favorite visibility: " + JsonSerializer.Serialize(new
+                    {
+                        stage, layout, preference = page.ArchiveLayoutPreference,
+                        requestedWidth = window.Width, requestedHeight = window.Height,
+                        client = window.ClientSize.ToString(), page = window.SelectedPage.ToString(),
+                        listPane = Describe(page.FindControl<Grid>("ArchiveListPane")!),
+                        readerPane = Describe(page.FindControl<Grid>("ArchiveReaderPane")!),
+                        activeSurface = Describe(surface), cards = Describe(cards), table = Describe(table),
+                        cardItems = cards.ItemCount, tableItems = table.ItemsSource.Cast<object>().Count(),
+                        expectedId = rows[0].Summary.Id,
+                        realizedStars = window.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Select(button => new
+                        {
+                            rowId = (button.DataContext as ArchiveThreadRow)?.Summary.Id,
+                            contextType = button.DataContext?.GetType().Name, control = Describe(button),
+                            ancestors = button.GetVisualAncestors().OfType<Control>().Select(Describe).ToArray()
+                        }).ToArray()
+                    }));
+                }
+                TraceVisibility("before-wait");
+                try
+                {
+                    await Program.WaitUntilAsync(() => surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>()
+                        .Any(button => button.IsEffectivelyVisible && button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id));
+                }
+                catch
+                {
+                    TraceVisibility("failed-wait");
+                    Program.CaptureWindow(window, "smoke-thread-favorite-visibility-" + layout.ToLowerInvariant() + "-failure.png");
+                    throw;
+                }
+                surface.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+                ContextMenu? menu = null;
+                await Program.WaitUntilAsync(() => (menu = layout == "Table" ? table.ContextMenu : cards.GetVisualDescendants()
+                    .OfType<Control>().Select(control => control.ContextMenu).FirstOrDefault(candidate => candidate?.IsOpen == true))?.IsOpen == true);
+                MenuItem star = menu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "thread.favorite-toggle"));
+                string frozenLabel = star.Header!.ToString()!;
+                Select(rows[1]);
+                await Program.WaitUntilAsync(() => !page.IsBusy);
+                Require(Equals(star.Header, frozenLabel) && frozenLabel.Contains(rows[0].Summary.Id.Thread!, StringComparison.Ordinal),
+                    layout + " thread-favorite menu lost its frozen lead label.");
+                Require(star.Command?.CanExecute(null) == true, layout + " thread-favorite menu is unexpectedly disabled.");
+                star.Command!.Execute(null);
+                await Program.WaitUntilAsync(() => window.SessionHost.GetThreadFavorites().Contains(rows[0].Summary.Id));
+                Require(!window.SessionHost.GetThreadFavorites().Contains(rows[1].Summary.Id),
+                    layout + " thread-favorite menu targeted the changed selection instead of its frozen lead.");
+                Require(surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
+                    button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
+                    && button.Content is TextBlock { Text: "★" }), layout + " row did not display the committed star.");
+                menu.Close();
+                await window.SessionHost.SetThreadFavoriteAsync(rows[0].Summary.Id, false);
+                await page.ActivateAsync();
+            }
+        }
+        finally
+        {
+            SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
+            await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == originalLayout);
+        }
+        Console.WriteLine("SMOKE thread favorites: list/table stars and captured context lead passed.");
+    }
+
+    private static async Task CheckReaderThreadFavoritesAsync(MainWindow window, ArchivePage page)
+    {
+        string originalLanguage = Texts.Language;
+        Config original = window.SessionHost.Config.Clone();
+        var mediaBefore = window.SessionHost.GetFavorites().ToArray();
+        var bookmarksBefore = await window.SessionHost.ReadPostBookmarksAsync();
+        ResourceId id = page.CurrentThread!.Summary.Id;
+        Button star = page.FindControl<ArchiveThreadFavoriteButton>("ArchiveCurrentThreadFavorite")!;
+        bool Marked() => window.SessionHost.GetThreadFavorites().Contains(id);
+        Require(!Marked(), "Thread-favorite reader fixture must start unmarked.");
+        try
+        {
+            foreach (string language in new[] { "de", "en" })
+            {
+                Texts.SetLanguage(language);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                string add = language == "de" ? "Thread als Favorit markieren" : "Favorite thread";
+                Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && star.Content is TextBlock { Text: "☆" },
+                    "Reader thread star lost its localized add label or unmarked state.");
+                star.Focus(); Click(star);
+                await Program.WaitUntilAsync(() => Marked() && star.Content is TextBlock { Text: "★" });
+                string remove = language == "de" ? "Threadfavorit entfernen" : "Remove thread favorite";
+                Require(Avalonia.Automation.AutomationProperties.GetName(star) == remove,
+                    "Reader thread star lost its localized remove label.");
+                Click(star);
+                await Program.WaitUntilAsync(() => !Marked() && star.Content is TextBlock { Text: "☆" });
+            }
+            Config customized = original.Clone();
+            customized.ShortcutBindings = customized.ShortcutBindings.Set("thread.favorite-toggle",
+                new[] { MeowChan.Desktop.Commands.ShortcutGesture.Parse("Primary+Shift+F9") });
+            long revision = MeowChan.Desktop.Commands.ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(customized);
+            await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > revision);
+            Button toolbarOrigin = page.FindControl<Button>("ArchiveOpenGallery")!;
+            KeyModifiers modifiers = (OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control) | KeyModifiers.Shift;
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                toolbarOrigin.Focus();
+                toolbarOrigin.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, KeyModifiers = modifiers });
+                bool expected = attempt == 0;
+                await Program.WaitUntilAsync(() => Marked() == expected && star.Content is TextBlock text && text.Text == (expected ? "★" : "☆"));
+            }
+            var bookmarksAfter = await window.SessionHost.ReadPostBookmarksAsync();
+            Require(mediaBefore.SequenceEqual(window.SessionHost.GetFavorites()) && bookmarksBefore.Revision == bookmarksAfter.Revision
+                && bookmarksBefore.Bookmarks.SequenceEqual(bookmarksAfter.Bookmarks),
+                "Thread starring changed media favorites or post bookmarks.");
+        }
+        finally
+        {
+            long restoreRevision = MeowChan.Desktop.Commands.ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(original);
+            await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > restoreRevision);
+            Texts.SetLanguage(originalLanguage);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+        Console.WriteLine("SMOKE thread favorites: reader commit/unmark, EN/DE, toolbar custom shortcut and independent media/bookmarks passed.");
+    }
+
+    private static async Task CheckEmbeddedArchiveFooterAsync(MainWindow window, ArchivePage page)
+    {
+        string language = Texts.Language;
+        Rect Bounds(Control control) => new(control.TranslatePoint(default, window)
+            ?? throw new InvalidOperationException(control.Name + " is detached."), control.Bounds.Size);
+        bool Contains(Rect outer, Rect inner) => inner.Left >= outer.Left - 1 && inner.Top >= outer.Top - 1
+            && inner.Right <= outer.Right + 1 && inner.Bottom <= outer.Bottom + 1;
+        try
+        {
+            Require(window.ClientSize.Width >= 1400 && !window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
+                "Embedded archive footer fixture requires the existing wide split view.");
+            foreach (string code in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(code);
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
+                Border reader = page.FindControl<Border>("ArchiveReaderContent")!;
+                StackPanel footer = page.FindControl<StackPanel>("ArchiveResultsFooter")!;
+                Control pagination = page.FindControl<Control>("ArchiveResultsPagination")!;
+                TextBlock label = page.FindControl<TextBlock>("ArchiveThreadPage")!;
+                TextBlock hint = page.FindControl<TextBlock>("ArchivePartialHint")!;
+                Control reserve = page.FindControl<Control>("ArchiveListFooterReserve")!;
+                Rect left = Bounds(results), right = Bounds(reader), footerBox = Bounds(footer);
+                Rect pageBox = Bounds(pagination), labelBox = Bounds(label), listBox = Bounds(page.FindControl<ListBox>("ArchiveThreads")!);
+                Console.WriteLine("SMOKE embedded archive footer: " + JsonSerializer.Serialize(new
+                {
+                    language = Texts.Language, theme = window.ActualThemeVariant.ToString(), scale = window.RenderScaling,
+                    client = window.ClientSize.ToString(), results = left.ToString(), reader = right.ToString(),
+                    footer = footerBox.ToString(), pagination = pageBox.ToString(), label = labelBox.ToString(),
+                    range = label.Text, list = listBox.ToString(), hint = hint.Bounds.ToString(), hint.IsVisible,
+                    reserve = reserve.Bounds.ToString(), reserveVisible = reserve.IsVisible
+                }));
+                Require(results.IsEffectivelyVisible && reader.IsEffectivelyVisible
+                    && Math.Abs(left.Bottom - right.Bottom) <= 1,
+                    "Embedded archive result and reader borders do not share their lower edge.");
+                Require(reserve.IsVisible == hint.IsVisible
+                    && (!hint.IsVisible || Math.Abs(reserve.Bounds.Height - hint.Bounds.Height) <= 1),
+                    "Archive list footer reserve does not follow the reader partial hint.");
+                Require(footer.IsEffectivelyVisible && pagination.IsEffectivelyVisible && label.IsEffectivelyVisible
+                    && !string.IsNullOrWhiteSpace(label.Text) && label.DesiredSize.Width <= label.Bounds.Width + 1
+                    && Contains(left, footerBox) && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
+                    && Contains(new Rect(default(Point), window.ClientSize), footerBox)
+                    && listBox.Bottom + 4 <= footerBox.Top && pageBox.Bottom <= labelBox.Top,
+                    "Archive pagination/range is clipped, outside its result border, or overlaps the list.");
+                Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
+                    "Embedded archive lost its reader status line.");
+                Ursa.Controls.PaginationButton next = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()
+                    .Single(button => button.Name == Ursa.Controls.Pagination.PART_NextButton);
+                Require(next.IsEffectivelyVisible && next.IsEffectivelyEnabled && next.Focusable && Contains(left, Bounds(next)),
+                    "Archive next-page action is not reachable in the result footer.");
+                await Program.WaitUntilAsync(() => window.InputHitTest(Bounds(next).Center) is Visual hit
+                    && hit.GetSelfAndVisualAncestors().Contains(next));
+                Program.CaptureWindow(window, $"smoke-archive-embedded-footer-1520-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage(language);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        }
+    }
+
     private static async Task CheckDetachedReaderIconsAsync(MainWindow window, ArchivePage page, ContentControl reader)
     {
         string originalLanguage = Texts.Language;
@@ -384,7 +597,7 @@ internal static class ReaderUxChecks
             "ArchiveReaderFullscreen", "ExportArchiveButton", "ArchiveHistoryBack",
             "ReaderPreviousThread", "ReaderPreviousPost", "ReaderNextPost", "ReaderNextThread"
         };
-        string[] labeled = { "ArchiveCloseReader", "ArchiveOpenGallery", "ArchiveReaderFullscreen", "ExportArchiveButton" };
+        string[] labeled = { "ArchiveCloseReader", "ArchiveOpenGallery", "ArchiveReaderFullscreen", "ExportArchiveButton", "ArchiveHistoryBack" };
         try
         {
             foreach (string language in new[] { "de", "en" })
@@ -402,6 +615,13 @@ internal static class ReaderUxChecks
                     if (labeled.Contains(name))
                         Require(icon is StackPanel panel && panel.Children.OfType<TextBlock>().Any(text => !string.IsNullOrWhiteSpace(text.Text)),
                             name + " lost its visible action label.");
+                    if (name == "ArchiveHistoryBack")
+                    {
+                        string label = MeowChan.Desktop.Commands.CommandCatalog.Label("reader.history-back");
+                        Require(icon is StackPanel historyPanel && historyPanel.Children.OfType<TextBlock>().Any(text => text.Text == label)
+                            && Avalonia.Automation.AutomationProperties.GetName(button) == label,
+                            "Reader history lost its localized visible label or accessible command name.");
+                    }
                     if (!button.IsEffectivelyVisible) continue;
                     Point? position = icon.TranslatePoint(default, button);
                     Require(button.Bounds.Width > 0 && (labeled.Contains(name) || button.Bounds.Width <= 40)

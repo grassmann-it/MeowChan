@@ -100,7 +100,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput();
+        InitializeComponent(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
@@ -189,6 +189,7 @@ public partial class ArchivePage : UserControl
                 };
             }).ToArray();
             if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
+            ConfigureThreadFavoriteRows(rows);
             _updatingList = true;
             try
             {
@@ -479,6 +480,7 @@ public partial class ArchivePage : UserControl
     {
         UpdateFeedbackVisuals();
         UpdateMediaRatingAction();
+        UpdateThreadFavoriteActions();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
@@ -835,6 +837,7 @@ public partial class ArchivePage : UserControl
         {
             ArchiveThreadRow[] localized = rows.Select(row => new ArchiveThreadRow(row.Summary, row.Work)
             { PreviewText = row.PreviewText, PreviewAttachment = row.PreviewAttachment }).ToArray();
+            ConfigureThreadFavoriteRows(localized);
             _updatingList = true;
             try
             {
@@ -870,7 +873,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(Control<Button>("NextPostsButton"), "pagination.next", iconOnly: true);
         CommandBindings.Apply(Control<Button>("PreviousReferences"), "pagination.previous", iconOnly: true);
         CommandBindings.Apply(Control<Button>("NextReferences"), "pagination.next", iconOnly: true);
-        CommandBindings.Apply(Control<Button>("ArchiveHistoryBack"), "reader.history-back", iconOnly: true);
+        CommandBindings.Apply(Control<Button>("ArchiveHistoryBack"), "reader.history-back", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ArchiveReaderFullscreen"), "window.fullscreen", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ArchiveCloseReader"), "reader.close", iconWithLabel: true);
         CommandBindings.Apply(Control<Button>("ArchiveOpenGallery"), "gallery.open", iconWithLabel: true);

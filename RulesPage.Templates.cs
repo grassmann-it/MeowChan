@@ -133,7 +133,7 @@ public partial class RulesPage
             {
                 _templateTitleView = TemplateText(string.Empty, true); panel.Children.Add(_templateTitleView);
                 _templateHintView = TemplateText(string.Empty); panel.Children.Add(_templateHintView);
-                WrapPanel top = new(); panel.Children.Add(top);
+                WrapPanel top = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(top);
                 _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
                 _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
@@ -147,7 +147,7 @@ public partial class RulesPage
                     _templatePreview = null; RefreshTemplatesPanel();
                 };
                 panel.Children.Add(_templateList);
-                WrapPanel actions = new(); panel.Children.Add(actions);
+                WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
                 foreach (string id in new[] { "create", "edit", "delete", "preview", "undo-apply" })
                 {
                     string command = "rules.template-" + id;
@@ -206,7 +206,7 @@ public partial class RulesPage
         FontWeight = heading ? FontWeight.SemiBold : FontWeight.Normal, Focusable = heading };
     private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true)
     {
-        Button button = new() { Name = key.Replace('.', '-'), Content = Texts.T(key), IsEnabled = enabled, Margin = new Avalonia.Thickness(0, 0, 8, 6) };
+        Button button = new() { Name = key.Replace('.', '-'), Content = Texts.T(key), IsEnabled = enabled };
         AutomationProperties.SetName(button, Texts.T(key)); button.Click += async (_, _) => await action(); panel.Children.Add(button); return button;
     }
     private string TemplateGroups(RuleTemplate template) => string.Join(", ", new[] { template.Types == null ? null : TypesLabel,
@@ -260,7 +260,7 @@ public partial class RulesPage
         panel.Children.Add(TemplateText(Texts.T("templates.effectBefore", EffectiveDescription(preview.Target))));
         panel.Children.Add(TemplateText(Texts.T("templates.effectAfter", EffectiveDescription(preview.After))));
         panel.Children.Add(TemplateText(Texts.T("templates.replaceWarning")));
-        WrapPanel actions = new(); panel.Children.Add(actions);
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
         AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; });
         Button apply = AddTemplateButton(actions, "templates.apply",
             async () => await ExecuteTemplateCommandAsync("rules.template-apply"), CanExecuteTemplateCommand("rules.template-apply"));

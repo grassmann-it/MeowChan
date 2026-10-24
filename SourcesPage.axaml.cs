@@ -157,7 +157,7 @@ public partial class SourcesPage : UserControl
             StackPanel labels = new StackPanel { Spacing = 5 };
             labels.Children.Add(new TextBlock { Text = Texts.T(label), FontWeight = Avalonia.Media.FontWeight.SemiBold, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
             TextBlock value = new TextBlock { Text = Texts.T(state) }; value.Classes.Add("muted"); labels.Children.Add(value);
-            Border card = new Border { Child = labels, Padding = new Thickness(12), Width = 205, Margin = new Thickness(0, 0, 8, 8) };
+            Border card = new Border { Child = labels, Padding = new Thickness(12), Width = 205 };
             card.Classes.Add("panel"); capabilities.Children.Add(card);
         }
         this.FindControl<TextBlock>("SourceCaptureAvailability")!.Text = Texts.T(row.Descriptor.CaptureAvailable

@@ -31,9 +31,9 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <TextBox x:Name="SessionFeedbackDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="36" MaxHeight="90" />
-                        <WrapPanel>
-                            <Button x:Name="CopySessionFeedbackButton" Margin="0,0,8,4" Tag="feedback.copy" Classes="localized" Click="OnCopyFeedback" />
-                            <Button x:Name="ClearSessionFeedbackButton" Margin="0,0,8,4" Tag="feedback.clear" Classes="localized" Click="OnClearFeedback" />
+                        <WrapPanel ItemSpacing="8" LineSpacing="6">
+                            <Button x:Name="CopySessionFeedbackButton" Tag="feedback.copy" Classes="localized" Click="OnCopyFeedback" />
+                            <Button x:Name="ClearSessionFeedbackButton" Tag="feedback.clear" Classes="localized" Click="OnClearFeedback" />
                         </WrapPanel>
                     </StackPanel>
                 </Expander>
@@ -59,11 +59,11 @@
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
                 <TextBlock x:Name="DiagnosticsActionError" Classes="error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
-            <WrapPanel Orientation="Horizontal">
-                <Button x:Name="ManageMediaRatingsButton" Margin="0,0,8,4" Click="OnManageMediaRatingsClick" />
-                <Button x:Name="RetryDiagnosticButton" Margin="0,0,8,4" Tag="check.action" Classes="localized" Click="OnRetryClick" />
-                <Button x:Name="CopyDiagnosticButton" Margin="0,0,8,4" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
-                <Button x:Name="OpenDiagnosticWatchButton" Margin="0,0,8,4" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
+            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                <Button x:Name="ManageMediaRatingsButton" Click="OnManageMediaRatingsClick" />
+                <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" />
+                <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
+                <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
             </WrapPanel>
         </StackPanel>
     </Grid>

@@ -27,7 +27,7 @@
                     <TextBlock x:Name="SourceHeading" Classes="section-title" FontSize="18" />
                     <TextBlock x:Name="SourceIdentity" Classes="muted mono" TextWrapping="Wrap" />
                     <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
-                    <WrapPanel x:Name="CapabilityCards" />
+                    <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" />
                     <TextBlock x:Name="SourceCaptureAvailability" Classes="muted" TextWrapping="Wrap" />
                     <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch">
                         <StackPanel Spacing="6">
@@ -35,7 +35,7 @@
                             <TextBlock x:Name="SourceVersion" Classes="muted" TextWrapping="Wrap" />
                         </StackPanel>
                     </Expander>
-                    <WrapPanel>
+                    <WrapPanel ItemSpacing="8" LineSpacing="6">
                         <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
                         <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
                         <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />

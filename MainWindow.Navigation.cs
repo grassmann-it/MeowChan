@@ -56,6 +56,7 @@ public partial class MainWindow
         this.FindControl<ContentControl>("RulesPageHost")!.Content = _rulesPage;
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
         _archivePage.AttachSavedSearches(_session);
+        _archivePage.AttachThreadFavorites(_session);
         _archivePage.ExportHistory = _session.ExportHistory;
         _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;

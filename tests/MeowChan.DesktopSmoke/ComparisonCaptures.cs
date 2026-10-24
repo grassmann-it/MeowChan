@@ -293,8 +293,19 @@ internal static class ComparisonCaptures
                 "watch.retry-media", "rules.edit-scope", "watch.remove" };
             MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
             foreach (string action in requiredActions)
-                if (items.Count(item => AutomationProperties.GetName(item) == CommandCatalog.Label(action)) != 1)
+            {
+                MenuItem[] matches = items.Where(item => item.Tag as string == action).ToArray();
+                if (matches.Length != 1)
                     throw new InvalidOperationException("Context menu did not expose exactly one required action: " + action);
+                // Passive fixture rows have no registered check targets or retryable work.
+                bool unavailable = action is "watch.check" or "watch.retry-media";
+                string expectedLabel = CommandCatalog.Label(action) + (unavailable ? " (0)" : "");
+                MenuItem item = matches[0];
+                if (item.Header as string != expectedLabel || AutomationProperties.GetName(item) != expectedLabel)
+                    throw new InvalidOperationException("Context action did not expose its expected fixture label: " + action);
+                if (unavailable && item.IsEnabled)
+                    throw new InvalidOperationException("Context action without fixture targets was enabled: " + action);
+            }
             if (items.Any(item => item.Icon is not Border))
                 throw new InvalidOperationException("A context action or availability explanation is missing its shared icon.");
             Border[] icons = items.Select(item => (Border)item.Icon!).ToArray();

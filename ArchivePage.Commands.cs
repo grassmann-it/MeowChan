@@ -119,12 +119,12 @@ public partial class ArchivePage
         List<Func<string?>> disabledReasons = new();
         bool Ready() => _available && !_ended && !_busy;
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
-            Func<int>? count = null, bool leadAction = false)
+            Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
         {
             MenuItem? item = null;
-            string Label() => count != null ? Texts.T("archive.command.batchCount", CommandCatalog.Label(id), count())
-                : leadAction ? Texts.T("archive.command.leadTarget", CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
-                : CommandCatalog.Label(id);
+            string Label() => count != null ? Texts.T("archive.command.batchCount", actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
+                : leadAction ? Texts.T("archive.command.leadTarget", actionLabel?.Invoke() ?? CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
+                : actionLabel?.Invoke() ?? CommandCatalog.Label(id);
             void UpdateLabel()
             {
                 if (item == null) return;
@@ -146,6 +146,9 @@ public partial class ArchivePage
             menu.Items.Add(item);
             disabledReasons.Add(() => !Enabled() && Reason() is string why ? CommandCatalog.Label(id) + ": " + why : null);
         }
+        Add("thread.favorite-toggle", async () => await ToggleThreadFavoriteAsync(lead.Summary.Id),
+            () => CanToggleThreadFavorite(lead.Summary.Id), _threadFavoriteLoadError ?? Texts.T("archive.command.busy"),
+            leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
         Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
         Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);

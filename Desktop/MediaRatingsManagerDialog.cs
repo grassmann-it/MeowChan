@@ -58,8 +58,8 @@ internal sealed class MediaRatingsManagerDialog : Window
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive); _error.Classes.Add("error");
         StackPanel footer = new() { Spacing = 8 };
         footer.Children.Add(_identity); footer.Children.Add(_error);
-        WrapPanel buttons = new();
-        foreach (Button button in new[] { _remove, _confirm, _cancel, _close }) { button.Margin = new Thickness(0,0,8,0); buttons.Children.Add(button); }
+        WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 6 };
+        foreach (Button button in new[] { _remove, _confirm, _cancel, _close }) buttons.Children.Add(button);
         footer.Children.Add(buttons);
         Grid grid = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
         grid.Children.Add(_search); grid.Children.Add(_list); Grid.SetRow(_list, 1); grid.Children.Add(footer); Grid.SetRow(footer, 2); Content = grid;

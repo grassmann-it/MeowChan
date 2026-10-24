@@ -106,6 +106,22 @@ internal static class ReaderReturnChecks
 
     private static async Task CheckCloseFocusAsync(MainWindow window)
     {
+        double width = window.Width, height = window.Height;
+        PixelPoint position = window.Position;
+        try { await CheckCloseFocusCoreAsync(window); }
+        finally
+        {
+            // The wide focus fixture must not become the following gallery
+            // fullscreen check's normal origin on a smaller scaled desktop.
+            window.Width = width; window.Height = height;
+            window.Position = position;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        }
+    }
+
+    private static async Task CheckCloseFocusCoreAsync(MainWindow window)
+    {
         // Use the actual MainWindow detach/attach/close path. The embedded reader
         // already has a visible anchor before opening the large reader.
         window.Width = 1915; window.Height = 1045;

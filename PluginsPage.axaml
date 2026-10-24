@@ -2,10 +2,10 @@
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
   <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="10">
     <StackPanel Spacing="6">
-      <WrapPanel>
-        <TextBlock x:Name="PluginsTitle" FontSize="24" FontWeight="SemiBold" Margin="0,0,16,0" />
-        <Button x:Name="PluginsRefresh" Click="OnRefreshClick" Margin="0,0,8,4" />
-        <Button x:Name="PluginsFolder" Click="OnFolderClick" Margin="0,0,8,4" />
+      <WrapPanel ItemSpacing="8" LineSpacing="6">
+        <TextBlock x:Name="PluginsTitle" FontSize="24" FontWeight="SemiBold" Margin="0,0,8,0" />
+        <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
+        <Button x:Name="PluginsFolder" Click="OnFolderClick" />
       </WrapPanel>
       <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
       <StackPanel Orientation="Horizontal" Spacing="8">
@@ -36,18 +36,18 @@
           <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
           <TextBlock x:Name="PluginStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
           <TextBlock x:Name="PluginCandidateDiagnostics" TextWrapping="Wrap" Classes="error" />
-          <WrapPanel>
-            <Button x:Name="PluginEnabled" Click="OnEnabledClick" Margin="0,0,8,6" />
-            <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" Margin="0,0,8,6" />
-            <Button x:Name="PluginRollback" Click="OnRollbackClick" Margin="0,0,8,6" />
-            <Button x:Name="PluginWatches" Click="OnWatchesClick" Margin="0,0,8,6" />
+          <WrapPanel ItemSpacing="8" LineSpacing="6">
+            <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
+            <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
+            <Button x:Name="PluginRollback" Click="OnRollbackClick" />
+            <Button x:Name="PluginWatches" Click="OnWatchesClick" />
           </WrapPanel>
           <SelectableTextBlock x:Name="PluginActivationReasons" TextWrapping="Wrap" Focusable="True" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
           <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" />
-          <WrapPanel>
-            <Button x:Name="PluginSave" Classes="primary" Click="OnSaveClick" Margin="0,0,8,6" />
-            <Button x:Name="PluginDiscard" Click="OnDiscardClick" Margin="0,0,8,6" />
+          <WrapPanel ItemSpacing="8" LineSpacing="6">
+            <Button x:Name="PluginSave" Classes="primary" Click="OnSaveClick" />
+            <Button x:Name="PluginDiscard" Click="OnDiscardClick" />
           </WrapPanel>
           <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" />
           <Expander x:Name="PluginInfoExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginInformation" Spacing="8" /></Expander>
@@ -56,10 +56,10 @@
             <StackPanel Spacing="8">
               <TextBlock x:Name="PluginSourcePath" TextWrapping="Wrap" />
               <TextBlock x:Name="PluginTestHint" TextWrapping="Wrap" Classes="muted" />
-              <WrapPanel>
-                <Button x:Name="PluginEdit" Click="OnEditClick" Margin="0,0,8,6" />
-                <Button x:Name="PluginDefaultEditor" Click="OnDefaultEditorClick" Margin="0,0,8,6" />
-                <Button x:Name="PluginBuild" Click="OnBuildClick" Margin="0,0,8,6" />
+              <WrapPanel ItemSpacing="8" LineSpacing="6">
+                <Button x:Name="PluginEdit" Click="OnEditClick" />
+                <Button x:Name="PluginDefaultEditor" Click="OnDefaultEditorClick" />
+                <Button x:Name="PluginBuild" Click="OnBuildClick" />
               </WrapPanel>
               <SelectableTextBlock x:Name="PluginSourceReasons" TextWrapping="Wrap" Focusable="True" />
               <StackPanel x:Name="PluginBuildDiagnostics" Spacing="6" />

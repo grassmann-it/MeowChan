@@ -51,7 +51,7 @@
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" Margin="0,0,0,10" />
                     <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" Margin="0,0,0,10"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
-                    <Button x:Name="OpenParentRuleButton" IsVisible="False" Click="OnOpenParentScope" />
+                    <Button x:Name="OpenParentRuleButton" IsVisible="False" Click="OnOpenParentScope" Margin="0,0,0,6" />
                     <CheckBox x:Name="RuleEnabledInput" Content="{Binding EnabledLabel}" IsChecked="{Binding RuleEnabled, Mode=TwoWay}" />
                     <TextBlock Text="{Binding EnabledHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4" />
                     <StackPanel IsEnabled="{Binding RuleEnabled}">

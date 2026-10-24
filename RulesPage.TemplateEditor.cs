@@ -204,7 +204,7 @@ public partial class RulesPage
         _templateEditorErrorView.Focusable = true; _templateEditorErrorView.IsVisible = editor.Error != null; panel.Children.Add(_templateEditorErrorView);
         _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         panel.Children.Add(_templateEditorStaleView);
-        WrapPanel actions = new(); panel.Children.Add(actions);
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
         Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; });
         _templateEditorConfirmation = new(cancel);
         _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision);

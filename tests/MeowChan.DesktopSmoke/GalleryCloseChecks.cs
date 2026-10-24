@@ -48,6 +48,10 @@ internal static class GalleryCloseChecks
             "Gallery fullscreen control is not reachable.");
         WindowState expectedExit = maximizedOrigin ? WindowState.Maximized : WindowState.Normal;
         Exception? exitFailure = null;
+        Console.WriteLine($"SMOKE gallery close origin: expected={expectedExit}, normal={normalOrigin}, "
+            + $"state={window.WindowState}, requested={window.Width}x{window.Height}, client={window.ClientSize}, "
+            + $"frame={window.FrameSize}, working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}, "
+            + $"scale={window.RenderScaling}, gallery-visible={host.IsEffectivelyVisible}.");
         await ObserveFullscreenPresentationAsync(window, host, "before", immersive: false);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_SKIP_FULLSCREEN") != "1")
         {
@@ -83,11 +87,23 @@ internal static class GalleryCloseChecks
                 catch (Exception captureError) { Console.WriteLine("SMOKE gallery fullscreen exit capture failed: " + captureError); }
             }
             await Task.Delay(250);
-            if (!(window.WindowState == expectedExit && host.IsEffectivelyVisible
-                && (maximizedOrigin ? IsNativeMaximized(window)
-                    : Math.Abs(window.Bounds.Width - normalOrigin.Width) <= 2
-                        && Math.Abs(window.Bounds.Height - normalOrigin.Height) <= 2)))
+            bool stateMatches = window.WindowState == expectedExit;
+            bool galleryVisible = host.IsEffectivelyVisible;
+            bool sizeMatches = maximizedOrigin ? IsNativeMaximized(window)
+                : Math.Abs(window.Bounds.Width - normalOrigin.Width) <= 2
+                    && Math.Abs(window.Bounds.Height - normalOrigin.Height) <= 2;
+            if (!(stateMatches && galleryVisible && sizeMatches))
+            {
                 exitFailure ??= new InvalidOperationException("Gallery or window state did not survive fullscreen exit.");
+                // OnMainWindowClose can end the dispatcher before the saved
+                // failure is rethrown after the native caption click below.
+                Console.Error.WriteLine($"SMOKE gallery fullscreen exit stability failure: {exitFailure}; "
+                    + $"expected={expectedExit}, original-normal={normalOrigin}, state-matches={stateMatches}, "
+                    + $"gallery-visible={galleryVisible}, size-matches={sizeMatches}, state={window.WindowState}, "
+                    + $"bounds={window.Bounds}, delta={window.Bounds.Width - normalOrigin.Width}x{window.Bounds.Height - normalOrigin.Height}, "
+                    + $"requested={window.Width}x{window.Height}, client={window.ClientSize}, frame={window.FrameSize}, "
+                    + $"working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}, scale={window.RenderScaling}.");
+            }
         }
         else Console.WriteLine("SMOKE gallery close: fullscreen toggles skipped for native caption input control.");
 
