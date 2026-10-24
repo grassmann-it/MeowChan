@@ -36,6 +36,7 @@ internal static class AccessibilityNativeChecks
             if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "shortcuts")
             {
                 await NativeFeatureCheckpoint.ShortcutsAsync(window.SettingsEditor);
+                await NativeFeatureCheckpoint.ShortcutContextsAsync(window.SettingsEditor);
                 window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
                 continue;

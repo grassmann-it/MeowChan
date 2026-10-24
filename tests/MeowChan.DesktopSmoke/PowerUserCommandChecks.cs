@@ -49,7 +49,9 @@ internal static class PowerUserCommandChecks
             Press(window, "navigation.downloads");
             Require(!Press(url, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
                 "A page shortcut intercepted a native text input.");
-            Require(!Press(url, "session.pause").Handled, "Pause intercepted a native input.");
+            bool beforeTextPause = window.SessionHost.IsPaused;
+            Require(!Press(url, "session.pause").Handled && window.SessionHost.IsPaused == beforeTextPause
+                && Config.LoadConfig().DownloadsPaused == beforeTextPause, "Pause intercepted a native input.");
             foreach (string language in new[] { "en", "de" })
             {
                 Texts.SetLanguage(language);
@@ -80,6 +82,18 @@ internal static class PowerUserCommandChecks
             Require(Config.LoadConfig().DownloadsPaused == !paused, "The shortcut bypassed the durable pause path.");
             pause.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => pause.IsEnabled && window.SessionHost.IsPaused == paused);
+            window.Activate();
+            await Program.WaitUntilAsync(() => window.IsActive && pause.IsEffectivelyVisible && pause.IsEffectivelyEnabled
+                && !window.SessionHost.IsPauseTransitioning && ReferenceEquals(TopLevel.GetTopLevel(pause), window));
+            Require(pause.Focus() && pause.IsFocused && ReferenceEquals(window.FocusManager?.GetFocusedElement(), pause),
+                "The pause shortcut fixture did not focus the attached header button.");
+            Require(Press(pause, "session.pause").Handled, "The pause shortcut was blocked by the focused header button.");
+            await Program.WaitUntilAsync(() => pause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                && window.SessionHost.IsPaused != paused);
+            Require(Config.LoadConfig().DownloadsPaused == !paused, "The focused-button shortcut bypassed durable pause.");
+            pause.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => pause.IsEnabled && window.SessionHost.IsPaused == paused);
+            await CheckNativeButtonActivationAsync(window, pause);
         }
         finally
         {
@@ -92,7 +106,52 @@ internal static class PowerUserCommandChecks
             await PresentationChecks.SwitchModeAsync(window, originalMode);
             Press(window, "navigation.downloads");
         }
-        Console.WriteLine("SMOKE poweruser: B/S/A direct navigation, retained drafts, native-input/dialog/help guards, scoped EN/DE F1, shared pause/resume passed.");
+        Console.WriteLine("SMOKE poweruser: B/S/A direct navigation, retained drafts, native-input/dialog/help guards, scoped EN/DE F1, focused-button durable pause and native Enter/Space passed.");
+    }
+
+    private static async Task CheckNativeButtonActivationAsync(MainWindow window, Button pause)
+    {
+        Config original = window.SessionHost.Config.Clone();
+        try
+        {
+            Config candidate = original.Clone();
+            // Remove the existing Enter/Space commands so the shell remap is valid,
+            // then prove the gestures are live before checking button ownership.
+            foreach (string id in new[] { "thread.read", "media.open", "video.play-pause" })
+                candidate.ShortcutBindings = candidate.ShortcutBindings.Set(id, Array.Empty<ShortcutGesture>());
+            candidate.ShortcutBindings = candidate.ShortcutBindings.Set("navigation.archive",
+                new[] { ShortcutGesture.Parse("Enter"), ShortcutGesture.Parse("Space") });
+            long revision = ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(candidate);
+            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            foreach (Key key in new[] { Key.Enter, Key.Space })
+            {
+                var navigation = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key };
+                window.RaiseEvent(navigation);
+                Require(navigation.Handled && window.SelectedPage == MainWindow.WorkspacePage.Archive,
+                    "The native button guard fixture used an inactive shell remap: " + key);
+                Require(Press(window, "navigation.downloads").Handled, "The activation fixture could not return to Downloads.");
+                await Program.WaitUntilAsync(() => pause.IsEnabled && !window.SessionHost.IsPauseTransitioning);
+                Require(pause.Focus() && pause.IsFocused && ReferenceEquals(window.FocusManager?.GetFocusedElement(), pause),
+                    "The native activation fixture did not focus Pause: " + key);
+                bool paused = window.SessionHost.IsPaused;
+                pause.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+                pause.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key });
+                Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads,
+                    "A shell remap stole native button activation: " + key);
+                await Program.WaitUntilAsync(() => pause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                    && window.SessionHost.IsPaused != paused);
+                Require(Config.LoadConfig().DownloadsPaused == !paused, "Native button activation did not persist pause: " + key);
+                pause.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => pause.IsEnabled && window.SessionHost.IsPaused == paused);
+            }
+        }
+        finally
+        {
+            long revision = ShortcutService.Revision;
+            await window.SessionHost.ApplySettingsAsync(original);
+            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+        }
     }
 
     private static KeyEventArgs Press(Control source, string command)

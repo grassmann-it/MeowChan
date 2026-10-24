@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -5,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -44,10 +46,25 @@ internal static class ArchiveMediaCommandChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             ContextMenu menu = page.ArchiveMediaMenu!;
             Require(menu.IsOpen, "Inline keyboard context request did not open a media menu.");
-            MenuItem[] commands = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string).ToArray();
-            Require(commands.Select(item => (string)item.Tag!).SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.export-original", "media.show-in-folder", "gallery.show-in-thread", "media.details" }),
-                "Inline media menu lacks the shared media actions or order.");
+            MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
+            Console.WriteLine("SMOKE archive media menu: " + JsonSerializer.Serialize(items
+                .Select(item => new { item.Tag, header = item.Header?.ToString(), item.IsEnabled,
+                    canExecute = item.Command?.CanExecute(item.CommandParameter) })));
+            Require(page.EditPostBookmark != null && items.Length == 8 && items[0].Tag == null
+                && Equals(items[0].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
+                "The real reader media menu lost its leading post-bookmark action or contains unexpected actions.");
+            MenuItem bookmark = items[0];
+            Require(bookmark.IsEnabled && bookmark.Command?.CanExecute(bookmark.CommandParameter) == true,
+                "The captured inline post has no available shared bookmark action.");
+            // Check every remaining item; do not hide the untagged bookmark or any unexpected action.
+            MenuItem[] commands = items.Skip(1).ToArray();
+            string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
+            Require(actualTags.SequenceEqual(new[]
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.export-original", "media.show-in-folder", "gallery.show-in-thread", "media.details" }),
+                "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
+            MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
+            Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
+                "Saved inline media has no available shared rating action.");
             commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");

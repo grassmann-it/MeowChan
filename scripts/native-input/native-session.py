@@ -13,7 +13,7 @@ try:
  require_private_session()
  start(['/usr/lib/at-spi2-registryd'],'registry.log');time.sleep(.5)
  start([sys.executable,str(bundle/'usr/bin/orca'),'--debug-file',str(out/'orca-debug.log')],'orca.log');time.sleep(1)
- flags=['--plugins'] if suite=='plugins' else []
+ flags=['--plugins'] if suite=='plugins' else ['--accessibility-probe'] if suite=='shortcuts' else []
  app=start(['dotnet',str(assembly),*flags],'app.log')
  inspector=start([sys.executable,str(Path(__file__).with_name('inspect-features.py')),str(out),str(app.pid)],'inspector.log')
  appstatus=app.wait(timeout=880);inspector.wait(timeout=12)

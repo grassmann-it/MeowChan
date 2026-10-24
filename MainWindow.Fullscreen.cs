@@ -647,7 +647,7 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
-        if (CanExecuteShellPowerCommand(e.Source))
+        if (CanExecuteShellPowerCommand(e.Source, e.Key))
         {
             foreach ((string id, WorkspacePage page) in new[]
             {
@@ -696,9 +696,9 @@ public partial class MainWindow
         { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
     }
 
-    internal bool CanExecuteShellPowerCommand(object? source) => _workspaceInitialized && _restoreCompleted
+    internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted
         && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
-        && !IsNativeShortcutSource(source) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
+        && !CommandRouter.IsNativeInput(source, key) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
         && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }

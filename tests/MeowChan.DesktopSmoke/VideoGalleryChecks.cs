@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -10,6 +11,8 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using MeowChan.Gallery;
+using MeowChan.Storage;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -24,19 +27,54 @@ internal static class VideoGalleryChecks
         byte[] image = await File.ReadAllBytesAsync(Path.Combine(profile, "Reader media", "reader.png"));
         await File.WriteAllBytesAsync(Path.Combine(media, "clip.webm"), video);
         await File.WriteAllBytesAsync(Path.Combine(media, "image.png"), image);
-        object Entry(string id, string name, byte[] bytes) => new { MediaIdentifier = id,
-            SourceUrl = "https://offline.invalid/" + name, FileName = name, Length = bytes.Length,
-            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)), Md5 = Convert.ToBase64String(MD5.HashData(bytes)) };
+        // Fresh archive captures receive host revision keys. Seed exact current bindings
+        // so the gallery keeps post order instead of sorting unassigned image before video.
+        Dictionary<string, object> entries = new();
+        Dictionary<string, object> assets = new();
+        Dictionary<string, MediaAttachmentBinding> bindings = new();
+        CapturedAttachment Entry(string postId, string id, string name, byte[] bytes)
+        {
+            string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            string md5 = Convert.ToBase64String(MD5.HashData(bytes));
+            MediaProviderMetadata provider = new(id, "original", "https://offline.invalid/" + name,
+                name, bytes.Length, md5, sha256);
+            MediaActualIntegrity actual = new(bytes.Length, md5, sha256);
+            string revision = MediaRevisionKeys.CreateAttachmentKey(Id, postId, 0, provider);
+            string assetId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                JsonSerializer.Serialize(new[] { name, id, name, sha256 })))).ToLowerInvariant();
+            object entry = new { MediaIdentifier = id, Variant = provider.Variant, SourceUrl = provider.Url,
+                FileName = name, Length = bytes.Length, Sha256 = sha256, Md5 = md5, OriginalFileName = name };
+            entries[name] = entry;
+            assets[assetId] = new { RequestedFileName = name, Entry = entry };
+            bindings[revision] = new(new(Id, postId, 0, revision),
+                MediaRevisionKeys.CreateAcquisitionKey(Id, provider), assetId, provider, actual,
+                new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UnixEpoch));
+            return new(0, id, provider.Variant, provider.Url, name,
+                ExpectedSize: bytes.Length, ExpectedMd5: md5)
+                { ExpectedSha256 = sha256, AttachmentRevisionKey = revision };
+        }
+        CapturedAttachment videoAttachment = Entry("2000", "video", "clip.webm", video);
+        CapturedAttachment imageAttachment = Entry("2001", "image", "image.png", image);
         await File.WriteAllTextAsync(Path.Combine(media, ".meowchan-manifest.json"), JsonSerializer.Serialize(new {
-            Version = 1, Entries = new Dictionary<string, object> { ["clip.webm"] = Entry("video", "clip.webm", video),
-                ["image.png"] = Entry("image", "image.png", image) } }));
+            Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
         await catalog.CaptureAsync(new CapturedThreadSnapshot(Id, "https://boards.4chan.org/g/thread/2000", "Video UX",
             ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, new[] {
-                new CapturedPost("2000", 0, PostFieldPresence.All, Html: "Saved WebM", Attachments: new[] { new CapturedAttachment(0, "video", OriginalFileName: "clip.webm") }),
-                new CapturedPost("2001", 1, PostFieldPresence.All, Html: "Saved image", Attachments: new[] { new CapturedAttachment(0, "image", OriginalFileName: "image.png") }) }));
+                new CapturedPost("2000", 0, PostFieldPresence.All, Html: "Saved WebM", Attachments: new[] { videoAttachment }),
+                new CapturedPost("2001", 1, PostFieldPresence.All, Html: "Saved image", Attachments: new[] { imageAttachment }) }));
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+        ArchivedThreadView thread = await reader.ReadThreadAsync(Id)
+            ?? throw new InvalidOperationException("The video fixture archive was not captured.");
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(media);
+        GalleryThreadResult selected = GallerySelection.Build(thread, new[] { manifest }, includeOtherMedia: true);
+        Require(selected.Entries.Count == 2 && selected.Entries[0].Kind == SavedMediaKind.Video
+            && selected.Entries[0].Post?.PostId == "2000" && selected.Entries[1].Post?.PostId == "2001"
+            && selected.Entries.All(entry => !entry.Unassigned && entry.AttachmentResolution?.Binding?.Acceptance.Kind == MediaAcceptanceKind.Strict),
+            "The seeded video/image fixture must resolve exact strict bindings in captured post order.");
+        Console.WriteLine("SMOKE video fixture: two exact strict bindings; video post 2000 precedes image post 2001.");
     }
+
     internal static async Task RunAsync(MainWindow window)
     {
         await CheckSoftwareSurfaceAsync(window);

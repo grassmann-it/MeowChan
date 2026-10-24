@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--source-manifest', required=True, type=Path)
     parser.add_argument('--assembly', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--suite', choices=('plugins', 'sources', 'saved-searches'), required=True)
+    parser.add_argument('--suite', choices=('plugins', 'sources', 'saved-searches', 'shortcuts'), required=True)
     parser.add_argument('--language', choices=('en', 'de'), default='en')
     parser.add_argument('--scale', choices=('1', '1.5', '2'), default='1')
     parser.add_argument('--bundle', required=True, type=Path,
@@ -56,9 +56,10 @@ def main():
     expected = {
         'plugins': ['plugin-overview', 'plugin-local-error', 'source-worker-error'],
         'sources': ['source-policy', 'source-plugin-link'],
+        'shortcuts': ['shortcuts', 'shortcut-text', 'shortcut-normal'],
         'saved-searches': ['archive-search', 'saved-search-name', 'saved-search-manager'],
     }[args.suite]
-    languages = ('en', 'de') if args.suite == 'sources' else (args.language,)
+    languages = ('en', 'de') if args.suite in ('sources', 'shortcuts') else (args.language,)
     spec = importlib.util.spec_from_file_location('private_desktop', repo / 'scripts/run-desktop-smoke.py')
     desktop = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(desktop)
@@ -72,7 +73,7 @@ def main():
         'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'source': str(repo), 'sourceDigest': source_digest,
         'sourceManifestSha256': digest(args.source_manifest), 'sourceFilesVerified': len(files),
-        'suite': args.suite, 'language': args.language, 'scale': args.scale,
+        'suite': args.suite, 'language': args.language, 'observedLanguages': list(languages), 'scale': args.scale,
         'assemblies': {str(path): digest(path) for path in
                        (assembly, assembly.with_name('MeowChan.dll'), assembly.with_name('libmeowchan.dll'))},
         'helpers': {path.name: digest(path) for path in here.glob('*.py')},
@@ -112,6 +113,8 @@ def main():
             'MEOWCHAN_NATIVE_SOURCE_DIGEST': source_digest, 'MEOWCHAN_SOURCE_DIGEST': source_digest,
             'MEOWCHAN_SAVED_SEARCH_SOURCE_DIGEST': source_digest,
         })
+        if args.suite == 'shortcuts':
+            environment.update(MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY='1')
         if args.suite == 'sources':
             environment.update(MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY='1', MEOWCHAN_SOURCE_INTEGRITY_EXPECT_SCALE=args.scale)
         if args.suite == 'saved-searches':
@@ -121,7 +124,12 @@ def main():
         custom = work / 'data/orca'
         custom.mkdir(parents=True)
         (custom / 'orca-customizations.py').write_text(
-            "from orca import gsettings_registry\n"
+            "from orca import debug, gsettings_registry\n"
+            "if debug.debugFile is None:\n"
+            "    raise RuntimeError('Native observer requires the real Orca debug file')\n"
+            "debug.debugFile.reconfigure(line_buffering=True)\n"
+            "debug.debugFile.flush()\n"
+            "debug.print_message(debug.LEVEL_INFO, 'MEOWCHAN NATIVE DEBUG FILE: line buffering enabled', True)\n"
             "gsettings_registry.get_registry().set_runtime_value('sound', 'enabled', False)\n"
             "gsettings_registry.get_registry().set_runtime_value('braille', 'enabled', False)\n")
         command = ['dbus-run-session', '--config-file=' + str(work / 'bus.conf'), '--',

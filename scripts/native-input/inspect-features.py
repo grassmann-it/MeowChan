@@ -154,7 +154,8 @@ def visible(nodes,identity,names=()):
 def text_value(node):
     return safe(lambda:Atspi.Text.get_text(node,0,-1))
 
-def native_key(keysym=0xff09):
+def native_key(keysym=0xff09,modifiers=()):
+    require_private_session()
     if os.environ.get('MEOWCHAN_DESKTOP_SMOKE_XVFB')!='1':
         raise RuntimeError('XTest keyboard probe requires the private Xvfb fixture')
     x11=ctypes.CDLL(ctypes.util.find_library('X11'));xtst=ctypes.CDLL(ctypes.util.find_library('Xtst'))
@@ -164,12 +165,132 @@ def native_key(keysym=0xff09):
     xtst.XTestFakeKeyEvent.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_int,ctypes.c_ulong]
     display=x11.XOpenDisplay(None)
     if not display:return False
+    held=[]
+    okay=True
     try:
-        key=x11.XKeysymToKeycode(display,keysym)
-        pressed=xtst.XTestFakeKeyEvent(display,key,1,0);released=xtst.XTestFakeKeyEvent(display,key,0,0)
+        codes=[x11.XKeysymToKeycode(display,symbol) for symbol in (*modifiers,keysym)]
+        if not all(codes):return False
+        for code in codes:
+            pressed=xtst.XTestFakeKeyEvent(display,code,1,0)
+            if pressed:held.append(code)
+            okay=bool(pressed) and okay
+    finally:
+        for code in reversed(held):okay=bool(xtst.XTestFakeKeyEvent(display,code,0,0)) and okay
         x11.XFlush(display)
-        return bool(key and pressed and released)
-    finally:x11.XCloseDisplay(display)
+        x11.XCloseDisplay(display)
+    return okay
+
+
+def send_native(stage,node,keysym,modifiers=()):
+    # Revalidate private ownership and the exact PID/frame recipient before each
+    # real input, including modifiers; never fall back to an active user window.
+    require_private_session()
+    if node is None or safe(node.get_process_id)!=pid:
+        require(stage+' owned native target',False,info(node));return False
+    frame=node
+    while frame is not None and safe(frame.get_role_name) not in ('frame','dialog','window'):
+        frame=safe(frame.get_parent)
+    activation=ensure_target(pid,safe(frame.get_name) if frame else None,pump)
+    ready=activation['ready'] and 'focused' in info(node)['states']
+    generated=native_key(keysym,modifiers) if ready else False
+    value={'stage':stage,'utc':time.time(),'keysym':hex(keysym),'modifiers':[hex(value) for value in modifiers],
+           'target':info(node),'recipient':activation,'generated':generated}
+    with (out/'native-actions.jsonl').open('a') as log:log.write(json.dumps(value,ensure_ascii=False)+'\n')
+    require(stage+' exact recipient and native key',ready and generated,value)
+    return ready and generated
+
+
+def wait_native(predicate):
+    # All actor work shares the existing checkpoint deadline; no retry/timeout extension.
+    while time.monotonic()<stage_deadline:
+        if predicate():return True
+        pump(.04)
+    return False
+
+
+def selected_action(actions_name):
+    nodes=tree()
+    owners=[(node,value) for node,value in nodes if value['name']==actions_name and value['role']=='list']
+    if len(owners)!=1:return None
+    owner,owner_value=owners[0]
+    rows=[(node,value) for node,value in nodes if value['role']=='list item' and 'selected' in value['states']
+          and value['path'][:len(owner_value['path'])]==owner_value['path']]
+    if len(rows)!=1:return None
+    item,item_value=rows[0]
+    return {'owner':owner_value,'item':item_value}
+
+
+def same_selection(before,after):
+    return bool(before and after and all(before[key][field]==after[key][field]
+        for key in ('owner','item') for field in ('path','name','role','id')))
+
+
+def inspect_shortcut_record(stage):
+    name=stage['id'];de=stage['language'].startswith('de')
+    record_name='Weiteres Kürzel aufnehmen' if de else 'Record additional shortcut'
+    capture_name='Tastenkürzel aufnehmen' if de else 'Record shortcut'
+    actions_name='Aktionen und Tastenkürzel' if de else 'Actions and shortcuts'
+    for activation,keysym in [('enter',0xff0d),('space',0x20)]:
+        before=selected_action(actions_name)
+        require(name+' '+activation+' unique selected action',before is not None,before)
+        if before is None:return
+        record=match(tree(),{'name':record_name})
+        require(name+' '+activation+' unique actual Record button',record is not None,{'expected':record_name,'actual':info(record)})
+        if record is None or not focus(record,name+' '+activation+' Record focus'):return
+        visible_focus='focused' in info(record)['states'] and 'showing' in info(record)['states']
+        require(name+' '+activation+' Record visible focus',visible_focus,info(record))
+        if not visible_focus:return
+        if not send_native(name+' '+activation+' Record',record,keysym):return
+        capture=None
+        def capturing():
+            nonlocal capture
+            capture=match(tree(),{'name':capture_name})
+            return capture is not None and 'focused' in info(capture)['states'] and 'enabled' in info(capture)['states']
+        started=wait_native(capturing)
+        require(name+' '+activation+' real capture focus',started,info(capture))
+        if not started:return
+        if not send_native(name+' '+activation+' Escape',capture,0xff1b):return
+        after=None
+        def returned():
+            nonlocal after
+            after=selected_action(actions_name)
+            return same_selection(before,after) and 'focused' in after['item']['states'] and 'showing' in after['item']['states']
+        restored=wait_native(returned)
+        result={'before':before,'after':after,'same_native_path_name_role_id':same_selection(before,after),
+                'focused_and_showing_after':restored,'scope':'Native Enter/Space starts Record, native Escape returns to exact selected action; no focus request after Escape.'}
+        (out/(name+'-'+activation+'-selected-action-return.json')).write_text(json.dumps(result,indent=2,ensure_ascii=False)+'\n')
+        require(name+' '+activation+' Escape exact selected return',restored,result)
+        if not restored:return
+
+
+def inspect_shortcut_text(stage,initial):
+    name=stage['id']
+    require(name+' actual text actor target',initial is not None,info(initial))
+    if initial is None or not focus(initial,name+' text setup focus'):return
+    raw=text_value(initial)
+    if not send_native(name+' text pause shortcut',initial,ord('p'),(0xffe3,0xffe1)):return
+    pump(.2)
+    require(name+' text shortcut preserves focus and raw text','focused' in info(initial)['states'] and text_value(initial)==raw,
+            {'node':info(initial),'before':raw,'after':text_value(initial)})
+    if not send_native(name+' forward Tab',initial,0xff09):return
+    moved=wait_native(lambda:'focused' not in info(initial)['states'])
+    focused=[node for node,value in tree() if 'focused' in value['states'] and value['role'] not in ('frame','dialog','window','application')]
+    require(name+' Tab actual next target',moved and len(focused)==1,[info(node) for node in focused])
+    if not moved or len(focused)!=1:return
+    if not send_native(name+' reverse ShiftTab',focused[0],0xff09,(0xffe1,)):return
+    restored=wait_native(lambda:'focused' in info(initial)['states'])
+    require(name+' ShiftTab exact text return',restored and text_value(initial)==raw,info(initial))
+
+
+def inspect_shortcut_normal(stage,initial):
+    name=stage['id']
+    require(name+' actual normal actor target',initial is not None,info(initial))
+    if initial is None or not focus(initial,name+' normal setup focus'):return
+    before=info(initial)
+    if not send_native(name+' normal pause shortcut',initial,ord('p'),(0xffe3,0xffe1)):return
+    changed=wait_native(lambda:info(initial)['name']!=before['name'] and 'enabled' in info(initial)['states'])
+    require(name+' normal command changes native pause state',changed,{'before':before,'after':info(initial),
+        'scope':'Native accessible Pause/Resume label transition; C# independently requires actual Host pause and persisted profile change.'})
 
 
 def match(nodes,probe):
@@ -181,6 +302,11 @@ def match(nodes,probe):
 
 def inspect_stage(stage):
     name=stage['id'];nodes=snapshot(name,'before')
+    if stage['family'] in ('shortcuts','shortcut-text','shortcut-normal'):
+        actual=stage.get('renderScaling')
+        valid=isinstance(actual,(int,float)) and abs(actual-float(os.environ['AVALONIA_GLOBAL_SCALE_FACTOR']))<=0.025
+        require(name+' actual native scale',valid,{'actual':actual,'requested':os.environ['AVALONIA_GLOBAL_SCALE_FACTOR']})
+        if not valid:return
     require(name+' native app tree',bool(nodes),{'pid':pid,'nodes':len(nodes)})
     initial=match(nodes,stage.get('initialFocus') or {})
     first=next((match(nodes,p) for p in stage['probes'] if p['focusable'] and p['enabled']),None)
@@ -222,7 +348,13 @@ def inspect_stage(stage):
         pump(.35)
         require(name+' native Tab moves focus',generated and 'focused' not in info(first)['states'],
                 {'x11_recipient_ready':activation['ready'],'key_generated':generated,'source':info(first),'focused':[v for _,v in tree() if 'focused' in v['states']]})
-    if initial is not None:
+    if stage['family']=='shortcuts':
+        inspect_shortcut_record(stage)
+    elif stage['family']=='shortcut-text':
+        inspect_shortcut_text(stage,initial)
+    elif stage['family']=='shortcut-normal':
+        inspect_shortcut_normal(stage,initial)
+    elif initial is not None:
         focus(initial,name+' restore initial focus')
     for probe in stage['probes']:
         if probe.get('expectedText') is not None:

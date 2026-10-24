@@ -427,7 +427,7 @@ public partial class MainWindow : Window
             return;
         }
         if (CommandBindings.Matches(e, "watch.import-clipboard") && _selectedPage == WorkspacePage.Downloads
-            && CanExecuteShellPowerCommand(e.Source))
+            && CanExecuteShellPowerCommand(e.Source, e.Key))
         {
             e.Handled = true;
             await ImportClipboardAsync();

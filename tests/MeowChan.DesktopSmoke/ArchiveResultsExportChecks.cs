@@ -48,6 +48,8 @@ internal static class ArchiveResultsExportChecks
         void Click(string name) => SmokeActionClick.Execute(Button(name));
         string Summary() => page.FindControl<TextBlock>("ArchiveExportSummary")!.Text!;
         string Status() => page.FindControl<TextBlock>("ArchiveExportStatus")!.Text!;
+        string Error() => page.FindControl<TextBlock>("ArchiveExportError")!.Text ?? string.Empty;
+        bool ErrorVisible() => page.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner") is { IsVisible: true, IsEffectivelyVisible: true };
         await page.OpenExportForAllResultsAsync(origin);
         window.UpdateLayout();
         TextBlock fixedScope = page.FindControl<TextBlock>("ArchiveExportFixedScope")!;
@@ -97,7 +99,8 @@ internal static class ArchiveResultsExportChecks
         resolving = page.OpenExportForAllResultsAsync(origin);
         gate.SetException(new IOException("fixture result lookup failure"));
         await resolving; setGate(null);
-        Check(Status().Contains("fixture result lookup failure", StringComparison.Ordinal) && !Button("ArchiveExportStart").IsEnabled,
+        Check(ErrorVisible() && Error() == Texts.T("export.resultsFailed", "fixture result lookup failure")
+            && !Button("ArchiveExportStart").IsEnabled,
             "Lookup failure was hidden or allowed an unresolved export.");
         Click("ArchiveExportClose");
 
@@ -110,7 +113,8 @@ internal static class ArchiveResultsExportChecks
         output = Path.Combine(root, "removed-target");
         page.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
         Click("ArchiveExportStart"); await Program.WaitUntilAsync(() => !page.IsExportRunning);
-        Check(page.LastExport == null && !Directory.Exists(output) && Status().Contains(Texts.T("export.failed")),
+        Check(page.LastExport == null && !Directory.Exists(output) && ErrorVisible()
+            && Error().StartsWith(Texts.T("export.failed"), StringComparison.Ordinal),
             "Deleted target was skipped, replaced or published as success.");
         Click("ArchiveExportClose");
         Console.WriteLine("SMOKE all-result export assertions completed; checking original-export dialog states.");

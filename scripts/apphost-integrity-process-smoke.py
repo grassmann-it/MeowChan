@@ -16,6 +16,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 _spec = importlib.util.spec_from_file_location('policy_plugin_workflow', Path(__file__).with_name('apphost-plugin-workflow-smoke.py'))
 plugin = importlib.util.module_from_spec(_spec)
@@ -32,12 +33,101 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def group_exists(pid):
+TERMINAL_PROCESS_STATES = {'Z', 'X', 'x'}
+
+
+class ProcessIdentityError(ValueError):
+    """Never signal a group whose original session/PID identity cannot be proved."""
+
+
+def process_stat(pid, proc=Path('/proc')):
     try:
-        os.killpg(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
+        text = (proc / str(pid) / 'stat').read_text()
+    except FileNotFoundError:
+        return None  # A process may normally exit while /proc is enumerated.
+    opening, closing = text.find('('), text.rfind(')')
+    require(opening > 0 and closing > opening, 'Malformed /proc process identity')
+    fields = text[closing + 1:].split()
+    require(len(fields) >= 20 and int(text[:opening].strip()) == pid, 'Truncated /proc process identity')
+    return dict(pid=pid, name=text[opening + 1:closing], state=fields[0], parentPid=int(fields[1]),
+                processGroupId=int(fields[2]), sessionId=int(fields[3]), startTimeTicks=int(fields[19]))
+
+
+def group_inventory(supervisor, identities, proc=Path('/proc')):
+    rows = []
+    for directory in proc.iterdir():
+        if not directory.name.isdecimal():
+            continue
+        row = process_stat(int(directory.name), proc)
+        if row is None or row['processGroupId'] != supervisor['processGroupId']:
+            continue
+        pid, started = row['pid'], row['startTimeTicks']
+        if (row['sessionId'] != supervisor['sessionId'] or started < supervisor['startTimeTicks']
+                or pid in identities and identities[pid] != started):
+            raise ProcessIdentityError('Owned process group session/PID identity changed: ' + json.dumps(row))
+        identities[pid] = started
+        try:
+            row['executable'] = os.readlink(proc / str(pid) / 'exe')
+        except FileNotFoundError:
+            row['executable'] = None  # Expected for a zombie or a concurrently exiting process.
+        except PermissionError:
+            row['executable'] = 'unavailable'  # stat still supplies the kernel liveness/identity proof.
+        row['terminal'] = row['state'] in TERMINAL_PROCESS_STATES
+        rows.append(row)
+    return sorted(rows, key=lambda row: row['pid'])
+
+
+def observe_normal_group_exit(supervisor, deadline, result, identities):
+    """No signals; the original phase deadline also bounds native helper shutdown."""
+    audit = result.setdefault('processGroupExit', dict(supervisor=supervisor, observations=[], signalsSent=False))
+    while True:
+        rows = group_inventory(supervisor, identities)
+        remaining = deadline - time.monotonic()  # Completion must be observed by the original deadline.
+        observations = audit['observations']
+        if 'finalMembers' not in audit or audit['finalMembers'] != rows:
+            if len(observations) < 128:
+                observations.append(dict(remainingSeconds=remaining, members=rows))
+            else:
+                audit['omittedIntermediateTransitions'] = audit.get('omittedIntermediateTransitions', 0) + 1
+        audit['finalMembers'] = rows  # Always retain the complete final inventory, even after many state changes.
+        audit['finalObservedRemainingSeconds'] = remaining
+        live = [row for row in rows if not row['terminal']]
+        if not live:
+            if remaining < 0:
+                audit['disposition'] = 'completion-observed-after-original-deadline'
+                return False
+            audit['disposition'] = 'terminated-zombies-only' if rows else 'empty'
+            return True
+        if remaining <= 0:
+            audit['disposition'] = 'live-members-at-original-deadline'
+            return False
+        time.sleep(min(.05, remaining))
+
+
+def cleanup_bound_group(process, supervisor, identities, result):
+    """Failure cleanup only, with a fresh identity check before every group signal."""
+    audit = result['processGroupExit']
+    cleanup_deadline = time.monotonic() + 2  # Existing emergency-cleanup grace, never a PASS budget.
+    for requested_signal in (signal.SIGTERM, signal.SIGKILL):
+        rows = group_inventory(supervisor, identities)
+        if not any(not row['terminal'] for row in rows):
+            break
+        try:
+            os.killpg(supervisor['processGroupId'], requested_signal)
+        except ProcessLookupError:
+            break
+        result['forcedCleanup'] = True
+        audit['signalsSent'] = True
+        audit.setdefault('cleanupSignals', []).append(dict(signal=requested_signal.name, members=rows))
+        if requested_signal == signal.SIGTERM:
+            while time.monotonic() < cleanup_deadline:
+                process.poll()
+                rows = group_inventory(supervisor, identities)
+                if not any(not row['terminal'] for row in rows):
+                    break
+                time.sleep(min(.05, max(0, cleanup_deadline - time.monotonic())))
+    process.wait(timeout=10)
+    audit['afterCleanup'] = group_inventory(supervisor, identities)
 
 
 def validate_metrics(data, phase, root, profile, working, scale, closure):
@@ -101,14 +191,28 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
     shutil.copy2(descriptor, destination / 'descriptor.json')
     try:
         with (destination / 'output.log').open('wb') as log:
+            deadline = time.monotonic() + timeout
             process = subprocess.Popen(command, cwd=working, env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            supervisor = process_stat(process.pid)
+            require(supervisor is not None and supervisor['processGroupId'] == process.pid
+                    and supervisor['sessionId'] == process.pid, 'Isolated supervisor identity missing')
+            identities = {process.pid: supervisor['startTimeTicks']}
             try:
-                result['exitCode'] = process.wait(timeout=timeout)
+                result['exitCode'] = process.wait(timeout=max(0, deadline - time.monotonic()))
             finally:
-                if group_exists(process.pid):
-                    result['forcedCleanup'] = True
-                    desktop.stop_owned_processes(process)
-        require(result['exitCode'] == 0 and not result.get('forcedCleanup'), 'Apphost failed or needed forced cleanup')
+                try:
+                    normal = observe_normal_group_exit(supervisor, deadline, result, identities)
+                    if not normal:
+                        # Every remaining member was just rebound to this exact original session.
+                        # A live survivor still fails, regardless of whether it is an app or helper.
+                        result['normalGroupExitDeadlineExceeded'] = True
+                        result['liveGroupAtDeadline'] = any(not row['terminal'] for row in result['processGroupExit']['finalMembers'])
+                        cleanup_bound_group(process, supervisor, identities, result)
+                except ProcessIdentityError:
+                    result['cleanupWithheldForIdentityChange'] = True
+                    raise
+        require(result['exitCode'] == 0 and not result.get('forcedCleanup') and not result.get('normalGroupExitDeadlineExceeded'),
+                'Apphost failed, exceeded normal group-exit deadline or needed forced cleanup')
         require('APPHOST SOURCE POLICY PROCESS PASS' in (destination / 'output.log').read_text(errors='replace'), 'Completion marker absent')
         require(not (home / '.dotnet/sdk').exists() and not (home / '.nuget/packages').exists(), 'Private HOME contains SDK/NuGet packages')
         source = workflow.owned_path(profile / 'apphost-policy-process.json', root, exists=True)
@@ -148,6 +252,7 @@ def main(argv=None):
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
     report = dict(schemaVersion=1, passed=False, declaredSourceCommit=args.source_commit, phases=[],
+                  driverPath=str(Path(__file__).resolve()), driverSha256=workflow.sha256(Path(__file__).resolve()),
                   scope='Actual packaged production Host/config/plugin policy across four OS processes; controlled terminal HTTP and local exact bytes; no live or decoded-gallery proof.')
     try:
         with tempfile.TemporaryDirectory(prefix='meowchan-workflow-policy-') as temporary:

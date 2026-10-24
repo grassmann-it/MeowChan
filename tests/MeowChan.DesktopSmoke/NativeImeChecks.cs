@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Avalonia;
@@ -12,6 +13,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using Tmds.DBus.Protocol;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -32,6 +34,7 @@ internal static class NativeImeChecks
         string digest = Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_DIGEST") ?? "";
         if (digest.Length != 64 || !digest.All(Uri.IsHexDigit))
             throw new InvalidOperationException("IME probe requires the actual frozen source digest.");
+        HashSet<string> observedNonces = new(StringComparer.Ordinal);
         string language = Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_INPUT_LANGUAGE") ?? "en";
         if (language is not ("en" or "de")) throw new InvalidOperationException("IME UI language must be en/de.");
         Texts.SetLanguage(language);
@@ -158,15 +161,196 @@ internal static class NativeImeChecks
             WriteAtomic("state.json", first); WriteAtomic("stage.json", first);
             Console.WriteLine("NATIVE IME STAGE " + id);
             DateTime deadline = DateTime.UtcNow.AddSeconds(55);
-            while (!File.Exists(Path.Combine(directory, id + ".done")))
+            using CancellationTokenSource stageEnded = new();
+            Task? contextRead = null;
+            bool ownerReadFailed = false;
+            try
             {
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("External IME driver did not finish " + id);
-                string current = JsonSerializer.Serialize(State());
-                WriteAtomic("state.json", current);
-                await File.AppendAllTextAsync(Path.Combine(directory, "state.jsonl"), current + Environment.NewLine);
-                await Task.Delay(25);
+                while (!File.Exists(Path.Combine(directory, id + ".done")))
+                {
+                    if (DateTime.UtcNow >= deadline) throw new TimeoutException("External IME driver did not finish " + id);
+                    if (ownerReadFailed) throw new InvalidOperationException("Actual owner-context read failed for " + id);
+                    string requestPath = Path.Combine(directory, "context-request.json");
+                    if (File.Exists(requestPath))
+                    {
+                        if (new FileInfo(requestPath).Length > 4096) throw new IOException("Oversized owner-context request.");
+                        using JsonDocument request = JsonDocument.Parse(File.ReadAllText(requestPath));
+                        JsonElement root = request.RootElement;
+                        string nonce = root.GetProperty("nonce").GetString() ?? "";
+                        if (nonce.Length != 64 || !nonce.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+                            throw new InvalidOperationException("Owner-context request nonce is not canonical.");
+                        if (!observedNonces.Contains(nonce))
+                        {
+                            if (contextRead is { IsCompleted: false }) throw new InvalidOperationException("Overlapping owner-context requests.");
+                            if (root.GetProperty("id").GetString() != id || root.GetProperty("pid").GetInt32() != Environment.ProcessId
+                                || root.GetProperty("sourceDigest").GetString() != digest)
+                                throw new InvalidOperationException("Owner-context request does not match the actual stage/PID/source.");
+                            observedNonces.Add(nonce);
+                            // Starts on the UI thread and yields at the existing proxy's asynchronous getter.
+                            // The 25 ms UI-state observer continues while this single read is in flight.
+                            contextRead = ReplyOwnerContextAsync(nonce);
+                        }
+                    }
+                    string current = JsonSerializer.Serialize(State());
+                    WriteAtomic("state.json", current);
+                    await File.AppendAllTextAsync(Path.Combine(directory, "state.jsonl"), current + Environment.NewLine);
+                    await Task.Delay(25);
+                }
+                if (contextRead is { IsCompleted: false } || ownerReadFailed)
+                    throw new InvalidOperationException("Checkpoint ended before a successful owner-context response.");
+                WriteAtomic(id + "-final.json", JsonSerializer.Serialize(State()));
             }
-            WriteAtomic(id + "-final.json", JsonSerializer.Serialize(State()));
+            finally
+            {
+                // A late reply must never be written into a later stage. Cancellation only stops this
+                // observation; it does not pretend to cancel the already sent, read-only D-Bus call.
+                stageEnded.Cancel();
+                if (contextRead is not null) await contextRead;
+            }
+
+            async Task ReplyOwnerContextAsync(string nonce)
+            {
+                object? observedOwner = null, observedEngine = null;
+                string? error = null;
+                bool success = false;
+                const int timeoutMs = 650;
+                try
+                {
+                    OwnerContext before = ReadOwnerContext(target);
+                    TimeSpan budget = deadline - DateTime.UtcNow;
+                    if (budget <= TimeSpan.Zero) throw new TimeoutException("Owner-context request exceeded its checkpoint.");
+                    budget = budget < TimeSpan.FromMilliseconds(timeoutMs) ? budget : TimeSpan.FromMilliseconds(timeoutMs);
+                    Stopwatch elapsed = Stopwatch.StartNew();
+                    // Stock IBus 1.5.34 EngineDesc has 19 fields; VariantValue supports only 16.
+                    // Use the same owner's connection/destination/path with a typed read-only reply reader.
+                    Task<EngineDescriptor> pending = ReadOwnerEngineAsync(before);
+                    // Observe a possible late fault after timeout without scheduling another owner read.
+                    _ = pending.ContinueWith(t => { _ = t.Exception; }, CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                    TimeSpan remaining = budget - elapsed.Elapsed;
+                    if (remaining <= TimeSpan.Zero) throw new TimeoutException("Actual owner-context getter exceeded 650 ms.");
+                    EngineDescriptor descriptor = await pending.WaitAsync(remaining, stageEnded.Token);
+                    if (elapsed.Elapsed > budget || DateTime.UtcNow >= deadline)
+                        throw new TimeoutException("Actual owner-context getter exceeded its observation budget.");
+                    Dispatcher.UIThread.VerifyAccess();
+                    stageEnded.Token.ThrowIfCancellationRequested();
+                    OwnerContext after = ReadOwnerContext(target);
+                    if (!ReferenceEquals(before.Window, after.Window) || !ReferenceEquals(before.Platform, after.Platform)
+                        || !ReferenceEquals(before.Ime, after.Ime) || !ReferenceEquals(before.Proxy, after.Proxy)
+                        || !ReferenceEquals(before.Connection, after.Connection) || before.Xid != after.Xid
+                        || before.UniqueName != after.UniqueName || before.Destination != after.Destination || before.Path != after.Path)
+                        throw new InvalidOperationException("Actual owner context changed during the read.");
+                    observedOwner = new
+                    {
+                        uniqueName = after.UniqueName, portalDestination = after.Destination, portalPath = after.Path,
+                        topLevelXid = after.Xid, imeType = after.Ime.GetType().FullName, proxyType = after.Proxy.GetType().FullName,
+                        connectionSame = ReferenceEquals(after.Connection, after.Proxy.Connection),
+                        focus = new { targetFocused = target.IsFocused || target.IsKeyboardFocusWithin, topLevelActive = after.Window.IsActive }
+                    };
+                    string descriptorType = descriptor.DescriptorType, engineName = descriptor.Name;
+                    observedEngine = new
+                    {
+                        descriptorType, name = engineName, count = descriptor.Count, nameType = descriptor.NameType,
+                        signature = descriptor.Signature, timeoutMs
+                    };
+                    if (descriptorType != "IBusEngineDesc" || engineName != "anthy")
+                        throw new InvalidOperationException("The actual owner-context engine is not stock Anthy.");
+                    success = true;
+                }
+                catch (Exception exception)
+                {
+                    ownerReadFailed = true;
+                    Exception cause = exception is TargetInvocationException { InnerException: { } inner } ? inner : exception;
+                    error = cause.GetType().Name + ": " + cause.Message;
+                }
+                if (!stageEnded.IsCancellationRequested)
+                    WriteAtomic("context-response.json", JsonSerializer.Serialize(new
+                    {
+                        nonce, id, pid = Environment.ProcessId, sourceDigest = digest, success, error,
+                        owner = observedOwner, engine = observedEngine
+                    }));
+            }
         }
+    }
+
+    private sealed record EngineDescriptor(string DescriptorType, string Name, int Count, string NameType, string Signature);
+
+    private static Task<EngineDescriptor> ReadOwnerEngineAsync(OwnerContext owner)
+    {
+        using var writer = owner.Connection.GetMessageWriter();
+        writer.WriteMethodCallHeader(destination: owner.Destination, path: owner.Path,
+            @interface: "org.freedesktop.IBus.InputContext", member: "GetEngine");
+        return owner.Connection.CallMethodAsync<EngineDescriptor>(writer.CreateMessage(), ReadEngineDescriptor);
+    }
+
+    private static EngineDescriptor ReadEngineDescriptor(Message message, object? state)
+    {
+        if (message.SignatureAsString != "v")
+            throw new InvalidOperationException("Actual GetEngine reply must contain exactly one variant.");
+        var reader = message.GetBodyReader();
+        string signature = reader.ReadSignatureAsString();
+        // Pinned IBus 1.5.34 serializer: typename, attachments, eight strings, rank uint, eight strings.
+        // Validate the actual wire signature before reading; never construct a 19-field VariantValue.
+        const string prefix = "(sa{sv}";
+        if (signature != "(sa{sv}ssssssssussssssss)")
+            throw new InvalidOperationException("Unexpected actual IBus EngineDesc wire signature: " + signature);
+        reader.AlignStruct();
+        string descriptorType = reader.ReadString();
+        reader.SkipTo(reader.ReadDictionaryStart()); // Bounds-checked attachments; unrelated to engine identity.
+        string name = reader.ReadString();
+        // Consume every remaining declared field using the public primitive reader API.
+        for (int i = prefix.Length + 1; i < signature.Length - 1; i++)
+        {
+            if (signature[i] == 's') _ = reader.ReadString();
+            else if (signature[i] == 'u') _ = reader.ReadUInt32();
+            else throw new InvalidOperationException("Unsupported actual engine descriptor field.");
+        }
+        return new(descriptorType, name, 2 + signature.Length - prefix.Length - 1,
+            signature[prefix.Length] == 's' ? nameof(VariantValueType.String) : throw new InvalidOperationException("Actual engine name is not a string."), signature);
+    }
+
+    private sealed record OwnerContext(Window Window, object Platform, object Ime, DBusObject Proxy,
+        DBusConnection Connection, ulong Xid, string UniqueName, string Destination, string Path);
+
+    private static OwnerContext ReadOwnerContext(Control target)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        Window window = TopLevel.GetTopLevel(target) as Window
+            ?? throw new InvalidOperationException("The actual IME target has no owning Window.");
+        object platform = window.PlatformImpl ?? throw new InvalidOperationException("The actual TopLevel has no platform implementation.");
+        if (platform.GetType().FullName != "Avalonia.X11.X11Window")
+            throw new InvalidOperationException("The actual IME owner is not an X11 window.");
+        object ime = ReadField(platform, "_ime");
+        if (ime.GetType().FullName != "Avalonia.FreeDesktop.DBusIme.IBus.IBusX11TextInputMethod")
+            throw new InvalidOperationException("The actual window is not using the stock Avalonia IBus input method.");
+        object context = ReadField(ime, "_context");
+        if (context.GetType().FullName != "Avalonia.FreeDesktop.DBusIme.IBus.DBus.InputContext" || context is not DBusObject proxy)
+            throw new InvalidOperationException("The existing IME context is not the expected IBus proxy.");
+        PropertyInfo? connectionProperty = null;
+        for (Type? type = ime.GetType(); type is not null && connectionProperty is null; type = type.BaseType)
+            connectionProperty = type.GetProperty("Connection", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+        DBusConnection connection = connectionProperty?.GetValue(ime) as DBusConnection
+            ?? throw new InvalidOperationException("The actual input-method connection is unavailable.");
+        if (!ReferenceEquals(connection, proxy.Connection))
+            throw new InvalidOperationException("The existing context is not on the actual input-method owner connection.");
+        var handle = window.TryGetPlatformHandle();
+        if (handle is null || handle.HandleDescriptor != "XID" || handle.Handle == IntPtr.Zero)
+            throw new InvalidOperationException("The actual IME TopLevel has no X11 XID.");
+        if (!(target.IsFocused || target.IsKeyboardFocusWithin) || !window.IsActive)
+            throw new InvalidOperationException("The actual IME target/window lost focus.");
+        string unique = connection.UniqueName ?? throw new InvalidOperationException("The actual owner session connection has no unique name.");
+        if (!unique.StartsWith(':')) throw new InvalidOperationException("The actual owner connection has no D-Bus unique name.");
+        return new(window, platform, ime, proxy, connection, unchecked((ulong)handle.Handle.ToInt64()), unique, proxy.Destination, proxy.Path.ToString());
+    }
+
+    private static object ReadField(object instance, string name)
+    {
+        for (Type? type = instance.GetType(); type is not null; type = type.BaseType)
+        {
+            FieldInfo? field = type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field is not null) return field.GetValue(instance)
+                ?? throw new InvalidOperationException("Actual owner field is not initialized: " + name);
+        }
+        throw new InvalidOperationException("Actual owner field is missing: " + name);
     }
 }

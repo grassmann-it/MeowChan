@@ -300,47 +300,215 @@ def descendants(process_id):
     return owned
 
 
-def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=None):
-    """Bind /proc/exe from this command's children to the actual full payload."""
+def proc_stat(directory_fd):
+    descriptor = os.open('stat', os.O_RDONLY | os.O_CLOEXEC, dir_fd=directory_fd)
+    try:
+        data = os.read(descriptor, 16385)
+    finally:
+        os.close(descriptor)
+    if len(data) > 16384:
+        raise ValueError('Process stat exceeds evidence bound')
+    raw = data.decode('utf-8')
+    # comm can itself contain spaces and closing parentheses.
+    head, separator, tail = raw.rpartition(')')
+    fields = tail.split()
+    if not separator or len(fields) < 20:
+        raise ValueError('Invalid process stat')
+    return {'pid': int(head.split('(', 1)[0]), 'state': fields[0], 'ppid': int(fields[1]),
+            'pgid': int(fields[2]), 'sid': int(fields[3]), 'starttime': int(fields[19]),
+            'uid': os.fstat(directory_fd).st_uid}
+
+
+def proc_executable(directory_fd):
+    path = os.readlink('exe', dir_fd=directory_fd)
+    details = os.stat('exe', dir_fd=directory_fd)
+    return {'path': path, 'device': details.st_dev, 'inode': details.st_ino,
+            'size': details.st_size, 'mtimeNs': details.st_mtime_ns}
+
+
+def proc_tasks(directory_fd):
+    task_fd = os.open('task', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=directory_fd)
+    try:
+        names = os.listdir(task_fd)
+        if len(names) > 4096:
+            raise ValueError('Process task count exceeds evidence bound')
+        states = {}
+        for name in names:
+            if not name.isdecimal():
+                continue
+            try:
+                thread_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=task_fd)
+            except FileNotFoundError:
+                continue  # A task can exit while its group enters the stop.
+            try:
+                states[name] = proc_stat(thread_fd)['state']
+            finally:
+                os.close(thread_fd)
+        return states
+    finally:
+        os.close(task_fd)
+
+
+def same_process(first, second):
+    return all(first[key] == second[key] for key in ('pid', 'starttime', 'pgid', 'sid', 'uid'))
+
+
+def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=None, *, attempts, deadline):
+    """Authenticate one stopped, pinned process image; preserve every candidate failure."""
     for pid in descendants(process_id):
-        if pid in observed:
-            continue
+        directory_fd = pid_fd = executable_fd = None
+        stopped = False
+        attempt = None
         try:
-            executable = Path(os.readlink(f'/proc/{pid}/exe'))
-        except (FileNotFoundError, ProcessLookupError, PermissionError):
-            continue
-        if executable.name != 'MeowChan':
-            continue
-        if not executable.is_relative_to(work):
-            raise ValueError('Observed apphost escaped owned writable work directory')
-        root = executable
-        for _ in PurePosixPath(artifact['apphost_member']).parts:
-            root = root.parent
-        if fixed_root is not None and root != fixed_root:
-            raise ValueError('Executed apphost differs from the verified extracted path')
-        if fixed_root is None and not root.is_relative_to(work / 'tmp'):
-            raise ValueError('AppImage extract-and-run payload is outside owned TMPDIR')
-        # Keep short phases alive while hashing their extract-and-run payload.
-        # This is startup/functional proof, not a timing or performance benchmark.
-        try:
-            os.kill(pid, signal.SIGSTOP)
-        except ProcessLookupError:
-            continue
-        try:
+            try:
+                directory_fd = os.open(f'/proc/{pid}', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+                initial = proc_stat(directory_fd)
+                initial_exe = proc_executable(directory_fd)
+            except (FileNotFoundError, ProcessLookupError):
+                continue  # Process exited before an image could be observed.
+            except PermissionError as access_error:
+                if pid not in observed:
+                    continue  # No authenticated apphost identity exists for this PID.
+                prior = observed[pid]
+                attempt = {'pid': pid, 'priorAuthenticatedIdentity': prior['processIdentity'],
+                           'priorAuthenticatedExecutable': prior['finalExecutable'],
+                           'expectedHash': prior['exeSha256'], 'actualHash': None}
+                raise ValueError('Authenticated apphost identity became unreadable: ' + str(access_error)) from access_error
+            if pid in observed:
+                prior = observed[pid]
+                process_matches = same_process(initial, prior['processIdentity'])
+                if not process_matches or initial_exe != prior['finalExecutable']:
+                    attempt = {'pid': pid, 'initialIdentity': initial, 'initialExecutable': initial_exe,
+                               'priorAuthenticatedIdentity': prior['processIdentity'],
+                               'priorAuthenticatedExecutable': prior['finalExecutable'],
+                               'expectedHash': prior['exeSha256'], 'actualHash': None}
+                    if process_matches:
+                        attempt['execTransitionObserved'] = True
+                        raise ValueError('An authenticated apphost changed its executable image')
+                    raise ValueError('An authenticated apphost PID was reused or changed process identity')
+                continue
+            if Path(initial_exe['path']).name != 'MeowChan':
+                continue
+            attempt = {'pid': pid, 'initialIdentity': initial, 'initialExecutable': initial_exe,
+                       'expectedHash': artifact['payload_files'][artifact['apphost_member']],
+                       'actualHash': None, 'passed': False, 'stopConfirmed': False}
+            if initial['pid'] != pid or initial['uid'] != os.getuid():
+                raise ValueError('Apphost candidate is not owned by the current runner UID')
+            if not hasattr(os, 'pidfd_open') or not hasattr(signal, 'pidfd_send_signal'):
+                raise ValueError('Pinned apphost observation requires Linux pidfd signal support')
+            # The proc directory stays bound to this task even if its numeric PID is reused.
+            # Open pidfd, then validate both the pinned directory and current numeric identity
+            # before sending any signal. Never fall back to an unpinned os.kill(pid, ...).
+            pid_fd = os.pidfd_open(pid)
+            current_fd = os.open(f'/proc/{pid}', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+            try:
+                current = proc_stat(current_fd)
+            finally:
+                os.close(current_fd)
+            pinned = proc_stat(directory_fd)
+            attempt['identityBeforeSignal'] = pinned
+            attempt['executableBeforeSignal'] = proc_executable(directory_fd)
+            if not same_process(initial, pinned) or not same_process(initial, current) or pid not in descendants(process_id):
+                raise ValueError('Apphost candidate identity/ownership changed before its pinned stop')
+            if time.monotonic() >= deadline:
+                raise ValueError('Existing command deadline expired before apphost stop')
+            signal.pidfd_send_signal(pid_fd, signal.SIGSTOP)
+            stopped = True
+            stop_deadline = min(deadline, time.monotonic() + 1)
+            while True:
+                state = proc_stat(directory_fd)
+                tasks = proc_tasks(directory_fd)
+                attempt.update(stopIdentity=state, stopTaskStates=tasks)
+                if not same_process(initial, state):
+                    raise ValueError('Apphost process identity changed while entering its stop')
+                if state['state'] == 'T' and tasks and all(value == 'T' for value in tasks.values()):
+                    attempt['stopConfirmed'] = True
+                    break
+                if time.monotonic() >= stop_deadline:
+                    raise ValueError('Apphost signal stop was not confirmed inside the existing command deadline')
+                time.sleep(min(.005, max(0, stop_deadline - time.monotonic())))
+            if time.monotonic() >= deadline:
+                raise ValueError('Existing command deadline expired before apphost hash')
+            stopped_exe = proc_executable(directory_fd)
+            attempt['stoppedExecutable'] = stopped_exe
+            executable_fd = os.open('exe', os.O_RDONLY | os.O_CLOEXEC, dir_fd=directory_fd)
+            descriptor_stat = os.fstat(executable_fd)
+            if (descriptor_stat.st_dev, descriptor_stat.st_ino, descriptor_stat.st_size, descriptor_stat.st_mtime_ns) != (
+                    stopped_exe['device'], stopped_exe['inode'], stopped_exe['size'], stopped_exe['mtimeNs']):
+                raise ValueError('Pinned executable descriptor differs from the confirmed stopped image')
+            # Hash the already opened image, not a /proc/PID/exe path reopened after payload hashing.
+            digest = hashlib.sha256()
+            with os.fdopen(os.dup(executable_fd), 'rb') as stream:
+                for chunk in iter(lambda: stream.read(1024 ** 2), b''):
+                    digest.update(chunk)
+            actual_hash = digest.hexdigest()
+            attempt['actualHash'] = actual_hash
+            if initial_exe != stopped_exe or attempt['executableBeforeSignal'] != stopped_exe:
+                attempt['execTransitionObserved'] = True
+                raise ValueError('Apphost executable changed before its confirmed stop; candidate not authenticated')
+            executable = Path(stopped_exe['path'])
+            if not executable.is_relative_to(work):
+                raise ValueError('Observed apphost escaped owned writable work directory')
+            root = executable
+            for _ in PurePosixPath(artifact['apphost_member']).parts:
+                root = root.parent
+            if fixed_root is not None and root != fixed_root:
+                raise ValueError('Executed apphost differs from the verified extracted path')
+            if fixed_root is None and not root.is_relative_to(work / 'tmp'):
+                raise ValueError('AppImage extract-and-run payload is outside owned TMPDIR')
             proof = verify_payload(root, artifact, runtime)
-            actual_hash = sha256(Path(f'/proc/{pid}/exe'))
+            attempt.update(payloadRoot=str(root), payloadSha256=proof['sha256'],
+                           payloadBytes=proof['bytes'], expectedHash=proof['apphostSha256'])
+            final = proc_stat(directory_fd)
+            final_exe = proc_executable(directory_fd)
+            final_tasks = proc_tasks(directory_fd)
+            attempt.update(finalIdentity=final, finalExecutable=final_exe, finalTaskStates=final_tasks)
+            if (not same_process(initial, final) or final['state'] != 'T' or not final_tasks
+                    or any(value != 'T' for value in final_tasks.values()) or final_exe != stopped_exe):
+                raise ValueError('Stopped apphost process/image identity changed during payload authentication')
             if actual_hash != proof['apphostSha256']:
                 raise ValueError('Actually executed apphost bytes differ from verified payload')
+            if time.monotonic() >= deadline:
+                raise ValueError('Apphost authentication exceeded the existing command deadline')
             observed[pid] = {'pid': pid, 'executable': str(executable), 'exeSha256': actual_hash,
                              'payloadRoot': str(root), 'payloadSha256': proof['sha256'],
                              'payloadBytes': proof['bytes'], 'elfMachine': proof['elfMachine'],
-                             'brieflyStoppedForPayloadHash': True}
+                             'brieflyStoppedForPayloadHash': True, 'processIdentity': initial,
+                             'stopConfirmed': True, 'stoppedIdentity': state, 'finalIdentity': final,
+                             'stoppedExecutable': stopped_exe, 'finalExecutable': final_exe}
+            attempt['passed'] = True
+        except (OSError, ValueError) as error:
+            if attempt is not None:
+                attempt.update(passed=False, error=str(error))
+                if directory_fd is not None:
+                    try:
+                        attempt.update(failureIdentity=proc_stat(directory_fd),
+                                       failureExecutable=proc_executable(directory_fd))
+                    except (OSError, ValueError) as snapshot_error:
+                        attempt['failureSnapshotError'] = str(snapshot_error)
+                else:
+                    attempt['failureSnapshotError'] = 'Process directory could not be opened'
+            raise
         finally:
             try:
-                os.kill(pid, signal.SIGCONT)
-            except ProcessLookupError:
-                pass
-
+                if stopped:
+                    try:
+                        signal.pidfd_send_signal(pid_fd, signal.SIGCONT)
+                        if attempt is not None:
+                            attempt['resumeSignalSent'] = True
+                    except ProcessLookupError:
+                        if attempt is not None:
+                            attempt['processExitedBeforeResume'] = True
+                    except OSError as resume_error:
+                        if attempt is not None:
+                            attempt.update(passed=False, resumeSignalError=str(resume_error))
+                        raise
+            finally:
+                for descriptor in (executable_fd, pid_fd, directory_fd):
+                    if descriptor is not None:
+                        os.close(descriptor)
+                if attempt is not None:
+                    attempts.append(attempt)
 
 def stop_process(process):
     try:
@@ -405,7 +573,7 @@ def run_command(command, log_path, *, timeout, cwd=None, environment=None, obser
         capture = BoundedLog(process.stdout, log_path)
         while process.poll() is None:
             if observer:
-                observer(process.pid)
+                observer(process.pid, started + timeout)
             if time.monotonic() - started > timeout:
                 result['timedOut'] = True
                 raise ValueError('Bounded command timeout exceeded')
@@ -522,13 +690,15 @@ def run_positive(launcher, root, artifact, manifest, args, label, extra_env=None
             command += ['--source-commit', args.source_commit, '--runtime', args.runtime, '--scale', '1', '--scale', '2']
             if artifact['flavor'] != 'appimage':
                 command += ['--archive', str(args.package_dir / artifact['file']), '--archive-member', artifact['apphost_member']]
-        observed = {}
+        observed, attempts = {}, []
         environment = dict(os.environ)
         environment.update(extra_env or {})
-        observer = lambda pid: observe_apphosts(pid, observed, artifact, args.runtime, args.work, root)
+        observer = lambda pid, deadline: observe_apphosts(pid, observed, artifact, args.runtime, args.work, root,
+                                                        attempts=attempts, deadline=deadline)
         result = run_command(command, destination / (kind + '.log'), timeout=1100 if kind == 'workflow' else 300,
                              environment=environment, observer=observer, disk_paths=(args.work, args.evidence))
         result['observedApphosts'] = list(observed.values())
+        result['apphostObservationAttempts'] = attempts
         result['dispatchEnvironment'] = extra_env or {}
         results[kind] = result
         write_json(destination / 'dispatch.json', results)

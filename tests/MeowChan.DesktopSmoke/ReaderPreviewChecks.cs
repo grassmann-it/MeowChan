@@ -29,22 +29,61 @@ internal static class ReaderPreviewChecks
             string media = Path.Combine(profile, "media"); Directory.CreateDirectory(media);
             byte[] png = ImageBytes();
             await File.WriteAllBytesAsync(Path.Combine(media, "image.png"), png);
-            await File.WriteAllTextAsync(Path.Combine(media, ".meowchan-manifest.json"), JsonSerializer.Serialize(new
+            string manifestPath = Path.Combine(media, ".meowchan-manifest.json");
+            object entry = new
             {
-                Version = 1, Entries = new Dictionary<string, object> { ["image.png"] = new
-                {
-                    MediaIdentifier = "image", SourceUrl = "https://offline.invalid/image.png", FileName = "image.png", Length = png.Length,
-                    Sha256 = Convert.ToHexString(SHA256.HashData(png)), Md5 = Convert.ToBase64String(MD5.HashData(png))
-                } }
-            }));
+                MediaIdentifier = "image", Variant = "original", SourceUrl = "https://offline.invalid/image.png",
+                FileName = "image.png", OriginalFileName = "image.png", Length = png.Length,
+                Sha256 = Convert.ToHexString(SHA256.HashData(png)).ToLowerInvariant(), Md5 = Convert.ToBase64String(MD5.HashData(png))
+            };
+            await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new
+                { Version = 1, Entries = new Dictionary<string, object> { ["image.png"] = entry } }));
+            MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(media);
+            MediaAssetReference asset = manifest.GetPage().Single();
             ResourceId id = new("4chan", "dpt", "110125031");
+            MediaProviderMetadata provider = new("image", "original", "https://offline.invalid/image.png", "image.png",
+                png.Length, Convert.ToBase64String(MD5.HashData(png)), Convert.ToHexString(SHA256.HashData(png)).ToLowerInvariant());
+            MediaActualIntegrity actual = new(asset.Length, asset.Md5, asset.Sha256);
+            Require(ProviderIntegrityAssessment.Assess(provider, actual).IsStrictMatch,
+                "The reader preview fixture provider values must strictly match its saved PNG.");
+            CapturedPost[] captured = Enumerable.Range(0, 5).Select(index => new CapturedPost(
+                (110125031 + index).ToString(), index, PostFieldPresence.All,
+                Html: "<p>Relaunch of an older downloader. " + string.Join(" ", Enumerable.Repeat("Offline post text.", 20 + index * 10)) + "</p>",
+                Attachments: new[] { new CapturedAttachment(0, provider.MediaId, provider.Variant, provider.Url,
+                    provider.OriginalFileName, ExpectedSize: provider.ExpectedSize, ExpectedMd5: provider.ExpectedMd5)
+                    { ExpectedSha256 = provider.ExpectedSha256 } })).ToArray();
+            // These are controlled consumer observations, each with its own exact strict receipt.
+            Dictionary<string, MediaAttachmentBinding> bindings = captured.ToDictionary(
+                post => MediaRevisionKeys.CreateAttachmentKey(id, post.PostId, 0, provider), post =>
+                {
+                    string key = MediaRevisionKeys.CreateAttachmentKey(id, post.PostId, 0, provider);
+                    return new MediaAttachmentBinding(new(id, post.PostId, 0, key), MediaRevisionKeys.CreateAcquisitionKey(id, provider),
+                        asset.AssetId, provider, actual, new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UtcNow));
+                });
+            await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new
+            {
+                Version = 3, Entries = new Dictionary<string, object> { ["image.png"] = entry },
+                Assets = new Dictionary<string, object> { [asset.AssetId] = new { RequestedFileName = "image.png", Entry = entry } },
+                AttachmentBindings = bindings
+            }));
+            manifest = await MediaAssetReader.OpenAsync(media);
             using (ProfileLease lease = ProfileLease.Acquire(profile))
             await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease))
+            {
                 await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/dpt/thread/110125031", "Reader preview regression",
-                    ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, Enumerable.Range(0, 5).Select(index => new CapturedPost(
-                        (110125031 + index).ToString(), index, PostFieldPresence.All,
-                        Html: "<p>Relaunch of an older downloader. " + string.Join(" ", Enumerable.Repeat("Offline post text.", 20 + index * 10)) + "</p>",
-                        Attachments: new[] { new CapturedAttachment(0, "image", OriginalFileName: "image.png") })).ToArray()));
+                    ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, captured));
+                await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
+                ArchivedThreadView observed = (await reader.ReadThreadAsync(id))!;
+                Require(observed.PostCount == 5, "The reader preview fixture lost captured observations.");
+                foreach (CapturedPost post in observed.GetPosts())
+                {
+                    CapturedAttachment attachment = post.Attachments!.Single();
+                    ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifest, id, post.PostId, attachment);
+                    Require(attachment.AttachmentRevisionKey != null && resolved is { IsLegacy: false }
+                        && resolved.Binding?.Acceptance.Kind == MediaAcceptanceKind.Strict && resolved.Asset.AssetId == asset.AssetId,
+                        "A new reader preview observation has no exact strict saved-media binding: " + post.PostId);
+                }
+            }
             TaskCompletionSource mediaGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
             page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }, async (directory, token) =>
             {

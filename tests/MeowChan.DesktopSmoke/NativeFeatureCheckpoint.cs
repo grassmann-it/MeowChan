@@ -2,6 +2,7 @@ using Avalonia;
 using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -38,7 +39,7 @@ internal static class NativeFeatureCheckpoint
         File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(new
         {
             id, family, language = Texts.Language, pid = Environment.ProcessId,
-            actualTheme = top.ActualThemeVariant?.ToString(),
+            actualTheme = top.ActualThemeVariant?.ToString(), renderScaling = top.RenderScaling,
             initialFocus = top.FocusManager?.GetFocusedElement() is Control current ? Describe(current) : null,
             probes = targets.Select(Describe).ToArray(),
             scope = "native labels/roles/help, initial focus where required, native focus and one XTest Tab; no persisted mutation"
@@ -178,4 +179,61 @@ internal static class NativeFeatureCheckpoint
             || !SelectedActionInViewport(actions))
             throw new InvalidOperationException("Native shortcut Escape did not restore focus and viewport to the original selected action.");
     }
+
+    internal static async Task ShortcutContextsAsync(SettingsEditor settings)
+    {
+        MainWindow window = TopLevel.GetTopLevel(settings) as MainWindow
+            ?? throw new InvalidOperationException("Native shortcut context requires its real owner window.");
+        ShortcutEditor editor = settings.FindControl<ShortcutEditor>("ShortcutsEditor")!;
+        TextBox search = editor.GetVisualDescendants().OfType<TextBox>().First();
+        Button pause = window.FindControl<Button>("PauseButton")!;
+        KeyGesture gesture = CommandBindings.Gesture("session.pause")
+            ?? throw new InvalidOperationException("The fresh fixture has no pause shortcut.");
+        // The observer injects this exact Linux default. Refuse another binding
+        // rather than silently testing a different command or saving a remap.
+        if (gesture.Key != Key.P || gesture.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Shift))
+            throw new InvalidOperationException("Native pause context expects the fresh Linux Ctrl+Shift+P binding.");
+        if (!double.TryParse(Environment.GetEnvironmentVariable("AVALONIA_GLOBAL_SCALE_FACTOR"),
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double expectedScale)
+            || expectedScale is not (1 or 1.5 or 2) || Math.Abs(window.RenderScaling - expectedScale) > 0.025)
+            throw new InvalidOperationException("Actual native shortcut scale does not match the requested 1/1.5/2 cell.");
+        bool paused = window.SessionHost.IsPaused;
+        bool dirty = editor.IsDirty;
+        string raw = editor.Draft.Raw.GetRawText();
+        string? searchText = search.Text;
+        try
+        {
+            search.BringIntoView();
+            if (!search.Focus(NavigationMethod.Tab)) throw new InvalidOperationException("Shortcut search refused setup focus.");
+            await Program.WaitUntilAsync(() => search.IsFocused && InViewport(search) && pause.IsEffectivelyEnabled);
+            await HoldAsync("shortcut-text", editor, search, search);
+            if (window.SelectedPage != MainWindow.WorkspacePage.Settings || !search.IsFocused || !InViewport(search)
+                || search.Text != searchText || window.SessionHost.IsPaused != paused || window.SessionHost.IsPauseTransitioning
+                || Config.LoadConfig(window.SessionHost.ProfileDirectory).DownloadsPaused != paused)
+                throw new InvalidOperationException("Native text-context shortcut/Tab/Shift+Tab changed pause, page, text or exact focus.");
+            Program.CaptureWindow(window, "smoke-native-shortcut-text-" + Texts.Language + ".png");
+
+            pause.BringIntoView();
+            if (!pause.Focus(NavigationMethod.Tab)) throw new InvalidOperationException("Pause button refused normal-context setup focus.");
+            await Program.WaitUntilAsync(() => pause.IsFocused && InViewport(pause) && pause.IsEffectivelyEnabled);
+            await HoldAsync("shortcut-normal", window, pause, pause);
+            await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && window.SessionHost.IsPaused != paused
+                && pause.IsEffectivelyEnabled);
+            if (window.SelectedPage != MainWindow.WorkspacePage.Settings
+                || Config.LoadConfig(window.SessionHost.ProfileDirectory).DownloadsPaused == paused)
+                throw new InvalidOperationException("Native normal-context shortcut did not persist the actual pause command on its owner page.");
+            if (editor.IsDirty != dirty || editor.Draft.Raw.GetRawText() != raw || ShortcutService.IsCapturing)
+                throw new InvalidOperationException("Native context probes changed shortcut drafts or retained a capture lease.");
+            Program.CaptureWindow(window, "smoke-native-shortcut-normal-" + Texts.Language + ".png");
+            Console.WriteLine("NATIVE SHORTCUT CONTEXT PASS " + Texts.Language
+                + ": actualScale=" + window.RenderScaling + "; real Ctrl+Shift+P suppressed in text and active on normal control; native Tab/Shift+Tab exact return. Isolated pause restored separately.");
+        }
+        finally
+        {
+            // Cleanup uses the Host API, not another claimed native input event.
+            if (window.SessionHost.IsPaused != paused) await window.SessionHost.SetPausedAsync(paused);
+            await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && pause.IsEffectivelyEnabled);
+        }
+    }
+
 }

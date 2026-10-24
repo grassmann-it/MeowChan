@@ -79,7 +79,7 @@ public partial class MainWindow
             || HasBlockingPageDecision() || _archivePage?.IsReaderDialogOpen == true
             || WorkspaceControl<Border>("ShellHelpOverlay").IsVisible || (_gallery?.IsOverlayOpen ?? false)) return false;
         if (_shortcutRouter?.Route(e) == true) return true;
-        if (!CanExecuteShellPowerCommand(this) || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;
+        if (!CanExecuteShellPowerCommand(e.Source, e.Key)) return false;
         if (_gallery != null && !_gallerySuspended) return CommandBindings.RouteVisibleActions(_gallery, e);
         if (_largeReaderOpen && _archivePage?.FindControl<Control>("ArchiveReaderPane") is Control pane)
         {

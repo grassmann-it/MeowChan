@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MeowChan.Testing;
 using Avalonia;
 using Avalonia.Controls;
@@ -89,18 +90,60 @@ internal static class ArchiveExportChecks
                 fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
                 Program.CaptureWindow(window, "smoke-archive-export-result.png");
                 await CheckCompactLayoutsAsync(window, fixture);
-                fixture.OpenExportFolder = _ => Task.FromException(new IOException("fixture launch failure"));
-                fixture.FindControl<Button>("ArchiveExportOpen")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Require(ReferenceEquals(fixture.LastExport, result) && fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text!.Contains("fixture launch failure"),
+                byte[] publishedIndex = await File.ReadAllBytesAsync(result.IndexPath);
+                string publishedStylePath = Path.Combine(result.Directory, "style.css");
+                byte[] publishedStyle = await File.ReadAllBytesAsync(publishedStylePath);
+                fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text = Path.Combine(destinationRoot, "edited-before-failed-launch");
+                string? failedLaunchTarget = null;
+                int failedLaunchCalls = 0;
+                Button openResult = fixture.FindControl<Button>("ArchiveExportOpen")!;
+                TextBlock resultStatus = fixture.FindControl<TextBlock>("ArchiveExportStatus")!;
+                TextBlock resultError = fixture.FindControl<TextBlock>("ArchiveExportError")!;
+                Ursa.Controls.Banner errorBanner = fixture.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner")!;
+                string? publishedStatus = resultStatus.Text;
+                string expectedPublishedStatus = Texts.T("archive.exportDone", result.PostCount, result.FileCount,
+                    result.Omissions.Count, result.Warnings.Count) + "\n" + result.Directory;
+                Require(publishedStatus == expectedPublishedStatus
+                    && ReferenceEquals(host.Content, fixture) && ReferenceEquals(fixture.LastExport, result)
+                    && fixture.CurrentThread?.Summary.Id == readerIdentity && openResult.IsEnabled
+                    && fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible,
+                    "The layout matrix replaced the bound export fixture, result or available folder action.");
+                fixture.OpenExportFolder = path =>
+                {
+                    failedLaunchTarget = path; failedLaunchCalls++;
+                    return Task.FromException(new IOException("fixture launch failure"));
+                };
+                openResult.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => failedLaunchCalls == 1 && errorBanner.IsVisible
+                    && resultError.Text == Texts.T("export.openFailed", "fixture launch failure") && openResult.IsEnabled);
+                Console.WriteLine("SMOKE archive export folder failure: " + JsonSerializer.Serialize(new
+                {
+                    failedLaunchCalls, failedLaunchTarget, expectedTarget = result.Directory,
+                    sameHost = ReferenceEquals(host.Content, fixture), sameResult = ReferenceEquals(fixture.LastExport, result),
+                    reader = fixture.CurrentThread?.Summary.Id, resultStatus = resultStatus.Text, resultError = resultError.Text,
+                    errorBanner.IsVisible, errorBanner.IsEffectivelyVisible, openResult.IsEnabled
+                }));
+                Require(ReferenceEquals(host.Content, fixture) && ReferenceEquals(fixture.LastExport, result)
+                    && failedLaunchCalls == 1 && failedLaunchTarget == result.Directory && resultStatus.Text == publishedStatus
+                    && errorBanner.IsVisible && errorBanner.IsEffectivelyVisible
+                    && resultError.Text == Texts.T("export.openFailed", "fixture launch failure"),
                     "Folder handoff error erased the successful export or lacked dialog feedback.");
+                byte[] indexAfterFolderFailure = await File.ReadAllBytesAsync(result.IndexPath);
+                byte[] styleAfterFolderFailure = await File.ReadAllBytesAsync(publishedStylePath);
+                Require(publishedIndex.SequenceEqual(indexAfterFolderFailure)
+                    && publishedStyle.SequenceEqual(styleAfterFolderFailure),
+                    "Folder handoff failure changed the successfully published index or stylesheet bytes.");
                 fixture.OpenExportFolder = null;
+                fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
                 // A second click at the same target must fail without damaging the first output.
-                byte[] firstOutput = await File.ReadAllBytesAsync(result.IndexPath);
+                byte[] firstOutput = publishedIndex;
                 fixture.FindControl<Button>("ArchiveExportStart")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => !fixture.IsExportRunning);
                 byte[] afterConflict = await File.ReadAllBytesAsync(result.IndexPath);
                 Require(fixture.LastExport == null && firstOutput.SequenceEqual(afterConflict), "A failed repeated export changed an existing output.");
-                Require(fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text!.Contains("did not complete", StringComparison.OrdinalIgnoreCase), "Repeated output conflict falsely reported success.");
+                Require(errorBanner.IsVisible && errorBanner.IsEffectivelyVisible
+                    && resultError.Text?.StartsWith(Texts.T("export.failed"), StringComparison.Ordinal) == true,
+                    "Repeated output conflict falsely reported success or lacked visible error feedback.");
                 Require(!fixture.FindControl<Button>("ArchiveExportOpen")!.IsEnabled, "Failed new attempt retained an old result folder action.");
                 fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 fixture.ExportHistory = new ExportHistoryStore(profile, exportLease);

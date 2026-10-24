@@ -331,8 +331,13 @@ internal static class ArchivePageChecks
             Button editor = page.FindControl<Button>("ArchiveThreadColumnsButton")!;
             page.ArchiveLayoutPreference = "Table";
             Require(editor.IsVisible, "The thread table has no visible Columns editor.");
-            Click(editor);
-            ContextMenu menu = editor.ContextMenu!;
+            Require(editor.IsEnabled && editor.Command?.CanExecute(editor.CommandParameter) == true,
+                "The thread Columns editor command is unavailable.");
+            // This toolbar action uses ICommand; a routed Click bypasses Button.OnClick dispatch.
+            SmokeActionClick.Execute(editor);
+            ContextMenu menu = editor.ContextMenu
+                ?? throw new InvalidOperationException("The thread Columns command did not create its menu.");
+            Require(menu.IsOpen, "The thread Columns command did not open its menu.");
             Require(menu.Items.OfType<MenuItem>().Count() == 8 &&
                 menu.Items.OfType<MenuItem>().First().ToggleType == MenuItemToggleType.CheckBox,
                 "The thread Columns editor lacks keyboard-friendly checked items and reset.");
