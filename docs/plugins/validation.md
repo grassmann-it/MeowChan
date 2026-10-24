@@ -90,17 +90,19 @@ archiving transition. Full product acquisition/restart/export, package-consumer
 acceptance, current GUI captures and the native release matrix remain separate
 release checks; consult the candidate's release notes for their actual results.
 
-## Additional example sources in progress
+## Wizchan and Endchan validation
 
-Wizchan and Endchan are being added as independent SDK-only example sources.
-The [SRC01–04 plan](../architecture/1.0.0/source-erweiterungen/README.md) defines
-their targeted parser, HTTP, routing, delivery and production-fixture checks;
-implementation and joint validation are in progress. Provider metadata evidence
-is recorded separately in the [Wizchan](../../plugins/Examples/Wizchan/README.md)
-and [Endchan](../../plugins/Examples/Endchan/README.md) notes. Planned fixture-media
-acquisition does not establish a live-original download, a live archive transition
-or current provider health. The dated Lainchan/Kohlchan results above retain their
-original inputs and plugin inventory.
+Wizchan and Endchan are supplied as independent SDK-only example sources.
+The [2026-10-24 local results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
+bind their parser/HTTP/routing tests, seven-plugin delivery, SDK-free probes and
+production fixture acquisition/offline restore to the tested candidate. The
+author workflow separately retains Lainchan/Kohlchan as its two acquired sources.
+Provider metadata evidence remains in the
+[Wizchan](../../plugins/Examples/Wizchan/README.md) and
+[Endchan](../../plugins/Examples/Endchan/README.md) notes. Fixture-media acquisition
+does not establish a live-original download, a live archive transition or current
+provider health. The dated Lainchan/Kohlchan results above retain their original
+inputs and plugin inventory.
 
 ## Diagnose without losing state
 
