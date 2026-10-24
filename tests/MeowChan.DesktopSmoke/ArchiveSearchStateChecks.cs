@@ -1,9 +1,12 @@
 using Avalonia.Controls;
 using MeowChan.Archive;
+using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
+using MeowChan.Desktop.Localization;
+using System.Text.Json;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -14,6 +17,7 @@ internal static class ArchiveSearchStateChecks
         string directory = Path.Combine(TemporaryWorkspacePaths.TempRoot, "archive-search-state-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         ArchivePage? page = null;
+        string originalLanguage = Texts.Language;
         try
         {
             using ProfileLease lease = ProfileLease.Acquire(directory);
@@ -45,6 +49,53 @@ internal static class ArchiveSearchStateChecks
                 "First failure was published as a successful empty result.");
             fail = false;
             Require(await page.ApplySearchSpecAsync(all), "Initial fixture search failed.");
+            async Task DuringLanguageChange(string scenario, Func<Task<bool>> begin, Action? edit, Action verify)
+            {
+                gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                Task<bool> pending = begin();
+                await Program.WaitUntilAsync(() => page.IsSearchLoading);
+                edit?.Invoke();
+                string previousLanguage = Texts.Language;
+                Texts.SetLanguage(previousLanguage == "en" ? "de" : "en");
+                gate.SetResult();
+                bool succeeded = await pending;
+                gate = null;
+                Console.WriteLine("SMOKE archive language-race: " + JsonSerializer.Serialize(new
+                {
+                    scenario, previousLanguage, language = Texts.Language, succeeded,
+                    applied = page.AppliedSearchSpec == null ? null : ArchiveSearchSpecJson.Serialize(page.AppliedSearchSpec),
+                    page.HasUnappliedSearchDraft,
+                    draftText = page.FindControl<TextBox>("ArchiveSearchText")!.Text,
+                    draftCapture = page.FindControl<ComboBox>("ArchiveCaptureFilter")!.SelectedIndex,
+                    draftSort = page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex
+                }));
+                Require(succeeded, "Language-race load failed: " + scenario);
+                verify();
+            }
+            ArchiveSearchSpec saved = new(sources: ["B"], captureEnabled: true, sort: ArchiveThreadSort.OldestFirst);
+            await DuringLanguageChange("saved definition applies its draft despite label refresh",
+                () => page.ApplySearchSpecAsync(saved), null, () =>
+                Require(!page.HasUnappliedSearchDraft && page.FindControl<ComboBox>("ArchiveCaptureFilter")!.SelectedIndex == 1
+                    && page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex == (int)ArchiveThreadSort.OldestFirst,
+                    "A language-only refresh was mistaken for an edit and blocked saved-definition draft commit."));
+            ArchiveSearchSpec captured = new(captureEnabled: true);
+            Require(await page.ApplySearchSpecAsync(captured), "Capture-chip race setup failed.");
+            await DuringLanguageChange("matching chip editor clears despite label refresh",
+                () => page.RemoveAppliedFilter("capture"), null, () =>
+                Require(!page.HasUnappliedSearchDraft && page.FindControl<ComboBox>("ArchiveCaptureFilter")!.SelectedIndex == 0,
+                    "A language-only refresh blocked the successful chip's matching editor cleanup."));
+            await DuringLanguageChange("real text edit during saved apply remains unsearched",
+                () => page.ApplySearchSpecAsync(saved),
+                () => page.FindControl<TextBox>("ArchiveSearchText")!.Text = "authored during load", () =>
+                Require(page.HasUnappliedSearchDraft && page.FindControl<TextBox>("ArchiveSearchText")!.Text == "authored during load",
+                    "A real concurrent text edit was overwritten by saved-definition commit."));
+            Require(await page.ApplySearchSpecAsync(captured), "Edited-chip race setup failed.");
+            await DuringLanguageChange("real chip-category edit during remove remains unsearched",
+                () => page.RemoveAppliedFilter("capture"),
+                () => page.FindControl<ComboBox>("ArchiveCaptureFilter")!.SelectedIndex = 2, () =>
+                Require(page.HasUnappliedSearchDraft && page.FindControl<ComboBox>("ArchiveCaptureFilter")!.SelectedIndex == 2,
+                    "A real concurrent category edit was overwritten by chip cleanup."));
+            Require(await page.ApplySearchSpecAsync(all), "Post-language-race fixture reset failed.");
             Require(page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 50, "Archive page size changed.");
             object applied = page.AppliedSearchSpec!;
             page.FindControl<TextBox>("ArchiveSearchText")!.Text = "unapplied text";
@@ -95,6 +146,7 @@ internal static class ArchiveSearchStateChecks
         finally
         {
             page?.EndLifetime();
+            Texts.SetLanguage(originalLanguage);
             try { Directory.Delete(directory, true); } catch (IOException) { }
         }
     }

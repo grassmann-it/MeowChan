@@ -62,14 +62,14 @@ public partial class ArchivePage
     }
     private static string CanonicalField(ArchiveSearchSpec spec, string field) => ArchiveSearchSpecJson.Serialize(field switch
     {
-        "text" => new ArchiveSearchSpec(text: spec.Text),
-        "source" => new ArchiveSearchSpec(sources: spec.Sources),
-        "board" => new ArchiveSearchSpec(boards: spec.Boards),
-        "state" => new ArchiveSearchSpec(sourceStates: spec.SourceStates),
-        "capture" => new ArchiveSearchSpec(captureEnabled: spec.CaptureEnabled),
-        "posts" => new ArchiveSearchSpec(hasPosts: spec.HasPosts),
-        "work" => new ArchiveSearchSpec(workFilter: spec.WorkFilter),
-        "date" => new ArchiveSearchSpec(dateRange: spec.DateRange),
+        "text" => ArchiveSearchSpec.FromExactIdentities(text: spec.Text),
+        "source" => ArchiveSearchSpec.FromExactIdentities(sources: spec.Sources),
+        "board" => ArchiveSearchSpec.FromExactIdentities(boards: spec.Boards),
+        "state" => ArchiveSearchSpec.FromExactIdentities(sourceStates: spec.SourceStates),
+        "capture" => ArchiveSearchSpec.FromExactIdentities(captureEnabled: spec.CaptureEnabled),
+        "posts" => ArchiveSearchSpec.FromExactIdentities(hasPosts: spec.HasPosts),
+        "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: spec.WorkFilter),
+        "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: spec.DateRange),
         _ => throw new ArgumentOutOfRangeException(nameof(field))
     });
     private bool DraftFieldMatches(ArchiveSearchSpec spec, string field)
@@ -81,14 +81,14 @@ public partial class ArchivePage
         {
             ArchiveSearchSpec draft = field switch
             {
-                "text" => new(text: Control<TextBox>("ArchiveSearchText").Text ?? ""),
-                "source" when string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) => new(sources: _draftSources),
-                "board" when string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter")) => new(boards: _draftBoards),
-                "state" when Control<ComboBox>("ArchiveStateFilter").SelectedIndex <= 0 => new(sourceStates: _draftStates),
-                "capture" => new(captureEnabled: Choice("ArchiveCaptureFilter")),
-                "posts" => new(hasPosts: Choice("ArchivePostsFilter")),
-                "work" => new(workFilter: WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex)),
-                "date" => new(dateRange: new ArchiveDateRange(Control<ArchiveDateEditor>("ArchiveStartDate").ParseRaw(false),
+                "text" => ArchiveSearchSpec.FromExactIdentities(text: Control<TextBox>("ArchiveSearchText").Text ?? ""),
+                "source" when string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) => ArchiveSearchSpec.FromExactIdentities(sources: _draftSources),
+                "board" when string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter")) => ArchiveSearchSpec.FromExactIdentities(boards: _draftBoards),
+                "state" when Control<ComboBox>("ArchiveStateFilter").SelectedIndex <= 0 => ArchiveSearchSpec.FromExactIdentities(sourceStates: _draftStates),
+                "capture" => ArchiveSearchSpec.FromExactIdentities(captureEnabled: Choice("ArchiveCaptureFilter")),
+                "posts" => ArchiveSearchSpec.FromExactIdentities(hasPosts: Choice("ArchivePostsFilter")),
+                "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex)),
+                "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(Control<ArchiveDateEditor>("ArchiveStartDate").ParseRaw(false),
                     Control<ArchiveDateEditor>("ArchiveEndDate").ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
                 _ => throw new InvalidOperationException()
             };

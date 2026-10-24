@@ -15,6 +15,7 @@ namespace MeowChan.DesktopSmoke;
 internal static class MediaRatingFixture
 {
     internal static readonly ResourceId Thread = new("source", "b", "42");
+    internal static readonly ResourceId OtherThread = new("other-source", "c", "99");
     internal sealed record Spec(int Index, string Media, string Variant, string ModelSha256, int? Rating,
         bool Favorite, bool Available, string[] Posts);
     internal static IReadOnlyList<Spec> Specs
@@ -72,6 +73,9 @@ internal static class MediaRatingFixture
                 }).ToArray())).ToArray();
         await catalog.CaptureAsync(new(Thread, "https://offline.invalid/b/thread/42", "URSA16 rating comparison",
             ThreadSourceState.Archived, new DateTimeOffset(2026, 10, 23, 12, 0, 0, TimeSpan.Zero), directory, posts));
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1")
+            await catalog.CaptureAsync(new(OtherThread, "https://offline.invalid/c/thread/99", "Other source for late rating error",
+                ThreadSourceState.Archived, new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero), directory, posts));
         MediaRatingStore ratings = new(profile, lease); FavoriteStore favorites = new(profile, lease);
         foreach (Spec spec in Specs)
         {

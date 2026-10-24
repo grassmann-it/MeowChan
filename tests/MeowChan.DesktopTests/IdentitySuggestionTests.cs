@@ -96,4 +96,81 @@ public sealed class IdentitySuggestionTests
         for (int i = 0; i < 2; i++) await Assert.ThrowsAsync<IOException>(() => failed.MatchAsync(false, "", null, default));
         Assert.Equal(1, initial);
     }
+    [Fact]
+    public async Task LateScopedSourceResponseCannotReplaceNewerExactSource()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldScope = new TaskCompletionSource<ArchiveIdentityPage<ArchiveBoardIdentity>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int scopes = 0;
+        using var cache = new ArchiveSuggestionCache(_ => Task.FromResult(Snapshot(true)), (source, _) =>
+        {
+            scopes++;
+            if (source == "A") { started.SetResult(); return oldScope.Task; } // Deliberately ignores cancellation.
+            return Task.FromResult(new ArchiveIdentityPage<ArchiveBoardIdentity>([new(source, "Unicode β' / raw")], false));
+        });
+        using var oldInput = new CancellationTokenSource();
+        var old = cache.MatchAsync(true, "", "A", oldInput.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        oldInput.Cancel();
+        var current = Assert.Single(await cache.MatchAsync(true, "Unicode", "a", default));
+        Assert.Equal("a", current.Source);
+        Assert.Equal("Unicode β' / raw", current.Value);
+        oldScope.SetResult(new([new("A", "stale")], false));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => old);
+        Assert.Equal(current, Assert.Single(await cache.MatchAsync(true, "Unicode", "a", default)));
+        Assert.Equal(2, scopes); // No replacement/reload of the current source by the late response.
+    }
+
+    [Fact]
+    public async Task ProfileEndDuringScopedReadCannotLeakIntoReplacementProfile()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var late = new TaskCompletionSource<ArchiveIdentityPage<ArchiveBoardIdentity>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var oldProfile = new ArchiveSuggestionCache(_ => Task.FromResult(Snapshot(true)), (_, _) =>
+        {
+            started.SetResult(); return late.Task; // Deliberately ignores profile cancellation.
+        });
+        var pending = oldProfile.MatchAsync(true, "", "A", default);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        oldProfile.Dispose();
+        var fresh = IdentitySuggestions.FromContexts([new("new-profile", "fresh")], [], []);
+        using var replacement = new ArchiveSuggestionCache(_ => Task.FromResult(fresh), (_, _) => throw new Exception("No scope read expected."));
+        Assert.Equal("fresh", Assert.Single(await replacement.MatchAsync(true, "", "new-profile", default)).Value);
+        late.SetResult(new([new("A", "old-profile")], false));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.Empty(await replacement.MatchAsync(true, "old", null, default));
+        Assert.Equal("new-profile", Assert.Single(await replacement.MatchAsync(false, "", null, default)).Value);
+    }
+
+    [Theory]
+    [InlineData(" A ", " x ")]
+    [InlineData(" β/源 ", " β' / board ")]
+    public void ExplicitStoredCandidatesKeepExactIdentityAndQualification(string source, string board)
+    {
+        var sourceCandidate = new IdentitySuggestion(source, null, source);
+        var boardCandidate = new IdentitySuggestion(board, source, board + " · " + source);
+        Assert.Same(sourceCandidate, IdentitySuggestions.CurrentSelection(source, sourceCandidate));
+        Assert.Equal(source, IdentitySuggestions.InputIdentity(source, sourceCandidate));
+        Assert.Same(boardCandidate, IdentitySuggestions.CurrentSelection(board, boardCandidate));
+        Assert.Equal(board, IdentitySuggestions.InputIdentity(board, boardCandidate));
+        Assert.Equal(source, IdentitySuggestions.CurrentSelection(board, boardCandidate)!.Source);
+        Assert.Equal(source.Trim(), IdentitySuggestions.InputIdentity(source, null));
+        Assert.Equal(board.Trim(), IdentitySuggestions.InputIdentity(board, null));
+    }
+
+    [Fact]
+    public void CandidateScopeAndFreeTextRemainDistinctIncludingStaleSelection()
+    {
+        const string exact = " A ";
+        var candidate = new IdentitySuggestion(exact, null, exact);
+        var catalog = new IdentitySuggestions(new([exact, "A"], false),
+            new([new(exact, "same"), new("A", "same")], false));
+        Assert.Equal(exact, Assert.Single(catalog.Match(true, "same", IdentitySuggestions.InputIdentity(exact, candidate))).Source);
+        Assert.Equal("A", Assert.Single(catalog.Match(true, "same", IdentitySuggestions.InputIdentity(exact, null))).Source);
+        Assert.Null(IdentitySuggestions.CurrentSelection("A", candidate));
+        Assert.Equal("A", IdentitySuggestions.InputIdentity("A", candidate));
+        Assert.Null(IdentitySuggestions.CurrentSelection(" a ", candidate));
+        Assert.Equal("a", IdentitySuggestions.InputIdentity(" a ", candidate));
+    }
+
 }

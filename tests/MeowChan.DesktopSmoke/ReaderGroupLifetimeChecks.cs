@@ -94,6 +94,95 @@ internal static class ReaderGroupLifetimeChecks
             pageField.SetValue(owner, previousPage);
             try { Directory.Delete(profile, true); } catch (IOException) { }
         }
+        await RunGalleryOriginRestoreAsync(owner);
+    }
+
+    internal static async Task RunGalleryOriginRestoreAsync(MainWindow owner)
+    {
+        await RunGalleryOriginRestoreAsync(owner, lateFailure: false);
+        await RunGalleryOriginRestoreAsync(owner, lateFailure: true);
+    }
+
+    private static async Task RunGalleryOriginRestoreAsync(MainWindow owner, bool lateFailure)
+    {
+        string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-group-restore-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(profile);
+        ResourceId a = new("local", "restore", "1"), b = a with { Thread = "2" }, c = a with { Thread = "3" };
+        TaskCompletionSource oldEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource newEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource oldRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource newRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int armed = 0;
+        ArchivePage? page = null;
+        Window? reader = null;
+        Task? oldRead = null, newRead = null;
+        try
+        {
+            using ProfileLease lease = ProfileLease.Acquire(profile);
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+            foreach (ResourceId id in new[] { a, b, c })
+                await catalog.CaptureAsync(new(id, "https://example.test/restore/thread/" + id.Thread,
+                    "Restore " + id.Thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, profile,
+                    [new CapturedPost(id.Thread!, 0, PostFieldPresence.Html, Html: "Saved group restore post")]));
+            ReaderGroupStore store = new(profile, lease);
+            var saved = await store.SaveAsync(new(1, 0, [new(Guid.NewGuid(), "Frozen order", [a, b, c])]), 0);
+            page = new ArchivePage(async token =>
+            {
+                // Arm immediately before each real navigation call: its preflight opens synchronously.
+                int gate = Interlocked.Exchange(ref armed, 0);
+                if (gate == 1)
+                {
+                    oldEntered.TrySetResult();
+                    await oldRelease.Task; // Deliberately model a completion after cancellation.
+                    if (lateFailure) throw new IOException("Retired group preflight failed late.");
+                    return await ArchiveReader.OpenAsync(profile, CancellationToken.None);
+                }
+                if (gate == 2) { newEntered.TrySetResult(); await newRelease.Task; }
+                return await ArchiveReader.OpenAsync(profile, token);
+            }, (_, _) => Task.CompletedTask, _ => { }) { ReaderRefreshAllowed = () => false };
+            reader = new Window { Width = 1000, Height = 720, Content = page.DetachReader(), Title = "Group origin restore regression" };
+            reader.Show(owner); page.IsAvailable = true;
+            page.BeginReaderGroupScope(saved.Groups[0].Members);
+            Require(await page.LoadReaderGroupThreadAsync(a), "Group restore origin did not load.");
+            await page.MediaLoadTask;
+            await page.FocusPostAsync(a.Thread!);
+
+            // A later explicit saved reorder must not mutate the already-open reader scope.
+            saved = await store.SaveAsync(saved with { Groups = [saved.Groups[0] with { Members = new[] { c, b, a } }] }, saved.Revision);
+            Action restore = page.CaptureGalleryOrigin();
+            armed = 1; oldRead = page.NavigateReaderAsync(0, 1);
+            await oldEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            restore(); // Exact callback invoked by the shell when closing a group-origin gallery.
+            Require(page.CurrentThread?.Summary.Id == a, "Gallery callback did not restore the group origin.");
+
+            armed = 2; newRead = page.NavigateReaderAsync(0, 1);
+            await newEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            oldRelease.TrySetResult();
+            await oldRead.WaitAsync(TimeSpan.FromSeconds(10));
+            Require(page.CurrentThread?.Summary.Id == a && page.IsBusy
+                && !page.FindControl<Button>("ReaderNextThread")!.IsEnabled,
+                "Retired group completion overwrote the restored origin or unlocked the replacement read.");
+            Require(!page.FindControl<TextBlock>("ReaderGroupAvailabilityMessage")!.IsVisible
+                && !page.CanSkipUnavailableGroupMember,
+                "Retired group failure published an unavailable-target state into the restored origin.");
+            newRelease.TrySetResult();
+            await newRead.WaitAsync(TimeSpan.FromSeconds(10));
+            Require(page.CurrentThread?.Summary.Id == b, "Replacement read lost the frozen next member.");
+            await page.NavigateReaderAsync(0, 1);
+            Require(page.CurrentThread?.Summary.Id == c, "Saved reordering or origin restoration replaced the frozen group scope.");
+            Require((await store.LoadAsync()).Snapshot!.Groups[0].Members.SequenceEqual(new[] { c, b, a }),
+                "Reader origin restoration rewrote the newer saved group order.");
+            Console.WriteLine("SMOKE reader groups restore: late " + (lateFailure ? "failure" : "success")
+                + " cannot overwrite gallery origin or unlock replacement; frozen order survives saved reorder.");
+        }
+        finally
+        {
+            oldRelease.TrySetResult(); newRelease.TrySetResult();
+            if (oldRead != null) await oldRead.WaitAsync(TimeSpan.FromSeconds(10));
+            if (newRead != null) await newRead.WaitAsync(TimeSpan.FromSeconds(10));
+            page?.EndLifetime(); reader?.Close();
+            try { Directory.Delete(profile, true); } catch (IOException) { }
+        }
     }
 
     private static void Require(bool condition, string message)

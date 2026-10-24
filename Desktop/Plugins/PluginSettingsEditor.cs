@@ -139,11 +139,12 @@ internal sealed class PluginSettingsEditor : StackPanel
             _inputs.Add(field.Key, editor);
             _definitions.Add(field.Key, field);
             content.Children.Add(editor);
-            if (!string.IsNullOrEmpty(field.Help))
-                content.Children.Add(new TextBlock { Text = field.Help, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
+            // Keep correction and its error adjacent even when the schema help exceeds the viewport.
             TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error" } };
             AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
             _errors.Add(field.Key, error); content.Children.Add(error);
+            if (!string.IsNullOrEmpty(field.Help))
+                content.Children.Add(new TextBlock { Text = field.Help, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
             FormItem item = new() { Content = content, HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch };
             FormItem.SetLabel(item, label);

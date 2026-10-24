@@ -56,7 +56,7 @@ internal static partial class SavedArchiveSearchChecks
     internal static async Task PrepareAsync(string profile)
     {
         _ = RuntimeSourceDigest;
-        Require(Stage is "save" or "reopen" or "presentation", "MEOWCHAN_SAVED_SEARCH_STAGE must be save, reopen or presentation.");
+        Require(Stage is "save" or "reopen" or "presentation" or "contracts", "MEOWCHAN_SAVED_SEARCH_STAGE must be save, reopen, presentation or contracts.");
         if (Stage == "presentation")
         {
             Require(File.Exists(Path.Combine(profile, "saved-search-reopen-complete.json")), "Presentation requires a completed save/reopen test profile.");
@@ -67,7 +67,7 @@ internal static partial class SavedArchiveSearchChecks
             return; // Read-only validation: do not seed or mutate archive/work/persisted definitions.
         }
         string planPath = Path.Combine(profile, "saved-search-fixture.json");
-        if (Stage == "save")
+        if (Stage is "save" or "contracts")
         {
             Require(!File.Exists(SearchFile(profile)) && !File.Exists(planPath), "Save phase requires a fresh marked test profile.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
@@ -121,13 +121,15 @@ internal static partial class SavedArchiveSearchChecks
             menu.IsSubMenuOpen = false;
         }
         await Program.WaitUntilAsync(() => !page.IsBusy && page.AppliedSearchSpec != null);
-        if (Stage == "presentation") await PresentationAsync(owner, page, profile, log);
+        if (Stage == "contracts") await ContractsAsync(owner, page, profile, log);
+        else if (Stage == "presentation") await PresentationAsync(owner, page, profile, log);
         else if (t1) await ReopenAsync(owner, page, profile, log);
         else await SaveAsync(owner, page, profile, log);
         Require(owner.SessionHost.GetView().Threads.Count == 0 && owner.SessionHost.GetView().Boards.Count == 0
             && owner.SessionHost.ReceivedMediaBytes == 0, "Saved-search fixture created watches or received media.");
         log.Note("complete", "No human preference/native AT/IME claim; source-built in-process controls only", new { stage = Stage });
-        Console.WriteLine(Stage == "presentation" ? "SMOKE saved searches presentation: 12 real dialog cells completed; functional pair not repeated."
+        Console.WriteLine(Stage == "contracts" ? "SMOKE saved searches contracts: overlapping selection, failure retention, frozen retry and dialog cancellation passed."
+            : Stage == "presentation" ? "SMOKE saved searches presentation: 12 real dialog cells completed; functional pair not repeated."
             : "SMOKE saved searches " + Stage + ": real save/apply/dirty/replace/restart/DST/export assertions completed.");
     }
 

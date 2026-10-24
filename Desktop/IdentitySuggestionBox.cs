@@ -91,6 +91,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         _request?.Cancel(); _request?.Dispose(); _request = null;
         IsDropDownOpen = false; ItemsSource = Array.Empty<IdentitySuggestion>();
     }
+    // Scope changes invalidate the accepted pair without rewriting free/editor text.
+    internal void InvalidateIdentityContext() { AcceptedCandidate = null; Dismiss(); }
     internal void EndSuggestions() { _ended = true; Dismiss(); AcceptedCandidate = null; Candidates = null; }
     internal void RestartSuggestions() { _suppressed = false; _ = PopulateAsync(); }
     internal void RefreshSuggestions() { if (!_suppressed && IsKeyboardFocusWithin) _ = PopulateAsync(); }

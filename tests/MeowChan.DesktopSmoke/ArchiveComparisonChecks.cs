@@ -50,6 +50,8 @@ internal static class ArchiveComparisonChecks
         internal double? ExpectedWidth, ExpectedHeight;
         internal readonly bool LocaleOnly = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_LOCALE_ONLY") == "1";
         internal readonly bool MatrixOnly = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_MATRIX_ONLY") == "1";
+        internal readonly bool ExactIdsOnly = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY") == "1";
+        internal readonly bool StateOnly = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_STATE_ONLY") == "1";
         private readonly bool _captureOwnedX11 = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_X11_CAPTURE") == "1";
         internal readonly List<string> CompletedPresentations = [];
         private TextBlock? _localeProbe;
@@ -187,7 +189,7 @@ internal static class ArchiveComparisonChecks
         internal void Finish(string result, Exception? error = null) => File.WriteAllText(Path.Combine(output, "result.json"),
             JsonSerializer.Serialize(new { result, error = error?.ToString(), baselineSourceDigest = Baseline,
                 fixtureDigest = Fixture, executionSourceDigest = Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_COMPARISON_SOURCE_DIGEST") ?? "runner source manifest required alongside these artifacts", os = Environment.OSVersion.ToString(), backend = Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1" ? "X11 software smoke" : "platform-detected",
-                runKind = LocaleOnly ? "targeted local calendar culture replay; no full matrix or benchmark" : MatrixOnly ? "representative presentation checks; full functional suite not repeated" : "bounded full comparison",
+                runKind = ExactIdsOnly ? "targeted four-row archive exact identity transitions; no presentation matrix or benchmark" : StateOnly ? "targeted archive search-state transitions; no presentation matrix or benchmark" : LocaleOnly ? "targeted local calendar culture replay; no full matrix or benchmark" : MatrixOnly ? "representative presentation checks; full functional suite not repeated" : "bounded full comparison",
                 completedPresentations = CompletedPresentations, matrixBaselineSourceDigest = MatrixOnly ? "386b43064a0bbacadd2bf23e17856db546476e7c6a44bcb64afa730edf7e890d" : null,
                 humanJudgmentOpen = true, nativeAtImeOpen = true, interpretation = "retain-provisionally; execution evidence does not decide human preference",
                 largeDatasetCost = "not-run; 24-row comparison fixture is not the 120000-row performance fixture" }, new JsonSerializerOptions { WriteIndented = true }));
@@ -208,6 +210,22 @@ internal static class ArchiveComparisonChecks
         string theme = owner.SessionHost.Config.Theme;
         try
         {
+            if (evidence.ExactIdsOnly)
+            {
+                Require(!evidence.StateOnly && !evidence.MatrixOnly && !evidence.LocaleOnly, "Exact-ID replay cannot also select another replay.");
+                await ArchiveExactIdentityChecks.RunAsync(owner);
+                evidence.Write("focused-exact-identity-checks", new { suite = "ArchiveExactIdentityChecks", fixture = "four distinct source A/padded A and board x/padded x local legacy identities", result = "pass" });
+                evidence.Finish("pass");
+                return;
+            }
+            if (evidence.StateOnly)
+            {
+                Require(!evidence.MatrixOnly && !evidence.LocaleOnly, "State-only replay cannot also select a presentation replay.");
+                await ArchiveSearchStateChecks.RunAsync();
+                evidence.Write("method-checks-separate-from-ui", new { suite = "ArchiveSearchStateChecks", fixture = "120-row temporary local state fixture", result = "pass" });
+                evidence.Finish("pass");
+                return;
+            }
             if (!evidence.MatrixOnly && !evidence.LocaleOnly)
             {
                 await ArchiveSearchStateChecks.RunAsync();

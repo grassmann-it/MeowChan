@@ -13,16 +13,34 @@ public partial class ArchivePage
 {
     private ArchiveSuggestionCache? _suggestionCache;
     private bool _suggestionsFailed;
+    private bool _hasBoardSuggestionContext;
+    private string? _boardSuggestionContext;
     internal Func<string?>? GetBoardSuggestionSource { get; set; }
 
     internal string? ReadIdentityEditor(string name) => Control<IdentitySuggestionBox>(name).Text;
-    internal IdentitySuggestion? TryReadSelectedIdentity(string name) => Control<IdentitySuggestionBox>(name).AcceptedCandidate;
+    internal IdentitySuggestion? TryReadSelectedIdentity(string name)
+    {
+        var editor = Control<IdentitySuggestionBox>(name);
+        return IdentitySuggestions.CurrentSelection(editor.Text, editor.AcceptedCandidate);
+    }
     internal void WriteIdentityEditor(string name, string? value) => Control<IdentitySuggestionBox>(name).SetCurrentValue(IdentitySuggestionBox.TextProperty, value);
 
     // URSA-14 adapters can consume qualified candidates without parsing display labels.
     internal Task<IdentitySuggestion[]> GetIdentityCandidatesAsync(bool boards, string text, CancellationToken token) => ReadSuggestionsAsync(boards, text, token);
 
-    internal void InvalidateBoardSuggestions() => Control<IdentitySuggestionBox>("ArchiveBoardFilter").Dismiss();
+    internal void InvalidateBoardSuggestions()
+    {
+        string? source = ReadBoardSuggestionSource();
+        var board = Control<IdentitySuggestionBox>("ArchiveBoardFilter");
+        if (_hasBoardSuggestionContext && !StringComparer.Ordinal.Equals(source, _boardSuggestionContext))
+            board.InvalidateIdentityContext();
+        else board.Dismiss(); // A label/layout rebind does not revoke an explicit choice.
+        _boardSuggestionContext = source;
+        _hasBoardSuggestionContext = true;
+    }
+
+    private string? ReadBoardSuggestionSource() => GetBoardSuggestionSource != null ? GetBoardSuggestionSource()
+        : IdentitySuggestions.InputIdentity(ReadIdentityEditor("ArchiveSourceFilter"), TryReadSelectedIdentity("ArchiveSourceFilter"));
 
     private void InitializeSuggestions()
     {
@@ -30,7 +48,7 @@ public partial class ArchivePage
         var board = Control<IdentitySuggestionBox>("ArchiveBoardFilter");
         source.Candidates = (text, token) => ReadSuggestionsAsync(false, text, token);
         board.Candidates = (text, token) => ReadSuggestionsAsync(true, text, token);
-        source.TextChanged += (_, _) => { board.Dismiss(); board.RefreshSuggestions(); };
+        source.TextChanged += (_, _) => { InvalidateBoardSuggestions(); board.RefreshSuggestions(); };
         source.LoadCompleted += SuggestionLoadCompleted;
         board.LoadCompleted += SuggestionLoadCompleted;
         Control<Button>("ArchiveRetrySuggestions").Click += (_, _) =>
@@ -56,8 +74,8 @@ public partial class ArchivePage
     {
         if (_ended) return Task.FromResult(Array.Empty<IdentitySuggestion>());
         if (_suggestionsFailed) throw new InvalidOperationException("Suggestions unavailable; explicit retry required.");
-        string? source = GetBoardSuggestionSource != null ? GetBoardSuggestionSource()
-            : Control<IdentitySuggestionBox>("ArchiveSourceFilter").Text?.Trim();
+        string? source = ReadBoardSuggestionSource();
+        if (boards) { _boardSuggestionContext = source; _hasBoardSuggestionContext = true; }
         return (_suggestionCache ??= CreateSuggestionCache()).MatchAsync(boards, text, source, token);
     }
     private void SuggestionLoadCompleted(Exception? error)

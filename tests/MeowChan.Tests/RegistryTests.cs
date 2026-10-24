@@ -176,6 +176,13 @@ public sealed class RegistryTests
     [Theory]
     [InlineData("not a URL", AdmissionStatus.Invalid)]
     [InlineData("file:///tmp/test", AdmissionStatus.Invalid)]
+    [InlineData("  /tmp/local folder ü  ", AdmissionStatus.Invalid)]
+    [InlineData(@"C:\Users\fixture\folder ü", AdmissionStatus.Invalid)]
+    [InlineData(@"\\server\share\folder ü", AdmissionStatus.Invalid)]
+    [InlineData("file://server/share/folder%20%C3%BC", AdmissionStatus.Invalid)]
+    [InlineData("content://stub.test/g/thread/123", AdmissionStatus.Invalid)]
+    [InlineData("ftp://stub.test/g/thread/123", AdmissionStatus.Invalid)]
+    [InlineData("https://user:pass@stub.test/g/thread/123", AdmissionStatus.Invalid)]
     [InlineData("https://unknown.test/g/thread/123", AdmissionStatus.Unsupported)]
     [InlineData("https://stub.test/unrecognized", AdmissionStatus.Invalid)]
     public async Task InvalidAndUnsupportedInputsCreateNoWatch(string url, AdmissionStatus expected)
@@ -183,6 +190,7 @@ public sealed class RegistryTests
         using TempDirectory directory = new TempDirectory();
         using StubImageBoard provider = new StubImageBoard();
         await using Registry registry = CreateRegistry(provider, new DownloadQueue(1, 1024 * 1024), directory.Path);
+        Assert.Null(registry.ClassifyAdmission(url));
         Assert.Equal(expected, (await registry.AddAsync(url)).Status);
         Assert.Empty(registry.Threads);
         Assert.Empty(registry.Boards);

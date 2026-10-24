@@ -19,6 +19,7 @@ internal static class DiagnosticsChecks
     internal static async Task RunAsync(MainWindow window)
     {
         await FeedbackChecks.RunAsync(window);
+        await DiagnosticsFeedbackChecks.RunAsync(window);
         foreach (NotificationCard notification in window.GetVisualDescendants().OfType<NotificationCard>().ToArray())
             notification.Close();
         await Program.WaitUntilAsync(() => !window.GetVisualDescendants().OfType<NotificationCard>()

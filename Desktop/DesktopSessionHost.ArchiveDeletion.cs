@@ -113,9 +113,15 @@ internal sealed partial class DesktopSessionHost
                 files = await ArchiveDeletionFiles.DeleteAsync(eligibleFiles, token).ConfigureAwait(false);
                 Dictionary<string, ArchiveDirectoryResult> fileResults = files.Directories.ToDictionary(
                     directory => DeletionPath(directory.Directory), DeletionPathComparer);
+                const string canceledAfterCommit = "Archive deletion was canceled. Remaining catalog entries were not deleted.";
                 foreach (ArchiveDeletedThread thread in quiesced)
                 {
-                    token.ThrowIfCancellationRequested();
+                    if (token.IsCancellationRequested)
+                    {
+                        if (deleted.Count == 0) token.ThrowIfCancellationRequested();
+                        errors.Add(canceledAfterCommit);
+                        break;
+                    }
                     string[] failed = thread.MediaDirectories.Where(directory =>
                         !fileResults.TryGetValue(DeletionPath(directory), out ArchiveDirectoryResult? result) || result.Error != null)
                         .ToArray();
@@ -147,6 +153,11 @@ internal sealed partial class DesktopSessionHost
                         }
                         else errors.Add($"{thread.Summary.Title}: The catalog record changed before removal.");
                     }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested && deleted.Count > 0)
+                    {
+                        errors.Add(canceledAfterCommit);
+                        break;
+                    }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     { errors.Add($"{thread.Summary.Title}: {exception.Message}"); }
                 }
@@ -165,7 +176,9 @@ internal sealed partial class DesktopSessionHost
                         lock (_favoritesSync)
                         {
                             LoadFavoritesIfNeeded();
-                            _favoritesStore!.RemoveThreads(deleted, token);
+                            // These catalog deletions are already committed. Finish their
+                            // metadata cleanup and return the actual result despite cancellation.
+                            _favoritesStore!.RemoveThreads(deleted);
                             FavoriteEntry[] retained = _favoriteEntries!.Where(entry =>
                                 !deleted.Contains(entry.Key.Thread)).ToArray();
                             _favoriteEntries = Array.AsReadOnly(retained);

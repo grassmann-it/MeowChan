@@ -11,6 +11,13 @@ internal sealed record IdentitySuggestion(string Value, string? Source, string L
 internal sealed class IdentitySuggestions
 {
     internal const int SourceLimit = 256, BoardLimit = 2048, VisibleLimit = 20;
+    // A selected stored identity is authoritative only while its exact text remains.
+    // Free input retains the UI's existing whitespace normalization.
+    internal static IdentitySuggestion? CurrentSelection(string? text, IdentitySuggestion? candidate) =>
+        candidate != null && StringComparer.Ordinal.Equals(candidate.Value, text) ? candidate : null;
+    internal static string? InputIdentity(string? text, IdentitySuggestion? candidate) =>
+        CurrentSelection(text, candidate)?.Value ?? text?.Trim();
+
     internal IdentitySuggestions(ArchiveIdentityPage<string> sources, ArchiveIdentityPage<ArchiveBoardIdentity> boards)
     { Sources = sources; Boards = boards; }
     internal ArchiveIdentityPage<string> Sources { get; }

@@ -47,10 +47,10 @@ public static class CommandBindings
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 
     public static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute = null,
-        Func<string?>? unavailableReason = null)
+        Func<string?>? unavailableReason = null, Func<string>? label = null)
     {
         var item = new MenuItem { Command = new DelegateCommand(execute, canExecute) };
-        Apply(item, id, unavailableReason);
+        Apply(item, id, unavailableReason, label);
         item.IsEnabled = canExecute?.Invoke() ?? true;
         return item;
     }
@@ -71,17 +71,18 @@ public static class CommandBindings
         return button;
     }
 
-    public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null)
+    public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null, Func<string>? label = null)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason));
+        Observe(item, () => Apply(item, id, unavailableReason, label));
         var definition = CommandCatalog.Get(id);
-        item.Header = CommandCatalog.Label(id);
+        string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
+        item.Header = visibleLabel;
         item.Icon = Icon(id);
         item.InputGesture = Gesture(definition);
-        var tip = Tooltip(id, unavailableReason?.Invoke());
+        var tip = Tooltip(id, unavailableReason?.Invoke(), visibleLabel);
         ToolTip.SetTip(item, tip);
-        AutomationProperties.SetName(item, CommandCatalog.Label(id));
+        AutomationProperties.SetName(item, visibleLabel);
         AutomationProperties.SetHelpText(item, tip);
     }
 
@@ -185,9 +186,9 @@ public static class CommandBindings
     }
     public static void Refresh(NativeMenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
 
-    public static string Tooltip(string id, string? unavailableReason = null)
+    public static string Tooltip(string id, string? unavailableReason = null, string? visibleLabel = null)
     {
-        string label = CommandCatalog.Label(id);
+        string label = visibleLabel ?? CommandCatalog.Label(id);
         string? shortcut = CommandCatalog.ShortcutDisplay(id);
         string result = shortcut is null ? label : label + " · " + shortcut;
         if (CommandCatalog.ScopeHint(id) is string scope) result += " · " + scope;

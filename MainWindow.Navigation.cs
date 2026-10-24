@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
+using Avalonia.Input;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -244,6 +246,14 @@ public partial class MainWindow
                 (Page: WorkspacePage.Sources, Button: this.FindControl<Button>("SourcesNavigationButton")!, Tag: "nav.sources"),
                 (Page: WorkspacePage.Diagnostics, Button: this.FindControl<Button>("DiagnosticsNavigationButton")!, Tag: "nav.diagnostics")
             };
+            // Capture the actual focused menu destination before changing visibility:
+            // hiding its presenter can clear FocusManager synchronously.
+            Control? focusedBefore = FocusManager?.GetFocusedElement() as Control;
+            Button? returnDestination = tools.Flyout is MenuFlyout openMenu && openMenu.IsOpen
+                ? destinations.Where(destination => openMenu.Items.OfType<MenuItem>().Any(item =>
+                    item.Tag as string == destination.Tag && (ReferenceEquals(item, focusedBefore)
+                        || item.IsKeyboardFocusWithin))).Select(destination => destination.Button).FirstOrDefault()
+                : null;
             bool[] direct = destinations.Select(destination => destination.Page == WorkspacePage.Archive
                 ? _config.WorkspaceMode != "Barebones" : advanced).ToArray();
 
@@ -264,6 +274,9 @@ public partial class MainWindow
                 TextElement.SetFontStyle(content, button.FontStyle);
                 TextElement.SetFontWeight(content, button.FontWeight);
                 TextElement.SetFontStretch(content, button.FontStretch);
+                // A reused root can retain its cached size while a localized child
+                // is already invalid. Visit the current children before deciding fit.
+                content.InvalidateMeasure();
                 content.Measure(unconstrained);
                 return Math.Max(button.MinWidth, content.DesiredSize.Width
                     + button.Padding.Left + button.Padding.Right
@@ -320,6 +333,16 @@ public partial class MainWindow
                         if (item.Tag as string == destination.Tag) item.IsVisible = !direct[index];
             }
             if (!hasOverflow) tools.Flyout?.Hide();
+            if (returnDestination is { IsVisible: true } target)
+                Dispatcher.UIThread.Post(() =>
+                {
+                    object? current = FocusManager?.GetFocusedElement();
+                    if (current != null && !ReferenceEquals(current, focusedBefore) && !ReferenceEquals(current, tools)) return;
+                    if (target.IsEffectivelyVisible && target.IsEffectivelyEnabled
+                        && target.Bounds.Width > 0 && target.Bounds.Height > 0
+                        && ReferenceEquals(TopLevel.GetTopLevel(target), this))
+                        target.Focus(NavigationMethod.Tab);
+                }, DispatcherPriority.Loaded);
         }
         finally { _measuringPageNavigation = false; }
     }

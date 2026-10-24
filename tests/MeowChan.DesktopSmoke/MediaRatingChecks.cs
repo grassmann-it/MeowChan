@@ -64,7 +64,7 @@ internal static partial class MediaRatingChecks
     }
     private static void SaveEvidence(string status) => File.WriteAllText(EvidencePath, JsonSerializer.Serialize(new
     {
-        status, suite = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1" ? "12-cell presentation matrix" : "semantic ratings regression",
+        status, suite = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1" ? "targeted rating state regressions" : Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1" ? "12-cell presentation matrix" : "semantic ratings regression",
         sourceSnapshotDigest = Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_DIGEST") ?? "executor must bind this run to immutable source manifest",
         baseSnapshot = "full-06", baseDigest = "3b69fe4e5796db28b33ee0ca668a8fdcb86a14cd8ca79e2d293186f9d7935269",
         fixtureModelSha256 = MediaRatingFixture.ModelDigest,
@@ -278,7 +278,8 @@ internal static partial class MediaRatingChecks
             await Program.WaitUntilAsync(() => window.IsActive);
             KeyGesture archiveGesture = CommandBindings.Gesture("navigation.archive")!;
             Press(window, archiveGesture.Key, "Navigate to real archive with configured shortcut", archiveGesture.KeyModifiers);
-            await Program.WaitUntilAsync(() => !_page.IsBusy && _page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1);
+            int expectedThreads = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1" ? 2 : 1;
+            await Program.WaitUntilAsync(() => !_page.IsBusy && _page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == expectedThreads);
             // At narrow width a selection intentionally leaves the embedded reader hidden.
             // Use the visible results context command; the hidden reader toolbar is not an entry point.
             ListBox cards = _page.FindControl<ListBox>("ArchiveThreads")!;
@@ -315,6 +316,15 @@ internal static partial class MediaRatingChecks
             Observe("20 exact identities and current/historical versions", _rows.Select(KeyOf).Distinct().Count() == 20 && !Row(0).Asset.IsCurrent && Row(1).Asset.IsCurrent);
             GalleryEntry[] associations = GallerySelection.Build(_page.CurrentThread!, _rows.Select(r => r.Manifest).Distinct(), true, true).Entries.Where(e => e.Asset.MediaIdentifier == "m2").ToArray();
             Observe("Two posts share one exact media rating identity", associations.Length == 2 && associations.Select(e => FavoriteAssetKey.From(e.Key.Thread, e.Asset)).Distinct().Count() == 1);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1")
+            {
+                await RunTargetedRatingStateChecksAsync();
+                Observe("Late-error fixture preserved favorites", Digest(Path.Combine(_profile, "media-favorites.json")) == favoritesBefore);
+                Observe("Late-error fixture preserved media bytes and absence", mediaBefore.All(pair => Digest(pair.Key) == pair.Value));
+                _expectedFinal = window.SessionHost.GetMediaRatings().ToArray();
+                SaveEvidence("Targeted rating state regressions passed; waiting for lease/store reopen");
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1")
             {
                 await RunPresentationMatrix();

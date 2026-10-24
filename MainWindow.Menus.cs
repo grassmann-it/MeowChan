@@ -56,9 +56,9 @@ public partial class MainWindow
                 frozen = current;
                 action();
             }, () => ready && available && !WorkspaceCommandBusy && !_selectionCommandRunning,
-                () => ready && available ? null : unavailable);
+                () => ready && available ? null : unavailable,
+                () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
             item.Tag = id;
-            if (count is { } number && number != 1) item.Header = CommandCatalog.Label(id) + " (" + number + ")";
             menu.Items.Add(item);
             if (!ready || !available)
             {

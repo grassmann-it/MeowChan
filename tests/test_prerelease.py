@@ -55,6 +55,9 @@ class PrereleaseFixtures(unittest.TestCase):
         for name, data in self.legal.items():
             write(self.repo / name, data)
         write(self.repo / 'Directory.Build.props', f'<Project><PropertyGroup><Version>{VERSION}</Version></PropertyGroup></Project>')
+        for project in A.public_api.PROJECTS:
+            for kind in ('Shipped', 'Unshipped'):
+                write(self.repo / project / ('PublicAPI.' + kind + '.txt'), '#nullable enable\n')
         self.git('init', '--quiet')
         self.git('add', '.')
         self.git('-c', 'user.name=Alpha fixture', '-c', 'user.email=alpha@example.invalid', 'commit', '--quiet', '-m', 'fixture')
@@ -254,6 +257,15 @@ class PrereleaseFixtures(unittest.TestCase):
         with zipfile.ZipFile(archive_path) as archive:
             self.assertEqual(self.legal['LICENSE'], archive.read('LICENSE'))
 
+    def test_committed_pending_api_cannot_be_hidden_by_clean_working_copy(self):
+        pending = self.repo / 'libmeowchan/PublicAPI.Unshipped.txt'
+        pending.write_text('#nullable enable\nUnreviewed.Contract\n')
+        self.git('add', '.')
+        self.git('-c', 'user.name=Alpha fixture', '-c', 'user.email=alpha@example.invalid', 'commit', '--quiet', '-m', 'pending API')
+        self.source = self.git('rev-parse', 'HEAD').strip()
+        pending.write_text('#nullable enable\n')
+        self.reject('Unshipped public API review is incomplete')
+
     def test_other_release_kinds_are_rejected(self):
         for version in ['0.9.0', '1.0.0', '1.0.0-alpha.02', '1.0.0-alpha.2+local', '../1.0.0-alpha.2']:
             with self.subTest(version=version), self.assertRaises(ValueError):
@@ -303,7 +315,9 @@ class PrereleaseFixtures(unittest.TestCase):
         self.assertFalse((candidate / sidecar.name).exists())
         evidence = re.search(r'name: library-package-consumer-evidence\s+path: ([^\n]+)', workflow)
         self.assertIsNotNone(evidence)
-        self.assertEqual([sidecar], list(runner.glob(evidence.group(1).strip())))
+        core_evidence = record(runner / 'artifacts/plugin-package-consumers/core-consumer-evidence.json',
+                               {'packages': {'libmeowchan': {'exact_package_match': True}}})
+        self.assertEqual([core_evidence], list(runner.glob(evidence.group(1).strip())))
 
     def test_asset_hash_change_fails_before_output(self):
         path = self.root / 'native-media-candidate-win-x64/media-packages/MeowChan-win-x64.zip'

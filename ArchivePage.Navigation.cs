@@ -70,8 +70,13 @@ public partial class ArchivePage
     {
         ComboBox combo = Control<ComboBox>(name);
         int index = Math.Max(0, combo.SelectedIndex);
-        combo.ItemsSource = keys.Select(key => Texts.T(key)).ToArray();
-        combo.SelectedIndex = index;
+        _localizingSearchOptions = true;
+        try
+        {
+            combo.ItemsSource = keys.Select(key => Texts.T(key)).ToArray();
+            combo.SelectedIndex = index;
+        }
+        finally { _localizingSearchOptions = false; }
     }
     private async void OnSearchClick(object? sender, RoutedEventArgs e) => await ApplySearchAsync();
     private async void OnSearchKeyDown(object? sender, KeyEventArgs e)

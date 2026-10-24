@@ -45,19 +45,19 @@ public partial class DiagnosticsPage
         SessionFeedback? entry = this.FindControl<DataGrid>("SessionFeedbackGrid")!.SelectedItem as SessionFeedback;
         this.FindControl<TextBox>("SessionFeedbackDetails")!.Text = entry?.DetailText ?? string.Empty;
         this.FindControl<Button>("CopySessionFeedbackButton")!.IsEnabled = _copy != null && entry != null;
+        RenderDiagnosticActionFeedback();
     }
     private void OnClearFeedback(object? sender, RoutedEventArgs e) { if (!_ended) _feedback?.Clear(); }
     private async void OnCopyFeedback(object? sender, RoutedEventArgs e)
     {
         if (_ended || _copy == null || this.FindControl<DataGrid>("SessionFeedbackGrid")!.SelectedItem is not SessionFeedback entry) return;
+        int generation = BeginDiagnosticAction();
         try { await _copy(entry.DetailText); }
         catch (Exception)
         {
             if (_ended) return;
             string message = Texts.T("clipboard.writeFailed");
-            TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
-            AutomationProperties.SetLiveSetting(text, AutomationLiveSetting.Assertive);
-            text.Text = message;
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.SessionFeedback, FeedbackId: entry.Id), message);
             _feedback?.Record(FeedbackCategory.Error, "diagnostics.copy-message", entry.Id.ToString(), message);
         }
     }

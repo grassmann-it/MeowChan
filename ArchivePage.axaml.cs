@@ -105,6 +105,7 @@ public partial class ArchivePage : UserControl
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
         InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
+        InitializePaginationFocus();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -912,6 +913,7 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         _ended = true;
+        ClearPaginationInput();
         _runningList = null; _retryList = null;
         SearchStateChanged?.Invoke();
         InvalidateSuggestions();

@@ -39,6 +39,7 @@ internal partial class PostBookmarksDialog : Window
     private event Action? AvailabilityChanged;
     private event Action? RowLanguageChanged;
     private string? _statusKey;
+    private bool _actionError;
     private object?[] _statusArguments = [];
     private readonly List<IDisposable> _registrations = new();
     private readonly CommandRouter _router;
@@ -217,9 +218,20 @@ internal partial class PostBookmarksDialog : Window
         NoteInput.IsEnabled = !_busy && _key != null; List.IsEnabled = !_busy;
     }
     private void SetStatus(string? key, params object?[] arguments)
-    { _statusKey = key; _statusArguments = arguments; RenderStatus(); }
+    { _actionError = false; _statusKey = key; _statusArguments = arguments; RenderStatus(); }
     private void RenderStatus() => StatusText.Text = _statusKey == null ? "" : Texts.T(_statusKey, _statusArguments);
-    private void ShowError(Exception error) => SetStatus("bookmarks.failed", System.IO.Path.Combine(_owner.ProfileDirectory, "post-bookmarks.json") + "\n" + error.Message);
+    private string ErrorDetails(Exception error) => System.IO.Path.Combine(_owner.ProfileDirectory, "post-bookmarks.json") + "\n" + error.Message;
+    private void ShowError(Exception error)
+    { SetStatus("bookmarks.failed", ErrorDetails(error)); _actionError = true; }
+    private void SetAvailabilityStatus(string key, params object?[] arguments)
+    {
+        // Availability can finish after an edit, conflict or failed write. Its
+        // result must not hide the action needed to recover the user's draft.
+        if (_conflicted) SetStatus("bookmarks.conflict");
+        else if (_orphanDraft) SetStatus("bookmarks.removedDraft");
+        else if (!ValidNote) SetStatus("bookmarks.invalidNote");
+        else if (!_actionError) SetStatus(key, arguments);
+    }
 
     internal async Task InitializeAsync(PostBookmarkKey? edit = null)
     {
@@ -279,6 +291,7 @@ internal partial class PostBookmarksDialog : Window
     private void SetEditor(PostBookmarkKey? key)
     {
         ++_resolveGeneration; _targetAvailable = false; _orphanDraft = false;
+        if (key != _key) SetStatus(null); // A failure belongs to its previous exact editor target.
         _key = key;
         PostBookmark? entry = _snapshot?.Bookmarks.FirstOrDefault(item => item.Key == key);
         _exists = entry != null; _original = entry?.Note ?? ""; NoteInput.Text = _original;
@@ -297,19 +310,19 @@ internal partial class PostBookmarksDialog : Window
         if (key == null) return;
         int generation = ++_resolveGeneration;
         bool IsCurrent() => !_lifetime.IsCancellationRequested && generation == _resolveGeneration && key == _key;
-        SetStatus("bookmarks.loading");
+        SetAvailabilityStatus("bookmarks.loading");
         try
         {
             await using ArchiveReader reader = await _owner.OpenArchiveReaderAsync(_lifetime.Token);
             PostBookmarkTarget? target = await PostBookmarkTarget.ResolveAsync(reader, key, _lifetime.Token);
             if (!IsCurrent()) return;
             _targetAvailable = target != null;
-            if (_targetAvailable) SetStatus("bookmarks.available", target!.View.Summary.Title);
-            else SetStatus("bookmarks.missing");
+            if (_targetAvailable) SetAvailabilityStatus("bookmarks.available", target!.View.Summary.Title);
+            else SetAvailabilityStatus("bookmarks.missing");
         }
-        catch (FileNotFoundException) { if (IsCurrent()) SetStatus("bookmarks.missing"); }
+        catch (FileNotFoundException) { if (IsCurrent()) SetAvailabilityStatus("bookmarks.missing"); }
         catch (Exception error) when (error is not OutOfMemoryException)
-        { if (IsCurrent()) ShowError(error); }
+        { if (IsCurrent()) SetAvailabilityStatus("bookmarks.failed", ErrorDetails(error)); }
         finally { if (IsCurrent()) Refresh(); }
     }
     private async Task SaveAsync()

@@ -123,6 +123,8 @@ internal static class Program
                 throw new InvalidOperationException("The exact gallery asset did not recover the verified bytes.");
         }
 
+        await ArchiveQueryConsumerChecks.VerifyAsync(reader, id, profile, directory);
+
         ArchiveHtmlExportResult exported = await ArchiveHtmlExporter.ExportAsync(reader, id, Path.Combine(directory, "html-export"));
         if (exported.PostCount != 1 || exported.FileCount != 1 || exported.Omissions.Count != 0
             || !File.Exists(exported.IndexPath) || !File.Exists(Path.Combine(exported.Directory, "style.css")))

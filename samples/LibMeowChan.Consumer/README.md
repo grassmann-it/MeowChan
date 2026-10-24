@@ -6,6 +6,8 @@ The example registers its own provider through the public API, serves determinis
 
 The example also initializes the packaged SQLite catalog, captures a synthetic post, disposes the writer and profile lease, and reads the post through the independent archive API, searches its indexed text and resolves a local quote/backlink and exports an independent HTML folder containing the captured post and verified saved medium. This checks native SQLite resolution from the actual package graph.
 
+The package query probe also compiles the preserved positional `ArchiveThreadQuery` constructor, deconstruction and `with` expression, then exercises the public multi-source/board `ArchiveSearchSpec`, strict JSON v1 round-trip, calendar-date resolution, all three named `BySpec` reader methods and query-to-collection export. It checks defensive copies, frozen date bounds, cancellation, disposal and representative validation failures from the actual package. Work-state membership remains the caller's responsibility. The probe prints a `queryApi: PASS` record only after these checks complete.
+
 The first-poll completion in `DemoThread` is specific to this fixture. Waiting for queue idle immediately after `AddAsync` would race the asynchronous first poll, so the sample waits for that poll to enqueue its medium first.
 
 Run the repository's isolated package verifier:

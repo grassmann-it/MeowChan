@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
@@ -27,11 +28,76 @@ public sealed class ActionToolBar : ToolBar
     private Popup? _popup;
     private Control? _lastOverflowFocus;
     private int _focusRepairRevision;
+    private Control[] _generatedItems = Array.Empty<Control>();
+    internal ActionToolBarPanel? DirectHost;
+
 
     public ActionToolBar()
     {
         HorizontalAlignment = HorizontalAlignment.Stretch;
         ItemsPanel = new FuncTemplate<Panel?>(() => new ActionToolBarPanel());
+        // ItemsSourceView raises CollectionChanged before its generator's internal
+        // PostCollectionChanged. Restore the generated index order for that handoff.
+        Items.CollectionChanged += OnActionItemsChanged;
+    }
+
+    private void OnActionItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        bool ownedFocus = focused != null && _generatedItems.Any(item =>
+            ReferenceEquals(item, focused) || item.IsKeyboardFocusWithin);
+        if (DirectHost is { } direct && OverflowHost is { } popup)
+        {
+            // PanelContainerGenerator removes/moves by Items index. Leaving the
+            // original in Popup.Children makes its generated panel too short.
+            foreach (Control item in popup.Children.ToArray()) popup.Children.Remove(item);
+            direct.Children.Clear();
+            foreach (Control item in _generatedItems) direct.Children.Add(item);
+        }
+        foreach (Control item in _generatedItems)
+        {
+            item.GotFocus -= OnActionGotFocus;
+            item.PropertyChanged -= OnActionPropertyChanged;
+        }
+        _generatedItems = Items.OfType<Control>().ToArray();
+        foreach (Control item in _generatedItems)
+        {
+            item.GotFocus += OnActionGotFocus;
+            item.PropertyChanged += OnActionPropertyChanged;
+        }
+        if (ownedFocus) QueueAvailableActionFocus(focused);
+    }
+
+    private void OnActionGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (sender is Control control && OverflowHost?.Children.Contains(control) == true)
+            _lastOverflowFocus = control;
+    }
+
+    private void OnActionPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsEffectivelyEnabledProperty && sender is Control control
+            && !control.IsEffectivelyEnabled && ReferenceEquals(control, _lastOverflowFocus)
+            && More?.IsChecked == true)
+            QueueAvailableActionFocus(control);
+    }
+
+    private void QueueAvailableActionFocus(Control? previous)
+    {
+        int revision = ++_focusRepairRevision;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (revision != _focusRepairRevision) return;
+            object? current = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (current != null && !ReferenceEquals(current, previous) && !ReferenceEquals(current, More)) return;
+            bool Usable(Control control) => control.IsEffectivelyVisible && control.IsEffectivelyEnabled
+                && control.Focusable && control.Bounds.Width > 0 && control.Bounds.Height > 0
+                && TopLevel.GetTopLevel(control) is { IsVisible: true };
+            Control? target = previous != null && _generatedItems.Contains(previous) && Usable(previous) ? previous
+                : More?.IsChecked == true ? OverflowHost?.Children.FirstOrDefault(Usable) : null;
+            target ??= More is { } more && Usable(more) ? more : _generatedItems.FirstOrDefault(Usable);
+            target?.Focus(NavigationMethod.Tab);
+        }, DispatcherPriority.Loaded);
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -84,9 +150,7 @@ public sealed class ActionToolBar : ToolBar
         if (!hasItems && More is ToggleButton more && (more.IsChecked == true || more.IsKeyboardFocusWithin))
         {
             more.IsChecked = false;
-            Control? target = _lastOverflowFocus is { IsVisible: true, IsEnabled: true } focus ? focus
-                : Items.OfType<Control>().FirstOrDefault(c => c.IsVisible && c.IsEnabled);
-            Dispatcher.UIThread.Post(() => target?.Focus(), DispatcherPriority.Loaded);
+            QueueAvailableActionFocus(_lastOverflowFocus ?? more);
         }
     }
 
@@ -104,7 +168,7 @@ public sealed class ActionToolBar : ToolBar
         int revision = ++_focusRepairRevision;
         Dispatcher.UIThread.Post(() =>
         {
-            if (revision != _focusRepairRevision || !target.IsEffectivelyVisible || !target.IsEnabled
+            if (revision != _focusRepairRevision || !target.IsEffectivelyVisible || !target.IsEffectivelyEnabled
                 || TopLevel.GetTopLevel(target) == null) return;
             object? current = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
             // Reparenting may clear focus or return it to More. An explicit focus
@@ -118,7 +182,7 @@ public sealed class ActionToolBar : ToolBar
         Dispatcher.UIThread.Post(() =>
         {
             if (More?.IsChecked == true)
-                OverflowHost?.Children.FirstOrDefault(c => c.IsVisible && c.IsEnabled)?.Focus(NavigationMethod.Tab);
+                OverflowHost?.Children.FirstOrDefault(c => c.IsVisible && c.IsEffectivelyEnabled)?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     private void OnOverflowActionClick(object? sender, RoutedEventArgs e)
     {
@@ -138,7 +202,7 @@ public sealed class ActionToolBar : ToolBar
             e.Handled = true; return;
         }
         if (e.Key is not (Key.Up or Key.Down or Key.Home or Key.End)) return;
-        Control[] items = OverflowHost.Children.Where(c => c.IsVisible && c.IsEnabled && c.Focusable).ToArray();
+        Control[] items = OverflowHost.Children.Where(c => c.IsVisible && c.IsEffectivelyEnabled && c.Focusable).ToArray();
         if (items.Length == 0) return;
         int current = Array.FindIndex(items, c => c.IsKeyboardFocusWithin);
         int next = e.Key switch { Key.Home => 0, Key.End => items.Length - 1,
@@ -161,6 +225,7 @@ public sealed class ActionToolBarPanel : StackPanel
     {
         ActionToolBar? owner = Owner;
         if (owner == null) return base.MeasureOverride(availableSize);
+        owner.DirectHost = this;
         Control[] items = owner.Items.OfType<Control>().ToArray();
         foreach (Control item in items) item.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double[] widths = items.Select(c => c.IsVisible ? c.DesiredSize.Width : 0).ToArray();

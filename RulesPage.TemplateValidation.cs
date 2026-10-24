@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
+using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginSdk;
 using MeowChan.Rules;
 
@@ -28,7 +29,9 @@ public partial class RulesPage
             if (errors.Count == 0)
             {
                 await using var worker = await _pluginServices.StartTestWorkerAsync(release.Artifact, release.Configuration, _filterLifetime.Token);
-                errors = await worker.ValidateSettingsAsync(new(SettingScope.FilterRule, settings, FilterKey: filter.FilterKey), _filterLifetime.Token);
+                // Validate production defaults without changing the template's stored parameters.
+                SettingsSnapshot effectiveSettings = PluginSettingsMigration.WithDefaults(description.Settings, settings);
+                errors = await worker.ValidateSettingsAsync(new(SettingScope.FilterRule, effectiveSettings, FilterKey: filter.FilterKey), _filterLifetime.Token);
             }
             return new(errors.Count == 0 ? null : string.Join("; ", errors.Select(e => e.Message)), errors);
         }

@@ -45,7 +45,8 @@ public partial class SettingsEditor
         private set
         {
             SetField(ref _errorDetails, value, nameof(ErrorDetails));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasErrorDetails)));
+            if (!_isClosed)
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasErrorDetails)));
         }
     }
     public bool HasErrorDetails => !string.IsNullOrEmpty(ErrorDetails);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify local SDK/Host/Core packages with isolated PackageReference consumers.
+"""Verify local Core/SDK/Host packages with isolated PackageReference consumers.
 
 Owns the global build lock: do not wrap this entire runner in another flock of
 that same lock. The optional application probe executes delivered helper apphosts;
@@ -132,7 +132,7 @@ def copy_consumer(project: Path, target: Path) -> Path:
     return target / project.name
 
 
-def verify_assets(assets: dict, cache: Path, candidates: dict[str, dict], required: set[str], sdk_only: bool = False) -> dict:
+def verify_assets(assets: dict, cache: Path, candidates: dict[str, dict], required: set[str], sdk_only: bool = False, core_only: bool = False) -> dict:
     cache = cache.resolve(strict=True)
     if {Path(path).resolve() for path in assets["packageFolders"]} != {cache}:
         raise ValueError("Restore did not use only the isolated package cache.")
@@ -145,6 +145,8 @@ def verify_assets(assets: dict, cache: Path, candidates: dict[str, dict], requir
             raise ValueError(f"Consumer has a forbidden non-package dependency: {name} ({entry['type']}).")
         if forbidden_dependency(key):
             raise ValueError(f"Desktop/Roslyn/helper dependency leaked into resolved graph: {name}.")
+        if core_only and key in {"meowchan.pluginhost", "meowchan.pluginsdk"}:
+            raise ValueError("Core-only consumer acquired Host/SDK dependencies.")
         if sdk_only and key in {"meowchan.pluginhost", "libmeowchan"}:
             raise ValueError("SDK-only consumer acquired Host/Core dependencies.")
         dependency_ids.append(name)
@@ -239,6 +241,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="New evidence directory; an existing directory is rejected.")
     parser.add_argument("--application-directory", type=Path, help="Optional delivered app containing plugin-compiler/ and plugin-worker/.")
     parser.add_argument("--dependency-source", action="append", help="NuGet source for external dependencies; defaults to nuget.org. Repeatable.")
+    parser.add_argument("--core-consumer", type=Path, default=ROOT / "samples/LibMeowChan.Consumer/LibMeowChan.Consumer.csproj")
     parser.add_argument("--sdk-consumer", type=Path, default=ROOT / "samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj")
     parser.add_argument("--host-consumer", type=Path, default=ROOT / "samples/MeowChan.PluginHost.Consumer/MeowChan.PluginHost.Consumer.csproj")
     parser.add_argument("--build-lock", type=Path, default=Path(tempfile.gettempdir()) / "meowchan-ui-1.0-build.lock")
@@ -273,19 +276,23 @@ def main() -> int:
             evidence["consumers"] = {}
             with build_lock(args.build_lock):
                 for label, original, required in (
+                    ("core", args.core_consumer, {"libmeowchan"}),
                     ("sdk", args.sdk_consumer, {"meowchan.pluginsdk"}),
                     ("host", args.host_consumer, set(PACKAGES)),
                 ):
                     project = copy_consumer(original.resolve(strict=True), temporary / (label + " consumer"))
-                    properties = ["-p:MeowChanPluginSdkVersion=" + candidates["meowchan.pluginsdk"]["version"]]
+                    consumer_sources = {path.relative_to(project.parent).as_posix(): sha256(path.read_bytes())
+                                        for path in sorted(project.parent.rglob("*")) if path.is_file()}
+                    properties = (["-p:LibMeowChanVersion=" + candidates["libmeowchan"]["version"]] if label == "core" else
+                                  ["-p:MeowChanPluginSdkVersion=" + candidates["meowchan.pluginsdk"]["version"]])
                     if label == "host":
                         properties.append("-p:MeowChanPluginHostVersion=" + candidates["meowchan.pluginhost"]["version"])
                     run_process(["dotnet", "restore", str(project), "--configfile", str(config), "--packages", str(cache),
-                                 "--use-lock-file", "-p:Configuration=Release", "-warnaserror:NU1900", "-nodeReuse:false", *properties],
+                                 "--use-lock-file", "-p:Configuration=Release", "-warnaserror:NU1900", "-nodeReuse:false", "-m:1", *properties],
                                 temporary, environment, output / (label + "-restore.log"), args.timeout)
                     assets = json.loads((project.parent / "obj/project.assets.json").read_text())
-                    resolved = verify_assets(assets, cache, candidates, required, sdk_only=label == "sdk")
-                    run_process(["dotnet", "build", str(project), "-c", "Release", "--no-restore", "-nodeReuse:false", *properties],
+                    resolved = verify_assets(assets, cache, candidates, required, sdk_only=label == "sdk", core_only=label == "core")
+                    run_process(["dotnet", "build", str(project), "-c", "Release", "--no-restore", "-nodeReuse:false", "-m:1", *properties],
                                 temporary, environment, output / (label + "-build.log"), args.timeout)
                     binary_directory = project.parent / "bin/Release/net10.0"
                     resolved["outputAssemblyHashes"] = verify_output(binary_directory, resolved, candidates)
@@ -298,7 +305,9 @@ def main() -> int:
                             arguments.extend(["--application-directory", str(application)])
                     run_process(arguments, temporary, environment, output / (label + "-run.log"), args.timeout)
                     resolved["consumerExitCode"] = 0
+                    resolved["consumerSourceSha256"] = consumer_sources
                     evidence["consumers"][label] = resolved
+                    (output / (label + "-consumer-evidence.json")).write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
             probe = json.loads((output / "host-probe.json").read_text())
             if not probe.get("passed") or not probe.get("profileStorePassed") or application and probe.get("compilerWorkerStatus") != "passed":
                 raise ValueError("The host probe did not establish the requested checks.")

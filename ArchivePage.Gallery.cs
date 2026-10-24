@@ -115,6 +115,7 @@ public partial class ArchivePage
             .Select(view => (View: view, Offset: view.Offset)).ToArray();
         return () =>
         {
+            InvalidatePendingReaderGroupRead();
             ++_contentRequest;
             _contentCancellation?.Cancel();
             CancelReferences();

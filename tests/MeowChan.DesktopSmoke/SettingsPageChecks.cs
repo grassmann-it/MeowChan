@@ -137,7 +137,9 @@ internal static class SettingsPageChecks
         }
     }
 
-    private static async Task CheckSmallLayoutAsync(MainWindow window)
+    internal static Task RunFooterOverlapDiagnosticAsync(MainWindow window) => CheckSmallLayoutAsync(window, footerOnly: true);
+
+    private static async Task CheckSmallLayoutAsync(MainWindow window, bool footerOnly = false)
     {
         Config initial = Config.LoadConfig();
         double width = window.Width;
@@ -148,7 +150,9 @@ internal static class SettingsPageChecks
         {
             Navigate(window, true);
             window.WindowState = WindowState.Normal;
-            foreach (string mode in new[] { "Simple", "Barebones" })
+            // Preserve the prior Simple→Barebones mode transition, without replaying the full matrix.
+            if (footerOnly) await PresentationChecks.SwitchModeAsync(window, "Simple");
+            foreach (string mode in footerOnly ? new[] { "Barebones" } : new[] { "Simple", "Barebones" })
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 window.Width = mode == "Barebones" ? 640 : 760;
@@ -177,9 +181,13 @@ internal static class SettingsPageChecks
                     Click(editor.FindControl<Button>("SaveSettingsButton")!);
                     await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
                     await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+                    if (footerOnly && language == "de")
+                        SettingsFooterOverlapChecks.AssertCurrentScene(window);
                     Program.CaptureWindow(window, $"smoke-settings-page-{mode.ToLowerInvariant()}-field-error-{language}.png");
                     Require(InViewport(window, editor.FindControl<Button>("SaveSettingsButton")!),
                         "Revealing an error hid the fixed Save action.");
+                    if (footerOnly && language == "de")
+                        await CheckFooterReturnAndWideAsync(window);
                     Click(editor.FindControl<Button>("CancelSettingsButton")!);
                 }
             }
@@ -193,6 +201,29 @@ internal static class SettingsPageChecks
             window.WindowState = state;
             editor.CancelChanges();
             Navigate(window, false);
+        }
+    }
+
+    private static async Task CheckFooterReturnAndWideAsync(MainWindow window)
+    {
+        foreach (var scene in new[] {
+            (Language: "en", Width: 640d, Height: 480d, Stage: "en-after-de", FullLabels: true),
+            (Language: "de", Width: 640d, Height: 480d, Stage: "de-return", FullLabels: false),
+            (Language: "en", Width: 640d, Height: 480d, Stage: "en-return", FullLabels: true),
+            (Language: "en", Width: 1400d, Height: 600d, Stage: "en-wide", FullLabels: true) })
+        {
+            Texts.SetLanguage(scene.Language);
+            window.Width = scene.Width; window.Height = scene.Height;
+            Border footer = window.FindControl<Border>("WorkspaceNavigation")!;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - scene.Width) <= 1
+                && Math.Abs(window.Bounds.Height - scene.Height) <= 1
+                && footer.IsMeasureValid && footer.IsArrangeValid
+                && footer.GetVisualDescendants().OfType<Avalonia.Layout.Layoutable>()
+                    .Where(control => control.IsEffectivelyVisible)
+                    .All(control => control.IsMeasureValid && control.IsArrangeValid));
+            // Passive oracle after natural layout: no test repair or UpdateLayout.
+            SettingsFooterOverlapChecks.AssertCurrentScene(window, scene.Stage, scene.Language,
+                scene.Width, scene.Height, scene.FullLabels);
         }
     }
 
@@ -213,7 +244,13 @@ internal static class SettingsPageChecks
             && origin.Value.Y + control.Bounds.Height <= window.Bounds.Height + 1;
     }
 
-    private static async Task CheckPendingSaveAsync(MainWindow owner)
+    internal static async Task RunLateSaveFailureAsync(MainWindow owner)
+    {
+        await CheckPendingSaveAsync(owner, failShutdownSave: true);
+        Console.WriteLine("SMOKE settings late save failure: shutdown released the profile, retained the last committed settings and emitted no ended-editor events.");
+    }
+
+    private static async Task CheckPendingSaveAsync(MainWindow owner, bool failShutdownSave = false)
     {
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-page-save-" + Guid.NewGuid().ToString("N"));
         SeedProfile(profile);
@@ -259,6 +296,9 @@ internal static class SettingsPageChecks
             List<object> shutdownChanges = new();
             bool previousBusy = editor.IsBusy, previousAvailable = editor.IsAvailable;
             decimal? previousTimer = editor.RecheckTimer;
+            bool lateBusyChanged = false, lateSaved = false;
+            editor.BusyChanged += (_, _) => lateBusyChanged = true;
+            editor.Saved += (_, _) => lateSaved = true;
             editor.PropertyChanged += (_, args) =>
             {
                 lateUpdate = true;
@@ -273,16 +313,23 @@ internal static class SettingsPageChecks
             };
             window.Close();
             Require(window.IsVisible, "Shutdown did not wait for the accepted settings commit.");
-            pending.SetResult();
+            if (failShutdownSave)
+                pending.SetException(new IOException("Synthetic accepted settings save failure after shutdown began."));
+            else
+                pending.SetResult();
             await Program.WaitUntilAsync(() => !window.IsVisible && !editor.IsBusy);
+            int expectedRecheckTimer = failShutdownSave ? 120 : 121;
             Console.WriteLine("SMOKE pending settings shutdown: " + System.Text.Json.JsonSerializer.Serialize(new
             {
-                lateUpdate, persistedRecheckTimer = Config.LoadConfig(profile).RecheckTimer,
-                expectedRecheckTimer = 121, editor.RecheckTimer, editor.IsBusy, editor.IsAvailable, window.IsVisible,
+                failShutdownSave, lateUpdate, lateBusyChanged, lateSaved,
+                persistedRecheckTimer = Config.LoadConfig(profile).RecheckTimer,
+                expectedRecheckTimer, editor.RecheckTimer, editor.IsBusy, editor.IsAvailable, window.IsVisible,
                 changes = shutdownChanges
             }));
-            Require(!lateUpdate && Config.LoadConfig(profile).RecheckTimer == 121,
-                "Shutdown dropped the accepted save or changed the ended editor.");
+            Require(!lateUpdate && !lateBusyChanged && !lateSaved
+                && Config.LoadConfig(profile).RecheckTimer == expectedRecheckTimer
+                && host.Config.RecheckTimer == expectedRecheckTimer && editor.RecheckTimer == 121,
+                "Shutdown changed the ended editor or did not preserve the accepted save outcome.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
         }
         finally

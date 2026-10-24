@@ -99,6 +99,11 @@ public partial class RulesPage
                 _draft.FilterParameters = CreateRuleParametersDraft(selectedFilter.Filter.Settings, _draft.ImageFilter.Parameters);
                 BindFilterParameterChanges(_draft);
             }
+            else if (_draft.FilterParameters.Schema.Version != selectedFilter.Filter.Settings.Version)
+            {
+                _draft.FilterParameters = _draft.FilterParameters.RebindSchema(selectedFilter.Filter.Settings);
+                _draft.FilterSchemaAcknowledged = false;
+            }
             if (_draft.ImageFilter.SchemaVersion != selectedFilter.Filter.Settings.Version && !_draft.FilterSchemaAcknowledged)
             {
                 panel.Children.Add(FilterLabel(Texts.T("plugins.ruleSchemaChanged", _draft.ImageFilter.SchemaVersion, selectedFilter.Filter.Settings.Version)));
@@ -174,12 +179,19 @@ public partial class RulesPage
             if (FindRule(_draft.Baseline, _draft.Scope) is { } previous && ImageFiltersEqual(previous.ImageFilter, rule.ImageFilter)) return true;
             _operationErrorKey = "plugins.noFilters"; FocusFilterSettingError(); return false;
         }
+        // Never replace the rule's claimed version merely by reconstructing it for validation.
+        if (rule.ImageFilter.SchemaVersion != filter.Settings.Version)
+        {
+            _operationErrorKey = "plugins.invalidFilterSettings"; FocusFilterSettingError(); return false;
+        }
         PluginSettingsDraft parameters = CreateRuleParametersDraft(filter.Settings, rule.ImageFilter.Parameters);
         SettingsSnapshot settings = parameters.Snapshot(out IReadOnlyList<FieldValidationError> errors);
         if (errors.Count == 0)
         {
             await using MeowChan.PluginHost.Contracts.IPluginWorkerClient worker = await _pluginServices.StartTestWorkerAsync(release.Artifact, release.Configuration, _filterLifetime.Token);
-            errors = await worker.ValidateSettingsAsync(new(SettingScope.FilterRule, settings, FilterKey: filter.Key), _filterLifetime.Token);
+            // Keep defaults implicit in the rule store, but validate the values production will consume.
+            SettingsSnapshot effectiveSettings = PluginSettingsMigration.WithDefaults(filter.Settings, settings);
+            errors = await worker.ValidateSettingsAsync(new(SettingScope.FilterRule, effectiveSettings, FilterKey: filter.Key), _filterLifetime.Token);
         }
         if (_ended) return false;
         _draft.FilterValidationErrors = errors;

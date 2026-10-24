@@ -121,7 +121,8 @@ namespace MeowChan
             private set
             {
                 SetField(ref _statusMessage, value, nameof(StatusMessage));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
+                if (!_isClosed)
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BusyStatusMessage)));
             }
         }
 

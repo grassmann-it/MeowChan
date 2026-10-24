@@ -122,6 +122,14 @@ public partial class ArchivePage
     {
         ++_contentRequest;
         _contentCancellation?.Cancel();
+        _busy = false;
+        ClearArchiveThreadPresentation();
+    }
+
+    // A successful saved-search commit clears the old reader without canceling
+    // the list request that is publishing that commit.
+    private void ClearArchiveThreadPresentation()
+    {
         CancelMediaLoad();
         CancelPendingGalleryOpen();
         CancelReferences();
@@ -133,7 +141,6 @@ public partial class ArchivePage
         _retainedMediaPosition = null;
         _mediaReady.TrySetResult(_assets);
         _showReader = false;
-        _busy = false;
         RenderThread();
         UpdateLayoutMode();
     }

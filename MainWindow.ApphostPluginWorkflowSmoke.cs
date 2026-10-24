@@ -24,6 +24,7 @@ public partial class MainWindow
 {
     internal async Task CompleteApphostPluginWorkflowSmokeAsync(ApphostPluginWorkflowSmoke fixture)
     {
+        if (fixture.SourceActivationPhase != null) { await CompleteApphostSourceActivationSmokeAsync(fixture); return; }
         const string filterId = "meowchan.example.image-dimensions";
         var descriptor = fixture.Descriptor;
         List<string> checks = new();

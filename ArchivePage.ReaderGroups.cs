@@ -38,6 +38,15 @@ public partial class ArchivePage
         Control<TextBlock>("ReaderGroupAvailabilityMessage").IsVisible = false;
         Control<Button>("ReaderSkipUnavailableGroupMember").IsVisible = false;
     }
+    private void InvalidatePendingReaderGroupRead()
+    {
+        if (!_readerGroupScope) return;
+        // Restoring a gallery origin retires in-flight reads but preserves the frozen group order.
+        ++_readerScopeRequest;
+        _readerGroupCancellation?.Cancel();
+        _readerGroupCancellation = null;
+        _readerGroupLoading = false;
+    }
     private int ReaderGroupTargetIndex(int delta)
     {
         int index = ReaderThreadIndex + delta;

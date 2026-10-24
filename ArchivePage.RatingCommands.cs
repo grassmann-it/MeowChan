@@ -57,11 +57,12 @@ public partial class ArchivePage
     {
         GalleryEntry? entry = FocusedRatingEntry();
         if (entry == null) return;
+        Action<string> reportError = CaptureActionErrorReporter();
         try
         {
             if (edit && EditMediaRatingAsync != null) await EditMediaRatingAsync(entry);
             else if (!edit && SetMediaRatingAsync != null) await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value);
         }
-        catch (Exception error) { if (!_ended) Message(error.Message, true); }
+        catch (Exception error) { reportError(error.Message); }
     }
 }

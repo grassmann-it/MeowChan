@@ -74,7 +74,16 @@ public partial class MainWindow
         if (!CanExecuteShellPowerCommand(this) || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;
         if (_gallery != null && !_gallerySuspended) return CommandBindings.RouteVisibleActions(_gallery, e);
         if (_largeReaderOpen && _archivePage?.FindControl<Control>("ArchiveReaderPane") is Control pane)
+        {
+            // The reader's tunnel handler exclusively owns these navigation
+            // commands, including its native-control exclusions. Retrying an
+            // unhandled gesture via the visible buttons bypasses that policy.
+            if (ShortcutService.Current.Matches(e, "reader.previous-post")
+                || ShortcutService.Current.Matches(e, "reader.next-post")
+                || ShortcutService.Current.Matches(e, "reader.previous-thread")
+                || ShortcutService.Current.Matches(e, "reader.next-thread")) return false;
             return CommandBindings.RouteVisibleActions(pane, e);
+        }
         return CommandBindings.RouteVisibleActions(this, e);
     }
 }

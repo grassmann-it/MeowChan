@@ -37,6 +37,39 @@ public sealed class RoutingAndCatalogTests
         if (valid) Assert.Equal("http://source.test:8080/b/thread/001/", canonical!.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("file://boards.4chan.org/g/thread/123", false)]
+    [InlineData("content://boards.4chan.org/g/thread/123", false)]
+    [InlineData("ftp://boards.4chan.org/g/thread/123", false)]
+    [InlineData("https://user:pass@boards.4chan.org/g/thread/123", false)]
+    [InlineData("https://boards.4chan.org/g%2Fbad/thread/123", false)]
+    [InlineData("https://boards.4chan.org/caf%C3%A9/thread/123", false)]
+    [InlineData("https://boards.4chan.org/g/thread/%2531", false)]
+    [InlineData("https://boards.4chan.org/g/thread/%D9%A1%D9%A2%D9%A3", false)]
+    [InlineData("https://boards.4chan.org/%67/thread/%31%32%33", true)]
+    [InlineData("https://boards.4channel.org/g/thread/123/title%20%C3%BC#p456", true)]
+    public void SourceRoutingDistinguishesFilesystemUrisAndDecodesIdentitiesOnce(string input, bool accepted)
+    {
+        PluginDescription description = new FourChanPlugin().Describe();
+        int acquisitions = 0;
+        using PluginSourceImageBoard adapter = new(description, "4chan", _ =>
+        {
+            acquisitions++;
+            throw new InvalidOperationException("Routing must not acquire a worker.");
+        });
+        var uri = new Uri(input, UriKind.Absolute);
+        Assert.Equal(accepted, adapter.CanHandle(uri));
+        if (accepted)
+        {
+            IThread thread = adapter.GetThread(uri);
+            Assert.Equal("g", thread.Board.BoardCode);
+            Assert.Equal("123", thread.ThreadId);
+            Assert.Equal("https://boards.4chan.org/g/thread/123", thread.ThreadUri.AbsoluteUri);
+        }
+        else Assert.Throws<ArgumentException>(() => adapter.GetThread(uri));
+        Assert.Equal(0, acquisitions);
+    }
+
     [Fact]
     public async Task CatalogConsumesBoundedContinuationWithoutHoldingAWorkerBetweenPages()
     {

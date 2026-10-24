@@ -280,12 +280,14 @@ public partial class ArchivePage
             return;
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
-        if (ReaderArrowBelongsToNativeControl(e.Source)) return;
+        if (ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
-        // A second generic native-input check would reject those same arrows
-        // because ListBox/TabControl are SelectingItemsControl ancestors. Keep
-        // that generic check for non-arrow remaps, including native Enter/Space.
+        // A generic native-input check would also reject Home/End/Page remaps
+        // from ordinary tab content because TabControl is a SelectingItemsControl.
+        // The local guard retains those keys in the actual post list and headers.
+        // Enter/Space still use the generic activation guard for buttons etc.
         bool MatchesNavigation(string id) => e.Key is Key.Up or Key.Down or Key.Left or Key.Right
+            or Key.Home or Key.End or Key.PageUp or Key.PageDown
             ? ShortcutService.Current.Matches(e, id) : CommandBindings.Matches(e, id);
         int post = MatchesNavigation("reader.previous-post") ? -1 : MatchesNavigation("reader.next-post") ? 1 : 0;
         int thread = MatchesNavigation("reader.previous-thread") ? -1 : MatchesNavigation("reader.next-thread") ? 1 : 0;
@@ -294,12 +296,14 @@ public partial class ArchivePage
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
     }
 
-    internal bool ReaderArrowBelongsToNativeControl(object? source)
+    internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down)
     {
         if (source is not Visual visual) return false;
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
-            if (ReferenceEquals(node, Control<ListBox>("ArchivePosts"))) return false;
+            if (ReferenceEquals(node, Control<ListBox>("ArchivePosts")))
+                return key is Key.Home or Key.End or Key.PageUp or Key.PageDown;
+            if (node is TabControl && ReferenceEquals(node, visual)) return true;
             if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
                 or TextBox or ComboBox or NumericUpDown or MenuItem or Ursa.Controls.AutoCompleteBox
                 || node is SelectingItemsControl and not TabControl) return true;

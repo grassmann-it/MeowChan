@@ -46,7 +46,7 @@ public partial class PluginsPage
     {
         _pluginSectionNavigation?.CancelPendingNavigation();
         if (_ended || _busy || _services == null || CurrentDraft is not { } draft || Selected is not { } entry || entry.PluginId == null) return;
-        PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<FieldValidationError> errors);
+        PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors);
         ShowFieldErrors(errors, focusFirstError: true);
         if (errors.Count > 0) return;
         PluginArtifact? artifact = entry.ConfigurationArtifact;
@@ -77,26 +77,25 @@ public partial class PluginsPage
                 FocusFirstSettingError();
         }
     }
-    private void ShowFieldErrors(IReadOnlyList<FieldValidationError> errors, bool focusFirstError = false)
+    private void ShowFieldErrors(IReadOnlyList<PluginConfigurationFieldError> errors, bool focusFirstError = false)
     {
         foreach ((string scope, PluginSettingsEditor editor) in _editors)
         {
-            IReadOnlyList<FieldValidationError> scoped = scope.Length == 0 ? errors.Where(error => !error.FieldKey.Contains('/')).ToArray()
-                : errors.Where(error => error.FieldKey.StartsWith(scope + "/", StringComparison.Ordinal))
-                    .Select(error => error with { FieldKey = error.FieldKey[(scope.Length + 1)..] }).ToArray();
+            IReadOnlyList<FieldValidationError> scoped = PluginConfigurationFieldError.ForScope(errors, scope);
             editor.ShowErrors(scoped);
         }
-        Error(errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(error => error.Message)));
+        Error(errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)));
         if (focusFirstError && errors.Count > 0) FocusFirstSettingError();
     }
-    private static async Task<IReadOnlyList<FieldValidationError>> ValidateInWorkerAsync(IPluginWorkerClient worker,
+    private static async Task<IReadOnlyList<PluginConfigurationFieldError>> ValidateInWorkerAsync(IPluginWorkerClient worker,
         PluginConfiguration configuration, CancellationToken token)
     {
-        List<FieldValidationError> errors = new(await worker.ValidateSettingsAsync(new(SettingScope.Plugin, configuration.PluginSettings), token));
+        IReadOnlyList<FieldValidationError> pluginErrors = await worker.ValidateSettingsAsync(new(SettingScope.Plugin, configuration.PluginSettings), token);
+        List<PluginConfigurationFieldError> errors = new(pluginErrors.Select(error => new PluginConfigurationFieldError(string.Empty, error)));
         foreach ((string source, SettingsSnapshot settings) in configuration.SourceSettings)
         {
             IReadOnlyList<FieldValidationError> found = await worker.ValidateSettingsAsync(new(SettingScope.Source, settings, SourceId: source), token);
-            errors.AddRange(found.Select(error => error with { FieldKey = source + "/" + error.FieldKey }));
+            errors.AddRange(found.Select(error => new PluginConfigurationFieldError(source, error)));
         }
         return errors;
     }
@@ -123,7 +122,7 @@ public partial class PluginsPage
             await RefreshAsync();
             if (!Current(generation)) return;
             PluginConfigurationDraft testDraft = new(entry with { Description = description, Activation = entry.Activation is { } previous ? previous with { Pinned = null } : null }, _catalog!.Profile.Revision);
-            PluginConfiguration configuration = testDraft.Configuration(out IReadOnlyList<FieldValidationError> errors);
+            PluginConfiguration configuration = testDraft.Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors);
             if (errors.Count > 0) { ShowFieldErrors(errors); SetTestStatus("plugins.testFailed"); return; }
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(result.Artifact, configuration, token))
             {

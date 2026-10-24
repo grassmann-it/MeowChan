@@ -14,8 +14,9 @@ python3 scripts/test-plugin-packages.py \
   --output /path/to/new-consumer-evidence
 ```
 
-The runner copies both consumers outside the repository, creates an empty NuGet
+The runner copies the Core, SDK and Host consumers outside the repository, creates an empty NuGet
 cache, pins candidate IDs to the supplied feed, restores, builds and runs them.
+The Core consumer exercises the library directly without SDK/Host dependencies.
 It checks package hashes, extracted and executed DLL hashes, generated lock files
 and the resolved dependency graph. SDK must have no package dependencies; Host
 must declare SDK and Core, without Avalonia, Roslyn or helper package dependencies.

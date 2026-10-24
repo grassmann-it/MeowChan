@@ -36,6 +36,32 @@ internal sealed class PluginSettingsDraft
         copy._initialIncompatible = new(_initialIncompatible, StringComparer.Ordinal); copy.Dirty = Dirty; copy.EditGeneration = EditGeneration;
         return copy;
     }
+    // Rebind the form without converting invalid raw text through a typed SettingsSnapshot.
+    // Filter defaults remain implicit, exactly as in CreateRuleParametersDraft.
+    internal PluginSettingsDraft RebindSchema(SettingsSchema schema)
+    {
+        PluginSettingsDraft copy = new(schema, Scope, null, applyDefaults: false);
+        copy._text.Clear(); foreach (var pair in _text) copy._text.Add(pair.Key, pair.Value);
+        copy._set.Clear(); copy._set.UnionWith(_set); copy._incompatible.UnionWith(_incompatible);
+        copy._initialText = new(_initialText, StringComparer.Ordinal); copy._initialSet = new(_initialSet, StringComparer.Ordinal);
+        copy._initialIncompatible = new(_initialIncompatible, StringComparer.Ordinal);
+        foreach (SettingDefinition field in schema.Fields)
+        {
+            SettingDefinition? previous = Schema.Fields.FirstOrDefault(item => item.Key == field.Key);
+            bool changedType = previous != null && (previous.Kind != field.Kind || previous.Scope != field.Scope);
+            // A retained value whose field had disappeared has no current type declaration.
+            bool reintroduced = previous == null && _text.ContainsKey(field.Key);
+            if (changedType || reintroduced)
+            {
+                if (_set.Contains(field.Key)) copy._incompatible.Add(field.Key);
+                if (_initialSet.Contains(field.Key)) copy._initialIncompatible.Add(field.Key);
+            }
+            copy._text.TryAdd(field.Key, string.Empty);
+            copy._initialText.TryAdd(field.Key, string.Empty);
+        }
+        copy.Dirty = Dirty; copy.EditGeneration = EditGeneration;
+        return copy;
+    }
     internal string EditorFingerprint => string.Join("|", _text.OrderBy(p => p.Key, StringComparer.Ordinal)
         .Select(p => p.Key.Length + ":" + p.Key + ":" + p.Value.Length + ":" + p.Value + ":" + _set.Contains(p.Key) + ":" + _incompatible.Contains(p.Key)));
 
@@ -74,7 +100,7 @@ internal sealed class PluginSettingsDraft
         .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
     internal void AcknowledgeRemovedFields()
     {
-        foreach (string key in UnmappedValues.Keys) { _text.Remove(key); _set.Remove(key); }
+        foreach (string key in UnmappedValues.Keys) { _text.Remove(key); _set.Remove(key); _incompatible.Remove(key); }
         Dirty = true; EditGeneration++; Changed?.Invoke();
     }
     internal void SetInitialText(string key, string text) { _text[key] = text; _set.Add(key); _initialText[key] = text; _initialSet.Add(key); }

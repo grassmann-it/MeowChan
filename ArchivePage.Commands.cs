@@ -122,12 +122,13 @@ public partial class ArchivePage
             Func<int>? count = null, bool leadAction = false)
         {
             MenuItem? item = null;
+            string Label() => count != null ? Texts.T("archive.command.batchCount", CommandCatalog.Label(id), count())
+                : leadAction ? Texts.T("archive.command.leadTarget", CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
+                : CommandCatalog.Label(id);
             void UpdateLabel()
             {
                 if (item == null) return;
-                string label = count != null ? Texts.T("archive.command.batchCount", CommandCatalog.Label(id), count())
-                    : leadAction ? Texts.T("archive.command.leadTarget", CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
-                    : CommandCatalog.Label(id);
+                string label = Label();
                 item.Header = label;
                 AutomationProperties.SetName(item, label);
                 string tip = label + (CommandCatalog.ShortcutDisplay(id) is string shortcut ? " · " + shortcut : "");
@@ -138,7 +139,7 @@ public partial class ArchivePage
             }
             bool Enabled() { UpdateLabel(); return Ready() && (eligible?.Invoke() ?? true); }
             string? Reason() => !Ready() ? Texts.T("archive.command.busy") : !Enabled() ? reason : null;
-            item = CommandBindings.CreateMenuItem(id, execute, Enabled, Reason);
+            item = CommandBindings.CreateMenuItem(id, execute, Enabled, Reason, Label);
             item.Tag = id;
             UpdateLabel();
             commands.Add(item);

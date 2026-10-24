@@ -27,6 +27,7 @@ public partial class ArchivePage
     private Control? _invalidSearchEditor;
     private string? _draftTimeZone;
     private bool _writingDraft;
+    private bool _localizingSearchOptions;
     private bool _updatingBoardScopes;
     private bool _boardScopeChosen;
     private sealed record BoardScope(string? Source, string Label) { public override string ToString() => Label; }
@@ -52,7 +53,7 @@ public partial class ArchivePage
             Control<Control>(entry.Item1).PropertyChanged += (_, e) => { if (e.Property.Name == "Text") DraftEdited(entry.Item2); };
         foreach (var entry in new[] { ("ArchiveStateFilter", "state"), ("ArchiveCaptureFilter", "capture"),
             ("ArchivePostsFilter", "posts"), ("ArchiveWorkFilter", "work"), ("ArchiveSort", "sort") })
-            Control<ComboBox>(entry.Item1).SelectionChanged += (_, _) => DraftEdited(entry.Item2);
+            Control<ComboBox>(entry.Item1).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited(entry.Item2); };
         Control<ComboBox>("ArchiveBoardScope").SelectionChanged += (_, _) => { if (_updatingBoardScopes) return; _boardScopeChosen = true; DraftEdited("board"); InvalidateBoardSuggestions(); };
         Control<ArchiveDateEditor>("ArchiveStartDate").Edited += () => DateEdited();
         Control<ArchiveDateEditor>("ArchiveEndDate").Edited += () => DateEdited();
@@ -112,9 +113,11 @@ public partial class ArchivePage
     }
     private void OnAddSource(object? sender, RoutedEventArgs e)
     {
-        string source = IdentityText("ArchiveSourceFilter").Trim();
+        string raw = IdentityText("ArchiveSourceFilter");
+        var candidate = TryReadSelectedIdentity("ArchiveSourceFilter");
+        string source = candidate != null && StringComparer.Ordinal.Equals(candidate.Value, raw) ? candidate.Value : raw.Trim();
         if (source.Length == 0) return;
-        try { _ = new ArchiveSearchSpec(sources: _draftSources.Contains(source, StringComparer.Ordinal) ? _draftSources : _draftSources.Append(source)); }
+        try { _ = ArchiveSearchSpec.FromExactIdentities(sources: _draftSources.Contains(source, StringComparer.Ordinal) ? _draftSources : _draftSources.Append(source)); }
         catch (Exception exception) { DataValidationErrors.SetErrors(Control<Control>("ArchiveSourceFilter"), new object[] { exception.Message }); SearchEditorError(exception.Message); return; }
         DataValidationErrors.ClearErrors(Control<Control>("ArchiveSourceFilter"));
         if (!_draftSources.Contains(source, StringComparer.Ordinal)) _draftSources.Add(source);
@@ -122,16 +125,18 @@ public partial class ArchivePage
     }
     private void OnAddBoard(object? sender, RoutedEventArgs e)
     {
-        string board = IdentityText("ArchiveBoardFilter").Trim();
+        string raw = IdentityText("ArchiveBoardFilter");
+        var candidate = TryReadSelectedIdentity("ArchiveBoardFilter");
+        bool accepted = candidate != null && StringComparer.Ordinal.Equals(candidate.Value, raw);
+        string board = accepted ? candidate!.Value : raw.Trim();
         if (board.Length == 0) return;
         string? source = (Control<ComboBox>("ArchiveBoardScope").SelectedItem as BoardScope)?.Source;
         // W04's explicit accepted candidates carry their actual source. Merely
         // highlighting a suggestion must not qualify freely typed board text.
-        var candidate = TryReadSelectedIdentity("ArchiveBoardFilter");
-        if (candidate?.Source != null && candidate.Value == board) source = candidate.Source;
+        if (accepted && candidate!.Source != null) source = candidate.Source;
         ArchiveBoardConstraint pair = new(source, board);
         bool duplicate = _draftBoards.Any(item => item.Source == source && item.Board == board);
-        try { _ = new ArchiveSearchSpec(boards: duplicate ? _draftBoards : _draftBoards.Append(pair)); }
+        try { _ = ArchiveSearchSpec.FromExactIdentities(boards: duplicate ? _draftBoards : _draftBoards.Append(pair)); }
         catch (Exception exception) { DataValidationErrors.SetErrors(Control<Control>("ArchiveBoardFilter"), new object[] { exception.Message }); SearchEditorError(exception.Message); return; }
         DataValidationErrors.ClearErrors(Control<Control>("ArchiveBoardFilter"));
         if (!duplicate) _draftBoards.Add(pair);
@@ -216,7 +221,7 @@ public partial class ArchivePage
         }
         ArchiveDateRange? date = start == null && end == null ? null : new ArchiveDateRange(start, end,
             _draftTimeZone ?? throw new InvalidOperationException(Texts.T("archive.zoneUnavailable", TimeZoneInfo.Local.Id)));
-        return new ArchiveSearchSpec(Control<TextBox>("ArchiveSearchText").Text ?? "", _draftSources, _draftBoards, _draftStates,
+        return ArchiveSearchSpec.FromExactIdentities(Control<TextBox>("ArchiveSearchText").Text ?? "", _draftSources, _draftBoards, _draftStates,
             Choice("ArchiveCaptureFilter"), Choice("ArchivePostsFilter"),
             (ArchiveThreadSort)Math.Max(0, Control<ComboBox>("ArchiveSort").SelectedIndex),
             WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex), date);

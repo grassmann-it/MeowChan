@@ -33,6 +33,7 @@ def helper(name, filename):
 retained = helper('prerelease_package_contracts', 'assemble-stable-release.py')
 layout = helper('prerelease_legal_contract', 'check-desktop-package.py')
 mac_sources = helper('prerelease_mac_sources', 'package-macos-sources.py')
+public_api = helper('prerelease_public_api', 'check-public-api.py')
 require, digest, read_json = retained.require, retained.digest, retained.read_json
 PACKAGE_IDS = ('libmeowchan', 'MeowChan.PluginSdk', 'MeowChan.PluginHost')
 PHASES = ['download', 'restore', 'removed', 'shutdown']
@@ -182,6 +183,8 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
     require(retained.COMMIT.fullmatch(source) is not None, 'Expected full lowercase source commit SHA')
     require(re.fullmatch(r'[1-9][0-9]*', run_id) is not None, 'Expected originating Actions run ID')
     require(not output.exists() and not output.is_symlink(), 'Output already exists')
+    api_review = public_api.audit(repository, source)
+    public_api.require_release(api_review)
     legal = committed_legal(repository, source, version)
     retained.VERSION = version
     # All five platforms must bind to the same exact source; there are no overrides.
@@ -209,6 +212,7 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
                      'scope': 'Current-source CI candidate inventory. No publication or complete R10-12/native user acceptance claim.',
                      'native_signing': 'macOS ad-hoc; no Developer ID, notarization or Gatekeeper acceptance claim',
                      'source_base': {'file': retained.BASE_NAME, 'bytes': retained.BASE_BYTES, 'sha256': retained.BASE_SHA},
+                     'public_api_review': api_review,
                      'legal_sha256': {name: hashlib.sha256(data).hexdigest() for name, data in legal.items()}}
         (staged / 'candidate-inventory.json').write_text(json.dumps(inventory, indent=2, sort_keys=True) + '\n')
         (staged / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in sorted(staged.iterdir())

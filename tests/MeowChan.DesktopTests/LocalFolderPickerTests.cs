@@ -46,6 +46,45 @@ public sealed class LocalFolderPickerTests
         Assert.Equal("Picker failure", result.Error);
         Assert.Null(result.Path);
     }
+    [Fact]
+    public async Task FileUriDecodesSpacesAndUnicodeButPreservesLiteralPercentEscapeInTheLocalPath()
+    {
+        string root = Path.GetPathRoot(Path.GetTempPath())!;
+        string expected = Path.Combine(root, "folder with literal%20 ü");
+        var folder = new FixtureStorageFolder(new Uri(new Uri(root).AbsoluteUri + "folder%20with%20literal%2520%20%C3%BC"));
+        var provider = new FixtureStorageProvider { Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(new IStorageFolder[] { folder }) };
+        LocalFolderPickResult result = await LocalFolderPicker.PickAsync(provider, "Pick");
+        Assert.Equal(LocalFolderPickStatus.Selected, result.Status);
+        Assert.Equal(expected, result.Path);
+        Assert.True(folder.Disposed);
+    }
+
+    [Theory]
+    [InlineData("https://fixture.test/folder")]
+    [InlineData("ftp://fixture.test/folder")]
+    public async Task NonFileSchemesNeverBecomeFilesystemPaths(string uri)
+    {
+        var folder = new FixtureStorageFolder(new Uri(uri));
+        var provider = new FixtureStorageProvider { Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(new IStorageFolder[] { folder }) };
+        LocalFolderPickResult result = await LocalFolderPicker.PickAsync(provider, "Pick");
+        Assert.Equal(LocalFolderPickStatus.NonLocal, result.Status);
+        Assert.Null(result.Path);
+        Assert.True(folder.Disposed);
+    }
+
+    [Fact]
+    public async Task DisposalFailureStillReleasesLaterResultsAndDoesNotPublishTheSelectedPath()
+    {
+        var first = new FixtureStorageFolder(new Uri(Path.Combine(Path.GetTempPath(), "fixture folder"))) { ThrowOnDispose = true };
+        var later = new FixtureStorageFolder(new Uri("content://fixture/extra"));
+        var provider = new FixtureStorageProvider { Result = Task.FromResult<IReadOnlyList<IStorageFolder>>(new IStorageFolder[] { first, later }) };
+        LocalFolderPickResult result = await LocalFolderPicker.PickAsync(provider, "Pick");
+        Assert.Equal(LocalFolderPickStatus.Failed, result.Status);
+        Assert.Null(result.Path);
+        Assert.Equal("Synthetic disposal failure", result.Error);
+        Assert.True(first.Disposed && later.Disposed);
+    }
+
     private sealed class FixtureStorageProvider : IStorageProvider
     {
         public bool CanOpen => false;
@@ -77,7 +116,12 @@ public sealed class LocalFolderPickerTests
         public Uri Path { get; }
         public bool CanBookmark => false;
         public bool Disposed { get; private set; }
-        public void Dispose() => Disposed = true;
+        public bool ThrowOnDispose { get; init; }
+        public void Dispose()
+        {
+            Disposed = true;
+            if (ThrowOnDispose) throw new IOException("Synthetic disposal failure");
+        }
         public Task<StorageItemProperties> GetBasicPropertiesAsync() => throw new NotSupportedException();
         public Task<string?> SaveBookmarkAsync() => throw new NotSupportedException();
         public Task<IStorageFolder?> GetParentAsync() => throw new NotSupportedException();

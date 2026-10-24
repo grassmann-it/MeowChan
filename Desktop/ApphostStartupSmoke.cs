@@ -40,7 +40,8 @@ internal sealed class ApphostStartupSmoke
     {
         // Finder and other launchers may supply their own arguments during normal use.
         bool videoError = Array.Exists(args, value => value.StartsWith("--smoke-video-error", StringComparison.Ordinal));
-        bool pluginWorkflow = args.Length > 0 && args[0] == ApphostPluginWorkflowSmoke.Switch;
+        bool sourceActivation = args.Length > 0 && args[0] == ApphostPluginWorkflowSmoke.SourceActivationSwitch;
+        bool pluginWorkflow = args.Length > 0 && (args[0] == ApphostPluginWorkflowSmoke.Switch || sourceActivation);
         bool workflow = Array.Exists(args, value => value.StartsWith("--smoke-workflow", StringComparison.Ordinal));
         bool playback = Array.Exists(args, value => value.StartsWith("--smoke-playback", StringComparison.Ordinal));
         if (!videoError && !workflow && !pluginWorkflow && !playback && !Array.Exists(args, value => value.StartsWith("--smoke-startup", StringComparison.Ordinal))) return null;
@@ -52,7 +53,7 @@ internal sealed class ApphostStartupSmoke
             throw new ArgumentException("Usage: MeowChan --smoke-video-error <SystemBackendUnavailable|SystemBackendUnsupportedVersion|BundleDamaged|InvalidPackageMetadata>");
         if (!videoError && (pluginWorkflow ? args.Length != 2 : workflow ? args.Length != 2 || args[0] != ApphostWorkflowSmoke.Switch : playback ? args.Length != 2 || args[0] != PlaybackSwitch : args.Length != 2 || args[0] != Switch ||
             !int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out seconds) || seconds is < 1 or > 10))
-            throw new ArgumentException("Usage: MeowChan --smoke-startup-seconds <1..10> | --smoke-playback-webm <absolute local WebM> | --smoke-workflow <absolute owned descriptor.json> | --smoke-plugin-workflow <absolute owned descriptor.json>");
+            throw new ArgumentException("Usage: MeowChan --smoke-startup-seconds <1..10> | --smoke-playback-webm <absolute local WebM> | --smoke-workflow <absolute owned descriptor.json> | --smoke-plugin-workflow <absolute owned descriptor.json> | --smoke-source-activation <absolute owned descriptor.json>");
         if (playback && (!Path.IsPathFullyQualified(args[1]) || !File.Exists(args[1]) ||
             !string.Equals(Path.GetExtension(args[1]), ".webm", StringComparison.OrdinalIgnoreCase) ||
             new FileInfo(args[1]).Length is <= 0 or > 2 * 1024 * 1024 || new FileInfo(args[1]).LinkTarget != null))
@@ -60,6 +61,7 @@ internal sealed class ApphostStartupSmoke
         if (string.IsNullOrWhiteSpace(profile) || !Path.IsPathFullyQualified(profile) || !string.IsNullOrEmpty(legacyProfile))
             throw new ArgumentException("Startup smoke requires an absolute MEOWCHAN_PROFILE and no OCHAN_PROFILE override.");
         string full = Path.GetFullPath(profile);
+        if (sourceActivation) return new ApphostStartupSmoke(90, pluginWorkflow: ApphostPluginWorkflowSmoke.Parse(args[1], full, sourceActivation: true));
         if (Directory.Exists(full) || File.Exists(full) || new DirectoryInfo(full).LinkTarget != null)
             throw new ArgumentException("Startup smoke requires a new, nonexistent MEOWCHAN_PROFILE directory.");
         if (videoError) return new ApphostStartupSmoke(10, expectedVideoError: expectedError, errorProfile: full);

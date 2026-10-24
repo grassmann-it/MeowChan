@@ -38,7 +38,11 @@ internal static partial class PluginManagementChecks
         Directory.CreateDirectory(root);
         string plugins = Path.Combine(root, "sources"); Directory.CreateDirectory(plugins);
         string source = Path.Combine(plugins, "editor fixture ' literal.cs");
-        await File.WriteAllTextAsync(source, FixtureSource);
+        string fixtureSource = Environment.GetEnvironmentVariable("MEOWCHAN_FORM_EFFECTIVE_DEFAULT_REVIEW") == "1"
+            ? FixtureSource.Replace("value.Key == \"rule-count\" && value.Integer == 9", "value.Key == \"number\" && value.Integer == 2", StringComparison.Ordinal)
+                .Replace("Fixture rejects count nine", "Fixture rejects effective default two", StringComparison.Ordinal)
+            : FixtureSource;
+        await File.WriteAllTextAsync(source, fixtureSource);
         PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
         PluginInstallationInventory inventory = new();
         PluginProfileStore profile = new(root);
@@ -66,6 +70,28 @@ internal static partial class PluginManagementChecks
         {
             OpenPlugins(window);
             await page.ActivateAsync();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FORM_EFFECTIVE_DEFAULT_REVIEW") == "1")
+            {
+                page.Select(candidateId);
+                await PluginSettingsEffectiveDefaultChecks.RunAsync(window, page, profile);
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FORM_POST_URSA_REVIEW") == "1")
+            {
+                page.Select(candidateId);
+                await PluginSettingsPostUrsaChecks.RunAsync(window, page, management, profile, async version =>
+                {
+                    string changed = FixtureSource.Replace("new(\"2\", new SettingDefinition[]", "new(\"" + version + "\", new SettingDefinition[]", StringComparison.Ordinal)
+                        .Replace("\"Rule count\"", "\"Rule count revision " + version + "\"", StringComparison.Ordinal);
+                    await File.WriteAllTextAsync(source, changed);
+                    PluginBuildResult update = await compiler.BuildAsync(source);
+                    Require(update.Succeeded, "Changed-schema fixture compilation failed.");
+                    PluginDescription updated = await runtime.DescribeAsync(launch, update.Artifact!);
+                    PluginProfileSnapshot current = await profile.ReadAsync();
+                    await profile.ApplyStartupAsync(new[] { new PluginCandidateObservation(candidateId, updated.PluginId, update.Artifact, updated) }, current.Revision);
+                });
+                return;
+            }
             Require(page.Selected == null && page.FindControl<SelectionList>("PluginCards")!.SelectedIndex == -1,
                 "The initial catalog selected a candidate automatically.");
             PluginCatalogSnapshot catalog = await management.ReadCatalogAsync(CancellationToken.None);
@@ -553,6 +579,7 @@ public sealed class ManagementFixture : ISourcePlugin, IImageFilterPlugin, IPlug
             new("2", new SettingDefinition[] { new("rule-label", SettingScope.FilterRule, SettingKind.Text, "Rule label", IsRequired: true, Default: new("rule-label", SettingKind.Text, Text: "allowed")),
                 new("rule-count", SettingScope.FilterRule, SettingKind.Integer, "Rule count", Minimum: 1, Maximum: 10) }), new[] { "image/png" }) }, new("1", new SettingDefinition[] {
             new("label", SettingScope.Plugin, SettingKind.Text, "Label", "A label for the fixture", true, new("label", SettingKind.Text, Text: "fixture")),
+            new("fixture-source/label", SettingScope.Plugin, SettingKind.Integer, "Slashed plugin count", Minimum: 1, Maximum: 10),
             new("number", SettingScope.Plugin, SettingKind.Integer, "Minimum count", Default: new("number", SettingKind.Integer, Integer: 2), Minimum: 1, Maximum: 10),
             new("flag", SettingScope.Plugin, SettingKind.Boolean, "Include replies", Default: new("flag", SettingKind.Boolean, Boolean: true)),
             new("mode", SettingScope.Plugin, SettingKind.Enum, "Output mode", Default: new("mode", SettingKind.Enum, Text: "normal"), Options: new[] { new SettingOption("normal", "Normal"), new SettingOption("compact", "Compact") }),
@@ -575,7 +602,9 @@ public sealed class ManagementFixture : ISourcePlugin, IImageFilterPlugin, IPlug
         Task.FromResult<IReadOnlyList<FieldValidationError>>(request.Settings.Values.Where(value => value.Key is "label" or "rule-label" && value.Text == "rejected")
             .Select(value => new FieldValidationError(value.Key, "rejected", "Fixture rejects this label"))
             .Concat(request.Settings.Values.Where(value => value.Key == "rule-count" && value.Integer == 9)
-                .Select(value => new FieldValidationError(value.Key, "rejected_count", "Fixture rejects count nine"))).ToArray());
+                .Select(value => new FieldValidationError(value.Key, "rejected_count", "Fixture rejects count nine")))
+            .Concat(request.Settings.Values.Where(value => value.Key == "fixture-source/label" && value.Integer == 9)
+                .Select(value => new FieldValidationError(value.Key, "rejected_slash", "Fixture rejects slashed count nine"))).ToArray());
 }
 """;
 }

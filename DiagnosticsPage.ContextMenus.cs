@@ -64,32 +64,42 @@ public partial class DiagnosticsPage
                 menu.Items.Add(info);
             }
         }
-        Add("diagnostics.copy", () => _ = CopyFrozenDiagnosticAsync(frozen.Details), _copy != null);
+        Add("diagnostics.copy", () => _ = CopyFrozenDiagnosticAsync(frozen), _copy != null);
         if (frozen.Target is DiagnosticTarget target)
         {
-            Add("watch.check", () => _ = RetryFrozenDiagnosticAsync(target),
+            Add("watch.check", () => _ = RetryFrozenDiagnosticAsync(frozen),
                 !_retryBusy && _retry != null && _canRetry?.Invoke(target) == true);
-            Add("watch.show-in-downloads", () =>
-            {
-                if (_ended || _openWatch?.Invoke(target) != false) return;
-                this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = Texts.T("diagnostics.removed");
-            }, _openWatch != null);
+            Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null);
         }
     }
 
-    private async Task CopyFrozenDiagnosticAsync(string details)
+    private async Task CopyFrozenDiagnosticAsync(DiagnosticEntry frozen)
     {
-        if (_ended || _copy == null) return;
-        try { await _copy(details); }
+        if (_ended || !_available || _copy == null) return;
+        int generation = BeginDiagnosticAction();
+        try { await _copy(frozen.Details); }
         catch (Exception)
         {
-            if (!_ended) this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = Texts.T("clipboard.writeFailed");
+            if (_ended) return;
+            string message = Texts.T("clipboard.writeFailed");
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message);
+            _feedback?.Record(Desktop.Feedback.FeedbackCategory.Error, "diagnostics.copy", frozen.Key, message);
         }
     }
 
-    private async Task RetryFrozenDiagnosticAsync(DiagnosticTarget target)
+    private void OpenFrozenDiagnostic(DiagnosticEntry frozen)
     {
-        if (_ended || !_available || _retryBusy || _retry == null || _canRetry?.Invoke(target) != true) return;
+        if (_ended || !_available || frozen.Target is not DiagnosticTarget target) return;
+        int generation = BeginDiagnosticAction();
+        if (_openWatch?.Invoke(target) != true)
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), Texts.T("diagnostics.removed"));
+    }
+
+    private async Task RetryFrozenDiagnosticAsync(DiagnosticEntry frozen)
+    {
+        if (_ended || !_available || _retryBusy || frozen.Target is not DiagnosticTarget target
+            || _retry == null || _canRetry?.Invoke(target) != true) return;
+        int generation = BeginDiagnosticAction();
         _retryBusy = true;
         RefreshSelection();
         string message;
@@ -104,7 +114,6 @@ public partial class DiagnosticsPage
         finally { _retryBusy = false; }
         if (_ended) return;
         RefreshSelection();
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", failed);
+        ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message, failed);
     }
 }

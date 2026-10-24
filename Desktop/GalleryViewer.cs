@@ -627,7 +627,9 @@ internal sealed class GalleryViewer : UserControl
 
     internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
     {
-        CancelLoads(); int request = ++_request; ClearBitmaps();
+        CancelLoads(); int request = ++_request;
+        // Invalidate old image input before an asynchronous video stop can yield.
+        _info = null; SetImageCommands(false); ClearBitmaps();
         _sessionCancellation = cancellationToken; _videoSuspended = false;
         if (_video != null)
         {
@@ -643,13 +645,13 @@ internal sealed class GalleryViewer : UserControl
         _image.IsVisible = _status.IsVisible = true;
         _readPosts.IsVisible = false;
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
-        _entry = entry; _info = null; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = true;
         SetFavorite(false);
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;
         _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
-        _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; SetImageCommands(false); UpdateContext();
+        _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         if (entry.Kind == SavedMediaKind.Video)
         {
             if (_video == null)

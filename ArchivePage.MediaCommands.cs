@@ -129,6 +129,7 @@ public partial class ArchivePage
     private ContextMenu BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, Control origin, string? postId = null)
     {
         ContextMenu menu = new();
+        Action<string> reportError = CaptureActionErrorReporter();
         // Freeze the current manifest references and post association together. Neither
         // a later page refresh nor a different lead may retarget an open media menu.
         var thread = _thread!;
@@ -154,7 +155,7 @@ public partial class ArchivePage
             {
                 try { await action(); }
                 catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-                catch (Exception error) { Message(error.Message, true); }
+                catch (Exception error) { reportError(error.Message); }
             }, () => available && !_ended, () => available ? null : reason);
             item.Tag = id;
             if (!available && reason != null) unavailable.Add(CommandCatalog.Label(id) + ": " + reason);

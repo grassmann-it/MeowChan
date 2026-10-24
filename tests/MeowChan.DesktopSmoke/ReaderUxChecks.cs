@@ -75,6 +75,21 @@ internal static class ReaderUxChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_TRANSITION_REVIEW") is "observe" or "1")
+        {
+            await GalleryTransitionReviewChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY") == "1")
+        {
+            await ReaderShortcutContextChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_HELP_REVIEW") is "observe" or "1")
+        {
+            await GalleryHelpReviewChecks.RunAsync(window);
+            return;
+        }
         // URSA-12 targeted real-window path, run only by the serialized validation worker.
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_ONLY") == "1")
         {

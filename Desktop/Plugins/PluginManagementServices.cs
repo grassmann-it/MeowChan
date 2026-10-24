@@ -108,18 +108,20 @@ internal sealed class PluginConfigurationDraft
         Sources = Description.Sources.ToDictionary(source => source.SourceId,
             source => new PluginSettingsDraft(source.Settings, SettingScope.Source, saved?.SourceSettings.GetValueOrDefault(source.SourceId)), StringComparer.Ordinal);
     }
-    internal PluginConfiguration Configuration(out IReadOnlyList<FieldValidationError> errors)
+    internal PluginConfiguration Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors)
     {
         SettingsSnapshot plugin = Plugin.Snapshot(out IReadOnlyList<FieldValidationError> pluginErrors);
-        List<FieldValidationError> all = new(pluginErrors);
-        if (NeedsMigrationAcknowledgement) all.AddRange(RemovedSettings.Select(issue => new FieldValidationError(string.Empty, issue.Code, issue.Path + ": " + issue.Message)));
+        List<PluginConfigurationFieldError> all = new(pluginErrors.Select(error => new PluginConfigurationFieldError(string.Empty, error)));
+        if (NeedsMigrationAcknowledgement) all.AddRange(RemovedSettings.Select(issue => new PluginConfigurationFieldError(string.Empty, new FieldValidationError(string.Empty, issue.Code, issue.Path + ": " + issue.Message))));
         Dictionary<string, SettingsSnapshot> sources = new(StringComparer.Ordinal);
         foreach ((string source, PluginSettingsDraft draft) in Sources)
         {
-            sources[source] = draft.Snapshot(out IReadOnlyList<FieldValidationError> sourceErrors);
-            all.AddRange(sourceErrors.Select(error => error with { FieldKey = source + "/" + error.FieldKey }));
+            SettingsSnapshot settings = draft.Snapshot(out IReadOnlyList<FieldValidationError> sourceErrors);
+            sources[source] = PluginSettingsMigration.WithDefaults(draft.Schema, settings);
+            all.AddRange(sourceErrors.Select(error => new PluginConfigurationFieldError(source, error)));
         }
         errors = all;
-        return new("draft-" + Guid.NewGuid().ToString("N"), plugin, sources);
+        // The worker must validate the same effective values that the profile store persists.
+        return new("draft-" + Guid.NewGuid().ToString("N"), PluginSettingsMigration.WithDefaults(Description.Settings, plugin), sources);
     }
 }

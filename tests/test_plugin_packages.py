@@ -75,6 +75,15 @@ class PluginPackageTests(unittest.TestCase):
             self.assertEqual(candidate["sha256"], checked["packages"][key]["packageSha256"])
             self.assertEqual(candidate["assemblySha256"], checked["packages"][key]["assemblySha256"])
 
+    def test_core_consumer_rejects_sdk_or_host_even_when_core_is_present(self):
+        candidates, assets = self.restored()
+        with self.assertRaisesRegex(ValueError, "Core-only consumer acquired Host/SDK"):
+            verifier.verify_assets(assets, self.cache, candidates, {"libmeowchan"}, core_only=True)
+        assets["libraries"] = {name: entry for name, entry in assets["libraries"].items()
+                               if name.startswith("libmeowchan/")}
+        result = verifier.verify_assets(assets, self.cache, candidates, {"libmeowchan"}, core_only=True)
+        self.assertEqual({"libmeowchan"}, set(result["packages"]))
+
     def test_rejects_wrong_identity_and_extra_or_renamed_assemblies(self):
         for options in ({"package_id": "libochan"}, {"extra_dll": "tools/helper.dll"},
                         {"assembly": "lib/net10.0/old-sdk.dll"}):

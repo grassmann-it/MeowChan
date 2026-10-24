@@ -41,7 +41,10 @@ public partial class ArchivePage
             return await LoadListAsync(NewListLoad(request, afterCommit: () =>
             {
                 if (_draftRevision == revision) WriteSearchDraft(spec);
-                _showReader = false; UpdateLayoutMode();
+                _archiveSelectionIds.Clear(); _archiveLeadId = null;
+                _history.Clear();
+                SynchronizeArchiveSelection(ArchiveVisibleRows);
+                ClearArchiveThreadPresentation();
             }), cancellationToken);
         }
         catch (Exception exception) { SearchEditorError(exception.Message); return false; }
@@ -61,7 +64,7 @@ public partial class ArchivePage
     };
 
     internal static ArchiveSearchSpec CopySearch(ArchiveSearchSpec spec, string field, string? value = null) =>
-        new(field == "text" ? "" : spec.Text,
+        ArchiveSearchSpec.FromExactIdentities(field == "text" ? "" : spec.Text,
             field == "source" ? spec.Sources.Where(item => item != value) : spec.Sources,
             field == "board" ? spec.Boards.Where(item => BoardKey(item) != value) : spec.Boards,
             field == "state" ? spec.SourceStates.Where(item => item.ToString() != value) : spec.SourceStates,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
@@ -22,14 +23,20 @@ public partial class DiagnosticsPage : UserControl
     private readonly Func<DiagnosticTarget, Task<CheckRequestStatus>>? _retry;
     private readonly Func<DiagnosticTarget, bool>? _canRetry;
     private bool _ended;
+    private int _actionGeneration;
+    private enum ActionContextKind { Global, Diagnostic, SessionFeedback }
+    private readonly record struct ActionContext(ActionContextKind Kind, string? DiagnosticKey = null, long? FeedbackId = null);
+    private sealed record ActionFeedback(ActionContext Context, string Message, bool Failed);
+    private ActionFeedback? _actionFeedback;
     internal Func<IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>>? GetTargetWaitStates { get; set; }
     internal Func<Task>? CheckTargetsAsync { get; set; }
     internal Func<Task>? ManageMediaRatingsAsync { get; set; }
     private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e)
     {
         if (_ended || !_available || ManageMediaRatingsAsync == null) return;
+        int generation = BeginDiagnosticAction();
         try { await ManageMediaRatingsAsync(); }
-        catch (Exception error) { this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = error.Message; }
+        catch (Exception error) { ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Global), error.Message); }
     }
 
     public DiagnosticsPage()
@@ -100,60 +107,61 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
             && (Selected?.DownloadTargetPath != null && CheckTargetsAsync != null
                 || Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true);
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = string.Empty;
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", true);
+        RenderDiagnosticActionFeedback();
+    }
+    private int BeginDiagnosticAction()
+    {
+        _actionFeedback = null;
+        RenderDiagnosticActionFeedback();
+        return ++_actionGeneration;
+    }
+    private void ShowDiagnosticActionFeedback(int generation, ActionContext context, string message, bool failed = true)
+    {
+        if (_ended || generation != _actionGeneration) return;
+        if (context.Kind == ActionContextKind.SessionFeedback)
+            AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("DiagnosticsActionError")!, AutomationLiveSetting.Assertive);
+        _actionFeedback = new(context, message, failed);
+        RenderDiagnosticActionFeedback();
+    }
+    private void RenderDiagnosticActionFeedback()
+    {
+        if (_ended) return;
+        bool current = _actionFeedback?.Context is ActionContext context && (context.Kind switch
+        {
+            ActionContextKind.Global => true,
+            ActionContextKind.Diagnostic => context.DiagnosticKey == Selected?.Key,
+            ActionContextKind.SessionFeedback => context.FeedbackId == (this.FindControl<DataGrid>("SessionFeedbackGrid")!.SelectedItem as Desktop.Feedback.SessionFeedback)?.Id,
+            _ => false
+        });
+        TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
+        text.Text = current ? _actionFeedback!.Message : string.Empty;
+        text.Classes.Set("error", !current || _actionFeedback!.Failed);
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {
         if (_ended || !_available || Selected is not DiagnosticEntry selected || _copy == null) return;
-        try { await _copy(selected.Details); }
-        catch (Exception)
-        {
-            if (!_ended)
-            {
-                string message = Texts.T("clipboard.writeFailed");
-                this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
-                _feedback?.Record(Desktop.Feedback.FeedbackCategory.Error, "diagnostics.copy", selected.Key, message);
-            }
-        }
+        await CopyFrozenDiagnosticAsync(selected);
     }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || !_available || Selected?.Target is not DiagnosticTarget target) return;
-        if (_openWatch?.Invoke(target) != true)
-            this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = Texts.T("diagnostics.removed");
+        if (Selected is DiagnosticEntry selected) OpenFrozenDiagnostic(selected);
     }
     private async void OnRetryClick(object? sender, RoutedEventArgs e)
     {
-        if (!_ended && _available && !_retryBusy && Selected?.DownloadTargetPath != null && CheckTargetsAsync != null)
+        DiagnosticEntry? selected = Selected;
+        if (!_ended && _available && !_retryBusy && selected?.DownloadTargetPath != null && CheckTargetsAsync != null)
         {
+            ActionContext context = new(ActionContextKind.Diagnostic, selected.Key);
+            int generation = BeginDiagnosticAction();
             _retryBusy = true; RefreshSelection();
             string? error = null;
             try { await CheckTargetsAsync(); }
             catch (Exception exception) { error = exception.Message; }
             finally { _retryBusy = false; if (!_ended) RefreshSelection(); }
-            if (!_ended && error != null) this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = error;
+            if (error != null) ShowDiagnosticActionFeedback(generation, context, error);
             return;
         }
-        if (_ended || !_available || _retryBusy || Selected?.Target is not DiagnosticTarget target
-            || _retry == null || _canRetry?.Invoke(target) != true) return;
-        _retryBusy = true;
-        RefreshSelection();
-        string message;
-        bool failed;
-        try
-        {
-            CheckRequestStatus result = await _retry(target);
-            message = CheckActionText.ForResult(result, target.Kind);
-            failed = result is not (CheckRequestStatus.Scheduled or CheckRequestStatus.AlreadyScheduled);
-        }
-        catch (Exception exception) { message = Texts.T("check.failed", exception.Message); failed = true; }
-        finally { _retryBusy = false; }
-        if (_ended) return;
-        RefreshSelection();
-        if (Selected?.Target != target) return;
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Text = message;
-        this.FindControl<TextBlock>("DiagnosticsActionError")!.Classes.Set("error", failed);
+        if (selected != null) await RetryFrozenDiagnosticAsync(selected);
     }
     internal void EndLifetime() { _ended = true; _available = false; if (_feedback != null) _feedback.Changed -= RefreshFeedback; }
 }

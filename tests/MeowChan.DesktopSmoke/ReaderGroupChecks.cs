@@ -12,6 +12,11 @@ internal static class ReaderGroupChecks
 {
     internal static async Task RunAsync(MainWindow owner)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_RESTORE_ONLY") == "1")
+        {
+            await ReaderGroupLifetimeChecks.RunGalleryOriginRestoreAsync(owner);
+            return;
+        }
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-reader-groups-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         ResourceId a = new("local", "b", "1"), b = a with { Thread = "2" }, c = a with { Thread = "3" };

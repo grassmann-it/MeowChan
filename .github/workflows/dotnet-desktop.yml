@@ -80,6 +80,15 @@ jobs:
           mkdir -p artifacts/build-evidence
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
+      - name: Check declared public APIs and require release review for candidates
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        shell: bash
+        run: |
+          api_args=()
+          if [[ "$GITHUB_REF" == refs/tags/v* || "${{ inputs.mode }}" == prerelease-candidate ]]; then
+            api_args+=(--release)
+          fi
+          python scripts/check-public-api.py "${api_args[@]}"
       - name: Check default development restore and build
         if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: dotnet build MeowChan.csproj -warnaserror:NU1900
@@ -112,6 +121,7 @@ jobs:
           python -m unittest discover -s tests -p test_desktop_package.py -v
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
           python -m unittest discover -s tests -p test_prerelease.py -v
+          python -m unittest discover -s tests -p test_public_api_policy.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
         run: python -m unittest discover -s tests -p test_local_package.py -v
@@ -215,11 +225,9 @@ jobs:
           dotnet pack libmeowchan/libmeowchan.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
           dotnet pack MeowChan.PluginSdk/MeowChan.PluginSdk.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
           dotnet pack MeowChan.PluginHost/MeowChan.PluginHost.csproj --configuration Release --no-restore --output artifacts/packages -p:RepositoryCommit=${{ github.sha }}
-      - name: Consume the actual local package in a fresh cache
-        run: python scripts/test-local-package.py --feed artifacts/packages --consumer samples/LibMeowChan.Consumer/LibMeowChan.Consumer.csproj
       # PackageReference evidence only; delivered helper/product probes run separately.
       # The plugin consumer runner owns its build lock; do not add an outer flock.
-      - name: Consume the SDK and Host packages in a fresh cache
+      - name: Consume the Core, SDK and Host packages outside the repository in a fresh cache
         run: python scripts/test-plugin-packages.py --feed artifacts/packages --output artifacts/plugin-package-consumers
       - name: Retain local library, SDK and Host package candidates
         if: always()
@@ -234,7 +242,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: library-package-consumer-evidence
-          path: artifacts/packages/consumer-evidence.json
+          path: artifacts/plugin-package-consumers/core-consumer-evidence.json
           if-no-files-found: warn
           retention-days: 7
       - name: Retain plugin package consumer evidence

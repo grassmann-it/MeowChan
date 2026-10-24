@@ -195,7 +195,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
+                ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1"
                 ? Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
                     ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
                     : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"
@@ -337,6 +339,20 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PICKER_LIFETIME_ONLY") == "1")
+            {
+                await SettingsPickerLifetimeChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LIFETIME_ONLY") == "1")
+            {
+                await SettingsPageChecks.RunLateSaveFailureAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_PATH_INPUT_ONLY") == "1")
             {
                 await SettingsPathInputChecks.RunAsync(mainWindow);
@@ -389,10 +405,24 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY") == "1")
+            {
+                await DiagnosticsFeedbackChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_PAGE_REFRESH_ONLY") == "1")
             {
                 await DiagnosticsChecks.RunAsync(mainWindow);
                 await SourcesChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_TRANSITIONS_ONLY") == "1")
+            {
+                await PostBookmarkTransitionChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
@@ -425,6 +455,13 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_ACTION_DYNAMIC_ONLY") == "1")
+            {
+                await ActionToolBarDynamicChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_ACTION_OVERFLOW_ONLY") == "1")
             {
                 await ActionToolBarPresentationChecks.RunAsync(mainWindow);
@@ -435,6 +472,13 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SEARCH_ONLY") == "1")
             {
                 await DownloadSearchChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_FOOTER_ONLY") == "1")
+            {
+                await SettingsPageChecks.RunFooterOverlapDiagnosticAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
