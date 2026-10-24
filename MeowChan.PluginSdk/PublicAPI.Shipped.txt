@@ -619,3 +619,8 @@ static MeowChan.PluginSdk.SdkValidation.ValidateImageFilterResult(MeowChan.Plugi
 static MeowChan.PluginSdk.SdkValidation.ValidateImageRead(string! assetToken, long offset, int count, long assetSize) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateSettings(MeowChan.PluginSdk.SettingsSchema! schema, MeowChan.PluginSdk.SettingsSnapshot! settings, MeowChan.PluginSdk.SettingScope scope) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateThreadResult(MeowChan.PluginSdk.ThreadReadRequest! request, MeowChan.PluginSdk.ThreadReadResult! result, MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
+MeowChan.PluginSdk.SourceDescription.Maturity.get -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceDescription.Maturity.init -> void
+MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Experimental = 1 -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Unspecified = 0 -> MeowChan.PluginSdk.SourceMaturity

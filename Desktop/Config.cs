@@ -353,8 +353,19 @@ namespace MeowChan
             if (backupStatus == LoadStatus.Valid)
             {
                 Config recovered = BindProfile(backup!, directory, relativePathBaseDirectory);
+                // A backup can predate an explicit revoke. Recovery restores settings, but
+                // source exceptions require fresh consent rather than reviving an old grant.
+                bool disabledSourceGrants = recovered.SourceMediaIntegrityPermissions.Values
+                    .Any(permission => permission.AllowProviderSizeMd5Mismatch);
+                if (disabledSourceGrants)
+                    recovered.SourceMediaIntegrityPermissions = recovered.SourceMediaIntegrityPermissions.ToDictionary(
+                        pair => pair.Key,
+                        pair => pair.Value.AllowProviderSizeMd5Mismatch
+                            ? pair.Value with { AllowProviderSizeMd5Mismatch = false } : pair.Value,
+                        StringComparer.Ordinal);
                 recovered.LoadWarning = $"Settings could not be loaded from '{filePath}' ({error ?? "file missing"}). " +
-                    $"Recovered settings from backup '{backupPath}'. The original files were preserved.";
+                    $"Recovered settings from backup '{backupPath}'. The original files were preserved." +
+                    (disabledSourceGrants ? " Source media exception permissions from the backup were disabled and require explicit confirmation in Sources." : string.Empty);
                 Log.Warning("{LoadWarning}", recovered.LoadWarning);
                 return recovered;
             }

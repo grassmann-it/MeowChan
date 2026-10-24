@@ -26,6 +26,7 @@ internal sealed class ApphostStartupSmoke
     internal string? PlaybackFixture { get; }
     internal ApphostWorkflowSmoke? Workflow { get; }
     internal ApphostPluginWorkflowSmoke? PluginWorkflow { get; }
+    internal ApphostIntegrityProcessSmoke? IntegrityProcess { get; }
     internal LinuxVideoPreflightErrorKind? ExpectedVideoError { get; }
     private readonly string? _errorProfile;
     private string? _errorMessage;
@@ -33,27 +34,29 @@ internal sealed class ApphostStartupSmoke
     private bool _passed;
 
     private ApphostStartupSmoke(int seconds, string? playbackFixture = null, ApphostWorkflowSmoke? workflow = null,
-        LinuxVideoPreflightErrorKind? expectedVideoError = null, string? errorProfile = null, ApphostPluginWorkflowSmoke? pluginWorkflow = null)
-    { PluginWorkflow = pluginWorkflow; Seconds = seconds; PlaybackFixture = playbackFixture; Workflow = workflow; ExpectedVideoError = expectedVideoError; _errorProfile = errorProfile; }
+        LinuxVideoPreflightErrorKind? expectedVideoError = null, string? errorProfile = null, ApphostPluginWorkflowSmoke? pluginWorkflow = null,
+        ApphostIntegrityProcessSmoke? integrityProcess = null)
+    { IntegrityProcess = integrityProcess; PluginWorkflow = pluginWorkflow; Seconds = seconds; PlaybackFixture = playbackFixture; Workflow = workflow; ExpectedVideoError = expectedVideoError; _errorProfile = errorProfile; }
 
     internal static ApphostStartupSmoke? Parse(string[] args, string? profile, string? legacyProfile)
     {
         // Finder and other launchers may supply their own arguments during normal use.
+        bool policyProcess = args.Length > 0 && args[0] == ApphostIntegrityProcessSmoke.Switch;
         bool videoError = Array.Exists(args, value => value.StartsWith("--smoke-video-error", StringComparison.Ordinal));
         bool sourceActivation = args.Length > 0 && args[0] == ApphostPluginWorkflowSmoke.SourceActivationSwitch;
         bool pluginWorkflow = args.Length > 0 && (args[0] == ApphostPluginWorkflowSmoke.Switch || sourceActivation);
         bool workflow = Array.Exists(args, value => value.StartsWith("--smoke-workflow", StringComparison.Ordinal));
         bool playback = Array.Exists(args, value => value.StartsWith("--smoke-playback", StringComparison.Ordinal));
-        if (!videoError && !workflow && !pluginWorkflow && !playback && !Array.Exists(args, value => value.StartsWith("--smoke-startup", StringComparison.Ordinal))) return null;
+        if (!videoError && !workflow && !pluginWorkflow && !policyProcess && !playback && !Array.Exists(args, value => value.StartsWith("--smoke-startup", StringComparison.Ordinal))) return null;
         int seconds = 30;
         LinuxVideoPreflightErrorKind expectedError = LinuxVideoPreflightErrorKind.None;
         if (videoError && (args.Length != 2 || args[0] != VideoErrorSwitch ||
             !Enum.TryParse(args[1], out expectedError) || !Enum.IsDefined(expectedError) || expectedError == LinuxVideoPreflightErrorKind.None ||
             args[1] != expectedError.ToString()))
             throw new ArgumentException("Usage: MeowChan --smoke-video-error <SystemBackendUnavailable|SystemBackendUnsupportedVersion|BundleDamaged|InvalidPackageMetadata>");
-        if (!videoError && (pluginWorkflow ? args.Length != 2 : workflow ? args.Length != 2 || args[0] != ApphostWorkflowSmoke.Switch : playback ? args.Length != 2 || args[0] != PlaybackSwitch : args.Length != 2 || args[0] != Switch ||
+        if (!videoError && ((pluginWorkflow || policyProcess) ? args.Length != 2 : workflow ? args.Length != 2 || args[0] != ApphostWorkflowSmoke.Switch : playback ? args.Length != 2 || args[0] != PlaybackSwitch : args.Length != 2 || args[0] != Switch ||
             !int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out seconds) || seconds is < 1 or > 10))
-            throw new ArgumentException("Usage: MeowChan --smoke-startup-seconds <1..10> | --smoke-playback-webm <absolute local WebM> | --smoke-workflow <absolute owned descriptor.json> | --smoke-plugin-workflow <absolute owned descriptor.json> | --smoke-source-activation <absolute owned descriptor.json>");
+            throw new ArgumentException("Usage: MeowChan --smoke-startup-seconds <1..10> | --smoke-playback-webm <absolute local WebM> | --smoke-workflow <absolute owned descriptor.json> | --smoke-plugin-workflow <absolute owned descriptor.json> | --smoke-source-activation <absolute owned descriptor.json> | --smoke-source-policy-process <absolute owned descriptor.json>");
         if (playback && (!Path.IsPathFullyQualified(args[1]) || !File.Exists(args[1]) ||
             !string.Equals(Path.GetExtension(args[1]), ".webm", StringComparison.OrdinalIgnoreCase) ||
             new FileInfo(args[1]).Length is <= 0 or > 2 * 1024 * 1024 || new FileInfo(args[1]).LinkTarget != null))
@@ -61,6 +64,7 @@ internal sealed class ApphostStartupSmoke
         if (string.IsNullOrWhiteSpace(profile) || !Path.IsPathFullyQualified(profile) || !string.IsNullOrEmpty(legacyProfile))
             throw new ArgumentException("Startup smoke requires an absolute MEOWCHAN_PROFILE and no OCHAN_PROFILE override.");
         string full = Path.GetFullPath(profile);
+        if (policyProcess) return new ApphostStartupSmoke(90, integrityProcess: ApphostIntegrityProcessSmoke.Parse(args[1], full));
         if (sourceActivation) return new ApphostStartupSmoke(90, pluginWorkflow: ApphostPluginWorkflowSmoke.Parse(args[1], full, sourceActivation: true));
         if (Directory.Exists(full) || File.Exists(full) || new DirectoryInfo(full).LinkTarget != null)
             throw new ArgumentException("Startup smoke requires a new, nonexistent MEOWCHAN_PROFILE directory.");
@@ -136,7 +140,7 @@ internal sealed class ApphostStartupSmoke
         }
         // The acceptance check must finish observing disposal after the last native window closes.
         // Normal startup retains the application's existing shutdown policy.
-        if (PlaybackFixture != null || Workflow != null || PluginWorkflow != null) desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        if (PlaybackFixture != null || Workflow != null || PluginWorkflow != null || IntegrityProcess != null) desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         if (window is not MainWindow main)
         {
             Console.Error.WriteLine("APPHOST STARTUP FAIL: startup created an error window.");
@@ -147,19 +151,20 @@ internal sealed class ApphostStartupSmoke
         {
             try
             {
-                if (PluginWorkflow != null) await main.CompleteApphostPluginWorkflowSmokeAsync(PluginWorkflow);
+                if (IntegrityProcess != null) await main.CompleteApphostIntegrityProcessSmokeAsync(IntegrityProcess);
+                else if (PluginWorkflow != null) await main.CompleteApphostPluginWorkflowSmokeAsync(PluginWorkflow);
                 else if (Workflow != null) await main.CompleteApphostWorkflowSmokeAsync(Workflow);
                 else if (PlaybackFixture != null) await main.CompleteApphostMediaSmokeAsync(PlaybackFixture);
                 else await main.CompleteApphostStartupSmokeAsync(TimeSpan.FromSeconds(Seconds));
                 _passed = true;
-                if (PlaybackFixture != null || Workflow != null || PluginWorkflow != null) desktop.Shutdown(0);
+                if (PlaybackFixture != null || Workflow != null || PluginWorkflow != null || IntegrityProcess != null) desktop.Shutdown(0);
             }
             catch (Exception exception)
             {
                 Console.Error.WriteLine("APPHOST STARTUP FAIL: " + exception);
                 desktop.Shutdown(1);
             }
-            finally { Workflow?.Dispose(); PluginWorkflow?.Dispose(); }
+            finally { Workflow?.Dispose(); PluginWorkflow?.Dispose(); IntegrityProcess?.Dispose(); }
         };
     }
 
@@ -197,7 +202,9 @@ internal sealed class ApphostStartupSmoke
             return accepted ? 2 : 1;
         }
         bool passed = exitCode == 0 && _passed;
-        Console.WriteLine(passed ? PluginWorkflow != null
+        Console.WriteLine(passed ? IntegrityProcess != null
+            ? "APPHOST SOURCE POLICY PROCESS PASS"
+            : PluginWorkflow != null
             ? "APPHOST PLUGIN WORKFLOW PASS"
             : Workflow != null
             ? "APPHOST WORKFLOW PASS: actual packaged application, offline production commands, fresh process restore, native clipboard and normal shutdown; external handoff boundaries recorded."

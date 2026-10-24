@@ -162,8 +162,13 @@ In Rules, each effective media-type or size value names its own origin. **Open
 rule** opens that exact Global, Source, Board or Thread scope. **Open parent
 scope** moves up one scope. Unsaved drafts and conflicting edits remain available
 when returning to their scope; navigation does not save or retry downloads.
-Built-in defaults have no stored rule to open. Saving affects future work and
-does not delete previously saved files.
+Built-in defaults have no stored rule to open. Saving rules does not automatically
+reconsider recorded media selections or exclusions, or delete previously saved files.
+
+Maximum file sizes use decimal MB (1 MB = 1,000,000 bytes). Provider sizes guide
+preselection; an unknown size is initially eligible. Downloaded bytes must also
+stay within the effective limit for that medium. Allowing provider size or MD5
+differences for a source does not relax this limit.
 
 In 1.0, open **Rule templates** in Rules. **Create from draft** opens a template
 editor: name it, choose whether to include media selection, size limit and/or
@@ -568,9 +573,11 @@ if both are set their resolved paths must agree.
 
 0.9.0 uses a new profile/media lease protocol. Older writers cannot coordinate
 with these locks: concurrent old/new writers on the same data are unsupported.
-No downgrade path is promised. V1 media manifests remain readable, but V2 media
-history and migration of archive catalog schema 1 to schema 2 require current
-readers. The passive archive reader can still read schema 1 without migration.
+No downgrade path is promised. Current archive writers migrate catalog schemas
+1–3 to schema 4; the passive archive reader can read schemas 1–4 without migration.
+V1 and V2 media manifests remain readable. New media writes use V3, which binds
+attachment revisions to saved media and records provider metadata, local integrity
+values and acceptance evidence. Older binaries may not understand these formats.
 New durable work state records retries, source end and watch intent independently
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
 and inspect the reported recovery error.

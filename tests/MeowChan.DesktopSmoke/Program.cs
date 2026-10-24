@@ -198,7 +198,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1"
+                ? "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1"
                 ? "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1"
                 ? "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale"
@@ -286,6 +288,11 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1")
             {
                 await GalleryIntegrityChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1")
+            {
+                await Alpha2CopyChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")

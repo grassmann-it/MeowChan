@@ -41,6 +41,36 @@ public sealed class ThreadFavoriteCoreTests
     }
 
     [Fact]
+    public void PublicSnapshotsFreezeConstructorInitializerAndWithInputs()
+    {
+        List<ResourceId> constructorInput = [Thread];
+        ThreadFavoriteSnapshot constructed = new(constructorInput, 1, "constructor");
+        constructorInput.Clear();
+        Assert.Equal(Thread, Assert.Single(constructed.Threads));
+
+        List<ResourceId> initializerInput = [Thread with { Thread = "43" }];
+        ThreadFavoriteSnapshot initialized = new(Array.Empty<ResourceId>(), 2, "initializer")
+            { Threads = initializerInput };
+        ResourceId initializerThread = initializerInput[0];
+        initializerInput.Clear();
+        Assert.Equal(initializerThread, Assert.Single(initialized.Threads));
+
+        List<ResourceId> cloneInput = [Thread with { Thread = "44" }];
+        ThreadFavoriteSnapshot cloned = constructed with { Threads = cloneInput };
+        ResourceId clonedThread = cloneInput[0];
+        cloneInput.Clear();
+        Assert.Equal(clonedThread, Assert.Single(cloned.Threads));
+        Assert.Equal(Thread, Assert.Single(constructed.Threads));
+
+        var (threads, revision, fingerprint) = constructed;
+        Assert.Same(constructed.Threads, threads);
+        Assert.Equal(1, revision);
+        Assert.Equal("constructor", fingerprint);
+        foreach (ThreadFavoriteSnapshot snapshot in new[] { constructed, initialized, cloned })
+            Assert.Throws<NotSupportedException>(() => ((IList<ResourceId>)snapshot.Threads).Clear());
+    }
+
+    [Fact]
     public void SourceBoardAndThreadAreExactIndependentIdentities()
     {
         using TempDirectory temp = new(); using ProfileLease lease = ProfileLease.Acquire(temp.Path);

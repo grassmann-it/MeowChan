@@ -170,6 +170,7 @@ internal static class SourceIntegrityChecks
                     "The strict source checkbox is not keyboard reachable at the actual minimum size.");
                 AssertTextFits(C<TextBlock>(sources, "SourceAllowProviderMismatchLabel"));
                 Program.CaptureWindow(window, CaptureName("policy-focus-" + cell));
+                await NativeFeatureCheckpoint.HoldAsync("source-policy", sources, permission, permission);
                 if (!InViewport(window, scope))
                 {
                     await RevealAsync(window, scope);
@@ -211,6 +212,7 @@ internal static class SourceIntegrityChecks
                     && Avalonia.Automation.AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
                     "The Manage in Sources link was not translated or keyboard reachable.");
                 Program.CaptureWindow(window, CaptureName("plugin-link-" + cell));
+                await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, manage, manage);
                 navigatedSource = null;
                 await ActivateAsync(manage);
                 await Program.WaitUntilAsync(() => navigatedSource == PluginUxFixture.SourceId && sources.IsEffectivelyVisible);

@@ -41,7 +41,9 @@ public partial class App : Application
         }
     }
 
-    protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
+    protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
+        ? new MainWindow(policy.CreateSession())
+        : Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
         ? new MainWindow(workflow.CreateSession())
         : Program.StartupSmoke?.PluginWorkflow is ApphostPluginWorkflowSmoke plugins
         ? new MainWindow(plugins.CreateSession()) : new MainWindow();

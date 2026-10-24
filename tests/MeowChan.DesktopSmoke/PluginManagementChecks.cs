@@ -31,6 +31,8 @@ internal static partial class PluginManagementChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "plugins")
+            Texts.SetLanguage(Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_INPUT_LANGUAGE") ?? "en");
         if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_REVIEW") == "1"
             || Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_PRESENTATION") == "1")
         {
@@ -76,6 +78,8 @@ internal static partial class PluginManagementChecks
         {
             OpenPlugins(window);
             await page.ActivateAsync();
+            await NativeFeatureCheckpoint.HoldAsync("plugin-overview", page, null,
+                page.FindControl<ComboBox>("PluginCategory")!, page.FindControl<Button>("PluginsRefresh")!);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FORM_EFFECTIVE_DEFAULT_REVIEW") == "1")
             {
                 page.Select(candidateId);

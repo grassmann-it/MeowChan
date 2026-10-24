@@ -11,7 +11,21 @@ using MeowChan.Persistence;
 namespace MeowChan.Favorites;
 
 /// <summary>A complete, immutable set of manually marked thread identities in one profile.</summary>
-public sealed record ThreadFavoriteSnapshot(IReadOnlyList<ResourceId> Threads, long Revision, string Fingerprint);
+public sealed record ThreadFavoriteSnapshot(IReadOnlyList<ResourceId> Threads, long Revision, string Fingerprint)
+{
+    private IReadOnlyList<ResourceId> _threads = CopyThreads(Threads);
+    public IReadOnlyList<ResourceId> Threads
+    {
+        get => _threads;
+        init => _threads = CopyThreads(value);
+    }
+
+    private static IReadOnlyList<ResourceId> CopyThreads(IReadOnlyList<ResourceId> threads)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        return Array.AsReadOnly(threads.ToArray());
+    }
+}
 public sealed record ThreadFavoriteCommit(ResourceId Thread, bool Favorite, bool Changed, ThreadFavoriteSnapshot Snapshot);
 
 /// <summary>Profile-owned thread marks, independent of media, archive membership and watch state.</summary>
@@ -129,7 +143,7 @@ public sealed class ThreadFavoriteStore
     }
 
     private static ThreadFavoriteSnapshot Snapshot(Document document, byte[] bytes) =>
-        new(Array.AsReadOnly(document.Threads.ToArray()), document.Revision, Convert.ToHexString(SHA256.HashData(bytes)));
+        new(document.Threads, document.Revision, Convert.ToHexString(SHA256.HashData(bytes)));
 
     private static void RejectLink(string path)
     {

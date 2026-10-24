@@ -33,6 +33,7 @@
                         </CheckBox>
                         <TextBlock x:Name="SourceMediaIntegrityScope" Classes="muted" TextWrapping="Wrap" />
                         <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="SourceMediaIntegrityRetryHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
                         <ursa:Banner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="False">
                             <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                                 <TextBlock x:Name="SourceMediaIntegrityError" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />

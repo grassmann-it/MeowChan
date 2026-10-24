@@ -199,6 +199,9 @@ public partial class SourcesPage : UserControl
         experimental.Text = Texts.T("sources.experimental");
         this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null;
         RenderSourceMediaIntegrityError(policy);
+        TextBlock retryHint = this.FindControl<TextBlock>("SourceMediaIntegrityRetryHint")!;
+        retryHint.IsVisible = policy is { IsActive: true, IsGranted: true };
+        retryHint.Text = Texts.T("sources.providerMismatchRetryHint");
         if (policy == null) return;
         this.FindControl<TextBlock>("SourceMediaIntegrityExplanation")!.Text = Texts.T("sources.providerMismatchExplanation");
         this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = Texts.T("sources.allowProviderMismatch");

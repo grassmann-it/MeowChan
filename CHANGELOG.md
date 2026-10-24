@@ -44,6 +44,20 @@ The draft-only `ArchiveSearchSpec.WorkFilterFromIndex` / `WorkFilterToIndex` and
 `ArchiveWorkFilter` and rating values 1–5 / null, mapping their own UI filter
 indices and sort order. Stored search and rating formats are unchanged.
 
+New `ArchiveCatalog.CaptureAsync` observations now receive exact attachment
+revision keys, even when a caller omits the key. A custom provider that downloads
+without acquisition/attachment references and later captures only a matching
+media ID/size/MD5 no longer gets an implicit gallery/export association. A local
+historical unchanged consumer binary passed with its original Core DLL and
+failed its gallery association check after the DLL was replaced; preserved
+call signatures do not preserve that earlier behavior. Recompiling alone does
+not migrate the old logic: freeze the complete provider metadata, compute
+`MediaRevisionKeys` acquisition and post/position references, supply them in
+`DownloadItem` before enqueueing, and capture the same observation afterward.
+The [updated package consumer](samples/LibMeowChan.Consumer/README.md) demonstrates
+this path. Genuinely old stored null-key attachments retain strict legacy
+matching; new observations do not receive an unsafe legacy fallback.
+
 ### Upgrade and validation
 
 Existing source identities, original media paths, archives and watch state are

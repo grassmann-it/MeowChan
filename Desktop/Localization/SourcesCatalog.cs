@@ -11,6 +11,7 @@ internal static class SourcesCatalog
         ("sources.allowProviderMismatch", "Allow provider size and MD5 mismatches", "Abweichende Anbietergröße und MD5 zulassen"),
         ("sources.providerMismatchScope", "Applies to {0} in this profile and takes effect immediately for newly saved media. Existing saved files are retained.", "Gilt für {0} in diesem Profil und wirkt sofort für neu gespeicherte Medien. Bereits gespeicherte Dateien bleiben erhalten."),
         ("sources.providerMismatchAllowed", "Provider size and MD5 mismatches are allowed for this source.", "Abweichende Anbietergröße und MD5 sind für diese Quelle zugelassen."),
+        ("sources.providerMismatchRetryHint", "Earlier failures are not retried automatically. In Downloads, select the affected thread and choose Retry missing media.", "Frühere Fehlversuche werden nicht automatisch wiederholt. Unter Downloads den betroffenen Thread auswählen und Fehlende Medien erneut versuchen wählen."),
         ("sources.providerMismatchStrict", "Provider metadata is checked strictly. No exception is enabled.", "Anbieterangaben werden streng geprüft. Es ist keine Ausnahme freigegeben."),
         ("sources.providerMismatchInactive", "This source is inactive. Its saved permission does not permit new media to be saved.", "Diese Quelle ist inaktiv. Ihre gespeicherte Freigabe erlaubt keine Speicherung neuer Medien."),
         ("sources.providerMismatchSaveFailed", "The source permission could not be saved: {0}", "Die Quellenfreigabe konnte nicht gespeichert werden: {0}"),

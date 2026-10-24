@@ -61,7 +61,8 @@ internal static class Program
     private static async Task CheckIndependentArchiveAsync(string directory)
     {
         string profile = Path.Combine(directory, "profile");
-        ResourceId id = new ResourceId("demo", "demo", "1");
+        ResourceId id = DemoPayload.Resource;
+        MediaProviderMetadata provider = DemoPayload.Provider;
         const string capturedBody = "Package-only offline post<a href=\"#1\">&gt;&gt;1</a>";
         string mediaDirectory = StorageLayout.GetThreadDirectory(directory, id.Source, id.Board, id.Thread!);
         using (ProfileLease lease = ProfileLease.Acquire(profile))
@@ -75,7 +76,15 @@ internal static class Program
                 DateTimeOffset.UtcNow, mediaDirectory, new[]
                 {
                     new CapturedPost("1", 0, PostFieldPresence.Html | PostFieldPresence.Attachments, Html: capturedBody,
-                        Attachments: new[] { new CapturedAttachment(0, "1", ExpectedSize: DemoPayload.Bytes.Length, ExpectedMd5: DemoPayload.Md5) })
+                        // Capture the same observed revision that the queue already committed.
+                        // A newly captured attachment never inherits a legacy mediaId-only association.
+                        Attachments: new[] { new CapturedAttachment(DemoPayload.Reference.Position, provider.MediaId,
+                            provider.Variant, Url: provider.Url, OriginalFileName: provider.OriginalFileName,
+                            ExpectedSize: provider.ExpectedSize, ExpectedMd5: provider.ExpectedMd5)
+                        {
+                            ExpectedSha256 = provider.ExpectedSha256,
+                            AttachmentRevisionKey = DemoPayload.Reference.RevisionKey
+                        } })
                 }));
         }
         // The reader outlives the writer and profile lease, with no provider or UI dependency.
@@ -116,6 +125,18 @@ internal static class Program
                 throw new InvalidOperationException("The passive gallery lost its captured attachment association.");
             MediaAssetReference exactAsset = entry.Manifest.FindById(entry.Key.AssetId)
                 ?? throw new InvalidOperationException("The gallery asset identity was not in its manifest.");
+            MediaAttachmentBinding binding = entry.AttachmentResolution?.Binding
+                ?? throw new InvalidOperationException("The public acquisition did not produce an exact attachment binding.");
+            if (entry.AttachmentResolution!.IsLegacy || binding.Reference != DemoPayload.Reference
+                || binding.AcquisitionRevisionKey != DemoPayload.AcquisitionRevisionKey
+                || binding.AssetId != exactAsset.AssetId || binding.Provider != provider
+                || binding.Acceptance.Kind != MediaAcceptanceKind.Strict
+                || binding.Acceptance.SizeMismatch || binding.Acceptance.Md5Mismatch
+                || binding.Actual.Length != DemoPayload.Bytes.Length || binding.Actual.Md5 != DemoPayload.Md5
+                || !string.Equals(binding.Actual.Sha256, DemoPayload.Sha256, StringComparison.OrdinalIgnoreCase)
+                || entry.Attachment?.AttachmentRevisionKey != DemoPayload.Reference.RevisionKey
+                || entry.Attachment?.ExpectedSha256 != DemoPayload.Sha256)
+                throw new InvalidOperationException("The passive gallery did not retain the strict provider/actual revision binding.");
             await using Stream bytes = await entry.Manifest.OpenVerifiedReadAsync(exactAsset.AssetId);
             using MemoryStream copy = new MemoryStream();
             await bytes.CopyToAsync(copy);
@@ -245,6 +266,9 @@ internal static class Program
             || medium.Generation != generation || medium.ResourceUrl != intent.Url || medium.MediaIdentifier != "1"
             || medium.DestinationPath != destination || medium.DownloadUrl != "https://demo.invalid/media/1.bin"
             || medium.ExpectedMd5 != DemoPayload.Md5 || medium.ExpectedSize != DemoPayload.Bytes.Length
+            || medium.ExpectedSha256 != DemoPayload.Sha256 || medium.AcquisitionRevisionKey != DemoPayload.AcquisitionRevisionKey
+            || medium.AttachmentReferences.Count != 1 || medium.AttachmentReferences.Single() != DemoPayload.Reference
+            || string.IsNullOrEmpty(medium.CommittedAssetId)
             || medium.OriginalFileName != "sample.bin" || medium.Status != MediaWorkStatus.Succeeded
             || medium.LastAttemptAt == null || medium.DueAt != null || medium.Failure != null)
             throw new InvalidOperationException("The durable intent or retry descriptor did not survive with its verified outcome.");
@@ -257,6 +281,15 @@ internal static class DemoPayload
 {
     public static readonly byte[] Bytes = Encoding.UTF8.GetBytes("libmeowchan standalone consumer\n");
     public static readonly string Md5 = Convert.ToBase64String(MD5.HashData(Bytes));
+    public static readonly string Sha256 = Convert.ToHexString(SHA256.HashData(Bytes));
+    // Freeze the observed provider metadata and all post references before enqueueing.
+    // These are data identities, not a permission to accept provider discrepancies.
+    public static readonly ResourceId Resource = new ResourceId("demo", "demo", "1");
+    public static readonly MediaProviderMetadata Provider = new MediaProviderMetadata("1", "original",
+        "https://demo.invalid/media/1.bin", "sample.bin", Bytes.Length, Md5, Sha256);
+    public static readonly string AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, Provider);
+    public static readonly AttachmentRevisionReference Reference = new AttachmentRevisionReference(Resource, "1", 0,
+        MediaRevisionKeys.CreateAttachmentKey(Resource, "1", 0, Provider));
 }
 
 internal sealed class DemoHandler : HttpMessageHandler
@@ -331,9 +364,15 @@ internal sealed class DemoThread : BaseThread
             Activity = ThreadActivity.Downloading;
             string path = StorageLayout.GetMediaPath(OutputDirectory, Board.ImageBoard.Name,
                 Board.BoardCode, ThreadId, "1", ".bin");
-            DownloadItem item = new DownloadItem(new Uri("https://demo.invalid/media/1.bin"), path,
-                Board.ImageBoard, this, "1", expectedSize: DemoPayload.Bytes.Length,
-                expectedMd5: DemoPayload.Md5, originalFileName: "sample.bin");
+            MediaProviderMetadata provider = DemoPayload.Provider;
+            DownloadItem item = new DownloadItem(new Uri(provider.Url), path,
+                Board.ImageBoard, this, provider.MediaId, provider.ExpectedSize,
+                provider.ExpectedMd5, provider.OriginalFileName, legacyPath: null, variant: provider.Variant)
+            {
+                ExpectedSha256 = provider.ExpectedSha256,
+                AcquisitionRevisionKey = DemoPayload.AcquisitionRevisionKey,
+                AttachmentReferences = new[] { DemoPayload.Reference }
+            };
             if (!queue.TryEnqueue(item))
                 throw new InvalidOperationException("The demo media was not admitted to the queue.");
 

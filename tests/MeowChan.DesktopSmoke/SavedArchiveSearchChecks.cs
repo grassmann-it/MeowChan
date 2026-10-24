@@ -139,6 +139,13 @@ internal static partial class SavedArchiveSearchChecks
         log.Note("fixture API preparation", "Prepare page two (offset 50), not a UI pagination action", new { page = 2 });
         Require(await page.NavigateResultsPage(2), "Fixture could not prepare page two.");
         Edit(page.FindControl<TextBox>("ArchiveSearchText")!, "UNSEARCHED B", log, "Draft B must not become the saved definition");
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "saved-searches")
+        {
+            TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
+            search.BringIntoView();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            await NativeFeatureCheckpoint.HoldAsync("archive-search", page, null, search);
+        }
         SavedArchiveSearchesDialog manager = await OpenAsync(owner, page, save: true, log);
         await SaveNameAsync(manager, Names[0], owner, log);
         Require(Saved(profile).Searches.Single().Definition!.Equals(Board), "SaveCurrent persisted draft B or lost applied A.");
