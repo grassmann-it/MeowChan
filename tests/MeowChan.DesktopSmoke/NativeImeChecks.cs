@@ -214,7 +214,7 @@ internal static class NativeImeChecks
                     string current = JsonSerializer.Serialize(currentState);
                     WriteAtomic("state.json", current);
                     diagnostics.Mark("sample-append-await");
-                    await File.AppendAllTextAsync(Path.Combine(directory, "state.jsonl"), current + Environment.NewLine);
+                    File.AppendAllText(Path.Combine(directory, "state.jsonl"), current + Environment.NewLine);
                     diagnostics.PassCompleted();
                     diagnostics.Mark("sample-delay-await");
                     await Task.Delay(25);
