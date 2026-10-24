@@ -20,16 +20,25 @@ def main() -> int:
     manager = subprocess.Popen(["openbox", "--sm-disable", "--config-file", str(config)])
     try:
         deadline = time.monotonic() + 5
+        last_probe = "no xprop response"
         while True:
             if manager.poll() is not None:
                 raise RuntimeError("The isolated window manager exited during startup")
-            probe = subprocess.run(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"],
-                                   capture_output=True, text=True, timeout=1)
-            if probe.returncode == 0 and "window id # 0x" in probe.stdout and not probe.stdout.strip().endswith("0x0"):
-                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("The isolated window manager did not become ready: " + last_probe)
+            try:
+                probe = subprocess.run(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"],
+                                       capture_output=True, text=True, timeout=min(1, remaining))
+            except subprocess.TimeoutExpired:
+                last_probe = "xprop root probe timed out"
+            else:
+                if probe.returncode == 0 and "window id # 0x" in probe.stdout and not probe.stdout.strip().endswith("0x0"):
+                    break
+                last_probe = "xprop exit " + str(probe.returncode) + ": " + (probe.stderr or probe.stdout).strip()[:240]
             if time.monotonic() >= deadline:
-                raise TimeoutError("The isolated window manager did not become ready")
-            time.sleep(0.05)
+                raise TimeoutError("The isolated window manager did not become ready: " + last_probe)
+            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
         print("SMOKE isolated desktop ready: private Xvfb + Openbox + DBus; display=" + os.environ["DISPLAY"], flush=True)
         return subprocess.call(sys.argv[2:])
     finally:

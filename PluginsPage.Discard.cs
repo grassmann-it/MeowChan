@@ -13,6 +13,7 @@ public partial class PluginsPage
     internal void RequestDiscardSelectedDraft()
     {
         if (_ended || _busy || _selectedKey is not string key || !_drafts.TryGetValue(key, out PluginConfigurationDraft? draft)) return;
+        ClosePluginActionMenu();
         if (!draft.HasDiscardableChanges) { _ = DiscardUnchangedDraftAsync(key, draft); return; }
         _discardConfirmation ??= new(C<Avalonia.Controls.Button>("PluginDiscard"));
         long generation = draft.EditGeneration;

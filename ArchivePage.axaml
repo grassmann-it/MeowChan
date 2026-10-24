@@ -7,10 +7,18 @@
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>
-            <Button x:Name="RefreshArchiveButton" Grid.Column="1" VerticalAlignment="Top" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
+            <WrapPanel Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+                <Button x:Name="ArchiveCleanupOpen" Click="OnArchiveCleanupClick" />
+                <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
+            </WrapPanel>
         </Grid>
-        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6">
-            <Grid x:Name="ArchiveListPane" RowDefinitions="Auto,*,Auto" RowSpacing="6">
+        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6" Grid.IsSharedSizeScope="True">
+            <Grid x:Name="ArchiveListPane" RowSpacing="6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
+                </Grid.RowDefinitions>
                 <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
                         <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
@@ -68,7 +76,6 @@
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
-                    <Grid RowDefinitions="*,Auto" RowSpacing="8">
                     <Grid>
                         <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
@@ -137,7 +144,8 @@
                             <Button x:Name="ArchiveResetFilters" HorizontalAlignment="Left" Click="OnResetArchiveFiltersClick" />
                         </StackPanel>
                     </Grid>
-                <StackPanel x:Name="ArchiveResultsFooter" Grid.Row="1" Spacing="4" Margin="8">
+                </Border>
+                <StackPanel x:Name="ArchiveResultsFooter" Grid.Row="2" Spacing="4" Margin="8,0" VerticalAlignment="Top">
                     <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged" HorizontalAlignment="Center">
                         <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="24" /><Setter Property="Width" Value="24" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
                     </ursa:Pagination>
@@ -145,13 +153,14 @@
                     <Button x:Name="PreviousThreadsButton" IsVisible="False" Click="OnPreviousThreads" />
                     <Button x:Name="NextThreadsButton" IsVisible="False" Click="OnNextThreads" />
                 </StackPanel>
-                    </Grid>
-                </Border>
-                <Border x:Name="ArchiveListFooterReserve" Grid.Row="2" Height="{Binding #ArchivePartialHint.Bounds.Height}"
-                        IsVisible="{Binding #ArchivePartialHint.IsVisible}" />
             </Grid>
             <GridSplitter x:Name="ArchiveSplitter" Grid.Column="1" Width="6" ResizeDirection="Columns" PointerReleased="OnArchiveSplitReleased" KeyUp="OnArchiveSplitKeyUp" />
-            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowDefinitions="Auto,*,Auto" RowSpacing="6">
+            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowSpacing="6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
+                </Grid.RowDefinitions>
                 <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Button x:Name="ArchiveBackButton" Tag="archive.back" Classes="localized" Click="OnBackClick" />

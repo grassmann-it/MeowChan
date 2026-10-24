@@ -95,6 +95,7 @@ public partial class MainWindow
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null)
     {
+        if (_archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
         WorkspacePage originPage = _selectedPage;
@@ -103,7 +104,7 @@ public partial class MainWindow
         // Keep a retiring video's native drawable attached until VLC has
         // stopped. A new viewer must not replace that host prematurely.
         await _galleryCleanupTask;
-        if (_isClosing || request != _galleryRequest) return;
+        if (_isClosing || request != _galleryRequest || _archivePage?.IsArchiveCleanupOpen == true) return;
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
         _galleryReaderOrigin = readerOrigin;
@@ -155,7 +156,8 @@ public partial class MainWindow
             try
             {
                 IReadOnlyList<ResourceId> selected = await Task.Run(() => selectThreads(token), token);
-                if (request != _galleryRequest || token.IsCancellationRequested || _gallery == null) return;
+                if (request != _galleryRequest || token.IsCancellationRequested || _gallery == null
+                    || _archivePage?.IsArchiveCleanupOpen == true) return;
                 _galleryThreads = selected;
                 UpdateGalleryScope();
             }
@@ -218,7 +220,8 @@ public partial class MainWindow
                     }
                     return new GalleryThreadResult(verified.AsReadOnly(), new List<string>(built.Warnings.Concat(errors)));
                 }, token);
-                if (request != _galleryRequest || token.IsCancellationRequested || _gallery == null) return;
+                if (request != _galleryRequest || token.IsCancellationRequested || _gallery == null
+                    || _archivePage?.IsArchiveCleanupOpen == true) return;
                 if (result == null) continue;
                 if (_galleryStart != null)
                 {
@@ -339,6 +342,7 @@ public partial class MainWindow
 
     private void ReturnToGallery()
     {
+        if (_archivePage?.IsArchiveCleanupOpen == true) return;
         if (!_gallerySuspended || _gallery == null) return;
         _gallerySuspended = false;
         ArchivePage.ShowGalleryReturn(false);

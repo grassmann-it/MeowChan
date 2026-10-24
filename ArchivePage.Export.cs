@@ -49,7 +49,7 @@ public partial class ArchivePage
     private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed,
         bool allResults = false, bool resolvedResults = false)
     {
-        if (_ended || _openReader == null) return;
+        if (_ended || IsArchiveCleanupOpen || _openReader == null) return;
         EnsureExportDialog();
         if (Control<Border>("ArchiveExportDialog").IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
         int request = ++_exportRequest;

@@ -23,9 +23,10 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
-    internal bool IsReaderDialogOpen => Control<Border>("ArchiveExportDialog").IsVisible;
+    internal bool IsReaderDialogOpen => Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay()
     {
+        if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (!IsReaderDialogOpen) return false;
         OnExportClose(this, new RoutedEventArgs());
         return true;

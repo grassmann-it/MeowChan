@@ -179,3 +179,33 @@ close, startup before resume and the resumed reader. Use a fresh profile for eac
 two-process pair; an older retained fixture lacks the anchor expectation file.
 Remove the retained test profile after both runs. Without that variable the test
 uses its usual temporary profile and removes it after the run.
+
+The targeted plugin UX review uses the existing `--mode plugins` entry with
+`MEOWCHAN_PLUGIN_UX_REVIEW=1`. It selects exactly one initial reference cell:
+English/Dark/Advanced at an observed 1280×800 DIP. It checks the original purpose
+and ordinary action in the first detail viewport, real developer disclosure,
+full selectable metadata, invalid source draft/error focus, settings-only pending
+configuration plus a retained stale draft, menu intent and a different-row
+right-click, and undescribed/failed/missing candidates. The fixture uses the real
+profile store with passive catalog/activation data; any compiler, worker or site
+call fails. It does not replace the real compiler/worker/probe `--mode plugins`
+workflow, which also checks a foreign-row menu while a real probe is busy.
+
+After the reference images have been reviewed and fixes integrated,
+`MEOWCHAN_PLUGIN_UX_PRESENTATION=1` selects only 12 short EN/DE × Dark/Light ×
+Barebones/Simple/Advanced minimum-size cells (640×480 or 760×500 DIP), without
+repeating compiler, probe or semantic tasks per cell. Run one requested scale
+at a time with `--scale 1`, `1.5` or `2` in fresh output directories; the runner's
+actual scale check still applies. The selectors are harness-only. Use only one
+of them, and retain source/WIP/fixture bindings in the run report.
+
+`PLUGIN_UX` records actual geometry, selection, focus and expected/observed tasks.
+`smoke-pux-overview-*.png` depicts the ordinary first viewport; selected
+`smoke-pux-menu-*.png` images render the actual open ContextMenu visual separately
+because a parent-window bitmap does not include a separate popup. Input is
+hit-tested in-process routed pointer input or routed key/context requests, with
+explicit focus setup. This is not native OS Tab/Shift+F10, UIA/VoiceOver/Orca or
+human discovery proof. The technical copy button is checked only through the
+existing identity-verified fixture clipboard; without that fixture it is skipped
+before touching a native clipboard. Record actual image review as retain/adjust/change;
+technical assertions alone do not decide whether the hierarchy is understandable.

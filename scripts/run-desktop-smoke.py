@@ -34,7 +34,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", "plugins", STRESS_MODE),
+    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", "plugins", "archive-cleanup", STRESS_MODE),
                         help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
                         help="Use a dedicated Linux desktop for one explicitly selected scenario.")

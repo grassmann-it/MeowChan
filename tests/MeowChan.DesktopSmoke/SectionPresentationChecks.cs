@@ -89,7 +89,7 @@ internal static partial class SectionComparisonChecks
         var group = (Expander)scenario.Controller.Sections.Single(s => s.Id == sourceB).ResolveTarget()!;
         if (!group.IsExpanded) await scenario.Toggle(group);
         var form = (PluginSettingsEditor)group.Content!;
-        var limit = form.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "PluginField_limit");
+        var limit = (TextBox)form.FindField("limit")!;
         const string raw = "invalid source-b presentation draft";
         await scenario.Edit(limit, raw);
         string fingerprint = page.CurrentDraft.Sources["source-b"].EditorFingerprint;

@@ -55,6 +55,13 @@ internal sealed class PostBookmarkStore
 
     internal PostBookmarkSnapshot Read() => _lease.RunExclusive(ReadCore);
 
+    // Passive callers must not invoke the constructor's pending-file cleanup.
+    internal static PostBookmarkSnapshot ReadOnly(string profileDirectory, ProfileLease lease)
+    {
+        lease.EnsureMatches(profileDirectory);
+        return lease.RunExclusive(() => ReadFile(System.IO.Path.Combine(lease.ProfileDirectory, "post-bookmarks.json")));
+    }
+
     internal PostBookmarkSnapshot Upsert(PostBookmarkKey key, string note, long expectedRevision,
         bool expectedExists, CancellationToken token = default)
     {
@@ -119,12 +126,14 @@ internal sealed class PostBookmarkStore
             }
         });
 
-    private PostBookmarkSnapshot ReadCore()
+    private PostBookmarkSnapshot ReadCore() => ReadFile(Path);
+
+    private static PostBookmarkSnapshot ReadFile(string path)
     {
         try
         {
-            if (new FileInfo(Path).LinkTarget != null) throw new InvalidDataException("Post bookmarks must not be a symbolic link.");
-            using FileStream file = new(Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (new FileInfo(path).LinkTarget != null) throw new InvalidDataException("Post bookmarks must not be a symbolic link.");
+            using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             if (file.Length > MaximumDocumentBytes)
                 throw new InvalidDataException("Post bookmarks exceed the size limit or are a symbolic link.");
             using JsonDocument json = JsonDocument.Parse(file, new JsonDocumentOptions { MaxDepth = 8 });
@@ -152,7 +161,7 @@ internal sealed class PostBookmarkStore
         }
         catch (FileNotFoundException) { return new PostBookmarkSnapshot(0, Array.Empty<PostBookmark>()); }
         catch (Exception error) when (error is JsonException or ArgumentException or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
-        { throw new InvalidDataException("Invalid post-bookmark file: " + Path, error); }
+        { throw new InvalidDataException("Invalid post-bookmark file: " + path, error); }
     }
 
     private static void RequireFields(JsonElement item, params string[] names)

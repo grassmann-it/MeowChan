@@ -20,6 +20,9 @@ public partial class PluginsPage
     private TestedCandidate? _tested;
     private string? _testStatusKey;
     private object?[] _testStatusArguments = Array.Empty<object?>();
+    private bool IsCurrentTestedCandidate(TestedCandidate tested) => Selected is { Candidate: { IsPresent: true, Problem: null, Artifact: { } artifact } } entry
+        && tested.Key == entry.Key && tested.Artifact.ExecutionRevision == artifact.ExecutionRevision
+        && tested.Artifact.CompilationFingerprint == artifact.CompilationFingerprint;
     private void SetTestStatus(string? key, params object?[] arguments)
     {
         _testStatusKey = key; _testStatusArguments = arguments;
@@ -36,7 +39,7 @@ public partial class PluginsPage
         SetAction("PluginDefaultEditor", "plugins.reason.noSource", source);
         C<Button>("PluginCancel").IsEnabled = _busy;
         C<Button>("PluginCancel").IsVisible = _busy;
-        SetAction("PluginProbe", "plugins.reason.noTest", _tested is { } tested && tested.Key == _selectedKey && tested.Description.Sources.Count > 0);
+        SetAction("PluginProbe", "plugins.reason.noTest", _tested is { } tested && IsCurrentTestedCandidate(tested) && tested.Description.Sources.Count > 0);
         C<TextBox>("PluginProbeUrl").IsEnabled = !_busy;
         SetAction("PluginEditorSave", "plugins.reason.noEditorStore", SaveEditorOptionsAsync != null);
         ShowReasons("PluginSourceReasons", "PluginBuild", "PluginEdit", "PluginDefaultEditor", "PluginProbe", "PluginEditorSave");
@@ -105,15 +108,17 @@ public partial class PluginsPage
         if (_ended || _busy || _services == null || Selected is not { SourcePath: { } sourcePath } entry) return;
         (long generation, CancellationToken token) = BeginOperation();
         _tested = null;
-        C<StackPanel>("PluginBuildDiagnostics").Children.Clear();
+        RenderDiagnostics(Array.Empty<PluginBuildDiagnostic>(), entry);
         C<TextBox>("PluginProbeResult").Text = string.Empty;
         SetTestStatus("plugins.building");
+        bool revealBuildErrors = false;
         try
         {
             PluginBuildResult result = await _services.Compiler.BuildAsync(sourcePath, cancellationToken: token);
             if (!Current(generation)) return;
             RenderDiagnostics(result.Diagnostics, entry);
-            if (!result.Succeeded) { Error(Texts.T("plugins.buildFailed", result.Status)); SetTestStatus("plugins.buildFailed", result.Status); return; }
+            if (!result.Succeeded)
+            { Error(Texts.T("plugins.buildFailed", result.Status)); SetTestStatus("plugins.buildFailed", result.Status); revealBuildErrors = true; return; }
             SetTestStatus("plugins.testing", result.Artifact!.ExecutionRevision);
             PluginDescription description = await _services.DescribeTestAsync(result.Artifact, token);
             if (!Current(generation)) return;
@@ -137,10 +142,16 @@ public partial class PluginsPage
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { if (Current(generation)) { Error(exception.Message); SetTestStatus("plugins.testFailed"); } }
-        finally { FinishOperation(generation); }
+        finally
+        {
+            FinishOperation(generation);
+            if (revealBuildErrors && !_ended && generation == _operationGeneration && _selectedKey == entry.Key)
+                FocusPluginBuildDiagnostics();
+        }
     }
     private void RenderDiagnostics(IReadOnlyList<PluginBuildDiagnostic> diagnostics, PluginCatalogEntry entry)
     {
+        ToolState(entry.Key).Diagnostics = diagnostics.ToArray();
         StackPanel panel = C<StackPanel>("PluginBuildDiagnostics"); panel.Children.Clear();
         foreach (PluginBuildDiagnostic diagnostic in diagnostics)
         {
@@ -153,6 +164,7 @@ public partial class PluginsPage
                 Avalonia.Automation.AutomationProperties.SetName(location, label);
                 location.Click += async (_, _) =>
                 {
+                    if (_ended || _selectedKey != entry.Key) return;
                     // The compiler reports the loader input. Never accept plugin-supplied executable strings.
                     try { await PluginEditorLauncher.OpenAsync(GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), file, diagnostic.Line ?? 1, diagnostic.Column ?? 1, _lifetime.Token); }
                     catch (Exception error) { if (!_ended && _selectedKey == entry.Key) Error(error.Message); }
@@ -164,7 +176,7 @@ public partial class PluginsPage
     private async void OnProbeClick(object? sender, RoutedEventArgs e) => await ProbeAsync();
     internal async Task ProbeAsync()
     {
-        if (_ended || _busy || _services == null || _tested is not { } tested || tested.Key != _selectedKey) return;
+        if (_ended || _busy || _services == null || _tested is not { } tested || !IsCurrentTestedCandidate(tested)) return;
         string url = C<TextBox>("PluginProbeUrl").Text?.Trim() ?? string.Empty;
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) || parsed.Scheme is not ("https" or "http"))
         { Error(Texts.T("plugins.invalidUrl")); return; }
@@ -215,7 +227,7 @@ public partial class PluginsPage
     }
     private async void OnEditorSaveClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || SaveEditorOptionsAsync == null) return;
+        if (_ended || _busy || SaveEditorOptionsAsync == null) return;
         PluginEditorOptions options = new(C<TextBox>("PluginEditorExecutable").Text?.Trim(),
             (C<TextBox>("PluginEditorArguments").Text ?? "{file}").Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n'));
         string? key = _selectedKey;

@@ -7,14 +7,15 @@ local archive work independently of the desktop interface. See the
 
 Trying a **1.0 preview**? Start with the [plugin guide](plugins/README.md).
 Open **Plugins** from the app menu or footer (under **Tools** in compact views), then select a plugin to see its
-active build, settings and tests. The [short installation recipe](plugins/using-plugins.md#first-session)
+purpose, status and actions. The [short installation recipe](plugins/using-plugins.md#first-session)
 explains the supplied examples and how to add a source file. These controls are
 part of 1.0; the stable 0.9.0 instructions below do not imply they are present there.
 
 The current 1.0 development workspace also adds [search filters and saved searches](#archive-filters-and-saved-searches),
 [reader groups](#reader-groups), [post bookmarks and notes](#post-bookmarks-and-notes),
-[media ratings](#media-ratings), [rule templates](#rule-templates) and
-[shortcut customization](#customizing-shortcuts). These sections describe those
+[media ratings](#media-ratings), [rule templates](#rule-templates),
+[shortcut customization](#customizing-shortcuts) and
+[archive cleanup](#clean-up-small-archive-threads). These sections describe those
 controls in the current workspace; check your installed version for availability.
 
 ## Repository location and update checks
@@ -446,6 +447,42 @@ source monitoring. Explicitly adding the thread again starts a new watch generat
 Removing monitoring retains captured posts and saved files. Disabling **Save URLs
 on exit** prevents automatic watch restoration from both the URL list and retained
 work state; it does not erase the archive.
+
+## Clean up small archive threads
+
+In the current 1.0 workspace, open **Archive** → **Clean up archive…** (German:
+**Archiv** → **Archiv aufräumen…**). This opens a preview of the whole archive,
+including threads outside the current results page. Nothing is selected
+automatically.
+
+1. Review the preview and the reason beside each thread. Candidates have **0, 1
+   or 2 actually saved media versions**, including older versions and variants.
+   Threads with more than two are kept. **Unknown** or unconfirmed storage is
+   never treated as zero and cannot be selected.
+2. Tick the candidates you want to remove, or choose **Select shown candidates**.
+   Search and filters help narrow the list; the selection total includes choices
+   across all filters. An incomplete or changed preview requires **Check again**
+   before you can continue.
+3. Choose **Review deletion…**. Check the selected threads, captured posts,
+   saved versions and size. Use **Back to selection** to change your choices.
+4. Acknowledge that deletion is permanent and choose **Permanently delete
+   locally**. There is **no recycle bin**. Closing the preview before this
+   confirmation leaves the archive unchanged.
+
+Thread and media favorites, ratings (including older versions), post bookmarks
+or notes, reader groups and saved reading positions protect their threads.
+Threads open in a reader, gallery or export are protected too, as are unfinished
+download/watch jobs, including paused work or work needing attention. The preview
+explains protected or uncertain entries instead of selecting them.
+
+Cleanup removes selected local archive content. Download and watch jobs remain
+unchanged; cleanup does not pause or stop them. Existing rules for adding or
+rediscovering threads continue to apply. Exports and unrelated files remain.
+
+Read the result after deletion: it reports removed threads/files and selected
+threads that remain. A cancellation or failure can leave a partial result, with
+some files already removed. Use **Check again** to obtain a fresh preview before
+another selection; changed content or protection may prevent further deletion.
 
 ## Permanently deleting archived threads
 

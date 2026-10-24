@@ -31,9 +31,17 @@ public partial class MainWindow
                 () => _settingsEditor.CanOpenSectionNavigation, _settingsEditor.OpenSectionNavigation,
                 () => _settingsEditor.SelectedSectionId, _settingsEditor.CanGoToSection, _settingsEditor.GoToSection);
         if (_pluginsPage != null)
+        {
             Register(_pluginsPage, () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,
                 () => _pluginsPage.CanOpenSectionNavigation, _pluginsPage.OpenSectionNavigation,
                 () => _pluginsPage.SelectedSectionId, _pluginsPage.CanGoToSection, _pluginsPage.GoToSection);
+            foreach (string id in PluginsPage.PluginActionCommandIds)
+                _shortcutRouter.Register(new CommandRegistration(id, _pluginsPage,
+                    () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,
+                    () => _pluginsPage.CanExecutePluginAction(id),
+                    () => _ = _pluginsPage.ExecuteSelectedPluginActionAsync(id),
+                    () => _pluginsPage.PluginActionDisabledReason(id), Priority: 100));
+        }
     }
 
     private void RegisterRuleTemplateCommands()

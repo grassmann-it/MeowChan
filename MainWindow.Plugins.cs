@@ -37,7 +37,11 @@ public partial class MainWindow
         if (_session.Plugins is not { } plugins || _pluginsPage == null) return;
         PluginManagementServices services = new(plugins.ProfileStore, plugins.CompilationService, plugins.Inventory,
             plugins.PluginDirectory, plugins.DescribeTestAsync, plugins.StartTestWorkerAsync, PluginProbe.ReadAsync)
-        { GetWorkerSnapshots = plugins.Runtime.GetSnapshots, GetRuleScopes = () => _session.MediaRules.Rules.Select(rule => rule.Scope).ToArray() };
+        {
+            GetWorkerSnapshots = plugins.Runtime.GetSnapshots,
+            GetProductionWorkerSnapshots = plugins.GetProductionWorkerSnapshots,
+            GetRuleScopes = () => _session.MediaRules.Rules.Select(rule => rule.Scope).ToArray()
+        };
         _pluginsPage.Attach(services);
         _rulesPage?.AttachPluginServices(services);
     }

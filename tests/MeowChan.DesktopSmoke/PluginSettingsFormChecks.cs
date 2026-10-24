@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
@@ -19,6 +21,7 @@ internal static class PluginSettingsFormChecks
     {
         PluginSettingsEditor Editor(SettingScope scope) => page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == scope);
         TextBox Field(SettingScope scope, string key) => (TextBox)Editor(scope).FindField(key)!;
+        await OpenManagedScopeAsync(page, SettingScope.Plugin);
         long revision = (await profile.ReadAsync()).Revision;
         Field(SettingScope.Plugin, "number").Text = "1.5";
         Require(page.CurrentDraft!.Plugin.Text("number") == "1.5", "Save would observe stale raw text after an immediate edit.");
@@ -34,6 +37,7 @@ internal static class PluginSettingsFormChecks
         Texts.SetLanguage(language);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Field(SettingScope.Plugin, "number").Text = "2";
+        await OpenManagedScopeAsync(page, SettingScope.Source);
         Field(SettingScope.Source, "label").Text = "rejected";
         Expander source = Editor(SettingScope.Source).GetLogicalAncestors().OfType<Expander>().First();
         source.IsExpanded = false;
@@ -44,6 +48,29 @@ internal static class PluginSettingsFormChecks
         Require(!Editor(SettingScope.Plugin).GetLogicalDescendants().OfType<TextBlock>().Any(label => label.IsVisible && label.Text == "Fixture rejects this label"), "Source worker error was assigned to the same plugin field key.");
         await NativeFeatureCheckpoint.HoldAsync("source-worker-error", page, Field(SettingScope.Source, "label"), Field(SettingScope.Source, "label"), page.FindControl<Button>("PluginSave")!);
         Field(SettingScope.Source, "label").Text = "source fixture";
+    }
+
+    internal static async Task<PluginSettingsEditor> OpenManagedScopeAsync(PluginsPage page, SettingScope scope)
+    {
+        // A closed presenter owns its editor logically before adding it to the visual tree.
+        // Find the existing scope, open its actual header, then require the visual editor.
+        Expander group = page.FindControl<StackPanel>("PluginSettings")!.Children.OfType<Expander>()
+            .Single(candidate => candidate.Content is PluginSettingsEditor editor && editor.Draft.Scope == scope);
+        PluginSettingsEditor expected = (PluginSettingsEditor)group.Content!;
+        if (!group.IsExpanded)
+        {
+            group.ApplyTemplate();
+            ToggleButton header = group.GetVisualDescendants().OfType<ToggleButton>()
+                .First(toggle => toggle.GetVisualAncestors().OfType<Expander>().FirstOrDefault() == group);
+            header.BringIntoView();
+            await Dispatcher.UIThread.InvokeAsync(() => { TopLevel.GetTopLevel(page)!.UpdateLayout(); }, DispatcherPriority.Loaded);
+            Require(header.IsAttachedToVisualTree() && header.IsEffectivelyVisible && header.Focus(),
+                "The managed settings scope has no reachable real expander header.");
+            header.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Source = header, Key = Key.Space });
+            header.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Source = header, Key = Key.Space });
+        }
+        await Program.WaitUntilAsync(() => group.IsExpanded && expected.IsAttachedToVisualTree() && expected.IsEffectivelyVisible);
+        return page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => ReferenceEquals(editor, expected));
     }
 
     internal static async Task RunAdapterAsync(ContentControl host)

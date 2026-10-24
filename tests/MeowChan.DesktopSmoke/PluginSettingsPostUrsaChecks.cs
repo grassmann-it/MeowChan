@@ -43,6 +43,8 @@ internal static class PluginSettingsPostUrsaChecks
         {
             await FlushAsync(); // Select builds logical controls; Expander templates materialize on layout.
             window.UpdateLayout();
+            await PluginSettingsFormChecks.OpenManagedScopeAsync(page, SettingScope.Plugin);
+            await PluginSettingsFormChecks.OpenManagedScopeAsync(page, SettingScope.Source);
             PluginSettingsEditor Editor(SettingScope scope) => page.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == scope);
             TextBox slash = (TextBox)Editor(SettingScope.Plugin).FindField("fixture-source/label")!;
             TextBox source = (TextBox)Editor(SettingScope.Source).FindField("label")!;

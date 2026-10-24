@@ -264,7 +264,9 @@ public sealed partial class Registry : IAsyncDisposable
                 if (resource == null) return new AdmissionResult(status);
                 Watch? current;
                 lock (_state) { _watches.TryGetValue(resource.Key, out current); }
-                if (current != null)
+                if (_archiveCleanupReservations.TryGetValue(resource.Key, out TaskCompletionSource? cleanup))
+                    oldLifetime = cleanup.Task;
+                else if (current != null)
                 {
                     if (current.Stopping) oldLifetime = current.Stopped.Task;
                     else
@@ -288,7 +290,9 @@ public sealed partial class Registry : IAsyncDisposable
                     string root = _workResources.TryGetValue(resource.Key, out WorkResource? previousWork)
                         ? previousWork.OutputRoot : _workStore?.LoadResources().FirstOrDefault(item => item.Url == resource.Url)?.OutputRoot
                             ?? _outputDirectory;
-                    result = await AdmitAsync(resource, root, persist: true).ConfigureAwait(false);
+                    oldLifetime = ArchiveCleanupWait(resource, root);
+                    if (oldLifetime == null)
+                        result = await AdmitAsync(resource, root, persist: true).ConfigureAwait(false);
                 }
             }
             finally { _gate.Release(); }
@@ -490,6 +494,8 @@ public sealed partial class Registry : IAsyncDisposable
     // Caller holds the gate. Durable intent precedes activation and public success.
     private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist, bool discovered = false)
     {
+        if (ArchiveCleanupWait(resource, outputRoot) != null)
+            throw new InvalidOperationException("The archived resource is reserved for cleanup.");
         SessionSnapshot previous = _session;
         bool previouslySuppressed = _suppressed.Contains(resource.Key);
         WorkResource? durable = null;
@@ -613,11 +619,12 @@ public sealed partial class Registry : IAsyncDisposable
             {
                 if (!_watches.TryGetValue(boardKey, out Watch? current) || !ReferenceEquals(current, parent) || _watches.ContainsKey(threadKey)) return;
             }
+            Resource resource = new Resource(threadKey, thread.ThreadUri.AbsoluteUri, thread, null);
+            if (ArchiveCleanupWait(resource, parent.OutputRoot) != null) return;
             if (!AllowsBoardDiscovery(parent.Board!, thread)) return;
             if (_suppressed.Contains(threadKey)) return;
             if (_workResources.TryGetValue(threadKey, out WorkResource? prior)
                 && prior.Intent is WorkIntent.Completed or WorkIntent.Repairing or WorkIntent.Suppressed) return;
-            Resource resource = new Resource(threadKey, thread.ThreadUri.AbsoluteUri, thread, null);
             result = await AdmitAsync(resource, parent.OutputRoot, persist: true, discovered: true).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -692,13 +699,14 @@ public sealed partial class Registry : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (Resolve(threadUrl, out Resource? resource) != AdmissionStatus.Added || resource?.Thread == null) return 0;
+            if (_archiveCleanupReservations.ContainsKey(resource.Key)) return 0;
             if (!_workResources.TryGetValue(resource.Key, out WorkResource? state))
             {
                 state = _workStore.LoadResources().FirstOrDefault(item => item.Url == resource.Url);
                 if (state == null) return 0;
                 _workResources[resource.Key] = state;
             }
-            if (state.Intent != WorkIntent.Completed) return 0;
+            if (state.Intent != WorkIntent.Completed || ArchiveCleanupWait(resource, state.OutputRoot) != null) return 0;
             WorkResource? repairing = _workStore.CommitState(state with { Intent = WorkIntent.Repairing });
             if (repairing == null) return 0;
             _workResources[resource.Key] = repairing;

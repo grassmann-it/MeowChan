@@ -1,5 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
+  <UserControl.Styles>
+    <Style Selector="Border.plugin-chip">
+      <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="7,3" />
+    </Style>
+    <Style Selector="Border.plugin-chip TextBlock">
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="10">
     <StackPanel Spacing="6">
       <WrapPanel ItemSpacing="8" LineSpacing="6">
@@ -12,7 +22,6 @@
                         <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" IsVisible="False" Focusable="False" />
                         <TextBlock x:Name="PluginTestStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></StackPanel>
       <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" />
-      <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
       <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,14,0" /></ursa:Badge></Expander.Header>
         <ScrollViewer MaxHeight="100"><TextBlock x:Name="PluginInventoryDiagnostics" TextWrapping="Wrap" /></ScrollViewer>
@@ -22,27 +31,53 @@
       </ursa:Banner>
     </StackPanel>
     <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="14">
-      <Grid x:Name="PluginListPane" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-        <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
+      <Grid x:Name="PluginListPane" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+        <StackPanel Spacing="6">
+          <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
+          <Button x:Name="PluginListActions" Click="OnPluginListActionsClick" HorizontalAlignment="Left" />
+        </StackPanel>
         <TextBlock x:Name="PluginsEmpty" Grid.Row="1" TextWrapping="Wrap" />
         <ScrollViewer x:Name="PluginListScroll" Grid.Row="2"><plugins:PluginSelectionList x:Name="PluginCards" SelectionChanged="OnPluginSelectionChanged" /></ScrollViewer>
+        <Expander x:Name="PluginDirectoryExpander" Grid.Row="3" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="6" Margin="0,4,0,0">
+            <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="muted" />
+            <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="muted" />
+          </StackPanel>
+        </Expander>
       </Grid>
+      <Border x:Name="PluginNoSelection" Grid.Column="1" Classes="panel" Padding="20" IsVisible="False">
+        <TextBlock x:Name="PluginChooseHint" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" />
+      </Border>
       <ScrollViewer x:Name="PluginDetailsPane" Grid.Column="1" IsVisible="False">
         <StackPanel x:Name="PluginDetailContent" Spacing="10">
           <Button x:Name="PluginBack" HorizontalAlignment="Left" Click="OnBackClick" />
+          <Border x:Name="PluginPurposeCard" Classes="panel" Padding="12">
+            <StackPanel Spacing="6">
+              <WrapPanel ItemSpacing="10" LineSpacing="4">
+                <TextBlock x:Name="PluginHeading" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginAuthor" Classes="muted" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
+              </WrapPanel>
+              <TextBlock x:Name="PluginDescriptionOrigin" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
+              <TextBlock x:Name="PluginCapabilities" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <WrapPanel x:Name="PluginCompactIdentity" ItemSpacing="6" LineSpacing="6">
+                <Border x:Name="PluginTypeChip" Classes="plugin-chip"><TextBlock x:Name="PluginType" /></Border>
+                <Border x:Name="PluginVersionChip" Classes="plugin-chip" IsVisible="False"><TextBlock x:Name="PluginVersion" TextWrapping="Wrap" /></Border>
+                <Border x:Name="PluginIdChip" Classes="plugin-chip" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
+              </WrapPanel>
+              <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+              <TextBlock x:Name="PluginStatusHint" TextWrapping="Wrap" IsVisible="False" />
+              <WrapPanel x:Name="PluginPrimaryActions" ItemSpacing="8" LineSpacing="6">
+                <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
+                <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
+                <Button x:Name="PluginWatches" Click="OnWatchesClick" />
+                <Button x:Name="PluginMoreActions" Click="OnPluginMoreActionsClick" />
+              </WrapPanel>
+              <SelectableTextBlock x:Name="PluginActivationReasons" TextWrapping="Wrap" Focusable="True" />
+              <SelectableTextBlock x:Name="PluginActionHint" TextWrapping="Wrap" Focusable="True" Classes="muted" IsVisible="False" />
+            </StackPanel>
+          </Border>
           <desktop:SectionNavigationControl x:Name="PluginSections" />
-          <TextBlock x:Name="PluginHeading" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" />
-          <ursa:Descriptions x:Name="PluginIdentity" LabelPosition="Top" />
-          <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
-          <TextBlock x:Name="PluginStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock x:Name="PluginCandidateDiagnostics" TextWrapping="Wrap" Classes="error" />
-          <WrapPanel ItemSpacing="8" LineSpacing="6">
-            <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
-            <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
-            <Button x:Name="PluginRollback" Click="OnRollbackClick" />
-            <Button x:Name="PluginWatches" Click="OnWatchesClick" />
-          </WrapPanel>
-          <SelectableTextBlock x:Name="PluginActivationReasons" TextWrapping="Wrap" Focusable="True" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
           <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" />
           <WrapPanel ItemSpacing="8" LineSpacing="6">
@@ -52,28 +87,37 @@
           <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" />
           <Expander x:Name="PluginInfoExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginInformation" Spacing="8" /></Expander>
           <Expander x:Name="PluginGrantExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginGrants" Spacing="8" /></Expander>
-          <Expander x:Name="PluginSourceExpander" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="8">
-              <TextBlock x:Name="PluginSourcePath" TextWrapping="Wrap" />
-              <TextBlock x:Name="PluginTestHint" TextWrapping="Wrap" Classes="muted" />
-              <WrapPanel ItemSpacing="8" LineSpacing="6">
-                <Button x:Name="PluginEdit" Click="OnEditClick" />
-                <Button x:Name="PluginDefaultEditor" Click="OnDefaultEditorClick" />
-                <Button x:Name="PluginBuild" Click="OnBuildClick" />
-              </WrapPanel>
-              <SelectableTextBlock x:Name="PluginSourceReasons" TextWrapping="Wrap" Focusable="True" />
-              <StackPanel x:Name="PluginBuildDiagnostics" Spacing="6" />
-              <TextBox x:Name="PluginProbeUrl" />
-              <Button x:Name="PluginProbe" HorizontalAlignment="Left" Click="OnProbeClick" />
-              <TextBox x:Name="PluginProbeResult" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="300" />
-              <Expander x:Name="PluginEditorExpander" HorizontalAlignment="Stretch">
-                <StackPanel Spacing="6">
-                  <TextBlock x:Name="PluginEditorHint" TextWrapping="Wrap" />
-                  <TextBox x:Name="PluginEditorExecutable" />
-                  <TextBox x:Name="PluginEditorArguments" AcceptsReturn="True" MinHeight="70" />
-                  <Button x:Name="PluginEditorSave" Click="OnEditorSaveClick" HorizontalAlignment="Left" />
-                </StackPanel>
-              </Expander>
+          <Expander x:Name="PluginDeveloperExpander" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="12" Margin="0,4,0,0">
+              <ursa:Descriptions x:Name="PluginIdentity" LabelPosition="Top" />
+              <Button x:Name="PluginCopyTechnicalDetails" Click="OnCopyTechnicalDetailsClick" HorizontalAlignment="Left" />
+              <TextBlock x:Name="PluginTechnicalCopyStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+              <TextBlock x:Name="PluginCandidateDiagnostics" TextWrapping="Wrap" Classes="error" />
+              <Button x:Name="PluginRollback" Click="OnRollbackClick" HorizontalAlignment="Left" />
+              <SelectableTextBlock x:Name="PluginRecoveryReasons" TextWrapping="Wrap" Focusable="True" />
+              <StackPanel x:Name="PluginSourceExpander" Spacing="8">
+                <TextBlock x:Name="PluginSourceToolsHeading" Classes="section-title" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginSourcePath" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginTestHint" TextWrapping="Wrap" Classes="muted" />
+                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                  <Button x:Name="PluginEdit" Click="OnEditClick" />
+                  <Button x:Name="PluginDefaultEditor" Click="OnDefaultEditorClick" />
+                  <Button x:Name="PluginBuild" Click="OnBuildClick" />
+                </WrapPanel>
+                <SelectableTextBlock x:Name="PluginSourceReasons" TextWrapping="Wrap" Focusable="True" />
+                <StackPanel x:Name="PluginBuildDiagnostics" Spacing="6" />
+                <TextBox x:Name="PluginProbeUrl" />
+                <Button x:Name="PluginProbe" HorizontalAlignment="Left" Click="OnProbeClick" />
+                <TextBox x:Name="PluginProbeResult" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="300" />
+                <Expander x:Name="PluginEditorExpander" HorizontalAlignment="Stretch">
+                  <StackPanel Spacing="6">
+                    <TextBlock x:Name="PluginEditorHint" TextWrapping="Wrap" />
+                    <TextBox x:Name="PluginEditorExecutable" />
+                    <TextBox x:Name="PluginEditorArguments" AcceptsReturn="True" MinHeight="70" />
+                    <Button x:Name="PluginEditorSave" Click="OnEditorSaveClick" HorizontalAlignment="Left" />
+                  </StackPanel>
+                </Expander>
+              </StackPanel>
             </StackPanel>
           </Expander>
         </StackPanel>

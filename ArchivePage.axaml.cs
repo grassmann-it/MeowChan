@@ -481,6 +481,7 @@ public partial class ArchivePage : UserControl
         UpdateFeedbackVisuals();
         UpdateMediaRatingAction();
         UpdateThreadFavoriteActions();
+        UpdateArchiveCleanupAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
@@ -916,6 +917,7 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         _ended = true;
+        EndArchiveCleanupLifetime();
         ClearPaginationInput();
         _runningList = null; _retryList = null;
         SearchStateChanged?.Invoke();

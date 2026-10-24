@@ -529,6 +529,9 @@ internal static class ReaderUxChecks
     private static async Task CheckEmbeddedArchiveFooterAsync(MainWindow window, ArchivePage page)
     {
         string language = Texts.Language;
+        string originalLayout = page.ArchiveLayoutPreference;
+        ResourceId expectedThread = page.CurrentThread?.Summary.Id
+            ?? throw new InvalidOperationException("Embedded archive footer fixture requires its selected thread to be loaded.");
         Rect Bounds(Control control) => new(control.TranslatePoint(default, window)
             ?? throw new InvalidOperationException(control.Name + " is detached."), control.Bounds.Size);
         bool Contains(Rect outer, Rect inner) => inner.Left >= outer.Left - 1 && inner.Top >= outer.Top - 1
@@ -537,52 +540,95 @@ internal static class ReaderUxChecks
         {
             Require(window.ClientSize.Width >= 1400 && !window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
                 "Embedded archive footer fixture requires the existing wide split view.");
+            foreach (string layout in new[] { "List", "Table" })
             foreach (string code in new[] { "en", "de" })
             {
+                if (page.ArchiveLayoutPreference != layout)
+                    SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + layout)!);
+                await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == layout && !page.IsBusy);
                 Texts.SetLanguage(code);
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
                 Border reader = page.FindControl<Border>("ArchiveReaderContent")!;
                 StackPanel footer = page.FindControl<StackPanel>("ArchiveResultsFooter")!;
                 Control pagination = page.FindControl<Control>("ArchiveResultsPagination")!;
+                void TraceNext(string stage)
+                {
+                    Ursa.Controls.PaginationButton? button = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()
+                        .SingleOrDefault(candidate => candidate.Name == Ursa.Controls.Pagination.PART_NextButton);
+                    Console.WriteLine("SMOKE embedded archive next state: " + JsonSerializer.Serialize(new
+                    {
+                        stage, layout, language = Texts.Language, page.IsBusy, expectedThread,
+                        currentThread = page.CurrentThread?.Summary.Id,
+                        pagination.IsEffectivelyVisible, pagination.IsEffectivelyEnabled,
+                        nextVisible = button?.IsEffectivelyVisible, nextEnabled = button?.IsEffectivelyEnabled,
+                        nextFocusable = button?.Focusable, nextBounds = button == null ? null : Bounds(button).ToString(),
+                        footer = Bounds(footer).ToString()
+                    }));
+                }
+                TraceNext("after-fixture");
+                try
+                {
+                    // Table selection can finish during layout after changing the layout or translated rows.
+                    await Program.WaitUntilAsync(() =>
+                    {
+                        window.UpdateLayout();
+                        return !page.IsBusy && page.CurrentThread?.Summary.Id == expectedThread
+                            && pagination.IsEffectivelyEnabled;
+                    });
+                }
+                catch
+                {
+                    TraceNext("readiness-timeout");
+                    throw;
+                }
                 TextBlock label = page.FindControl<TextBlock>("ArchiveThreadPage")!;
                 TextBlock hint = page.FindControl<TextBlock>("ArchivePartialHint")!;
-                Control reserve = page.FindControl<Control>("ArchiveListFooterReserve")!;
+                Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
+                Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
+                Control activeList = layout == "Table" ? page.FindControl<DataGrid>("ArchiveThreadTable")!
+                    : page.FindControl<ListBox>("ArchiveThreads")!;
                 Rect left = Bounds(results), right = Bounds(reader), footerBox = Bounds(footer);
-                Rect pageBox = Bounds(pagination), labelBox = Bounds(label), listBox = Bounds(page.FindControl<ListBox>("ArchiveThreads")!);
+                Rect pageBox = Bounds(pagination), labelBox = Bounds(label), listBox = Bounds(activeList);
                 Console.WriteLine("SMOKE embedded archive footer: " + JsonSerializer.Serialize(new
                 {
-                    language = Texts.Language, theme = window.ActualThemeVariant.ToString(), scale = window.RenderScaling,
+                    layout, language = Texts.Language, theme = window.ActualThemeVariant.ToString(), scale = window.RenderScaling,
                     client = window.ClientSize.ToString(), results = left.ToString(), reader = right.ToString(),
                     footer = footerBox.ToString(), pagination = pageBox.ToString(), label = labelBox.ToString(),
                     range = label.Text, list = listBox.ToString(), hint = hint.Bounds.ToString(), hint.IsVisible,
-                    reserve = reserve.Bounds.ToString(), reserveVisible = reserve.IsVisible
+                    listFooterHeight = listPane.RowDefinitions[2].ActualHeight,
+                    readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight
                 }));
                 Require(results.IsEffectivelyVisible && reader.IsEffectivelyVisible
                     && Math.Abs(left.Bottom - right.Bottom) <= 1,
                     "Embedded archive result and reader borders do not share their lower edge.");
-                Require(reserve.IsVisible == hint.IsVisible
-                    && (!hint.IsVisible || Math.Abs(reserve.Bounds.Height - hint.Bounds.Height) <= 1),
-                    "Archive list footer reserve does not follow the reader partial hint.");
+                Require(ReferenceEquals(footer.Parent, listPane) && Grid.GetRow(footer) == 2
+                    && Math.Abs(listPane.RowDefinitions[2].ActualHeight - readerPane.RowDefinitions[2].ActualHeight) <= 1,
+                    "Archive pagination and reader hint do not share their outside footer row.");
                 Require(footer.IsEffectivelyVisible && pagination.IsEffectivelyVisible && label.IsEffectivelyVisible
                     && !string.IsNullOrWhiteSpace(label.Text) && label.DesiredSize.Width <= label.Bounds.Width + 1
-                    && Contains(left, footerBox) && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
+                    && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
                     && Contains(new Rect(default(Point), window.ClientSize), footerBox)
-                    && listBox.Bottom + 4 <= footerBox.Top && pageBox.Bottom <= labelBox.Top,
-                    "Archive pagination/range is clipped, outside its result border, or overlaps the list.");
+                    && left.Bottom + 4 <= footerBox.Top && listBox.Bottom <= left.Bottom
+                    && left.Bottom - listBox.Bottom <= 3 && pageBox.Bottom <= labelBox.Top,
+                    "Archive pagination/range is clipped, inside its result border, or leaves unused list space.");
                 Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
                     "Embedded archive lost its reader status line.");
                 Ursa.Controls.PaginationButton next = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()
                     .Single(button => button.Name == Ursa.Controls.Pagination.PART_NextButton);
-                Require(next.IsEffectivelyVisible && next.IsEffectivelyEnabled && next.Focusable && Contains(left, Bounds(next)),
+                TraceNext("before-reachability");
+                Require(next.IsEffectivelyVisible && next.IsEffectivelyEnabled && next.Focusable && Contains(footerBox, Bounds(next)),
                     "Archive next-page action is not reachable in the result footer.");
                 await Program.WaitUntilAsync(() => window.InputHitTest(Bounds(next).Center) is Visual hit
                     && hit.GetSelfAndVisualAncestors().Contains(next));
-                Program.CaptureWindow(window, $"smoke-archive-embedded-footer-1520-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
+                string layoutSuffix = layout == "List" ? "" : "-table";
+                Program.CaptureWindow(window, $"smoke-archive-embedded-footer-1520{layoutSuffix}-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
             }
         }
         finally
         {
+            if (page.ArchiveLayoutPreference != originalLayout)
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
             Texts.SetLanguage(language);
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         }

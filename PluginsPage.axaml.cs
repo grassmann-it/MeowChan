@@ -29,6 +29,8 @@ public partial class PluginsPage : UserControl
     private readonly Dictionary<string, PluginConfigurationDraft> _drafts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SelectionListItem> _cards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginSettingsEditor> _editors = new(StringComparer.Ordinal);
+    private sealed record PluginListContent(TextBlock Name, TextBlock Description, TextBlock Origin, TextBlock State, TextBlock Identity);
+    private readonly Dictionary<string, PluginListContent> _cardContent = new(StringComparer.Ordinal);
     private bool _projectingSelection;
     private readonly Dictionary<string, string?> _actionReasons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (DescriptionsItem Item, SelectableTextBlock Value)> _identityRows = new(StringComparer.Ordinal);
@@ -60,9 +62,12 @@ public partial class PluginsPage : UserControl
     {
         InitializeComponent();
         InitializePluginSections();
+        InitializePluginDetails();
+        InitializePluginActions();
         KeyDown += (_, args) =>
         {
             if (args.Handled || args.Key != Key.Escape) return;
+            if (PluginActionMenu?.IsOpen == true) { ClosePluginActionMenu(restoreFocus: true); args.Handled = true; return; }
             if (_busy) { OnCancelClick(this, new RoutedEventArgs()); args.Handled = true; }
             else if (_narrow && _showDetails) { OnBackClick(this, new RoutedEventArgs()); args.Handled = true; }
         };
@@ -94,7 +99,9 @@ public partial class PluginsPage : UserControl
         foreach ((string name, string key) in new[]
         {
             ("PluginsTitle","nav.plugins"),("PluginsSubtitle","plugins.subtitle"),("PluginsEmpty","plugins.empty"),
-            ("PluginTestHint","plugins.testHint"),("PluginEditorHint","plugins.editorHint")
+            ("PluginTestHint","plugins.testHint"),("PluginEditorHint","plugins.editorHint"),
+            ("PluginLocalStatusHint","plugins.localStatusHint"),("PluginChooseHint","plugins.choosePlugin"),
+            ("PluginSourceToolsHeading","plugins.sourceTools")
         }) C<TextBlock>(name).Text = name == "PluginEditorHint" ? Texts.T(key, string.Empty) : Texts.T(key);
         foreach ((string name, string key) in new[]
         {
@@ -102,7 +109,8 @@ public partial class PluginsPage : UserControl
             ("PluginSelectCandidate","plugins.selectCandidate"),("PluginRollback","plugins.rollback"),("PluginWatches","plugins.watches"),
             ("PluginSave","plugins.save"),("PluginDiscard","plugins.discard"),("PluginEdit","plugins.edit"),
             ("PluginDefaultEditor","plugins.defaultEditor"),("PluginBuild","plugins.build"),("PluginCancel","plugins.cancel"),
-            ("PluginProbe","plugins.probe"),("PluginEditorSave","plugins.saveEditor")
+            ("PluginProbe","plugins.probe"),("PluginEditorSave","plugins.saveEditor"),
+            ("PluginCopyTechnicalDetails","plugins.copyTechnicalDetails")
         })
         {
             Button button = C<Button>(name);
@@ -114,7 +122,8 @@ public partial class PluginsPage : UserControl
         AutomationProperties.SetName(C<SelectionList>("PluginCards"), Texts.T("nav.plugins"));
         C<Expander>("PluginInfoExpander").Header = Texts.T("plugins.information");
         C<Expander>("PluginGrantExpander").Header = Texts.T("plugins.grants");
-        C<Expander>("PluginSourceExpander").Header = Texts.T("plugins.sourceTools");
+        C<Expander>("PluginDirectoryExpander").Header = Texts.T("plugins.directoryDetails");
+        C<Expander>("PluginDeveloperExpander").Header = Texts.T("plugins.developerDetails");
         C<Expander>("PluginEditorExpander").Header = Texts.T("plugins.editorConfiguration");
         C<TextBox>("PluginProbeUrl").PlaceholderText = Texts.T("plugins.probeUrl");
         AutomationProperties.SetName(C<TextBox>("PluginProbeUrl"), Texts.T("plugins.probeUrl"));
@@ -159,18 +168,30 @@ public partial class PluginsPage : UserControl
         Control? focusedItem = _cards.Values.FirstOrDefault(item => item.IsFocused);
         var listOffset = C<ScrollViewer>("PluginListScroll").Offset;
         PluginCatalogEntry[] entries = _catalog?.Entries.Where(Included).ToArray() ?? Array.Empty<PluginCatalogEntry>();
+        var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
         _projectingSelection = true;
         try
         {
             foreach (string removed in _cards.Keys.Where(key => !entries.Any(entry => entry.Key == key)).ToArray())
-            { list.Items.Remove(_cards[removed]); if (_catalog?.Entries.Any(entry => entry.Key == removed) != true) _cards.Remove(removed); }
+            {
+                list.Items.Remove(_cards[removed]);
+                if (_catalog?.Entries.Any(entry => entry.Key == removed) != true)
+                { _cards.Remove(removed); _cardContent.Remove(removed); }
+            }
             for (int index = 0; index < entries.Length; index++)
             {
                 PluginCatalogEntry entry = entries[index];
                 if (!_cards.TryGetValue(entry.Key, out SelectionListItem? item))
                 {
+                    var title = new TextBlock { Name = "PluginListName", FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+                    var purpose = new TextBlock { Name = "PluginListDescription", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+                    var origin = new TextBlock { Name = "PluginListDescriptionOrigin", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+                    var state = new TextBlock { Name = "PluginListState", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+                    var identity = new TextBlock { Name = "PluginListIdentity", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
+                    origin.Classes.Add("muted"); state.Classes.Add("muted"); identity.Classes.Add("muted");
+                    _cardContent.Add(entry.Key, new(title, purpose, origin, state, identity));
                     item = new PluginSelectionItem { HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        Padding = new Thickness(12), Content = new TextBlock { TextWrapping = TextWrapping.Wrap } };
+                        Padding = new Thickness(12), Content = new StackPanel { Spacing = 5, Children = { title, purpose, origin, state, identity } } };
                     string key = entry.Key;
                     item.PointerReleased += (_, args) =>
                     {
@@ -181,9 +202,24 @@ public partial class PluginsPage : UserControl
                 }
                 if (index >= list.Items.Count || !ReferenceEquals(list.Items[index], item))
                 { list.Items.Remove(item); list.Items.Insert(index, item); }
-                string label = entry.Name + "\n" + EntryState(entry);
-                if (((TextBlock)item.Content!).Text != label) ((TextBlock)item.Content!).Text = label;
-                AutomationProperties.SetName(item, entry.Name + ". " + EntryState(entry));
+                PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers);
+                PluginListContent content = _cardContent[entry.Key];
+                content.Name.Text = presentation.Name;
+                content.Description.Text = PluginContentPresentation.DescribeDescription(presentation);
+                content.Origin.Text = presentation.HasRetainedDescription ? Texts.T("plugins.lastDescriptionShort") : string.Empty;
+                content.Origin.IsVisible = presentation.HasRetainedDescription;
+                content.State.Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata) + " · " + PluginContentPresentation.DescribeStatus(presentation);
+                PluginCatalogEntry[] similar = entries.Where(other => string.Equals(other.Name, entry.Name, StringComparison.CurrentCultureIgnoreCase)).ToArray();
+                content.Identity.IsVisible = similar.Length > 1;
+                if (similar.Length > 1)
+                {
+                    string fileName = System.IO.Path.GetFileName(entry.LoaderPath) ?? entry.CandidateId ?? entry.Key;
+                    content.Identity.Text = Texts.T("plugins.candidatePosition", Array.FindIndex(similar, other => other.Key == entry.Key) + 1, similar.Length)
+                        + " · " + fileName + (presentation.CandidateVersion is { } version ? " · " + Texts.T("plugins.fileVersion", version) : string.Empty);
+                    ToolTip.SetTip(content.Identity, entry.LoaderPath ?? entry.CandidateId ?? entry.Key);
+                }
+                AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, content.State.Text,
+                    content.Identity.IsVisible ? content.Identity.Text : null }.Where(value => !string.IsNullOrEmpty(value))));
             }
             list.SelectedItem = _selectedKey != null && entries.Any(entry => entry.Key == _selectedKey) ? _cards.GetValueOrDefault(_selectedKey) : null;
         }
@@ -191,13 +227,16 @@ public partial class PluginsPage : UserControl
         if (focusedItem != null && list.Items.Contains(focusedItem) && !focusedItem.IsFocused) focusedItem.Focus();
         C<ScrollViewer>("PluginListScroll").Offset = listOffset;
         if (Selected == null || !Included(Selected)) _showDetails = false;
-        C<TextBlock>("PluginsEmpty").IsVisible = entries.Length == 0;
+        C<TextBlock>("PluginsEmpty").IsVisible = _catalog != null && entries.Length == 0;
+        C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
+        { 1 => "plugins.emptySources", 2 => "plugins.emptyFilters", _ => "plugins.empty" });
         int count = _catalog?.Diagnostics.Count ?? 0;
         C<Expander>("PluginInventoryProblems").IsVisible = count > 0;
         C<Badge>("PluginInventoryBadge").Header = count;
         AutomationProperties.SetName(C<Expander>("PluginInventoryProblems"), Texts.T("plugins.inventoryCount", count));
         C<TextBlock>("PluginInventoryDiagnostics").Text = string.Join("\n", _catalog?.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message + "\n" + diagnostic.FilePath) ?? Array.Empty<string>());
         ApplyPaneVisibility();
+        RefreshPluginActions();
     }
     private void OnPluginSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -208,6 +247,7 @@ public partial class PluginsPage : UserControl
     }
     private void OnPluginListKeyDown(object? sender, KeyEventArgs e)
     {
+        if (TryHandlePluginActionKeyDown(e)) return;
         SelectionList list = C<SelectionList>("PluginCards");
         if (e.Key is Key.Enter or Key.Space)
         { if (_selectedKey != null && list.SelectedItem != null && _cards.ContainsKey(_selectedKey)) { Select(_selectedKey); e.Handled = true; } return; }
@@ -218,19 +258,11 @@ public partial class PluginsPage : UserControl
         if (list.Items[index] is Control item) { item.Focus(); item.BringIntoView(); }
         e.Handled = true;
     }
-    private static string EntryState(PluginCatalogEntry entry)
-    {
-        if (entry.Activation is not { } state) return Texts.T("plugins.notLoaded");
-        if (entry.Candidate?.Problem != null || state.Problem != null && state.SelectedCandidateId == entry.CandidateId) return Texts.T("plugins.problem");
-        if (state.Active?.CandidateId == entry.CandidateId) return Texts.T(state.Enabled ? "plugins.active" : "plugins.disabled");
-        if (state.Pending?.CandidateId == entry.CandidateId) return Texts.T("plugins.pending");
-        return Texts.T(state.SelectedCandidateId == entry.CandidateId ? "plugins.unavailable" : "plugins.notSelected");
-    }
     internal void Select(string key) => SelectCore(key, openDetails: true);
     private void SelectCore(string key, bool openDetails)
     {
         if (_ended || _catalog?.Entries.Any(entry => entry.Key == key) != true) return;
-        if (_selectedKey != key) { CancelDiscardConfirmation(); ++_refreshGeneration; CancelOperation(); SetTestStatus(null); Error(null); }
+        if (_selectedKey != key) { ClosePluginActionMenu(); CancelDiscardConfirmation(); ++_refreshGeneration; CancelOperation(); SetTestStatus(null); Error(null); }
         _selectedKey = key; _showDetails = openDetails;
         RenderList(); RenderDetails();
         if (_narrow && openDetails) C<Button>("PluginBack").Focus();
@@ -240,74 +272,46 @@ public partial class PluginsPage : UserControl
         PluginCatalogEntry? entry = Selected;
         ApplyPaneVisibility();
         if (entry == null) return;
-        PluginActivationSnapshot? activation = entry.Activation;
-        C<TextBlock>("PluginHeading").Text = entry.Name;
-        RenderIdentity(entry);
-        C<TextBlock>("PluginDescription").Text = entry.Description?.Description;
-        PluginHost.Contracts.PluginWorkerSnapshot? workerState = _services?.GetWorkerSnapshots?.Invoke()
-            .FirstOrDefault(worker => worker.Identity.ExecutionRevision == activation?.Active?.ExecutionRevision);
-        C<TextBlock>("PluginStatus").Text = string.Join("\n", new[]
-        {
-            EntryState(entry), activation?.Problem, entry.Candidate?.Problem,
-            workerState != null ? Texts.T("plugins.workerState", Texts.T("plugins.worker." + workerState.State), workerState.FailureMessage ?? string.Empty) : null,
-            activation?.Candidates.Count(candidate => candidate.IsPresent) > 1 ? Texts.T("plugins.candidateConflict") : null,
-            entry.Candidate?.IsPresent == false ? Texts.T("plugins.missing") : null,
-            (entry.Candidate?.Problem != null || entry.Candidate?.Description == null) && entry.Description != null ? Texts.T("plugins.lastDescription") : null
-        }.Where(value => !string.IsNullOrEmpty(value)));
+        PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry,
+            _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision);
+        C<TextBlock>("PluginHeading").Text = presentation.Name;
+        RenderTechnicalIdentity(entry);
+        C<TextBlock>("PluginDescription").Text = PluginContentPresentation.DescribeDescription(presentation);
+        C<TextBlock>("PluginDescriptionOrigin").Text = PluginContentPresentation.DescribeDescriptionOrigin(presentation.DescriptionOrigin);
+        C<TextBlock>("PluginDescriptionOrigin").IsVisible = presentation.HasRetainedDescription;
+        string? author = presentation.DescriptionMetadata?.Author;
+        C<TextBlock>("PluginAuthor").Text = string.IsNullOrWhiteSpace(author) ? string.Empty : Texts.T("plugins.author", author);
+        C<TextBlock>("PluginAuthor").IsVisible = !string.IsNullOrWhiteSpace(author);
+        C<TextBlock>("PluginType").Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
+        C<Border>("PluginVersionChip").IsVisible = !string.IsNullOrEmpty(presentation.CandidateVersion);
+        C<TextBlock>("PluginVersion").Text = presentation.CandidateVersion is { } version ? Texts.T("plugins.fileVersion", version) : string.Empty;
+        string? pluginId = presentation.PluginId ?? presentation.DescriptionMetadata?.PluginId;
+        C<TextBlock>("PluginCompactId").Text = pluginId == null ? string.Empty : Texts.T("plugins.pluginIdCompact", pluginId);
+        C<Border>("PluginIdChip").IsVisible = pluginId != null;
+        ToolTip.SetTip(C<TextBlock>("PluginCompactId"), C<TextBlock>("PluginCompactId").Text);
+        SourceCapabilities capabilities = presentation.Sources.Aggregate(SourceCapabilities.None, (flags, source) => flags | source.Capabilities);
+        string functions = string.Join(" · ", new[] { presentation.Sources.Count > 0 ? PluginContentPresentation.DescribeCapabilities(capabilities) : string.Empty,
+            string.Join(" · ", presentation.Filters.Select(filter => filter.Name)) }.Where(value => !string.IsNullOrEmpty(value)));
+        C<TextBlock>("PluginCapabilities").Text = functions;
+        C<TextBlock>("PluginCapabilities").IsVisible = functions.Length > 0;
+        C<TextBlock>("PluginStatus").Text = PluginContentPresentation.DescribeStatus(presentation);
+        string hint = PluginContentPresentation.DescribeStatusHint(presentation);
+        C<TextBlock>("PluginStatusHint").Text = hint;
+        C<TextBlock>("PluginStatusHint").IsVisible = hint.Length > 0;
         C<TextBlock>("PluginCandidateDiagnostics").Text = string.Join("\n", entry.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message + "\n" + diagnostic.FilePath));
         C<TextBlock>("PluginCandidateDiagnostics").IsVisible = entry.Diagnostics.Count > 0;
-        C<Button>("PluginEnabled").Content = Texts.T(activation?.Enabled == true ? "plugins.disable" : "plugins.enable");
-        AutomationProperties.SetName(C<Button>("PluginEnabled"), C<Button>("PluginEnabled").Content?.ToString() ?? string.Empty);
-        SetAction("PluginEnabled", "plugins.reason.noActivation", activation != null);
-        SetAction("PluginSelectCandidate", "plugins.reason.noCandidate", entry.Candidate?.Artifact != null && entry.Candidate.Problem == null);
-        SetAction("PluginRollback", "plugins.reason.noRollback", activation?.LastGood != null);
-        ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate", "PluginRollback");
-        C<Button>("PluginWatches").IsVisible = entry.Description?.Sources.Count > 0;
-        C<Expander>("PluginSourceExpander").IsVisible = entry.SourcePath != null;
+        C<StackPanel>("PluginSourceExpander").IsVisible = entry.SourcePath != null;
         C<TextBlock>("PluginSourcePath").Text = entry.SourcePath;
         if (_renderedKey != entry.Key)
         {
             _renderedKey = entry.Key;
             BuildSettings(entry); RenderInformation(entry); RenderGrants(entry);
-            PluginEditorOptions options = GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" });
-            C<TextBox>("PluginEditorExecutable").Text = options.Executable;
-            C<TextBox>("PluginEditorArguments").Text = string.Join(Environment.NewLine, options.Arguments);
-            SetTestStatus(null);
-            C<TextBox>("PluginProbeResult").Text = string.Empty;
-            C<StackPanel>("PluginBuildDiagnostics").Children.Clear();
+            RestorePluginToolState(entry);
         }
         if (entry.Description != null && CurrentDraft == null) { BuildSettings(entry); RenderInformation(entry); }
         PluginGrantSnapshot[] currentGrants = _catalog!.Profile.Grants.Where(grant => grant.PluginId == entry.PluginId).ToArray();
         if (_renderedGrantsKey != entry.Key || !_displayedGrants.SequenceEqual(currentGrants)) RenderGrants(entry);
-        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshPluginSections();
-    }
-    private void BuildSettings(PluginCatalogEntry entry)
-    {
-        StackPanel settings = C<StackPanel>("PluginSettings"); settings.Children.Clear(); _editors.Clear();
-        if (entry.Description == null || entry.CandidateId == null) return;
-        if (!_drafts.TryGetValue(entry.Key, out PluginConfigurationDraft? draft))
-        {
-            draft = new(entry, _catalog!.Profile.Revision); _drafts[entry.Key] = draft;
-            draft.Plugin.Changed += UpdateDraftState;
-            draft.Plugin.Changed += CancelDiscardConfirmation;
-            foreach (PluginSettingsDraft source in draft.Sources.Values) { source.Changed += UpdateDraftState; source.Changed += CancelDiscardConfirmation; }
-        }
-        if (draft.NeedsMigrationAcknowledgement)
-        {
-            settings.Children.Add(Label(Texts.T("plugins.removedSettings") + "\n" + string.Join("\n", draft.RemovedSettings.Select(issue => issue.Path))));
-            Button acknowledge = new() { Content = Texts.T("plugins.acceptSchema") };
-            acknowledge.Click += (_, _) => { draft.AcknowledgeMigration(); BuildSettings(entry); UpdateDraftState(); };
-            settings.Children.Add(acknowledge);
-        }
-        AddSettings(Texts.T("plugins.pluginSettings"), string.Empty, draft.Plugin);
-        foreach ((string sourceId, PluginSettingsDraft source) in draft.Sources)
-            AddSettings(Texts.T("plugins.sourceSettings", draft.Description.Sources.First(value => value.SourceId == sourceId).Name), sourceId, source);
-    }
-    private void AddSettings(string label, string scope, PluginSettingsDraft draft)
-    {
-        PluginSettingsEditor editor = new(draft, scope); _editors.Add(scope, editor);
-        C<StackPanel>("PluginSettings").Children.Add(new Expander { Header = label, Content = editor, IsExpanded = draft.Schema.Fields.Count > 0,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch });
+        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshPluginSections(); RefreshPluginActions();
     }
     private void UpdateDraftState()
     {
@@ -317,13 +321,18 @@ public partial class PluginsPage : UserControl
         SetAction("PluginSave", stale ? "plugins.stale" : "plugins.reason.unchanged", draft?.Dirty == true && !stale);
         SetAction("PluginDiscard", "plugins.reason.noDraft", draft != null);
         ShowReasons("PluginDraftReasons", "PluginSave", "PluginDiscard");
+        RefreshPluginActions();
     }
     private void RenderInformation(PluginCatalogEntry entry)
     {
         StackPanel panel = C<StackPanel>("PluginInformation"); panel.Children.Clear();
+        C<Expander>("PluginInfoExpander").IsVisible = entry.Description is { } description &&
+            (description.Sources.Count > 0 || description.Filters.Count > 0 || description.Information.Count > 0);
         if (entry.Description == null) return;
         foreach (SourceDescription source in entry.Description.Sources)
-            panel.Children.Add(Label(source.Name + ": " + source.Capabilities + "\n" + string.Join(", ", source.HttpHosts.Select(host => host.Host + " (" + host.Purpose + ")"))));
+            panel.Children.Add(Label(source.Name + ": " + PluginContentPresentation.DescribeCapabilities(source.Capabilities) + "\n" + string.Join(", ", source.HttpHosts.Select(host => host.Host + " (" + host.Purpose + ")"))));
+        foreach (FilterDescription filter in entry.Description.Filters)
+            panel.Children.Add(Label(filter.Name + ": " + filter.Description + "\n" + Texts.T("plugins.filterFormats", string.Join(", ", filter.SupportedMimeTypes))));
         foreach (InformationEntry info in entry.Description.Information)
             panel.Children.Add(Label(info.Label + ": " + (info.Kind == InformationKind.List ? string.Join(", ", info.Items ?? Array.Empty<string>()) : info.Value)
                 + (info.AsOf is { } at ? "\n" + Texts.T("plugins.asOf", at.ToLocalTime(), info.SourceId ?? entry.PluginId) : string.Empty)));
@@ -353,6 +362,7 @@ public partial class PluginsPage : UserControl
         C<Grid>("PluginListPane").IsVisible = !_narrow || !_showDetails || !hasSelection;
         C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && (!_narrow || _showDetails);
         C<Button>("PluginBack").IsVisible = _narrow;
+        C<Border>("PluginNoSelection").IsVisible = !_narrow && !hasSelection && _catalog?.Entries.Count > 0;
     }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
@@ -391,18 +401,18 @@ public partial class PluginsPage : UserControl
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
     { _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(_selectedKey, out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
-    private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) { CancelDiscardConfirmation(); _showDetails = false; RenderList(); } }
+    private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) { ClosePluginActionMenu(); CancelDiscardConfirmation(); _showDetails = false; RenderList(); } }
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
     private async void OnFolderClick(object? sender, RoutedEventArgs e)
     { try { if (_services != null) await ExternalLauncher.OpenAsync(_services.PluginDirectory); } catch (Exception error) { if (!_ended) Error(error.Message); } }
     private void OnWatchesClick(object? sender, RoutedEventArgs e)
-    { if (Selected?.Description?.Sources.FirstOrDefault() is { } source) OpenSourceWatches?.Invoke(source.SourceId); }
+    { _ = ExecutePluginControlActionAsync("PluginWatches"); }
     private async void OnEnabledClick(object? sender, RoutedEventArgs e)
-    { if (Selected?.Activation is { } state) await CommandAsync((services, revision, token) => services.ProfileStore.SetEnabledAsync(state.PluginId, !state.Enabled, revision, token)); }
+    { await ExecutePluginControlActionAsync("PluginEnabled"); }
     private async void OnSelectCandidateClick(object? sender, RoutedEventArgs e)
-    { if (Selected is { PluginId: { } plugin, CandidateId: { } candidate }) await CommandAsync((services, revision, token) => services.ProfileStore.SelectCandidateAsync(plugin, candidate, revision, token)); }
+    { await ExecutePluginControlActionAsync("PluginSelectCandidate"); }
     private async void OnRollbackClick(object? sender, RoutedEventArgs e)
-    { if (Selected?.PluginId is { } plugin) await CommandAsync((services, revision, token) => services.ProfileStore.SelectRollbackAsync(plugin, revision, token)); }
+    { await ExecutePluginControlActionAsync("PluginRollback"); }
     private async Task CommandAsync(Func<PluginManagementServices, long, CancellationToken, Task<PluginProfileSnapshot>> command)
     {
         if (_ended || _busy || _services == null || _catalog == null) return;
@@ -429,6 +439,7 @@ public partial class PluginsPage : UserControl
     }
     private (long Generation, CancellationToken Token) BeginOperation()
     {
+        ClosePluginActionMenu();
         CancelDiscardConfirmation();
         CancelOperation(); _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _operationKey = _selectedKey;
@@ -450,7 +461,7 @@ public partial class PluginsPage : UserControl
         _statusReadPending = true;
         try { await RefreshAsync(); } finally { _statusReadPending = false; }
     }
-    internal void Deactivate() { CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
+    internal void Deactivate() { ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
     internal void EndLifetime()
-    { if (_ended) return; CancelDiscardConfirmation(); _ended = true; _pluginSectionNavigation?.Dispose(); IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
+    { if (_ended) return; ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; _pluginSectionNavigation?.Dispose(); IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
 }

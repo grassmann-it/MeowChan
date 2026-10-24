@@ -31,6 +31,12 @@ internal static partial class PluginManagementChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_REVIEW") == "1"
+            || Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_PRESENTATION") == "1")
+        {
+            await PluginUxChecks.RunAsync(window);
+            return;
+        }
         string compilerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ?? Path.Combine(AppContext.BaseDirectory, "plugin-compiler");
         string workerDirectory = Environment.GetEnvironmentVariable("MEOWCHAN_WORKER_TEST_BUNDLE") ?? Path.Combine(AppContext.BaseDirectory, "plugin-worker");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
@@ -92,6 +98,7 @@ internal static partial class PluginManagementChecks
                 });
                 return;
             }
+            await CheckSessionProductionObservationAsync(window);
             Require(page.Selected == null && page.FindControl<SelectionList>("PluginCards")!.SelectedIndex == -1,
                 "The initial catalog selected a candidate automatically.");
             PluginCatalogSnapshot catalog = await management.ReadCatalogAsync(CancellationToken.None);
@@ -180,6 +187,7 @@ internal static partial class PluginManagementChecks
             Task pending = page.ProbeAsync();
             await Program.WaitUntilAsync(() => page.IsBusy);
             await Task.Delay(150);
+            await PluginUxChecks.CheckBusyForeignMenuAsync(window, page, management);
             page.Deactivate();
             string? before = page.FindControl<TextBox>("PluginProbeResult")!.Text;
             await pending.WaitAsync(TimeSpan.FromSeconds(8));
@@ -203,7 +211,7 @@ internal static partial class PluginManagementChecks
             await page.BuildAndTestAsync();
             Require(page.FindControl<StackPanel>("PluginBuildDiagnostics")!.Children.OfType<Button>().Any(), "Syntax error has no file/line editor action.");
             Require((await profile.ReadAsync()).Plugins.Single().Active!.ExecutionRevision == original.Artifact.ExecutionRevision, "Syntax failure changed the active build.");
-            page.FindControl<Expander>("PluginSourceExpander")!.IsExpanded = true;
+            page.OpenPluginDeveloperDetails();
             await RevealAsync(window, page.FindControl<StackPanel>("PluginBuildDiagnostics")!.Children.OfType<Button>().First());
             Program.CaptureWindow(window, "smoke-plugins-syntax-error.png");
             Console.WriteLine("PLUGIN UI PASS: real compiler + worker + host HTTP; no watch/archive/original path; retained draft/focus; EN/DE Light/Dark B/S/A minima; real test cancellation.");
@@ -365,6 +373,9 @@ internal static partial class PluginManagementChecks
             {
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                // The complete identities remain readable after conscious disclosure;
+                // they no longer have to occupy the ordinary overview.
+                page.OpenPluginDeveloperDetails();
                 Descriptions identity = page.FindControl<Descriptions>("PluginIdentity")!;
                 var rows = identity.Items.OfType<DescriptionsItem>().ToDictionary(row => row.Label!.ToString()!,
                     row => ((SelectableTextBlock)row.Content!).Text ?? string.Empty);
@@ -375,10 +386,16 @@ internal static partial class PluginManagementChecks
                 Require(!page.FindControl<Button>("PluginSave")!.IsEnabled &&
                     page.FindControl<SelectableTextBlock>("PluginDraftReasons")!.IsVisible,
                     "The unchanged draft's disabled Save has no keyboard reachable reason.");
-                await RevealRangeAsync(window,
-                    identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.active"))),
-                    identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.pending"))));
-                Program.CaptureWindow(window, "smoke-plugins-active-pending-barebones-" + language + ".png");
+                DescriptionsItem activeRow = identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.active")));
+                DescriptionsItem pendingRow = identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.pending")));
+                // Complete multiline identities remain scrollable at 640×480. Capture
+                // each whole row separately, with the same strict viewport helper.
+                await RevealRangeAsync(window, activeRow, activeRow);
+                Program.CaptureWindow(window, "smoke-plugins-active-identity-barebones-" + language + ".png");
+                await RevealRangeAsync(window, pendingRow, pendingRow);
+                Program.CaptureWindow(window, "smoke-plugins-pending-identity-barebones-" + language + ".png");
+                Console.WriteLine("PLUGIN IDENTITIES CAPTURE: intentional Active/Pending split at Barebones 640x480 " + language
+                    + "; each complete identity row separately fits the viewport; persisted release/settings and production-worker assertions retained.");
             }
             Console.WriteLine("PLUGIN SETTINGS CAPTURE: real UI save retained active " + active.ExecutionRevision
                 + " and staged pending " + pending.ExecutionRevision + "; pending label=retained draft.");

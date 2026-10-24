@@ -55,6 +55,19 @@ internal static class GalleryViewerChecks
             viewer.SetScope("Images of matching threads · 52 threads");
             viewer.SetWarnings("Manifest warning retained");
             await viewer.ShowAsync(selected, CancellationToken.None);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_THEME_ONLY") == "1")
+            {
+                // Same verified asset, distinct post associations: exercise the real
+                // virtualized selector popup without the full reader workflow.
+                viewer.SetAssociations(Enumerable.Range(0, 55).Select(index => selected with
+                {
+                    Post = new CapturedPost((124 + index).ToString(), index, PostFieldPresence.Html,
+                        Html: "<p>Gallery theme association " + index + "</p>")
+                }).ToArray());
+                await GalleryCaptionChecks.CheckLiveThemeAsync(window, viewer);
+                Console.WriteLine("SMOKE gallery theme-only: verified image, live Light/Dark/Light, context/help/chrome/info/status colors, selector contrast and popup association passed.");
+                return;
+            }
             Require(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text == "Manifest warning retained", "Loading an image discarded manifest warnings.");
             Require(GalleryControl<TextBlock>(viewer, "GalleryScope").Text!.Contains("52"), "Loading an image discarded the frozen scope.");
             Image displayed = GalleryControl<Image>(viewer, "GalleryImage");

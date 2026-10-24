@@ -25,6 +25,27 @@ internal static class ClipboardChecks
         AvaloniaLocator.CurrentMutable.Bind<IClipboard>().ToConstant(_clipboard);
     }
 
+    internal static async Task<bool> CheckIsolatedCopyAsync(Window window, Func<Task> copy,
+        IReadOnlyList<string> requiredValues, IReadOnlyList<string> forbiddenValues)
+    {
+        if (_clipboard == null)
+        {
+            Console.WriteLine("SMOKE SKIP: isolated technical copy fixture unavailable; native clipboard was not accessed.");
+            return false;
+        }
+        FixtureClipboard clipboard = _clipboard;
+        if (!ReferenceEquals(window.Clipboard, clipboard))
+            throw new InvalidOperationException("Technical copy is not isolated from the native desktop clipboard.");
+        int writes = clipboard.WriteCount, reads = clipboard.ReadCount;
+        await copy();
+        await WaitUntilAsync(() => clipboard.WriteCount == writes + 1);
+        string payload = clipboard.WrittenText ?? string.Empty;
+        if (clipboard.ReadCount != reads || requiredValues.Any(value => !payload.Contains(value, StringComparison.Ordinal))
+            || forbiddenValues.Any(value => payload.Contains(value, StringComparison.Ordinal)))
+            throw new InvalidOperationException("Technical copy omitted a full identity, exposed draft/settings text, or read the clipboard.");
+        return true;
+    }
+
     internal static async Task CheckCopyAsync(MainWindow window, ThreadRow thread, BoardRow board)
     {
         if (_clipboard == null)

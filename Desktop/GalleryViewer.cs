@@ -13,7 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Styling;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
@@ -31,16 +31,16 @@ internal sealed class GalleryViewer : UserControl
     private readonly TranslateTransform _imageTranslation = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
-    private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.White, IsHitTestVisible = false };
-    private readonly TextBlock _scope = new() { Name = "GalleryScope", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
-    private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", Foreground = Brushes.White,
+    private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
+    private readonly TextBlock _scope = new() { Name = "GalleryScope", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"),
         TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
     private readonly Button _readPosts;
-    private readonly TextBlock _position = new() { Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-    private readonly TextBlock _quality = new() { Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _position = new() { [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _quality = new() { [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _context = new() { Spacing = 12 };
-    private readonly Border _contextPanel = new() { Name = "GalleryContext", Padding = new Thickness(18), IsVisible = false, Background = new SolidColorBrush(Color.FromRgb(32, 35, 42)) };
+    private readonly Border _contextPanel = new() { Name = "GalleryContext", Padding = new Thickness(18), IsVisible = false, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel") };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
     private readonly Grid _visualRoot = new() { ClipToBounds = true };
     private readonly Grid _nativeVideoOverlay = new() { Background = Brushes.Transparent, ClipToBounds = true };
@@ -55,18 +55,18 @@ internal sealed class GalleryViewer : UserControl
     private readonly ToggleButton _favorite;
     private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
-    private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Padding = new Thickness(12), Background = new SolidColorBrush(Color.FromRgb(32, 35, 42)), IsVisible = false };
+    private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Padding = new Thickness(12), [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"), IsVisible = false };
     private readonly StackPanel _helpContent = new() { Spacing = 6 };
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Padding = new Thickness(8),
         Margin = new Thickness(10, 10, 10, 0), CornerRadius = new CornerRadius(8),
-        Background = new SolidColorBrush(Color.FromArgb(224, 21, 25, 32)),
+        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Padding = new Thickness(8, 5),
         Margin = new Thickness(10, 0, 10, 10), CornerRadius = new CornerRadius(8),
-        Background = new SolidColorBrush(Color.FromArgb(208, 21, 25, 32)),
+        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
         HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Bottom };
     private readonly Border _statusPlate = new() { Padding = new Thickness(14, 10), CornerRadius = new CornerRadius(7),
-        Background = new SolidColorBrush(Color.FromArgb(224, 21, 25, 32)),
+        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = 650, IsHitTestVisible = false, IsVisible = false };
     private readonly DispatcherTimer _chromeTimer = new() { Interval = TimeSpan.FromSeconds(4) };
@@ -142,7 +142,7 @@ internal sealed class GalleryViewer : UserControl
     private string? _ratingError;
     private bool _ratingAvailable;
     private readonly Button _ratingButton = new() { Name = "GalleryRating" };
-    private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
     internal void SetRating(int? value, string? error, bool available = true)
     {
         _ratingValue = value; _ratingError = error; _ratingAvailable = available;
@@ -203,7 +203,7 @@ internal sealed class GalleryViewer : UserControl
         _image.RenderTransform = _imageTranslation;
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
-        Background = new SolidColorBrush(Color.FromRgb(13, 16, 22));
+        this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         Grid root = _visualRoot;
         WrapPanel toolbar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         _close = Command(toolbar, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
@@ -224,9 +224,8 @@ internal sealed class GalleryViewer : UserControl
         _helpButton = Command(toolbar, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(toolbar, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
-        // The overlay is permanently dark, including in a light workspace.
-        // Keep Semi's native control states in the matching local theme.
-        _chrome.Child = new ThemeVariantScope { RequestedThemeVariant = ThemeVariant.Dark, Child = toolbar };
+        // Chrome follows the host theme; the media viewport keeps its black matte.
+        _chrome.Child = toolbar;
         StackPanel infoContent = new() { Spacing = 2 };
         Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
         infoHeadline.Children.Add(_quality);
@@ -254,11 +253,10 @@ internal sealed class GalleryViewer : UserControl
                 _statusPlate.IsVisible = _status.IsVisible && !string.IsNullOrWhiteSpace(_status.Text);
         };
         _body.Children.Add(_viewport);
-        // Post context shares the permanently dark gallery surface. Scope native
-        // control resources too, including ComboBox popup, hover and disabled states.
+        // Inherit native control states from the host, including popups and focus.
         _contextPanel.Child = new ScrollViewer
         {
-            Content = new ThemeVariantScope { RequestedThemeVariant = ThemeVariant.Dark, Child = _context },
+            Content = _context,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
         };
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
@@ -513,14 +511,14 @@ internal sealed class GalleryViewer : UserControl
         _helpPanel.IsVisible = _helpOpen;
         _helpContent.Children.Clear();
         if (!_helpOpen) return;
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Foreground = Brushes.White, FontWeight = FontWeight.Bold });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), FontWeight = FontWeight.Bold });
         string[] ids = _helpExpanded
             ? new[] { "gallery.previous", "gallery.next", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
-            _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
+            _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         WrapPanel actions = new() { ItemSpacing = 6 };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
         Command(actions, "GalleryHelpClose", Texts.T("action.close"), () => SetHelp(false));
@@ -793,7 +791,7 @@ internal sealed class GalleryViewer : UserControl
             }
         Command(_context, "GalleryReadPost", Texts.T("gallery.viewer10"), () => ReadPostRequested?.Invoke(entry));
     }
-    private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = Brushes.White });
+    private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
     private void LayoutContext()
     {
         bool compact = Bounds.Width < 850;

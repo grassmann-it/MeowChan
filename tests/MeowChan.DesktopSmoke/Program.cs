@@ -43,15 +43,16 @@ internal static class Program
     private static bool _windowGeometryMode;
     private static bool _videoContrastMode;
     private static bool _pluginsMode;
+    private static bool _archiveCleanupMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins" or "--archive-cleanup")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins|--archive-cleanup]");
             return 2;
         }
 
@@ -62,6 +63,7 @@ internal static class Program
         _accessibilityMode = args.Contains("--accessibility-probe", StringComparer.Ordinal);
         _windowGeometryMode = args.Contains("--window-geometry", StringComparer.Ordinal);
         if (_windowGeometryMode) Environment.SetEnvironmentVariable("MEOWCHAN_NATIVE_GEOMETRY_TRACE", "1");
+        _archiveCleanupMode = args.Contains("--archive-cleanup", StringComparer.Ordinal);
         _pluginsMode = args.Contains("--plugins", StringComparer.Ordinal);
         _videoContrastMode = args.Contains("--video-contrast", StringComparer.Ordinal);
         if (_selectionMode) Environment.SetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE", "1");
@@ -138,6 +140,7 @@ internal static class Program
                 MediaRatingFixture.SeedAsync(profile).GetAwaiter().GetResult();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_archiveCleanupMode) ArchiveCleanupChecks.SeedAsync(profile).GetAwaiter().GetResult();
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
             if (_readerUxMode)
             {
@@ -201,6 +204,7 @@ internal static class Program
                 ? Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
                     ? "ratings: 12-cell real presentation/focus/error matrix and unchanged durable values"
                     : "ratings: real controls, exact identities, comparison, retry, detached shortcut, gallery freeze, manager focus and store reopen"
+                : _archiveCleanupMode ? "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"
                 : _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
@@ -224,6 +228,7 @@ internal static class Program
             if (Application.Current is DownloadSessionSmokeApp fixtureApp)
                 fixtureApp.DisposeFixture();
             Log.CloseAndFlush();
+            if (_archiveCleanupMode) ArchiveCleanupChecks.Cleanup(profile);
             if (!_savedSearchesOnly && (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE"))))
                 Directory.Delete(showcaseRoot ?? profile, recursive: true);
         }
@@ -274,6 +279,11 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (_archiveCleanupMode)
+            {
+                await ArchiveCleanupChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SUGGESTIONS_ONLY") == "1")
             {
                 await SuggestionsPresentationChecks.RunAsync(mainWindow);
@@ -386,6 +396,13 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTEGRATION_ONLY") == "1")
             {
                 await MediaTileIntegrationChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_THEME_ONLY") == "1")
+            {
+                await GalleryViewerChecks.RunAsync(mainWindow);
                 _checksPassed = true;
                 mainWindow.Close();
                 return;

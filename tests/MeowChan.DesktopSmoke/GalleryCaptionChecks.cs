@@ -24,6 +24,7 @@ internal static class GalleryCaptionChecks
         string warnings = Find<TextBlock>(viewer, "GalleryWarnings").Text ?? string.Empty;
         try
         {
+            if (!video) await CheckLiveThemeAsync(window, viewer);
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
                 Application.Current.RequestedThemeVariant = variant;
@@ -129,6 +130,80 @@ internal static class GalleryCaptionChecks
         }
     }
 
+    internal static async Task CheckLiveThemeAsync(MainWindow window, GalleryViewer viewer)
+    {
+        ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
+        bool originalContext = viewer.CaptureState().ContextOpen;
+        Border help = Find<Border>(viewer, "GalleryShortcutHelp");
+        bool originalHelp = help.IsVisible;
+        Dictionary<string, Color>? firstLight = null, previous = null;
+        try
+        {
+            SetContext(viewer, true);
+            if (!help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            GalleryViewerState held = viewer.CaptureState();
+            foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark, ThemeVariant.Light })
+            {
+                Application.Current.RequestedThemeVariant = variant;
+                await Program.WaitUntilAsync(() => window.ActualThemeVariant == variant && viewer.ActualThemeVariant == variant);
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
+                Dictionary<string, Color> colors = new();
+                foreach (string name in new[] { "GalleryContext", "GalleryShortcutHelp", "GalleryOverlayControls", "GalleryOverlayInfo" })
+                {
+                    Border panel = Find<Border>(viewer, name);
+                    if (!panel.IsEffectivelyVisible || panel.ActualThemeVariant != variant)
+                        throw new InvalidOperationException(name + " lost its visible host theme during live theme change.");
+                    Color background = Solid(panel.Background);
+                    colors.Add(name + ".background", background);
+                    // Native button/selector text has its own state surfaces; its contrast
+                    // is checked separately against the actual rendered template brushes.
+                    int index = 0;
+                    foreach (TextBlock text in panel.GetVisualDescendants().OfType<TextBlock>()
+                        .Where(text => !text.GetVisualAncestors().Any(parent => parent is Button or ComboBox)))
+                    {
+                        colors.Add(name + ".text" + index++, Solid(text.Foreground));
+                        if (Contrast(text.Foreground, background) < 4.5)
+                            throw new InvalidOperationException(name + " metadata/help text lost 4.5:1 contrast.");
+                    }
+                }
+                TextBlock status = Find<TextBlock>(viewer, "GalleryStatus");
+                Border statusPlate = (Border)status.Parent!;
+                colors.Add("status.background", Solid(statusPlate.Background));
+                colors.Add("status.foreground", Solid(status.Foreground));
+                if (Contrast(status.Foreground, Solid(statusPlate.Background)) < 4.5)
+                    throw new InvalidOperationException("Gallery status lost 4.5:1 contrast.");
+                if (previous != null && (colors.Count != previous.Count || colors.Any(pair => !previous.TryGetValue(pair.Key, out Color old) || old == pair.Value)))
+                    throw new InvalidOperationException("Gallery live theme change left a panel or metadata color unchanged.");
+                if (variant == ThemeVariant.Light)
+                {
+                    if (firstLight != null && (colors.Count != firstLight.Count || colors.Any(pair => !firstLight.TryGetValue(pair.Key, out Color first) || first != pair.Value)))
+                        throw new InvalidOperationException("Gallery did not restore its original Light palette.");
+                    firstLight ??= colors;
+                }
+                GalleryViewerState current = viewer.CaptureState();
+                if (current.Key != held.Key || current.PostId != held.PostId || current.AttachmentPosition != held.AttachmentPosition
+                    || current.ManualZoom != held.ManualZoom || !current.ContextOpen || !help.IsVisible)
+                    throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode, context or help.");
+                if (viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Any(control => control.Name == "GalleryPostAssociation"))
+                    await CheckContextSelectorAsync(window, viewer, variant);
+                Console.WriteLine("SMOKE gallery live theme: " + JsonSerializer.Serialize(new
+                { theme = variant.ToString(), colors = colors.ToDictionary(pair => pair.Key, pair => pair.Value.ToString()), asset = current.Key?.ToString() }));
+                Program.CaptureWindow(window, "smoke-gallery-live-theme-" + (previous == null ? "first-" : "return-") + variant.ToString().ToLowerInvariant() + ".png");
+                previous = colors;
+            }
+        }
+        finally
+        {
+            if (!originalHelp && help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            SetContext(viewer, originalContext);
+            Application.Current.RequestedThemeVariant = originalTheme;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        }
+    }
+
+    private static Color Solid(IBrush? brush) => brush is ISolidColorBrush solid
+        ? solid.Color : throw new InvalidOperationException("Gallery theme did not resolve a solid brush.");
+
     private static async Task CheckContextSelectorAsync(MainWindow window, GalleryViewer viewer, ThemeVariant workspaceTheme)
     {
         ComboBox selector = Find<ComboBox>(viewer, "GalleryPostAssociation");
@@ -138,19 +213,19 @@ internal static class GalleryCaptionChecks
             selector.IsEnabled = enabled;
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
             await Task.Delay(220); // Let native Semi state transitions settle.
-            if (selector.ActualThemeVariant != ThemeVariant.Dark || window.ActualThemeVariant != workspaceTheme
+            if (selector.ActualThemeVariant != workspaceTheme || window.ActualThemeVariant != workspaceTheme
                 || viewer.ActualThemeVariant != workspaceTheme)
-                throw new InvalidOperationException("Post selector lost its local dark theme or changed the workspace theme.");
+                throw new InvalidOperationException("Post selector does not follow the workspace theme.");
             TextBlock label = selector.GetVisualDescendants().OfType<TextBlock>().First(text => text.IsEffectivelyVisible && text.Text?.StartsWith("#") == true);
             PathIcon arrow = selector.GetVisualDescendants().OfType<PathIcon>().Single(icon => icon.Name == "DropDownGlyph");
-            // Compare actual rendered template brushes to the permanent post surface.
+            // Compare actual rendered template brushes to the current themed post surface.
             Color contextBackground = ((ISolidColorBrush)Find<Border>(viewer, "GalleryContext").Background!).Color;
             Border selectorBackground = selector.GetTemplateDescendants().OfType<Border>().Single(border => border.Name == "Background");
             Color background = Composite(selectorBackground.Background, contextBackground);
             double textContrast = Contrast(label.Foreground, background), arrowContrast = Contrast(arrow.Foreground, background);
             Console.WriteLine($"SMOKE gallery context selector: workspace={workspaceTheme}, enabled={enabled}, text={textContrast:0.###}, arrow={arrowContrast:0.###}");
             if (enabled && (textContrast < 4.5 || arrowContrast < 3))
-                throw new InvalidOperationException("Post selector label or chevron is unreadable against its dark context.");
+                throw new InvalidOperationException("Post selector label or chevron is unreadable against its themed context.");
             Program.CaptureWindow(window, $"smoke-gallery-context-selector-{workspaceTheme.ToString().ToLowerInvariant()}-{(enabled ? "enabled" : "disabled")}.png");
         }
         selector.IsEnabled = true;
@@ -159,12 +234,12 @@ internal static class GalleryCaptionChecks
         Popup popup = selector.GetTemplateDescendants().OfType<Popup>().Single();
         await Program.WaitUntilAsync(() => popup.IsOpen && popup.Child is { Bounds.Width: > 0, Bounds.Height: > 0 });
         Control child = popup.Child!;
-        if (child.ActualThemeVariant != ThemeVariant.Dark || selector.SelectedIndex != selected)
-            throw new InvalidOperationException("Post selector popup lost its local dark resources or changed the association.");
+        if (child.ActualThemeVariant != workspaceTheme || selector.SelectedIndex != selected)
+            throw new InvalidOperationException("Post selector popup lost its host theme resources or changed the association.");
         ComboBoxItem[] items = child.GetVisualDescendants().OfType<ComboBoxItem>().ToArray();
         // The 55-association fixture is virtualized; inspect the visible popup rows.
-        if (items.Length == 0 || items.Any(item => item.ActualThemeVariant != ThemeVariant.Dark))
-            throw new InvalidOperationException("Post selector popup rows lost the dark theme.");
+        if (items.Length == 0 || items.Any(item => item.ActualThemeVariant != workspaceTheme))
+            throw new InvalidOperationException("Post selector popup rows lost the host theme.");
         Program.CaptureWindow(window, $"smoke-gallery-context-selector-{workspaceTheme.ToString().ToLowerInvariant()}-open.png");
         CaptureContextPopup(window, selector, child, workspaceTheme);
         selector.IsDropDownOpen = false;

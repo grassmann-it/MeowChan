@@ -27,7 +27,7 @@ internal sealed class QueueStoppingException(CancellationToken cancellationToken
 /// Owns the session's media jobs and shared worker limit. Thread owners explicitly
 /// cancel their jobs when their watch ends; the queue does not subscribe to events.
 /// </summary>
-public class DownloadQueue
+public partial class DownloadQueue
 {
     private readonly object _stateLock = new object();
     private readonly MetadataAdmission _metadataAdmission = new();
@@ -372,9 +372,14 @@ public class DownloadQueue
     public void EnqueueDownload(DownloadItem item)
     {
         PreparedDownload prepared = Prepare(item);
-        if (!PrepareDurableAdmission(item, prepared)) return;
-        TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: false);
-        if (full) throw new InvalidOperationException("Download capacity is full; use EnqueueAsync to wait without losing work.");
+        lock (_stateLock)
+        {
+            if (CleanupWaitLocked(item) != null)
+                throw new InvalidOperationException("The target is reserved for archive cleanup; use EnqueueAsync to wait.");
+            if (!PrepareDurableAdmissionLocked(item, prepared)) return;
+            TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: false);
+            if (full) throw new InvalidOperationException("Download capacity is full; use EnqueueAsync to wait without losing work.");
+        }
     }
 
     public int MaxPendingDownloads => _maxPendingDownloads;
@@ -398,6 +403,10 @@ public class DownloadQueue
         IReadOnlyList<MediaWork> saved = store.LoadMedia(resource.Url, resource.Generation);
         lock (_stateLock)
         {
+            if (_cleanupReservations.Any(reservation => reservation.Matches(thread)
+                || saved.Any(media => reservation.MatchesPath(media.DestinationPath)
+                    || media.LegacyPath != null && reservation.MatchesPath(media.LegacyPath))))
+                throw new InvalidOperationException("The archived resource is reserved for cleanup.");
             _workOwners[thread] = resource;
             foreach (MediaWork media in saved)
             {
@@ -432,6 +441,7 @@ public class DownloadQueue
             MediaWork manual = media with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
             lock (_stateLock)
             {
+                if (CleanupWaitLocked(item) != null) continue;
                 MediaWork? current = store.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(work =>
                     SameMediaWork(work, media));
                 if (current == null || current.ManualAttempt || current.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded
@@ -495,8 +505,13 @@ public class DownloadQueue
                     if (at <= now && due == null) due = candidate;
                     else if (at > now && (delay == null || at - now < delay)) delay = at - now;
                 }
+                foreach (ScheduledWork item in expired) _cleanupTransits.Add(item.Item);
                 foreach (JobIdentity key in expiredKeys) _scheduled.Remove(key);
-                if (due != null) _scheduled.Remove(Prepare(due.Item).Job);
+                if (due != null)
+                {
+                    _cleanupTransits.Add(due.Item);
+                    _scheduled.Remove(Prepare(due.Item).Job);
+                }
                 changed = _scheduleChanged.Task;
             }
             foreach (ScheduledWork item in expired)
@@ -528,6 +543,7 @@ public class DownloadQueue
                     RunCleanup(cleanup);
                 }
                 catch (Exception error) { Quarantine(item.Item, error); }
+                finally { lock (_stateLock) _cleanupTransits.Remove(item.Item); }
             }
             if (expired.Count > 0) _changes.Signal();
             if (due != null)
@@ -550,6 +566,7 @@ public class DownloadQueue
                 }
                 catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
                 catch (Exception error) { Quarantine(due.Item, error); }
+                finally { lock (_stateLock) _cleanupTransits.Remove(due.Item); }
                 continue;
             }
             if (delay == null) await changed.ConfigureAwait(false);
@@ -593,8 +610,11 @@ public class DownloadQueue
     public bool TryEnqueue(DownloadItem item)
     {
         PreparedDownload prepared = Prepare(item);
-        if (!PrepareDurableAdmission(item, prepared)) return false;
-        return TryEnqueuePrepared(item, prepared, out _, fromWaiter: false);
+        lock (_stateLock)
+        {
+            if (CleanupWaitLocked(item) != null || !PrepareDurableAdmissionLocked(item, prepared)) return false;
+            return TryEnqueuePrepared(item, prepared, out _, fromWaiter: false);
+        }
     }
 
     /// <summary>
@@ -604,14 +624,26 @@ public class DownloadQueue
     public async Task<bool> EnqueueAsync(DownloadItem item, CancellationToken cancellationToken = default)
     {
         PreparedDownload prepared = Prepare(item);
-        if (!PrepareDurableAdmission(item, prepared)) return false;
         AdmissionWaiter waiter;
         LinkedListNode<AdmissionWaiter> node;
-        lock (_stateLock)
+        while (true)
         {
-            waiter = new AdmissionWaiter(item);
-            node = _admissionWaiters.AddLast(waiter);
-            PulseCapacityLocked();
+            Task? cleanup;
+            lock (_stateLock)
+            {
+                if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
+                cleanup = CleanupWaitLocked(item);
+                if (cleanup == null)
+                {
+                    if (!PrepareDurableAdmissionLocked(item, prepared)) return false;
+                    waiter = new AdmissionWaiter(item);
+                    node = _admissionWaiters.AddLast(waiter);
+                    PulseCapacityLocked();
+                    break;
+                }
+            }
+            using CancellationTokenSource waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            await cleanup.WaitAsync(waiting.Token).ConfigureAwait(false);
         }
         try
         {
@@ -657,13 +689,9 @@ public class DownloadQueue
         return new PreparedDownload(threadIdentity, new JobIdentity(threadIdentity, item.MediaIdentifier, item.Variant, destinationPath));
     }
 
-    private bool PrepareDurableAdmission(DownloadItem item, PreparedDownload prepared)
-    {
-        lock (_stateLock) return PrepareDurableAdmissionLocked(item, prepared);
-    }
-
     private bool PrepareDurableAdmissionLocked(DownloadItem item, PreparedDownload prepared)
     {
+        if (CleanupWaitLocked(item) != null) return false;
         IWorkStateStore? store = _workStore;
         if (store == null) return true;
         WorkResource owner;
@@ -728,6 +756,7 @@ public class DownloadQueue
         List<QueuedDownload> ready;
         lock (_stateLock)
         {
+            if (CleanupWaitLocked(item) != null) { full = true; return false; }
             if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _))
             {
                 return false;
@@ -979,7 +1008,7 @@ public class DownloadQueue
             foreach (LinkedList<QueuedDownload> list in new[] { _interruptedDownloads, _pendingDownloads })
             for (LinkedListNode<QueuedDownload>? node = list.First; node != null; node = node.Next)
             {
-                if (_targets.IsBlocked(TargetPath(node.Value.Item))) continue;
+                if (CleanupWaitLocked(node.Value.Item) != null || _targets.IsBlocked(TargetPath(node.Value.Item))) continue;
                 if (node.Value.Item.Filter != null && (_activeFilteredDownloads >= Math.Max(1, Math.Min(2, _maxParallelDownloads - 1)) || !node.Value.Item.Filter.CanStart)) continue;
                 bool matches = GetPriorityLocked(node.Value.Item.Thread) == preferred;
                 bool chosenMatches = chosen != null && GetPriorityLocked(chosen.Value.Item.Thread) == preferred;

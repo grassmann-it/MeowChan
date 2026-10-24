@@ -142,12 +142,26 @@ internal static class ReaderStabilityChecks
         foreach (double width in new[] { 760d, 900d, 1915d })
         {
             window.Width = width;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, window.Height));
             await Flush(window);
             await page.FocusPostAsync("1048");
             await Flush(window);
             ArchivePostRow mediaRow = posts.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "1048");
             ReaderPostLayout layout = posts.ContainerFromItem(mediaRow)!.GetVisualDescendants().OfType<ReaderPostLayout>().Single();
             bool beside = layout.Bounds.Width >= 760;
+            Console.WriteLine("SMOKE responsive reader layout: " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                requestedWidth = width, requestedHeight = window.Height,
+                client = window.ClientSize.ToString(), frame = window.FrameSize?.ToString(),
+                windowBounds = window.Bounds.ToString(), scale = window.RenderScaling,
+                layoutBounds = layout.Bounds.ToString(), layoutDesired = layout.DesiredSize.ToString(),
+                mediaBounds = layout.Children[0].Bounds.ToString(), mediaDesired = layout.Children[0].DesiredSize.ToString(),
+                bodyBounds = layout.Children[1].Bounds.ToString(), bodyDesired = layout.Children[1].DesiredSize.ToString(),
+                largeReader = layout.GetValue(ReaderPostLayout.LargeReaderProperty), beside,
+                mediaCapped = layout.Children[0].Bounds.Width <= 376 + 1,
+                bodyMatchesThreshold = beside ? layout.Children[1].Bounds.X > 0
+                    : layout.Children[1].Bounds.X == 0 && layout.Children[1].Bounds.Y > 0
+            }));
             Require(layout.Children[0].Bounds.Width <= 376 + 1
                 && (beside ? layout.Children[1].Bounds.X > 0 : layout.Children[1].Bounds.X == 0 && layout.Children[1].Bounds.Y > 0),
                 "Responsive post layout did not preserve its threshold or capped media measure.");

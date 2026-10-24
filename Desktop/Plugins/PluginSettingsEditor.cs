@@ -33,6 +33,7 @@ internal sealed class PluginSettingsEditor : StackPanel
     private readonly ErrorState _errorState;
     internal PluginSettingsDraft Draft { get; }
     internal Form SettingsForm { get; }
+    internal Button? SchemaAcknowledgement { get; }
 
     internal PluginSettingsEditor(PluginSettingsDraft draft, string scopeIdentity = "")
     {
@@ -44,6 +45,8 @@ internal sealed class PluginSettingsEditor : StackPanel
             StackPanel removed = new() { Spacing = 6 };
             removed.Children.Add(new TextBlock { Text = Texts.T("plugins.removedSettings") + "\n" + string.Join("\n", draft.UnmappedValues.Select(pair => pair.Key + " = " + pair.Value)), TextWrapping = TextWrapping.Wrap });
             Button acknowledge = new() { Content = Texts.T("plugins.acceptSchema") };
+            SchemaAcknowledgement = acknowledge;
+            AutomationProperties.SetAutomationId(acknowledge, "PluginSchemaAcknowledgement:" + draft.Scope + ":" + Uri.EscapeDataString(scopeIdentity));
             acknowledge.Click += (_, _) => { draft.AcknowledgeRemovedFields(); removed.IsVisible = false; };
             removed.Children.Add(acknowledge); Children.Add(removed);
         }
@@ -109,6 +112,7 @@ internal sealed class PluginSettingsEditor : StackPanel
                 {
                     set = new CheckBox { Content = Texts.T("plugins.valueSet"), IsChecked = draft.IsSet(field.Key) };
                     AutomationProperties.SetName(set, field.Label + ": " + Texts.T("plugins.valueSet"));
+                    AutomationProperties.SetAutomationId(set, FieldIdentity(draft.Scope, scopeIdentity, field.Key) + ":set");
                     input.IsEnabled = set.IsChecked == true;
                     set.IsCheckedChanged += (_, _) =>
                     {

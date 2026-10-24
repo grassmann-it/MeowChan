@@ -10,21 +10,16 @@ required for the corresponding plugin operations.
 1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied plugins include
    **Lainchan**, **Kohlchan**, **Wizchan**, **Endchan** and
    **Image dimensions (example)**. Selecting an entry shows
-   whether it is active or unavailable and why. Sources → source details →
+   its purpose, current status and available actions. Use the category selector
+   for sources, image filters or all plugins. Sources → source details →
    **Plugin settings and tests** is another route to that source's entry.
-2. To test source code, use **Open plugin folder** and put a trusted complete
-   `.cs` file directly there, for example the maintained
-   [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs). Choose **Refresh**
-   and select that file's candidate. **Source, editor and test** is available for
-   source-file candidates; the supplied prebuilt bundle has no source editor.
-   Choose **Build and test**, then enter a small supported thread URL and choose
-   **Fetch test URL**. The delivered compiler needs no installed .NET SDK.
-3. The probe reads metadata only; it creates no watch. To use that source-file
-   candidate for acquisition, explicitly choose **Use this candidate next start**
-   and restart, then add the URL in Downloads. An example copied beside its
-   supplied bundle keeps the same IDs, so the two are candidates of the same
-   plugin. Follow [Install a source file](#install-a-source-file) below for new
-   files and conflicts; a test or Refresh never silently replaces the active build.
+2. Choose **Enable plugin** or **Disable plugin** to change availability now.
+   These actions use the already selected valid build. **Source and watches**
+   opens the related source and its watched entries when available.
+3. Use **Actions** → **Open settings** to reach available plugin/source options.
+   Review your changes and choose **Save for next start**, then restart MeowChan
+   to use them. An **Unsaved draft** has not been saved; **Saved for next start**
+   is separate from the build and settings currently in use.
 4. To try the supplied dimensions filter, open Media rules for one intended
    source/thread, choose it under **Image filter**, set its width/height or
    orientation criteria, and **Grant required access for this scope**. Save the
@@ -35,6 +30,27 @@ Use an isolated preview profile and media folder for experiments. Only run plugi
 code you trust: a separate process still has your user permissions. A successful
 test leaves the active production build unchanged; saved plugin/source settings
 and candidate selections take effect at the next app start.
+
+## Purpose, status and actions
+
+The overview puts the plugin's purpose and status first, with its type and a
+compact version. Read any unavailable or attention message before acting.
+Descriptions labelled **Last known description** can come from an earlier saved
+build; they do not establish a successful current start. Plugin status describes
+local availability. It does not establish website reachability or successful
+downloads. The [dated live-source results](live-sources-2026-10-24.md) retain
+unresolved metadata conflicts for Kohlchan, Wizchan and Endchan.
+
+Right-click a plugin entry, or focus it and use the context-menu key (normally
+Shift+F10), for its actions. The **Actions** buttons offer the same choices.
+**Open details**, **Open settings**, **View permissions** and **Show developer
+details** take you to the relevant part of that plugin. Unavailable actions show
+their reason. Enable/disable does not save a settings draft; candidate selection
+and rollback remain choices for the next start.
+
+Expand **Developer details** for technical information, **Copy technical details**
+and source editing/testing tools. Ordinary plugin use does not require opening
+this section. To add or edit a trusted `.cs` source, follow the next sections.
 
 ## Install a source file
 
@@ -67,7 +83,8 @@ new source, not as a way to bypass an update or recover existing watches.
 
 ## Edit and test
 
-In the selected source-file candidate, expand **Source, editor and test**. **Open in editor**
+In the selected source-file candidate, expand **Developer details** and use
+**Source, editor and test**. **Open in editor**
 opens the saved source externally; MeowChan does not contain an embedded code
 editor. Editor preferences accept an executable and one argument per line, with
 `{file}`, `{line}` and `{column}` placeholders. A custom argument template must
@@ -78,6 +95,7 @@ fallback if editor handoff fails.
 Save the file in the editor, then choose **Build and test**. The compiler reads
 the saved bytes. The separate test worker validates the entry/description and
 settings; its successful result does not replace the active production worker.
+The delivered compiler needs no installed .NET SDK.
 Compiler diagnostics retain the source path, line and column when available.
 
 For a source plugin, enter a supported thread or board URL and choose **Fetch test
@@ -87,6 +105,10 @@ attachments, catalog entries, provider waits and failures. A preview of the firs
 100 entries is a UI limit; it is not permission for a parser to truncate results.
 The probe uses the same host HTTP policy and may consume provider request capacity.
 Use small local fixtures while developing.
+
+To use the tested build for downloads, explicitly choose **Use this build next
+start**, restart MeowChan, then add the supported URL in Downloads. A test or
+**Refresh status** does not activate the tested build.
 
 **Cancel operation** cancels the test; late results are ignored. A passing probe
 establishes neither normal acquisition nor persistence across restart. Those
@@ -99,11 +121,11 @@ need the [full source validation path](validation.md#source-and-filter-validatio
 | Active | The build and matching configuration currently selected for production |
 | Unsaved draft | Edits in the settings form; active values are unchanged |
 | Save for next start | Persist validated plugin/source settings for the next app start |
-| Use this candidate next start | Explicitly select a candidate for startup; does not hot-swap it now |
+| Use this build next start | Explicitly select a candidate for startup; does not hot-swap it now |
 | Saved for next app start | A pending build/configuration selection |
-| Use last good build next start | Select a retained good build with its matching configuration and pin the rollback |
-| Explicit rollback pinned | Startup keeps that selected fallback until another candidate is explicitly chosen |
-| Enable / Disable | Change availability now, using the already selected valid build; do not activate a pending test build or pending settings |
+| Use last good saved build next start | Select a retained good build with its matching configuration and pin the rollback |
+| Last good saved build pinned | Startup keeps that selected fallback until another candidate is explicitly chosen |
+| Enable plugin / Disable plugin | Change availability now, using the already selected valid build; do not activate a pending test build or pending settings |
 
 A selected update that fails at startup leaves the plugin unavailable with a
 reason. The host retains the last good version for an explicit rollback; it does
@@ -129,6 +151,12 @@ catalog](../../Desktop/Localization/PluginCatalog.cs).
 
 | English | Deutsch |
 | --- | --- |
+| Actions | Aktionen |
+| Open settings | Einstellungen öffnen |
+| Source and watches | Quelle und Watches |
+| Developer details | Entwicklerdetails |
+| Show developer details | Entwicklerdetails anzeigen |
+| Copy technical details | Technische Details kopieren |
 | Open plugin folder | Pluginordner öffnen |
 | Plugin settings and tests | Plugineinstellungen und Tests |
 | Source, editor and test | Source, Editor und Test |
@@ -137,7 +165,7 @@ catalog](../../Desktop/Localization/PluginCatalog.cs).
 | Fetch test URL | Test-URL abrufen |
 | Cancel operation | Vorgang abbrechen |
 | Save for next start | Für nächsten Start speichern |
-| Use this candidate next start | Diesen Kandidaten beim nächsten Start verwenden |
-| Use last good build next start | Letzte gute Fassung beim nächsten Start verwenden |
-| Enable / Disable | Aktivieren / Deaktivieren |
+| Use this build next start | Diese Fassung beim nächsten Start verwenden |
+| Use last good saved build next start | Letzte gute gespeicherte Fassung beim nächsten Start verwenden |
+| Enable plugin / Disable plugin | Plugin aktivieren / Plugin deaktivieren |
 | Revoke access | Zugriff widerrufen |

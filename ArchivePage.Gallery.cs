@@ -54,7 +54,7 @@ public partial class ArchivePage
 
     private async Task OpenAssetGalleryAsync(ArchiveAssetRow row, Control? origin)
     {
-        if (_selectedThread == null || OpenMediaGallery == null || _thread == null) return;
+        if (IsArchiveCleanupOpen || _selectedThread == null || OpenMediaGallery == null || _thread == null) return;
         CancelPendingGalleryOpen();
         int request = _gallerySelectionRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -69,7 +69,7 @@ public partial class ArchivePage
         try
         {
             GalleryEntry[] entries = await Task.Run(() => BuildVisibleGalleryEntries(thread, assets, visible), token);
-            if (_ended || token.IsCancellationRequested || request != _gallerySelectionRequest
+            if (_ended || IsArchiveCleanupOpen || token.IsCancellationRequested || request != _gallerySelectionRequest
                 || _selectedThread != threadId || !ReferenceEquals(_thread, thread) || !_showReader) return;
             GalleryEntry? selected = entries.FirstOrDefault(entry => entry.Key == key);
             if (selected != null) await OpenMediaGallery(entries, selected.EntryKey, origin);
