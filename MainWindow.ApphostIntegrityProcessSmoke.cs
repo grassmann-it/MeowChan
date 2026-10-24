@@ -25,7 +25,7 @@ public partial class MainWindow
         bool completed = false;
         string? failure = null;
         object? proof = null;
-        object? initialPolicy = null, finalPolicy = null, pluginProof = null;
+        object? initialPolicy = null, finalPolicy = null, pluginProof = null, galleryObservation = null;
         int[] workerPids = Array.Empty<int>();
         long? acceptedPolicyRevision = null;
 #pragma warning disable IL3000
@@ -146,8 +146,27 @@ public partial class MainWindow
             { using var copy = new MemoryStream(); await bytes.CopyToAsync(copy); RequireWorkflow(copy.ToArray().SequenceEqual(fixture.Http.Payload), "Verified accepted bytes differ."); }
             var restored = await new MediaStore().TryRestoreAsync(Item(provider), CancellationToken.None);
             RequireWorkflow(restored is { Reused: true } && restored.AssetId == binding.AssetId, "Exact restore required fresh acceptance.");
-            var gallery = GallerySelection.Build(captured.Thread, new[] { captured.Snapshot }).Entries.Single();
-            RequireWorkflow(gallery.Asset.AssetId == binding.AssetId && gallery.AttachmentResolution!.Binding == binding, "Gallery replaced historical binding.");
+            var galleryResult = GallerySelection.Build(captured.Thread, new[] { captured.Snapshot });
+            // Preserve the actual frozen inventory even if a later identity assertion fails.
+            galleryObservation = new { warnings = galleryResult.Warnings, entries = galleryResult.Entries.Select(entry => new {
+                entry.EntryKey, entry.Asset, entry.Historical, entry.Unassigned, postId = entry.Post?.PostId,
+                entry.Attachment, binding = entry.AttachmentResolution?.Binding, entry.ThreadUrl }).ToArray() };
+            var historicalKey = new GalleryEntryKey(new GalleryAssetKey(resource, captured.Snapshot.Directory, binding.AssetId),
+                binding.Reference.PostId, binding.Reference.Position);
+            var currentKey = new GalleryEntryKey(new GalleryAssetKey(resource, captured.Snapshot.Directory, current.AssetId), null, null);
+            RequireWorkflow(galleryResult.Warnings.Count == 0 && galleryResult.Entries.Count == 2
+                && galleryResult.Entries.Select(entry => entry.EntryKey).Distinct().Count() == 2,
+                "Gallery must contain exactly historical assigned A and current unassigned B.");
+            var gallery = galleryResult.Entries.Single(entry => entry.EntryKey == historicalKey);
+            var currentGallery = galleryResult.Entries.Single(entry => entry.EntryKey == currentKey);
+            RequireWorkflow(gallery.Asset == bound.Asset && gallery.AttachmentResolution?.Binding == binding
+                && gallery.Historical && !gallery.Unassigned && gallery.Post?.PostId == binding.Reference.PostId
+                && gallery.Attachment == captured.Attachment && gallery.ThreadUrl == captured.Thread.Summary.Url,
+                "Gallery replaced the exact assigned historical binding.");
+            RequireWorkflow(currentGallery.Asset == current && !currentGallery.Historical && currentGallery.Unassigned
+                && currentGallery.Post == null && currentGallery.Attachment == null && currentGallery.AttachmentResolution == null
+                && currentGallery.ThreadUrl == captured.Thread.Summary.Url,
+                "Gallery lost or assigned the separate current revision.");
             await using (var reader = await _session.OpenArchiveReaderAsync())
             {
                 var export = await ArchiveHtmlExporter.ExportAsync(reader, resource, Path.Combine(descriptor.Root, "export-policy-" + fixture.Phase));
@@ -176,6 +195,8 @@ public partial class MainWindow
             proof = new { binding, attachment = captured.Attachment, currentAssetId = current.AssetId,
                 currentSha256 = PolicyHash(laterBytes), galleryAssetId = gallery.Asset.AssetId,
                 exportSha256 = PolicyHash(fixture.Http.Payload), exactRestoreWithoutNewAcceptance = true,
+                galleryHistoricalEntryKey = gallery.EntryKey, galleryCurrentEntryKey = currentGallery.EntryKey,
+                galleryEntryCount = galleryResult.Entries.Count,
                 manifestSha256 = PolicyHash(await File.ReadAllBytesAsync(Path.Combine(captured.Snapshot.Directory, ".meowchan-manifest.json"))) };
             finalPolicy = Policy();
             workerPids = plugins.Runtime.GetSnapshots().Where(row => row.ProcessId.HasValue).Select(row => row.ProcessId!.Value).ToArray();
@@ -193,7 +214,7 @@ public partial class MainWindow
         {
             File.WriteAllText(Path.Combine(descriptor.Profile, "apphost-policy-process.json"), JsonSerializer.Serialize(new {
                 schemaVersion = 1, completed, failure, phase = fixture.Phase, profile = descriptor.Profile,
-                ownerToken = descriptor.OwnerToken, processId = Environment.ProcessId, workerPids, initialPolicy, finalPolicy, pluginProof, proof,
+                ownerToken = descriptor.OwnerToken, processId = Environment.ProcessId, workerPids, initialPolicy, finalPolicy, pluginProof, proof, galleryObservation,
                 normalShutdown = completed, profileLeaseReleased = completed, requests = fixture.Http.Requests.ToArray(),
                 unexpectedRequests = fixture.Http.Unexpected, renderScaling = RenderScaling,
                 processPath = Environment.ProcessPath, processSha256 = Environment.ProcessPath == null ? null : PolicyHash(File.ReadAllBytes(Environment.ProcessPath)),

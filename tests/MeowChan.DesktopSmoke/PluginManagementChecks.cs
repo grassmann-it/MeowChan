@@ -112,7 +112,10 @@ internal static partial class PluginManagementChecks
             await File.AppendAllTextAsync(source, "\n// saved source revision two\n");
             page.Select(candidateId);
             await page.BuildAndTestAsync();
-            Require(page.FindControl<TextBlock>("PluginTestStatus")!.Text?.Contains("passed", StringComparison.OrdinalIgnoreCase) == true,
+            PluginArtifact? testedArtifact = page.Selected?.Candidate?.Artifact;
+            Require(testedArtifact != null && testedArtifact.ExecutionRevision != original.Artifact!.ExecutionRevision
+                && !page.IsBusy && string.IsNullOrEmpty(page.FindControl<TextBlock>("PluginPageError")!.Text)
+                && page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.testPassed", testedArtifact.ExecutionRevision),
                 "The real build/test workflow did not report validated success: " + page.FindControl<TextBlock>("PluginPageError")!.Text);
             PluginProfileSnapshot tested = await profile.ReadAsync();
             Require(tested.Plugins.Single().Active!.ExecutionRevision == original.Artifact!.ExecutionRevision,
@@ -121,7 +124,7 @@ internal static partial class PluginManagementChecks
             Require(transportHandler.Requests == 0, "Build/describe/validation fetched a site without an explicit probe.");
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/42";
             await page.ProbeAsync();
-            Require(page.FindControl<TextBox>("PluginProbeResult")!.Text?.Contains("2 posts, 1 attachments", StringComparison.Ordinal) == true,
+            Require(page.FindControl<TextBox>("PluginProbeResult")!.Text?.Split('\n')[0] == Texts.T("plugins.threadResult", 2, 1),
                 "The real metadata probe did not show normalized posts/attachments: " + page.FindControl<TextBlock>("PluginPageError")!.Text);
             Require(transportHandler.Requests == 1 && transportHandler.OriginalRequests == 0, "Probe made unexpected HTTP requests.");
             Require(window.UrlList.Count == 0 && window.BoardsList.Count == 0, "Probe created a watch.");

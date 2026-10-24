@@ -198,7 +198,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1"
+                ? "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1"
                 ? "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1"
                 ? "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"
@@ -285,6 +287,11 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1")
+            {
+                await NativeImeChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1")
             {
                 await GalleryIntegrityChecks.RunAsync(mainWindow);

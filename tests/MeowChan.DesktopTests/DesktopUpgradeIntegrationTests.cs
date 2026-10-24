@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Updates;
@@ -68,8 +69,26 @@ public sealed class DesktopUpgradeIntegrationTests
                 Assert.Equal(MediaWorkStatus.Succeeded, Assert.Single(work.Media).Status);
                 ArchivedThreadView view = (await reader.ReadThreadAsync(id))!;
                 Assert.NotNull(view);
-                Assert.True(JsonElement.DeepEquals(old.GetProperty("Posts"), JsonSerializer.SerializeToElement(view.GetPosts())),
-                    "Migrated posts differ from the old captured structure.");
+                IReadOnlyList<CapturedPost> migratedPosts = view.GetPosts();
+                // Preserve every original receipt field, array and value. Only the two
+                // additive nullable attachment properties are absent in the pinned 0.9 DTO.
+                JsonArray expectedPosts = JsonNode.Parse(old.GetProperty("Posts").GetRawText())!.AsArray();
+                foreach (JsonNode? post in expectedPosts)
+                    foreach (JsonNode? node in post!["Attachments"]!.AsArray())
+                    {
+                        JsonObject attachment = node!.AsObject();
+                        Assert.False(attachment.ContainsKey(nameof(CapturedAttachment.ExpectedSha256)));
+                        Assert.False(attachment.ContainsKey(nameof(CapturedAttachment.AttachmentRevisionKey)));
+                        attachment.Add(nameof(CapturedAttachment.ExpectedSha256), null);
+                        attachment.Add(nameof(CapturedAttachment.AttachmentRevisionKey), null);
+                    }
+                Assert.All(migratedPosts.SelectMany(post => post.Attachments ?? Array.Empty<CapturedAttachment>()), attachment =>
+                {
+                    Assert.Null(attachment.ExpectedSha256);
+                    Assert.Null(attachment.AttachmentRevisionKey);
+                });
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedPosts), JsonSerializer.SerializeToElement(migratedPosts)),
+                    "Migrated posts differ from the old captured structure plus explicit null integrity defaults.");
                 Assert.Equal(old.GetProperty("MediaDirectory").GetString(), view.Summary.MediaDirectory);
                 MediaAssetReference asset = Assert.Single((await MediaAssetReader.OpenAsync(view.Summary.MediaDirectory)).GetPage());
                 Assert.Equal(old.GetProperty("Asset").Deserialize<MediaAssetReference>(), asset);

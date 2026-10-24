@@ -1,5 +1,5 @@
 """Native AT-SPI observer/actor. Only run inside the private session wrapper."""
-import ctypes,ctypes.util,json,os,sys,time
+import ctypes,ctypes.util,datetime,json,os,re,sys,time
 from pathlib import Path
 from x11_focus import ensure_target
 from private_guard import require_private_session
@@ -7,6 +7,8 @@ import gi
 gi.require_version('Atspi','2.0')
 from gi.repository import Atspi,GLib
 out=Path(sys.argv[1]); pid=int(sys.argv[2]); exchange=out/'exchange'; events=(out/'native-events.jsonl').open('w'); findings=[]
+focus_events=[]
+stage_deadline=0
 state_names={int(getattr(Atspi.StateType,name)):name.lower() for name in dir(Atspi.StateType) if name.isupper() and isinstance(getattr(Atspi.StateType,name),int)}
 require_private_session()
 Atspi.set_timeout(1500,1500)
@@ -27,6 +29,7 @@ def event(e,*_):
     data=e.any_data
     if isinstance(data,(str,int,bool,float)):record['data']=data
     events.write(json.dumps(record,ensure_ascii=False)+'\n');events.flush()
+    if e.type=='object:state-changed:focused':focus_events.append(record)
 listener=Atspi.EventListener.new(event)
 for kind in ['object:state-changed:focused','object:property-change:accessible-name','object:announcement','window:activate']:
     try:listener.register(kind)
@@ -65,18 +68,84 @@ def invoke(node,stage):
     okay=safe(lambda:node.get_action_iface().do_action(0),False) if count else False
     require(stage+' native action',okay,info(node));pump(.8)
 
-def record_focus(stage,node,hold=1.2):
+def same_target(value,target):
+    return bool(value and target and value['name']==target['name'] and value['role']==target['role']
+                and (value['id']==target['id'] if target.get('id') else True))
+
+def log_time(line,reference):
+    match=re.match(r'(\d\d):(\d\d):(\d\d\.\d+) - ',line)
+    if not match:return None
+    date=datetime.datetime.fromtimestamp(reference)
+    clock=int(match[1])*3600+int(match[2])*60+float(match[3])
+    stamp=date.replace(hour=0,minute=0,second=0,microsecond=0).timestamp()+clock
+    if stamp-reference>43200:stamp-=86400
+    elif reference-stamp>43200:stamp+=86400
+    return stamp
+
+def record_focus(stage,node):
     # A repeated focus request need not emit an Orca utterance: first leave by a real Tab.
+    left=True
     if node is not None and 'focused' in info(node)['states']:
         generated=native_key();pump(.25)
-        require(stage+' leave before refocus',generated and 'focused' not in info(node)['states'])
-    start=time.time(); requested=safe(lambda:node.get_component_iface().grab_focus(),False) if node else False
-    pump(hold)
+        left=generated and 'focused' not in info(node)['states']
+        require(stage+' leave before refocus',left)
+    target=info(node)
+    event_start=len(focus_events)
+    with (out/'orca-debug.log').open(errors='replace') as speech:
+        speech.seek(0,2) # Completed utterances from before this request can never satisfy it.
+        start=time.time(); requested=safe(lambda:node.get_component_iface().grab_focus(),False) if node and left else False
+        target_event=None;orca_focus=None;utterance=None;focus_lost=False;orca_focus_lost=False
+        pending_lines=[];processed=0;event_cursor=event_start
+        # This is a completion barrier inside the existing checkpoint, never a retry or a new timeout.
+        while requested and time.monotonic()<stage_deadline:
+            pump(.04)
+            new_events=focus_events[event_cursor:];event_cursor=len(focus_events)
+            for item in new_events:
+                if item['t']<start:continue
+                if item['detail1']==1:
+                    if same_target(item['source'],target):
+                        if target_event is None:target_event=item
+                    elif target_event is not None:focus_lost=True
+                elif item['detail1']==0 and target_event is not None and same_target(item['source'],target):
+                    focus_lost=True
+            if focus_lost:break
+            while True:
+                offset=speech.tell();line=speech.readline()
+                if not line:break
+                if not line.endswith('\n'):
+                    speech.seek(offset);break
+                stamp=log_time(line,start)
+                if stamp is not None and stamp>=start:pending_lines.append((stamp,line))
+            # The two DBus consumers can receive the same event in either order.
+            # Keep post-request Orca records until the exact native target event is observed.
+            if target_event:
+                for stamp,line in pending_lines[processed:]:
+                    target_description='to ['+target['role']+': '+repr(target['name'])+' ('
+                    if 'FOCUS MANAGER: Changing locus of focus from ' in line:
+                        if target_description in line:
+                            orca_focus={'t':stamp,'line':line.rstrip()}
+                        elif orca_focus:
+                            orca_focus_lost=True;break
+                    if orca_focus and stamp>=orca_focus['t'] and ' - SPEECH OUTPUT: '+repr(target['name']) in line:
+                        utterance={'t':stamp,'line':line.rstrip()};break
+                processed=len(pending_lines)
+            if utterance or orca_focus_lost:break
     value=info(node)
+    current_focus=[v for _,v in tree() if 'focused' in v['states']]
+    pump(.02)
+    value=info(node)
+    subsequent=[item for item in focus_events[event_start:] if target_event and item['t']>target_event['t']
+                and ((item['detail1']==1 and not same_target(item['source'],target))
+                     or (item['detail1']==0 and same_target(item['source'],target)))]
+    matched=bool(target_event and orca_focus and utterance and not focus_lost and not orca_focus_lost and not subsequent
+                 and value and 'focused' in value['states'] and same_target(value,target))
     result={'stage':stage,'start':start,'end':time.time(),'requested':requested,'target':value,
-            'focused_nodes':[v for _,v in tree() if 'focused' in v['states']]}
+            'focused_nodes':current_focus,'nativeFocusEvent':target_event,'orcaFocusTransition':orca_focus,
+            'orcaUtterance':utterance,'subsequentFocusChanges':subsequent,'orcaFocusLost':orca_focus_lost,'completionMatched':matched,
+            'scope':'New exact target native focus event, following Orca locus transition and exact utterance; no later focus transition before completion.'}
     (out/(stage+'-focus.json')).write_text(json.dumps(result,indent=2,ensure_ascii=False)+'\n')
     require(stage+' actual focus',value is not None and 'focused' in value['states'],result)
+    require(stage+' event-bound Orca completion',matched,result)
     return result
 
 def visible(nodes,identity,names=()):
@@ -137,7 +206,8 @@ def inspect_stage(stage):
         if probe['requireInitialFocus']:
             require(label+' initial native focus','focused' in value['states'],value)
         if probe['focusable'] and probe['enabled']:
-            record_focus(label.replace(':','_').replace('/','_'),node,1.2)
+            result=record_focus(label.replace(':','_').replace('/','_'),node)
+            if not result['completionMatched']:return
     # One real XTest Tab from the first enabled focusable probe, then restore.
     first=next((match(tree(),p) for p in stage['probes'] if p['focusable'] and p['enabled']),None)
     if first is not None:
@@ -170,6 +240,8 @@ try:
         try:stage=json.loads((exchange/'stage.json').read_text())
         except (OSError,ValueError,KeyError):continue
         if stage['id'] in seen:continue
+        # Leave ten seconds of the unchanged 55-second C# deadline for final snapshots/ack.
+        stage_deadline=time.monotonic()+max(0,45-max(0,time.time()-(exchange/'stage.json').stat().st_mtime))
         if stage.get('pid')!=pid:raise RuntimeError('Checkpoint PID does not belong to launched app')
         seen.add(stage['id']);families.add(stage['family'])
         try:inspect_stage(stage)

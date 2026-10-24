@@ -51,6 +51,14 @@ first left by a real Tab before refocusing, so an actual new Orca utterance can 
 observed without relying on a duplicate focus request. No text is entered and
 no action button is invoked by this observer.
 
+Each future focus interval ends only after a new exact target native focus event,
+a following Orca locus transition to that name/role, and its exact name utterance
+from newly appended debug records. A subsequent focus loss/other target fails the
+probe. This live completion barrier uses the existing 55-second C# checkpoint
+deadline (45 seconds from stage publication for observation, then final evidence
+and acknowledgement); it adds no retry or global timeout. Old failed intervals
+remain unchanged and must be rerun against a separately bound source freeze.
+
 Native roles are recorded and required to be nonempty/known; this observer does
 not assert a complete control-type-to-role mapping.
 
