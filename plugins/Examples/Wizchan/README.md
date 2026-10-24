@@ -1,4 +1,4 @@
-# Wizchan example source
+# Wizchan source plugin
 
 Complete editable SDK-only `Wizchan.cs`; entry type `MeowChan.Plugins.Examples.Wizchan.WizchanPlugin`, plugin ID `meowchan.source.wizchan`, source ID `wizchan`. Project `MeowChan.Plugin.Wizchan.csproj` builds `MeowChan.Plugin.Wizchan.dll`; delivery includes the prebuilt assembly and editable source. Both share the plugin ID and use the existing explicit candidate-selection policy. No settings or external helper files are required. The SDK is not promised stable in 1.x.
 

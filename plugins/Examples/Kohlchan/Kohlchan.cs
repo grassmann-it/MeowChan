@@ -18,16 +18,16 @@ public sealed class KohlchanPlugin : ISourcePlugin
     private static readonly Uri Origin = new Uri("https://" + Host + "/");
     private static readonly SettingsSchema EmptySchema = new SettingsSchema("1", Array.Empty<SettingDefinition>());
 
-    public PluginDescription Describe() => new PluginDescription("meowchan.source.kohlchan", "Kohlchan — example source",
+    public PluginDescription Describe() => new PluginDescription("meowchan.source.kohlchan", "Kohlchan",
         "1.0.0", SdkContract.Version,
-        "Editable example source. Limited public API observations and synthetic fixtures; full product acceptance remains separate.",
+        "Reads Kohlchan threads and board catalogs, including post text and original-file links.",
         [Description()], Array.Empty<FilterDescription>(), EmptySchema,
-        [new InformationEntry("support", "Support status", InformationKind.Text,
-            "Example source; bounded metadata access observed on 2026-10-22. See README for remaining acceptance checks."),
-         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No global board list or previews. Catalog coverage is conservative; bounded live catalogs exceeded the evidence limit.")],
+        [new InformationEntry("support", "Accepted links", InformationKind.Text,
+            "Accepts board and thread links from kohlchan.net."),
+         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No automatic board list or previews. Catalogs may be incomplete.")],
         Author: "MeowChan contributors", DocumentationUrl: new Uri("https://kohlchan.net/info.html"));
 
-    private static SourceDescription Description() => new SourceDescription(SourceId, "Kohlchan — example source", Origin,
+    private static SourceDescription Description() => new SourceDescription(SourceId, "Kohlchan", Origin,
         SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
         [new UrlRoute(SourceResourceKind.Board, Host, "/{board}/", IsCanonical: true),
          new UrlRoute(SourceResourceKind.Thread, Host, "/{board}/res/{thread}.html", IsCanonical: true, AllowTrailingSlash: false)],

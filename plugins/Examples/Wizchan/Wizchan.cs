@@ -18,16 +18,16 @@ public sealed class WizchanPlugin : ISourcePlugin
     private static readonly Uri Origin = new Uri("https://" + Host + "/");
     private static readonly SettingsSchema EmptySchema = new SettingsSchema("1", Array.Empty<SettingDefinition>());
 
-    public PluginDescription Describe() => new PluginDescription("meowchan.source.wizchan", "Wizchan — example source",
+    public PluginDescription Describe() => new PluginDescription("meowchan.source.wizchan", "Wizchan",
         "1.0.0", SdkContract.Version,
-        "Editable example source. Limited public API observations and synthetic fixtures; full product acceptance remains separate.",
+        "Reads Wizchan threads and board catalogs, including post text and original-file links.",
         [Description()], Array.Empty<FilterDescription>(), EmptySchema,
-        [new InformationEntry("support", "Support status", InformationKind.Text,
-            "Example source; bounded metadata access observed on 2026-10-24. See README for remaining acceptance checks."),
-         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No global board list, previews or verified archive flag. Catalog coverage is conservative.")],
+        [new InformationEntry("support", "Accepted links", InformationKind.Text,
+            "Accepts board and thread links from wizchan.org."),
+         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No automatic board list or previews. Catalogs may be incomplete. Archived threads are not detected.")],
         Author: "MeowChan contributors", DocumentationUrl: new Uri("https://github.com/fallenPineapple/NPFchan"));
 
-    private static SourceDescription Description() => new SourceDescription(SourceId, "Wizchan — example source", Origin,
+    private static SourceDescription Description() => new SourceDescription(SourceId, "Wizchan", Origin,
         SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
         [new UrlRoute(SourceResourceKind.Board, Host, "/{board}/", IsCanonical: true),
          new UrlRoute(SourceResourceKind.Board, Host, "/{board}/index.html", AllowTrailingSlash: false),

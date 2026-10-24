@@ -18,16 +18,16 @@ public sealed class LainchanPlugin : ISourcePlugin
     private static readonly Uri Origin = new Uri("https://" + Host + "/");
     private static readonly SettingsSchema EmptySchema = new SettingsSchema("1", Array.Empty<SettingDefinition>());
 
-    public PluginDescription Describe() => new PluginDescription("meowchan.source.lainchan", "Lainchan — example source",
+    public PluginDescription Describe() => new PluginDescription("meowchan.source.lainchan", "Lainchan",
         "1.0.0", SdkContract.Version,
-        "Editable example source. Limited public API observations and synthetic fixtures; full product acceptance remains separate.",
+        "Reads Lainchan threads and board catalogs, including post text and original-file links.",
         [Description()], Array.Empty<FilterDescription>(), EmptySchema,
-        [new InformationEntry("support", "Support status", InformationKind.Text,
-            "Example source; bounded metadata access observed on 2026-10-22. See README for remaining acceptance checks."),
-         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No global board list, previews or verified archive flag. Catalog coverage is conservative.")],
+        [new InformationEntry("support", "Accepted links", InformationKind.Text,
+            "Accepts board and thread links from lainchan.org."),
+         new InformationEntry("limitations", "Limitations", InformationKind.Text, "No automatic board list or previews. Catalogs may be incomplete. Archived threads are not detected.")],
         Author: "MeowChan contributors", DocumentationUrl: new Uri("https://github.com/lainchan/lainchan"));
 
-    private static SourceDescription Description() => new SourceDescription(SourceId, "Lainchan — example source", Origin,
+    private static SourceDescription Description() => new SourceDescription(SourceId, "Lainchan", Origin,
         SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia,
         [new UrlRoute(SourceResourceKind.Board, Host, "/{board}/", IsCanonical: true),
          new UrlRoute(SourceResourceKind.Thread, Host, "/{board}/res/{thread}.html", IsCanonical: true, AllowTrailingSlash: false)],

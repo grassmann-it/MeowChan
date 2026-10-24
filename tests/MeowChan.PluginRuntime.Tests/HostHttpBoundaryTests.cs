@@ -23,20 +23,24 @@ public sealed class HostHttpBoundaryTests
         HostHttpFailure result = Assert.IsType<HostHttpFailure>(await http.SendAsync(Request()));
         Assert.Equal("http-redirect", result.Failure.Code); Assert.Equal(1, sent);
     }
-    [Fact]
-    public async Task AllowedRedirectUsesSamePolicyAndReturnsFinalDestination()
+    [Theory]
+    [InlineData(null)] [InlineData("ConfiguredHost/1.0")]
+    public async Task AllowedRedirectUsesSamePolicyAndReturnsFinalDestination(string? transportUserAgent)
     {
         int sent = 0;
         using HttpClient transport = new(new Handler(request =>
         {
             sent++;
+            Assert.Equal(transportUserAgent ?? "MeowChan", request.Headers.UserAgent.ToString());
             HttpResponseMessage response = new(sent == 1 ? HttpStatusCode.MovedPermanently : HttpStatusCode.OK) { RequestMessage = request, Content = new StringContent("metadata") };
             if (sent == 1) response.Headers.Location = new("/second", UriKind.Relative);
             return response;
         }));
+        if (transportUserAgent != null) transport.DefaultRequestHeaders.UserAgent.ParseAdd(transportUserAgent);
         using PluginHostHttp http = new(transport, new RequestPolicyState(), new FixturePlugin().Describe().Sources);
         HostHttpResponse result = Assert.IsType<HostHttpResponse>(await http.SendAsync(Request()));
         Assert.Equal("https://fixture.test/second", result.FinalUri.AbsoluteUri); Assert.Equal(2, sent);
+        Assert.Equal(transportUserAgent ?? "", transport.DefaultRequestHeaders.UserAgent.ToString());
         Assert.Equal("metadata", System.Text.Encoding.UTF8.GetString(result.Body));
     }
     [Theory]
@@ -66,8 +70,12 @@ public sealed class HostHttpBoundaryTests
         using HttpClient transport = new(new Handler(request => { sent++; return new(HttpStatusCode.OK) { RequestMessage = request, Content = new ByteArrayContent([1, 2, 3]) }; }));
         using PluginHostHttp http = new(transport, new RequestPolicyState(), new FixturePlugin().Describe().Sources);
         Assert.Empty(Assert.IsType<HostHttpResponse>(await http.SendAsync(Request() with { Method = HostHttpMethod.Head })).Body);
-        HostHttpResult bad = await http.SendAsync(Request() with { Headers = new Dictionary<string, string> { ["Authorization"] = "not-allowed" } });
-        Assert.IsType<HostHttpFailure>(bad); Assert.Equal(1, sent);
+        foreach (string header in new[] { "Authorization", "User-Agent" })
+        {
+            HostHttpResult bad = await http.SendAsync(Request() with { Headers = new Dictionary<string, string> { [header] = "not-allowed" } });
+            Assert.Equal("http-request", Assert.IsType<HostHttpFailure>(bad).Failure.Code);
+        }
+        Assert.Equal(1, sent);
     }
     private static HostHttpRequest Request() => new("fixture", HostHttpMethod.Get, new("https://fixture.test/api"));
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> send) : HttpMessageHandler

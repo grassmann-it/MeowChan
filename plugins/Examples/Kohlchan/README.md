@@ -1,4 +1,4 @@
-# Kohlchan example source
+# Kohlchan source plugin
 
 `Kohlchan.cs` is a complete editable single-file LynxChan example. It references
 only .NET and `MeowChan.PluginSdk`; there is no Core, UI, host implementation or

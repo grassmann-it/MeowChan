@@ -9,16 +9,20 @@ namespace MeowChan.ExamplePlugins.Tests;
 public sealed class ExamplePluginTests
 {
     [Fact]
-    public void DescriptionsAreInertDistinctSdkOnlyExamples()
+    public void DescriptionsAreInertDistinctSdkOnlySources()
     {
         PluginDescription[] descriptions = [new LainchanPlugin().Describe(), new KohlchanPlugin().Describe()];
         Assert.Empty(SdkValidation.ValidateDescriptions(descriptions));
+        Dictionary<string, string> expectedNames = new(StringComparer.Ordinal)
+        { ["lainchan"] = "Lainchan", ["kohlchan"] = "Kohlchan" };
         Assert.All(descriptions, description =>
         {
             Assert.Empty(description.Settings.Fields);
-            Assert.Contains("example", description.Name, StringComparison.OrdinalIgnoreCase);
             Assert.Single(description.Sources);
             SourceDescription source = description.Sources[0];
+            Assert.Contains(source.SourceId, expectedNames.Keys);
+            Assert.Equal(expectedNames[source.SourceId], description.Name);
+            Assert.Equal(expectedNames[source.SourceId], source.Name);
             Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
             Assert.False(source.Capabilities.HasFlag(SourceCapabilities.Previews));
             Assert.Equal("/{board}/res/{thread}.html", Assert.Single(source.Routes, route => route.Kind == SourceResourceKind.Thread).PathTemplate);

@@ -1,4 +1,4 @@
-# Lainchan example source
+# Lainchan source plugin
 
 `Lainchan.cs` is a complete editable single-file plugin. It references only .NET and
 `MeowChan.PluginSdk`; there is no Core, UI, host implementation or helper-source

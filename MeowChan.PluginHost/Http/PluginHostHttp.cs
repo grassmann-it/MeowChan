@@ -31,6 +31,8 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             if (!_clients.TryGetValue(request.SourceId, out client!))
             {
                 client = new HttpClient(new RequestPolicyHandler(_transport, request.SourceId, _policy)) { Timeout = Timeout.InfiniteTimeSpan };
+                if (_transport.DefaultRequestHeaders.UserAgent.Count == 0)
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("MeowChan");
                 _clients.Add(request.SourceId, client);
             }
         }

@@ -1,4 +1,4 @@
-# Endchan example source
+# Endchan source plugin
 
 `Endchan.cs` is the complete editable SDK-only plugin. The separately built
 `MeowChan.Plugin.Endchan.dll` uses the same plugin ID `meowchan.source.endchan`

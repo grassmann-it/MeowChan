@@ -7,7 +7,7 @@ required for the corresponding plugin operations.
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied examples include
+1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied plugins include
    **Lainchan**, **Kohlchan**, **Wizchan**, **Endchan** and
    **Image dimensions (example)**. Selecting an entry shows
    whether it is active or unavailable and why. Sources → source details →

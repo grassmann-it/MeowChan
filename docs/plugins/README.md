@@ -7,7 +7,7 @@ limits](validation.md) for what each check establishes.
 
 For a first try, open **Plugins** in the app menu or footer (under **Tools** in compact views) and follow the
 [first-session recipe](using-plugins.md#first-session). The supplied prebuilt
-examples are already listed. Testing editable source uses a separate single-file
+plugins are already listed. Testing editable source uses a separate single-file
 candidate and the delivered compiler, with no developer SDK required.
 
 - [Install, edit, test and activate a plugin](using-plugins.md)
@@ -27,19 +27,19 @@ and release notes under **Breaking (Library/SDK)** when upgrading.
 Use the linked source files directly. Each plugin entry below is a complete,
 editable `.cs` file; there is no separate documentation copy to keep in sync.
 
-| Example | What it demonstrates | Scope |
+| Plugin or sample | What it demonstrates | Scope |
 | --- | --- | --- |
-| [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs) · [notes and evidence](../../plugins/Examples/Lainchan/README.md) | Thread/catalog parsing, field presence, ordered primary/additional files, validators | Example source; limited public metadata observations, no invented archive flag |
-| [Kohlchan.cs](../../plugins/Examples/Kohlchan/Kohlchan.cs) · [notes and evidence](../../plugins/Examples/Kohlchan/README.md) | LynxChan OP/reply shape, multiple files, original paths, final archived snapshot | Example source; full live catalog parsing remains unconfirmed in the bounded evidence collection |
-| [Wizchan.cs](../../plugins/Examples/Wizchan/Wizchan.cs) · [notes and evidence](../../plugins/Examples/Wizchan/README.md) | Independent SDK-only source, thread/catalog metadata and ordered attachments | Supplied example source; see provider notes for evidence and limits |
-| [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Supplied example source; see provider notes for evidence and limits |
+| [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs) · [notes and evidence](../../plugins/Examples/Lainchan/README.md) | Thread/catalog parsing, field presence, ordered primary/additional files, validators | Source plugin; no archived-thread detection; see provider notes for evidence and limits |
+| [Kohlchan.cs](../../plugins/Examples/Kohlchan/Kohlchan.cs) · [notes and evidence](../../plugins/Examples/Kohlchan/README.md) | LynxChan OP/reply shape, multiple files, original paths, final archived snapshot | Source plugin; catalog coverage remains limited; see provider notes for evidence and limits |
+| [Wizchan.cs](../../plugins/Examples/Wizchan/Wizchan.cs) · [notes and evidence](../../plugins/Examples/Wizchan/README.md) | Independent SDK-only source, thread/catalog metadata and ordered attachments | Source plugin; see provider notes for evidence and limits |
+| [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Source plugin; see provider notes for evidence and limits |
 | [ImageDimensionsFilter.cs](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Scoped rule schema, domain validation, token-based original-byte reads | Static JPEG/PNG dimensions and aspect ratio; no OCR or general image decoding |
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
 | [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and provider differences | Official source implementations; registration is not a live-health claim |
 
-Wizchan and Endchan are supplied as SDK-only example sources. The delivery
+Wizchan and Endchan are supplied as SDK-only source plugins. The delivery
 contains **seven plugins, six sources and five editable files**: 4chan/8kun plus
-the four example sources, and the dimensions filter. The editable files are
+the four source plugins, and the dimensions filter. The editable files are
 Lainchan, Kohlchan, Wizchan, Endchan and the filter. See the
 [dated local validation results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
 for the tested candidate and its limits.
