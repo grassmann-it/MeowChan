@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Offline current-source prerelease candidate inventory; never publishes anything.
+"""Offline current-source candidate inventory; never publishes anything.
 
-Inputs must come from ONE successful prerelease-candidate Actions run. Native
-execution reports identify the actual managed version/commit, not just filenames.
+Inputs must come from ONE successful matching prerelease-candidate or stable-candidate
+Actions run. The default channel remains prerelease; stable requires explicit opt-in.
+Native execution reports identify the actual managed version/commit, not just filenames.
 The fixed 0.9 retained-release assembler/upload contract remains independent.
 """
 from __future__ import annotations
@@ -29,7 +30,7 @@ def helper(name, filename):
 
 
 # This module instance belongs only to this command. Do not change the stable
-# script's defaults or offer retained platform source overrides for prereleases.
+# script's defaults or offer retained platform source overrides for current-source candidates.
 retained = helper('prerelease_package_contracts', 'assemble-stable-release.py')
 layout = helper('prerelease_legal_contract', 'check-desktop-package.py')
 mac_sources = helper('prerelease_mac_sources', 'package-macos-sources.py')
@@ -43,16 +44,18 @@ def committed_file(repository: Path, source: str, name: str) -> bytes:
     return subprocess.check_output(['git', '-C', str(repository), 'show', source + ':' + name])
 
 
-def validate_version(version: str) -> None:
+def validate_version(version: str, channel: str = 'prerelease') -> None:
+    require(channel in ('prerelease', 'stable'), 'Expected prerelease or stable candidate channel')
     mac_sources.METADATA.bundle_metadata(version)
-    require(version.startswith('1.') and '-' in version and '+' not in version,
-            'Expected a 1.x prerelease without build metadata')
+    require(version.startswith('1.') and '+' not in version
+            and (('-' in version) if channel == 'prerelease' else ('-' not in version)),
+            f'Expected a 1.x {channel} version without build metadata')
 
 
 def committed_legal(repository: Path, source: str, version: str) -> dict[str, bytes]:
     props = ET.fromstring(committed_file(repository, source, 'Directory.Build.props'))
     require([node.text for node in props.iter('Version')] == [version],
-            'Committed product version differs from requested prerelease')
+            'Committed product version differs from requested candidate')
     return {name: committed_file(repository, source, name) for name in layout.LEGAL_FILES}
 
 
@@ -149,7 +152,7 @@ def check_mac(root: Path, source: str, version: str, legal: dict) -> None:
         with zipfile.ZipFile(archive) as package:
             import plistlib
             metadata = plistlib.loads(package.read('MeowChan.app/Contents/Info.plist'))
-        require(metadata.get('MeowChanProductVersion') == version, 'Mac full prerelease identity missing')
+        require(metadata.get('MeowChanProductVersion') == version, 'Mac full product identity missing')
         require(metadata.get('CFBundleShortVersionString') == metadata.get('CFBundleVersion') == version.split('-')[0],
                 'Mac numeric bundle version mismatch')
 
@@ -178,8 +181,8 @@ def packages(root: Path, source: str, version: str, legal: dict) -> dict[str, Pa
 
 
 def assemble(root: Path, source: str, version: str, source_base: Path, output: Path,
-             repository: Path, run_id: str) -> None:
-    validate_version(version)
+             repository: Path, run_id: str, channel: str = 'prerelease') -> None:
+    validate_version(version, channel)
     require(retained.COMMIT.fullmatch(source) is not None, 'Expected full lowercase source commit SHA')
     require(re.fullmatch(r'[1-9][0-9]*', run_id) is not None, 'Expected originating Actions run ID')
     require(not output.exists() and not output.is_symlink(), 'Output already exists')
@@ -194,7 +197,7 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
     check_mac(root, source, version, legal)
     nuget = packages(root, source, version, legal)
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.meowchan-prerelease-', dir=output.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix='.meowchan-current-source-', dir=output.parent) as temporary:
         staged = Path(temporary) / 'candidate'
         retained.assemble(root, source, source_base, staged)
         for name, origin in nuget.items():
@@ -207,7 +210,7 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
             records.append({'file': path.name, 'bytes': path.stat().st_size, 'sha256': digest(path),
                             'source_commit': None if path.name == retained.BASE_NAME else source})
         require(len(records) == 16, 'Expected 13 desktop/source and three developer package assets')
-        inventory = {'schema': 'meowchan.prerelease-candidate.v1', 'version': version,
+        inventory = {'schema': f'meowchan.{channel}-candidate.v1', 'channel': channel, 'version': version,
                      'source_commit': source, 'actions_run_id': run_id, 'assets': records,
                      'scope': 'Current-source CI candidate inventory. No publication or complete R10-12/native user acceptance claim.',
                      'native_signing': 'macOS ad-hoc; no Developer ID, notarization or Gatekeeper acceptance claim',
@@ -225,16 +228,18 @@ def main():
     parser.add_argument('--artifacts-root', required=True, type=Path)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--channel', choices=('prerelease', 'stable'), default='prerelease',
+                        help='stable explicitly opts into a current-source stable 1.x candidate')
     parser.add_argument('--source-base', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--repository', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--run-id', required=True)
     args = parser.parse_args()
     try:
-        assemble(args.artifacts_root, args.source_commit, args.version, args.source_base, args.output, args.repository, args.run_id)
+        assemble(args.artifacts_root, args.source_commit, args.version, args.source_base, args.output, args.repository, args.run_id, args.channel)
     except (OSError, ValueError, KeyError, TypeError, tarfile.TarError, zipfile.BadZipFile, ET.ParseError, subprocess.SubprocessError) as error:
-        parser.exit(1, f'Prerelease inventory rejected: {error}\n')
-    print(f'Staged current-source prerelease candidate and checksums in {args.output}')
+        parser.exit(1, f'Current-source inventory rejected: {error}\n')
+    print(f'Staged current-source {args.channel} candidate and checksums in {args.output}')
 
 
 if __name__ == '__main__':

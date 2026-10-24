@@ -10,13 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Full validation, current-source prerelease candidate, package-media playback, native packaging, diagnosis, or optional Homebrew
+        description: Full validation, current-source prerelease/stable candidate, package-media playback, native packaging, diagnosis, or optional Homebrew
         type: choice
         required: true
         default: validate
         options:
           - validate
           - prerelease-candidate
+          - stable-candidate
           - macos-diagnose
           - macos-package
           - package-media
@@ -56,7 +57,7 @@ concurrency:
 
 jobs:
   validate:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate'
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
     strategy:
       fail-fast: false
       matrix:
@@ -65,8 +66,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
-      - name: Require the complete prerelease candidate matrix
-        if: inputs.mode == 'prerelease-candidate'
+      - name: Require the complete current-source candidate matrix
+        if: (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         shell: bash
         run: |
           test "${{ inputs.platform }}" = all
@@ -85,7 +86,7 @@ jobs:
         shell: bash
         run: |
           api_args=()
-          if [[ "$GITHUB_REF" == refs/tags/v* || "${{ inputs.mode }}" == prerelease-candidate ]]; then
+          if [[ "$GITHUB_REF" == refs/tags/v* || "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
             api_args+=(--release)
           fi
           python scripts/check-public-api.py "${api_args[@]}"
@@ -204,7 +205,7 @@ jobs:
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   library-package:
-    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate') && inputs.scenario != 'selection')
+    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario != 'selection')
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -347,7 +348,7 @@ jobs:
           retention-days: 7
 
   macos-package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
     strategy:
       fail-fast: false
       matrix:
@@ -420,13 +421,13 @@ jobs:
       - name: Start and gracefully stop the actual DMG-installed apphost
         run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
       - name: Exercise native gallery playback from the DMG-installed apphost
-        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
+        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
       - name: Exercise the DMG-installed apphost download, restore, export and desktop workflow
-        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
+        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
       - name: Retain playback-verified native DMG candidate, inventory ZIP and evidence
-        if: inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate'
+        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         uses: actions/upload-artifact@v7
         with:
           name: macos-native-candidate-${{ matrix.runtime }}
@@ -446,7 +447,7 @@ jobs:
           retention-days: 7
 
   package-media:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate')
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'))
     strategy:
       fail-fast: false
       matrix:
@@ -525,7 +526,7 @@ jobs:
           retention-days: 7
 
   linux-distribution:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution' || inputs.mode == 'prerelease-candidate')
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'linux-distribution' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'))
     strategy:
       fail-fast: false
       matrix:
@@ -637,7 +638,7 @@ jobs:
           retention-days: 7
 
   macos-source-candidate:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || inputs.mode == 'prerelease-candidate')
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'))
     needs: [macos-package, package-media, linux-distribution]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -790,8 +791,8 @@ jobs:
 
   # Explicit opt-in: same-run full validation plus all five native package jobs.
   # Actions artifacts only. The retained v0.9 upload workflow is deliberately separate.
-  prerelease-inventory:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'prerelease-candidate'
+  current-source-inventory:
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
     needs: [validate, library-package, macos-source-candidate]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -800,7 +801,7 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           pattern: '*candidate*'
-          path: artifacts/prerelease-inputs
+          path: artifacts/current-source-inputs
       - name: Fetch the pinned corresponding-source base
         shell: bash
         run: |
@@ -813,13 +814,15 @@ jobs:
         shell: bash
         run: |
           version="$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('Directory.Build.props').findtext('.//Version'))")"
-          python3 scripts/assemble-prerelease.py --artifacts-root artifacts/prerelease-inputs --source-commit "$GITHUB_SHA" --version "$version" --source-base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz --run-id "$GITHUB_RUN_ID" --output artifacts/prerelease-candidate
-          (cd artifacts/prerelease-candidate && sha256sum --check --strict SHA256SUMS)
-      - name: Retain current-source prerelease inventory and assets
+          channel=prerelease
+          if [[ "${{ inputs.mode }}" == stable-candidate ]]; then channel=stable; fi
+          python3 scripts/assemble-prerelease.py --channel "$channel" --artifacts-root artifacts/current-source-inputs --source-commit "$GITHUB_SHA" --version "$version" --source-base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz --run-id "$GITHUB_RUN_ID" --output artifacts/${{ inputs.mode }}
+          (cd artifacts/${{ inputs.mode }} && sha256sum --check --strict SHA256SUMS)
+      - name: Retain current-source candidate inventory and assets
         uses: actions/upload-artifact@v7
         with:
-          name: prerelease-candidate-${{ github.sha }}
-          path: artifacts/prerelease-candidate/*
+          name: ${{ inputs.mode }}-${{ github.sha }}
+          path: artifacts/${{ inputs.mode }}/*
           if-no-files-found: error
           retention-days: 7
 
