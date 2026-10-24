@@ -124,9 +124,14 @@ internal static class ReaderPreviewChecks
             Require(PostTop(posts, "110125033") < -100, "Refresh regression did not start inside a partially scrolled post.");
             mediaGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
             double refreshTop = PostTop(posts, "110125033");
+            string refreshBefore = DescribeRefreshAnchor("before", window, pane, page, posts, refreshTop);
             await page.LoadThreadAsync(id, resetPage: false);
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "110125033", "Same-thread refresh lost the selected post.");
-            Require(Math.Abs(PostTop(posts, "110125033") - refreshTop) <= 2, "Same-thread refresh lost the scroll anchor before media completed.");
+            double refreshedTop = PostTop(posts, "110125033");
+            Console.WriteLine("SMOKE reader refresh anchor: " + refreshBefore);
+            Console.WriteLine("SMOKE reader refresh anchor: " + DescribeRefreshAnchor("after", window, pane, page, posts, refreshedTop));
+            Require(Math.Abs(refreshedTop - refreshTop) <= 2,
+                $"Same-thread refresh lost the scroll anchor before media completed: {refreshTop:R} → {refreshedTop:R}.");
             mediaGate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await FlushAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - refreshTop) <= 2, "Refreshed previews moved the retained post.");
             // Reparenting the same controls must resume visible thumbnails after detach cancellation.
@@ -182,6 +187,71 @@ internal static class ReaderPreviewChecks
         Program.CaptureWindow(window, "smoke-video-poster-play-overlay.png");
         window.Content = null; await FlushAsync();
         Require(view.Thumbnail.Source == null, "Detached attachment retained pixels.");
+    }
+    // Read-only snapshots beside the existing PostTop measurements: no layout,
+    // dispatcher yield, focus change or media completion may hide the regression.
+    private static string DescribeRefreshAnchor(string stage, Window window, Control pane, ArchivePage page, ListBox posts, double targetTop)
+    {
+        try
+        {
+            object? State(string field) => typeof(ArchivePage).GetField(field,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(page);
+            ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            var realized = posts.GetVisualDescendants().OfType<ListBoxItem>().Select(item => new
+            {
+                id = (item.DataContext as ArchivePostRow)?.Id, top = item.TranslatePoint(default, posts)?.Y,
+                height = item.Bounds.Height, bounds = item.Bounds.ToString(), item.IsEffectivelyVisible,
+                previews = item.GetVisualDescendants().OfType<ArchiveAttachmentView>().Select(view => new
+                {
+                    bounds = view.Bounds.ToString(), top = view.TranslatePoint(default, posts)?.Y,
+                    view.PreviewStatus, hasPixels = view.Thumbnail.Source is Bitmap,
+                    thumbnailBounds = view.Thumbnail.Bounds.ToString(), view.IsEffectivelyVisible
+                }).ToArray()
+            }).ToArray();
+            var anchor = realized.Where(item => item.id != null && item.top.HasValue
+                && item.top.Value < posts.Bounds.Height && item.top.Value + item.height > 0)
+                .OrderBy(item => item.top).FirstOrDefault();
+            Control? focused = window.FocusManager?.GetFocusedElement() as Control;
+            return JsonSerializer.Serialize(new
+            {
+                stage, targetId = "110125033", targetTop,
+                thread = page.CurrentThread?.Summary.Id.ToString(), postCount = page.CurrentThread?.PostCount,
+                selectedId = (posts.SelectedItem as ArchivePostRow)?.Id, posts.SelectedIndex,
+                firstVisibleAnchor = anchor == null ? null : new { anchor.id, anchor.top, anchor.height },
+                page.IsBusy, page.IsMediaLoading, mediaTask = page.MediaLoadTask.Status.ToString(),
+                contentRequest = State("_contentRequest"), focusRequest = State("_readerFocusRequest"),
+                interactionRevision = State("_readerInteractionRevision"), retainedPostId = State("_readerPostId"),
+                postOffset = State("_postOffset"), ended = State("_ended"), available = State("_available"),
+                largeReader = State("_largeReader"), selectedThread = State("_selectedThread")?.ToString(),
+                host = new
+                {
+                    window = window.GetType().Name, window.Title, bounds = window.Bounds.ToString(),
+                    clientSize = window.ClientSize.ToString(), window.RenderScaling,
+                    paneIsWindowContent = ReferenceEquals(window.Content, pane),
+                    postsBelongToWindow = ReferenceEquals(TopLevel.GetTopLevel(posts), window),
+                    paneRoot = TopLevel.GetTopLevel(pane)?.GetType().Name,
+                    pageRoot = TopLevel.GetTopLevel(page)?.GetType().Name,
+                    paneBounds = pane.Bounds.ToString(), posts.IsEffectivelyVisible,
+                    postsAttached = posts.IsAttachedToVisualTree(),
+                    focus = focused == null ? null : new { type = focused.GetType().Name, focused.Name,
+                        postId = (focused.DataContext as ArchivePostRow)?.Id }
+                },
+                listBounds = posts.Bounds.ToString(), listDesiredSize = posts.DesiredSize.ToString(),
+                scroll = scroll == null ? null : new
+                {
+                    offset = scroll.Offset.ToString(), extent = scroll.Extent.ToString(),
+                    viewport = scroll.Viewport.ToString(), bounds = scroll.Bounds.ToString()
+                },
+                panels = posts.GetVisualDescendants().OfType<VirtualizingStackPanel>()
+                    .Select(panel => new { bounds = panel.Bounds.ToString(), desiredSize = panel.DesiredSize.ToString() }).ToArray(),
+                realized
+            });
+        }
+        catch (Exception exception)
+        {
+            // Diagnostics must not replace the unchanged anchor assertion.
+            return stage + " diagnostic failed: " + exception.GetType().Name + ": " + exception.Message;
+        }
     }
     private static double PostTop(ListBox posts, string id)
     {

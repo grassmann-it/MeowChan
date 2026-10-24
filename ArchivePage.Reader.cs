@@ -376,7 +376,7 @@ public partial class ArchivePage
 
     private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true)
     {
-        if (_thread?.Summary.Id != anchor.Thread) return;
+        if (_ended || _thread?.Summary.Id != anchor.Thread) return;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
             string? fallback = _thread.GetPosts(Math.Min(_postOffset, Math.Max(0, _thread.PostCount - 1)), 1).FirstOrDefault()?.PostId;
@@ -387,12 +387,21 @@ public partial class ArchivePage
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;
         int focusRequest = _readerFocusRequest + 1;
+        ListBox list = Control<ListBox>("ArchivePosts");
+        // RenderThread replaced the virtualizing panel. Realize its new index
+        // space from the origin before ScrollIntoView uses the retained target;
+        // the predecessor's offset can otherwise leave negative item positions
+        // at offset zero, where the final anchor delta cannot be applied.
+        ScrollViewer? initialScroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (initialScroll != null) initialScroll.Offset = new Vector(initialScroll.Offset.X, 0);
+        list.UpdateLayout();
+        if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest + 1
+            || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
         await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest
                 || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
-            ListBox list = Control<ListBox>("ArchivePosts");
             if (anchor.SelectedPostId != null && list.ItemsSource is IEnumerable<ArchivePostRow> rows)
             {
                 ArchivePostRow? selected = rows.FirstOrDefault(row => row.Id == anchor.SelectedPostId);

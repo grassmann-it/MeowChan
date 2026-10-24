@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -130,6 +131,15 @@ internal static class NativeImeChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             if (!target.IsEffectivelyVisible || !target.IsEffectivelyEnabled || !target.Focus())
                 throw new InvalidOperationException("IME target is not reachable: " + id);
+            using ObserverDiagnostics diagnostics = new(directory, id, digest);
+            void TextInputTunnel(object? sender, TextInputEventArgs e) => diagnostics.Input("tunnel", e.Text, e.Handled);
+            void TextInputBubble(object? sender, TextInputEventArgs e) => diagnostics.Input("bubble", e.Text, e.Handled);
+            void TextChanging(object? sender, TextChangingEventArgs e) => diagnostics.Input("changing", (target as TextBox)?.Text, e.Handled);
+            target.AddHandler(InputElement.TextInputEvent, TextInputTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
+            target.AddHandler(InputElement.TextInputEvent, TextInputBubble, RoutingStrategies.Bubble, handledEventsToo: true);
+            if (target is TextBox observedTextBox) observedTextBox.TextChanging += TextChanging;
+            try
+            {
             object State() => new
             {
                 id, utc = DateTimeOffset.UtcNow, pid = Environment.ProcessId, language, sourceDigest = digest,
@@ -155,9 +165,16 @@ internal static class NativeImeChecks
             void WriteAtomic(string file, string json)
             {
                 string path = Path.Combine(directory, file);
-                File.WriteAllText(path + ".tmp", json); File.Move(path + ".tmp", path, true);
+                diagnostics.Mark("atomic-write:" + file);
+                File.WriteAllText(path + ".tmp", json);
+                diagnostics.Mark("atomic-move:" + file);
+                File.Move(path + ".tmp", path, true);
+                diagnostics.Mark("atomic-complete:" + file);
             }
-            string first = JsonSerializer.Serialize(State());
+            diagnostics.Mark("initial-state");
+            object firstState = State();
+            diagnostics.Mark("initial-serialize");
+            string first = JsonSerializer.Serialize(firstState);
             WriteAtomic("state.json", first); WriteAtomic("stage.json", first);
             Console.WriteLine("NATIVE IME STAGE " + id);
             DateTime deadline = DateTime.UtcNow.AddSeconds(55);
@@ -191,10 +208,17 @@ internal static class NativeImeChecks
                             contextRead = ReplyOwnerContextAsync(nonce);
                         }
                     }
-                    string current = JsonSerializer.Serialize(State());
+                    diagnostics.Mark("sample-state");
+                    object currentState = State();
+                    diagnostics.Mark("sample-serialize");
+                    string current = JsonSerializer.Serialize(currentState);
                     WriteAtomic("state.json", current);
+                    diagnostics.Mark("sample-append-await");
                     await File.AppendAllTextAsync(Path.Combine(directory, "state.jsonl"), current + Environment.NewLine);
+                    diagnostics.PassCompleted();
+                    diagnostics.Mark("sample-delay-await");
                     await Task.Delay(25);
+                    diagnostics.Mark("sample-delay-resumed");
                 }
                 if (contextRead is { IsCompleted: false } || ownerReadFailed)
                     throw new InvalidOperationException("Checkpoint ended before a successful owner-context response.");
@@ -270,6 +294,89 @@ internal static class NativeImeChecks
                         owner = observedOwner, engine = observedEngine
                     }));
             }
+            }
+            catch (Exception exception)
+            {
+                diagnostics.Fail(exception);
+                throw;
+            }
+            finally
+            {
+                target.RemoveHandler(InputElement.TextInputEvent, TextInputTunnel);
+                target.RemoveHandler(InputElement.TextInputEvent, TextInputBubble);
+                if (target is TextBox observedTextBoxEnd) observedTextBoxEnd.TextChanging -= TextChanging;
+            }
+        }
+    }
+
+    // All UI observations are captured on the UI thread. The background timer reads cached data only.
+    private sealed class ObserverDiagnostics : IDisposable
+    {
+        private readonly string _path, _stage, _digest;
+        private readonly System.Threading.Timer _writer;
+        private object _phase = new { name = "created" };
+        private object? _tunnel, _bubble, _changing;
+        private long _phaseSequence, _passCount, _passTicks;
+        private int _writing, _ended, _diagnosticErrorReported;
+
+        internal ObserverDiagnostics(string directory, string stage, string digest)
+        {
+            _path = Path.Combine(directory, stage + "-observer.jsonl"); _stage = stage; _digest = digest;
+            _writer = new System.Threading.Timer(WriteCached, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        }
+
+        internal void Mark(string name) => Volatile.Write(ref _phase, new
+        {
+            sequence = ++_phaseSequence, name, utc = DateTimeOffset.UtcNow,
+            monotonic = Stopwatch.GetTimestamp(), threadId = Environment.CurrentManagedThreadId
+        });
+
+        internal void Input(string kind, string? text, bool handled)
+        {
+            object value = new { utc = DateTimeOffset.UtcNow, monotonic = Stopwatch.GetTimestamp(),
+                threadId = Environment.CurrentManagedThreadId, text, handled };
+            if (kind == "tunnel") Volatile.Write(ref _tunnel, value);
+            else if (kind == "bubble") Volatile.Write(ref _bubble, value);
+            else Volatile.Write(ref _changing, value);
+        }
+
+        internal void Fail(Exception exception) => Console.Error.WriteLine("NATIVE IME OBSERVER ERROR "
+            + JsonSerializer.Serialize(new { id = _stage, phase = Volatile.Read(ref _phase), exception = exception.ToString() }));
+
+        internal void PassCompleted()
+        {
+            Interlocked.Increment(ref _passCount);
+            Interlocked.Exchange(ref _passTicks, Stopwatch.GetTimestamp());
+        }
+
+        private void WriteCached(object? state)
+        {
+            if (Interlocked.Exchange(ref _writing, 1) != 0) return;
+            try
+            {
+                string json = JsonSerializer.Serialize(new
+                {
+                    id = _stage, pid = Environment.ProcessId, sourceDigest = _digest, utc = DateTimeOffset.UtcNow,
+                    monotonic = Stopwatch.GetTimestamp(), stopwatchFrequency = Stopwatch.Frequency,
+                    phase = Volatile.Read(ref _phase), observerPasses = Interlocked.Read(ref _passCount),
+                    lastObserverPass = Interlocked.Read(ref _passTicks), ended = Volatile.Read(ref _ended) != 0,
+                    textInputTunnel = Volatile.Read(ref _tunnel), textInputBubble = Volatile.Read(ref _bubble),
+                    textChanging = Volatile.Read(ref _changing)
+                });
+                File.AppendAllText(_path, json + Environment.NewLine);
+            }
+            catch (Exception exception)
+            {
+                if (Interlocked.Exchange(ref _diagnosticErrorReported, 1) == 0)
+                    Console.Error.WriteLine("NATIVE IME DIAGNOSTIC WRITE ERROR " + exception);
+            }
+            finally { Volatile.Write(ref _writing, 0); }
+        }
+
+        public void Dispose()
+        {
+            Volatile.Write(ref _ended, 1);
+            _writer.Dispose();
         }
     }
 
