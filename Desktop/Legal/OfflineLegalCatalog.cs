@@ -47,7 +47,7 @@ public sealed class OfflineLegalCatalog
             var entries = new List<Entry>();
             string ownLicense = ReadOptional(directory, "LICENSE");
             entries.Add(new Entry("MeowChan", "application", "Artistic License 2.0", "Tomka (tfgrass)",
-                "LICENSE · https://github.com/tfgrass/MeowChan", ownLicense));
+                "LICENSE · https://github.com/grassmann-it/MeowChan", ownLicense));
 
             foreach (string line in notices.Split('\n'))
             {

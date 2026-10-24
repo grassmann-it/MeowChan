@@ -46,7 +46,7 @@ internal static class AboutLinkChecks
             about = window.OwnedWindows.OfType<AboutWindow>().Single();
 
             await ClickAndVerifyAsync(about.FindControl<Button>("ProjectLink")!, capture, 0,
-                "https://github.com/tfgrass/MeowChan");
+                "https://github.com/grassmann-it/MeowChan");
             await ClickAndVerifyAsync(about.FindControl<Button>("DonationLink")!, capture, 1,
                 "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ");
             if (!string.IsNullOrEmpty(about.FindControl<SelectableTextBlock>("LinkErrorText")!.Text))

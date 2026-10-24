@@ -57,6 +57,20 @@ internal static class UpdateReleaseParser
         return new UpdateInfo(version, releaseUri, matchingAssets.Count == 1 ? matchingAssets[0] : releaseUri);
     }
 
+    internal static UpdateInfo MigrateLegacyStoredInfo(UpdateInfo info)
+    {
+        // Only cached destinations from the former repository are migrated. API assets
+        // still require the current owner, and mixed or invalid cached URLs stay invalid.
+        const string legacy = "https://github.com/tfgrass/MeowChan/";
+        const string current = "https://github.com/grassmann-it/MeowChan/";
+        if (!info.ReleaseUri.AbsoluteUri.StartsWith(legacy, StringComparison.Ordinal)
+            || !info.DownloadUri.AbsoluteUri.StartsWith(legacy, StringComparison.Ordinal)) return info;
+        UpdateInfo migrated = new(info.Version,
+            new Uri(current + info.ReleaseUri.AbsoluteUri[legacy.Length..]),
+            new Uri(current + info.DownloadUri.AbsoluteUri[legacy.Length..]));
+        return IsSafeStoredInfo(migrated) ? migrated : info;
+    }
+
     internal static bool IsSafeStoredInfo(UpdateInfo info)
     {
         string[] tags = [info.Version.ToString(), "v" + info.Version];
@@ -100,6 +114,6 @@ internal static class UpdateReleaseParser
         return true;
     }
 
-    private static Uri ReleaseUri(string tag) => new($"https://github.com/tfgrass/MeowChan/releases/tag/{Uri.EscapeDataString(tag)}");
-    private static Uri AssetUri(string tag, string name) => new($"https://github.com/tfgrass/MeowChan/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}");
+    private static Uri ReleaseUri(string tag) => new($"https://github.com/grassmann-it/MeowChan/releases/tag/{Uri.EscapeDataString(tag)}");
+    private static Uri AssetUri(string tag, string name) => new($"https://github.com/grassmann-it/MeowChan/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}");
 }

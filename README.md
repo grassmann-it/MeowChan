@@ -10,7 +10,7 @@
 
 MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
-Download **MeowChan 0.9.0** from the [stable release](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). The [release notes](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
+Download **MeowChan 0.9.0** from the [stable release](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0). The [release notes](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
 
 ## Choose the view that fits your work
 
@@ -39,14 +39,14 @@ Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Sili
 
 The steps below describe the 0.9.0 interface and launchers.
 
-1. [Download MeowChan 0.9.0](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+1. [Download MeowChan 0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-For each of `linux-x64` and `linux-arm64`, choose a package on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0):
+For each of `linux-x64` and `linux-arm64`, choose a package on the [0.9.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0):
 
 | Filename | VLC requirement |
 | --- | --- |

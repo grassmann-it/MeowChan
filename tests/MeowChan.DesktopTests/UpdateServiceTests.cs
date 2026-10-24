@@ -16,7 +16,7 @@ public sealed class UpdateServiceTests
         using Fixture fixture = new(Release(tag));
         UpdateCheckResult result = await fixture.Service.CheckAsync(UpdateCheckKind.Manual);
         Assert.Equal(expected, result.Status);
-        Assert.Equal("https://api.github.com/repos/tfgrass/MeowChan/releases/latest", fixture.Handler.Url);
+        Assert.Equal("https://api.github.com/repos/grassmann-it/MeowChan/releases/latest", fixture.Handler.Url);
         Assert.Equal(new[] { "User-Agent" }, fixture.Handler.Headers.Keys);
         Assert.Equal("MeowChan/1.0.0", fixture.Handler.Headers["User-Agent"]);
         Assert.Equal(fixture.Time.GetUtcNow(), fixture.Store.Load().LastCheckedUtc);
@@ -30,7 +30,7 @@ public sealed class UpdateServiceTests
         using Fixture fixture = new(releases, new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.0.0"), IncludePrereleases = true });
         UpdateCheckResult result = await fixture.Service.CheckAsync(UpdateCheckKind.Manual);
         Assert.Equal("1.1.0-beta.10", result.Update?.Version.ToString());
-        Assert.EndsWith("/releases?per_page=100", fixture.Handler.Url);
+        Assert.Equal("https://api.github.com/repos/grassmann-it/MeowChan/releases?per_page=100", fixture.Handler.Url);
     }
 
     [Theory]
@@ -48,6 +48,7 @@ public sealed class UpdateServiceTests
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, UpdateCheckError.RateLimited)]
     [InlineData(HttpStatusCode.TooManyRequests, UpdateCheckError.RateLimited)]
+    [InlineData(HttpStatusCode.MovedPermanently, UpdateCheckError.Http)]
     [InlineData(HttpStatusCode.Redirect, UpdateCheckError.Http)]
     [InlineData(HttpStatusCode.InternalServerError, UpdateCheckError.Http)]
     public async Task HttpFailuresAreTypedAndAlsoThrottleAutomaticRetries(HttpStatusCode status, UpdateCheckError expected)

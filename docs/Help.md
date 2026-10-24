@@ -17,9 +17,17 @@ The current 1.0 development workspace also adds [search filters and saved search
 [shortcut customization](#customizing-shortcuts). These sections describe those
 controls in the current workspace; check your installed version for availability.
 
+## Repository location and update checks
+
+MeowChan is now hosted at [grassmann-it/MeowChan](https://github.com/grassmann-it/MeowChan).
+If an older build's update check fails after the repository move, open the
+[release page](https://github.com/grassmann-it/MeowChan/releases) directly. Builds
+that still use the previous API address cannot follow its repository-transfer
+redirect; updating the source does not change already installed applications.
+
 ## From a package to an offline picture
 
-1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
+1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -187,7 +195,7 @@ confirmation dialogs still apply when popups are disabled.
 
 ## Linux packages and startup
 
-For either `linux-x64` or `linux-arm64`, choose a package from the [0.9.0 release](https://github.com/tfgrass/MeowChan/releases/tag/v0.9.0):
+For either `linux-x64` or `linux-arm64`, choose a package from the [0.9.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0):
 
 - `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
 - `MeowChan-0.9.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.

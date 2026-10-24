@@ -7,7 +7,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/meowchan.ico</ApplicationIcon>
     <Product>MeowChan</Product>
-    <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
+    <RepositoryUrl>https://github.com/grassmann-it/MeowChan</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishTrimmed>false</PublishTrimmed>

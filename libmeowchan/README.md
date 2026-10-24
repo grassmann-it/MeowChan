@@ -329,15 +329,15 @@ require `confirmPreserveBackup: true` to retain the previous folder. Results rep
 the actual `BackupDirectory`, omissions and warnings. An optional
 `ExportHistoryStore` indexes earlier exports in the profile; portable identity
 metadata travels with the exported folder. This stages and exchanges an export;
-it does not merge arbitrary files. See the [export API](https://github.com/tfgrass/MeowChan/blob/main/docs/Registry.md#local-export-api)
-and [user workflow](https://github.com/tfgrass/MeowChan/blob/main/docs/Help.md#portable-html-export).
+it does not merge arbitrary files. See the [export API](https://github.com/grassmann-it/MeowChan/blob/main/docs/Registry.md#local-export-api)
+and [user workflow](https://github.com/grassmann-it/MeowChan/blob/main/docs/Help.md#portable-html-export).
 
 Consecutive media 404 failures wait 15/30/60/120/240 minutes, then at least 240.
 Automatic 404 follow-up ends 12 hours after the first durably recorded source end.
 Ordinary check requests respect due times; explicit missing-media retry grants one
 outer attempt without resetting history. Completed-media repair does not restart
 source monitoring. Hosts must persist work state for these limits to survive
-restart; see the [download policy](https://github.com/tfgrass/MeowChan/blob/main/docs/Downloader.md#retry-and-source-end-policy).
+restart; see the [download policy](https://github.com/grassmann-it/MeowChan/blob/main/docs/Downloader.md#retry-and-source-end-policy).
 
 ## State and provider extensions
 

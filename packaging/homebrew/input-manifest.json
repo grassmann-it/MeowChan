@@ -1,10 +1,10 @@
 {
   "source": {
     "commit": "a98759e819f233bee0de806cb4f0b9fbd535d2cd",
-    "url": "https://github.com/tfgrass/MeowChan/archive/a98759e819f233bee0de806cb4f0b9fbd535d2cd.tar.gz",
+    "url": "https://github.com/grassmann-it/MeowChan/archive/a98759e819f233bee0de806cb4f0b9fbd535d2cd.tar.gz",
     "bytes": 4863487,
     "sha256": "711cfdc9fa5b748431940b468c3935522156345fc82831bcae99d3f529bd7208",
-    "resolved_download_url": "https://codeload.github.com/tfgrass/MeowChan/tar.gz/a98759e819f233bee0de806cb4f0b9fbd535d2cd"
+    "resolved_download_url": "https://codeload.github.com/grassmann-it/MeowChan/tar.gz/a98759e819f233bee0de806cb4f0b9fbd535d2cd"
   },
   "sdk_version": "10.0.111",
   "release_metadata": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",

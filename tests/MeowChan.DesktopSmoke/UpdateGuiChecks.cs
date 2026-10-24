@@ -243,8 +243,8 @@ internal static class UpdateGuiChecks
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private sealed class Handler : HttpMessageHandler
     {
-        internal const string ReleaseUrl = "https://github.com/tfgrass/MeowChan/releases/tag/v9.8.7";
-        internal const string DownloadUrl = "https://github.com/tfgrass/MeowChan/releases/download/v9.8.7/MeowChan-9.8.7-linux-x64-system-vlc.tar.gz";
+        internal const string ReleaseUrl = "https://github.com/grassmann-it/MeowChan/releases/tag/v9.8.7";
+        internal const string DownloadUrl = "https://github.com/grassmann-it/MeowChan/releases/download/v9.8.7/MeowChan-9.8.7-linux-x64-system-vlc.tar.gz";
         internal int Requests;
         internal HttpStatusCode Status = HttpStatusCode.OK;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

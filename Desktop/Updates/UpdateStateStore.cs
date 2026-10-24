@@ -36,7 +36,7 @@ public sealed class UpdateStateStore
                     || !Uri.TryCreate(document.ReleaseUrl, UriKind.Absolute, out Uri? release)
                     || !Uri.TryCreate(document.DownloadUrl, UriKind.Absolute, out Uri? download))
                     throw new InvalidDataException("Invalid stored update.");
-                found = new UpdateInfo(version, release, download);
+                found = UpdateReleaseParser.MigrateLegacyStoredInfo(new UpdateInfo(version, release, download));
                 if (!UpdateReleaseParser.IsSafeStoredInfo(found)) throw new InvalidDataException("Unsafe stored update destinations.");
             }
             else if (document.ReleaseUrl is not null || document.DownloadUrl is not null)

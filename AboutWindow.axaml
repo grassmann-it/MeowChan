@@ -48,7 +48,7 @@
                             </StackPanel>
                         </Border>
                         <WrapPanel>
-                            <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/tfgrass/MeowChan" Click="OnLinkClick"/>
+                            <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>

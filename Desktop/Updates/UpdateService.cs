@@ -141,8 +141,8 @@ public sealed class UpdateService
                 if (!string.Equals(header.Key, "User-Agent", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Update transport must not carry default headers other than User-Agent.");
             Uri endpoint = new(_options.IncludePrereleases
-                ? "https://api.github.com/repos/tfgrass/MeowChan/releases?per_page=100"
-                : "https://api.github.com/repos/tfgrass/MeowChan/releases/latest");
+                ? "https://api.github.com/repos/grassmann-it/MeowChan/releases?per_page=100"
+                : "https://api.github.com/repos/grassmann-it/MeowChan/releases/latest");
             using HttpRequestMessage request = new(HttpMethod.Get, endpoint);
             request.Headers.UserAgent.ParseAdd("MeowChan/" + _options.CurrentVersion);
             using HttpResponseMessage response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);

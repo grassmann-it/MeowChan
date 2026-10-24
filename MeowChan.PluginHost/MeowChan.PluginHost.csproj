@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <PackageId>MeowChan.PluginHost</PackageId>
     <PackageLicenseFile>LICENSE</PackageLicenseFile><PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
+    <RepositoryUrl>https://github.com/grassmann-it/MeowChan</RepositoryUrl>
     <Description>Optional MeowChan plugin process host. Public API may change in 1.x.</Description>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile><NoWarn>$(NoWarn);1591</NoWarn>

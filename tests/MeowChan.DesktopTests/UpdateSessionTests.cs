@@ -72,7 +72,7 @@ public sealed class UpdateSessionTests
         fixture.Handler.Body = "[" + Release("2.1.0-beta.1", true) + "]";
         await fixture.Session.ConfigureAsync(new Config { IncludePrereleaseUpdates = true });
         await fixture.Session.CheckAsync();
-        Assert.EndsWith("/releases?per_page=100", fixture.Handler.Url);
+        Assert.Equal("https://api.github.com/repos/grassmann-it/MeowChan/releases?per_page=100", fixture.Handler.Url);
         Assert.Equal("2.1.0-beta.1", fixture.Session.View.Update?.Version.ToString());
         await fixture.Session.ConfigureAsync(new Config { IncludePrereleaseUpdates = false, AutomaticUpdateChecks = false });
         Assert.Null(fixture.Session.View.Update);
@@ -178,7 +178,7 @@ public sealed class UpdateSessionTests
     private static string NewProfile() => Path.Combine(Path.GetTempPath(), "meowchan-update-session-" + Guid.NewGuid().ToString("N"));
     private static string Release(string version, bool prerelease = false) => JsonSerializer.Serialize(new
     {
-        tag_name = "v" + version, html_url = "https://github.com/tfgrass/MeowChan/releases/tag/v" + version,
+        tag_name = "v" + version, html_url = "https://github.com/grassmann-it/MeowChan/releases/tag/v" + version,
         draft = false, prerelease, assets = Array.Empty<object>()
     });
     private static async Task UntilAsync(Func<bool> condition)

@@ -7,8 +7,8 @@
     <PackageId>libmeowchan</PackageId>
     <Product>MeowChan</Product>
     <Description>MeowChan .NET library for media downloads and offline archives with explicit provider registration. The public API is not stable in 1.x; minor releases may contain breaking changes.</Description>
-    <PackageProjectUrl>https://github.com/tfgrass/MeowChan</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/grassmann-it/MeowChan</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/grassmann-it/MeowChan</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>meowchan;imageboard;image-downloader;thread-archiver;offline-archive;html-export;4chan;8kun;cross-platform;dotnet;csharp</PackageTags>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>

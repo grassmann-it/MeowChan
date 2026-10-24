@@ -36,7 +36,7 @@ public sealed class FourChanPlugin : ISourcePlugin
         }, Array.Empty<FilterDescription>(), EmptySettings,
         new InformationEntry[] { new("capture", "Captured content", InformationKind.Text,
             "Post text is HTML. Missing fields preserve earlier captures. Media acquisition and watch state belong to MeowChan.") },
-        Author: "MeowChan", DocumentationUrl: new Uri("https://github.com/tfgrass/MeowChan"));
+        Author: "MeowChan", DocumentationUrl: new Uri("https://github.com/grassmann-it/MeowChan"));
 
     public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

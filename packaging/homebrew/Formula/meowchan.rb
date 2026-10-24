@@ -1,7 +1,7 @@
 class Meowchan < Formula
   desc "Local imageboard archive, reader, downloads and media gallery"
-  homepage "https://github.com/tfgrass/MeowChan"
-  url "https://github.com/tfgrass/MeowChan/archive/a98759e819f233bee0de806cb4f0b9fbd535d2cd.tar.gz"
+  homepage "https://github.com/grassmann-it/MeowChan"
+  url "https://github.com/grassmann-it/MeowChan/archive/a98759e819f233bee0de806cb4f0b9fbd535d2cd.tar.gz"
   version "0.9.0-preview.3"
   sha256 "711cfdc9fa5b748431940b468c3935522156345fc82831bcae99d3f529bd7208"
   license "Artistic-2.0"

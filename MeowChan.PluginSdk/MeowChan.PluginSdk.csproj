@@ -9,7 +9,7 @@
     <Description>Public source and image-filter contracts for MeowChan. This SDK is not stable in 1.x; minor releases may change its public API.</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/tfgrass/MeowChan</RepositoryUrl>
+    <RepositoryUrl>https://github.com/grassmann-it/MeowChan</RepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>

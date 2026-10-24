@@ -212,7 +212,7 @@ macOS ZIP and native extracted-app startup subsequently passed at `672b45d`
 
 **Historical pre-fix product-source checkpoint — `8d31f2c`, 2026-10-20:** locked Release restore passed; the Release solution build completed with **0 warnings and 0 errors**; **627/627 Core and 141/141 Desktop tests passed, none skipped** (768 total). The default Debug build also completed with **0 warnings and 0 errors**. These are source checks, not native Windows package acceptance.
 
-The package names, hashes and results in the historical checkpoint sections below describe their respective earlier source revisions. They do not validate the current preview or final five-platform package matrix. Published builds are on the [MeowChan releases page](https://github.com/tfgrass/MeowChan/releases).
+The package names, hashes and results in the historical checkpoint sections below describe their respective earlier source revisions. They do not validate the current preview or final five-platform package matrix. Published builds are on the [MeowChan releases page](https://github.com/grassmann-it/MeowChan/releases).
 
 0.9.0 adds Simple, Advanced and Barebones views, local archive/search, a shared gallery, durable missing-media follow-up and compact repeat HTML export alongside appearance/language preferences and batch URL admission. The platform targets and .NET 10 baseline remain unchanged. Local source-built checks, five successful package round-trips and Linux x64 apphost startup/exit are recorded below, separately from historical 0.8.0 results. Full native workflow acceptance of the 0.9.0 extracted packages is still open.
 
