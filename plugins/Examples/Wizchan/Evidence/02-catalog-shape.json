@@ -1,0 +1,37 @@
+{
+  "root": "array",
+  "pages": 10,
+  "threadCount": 99,
+  "pageKeys": [
+    "page",
+    "threads"
+  ],
+  "threadKeys": [
+    "com",
+    "cyclical",
+    "embed",
+    "ext",
+    "filename",
+    "fsize",
+    "h",
+    "images",
+    "last_modified",
+    "locked",
+    "md5",
+    "name",
+    "no",
+    "omitted_images",
+    "omitted_posts",
+    "replies",
+    "resto",
+    "sticky",
+    "sub",
+    "tim",
+    "time",
+    "tn_h",
+    "tn_w",
+    "w"
+  ],
+  "firstThreadId": 230503,
+  "multiAttachmentPostCount": 0
+}

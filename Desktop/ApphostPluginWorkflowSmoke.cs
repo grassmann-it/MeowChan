@@ -66,11 +66,14 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
         Config config = fixture.PreviousProfile == null && !restart ? new Config
         {
             DownloadPath = fixture.DownloadRoot, DownloadsPaused = true, SaveUrlsOnExit = true,
-            AutomaticUpdateChecks = false, MaxParallelDownloads = 2, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
+            AutomaticUpdateChecks = false, MaxParallelDownloads = 2,
+            // Four fixture sources plus filter need five observable workers; the product default remains four.
+            PluginMaximumProductionWorkers = SourceActivationPhase == null ? ApphostPluginFixtures.WorkflowSources.Length + 1 : ApphostPluginFixtures.AuthorSources.Length + 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
             WorkspaceMode = "Barebones", Theme = "Dark", Language = "en", MinimizeToTray = false, CloseToTray = false
         } : Config.LoadConfig(fixture.Profile);
         if (!ApphostWorkflowSmoke.SamePath(config.DownloadPath, fixture.DownloadRoot) || !config.DownloadsPaused
-            || config.AutomaticUpdateChecks || config.MinimizeToTray || config.CloseToTray)
+            || config.AutomaticUpdateChecks || config.MinimizeToTray || config.CloseToTray
+            || config.PluginMaximumProductionWorkers != (SourceActivationPhase == null ? ApphostPluginFixtures.WorkflowSources.Length + 1 : ApphostPluginFixtures.AuthorSources.Length + 1))
             throw new IOException("Plugin workflow settings escaped the owned paused fixture.");
         config.SaveConfig(fixture.Profile);
         return new DesktopSessionHost(fixture.Profile, providers: null,

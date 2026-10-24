@@ -45,6 +45,44 @@ public sealed class ApphostPluginWorkflowSmokeTests
         Assert.Equal(1, offline.Unexpected);
     }
 
+    [Fact]
+    public async Task TerminalPluginFixtureServesFourSourcesAndCountsOnlyTheirEightOriginals()
+    {
+        Assert.Equal(new[] { "lainchan", "kohlchan", "wizchan", "endchan" }, ApphostPluginFixtures.WorkflowSources);
+        Assert.Equal(new[] { "lainchan", "kohlchan" }, ApphostPluginFixtures.AuthorSources);
+        using ApphostPluginFixtures transport = new();
+        using HttpClient client = transport.Client();
+        foreach (string source in ApphostPluginFixtures.WorkflowSources)
+        {
+            string json = await client.GetStringAsync(ApphostPluginFixtures.Origin(source) + "/demo/res/123.json");
+            Assert.Contains("Desktop delivered " + source, json, StringComparison.OrdinalIgnoreCase);
+            using JsonDocument parsed = JsonDocument.Parse(json);
+            if (source is "lainchan" or "wizchan")
+            {
+                Assert.Equal(123, parsed.RootElement.GetProperty("posts")[0].GetProperty("no").GetInt32());
+                Assert.Equal("1001-1", parsed.RootElement.GetProperty("posts")[0].GetProperty("extra_files")[0].GetProperty("tim").GetString());
+            }
+            else
+            {
+                Assert.Equal(123, parsed.RootElement.GetProperty("threadId").GetInt32());
+                Assert.Equal(ApphostPluginFixtures.OriginalUrl(source, true),
+                    ApphostPluginFixtures.Origin(source) + parsed.RootElement.GetProperty("files")[0].GetProperty("path").GetString());
+                Assert.Equal(124, parsed.RootElement.GetProperty("posts")[0].GetProperty("postId").GetInt32());
+            }
+            Assert.Equal(transport.Landscape, await client.GetByteArrayAsync(ApphostPluginFixtures.OriginalUrl(source, true)));
+            Assert.Equal(transport.Portrait, await client.GetByteArrayAsync(ApphostPluginFixtures.OriginalUrl(source, false)));
+        }
+        Assert.Equal(12, transport.Requests.Count);
+        Assert.Equal(12, transport.Requests.Distinct().Count());
+        Assert.Equal(8, transport.MediaRequests);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetAsync("https://wizchan.org/demo/src/unknown.png"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetAsync("https://endchan.net/.media/unknown.png"));
+        Assert.Equal(8, transport.MediaRequests);
+        Assert.Equal(2, transport.Unexpected);
+        Assert.Throws<ArgumentException>(() => ApphostPluginFixtures.Origin("unknown"));
+        Assert.Throws<ArgumentException>(() => ApphostPluginFixtures.OriginalUrl("unknown", true));
+    }
+
     private sealed class OwnedRoot : IDisposable
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "meowchan-workflow-plugin-tests-" + Guid.NewGuid().ToString("N"));

@@ -30,7 +30,13 @@ _spec.loader.exec_module(workflow)
 desktop = workflow.desktop
 REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo/res/123.json',
             'https://lainchan.org/demo/src/1000-0.png', 'https://lainchan.org/demo/src/1001-1.png',
-            'https://kohlchan.net/.media/landscape.png', 'https://kohlchan.net/.media/portrait.png'}
+            'https://kohlchan.net/.media/landscape.png', 'https://kohlchan.net/.media/portrait.png',
+            'https://wizchan.org/demo/res/123.json', 'https://wizchan.org/demo/src/1000-0.png',
+            'https://wizchan.org/demo/src/1001-1.png', 'https://endchan.net/demo/res/123.json',
+            'https://endchan.net/.media/endchan-keep.png', 'https://endchan.net/.media/endchan-drop.png'}
+PLUGIN_IDS = {'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.source.lainchan',
+              'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
+              'meowchan.example.image-dimensions'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
 
@@ -314,11 +320,11 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
             or metrics.get('profile') != str(profile) or metrics.get('workingDirectory') != str(working)
             or abs(metrics.get('renderScaling', 0) - scale) > .01
             or metrics.get('unexpectedRequests') != 0
-            or not isinstance(metrics.get('revisions'), dict) or len(metrics['revisions']) != 5
+            or not isinstance(metrics.get('revisions'), dict) or set(metrics['revisions']) != PLUGIN_IDS
             or not isinstance(metrics.get('processId'), int) or metrics['processId'] <= 0):
         raise ValueError('Product PluginSession evidence failed validation')
     requests = metrics.get('requests')
-    if not isinstance(requests, list) or (phase == 'download' and (len(requests) != 6 or set(requests) != REQUESTS)) or (phase == 'restore' and requests):
+    if not isinstance(requests, list) or (phase == 'download' and (len(requests) != 12 or set(requests) != REQUESTS)) or (phase == 'restore' and requests):
         raise ValueError('Terminal fixture request inventory differs')
     proof = metrics.get('sourceCompilation')
     member = (Path(closure['apphostMember']).parent / 'plugins/sources/Lainchan.cs').as_posix()

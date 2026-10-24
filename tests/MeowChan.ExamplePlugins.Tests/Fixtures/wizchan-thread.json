@@ -1,0 +1,45 @@
+{
+  "posts": [
+    {
+      "no": 123,
+      "resto": 0,
+      "time": 1700000000,
+      "sub": "Synthetic thread",
+      "name": "Synthetic author",
+      "com": "<p>Synthetic text</p>",
+      "locked": 1,
+      "cyclical": "1",
+      "omitted_posts": 0,
+      "tim": "1000-0",
+      "ext": ".png",
+      "filename": "same",
+      "fsize": 4,
+      "md5": "AAAAAAAAAAAAAAAAAAAAAA==",
+      "extra_files": [
+        {
+          "tim": "1001-1",
+          "ext": ".jpg",
+          "filename": "same",
+          "fsize": 5
+        },
+        {
+          "tim": "1002-2",
+          "ext": ".webm",
+          "filename": "movie",
+          "fsize": 6
+        }
+      ]
+    },
+    {
+      "no": 124,
+      "resto": 123,
+      "com": "<p>Synthetic reply</p>"
+    },
+    {
+      "no": 125,
+      "resto": 123,
+      "com": "<p>Synthetic embed only</p>",
+      "embed": "<iframe src=\"https://embed.invalid/\"></iframe>"
+    }
+  ]
+}

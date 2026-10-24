@@ -1,0 +1,17 @@
+{
+  "url": "https://wizchan.org/",
+  "startedUtc": "2026-10-24T01:27:34.085992+00:00",
+  "finishedUtc": "2026-10-24T01:27:34.740482+00:00",
+  "status": 200,
+  "bytesRead": 9761,
+  "truncated": false,
+  "sha256ReadBody": "6521cd91f53a3c9b4c4875b9ee9132354af15c3be86a4917f3ab044629b5fbdc",
+  "headers": {
+    "Server": "nginx",
+    "Content-Type": "text/html",
+    "Last-Modified": "Sat, 24 Oct 2026 01:03:56 GMT",
+    "ETag": "\"6adc03fc-2621\"",
+    "Cache-Control": "no-cache"
+  },
+  "requestHeaders": {}
+}

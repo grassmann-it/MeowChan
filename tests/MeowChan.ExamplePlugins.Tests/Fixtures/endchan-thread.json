@@ -1,0 +1,40 @@
+{
+  "boardUri": "demo",
+  "threadId": 123,
+  "creation": "2026-01-02T03:04:05.000Z",
+  "subject": "Synthetic fixture",
+  "markdown": "<p>Synthetic fixture</p>",
+  "message": "Synthetic fixture",
+  "locked": true,
+  "autoSage": true,
+  "cyclic": true,
+  "files": [
+    {
+      "originalName": "same-name.png",
+      "path": "/.media/endchan-keep.png",
+      "thumb": "/.media/t_endchan-keep",
+      "size": 32,
+      "mime": "image/png",
+      "width": 8,
+      "height": 4
+    },
+    {
+      "originalName": "same-name.png",
+      "path": "/.media/endchan-drop.png",
+      "thumb": "/.media/t_endchan-drop",
+      "size": 48,
+      "mime": "image/png",
+      "width": 4,
+      "height": 8
+    }
+  ],
+  "posts": [
+    {
+      "postId": 124,
+      "creation": "2026-01-02T03:05:06.000Z",
+      "message": "Synthetic reply",
+      "files": []
+    }
+  ],
+  "id": "poster-id-not-post-id"
+}

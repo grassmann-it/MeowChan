@@ -1,0 +1,15 @@
+{
+  "url": "https://wizchan.org/wiz/res/999999999999.json",
+  "startedUtc": "2026-10-24T01:27:56.426771+00:00",
+  "finishedUtc": "2026-10-24T01:27:56.787201+00:00",
+  "status": 404,
+  "bytesRead": 2501,
+  "truncated": false,
+  "sha256ReadBody": "737d4ac93666b5140d465b572430b6029d3646deb7c44e92ae0345e61f3ac093",
+  "headers": {
+    "Server": "nginx",
+    "Content-Type": "text/html",
+    "ETag": "\"681d98e2-9c5\""
+  },
+  "requestHeaders": {}
+}

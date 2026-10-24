@@ -1,0 +1,17 @@
+[
+  {
+    "threadId": 123,
+    "message": "Synthetic fixture",
+    "markdown": "<p>Synthetic fixture</p>",
+    "postCount": 1,
+    "fileCount": 0,
+    "page": 1,
+    "subject": "Synthetic fixture",
+    "locked": true,
+    "pinned": false,
+    "cyclic": true,
+    "autoSage": true,
+    "thumb": "/.media/t_synthetic-a",
+    "creation": "2026-01-02T03:04:05.000Z"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "url": "https://wizchan.org/wiz/res/230505.html",
+  "startedUtc": "2026-10-24T01:27:55.581593+00:00",
+  "finishedUtc": "2026-10-24T01:27:56.059749+00:00",
+  "status": 200,
+  "bytesRead": 12877,
+  "truncated": false,
+  "sha256ReadBody": "e477b971695b58f48e9c4b9ab1f50b0805e34b929a4fca62413a6620ab8ab2fc",
+  "headers": {
+    "Server": "nginx",
+    "Content-Type": "text/html",
+    "Last-Modified": "Thu, 22 Oct 2026 15:21:56 GMT",
+    "ETag": "\"6ada2a14-324d\"",
+    "Cache-Control": "no-cache"
+  },
+  "requestHeaders": {}
+}

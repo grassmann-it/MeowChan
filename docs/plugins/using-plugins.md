@@ -8,7 +8,9 @@ required for the corresponding plugin operations.
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied examples include
-   **Lainchan**, **Kohlchan** and **Image dimensions (example)**; selecting an entry shows
+   **Lainchan**, **Kohlchan** and **Image dimensions (example)**. **Wizchan** and
+   **Endchan** are additional example sources in the current implementation plan;
+   their integration and joint validation are in progress. Selecting an entry shows
    whether it is active or unavailable and why. Sources → source details →
    **Plugin settings and tests** is another route to that source's entry.
 2. To test source code, use **Open plugin folder** and put a trusted complete

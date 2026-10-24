@@ -1,0 +1,16 @@
+{
+  "url": "https://wizchan.org/wiz/catalog.json",
+  "startedUtc": "2026-10-24T01:27:34.740888+00:00",
+  "finishedUtc": "2026-10-24T01:27:35.481764+00:00",
+  "status": 200,
+  "bytesRead": 125863,
+  "truncated": false,
+  "sha256ReadBody": "e7cd1afedafd46a19bf3cb5549ec1f7d2dabe3af8da8c98682f4f3d166bbd16c",
+  "headers": {
+    "Server": "nginx",
+    "Content-Type": "application/json",
+    "Last-Modified": "Sat, 24 Oct 2026 00:44:42 GMT",
+    "ETag": "\"6adbff7a-1eba7\""
+  },
+  "requestHeaders": {}
+}

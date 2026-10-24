@@ -25,7 +25,7 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
                                   if phase == 'download' else {'paused-offline-restore', 'delivered-plugin-source-offline-cache-hit'})
         return dict(schemaVersion=1, completed=True, failure=None, phase=phase, checks=list(checks),
                     profile='/profile', workingDirectory='/work', renderScaling=1, unexpectedRequests=0,
-                    revisions={str(i): str(i) for i in range(5)}, processId=123,
+                    revisions={plugin_id: str(i) for i, plugin_id in enumerate(sorted(runner.PLUGIN_IDS))}, processId=123,
                     requests=sorted(runner.REQUESTS) if phase == 'download' else [],
                     sourceCompilation=dict(source='plugins/sources/Lainchan.cs', pluginId='meowchan.source.lainchan',
                                            sdkVersion='1.0.0', sourceSha256='a' * 64, executionRevision='b' * 64,
@@ -39,6 +39,17 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
     def test_valid_download_and_restore(self):
         self.assertEqual(['bound'], self.validate(self.metrics()))
         self.assertEqual(['bound'], self.validate(self.metrics('restore')))
+
+    def test_seven_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
+        self.assertEqual(7, len(runner.PLUGIN_IDS))
+        self.assertEqual(12, len(runner.REQUESTS))
+        for source in ('wizchan', 'endchan'):
+            metrics = self.metrics()
+            metrics['revisions']['foreign'] = metrics['revisions'].pop('meowchan.source.' + source)
+            with self.assertRaises(ValueError): self.validate(metrics)
+            metrics = self.metrics()
+            metrics['requests'] = [uri for uri in metrics['requests'] if source not in uri]
+            with self.assertRaises(ValueError): self.validate(metrics)
 
     def test_missing_compiler_proof_fails(self):
         metrics = self.metrics()

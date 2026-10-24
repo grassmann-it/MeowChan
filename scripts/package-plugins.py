@@ -14,8 +14,8 @@ from pathlib import Path
 
 RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
-           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter')
-SOURCES = ('Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs')
+           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan')
+SOURCES = ('Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs')
 OPTIONS = 'net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 
@@ -150,7 +150,7 @@ def verify(root, runtime, development=False):
     manifests = {path.name for path in (root / 'plugins').glob('*.plugin.json')}
     expected = {name + '.plugin.json' for name in PLUGINS}
     if manifests != expected:
-        raise ValueError('Shipped plugin manifests differ from the five required plugins')
+        raise ValueError('Shipped plugin manifests differ from the seven required plugins')
     for name in PLUGINS:
         bundle = json_file(root / 'plugins', name + '.plugin.json')
         if bundle.get('SchemaVersion') != 1 or bundle.get('Resources') != []:

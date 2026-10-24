@@ -1,0 +1,15 @@
+{
+  "url": "https://raw.githubusercontent.com/fallenPineapple/NPFchan/master/inc/api.php",
+  "startedUtc": "2026-10-24T01:27:56.787357+00:00",
+  "finishedUtc": "2026-10-24T01:27:57.222359+00:00",
+  "status": 200,
+  "bytesRead": 5334,
+  "truncated": false,
+  "sha256ReadBody": "66725d3feccb8f87e8c5dc9bc0aa9cecc1ecd8db138306b57b6d2a92c6367fa9",
+  "headers": {
+    "Cache-Control": "max-age=300",
+    "Content-Type": "text/plain; charset=utf-8",
+    "ETag": "\"6a382953a9a67284cdb62231b0a4fd7cda2b9705b6621983435125c4040db061\""
+  },
+  "requestHeaders": {}
+}

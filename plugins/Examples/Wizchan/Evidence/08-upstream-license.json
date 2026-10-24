@@ -1,0 +1,15 @@
+{
+  "url": "https://raw.githubusercontent.com/fallenPineapple/NPFchan/master/LICENSE.md",
+  "startedUtc": "2026-10-24T01:27:57.222788+00:00",
+  "finishedUtc": "2026-10-24T01:27:57.562427+00:00",
+  "status": 200,
+  "bytesRead": 4526,
+  "truncated": false,
+  "sha256ReadBody": "3e8beac551fd3b8603fe5b39d3bd6a18226d5979d9e7f3e34f42eb92acf33f05",
+  "headers": {
+    "Cache-Control": "max-age=300",
+    "Content-Type": "text/plain; charset=utf-8",
+    "ETag": "\"cbe54e64f20a6ad5be878acb99ff0b0c9834aa593ca0d7e55caf27794938ad73\""
+  },
+  "requestHeaders": {}
+}

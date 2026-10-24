@@ -14,15 +14,13 @@ class AuthorEvidenceTests(unittest.TestCase):
         self.closure = {'apphostMember': 'MeowChan', 'entries': [{'path': path, 'sha256': str(i) * 64} for i, path in enumerate(author.SOURCES.values(), 1)]}
         self.metrics = dict(schemaVersion=1, completed=True, failure=None, phase='source-activation', sourcePhase='acquire',
             checks=['author-normal-shutdown-and-lease', 'author-source-cache-hit-on-restart', 'author-archive-verified', 'author-durable-filter-decisions', 'author-production-workers-download-filter'],
-            profile='/profile', workingDirectory='/working', renderScaling=1, unexpectedRequests=0, revisions={str(i): str(i) for i in range(5)}, processId=5,
-            requests=list(author.plugin.REQUESTS), candidates=[dict(pluginId=plugin, deliveredSource=path, localSource='plugins/author' + str(i) + '.cs',
+            profile='/profile', workingDirectory='/working', renderScaling=1, unexpectedRequests=0, revisions={plugin_id: str(i) for i, plugin_id in enumerate(sorted(author.plugin.PLUGIN_IDS))}, processId=5,
+            requests=list(author.AUTHOR_REQUESTS), candidates=[dict(pluginId=plugin, deliveredSource=path, localSource='plugins/author' + str(i) + '.cs',
             sourceSha256=str(i)*64, candidateId='a'*64, assemblySha256='b'*64, executionRevision='c'*64,
             cacheHit=True, activeCandidateId='a'*64, activeExecutionRevision='c'*64) for i, (plugin, path) in enumerate(author.SOURCES.items(), 1)])
         self.metrics['revisions'] = dict(self.metrics['revisions'])
         for proof in self.metrics['candidates']:
             self.metrics['revisions'][proof['pluginId']] = proof['executionRevision']
-        self.metrics['revisions'].pop('0')
-        self.metrics['revisions'].pop('1')
         self.metrics['startup'] = dict(paused=True, warnings=[], plugins=[])
         for plugin_id, revision in self.metrics['revisions'].items():
             targeted = plugin_id in author.SOURCES
@@ -52,6 +50,17 @@ class AuthorEvidenceTests(unittest.TestCase):
             return author.validate_metrics(self.metrics, 'acquire', Path('/profile'), Path('/working'), 1, self.closure)
     def test_exact_proof_accepted(self):
         self.validate()
+    def test_author_requests_stay_at_two_sources_despite_expanded_bundles(self):
+        self.assertEqual(6, len(author.AUTHOR_REQUESTS))
+        self.assertEqual(12, len(author.plugin.REQUESTS))
+        self.assertEqual(7, len(self.metrics['revisions']))
+        self.metrics['requests'] = list(author.plugin.REQUESTS)
+        with self.assertRaises(ValueError): self.validate()
+
+    def test_seven_startup_rows_require_the_exact_bundled_plugin_ids(self):
+        self.metrics['revisions']['foreign'] = self.metrics['revisions'].pop('meowchan.source.endchan')
+        with self.assertRaises(ValueError): self.validate()
+
     def test_wrong_active_candidate_rejected(self):
         self.metrics['candidates'][0]['activeCandidateId'] = 'd'*64
         with self.assertRaises(ValueError): self.validate()

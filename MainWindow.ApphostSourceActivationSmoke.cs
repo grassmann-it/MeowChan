@@ -114,7 +114,7 @@ public partial class MainWindow
                 RequireWorkflow(_session.GetThreadWorkSnapshots().Count == 0 && fixture.Http.MediaRequests == 0 && fixture.Http.Requests.Count == 1,
                     "Isolated author test/probe created production work or original downloads.");
                 await using (ArchiveReader reader = await _session.OpenArchiveReaderAsync())
-                    foreach (string source in ApphostPluginFixtures.Sources)
+                    foreach (string source in ApphostPluginFixtures.AuthorSources)
                         RequireWorkflow(await reader.ReadThreadAsync(new(source, "demo", "123")) == null, "Isolated author probe archived posts.");
                 RequireWorkflow(plugins.Runtime.GetSnapshots().Count == 0, "Test worker survived author validation.");
                 checks.AddRange(new[] { "author-source-installed", "author-build-test-probe-isolated", "author-explicit-pending-selection" });
@@ -141,13 +141,13 @@ public partial class MainWindow
                 if (phase == "acquire")
                 {
                     await ConfigureAuthorFilterThroughTemplateAsync();
-                    foreach (string source in ApphostPluginFixtures.Sources)
+                    foreach (string source in ApphostPluginFixtures.AuthorSources)
                         installed = await plugins.ProfileStore.SetGrantAsync(AuthorFilterId, "dimensions", new(source, "demo"),
                             FilterDataAccess.CandidateMetadata | FilterDataAccess.OriginalImage, installed.Revision);
-                    foreach (string source in ApphostPluginFixtures.Sources)
+                    foreach (string source in ApphostPluginFixtures.AuthorSources)
                         RequireWorkflow((await _session.AddAsync(ApphostPluginFixtures.ThreadUrl(source))).Status == AdmissionStatus.Added, "Author source URL admission failed.");
                     await _session.SetPausedAsync(false);
-                    await WaitWorkflowAsync(PluginWorkflowCompleted, "compiled author source/filter acquisition");
+                    await WaitWorkflowAsync(() => PluginWorkflowCompleted(ApphostPluginFixtures.AuthorSources), "compiled author source/filter acquisition");
                     var workers = plugins.Runtime.GetSnapshots();
                     RequireWorkflow(workers.Count == 3 && workers.All(worker => worker.ProcessId is > 0)
                         && candidates.All(candidate => workers.Any(worker => worker.Identity.ExecutionRevision == candidate.ExecutionRevision))
@@ -160,7 +160,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    RequireWorkflow(PluginWorkflowCompleted() && installed.Grants.Count == 2 && plugins.Runtime.GetSnapshots().Count == 0
+                    RequireWorkflow(PluginWorkflowCompleted(ApphostPluginFixtures.AuthorSources) && installed.Grants.Count == 2 && plugins.Runtime.GetSnapshots().Count == 0
                         && fixture.Http.Requests.IsEmpty && _session.ReceivedMediaBytes == 0, "Author offline restart attempted production/network work.");
                     var filter = _session.MediaRules.Rules.Single(rule => rule.Scope == MediaRuleScope.Global).ImageFilter;
                     RequireWorkflow(filter.PluginId == AuthorFilterId && filter.Parameters.Count == 4
@@ -170,7 +170,7 @@ public partial class MainWindow
                     checks.Add("author-paused-offline-restart");
                 }
                 await using (ArchiveReader reader = await _session.OpenArchiveReaderAsync())
-                    foreach (string source in ApphostPluginFixtures.Sources)
+                    foreach (string source in ApphostPluginFixtures.AuthorSources)
                     {
                         var view = await reader.ReadThreadAsync(new(source, "demo", "123"));
                         RequireWorkflow(view != null && view.GetPosts().Select(post => post.PostId).SequenceEqual(new[] { "123", "124" }), "Author archive posts differ.");
@@ -196,7 +196,7 @@ public partial class MainWindow
                 if (phase != "install")
                 {
                     await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(descriptor.Profile, lease);
-                    foreach (string source in ApphostPluginFixtures.Sources)
+                    foreach (string source in ApphostPluginFixtures.AuthorSources)
                     {
                         var decisions = await catalog.GetDecisionsAsync(new(source, "demo", "123"));
                         var excluded = decisions.Where(decision => decision.Selection.Reason == MediaSelectionReason.FilterNoMatch).ToArray();

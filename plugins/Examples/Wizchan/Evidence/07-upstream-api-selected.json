@@ -1,0 +1,98 @@
+{
+  "selectedApiLines": [
+    {
+      "line": 9,
+      "text": "* Class for generating json API compatible with 4chan API"
+    },
+    {
+      "line": 28,
+      "text": "'time' => 'time',"
+    },
+    {
+      "line": 34,
+      "text": "'locked' => 'locked',"
+    },
+    {
+      "line": 35,
+      "text": "'cycle' => 'cyclical',"
+    },
+    {
+      "line": 37,
+      "text": "'embed' => 'embed',"
+    },
+    {
+      "line": 50,
+      "text": "'size' => 'fsize',"
+    },
+    {
+      "line": 61,
+      "text": "'time' => 1,"
+    },
+    {
+      "line": 66,
+      "text": "'fsize' => 1,"
+    },
+    {
+      "line": 72,
+      "text": "'locked' => 1,"
+    },
+    {
+      "line": 92,
+      "text": "$apiPost['filename'] = @substr($file->name, 0, strrpos($file->name, '.'));"
+    },
+    {
+      "line": 95,
+      "text": "$apiPost['tim'] = substr($file->file, 0, $dotPos);"
+    },
+    {
+      "line": 103,
+      "text": "$apiPost['md5'] = base64_encode(hex2bin($file->hash));"
+    },
+    {
+      "line": 106,
+      "text": "$apiPost['md5'] = base64_encode(hex2bin($post->filehash));"
+    },
+    {
+      "line": 135,
+      "text": "// Handle files"
+    },
+    {
+      "line": 137,
+      "text": "if (isset($post->files) && $post->files && !$threadsPage) {"
+    },
+    {
+      "line": 138,
+      "text": "$file = $post->files[0];"
+    },
+    {
+      "line": 140,
+      "text": "if (sizeof($post->files) > 1) {"
+    },
+    {
+      "line": 141,
+      "text": "$extra_files = array();"
+    },
+    {
+      "line": 142,
+      "text": "foreach ($post->files as $i => $f) {"
+    },
+    {
+      "line": 148,
+      "text": "$extra_files[] = $extra_file;"
+    },
+    {
+      "line": 150,
+      "text": "$apiPost['extra_files'] = $extra_files;"
+    }
+  ],
+  "licenseHeader": [
+    "<?php",
+    "/*",
+    " *  Copyright (c) 2010-2013 Tinyboard Development Group",
+    " */",
+    "",
+    "defined('TINYBOARD') or exit;",
+    "",
+    "/**"
+  ]
+}

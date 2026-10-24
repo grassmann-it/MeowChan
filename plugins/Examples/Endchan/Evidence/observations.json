@@ -1,0 +1,105 @@
+{
+  "schema": "meowchan.example-source.observations.v1",
+  "sourceId": "endchan",
+  "observedOn": "2026-10-24",
+  "baseHead": "f7947eee57cc1c6b77291c45d4e3d0b4d86ea0ff",
+  "researchReportSha256": "987ed0d288e8ab591dfebddaef55f687ace73ff03b94f34fecb984f4b0ea3ccc",
+  "researchIndexSha256": "da1dbeb4258d29eaa7324845802411e99741dfe0b91da0497ba3b07ca76fdfa9",
+  "publicGets": [
+    {
+      "receipt": "01-net-home.json",
+      "url": "https://endchan.net/",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:15.473337+00:00",
+      "receivedBytes": 22525,
+      "bodySha256": "f72a0c430f05d66bbfab37928d032423d8bfa87fe6d453c2287fb8ae2dcb883b"
+    },
+    {
+      "receipt": "02-operator-json-doc.json",
+      "url": "https://gitgud.io/InfinityNow/LynxChan/-/raw/master/doc/Json.txt",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:16.325021+00:00",
+      "receivedBytes": 11962,
+      "bodySha256": "493ace1ec9d5dd71388bf986393d68ea306ed6dcf8ce5010055ffd6bb3956ecf"
+    },
+    {
+      "receipt": "03-net-thread.json",
+      "url": "https://endchan.net/operate/res/30442.json",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:16.842368+00:00",
+      "receivedBytes": 1811,
+      "bodySha256": "b541822c9c7dee313d2d7c3b79956b424e4e711e55a0e9cf155f03198eb85b24"
+    },
+    {
+      "receipt": "04-org-thread.json",
+      "url": "https://endchan.org/operate/res/30442.json",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:17.483228+00:00",
+      "receivedBytes": 1811,
+      "bodySha256": "b541822c9c7dee313d2d7c3b79956b424e4e711e55a0e9cf155f03198eb85b24"
+    },
+    {
+      "receipt": "05-net-catalog.json",
+      "url": "https://endchan.net/operate/catalog.json",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:31.218293+00:00",
+      "receivedBytes": 191768,
+      "bodySha256": "bc453b0ce7288856b49592179e434481f688ecd7a5703af8e96b8837859a3802"
+    },
+    {
+      "receipt": "06-net-board-page.json",
+      "url": "https://endchan.net/operate/1.json",
+      "status": 200,
+      "startedUtc": "2026-10-24T01:28:32.418193+00:00",
+      "receivedBytes": 31986,
+      "bodySha256": "d4cdc4c915c8e3023f0fe3da621b12a3b436ab6643277808acec324cd8fee570"
+    },
+    {
+      "receipt": "07-net-missing.json",
+      "url": "https://endchan.net/operate/res/999999999.json",
+      "status": 404,
+      "startedUtc": "2026-10-24T01:28:33.283704+00:00",
+      "receivedBytes": 472,
+      "bodySha256": "73f3395b2f8d852fcea189cacdd44d4659c0e78fc18034cf82284f1433a0c22d"
+    },
+    {
+      "receipt": "08-net-thread-conditional.json",
+      "url": "https://endchan.net/operate/res/30442.json",
+      "status": 304,
+      "startedUtc": "2026-10-24T01:28:33.973475+00:00",
+      "receivedBytes": 0,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "observed": [
+    "Root OP uses threadId; replies use postId; id is not post identity.",
+    "Thread .net/.org endpoints returned identical bytes, directly without a redirect.",
+    "Thread 200 supplied Last-Modified; conditional If-Modified-Since produced 304.",
+    "Known-board catalog is a flat array. fileCount counts reply files, not all attachments.",
+    "Original paths use same-origin /.media/<flat-name>; thumb names may have no extension.",
+    "Exact requested missing thread endpoint returned 404."
+  ],
+  "documentedOnly": [
+    "Multiple files per post are documented; the bounded live sample did not demonstrate multifile."
+  ],
+  "localPolicy": [
+    "Canonical .net is a local choice, not a claim about server redirects.",
+    "Only .org is admitted as an alias; no .gg, eu.* or www.",
+    "Board identities are case-preserving ASCII letters/digits/underscore; no merged + boards.",
+    "Always Active: archived/end status has not been verified.",
+    "Catalog IsComplete false; no page/cursor request; no global board discovery or previews.",
+    "Synthetic fixtures use invented content and sizes, not downloaded image bytes."
+  ],
+  "unknown": [
+    "Deployed Endchan revision and deployed fork provenance.",
+    "Archived and explicit post/media deletion semantics.",
+    "Full source health and original-media availability."
+  ],
+  "provenance": "Implementation adapted from this repository Kohlchan.cs; no upstream implementation copied. Operator-linked documentation was consulted as protocol evidence only.",
+  "limits": [
+    "Eight bounded public GETs, no cookie/login/POST/original/thumbnail request, no redirect followed, no retries, no truncation.",
+    "Forum JSON/HTML bodies not retained. Receipts record full received body hashes plus minimal shape/link/media-path projections; those hashes cannot reconstruct or independently rehash unretained live bodies.",
+    "Full retained text is operator-linked API documentation only. No foreign implementation code copied. Synthetic fixtures are invented data and were JSON-parsed only, never executed against a product/parser.",
+    "Operator master documentation hash observed now; deployed Endchan revision and deployed fork provenance are unknown. No complete live health/media/product acceptance."
+  ]
+}

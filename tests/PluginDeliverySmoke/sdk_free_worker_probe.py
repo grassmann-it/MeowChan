@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Describe all five delivered plugins through the actual SDK-inaccessible Linux worker.
+"""Describe all seven delivered plugins through the actual SDK-inaccessible Linux worker.
 
 An isolated packaging probe, not the production session/HTTP/filter acceptance suite.
 """
@@ -60,9 +60,10 @@ def main():
     results = []
     expected_ids = {'MeowChan.Plugin.FourChan': 'meowchan.official.4chan', 'MeowChan.Plugin.EightKun': 'meowchan.official.8kun',
                     'MeowChan.Plugin.Lainchan': 'meowchan.source.lainchan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
-                    'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions'}
+                    'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions',
+                    'MeowChan.Plugin.Wizchan': 'meowchan.source.wizchan', 'MeowChan.Plugin.Endchan': 'meowchan.source.endchan'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
-    assert len(manifests) == 5
+    assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):
         manifest = json.loads(manifest_path.read_text())
         work = output / (str(index) + ' isolated work')

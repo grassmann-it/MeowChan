@@ -1,0 +1,24 @@
+{
+  "canonicalSelfLinks": [
+    "/wiz/res/230505.html#230505",
+    "/wiz/res/230505.html#230506",
+    "/wiz/res/230505.html#230510",
+    "/wiz/res/230505.html#q230505",
+    "/wiz/res/230505.html#q230506",
+    "/wiz/res/230505.html#q230510"
+  ],
+  "mediaPathShapes": [
+    "/wiz/src/<provider-token><extension>",
+    "/wiz/thumb/<provider-token><extension>",
+    "http://imgops.com/https://wizchan.org/wiz/src/<provider-token><extension>",
+    "http://iqdb.org/?url=https://wizchan.org/wiz/src/<provider-token><extension>"
+  ],
+  "mediaLinkCount": 5,
+  "imageOrVideoExts": [
+    ".jpg"
+  ],
+  "upstreamLinks": [
+    "https://github.com/fallenPineapple/NPFchan",
+    "https://github.com/fallenPineapple/NPFchan"
+  ]
+}

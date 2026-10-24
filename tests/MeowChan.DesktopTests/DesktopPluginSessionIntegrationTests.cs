@@ -170,7 +170,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-worker", "MeowChan.PluginWorker" + suffix)));
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
-        Assert.Equal(5, manifests.Length);
+        Assert.Equal(7, manifests.Length);
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
         Stopwatch startup = Stopwatch.StartNew();
@@ -184,9 +184,10 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
         Assert.NotNull(host.Plugins);
         Assert.Empty(host.Plugins.Warnings);
-        Assert.Equal(new[] { "4chan", "8kun", "kohlchan", "lainchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
+        Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
+        AssertNewSourceRouting(host);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        Assert.Equal(5, profile.Plugins.Count);
+        Assert.Equal(7, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             Assert.True(plugin.Enabled);
@@ -201,6 +202,53 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
             Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(plugin.Active.Artifact.AssemblyPath))), ignoreCase: true);
         }
         return profile;
+    }
+
+    private static void AssertNewSourceRouting(DesktopSessionHost host)
+    {
+        // Use the actual delivered descriptions, after worker Describe(), through the production router.
+        // Routing itself remains passive and must not need metadata or a production worker.
+        foreach (var route in new[]
+        {
+            (Source: "wizchan", Input: "https://wizchan.org/demo/", Kind: SourceResourceKind.Board, Canonical: "https://wizchan.org/demo/"),
+            (Source: "wizchan", Input: "https://wizchan.org/demo/index.html", Kind: SourceResourceKind.Board, Canonical: "https://wizchan.org/demo/"),
+            (Source: "wizchan", Input: "https://wizchan.org/demo/res/123.html#p124", Kind: SourceResourceKind.Thread, Canonical: "https://wizchan.org/demo/res/123.html"),
+            (Source: "endchan", Input: "https://endchan.net/demo/", Kind: SourceResourceKind.Board, Canonical: "https://endchan.net/demo/"),
+            (Source: "endchan", Input: "https://endchan.org/demo/", Kind: SourceResourceKind.Board, Canonical: "https://endchan.net/demo/"),
+            (Source: "endchan", Input: "https://endchan.org/demo/res/123.html#124", Kind: SourceResourceKind.Thread, Canonical: "https://endchan.net/demo/res/123.html")
+        })
+        {
+            var source = host.Plugins!.Sources.Single(source => source.Name == route.Source);
+            Assert.True(source.Router.TryResolve(new Uri(route.Input), out var kind, out string board, out string? thread, out Uri? canonical));
+            Assert.Equal(route.Kind, kind);
+            Assert.Equal("demo", board);
+            Assert.Equal(route.Kind == SourceResourceKind.Thread ? "123" : null, thread);
+            Assert.Equal(route.Canonical, canonical!.AbsoluteUri);
+        }
+        foreach (var source in host.Plugins!.Sources.Where(source => source.Name is "wizchan" or "endchan"))
+        {
+            foreach (string input in new[]
+            {
+                "https://www." + source.BaseUri.Host + "/demo/res/123.html",
+                source.BaseUri + "demo/res/not-decimal.html",
+                source.BaseUri + "demo/res/123.html/title",
+                source.BaseUri + "demo/res/123.html/",
+                source.BaseUri + "demo/other/123.html"
+            })
+                Assert.False(source.Router.TryResolve(new Uri(input), out _, out _, out _, out _), input);
+        }
+        var wizchan = host.Plugins.Sources.Single(source => source.Name == "wizchan");
+        Assert.True(wizchan.Router.TryResolve(new Uri("https://wizchan.org/K%C3%BChl%2BBoard/res/%31%32%33.html#p124"),
+            out var opaqueKind, out string opaqueBoard, out string? opaqueThread, out Uri? opaqueCanonical));
+        Assert.Equal(SourceResourceKind.Thread, opaqueKind);
+        Assert.Equal("Kühl+Board", opaqueBoard);
+        Assert.Equal("123", opaqueThread);
+        Assert.Equal("https://wizchan.org/K%C3%BChl%2BBoard/res/123.html", opaqueCanonical!.AbsoluteUri);
+        var endchan = host.Plugins.Sources.Single(source => source.Name == "endchan");
+        Assert.False(endchan.Router.TryResolve(new Uri("https://endchan.net/demo+other/res/123.html"), out _, out _, out _, out _));
+        foreach (string hostName in new[] { "endchan.gg", "endchan.eu" })
+            Assert.False(endchan.Router.TryResolve(new Uri("https://" + hostName + "/demo/res/123.html"), out _, out _, out _, out _));
+        Assert.Empty(host.Plugins.Runtime.GetSnapshots());
     }
 
     private static bool Completed(DesktopSessionHost host)

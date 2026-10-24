@@ -33,7 +33,8 @@ MEOWCHAN_V09_UPGRADE_PROFILE=/tmp/meowchan-v09-upgrade-profile-UNIQUE flock /tmp
 ```
 
 Use the usual root build/restore/runtime properties and payload staging required by
-DesktopPluginSessionIntegrationTests: all five shipped manifests and assemblies,
+DesktopPluginSessionIntegrationTests: all seven shipped plugin manifests and assemblies
+(six sources plus ImageDimensionsFilter), together with
 plugin-worker and plugin-compiler must be beside the desktop test assembly. These
 are actual out-of-process delivered workers; no injected imageboard providers are
 used on the 1.0 side. Missing payloads fail startup assertions. The normal suite

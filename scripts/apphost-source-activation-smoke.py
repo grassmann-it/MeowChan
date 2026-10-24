@@ -17,6 +17,10 @@ plugin = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(plugin)
 workflow, desktop = plugin.workflow, plugin.desktop
 PHASES = ('install', 'acquire', 'offline')
+# The author workflow retains its two production sources independently of PluginWorkflow.
+AUTHOR_REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo/res/123.json',
+                   'https://lainchan.org/demo/src/1000-0.png', 'https://lainchan.org/demo/src/1001-1.png',
+                   'https://kohlchan.net/.media/landscape.png', 'https://kohlchan.net/.media/portrait.png'}
 SOURCES = {'meowchan.source.lainchan': 'plugins/sources/Lainchan.cs',
            'meowchan.example.image-dimensions': 'plugins/sources/ImageDimensionsFilter.cs'}
 PARAMETERS = {'minimumWidth': '5', 'minimumHeight': '0', 'orientation': 'landscape', 'aspectRatioTolerance': '0'}
@@ -44,7 +48,7 @@ def validate_startup(metrics, phase):
     if not isinstance(startup, dict) or startup.get('paused') is not True:
         raise ValueError('Source activation startup was not paused')
     rows = startup.get('plugins')
-    if (not isinstance(rows, list) or len(rows) != 5
+    if (not isinstance(rows, list) or len(rows) != 7
             or {row.get('pluginId') for row in rows} != set(metrics['revisions'])):
         raise ValueError('Source activation startup plugin inventory differs')
     expected = []
@@ -72,12 +76,12 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
             or metrics.get('phase') != 'source-activation' or metrics.get('sourcePhase') != phase
             or not required.issubset(metrics.get('checks', [])) or metrics.get('profile') != str(profile)
             or metrics.get('workingDirectory') != str(working) or abs(metrics.get('renderScaling', 0) - scale) > .01
-            or metrics.get('unexpectedRequests') != 0 or not isinstance(metrics.get('revisions'), dict) or len(metrics['revisions']) != 5
+            or metrics.get('unexpectedRequests') != 0 or not isinstance(metrics.get('revisions'), dict) or set(metrics['revisions']) != plugin.PLUGIN_IDS
             or type(metrics.get('processId')) is not int or metrics['processId'] <= 0):
         raise ValueError('Source activation process evidence differs')
     validate_startup(metrics, phase)
     requests = metrics.get('requests')
-    expected_requests = ['https://lainchan.org/demo/res/123.json'] if phase == 'install' else plugin.REQUESTS if phase == 'acquire' else []
+    expected_requests = ['https://lainchan.org/demo/res/123.json'] if phase == 'install' else AUTHOR_REQUESTS if phase == 'acquire' else []
     if not isinstance(requests, list) or len(requests) != len(expected_requests) or set(requests) != set(expected_requests):
         raise ValueError('Source activation request inventory differs')
     candidates = metrics.get('candidates')

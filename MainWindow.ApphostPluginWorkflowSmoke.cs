@@ -52,8 +52,8 @@ public partial class MainWindow
                 RequireWorkflow(File.Exists(Path.Combine(app, helper)), "Delivered helper missing: " + helper);
             string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
-            RequireWorkflow(manifests.Length == 5 && installed.Plugins.Count == 5, "Delivered plugin inventory differs.");
-            RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "4chan", "8kun", "kohlchan", "lainchan" }), "Delivered source inventory differs.");
+            RequireWorkflow(manifests.Length == 7 && installed.Plugins.Count == 7, "Delivered plugin inventory differs.");
+            RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }), "Delivered source inventory differs.");
             foreach (PluginActivationSnapshot plugin in installed.Plugins)
             {
                 RequireWorkflow(plugin.Enabled && plugin.Active != null && plugin.Problem == null && plugin.Candidates.Count == 1, "Plugin activation failed: " + plugin.PluginId);
@@ -92,7 +92,7 @@ public partial class MainWindow
                     uncachedBuild = !compiled.CacheHit, describedInWorker = true, cachedBuild = cached.CacheHit,
                     acquisition = "Shipped prebuilt bundles; compiled source is described in a separate test worker."
                 };
-                foreach (string source in ApphostPluginFixtures.Sources)
+                foreach (string source in ApphostPluginFixtures.WorkflowSources)
                     installed = await plugins.ProfileStore.SetGrantAsync(filterId, "dimensions", new(source, "demo"),
                         FilterDataAccess.CandidateMetadata | FilterDataAccess.OriginalImage, installed.Revision);
                 await _session.SaveRulesAsync(new[] { new MediaRule(MediaRuleScope.Global)
@@ -100,14 +100,16 @@ public partial class MainWindow
                     ImageFilter = new(MediaImageFilterMode.Plugin, filterId, "dimensions", parameters: new Dictionary<string, string>
                     { ["minimumWidth"] = "4", ["orientation"] = "landscape" })
                 } }, _session.MediaRules.Revision);
-                foreach (string source in ApphostPluginFixtures.Sources)
+                foreach (string source in ApphostPluginFixtures.WorkflowSources)
                     RequireWorkflow((await _session.AddAsync(ApphostPluginFixtures.ThreadUrl(source))).Status == AdmissionStatus.Added, "Plugin URL admission failed.");
                 await _session.SetPausedAsync(false);
-                await WaitWorkflowAsync(() => PluginWorkflowCompleted(), "delivered sources/filter/download");
+                await WaitWorkflowAsync(() => PluginWorkflowCompleted(ApphostPluginFixtures.WorkflowSources), "delivered sources/filter/download");
                 var workers = plugins.Runtime.GetSnapshots();
-                RequireWorkflow(workers.Count == 3 && workers.All(worker => worker.ProcessId is > 0)
-                    && workers.Any(worker => worker.Identity.ExecutionRevision == revisions[filterId]), "Delivered source/filter worker missing.");
-                RequireWorkflow(fixture.Http.Requests.Count == 6 && fixture.Http.MediaRequests == 4
+                RequireWorkflow(workers.Count == 5 && workers.All(worker => worker.ProcessId is > 0)
+                    && ApphostPluginFixtures.WorkflowSources.Select(source => revisions["meowchan.source." + source])
+                        .Append(revisions[filterId]).ToHashSet(StringComparer.Ordinal)
+                        .SetEquals(workers.Select(worker => worker.Identity.ExecutionRevision)), "Delivered source/filter worker missing.");
+                RequireWorkflow(fixture.Http.Requests.Count == 12 && fixture.Http.MediaRequests == 8
                     && fixture.Http.Requests.GroupBy(uri => uri).All(group => group.Count() == 1), "Fixture requests differ or media was downloaded twice.");
                 checks.Add("real-source-and-filter-workers");
                 await _session.SetPausedAsync(true);
@@ -126,13 +128,13 @@ public partial class MainWindow
                     cachedBuild = cached.CacheHit
                 };
                 checks.Add("delivered-plugin-source-offline-cache-hit");
-                RequireWorkflow(_session.IsPaused && PluginWorkflowCompleted() && installed.Grants.Count == 2, "Paused work/filter grants were not restored.");
+                RequireWorkflow(_session.IsPaused && PluginWorkflowCompleted(ApphostPluginFixtures.WorkflowSources) && installed.Grants.Count == 4, "Paused work/filter grants were not restored.");
                 RequireWorkflow(plugins.Runtime.GetSnapshots().Count == 0 && fixture.Http.Requests.IsEmpty && _session.ReceivedMediaBytes == 0, "Paused offline restart attempted work.");
                 checks.Add("paused-offline-restore");
             }
             await using (ArchiveReader reader = await _session.OpenArchiveReaderAsync())
             {
-                foreach (string source in ApphostPluginFixtures.Sources)
+                foreach (string source in ApphostPluginFixtures.WorkflowSources)
                 {
                     var view = (await reader.ReadThreadAsync(new(source, "demo", "123")))!;
                     RequireWorkflow(view != null && view.GetPosts().Select(post => post.PostId).SequenceEqual(new[] { "123", "124" }), "Archived posts differ.");
@@ -158,7 +160,7 @@ public partial class MainWindow
             using (ProfileLease lease = ProfileLease.Acquire(descriptor.Profile))
             {
                 await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(descriptor.Profile, lease);
-                foreach (string source in ApphostPluginFixtures.Sources)
+                foreach (string source in ApphostPluginFixtures.WorkflowSources)
                 {
                     var decisions = await catalog.GetDecisionsAsync(new(source, "demo", "123"));
                     var excluded = decisions.Where(decision => decision.Selection.Reason == MediaSelectionReason.FilterNoMatch).ToArray();
@@ -183,15 +185,17 @@ public partial class MainWindow
                 profile = descriptor.Profile, workingDirectory = Environment.CurrentDirectory,
                 assemblyInformationalVersion = typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
                 requests = fixture.Http.Requests.ToArray(), unexpectedRequests = fixture.Http.Unexpected,
-                scope = "Published apphost, providers:null, delivered PluginSession sources/filter/helpers, terminal offline fixture HTTP; no live-source claim."
+                scope = "Published apphost, providers:null, delivered PluginSession sources/filter/helpers, terminal offline fixture HTTP, explicit fixture production worker capacity 5; no live-source claim."
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 
-    private bool PluginWorkflowCompleted()
+    private bool PluginWorkflowCompleted(IReadOnlyCollection<string> expectedSourceIds)
     {
         var work = _session.GetThreadWorkSnapshots();
-        return work.Count == 2 && work.All(resource => resource.Media.Count == 2
+        var expectedUrls = expectedSourceIds.Select(ApphostPluginFixtures.ThreadUrl).ToHashSet(StringComparer.Ordinal);
+        return work.Count == expectedUrls.Count && expectedUrls.SetEquals(work.Select(resource => resource.Url))
+            && work.All(resource => resource.Media.Count == 2
             && resource.Media.Count(media => media.Status == MediaWorkStatus.Succeeded) == 1
             && resource.Media.Count(media => media.Status == MediaWorkStatus.Excluded) == 1);
     }

@@ -1,0 +1,10 @@
+{
+  "boardUri": "demo",
+  "threadId": 123,
+  "posts": [
+    {
+      "postId": 124,
+      "message": ""
+    }
+  ]
+}

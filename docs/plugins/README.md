@@ -31,9 +31,18 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 | --- | --- | --- |
 | [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs) · [notes and evidence](../../plugins/Examples/Lainchan/README.md) | Thread/catalog parsing, field presence, ordered primary/additional files, validators | Example source; limited public metadata observations, no invented archive flag |
 | [Kohlchan.cs](../../plugins/Examples/Kohlchan/Kohlchan.cs) · [notes and evidence](../../plugins/Examples/Kohlchan/README.md) | LynxChan OP/reply shape, multiple files, original paths, final archived snapshot | Example source; full live catalog parsing remains unconfirmed in the bounded evidence collection |
+| [Wizchan.cs](../../plugins/Examples/Wizchan/Wizchan.cs) · [notes and evidence](../../plugins/Examples/Wizchan/README.md) | Independent SDK-only source, thread/catalog metadata and ordered attachments | Example source; implementation in progress, no live-original acquisition claim |
+| [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Example source; implementation in progress, no verified archive flag or live-original acquisition claim |
 | [ImageDimensionsFilter.cs](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Scoped rule schema, domain validation, token-based original-byte reads | Static JPEG/PNG dimensions and aspect ratio; no OCR or general image decoding |
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
 | [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and provider differences | Official source implementations; registration is not a live-health claim |
+
+The accepted [source-extension plan](../architecture/1.0.0/source-erweiterungen/README.md)
+adds Wizchan and Endchan as example sources. Implementation and joint validation
+are in progress. Its delivery target is **seven plugins, six sources and five
+editable files**: 4chan/8kun plus the four example sources, and the dimensions
+filter; the editable files are Lainchan, Kohlchan, Wizchan, Endchan and the filter.
+This target is not a completed package or release check.
 
 A plugin references `MeowChan.PluginSdk` and the delivered framework libraries.
 It does not reference `libmeowchan`, Avalonia, the desktop application or host

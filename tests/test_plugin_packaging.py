@@ -77,8 +77,8 @@ class PluginPackagingTests(unittest.TestCase):
                 outer = self.root; self.root = Path(directory)
                 self.fixture(runtime)
                 report = PACKAGE.verify(self.root, runtime)
-                self.assertEqual(5, report['plugins'])
-                self.assertEqual(3, report['editable_sources'])
+                self.assertEqual(7, report['plugins'])
+                self.assertEqual(5, report['editable_sources'])
                 self.root = outer
 
     def test_framework_dependent_helpers_are_only_allowed_for_developer_outputs(self):
@@ -86,6 +86,34 @@ class PluginPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'external .NET runtime'):
             PACKAGE.verify(self.root, 'linux-x64')
         self.assertTrue(PACKAGE.verify(self.root, 'linux-x64', development=True)['passed'])
+
+    def test_exact_bundled_inventory_includes_both_new_sources(self):
+        self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
+                          'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter',
+                          'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan'}, set(PACKAGE.PLUGINS))
+        self.assertEqual({'Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs'}, set(PACKAGE.SOURCES))
+        self.assertEqual(5, len(PACKAGE.RUNTIMES))
+        self.fixture()
+        for source in ('Wizchan', 'Endchan'):
+            with self.subTest(source=source):
+                manifest = self.root / ('plugins/MeowChan.Plugin.' + source + '.plugin.json')
+                original = manifest.read_bytes()
+                manifest.unlink()
+                with self.assertRaisesRegex(ValueError, 'seven required plugins'):
+                    PACKAGE.verify(self.root, 'linux-x64')
+                manifest.write_bytes(original)
+                editable = self.root / ('plugins/sources/' + source + '.cs')
+                original = editable.read_bytes()
+                editable.unlink()
+                with self.assertRaisesRegex(ValueError, 'Missing'):
+                    PACKAGE.verify(self.root, 'linux-x64')
+                editable.write_bytes(original)
+                assembly = self.root / ('plugins/assemblies/MeowChan.Plugin.' + source + '.dll')
+                original = assembly.read_bytes()
+                assembly.write_bytes(b'modified')
+                with self.assertRaisesRegex(ValueError, 'assembly hash'):
+                    PACKAGE.verify(self.root, 'linux-x64')
+                assembly.write_bytes(original)
 
     def test_wrong_native_architecture_is_rejected(self):
         self.fixture('linux-arm64')

@@ -39,9 +39,9 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.True(host.IsPaused);
             Assert.NotNull(host.Plugins);
             Assert.Empty(host.Plugins.Warnings);
-            Assert.Equal(new[] { "4chan", "8kun", "kohlchan", "lainchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
+            Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
             var installed = await host.Plugins.ProfileStore.ReadAsync();
-            Assert.Equal(5, installed.Plugins.Count);
+            Assert.Equal(7, installed.Plugins.Count);
             Assert.All(installed.Plugins, plugin => { Assert.True(plugin.Enabled); Assert.NotNull(plugin.Active); Assert.Null(plugin.Problem); });
             Dictionary<string, string> current = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);
             if (revisions == null) revisions = current;

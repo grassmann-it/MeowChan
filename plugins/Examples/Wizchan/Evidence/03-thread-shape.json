@@ -1,0 +1,77 @@
+{
+  "rootKeys": [
+    "posts"
+  ],
+  "postCount": 3,
+  "postShapes": [
+    {
+      "no": "int",
+      "sub": "str",
+      "com": "str",
+      "name": "str",
+      "time": "int",
+      "omitted_posts": "int",
+      "omitted_images": "int",
+      "sticky": "int",
+      "locked": "int",
+      "cyclical": "str",
+      "last_modified": "int",
+      "embed": "str",
+      "resto": "int"
+    },
+    {
+      "no": "int",
+      "resto": "int",
+      "com": "str",
+      "email": "str",
+      "name": "str",
+      "time": "int",
+      "sticky": "int",
+      "locked": "int",
+      "cyclical": "str",
+      "last_modified": "int"
+    },
+    {
+      "no": "int",
+      "resto": "int",
+      "com": "str",
+      "name": "str",
+      "time": "int",
+      "sticky": "int",
+      "locked": "int",
+      "cyclical": "str",
+      "last_modified": "int",
+      "tn_h": "int",
+      "tn_w": "int",
+      "h": "int",
+      "w": "int",
+      "fsize": "int",
+      "filename": "str",
+      "ext": "str",
+      "tim": "str",
+      "md5": "str"
+    }
+  ],
+  "attachments": [
+    {
+      "postId": 230505,
+      "primary": {},
+      "extraCount": 0
+    },
+    {
+      "postId": 230506,
+      "primary": {},
+      "extraCount": 0
+    },
+    {
+      "postId": 230510,
+      "primary": {
+        "ext": ".jpg",
+        "fsize": 24242,
+        "w": 427,
+        "h": 424
+      },
+      "extraCount": 0
+    }
+  ]
+}
