@@ -192,7 +192,7 @@ public static class ArchiveHtmlExporter
             {
                 token.ThrowIfCancellationRequested();
                 await AttachmentAsync(null, new CapturedAttachment(0, asset.MediaIdentifier, asset.Variant,
-                    OriginalFileName: asset.OriginalFileName, ExpectedSize: asset.Length, ExpectedMd5: asset.Md5)).ConfigureAwait(false);
+                    OriginalFileName: asset.OriginalFileName, ExpectedSize: asset.Length, ExpectedMd5: asset.Md5), (manifest, asset)).ConfigureAwait(false);
             }
             await html.WriteLineAsync("</article>");
         }
@@ -206,23 +206,25 @@ public static class ArchiveHtmlExporter
         return new ArchiveHtmlExportResult(stage, Path.Combine(stage, pagePath), posts, files,
             Array.AsReadOnly(omissions.ToArray())) { Warnings = warnings.Distinct().ToArray() };
 
-        async Task AttachmentAsync(string? postId, CapturedAttachment attachment)
+        async Task AttachmentAsync(string? postId, CapturedAttachment attachment,
+            (MediaAssetSnapshot Manifest, MediaAssetReference Asset)? mediaOnly = null)
         {
             ArchiveExportOmissionReason? reason = null;
             (MediaAssetSnapshot Manifest, MediaAssetReference Asset)? chosen = null;
+            MediaAttachmentBinding? provenance = null;
             if (!options.IncludeMedia) reason = ArchiveExportOmissionReason.MediaNotIncluded;
             else if (attachment.MediaId == null) reason = ArchiveExportOmissionReason.NoMediaIdentity;
-            else if (decisions.TryGetValue((attachment.MediaId, attachment.Variant), out CandidateDecision? decision)
-                && decision.Selection.Outcome == MediaSelectionOutcome.Excluded) reason = ArchiveExportOmissionReason.ExcludedByRule;
             else
             {
-                (MediaAssetSnapshot Manifest, MediaAssetReference Asset)[] matches = assets.Where(pair => pair.Asset.MediaIdentifier == attachment.MediaId
-                    && pair.Asset.Variant == attachment.Variant).ToArray();
-                chosen = matches.Where(pair => (attachment.ExpectedSize == null || pair.Asset.Length == attachment.ExpectedSize)
-                        && (attachment.ExpectedMd5 == null || pair.Asset.Md5 == attachment.ExpectedMd5))
-                    .OrderByDescending(pair => pair.Asset.IsCurrent).ThenBy(pair => pair.Asset.AssetId, StringComparer.Ordinal)
-                    .Select(pair => ((MediaAssetSnapshot Manifest, MediaAssetReference Asset)?)pair).FirstOrDefault();
-                if (chosen == null) reason = matches.Length == 0 ? ArchiveExportOmissionReason.Unavailable : ArchiveExportOmissionReason.DifferentVersion;
+                ResolvedMediaAttachment? resolved = postId == null ? null : MediaAttachmentResolver.Resolve(
+                    assets.Select(pair => pair.Manifest).Distinct(), view.Summary.Id, postId, attachment);
+                if (decisions.TryGetValue((attachment.MediaId, attachment.Variant), out CandidateDecision? decision)
+                    && decision.Selection.Outcome == MediaSelectionOutcome.Excluded) reason = ArchiveExportOmissionReason.ExcludedByRule;
+                else if (resolved != null) chosen = (resolved.Snapshot, resolved.Asset);
+                else if (postId == null && view.PostCount == 0) chosen = mediaOnly;
+                if (chosen == null && reason == null) reason = assets.Any(pair => pair.Asset.MediaIdentifier == attachment.MediaId
+                    && pair.Asset.Variant == attachment.Variant) ? ArchiveExportOmissionReason.DifferentVersion : ArchiveExportOmissionReason.Unavailable;
+                provenance = resolved?.Binding;
             }
             string? relative = null;
             if (chosen is (MediaAssetSnapshot manifest, MediaAssetReference asset))
@@ -282,6 +284,19 @@ public static class ArchiveHtmlExporter
                 else if (extension is ".webm" or ".mp4")
                     await html.WriteLineAsync("<figure><video controls preload=\"metadata\" src=\"" + relative + "\"></video><figcaption><a href=\"" + relative + "\" download>" + label + "</a></figcaption></figure>");
                 else await html.WriteLineAsync("<p><a href=\"" + relative + "\" download>" + label + "</a></p>");
+                if (chosen is { } saved)
+                {
+                    await html.WriteLineAsync("<p class=\"meta\">Saved file: " + saved.Asset.Length.ToString(CultureInfo.InvariantCulture) + " bytes.</p>");
+                    if (provenance != null)
+                    {
+                        if (provenance.Acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch)
+                            await html.WriteLineAsync("<p class=\"meta\">Saved with source-specific permission; the source size or checksum differs from the saved file.</p>");
+                        await html.WriteLineAsync("<details><summary>Source-reported media information</summary><p>Size: "
+                            + Encode(provenance.Provider.ExpectedSize?.ToString(CultureInfo.InvariantCulture) ?? "Unspecified")
+                            + " bytes<br>MD5: " + Encode(provenance.Provider.ExpectedMd5 ?? "Unspecified")
+                            + "<br>SHA-256: " + Encode(provenance.Provider.ExpectedSha256 ?? "Unspecified") + "</p></details>");
+                    }
+                }
             }
         }
     }

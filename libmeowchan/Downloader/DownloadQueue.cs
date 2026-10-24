@@ -461,7 +461,11 @@ public partial class DownloadQueue
     private static DownloadItem RestoreItem(IThread thread, MediaWork media, bool explicitRetry = false)
     {
         DownloadItem item = new(new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
-            media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath, media.Variant);
+            media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath, media.Variant)
+        {
+            ExpectedSha256 = media.ExpectedSha256, AcquisitionRevisionKey = media.AcquisitionRevisionKey,
+            AttachmentReferences = media.AttachmentReferences
+        };
         return thread is Boards.Base.BaseThread baseThread ? baseThread.BindRestoredMediaFilter(item, explicitRetry) : item;
     }
 
@@ -703,14 +707,14 @@ public partial class DownloadQueue
         }
         MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
             .FirstOrDefault(media => SameMediaWork(media, item));
-        bool newRevision = previous != null && (previous.ExpectedSize != item.ExpectedSize
-            || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal));
+        bool newRevision = previous != null && !SameRetrieval(previous, item);
         DateTimeOffset now = _timeProvider.GetUtcNow();
         MediaWork next = previous == null || newRevision ? new MediaWork
         {
             ResourceUrl = owner.Url, Generation = owner.Generation, MediaIdentifier = item.MediaIdentifier, Variant = item.Variant,
             DestinationPath = item.DestinationPath, DownloadUrl = item.DownloadUri.AbsoluteUri,
-            ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5,
+            ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5, ExpectedSha256 = item.ExpectedSha256,
+            AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = item.AttachmentReferences,
             OriginalFileName = item.OriginalFileName, LegacyPath = item.LegacyPath,
             Status = MediaWorkStatus.Ready
         } : previous with
@@ -1043,6 +1047,7 @@ public partial class DownloadQueue
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
         bool succeeded = false;
+        MediaCommitResult? committed = null;
         bool interrupted = false;
         bool targetBlocked = false;
         using AsyncCancellationLink cancellation = new(job.ThreadState.Token, job.EpochToken);
@@ -1056,9 +1061,14 @@ public partial class DownloadQueue
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
                 _logger, notifyThread: _workStore == null)
             {
-                BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes)
+                BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes),
+                AuthorizePublication = () => {
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    if (!CanRunDurable(job.Item)) throw new InvalidDataException("The media acquisition is no longer current work.");
+                }
             };
             await worker.ExecuteAsync(cancellation.Token).ConfigureAwait(false);
+            committed = worker.CompletedResult ?? throw new InvalidDataException("Media worker returned without a committed asset receipt.");
             succeeded = true;
         }
         catch (OperationCanceledException) when (job.ThreadState.Token.IsCancellationRequested || job.EpochToken.IsCancellationRequested)
@@ -1112,7 +1122,7 @@ public partial class DownloadQueue
             {
                 try
                 {
-                    if (RecordDurableResult(job.Item, null))
+                    if (RecordDurableResult(job.Item, null, committed))
                     {
                         if (job.Item.Thread is Boards.Base.BaseThread thread)
                             thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath, job.Item.Variant);
@@ -1198,7 +1208,7 @@ public partial class DownloadQueue
             if (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner)) return false;
             MediaWork? previous = _workStore.LoadMedia(owner.Url, owner.Generation).FirstOrDefault(media =>
                 SameMediaWork(media, item));
-            if (previous == null || previous.ExpectedSize != item.ExpectedSize || previous.ExpectedMd5 != item.ExpectedMd5) return false;
+            if (previous == null || !SameRetrieval(previous, item)) return false;
             if (!_workStore.CommitMedia(previous with
             {
                 Status = omission.IsNoMatch ? MediaWorkStatus.Excluded : MediaWorkStatus.NeedsIntervention,
@@ -1238,8 +1248,7 @@ public partial class DownloadQueue
         if (current == null || current.Generation != owner.Generation || current.Intent == WorkIntent.Suppressed) return false;
         MediaWork? media = store.LoadMedia(owner.Url, owner.Generation)
             .FirstOrDefault(work => SameMediaWork(work, item));
-        if (media == null || media.ExpectedSize != item.ExpectedSize
-            || !string.Equals(media.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
+        if (media == null || !SameRetrieval(media, item)) return false;
         DateTimeOffset now = _timeProvider.GetUtcNow();
         if (!media.ManualAttempt && media.HttpStatus == 404 && current.EndObservedAt is DateTimeOffset end
             && now >= end.AddHours(12))
@@ -1252,12 +1261,12 @@ public partial class DownloadQueue
             && (media.DueAt == null || media.DueAt <= now);
     }
 
-    private bool RecordDurableResult(DownloadItem item, Exception? failure)
+    private bool RecordDurableResult(DownloadItem item, Exception? failure, MediaCommitResult? committed = null)
     {
-        lock (_stateLock) return RecordDurableResultLocked(item, failure);
+        lock (_stateLock) return RecordDurableResultLocked(item, failure, committed);
     }
 
-    private bool RecordDurableResultLocked(DownloadItem item, Exception? failure)
+    private bool RecordDurableResultLocked(DownloadItem item, Exception? failure, MediaCommitResult? committed)
     {
         IWorkStateStore? store = _workStore;
         if (store == null) return false;
@@ -1269,8 +1278,7 @@ public partial class DownloadQueue
         }
         MediaWork? previous = store.LoadMedia(owner.Url, owner.Generation)
             .FirstOrDefault(media => SameMediaWork(media, item));
-        if (previous == null || previous.ExpectedSize != item.ExpectedSize
-            || !string.Equals(previous.ExpectedMd5, item.ExpectedMd5, StringComparison.Ordinal)) return false;
+        if (previous == null || !SameRetrieval(previous, item)) return false;
         DateTimeOffset now = _timeProvider.GetUtcNow();
         int attempt = previous.Attempts + 1;
         int? status = (failure as HttpRequestException)?.StatusCode is HttpStatusCode http ? (int)http : null;
@@ -1278,8 +1286,11 @@ public partial class DownloadQueue
         MediaWork next;
         if (failure == null)
         {
+            if (committed?.AssetId == null || committed.AcquisitionRevisionKey != item.AcquisitionRevisionKey
+                || !SameReferences(committed.AttachmentRevisionKeys, item.AttachmentReferences.Select(reference => reference.RevisionKey)))
+                throw new InvalidDataException("Media completion lacks the exact committed revision receipt.");
             next = previous with { Status = MediaWorkStatus.Succeeded, Attempts = 0, ConsecutiveNotFound = 0,
-                LastAttemptAt = now, DueAt = null, Failure = null, HttpStatus = null, ManualAttempt = false };
+                LastAttemptAt = now, DueAt = null, Failure = null, HttpStatus = null, ManualAttempt = false, CommittedAssetId = committed.AssetId };
         }
         else
         {
@@ -1437,7 +1448,19 @@ public partial class DownloadQueue
 
     private static bool SameRetrieval(DownloadItem first, DownloadItem second) =>
         first.ExpectedSize == second.ExpectedSize
-        && string.Equals(first.ExpectedMd5, second.ExpectedMd5, StringComparison.Ordinal);
+        && string.Equals(first.ExpectedMd5, second.ExpectedMd5, StringComparison.Ordinal)
+        && first.ExpectedSha256 == second.ExpectedSha256 && first.DownloadUri == second.DownloadUri
+        && first.OriginalFileName == second.OriginalFileName && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
+        && SameReferences(first.AttachmentReferences.Select(reference => reference.RevisionKey), second.AttachmentReferences.Select(reference => reference.RevisionKey));
+
+    private static bool SameRetrieval(MediaWork first, DownloadItem second) => first.ExpectedSize == second.ExpectedSize
+        && first.ExpectedMd5 == second.ExpectedMd5 && first.ExpectedSha256 == second.ExpectedSha256
+        && first.DownloadUrl == second.DownloadUri.AbsoluteUri && first.OriginalFileName == second.OriginalFileName
+        && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
+        && SameReferences(first.AttachmentReferences.Select(reference => reference.RevisionKey), second.AttachmentReferences.Select(reference => reference.RevisionKey));
+
+    private static bool SameReferences(IEnumerable<string> first, IEnumerable<string> second) =>
+        first.OrderBy(key => key, StringComparer.Ordinal).SequenceEqual(second.OrderBy(key => key, StringComparer.Ordinal));
 
     private static TaskCompletionSource CreateCompletionSource()
     {

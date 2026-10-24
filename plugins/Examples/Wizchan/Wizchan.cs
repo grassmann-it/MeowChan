@@ -33,7 +33,7 @@ public sealed class WizchanPlugin : ISourcePlugin
          new UrlRoute(SourceResourceKind.Board, Host, "/{board}/index.html", AllowTrailingSlash: false),
          new UrlRoute(SourceResourceKind.Thread, Host, "/{board}/res/{thread}.html", IsCanonical: true, AllowTrailingSlash: false) { ThreadIdentifierKind = RouteIdentifierKind.Decimal }],
         [new HttpHostDeclaration(Host, HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia)],
-        EmptySchema, PostOrderKind.DecimalPostId);
+        EmptySchema, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental };
 
     public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

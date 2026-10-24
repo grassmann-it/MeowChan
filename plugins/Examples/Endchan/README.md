@@ -47,3 +47,29 @@ nonterminal flags and failure/validator boundaries. Their invented `size` fields
 are metadata parser inputs, not real image sizes or live media evidence. Runtime
 parser, SDK-free compilation and production download/archive acceptance are
 separate checks; bounded live metadata alone does not establish those outcomes.
+
+## Experimental maturity and source permission
+
+This source declares `SourceMaturity.Experimental`. This marks limited confidence
+in provider observations; it grants no access and disables no integrity checks.
+Accepting provider size or MD5 discrepancies requires an explicit one-time opt-in
+for this source in each profile; missing permission means false. Files matching
+provider expectations work without this mismatch permission. Manage the permission
+on Sources, separately from plugin installation/activation and this maturity label.
+Plugin settings do not grant permission. Provider SHA256, transport completeness,
+stage/local SHA256, actual byte limits and filter limits remain strict.
+
+Provider size and any supplied checksum remain unchanged as Expected metadata.
+The host owns actual downloaded length/hashes, transport limits, local verification
+and any separately approved mismatch policy. Experimental does not mean an
+HTTP200 body matched provider size/hash, nor that a previous failed live case is
+now successful.
+
+LIVE03 original33534 bytes vs API33552 bytes; no independent identity/no-auto-decompression diagnostic in that historical observation.
+
+Operator-linked fork copies input size/hash into file metadata. A stripping/reencode cause is NOT established in these inspected fork modules; do not transfer general LynxChan findings.
+The provider's deployed historical version/settings are not bound to this review;
+the API values are not universally reclassified as upload metadata. See
+`Evidence/integrity-research-20261024.json` for source paths, revision/body hashes
+and exact scope. No per-format size adjustment, checksum removal, or hash inferred
+from an original basename is applied.

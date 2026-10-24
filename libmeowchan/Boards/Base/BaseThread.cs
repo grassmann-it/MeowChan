@@ -447,6 +447,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         if (state == ThreadSourceState.Active) throw new ArgumentOutOfRangeException(nameof(state));
         cancellationToken.ThrowIfCancellationRequested();
         DateTimeOffset first = _firstEndObservation ?? _timeProvider.GetUtcNow();
+        if (finalSnapshot != null) finalSnapshot = ArchiveCatalog.StampObservedAttachments(finalSnapshot);
         if (_endSink != null) await _endSink(state, first, finalSnapshot, cancellationToken).ConfigureAwait(false);
         _firstEndObservation ??= first;
         _restoredFinalSnapshot = finalSnapshot;
@@ -502,7 +503,18 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                     if (attachment.MediaId == null || attachment.Url == null || attachment.PlannedPath == null) continue;
                     media.TryAdd(Key(attachment.MediaId, attachment.Variant), new DownloadItem(new Uri(attachment.Url), attachment.PlannedPath,
                         Board.ImageBoard, this, attachment.MediaId, attachment.ExpectedSize, attachment.ExpectedMd5,
-                        attachment.OriginalFileName, null, attachment.Variant));
+                        attachment.OriginalFileName, null, attachment.Variant)
+                    {
+                        ExpectedSha256 = attachment.ExpectedSha256,
+                        AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(_restoredFinalSnapshot.Id, new MediaProviderMetadata(
+                            attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256)),
+                        AttachmentReferences = _restoredFinalSnapshot.Posts.SelectMany(savedPost =>
+                            (savedPost.Attachments ?? Array.Empty<CapturedAttachment>()).Where(saved => saved.MediaId == attachment.MediaId
+                                && saved.Variant == attachment.Variant && saved.Url == attachment.Url && saved.ExpectedSize == attachment.ExpectedSize
+                                && saved.ExpectedMd5 == attachment.ExpectedMd5 && saved.ExpectedSha256 == attachment.ExpectedSha256
+                                && saved.OriginalFileName == attachment.OriginalFileName && saved.AttachmentRevisionKey != null)
+                            .Select(saved => new AttachmentRevisionReference(_restoredFinalSnapshot.Id, savedPost.PostId, saved.Position, saved.AttachmentRevisionKey!))).ToArray()
+                    });
                 }
         if (_content == null || _contentCandidatesRestored) return;
         IReadOnlyList<DownloadItem> restored = await _content.RestoreCandidatesAsync(this, cancellationToken).ConfigureAwait(false);
@@ -514,8 +526,9 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     protected async Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
     {
+        bool restoredObservation = observed == null;
         observed ??= _restoredFinalSnapshot;
-        if (_content != null) await _content.CaptureAsync(observed, cancellationToken).ConfigureAwait(false);
+        if (_content != null) await _content.CaptureAsync(observed, cancellationToken, restoredObservation: restoredObservation).ConfigureAwait(false);
         OnPropertyChanged();
     }
 

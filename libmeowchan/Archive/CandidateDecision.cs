@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using MeowChan.Rules;
+using MeowChan.Storage;
 
 namespace MeowChan.Archive;
 
@@ -37,6 +39,14 @@ public sealed record CandidateMetadata
     public string? OriginalFileName { get; }
     public string? LegacyPath { get; }
     public string? Extension { get; }
+    public string? ExpectedSha256 { get; init; }
+    public string? AcquisitionRevisionKey { get; init; }
+    private IReadOnlyList<AttachmentRevisionReference> _attachmentReferences = MediaAttachmentReferences.Empty;
+    public IReadOnlyList<AttachmentRevisionReference> AttachmentReferences
+    {
+        get => _attachmentReferences;
+        init => _attachmentReferences = MediaAttachmentReferences.CopyOf(value);
+    }
 
     public CandidateMetadata(CandidateKey key, Uri downloadUri, string destinationPath,
         long? expectedSize = null, string? expectedMd5 = null, string? originalFileName = null,

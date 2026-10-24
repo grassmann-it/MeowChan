@@ -20,7 +20,9 @@ public sealed class DownloadWorker
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
     private readonly bool _notifyThread;
+    internal Action? AuthorizePublication { get; init; }
     internal Action<int>? BytesReceived { get; init; }
+    internal MediaCommitResult? CompletedResult { get; private set; }
 
     public DownloadWorker(DownloadItem downloadItem, BandwidthLimiter bandwidthLimiter, MediaStore? store = null,
         TimeSpan? bodyIdleTimeout = null, TimeProvider? timeProvider = null, ILogger? logger = null, bool notifyThread = true)
@@ -38,9 +40,11 @@ public sealed class DownloadWorker
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        MediaCommitResult? restored = await _store.TryRestoreAsync(_item, cancellationToken).ConfigureAwait(false);
+        DownloadItem acquiringItem = _item.WithPublicationAuthorization(AuthorizePublication);
+        MediaCommitResult? restored = await _store.TryRestoreAsync(acquiringItem, cancellationToken).ConfigureAwait(false);
         if (restored != null)
         {
+            CompletedResult = restored;
             if (_notifyThread) NotifyDownloaded();
             return;
         }
@@ -60,17 +64,14 @@ public sealed class DownloadWorker
         if (response.StatusCode == HttpStatusCode.PartialContent)
             throw new InvalidDataException("A partial media response cannot be accepted without range-resume support.");
         long? contentLength = response.Content.Headers.ContentLength;
-        if (_item.ExpectedSize.HasValue && contentLength.HasValue && _item.ExpectedSize != contentLength)
-            throw new InvalidDataException("HTTP Content-Length conflicts with the provider's expected media size.");
-
-        DownloadItem verifiedItem = _item.ExpectedSize.HasValue || !contentLength.HasValue ? _item : new DownloadItem(
-            _item.DownloadUri, _item.DestinationPath, _item.ImageBoard, _item.Thread, _item.MediaIdentifier,
-            contentLength, _item.ExpectedMd5, _item.OriginalFileName, _item.LegacyPath, _item.Variant) { Filter = _item.Filter, FilterPostId = _item.FilterPostId, FilterPosition = _item.FilterPosition };
+        // Transport completeness is independent of provider metadata, including absent provider size.
+        DownloadItem verifiedItem = acquiringItem.WithTransportLength(contentLength);
         await using Stream source = await OpenBodyAsync(response.Content, cancellationToken).ConfigureAwait(false);
         using IdleTimeoutReadStream timedSource = new IdleTimeoutReadStream(source, _bodyIdleTimeout, _timeProvider);
         MediaCommitResult completed = filterLease == null
             ? await _store.CommitAsync(verifiedItem, timedSource, cancellationToken, RecordAndThrottleAsync).ConfigureAwait(false)
             : await filterLease.CommitAsync(verifiedItem, timedSource, _store, RecordAndThrottleAsync, cancellationToken).ConfigureAwait(false);
+        CompletedResult = completed;
         // CommitAsync deliberately finishes its short manifest commit after publishing the file,
         // even when cancellation arrives then. This is a verified completion, not a partial file.
         if (_notifyThread) NotifyDownloaded();

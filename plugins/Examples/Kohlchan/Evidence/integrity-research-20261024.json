@@ -1,0 +1,26 @@
+{
+  "live": "API4845 bytes vs served4759 bytes; identity diagnosis confirmed the same representation. No API MD5 expectation.",
+  "upstream": {
+    "repository": "LynxChan/LynxChan",
+    "revision": "master (deployed revision not bound; requested2.8.5 path returned404)",
+    "files": {
+      "src/be/engine/formOps.js": {
+        "sha256": "c50dd766b10db2ee200d81d9037c6110f8ab3318e4f2c608f558563efd17b8f0",
+        "lines": "139,265,298,308-323",
+        "url": "https://gitgud.io/LynxChan/LynxChan/-/raw/master/src/be/engine/formOps.js"
+      },
+      "src/be/engine/uploadHandler.js": {
+        "sha256": "5ae2b028db7126b8502ff015edabd62fa2dc26233fe769fe6bfe34bee963bf87",
+        "lines": "171,537",
+        "url": "https://gitgud.io/LynxChan/LynxChan/-/raw/master/src/be/engine/uploadHandler.js"
+      }
+    }
+  },
+  "observation": "Conditional in-place EXIF stripping with retained upload size is an evidenced upstream mechanism, not a proven cause of this object.",
+  "scope": "Research metadata only, no upstream implementation incorporated",
+  "date": "2026-10-24",
+  "maturity": "Experimental",
+  "providerMetadataSemantics": "Unknown / conditional upload; not a universal delivery guarantee",
+  "mapping": "Expected size and supplied MD5 remain unchanged. No permission is granted by the plugin or maturity declaration.",
+  "deployedRevisionVerified": false
+}

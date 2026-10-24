@@ -185,7 +185,7 @@ public partial class ArchivePage : UserControl
                 {
                     PreviewText = preview?.FirstCapturedText ?? string.Empty,
                     PreviewAttachment = preview?.FirstAttachment is CapturedAttachment attachment
-                        ? CreateListAttachmentRow(summary, attachment) : null
+                        ? CreateListAttachmentRow(summary, preview.FirstPostId, attachment) : null
                 };
             }).ToArray();
             if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
@@ -411,7 +411,7 @@ public partial class ArchivePage : UserControl
                     + (post.PostedAt.HasValue ? " · " + post.PostedAt.Value.ToLocalTime().ToString("g", Texts.Culture) : string.Empty)
                     + (post.IsDeleted ? " · " + Texts.T("archive.deletedPost") : string.Empty);
                 return new ArchivePostRow(post.PostId, header, post.Subject ?? string.Empty, text,
-                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(attachment, post.PostId, _mediaReady.Task)).ToArray()))
+                    Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(_thread.Summary.Id, attachment, post.PostId, _mediaReady.Task)).ToArray()))
                 { Quotes = Array.AsReadOnly(ArchiveQuoteParser.Parse(_thread.Summary.Id, _thread.Summary.Url, post)
                     .Select(quote => new ArchiveQuoteRow(quote)).ToArray()) };
             }).ToArray();
@@ -541,18 +541,21 @@ public partial class ArchivePage : UserControl
         if (!_ended && request == _contentRequest && _selectedThread == id) await LoadThreadAsync(id, resetPage: false);
     }
 
-    private ArchiveAttachmentRow CreateAttachmentRow(CapturedAttachment attachment, string postId,
+    private ArchiveAttachmentRow CreateAttachmentRow(ResourceId resource, CapturedAttachment attachment, string postId,
         Task<IReadOnlyList<ArchiveAssetRow>> ready)
     {
         bool large = _largeReader;
-        return new ArchiveAttachmentRow(attachment)
+        ArchiveAttachmentRow row = new(attachment);
+        row = row with
         {
             LargePreview = large,
             LoadThumbnail = async cancellationToken =>
             {
                 using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
                 IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
-                ArchiveAssetRow? match = FindMatchingAsset(attachment, assets);
+                ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
+                row.Binding = resolved?.Binding;
+                ArchiveAssetRow? match = resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
                 if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
                     asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
                     ? "archive.differentVersion" : "archive.notSaved"));
@@ -573,68 +576,59 @@ public partial class ArchivePage : UserControl
             OpenPreview = async () =>
             {
                 if (_ended || _busy || !_available || !ready.IsCompletedSuccessfully) return;
-                ArchiveAssetRow? match = FindMatchingAsset(attachment, ready.Result);
-                if (match != null && _selectedThread != null && OpenGallery != null)
-                    await OpenGallery(_selectedThread, new GalleryEntryKey(
-                        new GalleryAssetKey(_selectedThread, match.Manifest.Directory, match.Asset.AssetId),
+                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, ready.Result);
+                if (match != null && _selectedThread == resource && OpenGallery != null)
+                    await OpenGallery(resource, new GalleryEntryKey(
+                        new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
                         postId, attachment.Position), this);
                 else Message(Texts.T("archive.notSaved"));
             }
         };
+        return row;
     }
 
-    // A list thumbnail starts only when ArchiveAttachmentView enters the viewport. It uses
-    // the captured local path and never opens a thread view, manifest, or media directory.
-    private ArchiveAttachmentRow CreateListAttachmentRow(ArchiveThreadSummary summary, CapturedAttachment attachment)
-        => new(attachment)
+    // Only visible rows resolve their exact local binding. PlannedPath is never evidence of a saved revision.
+    private ArchiveAttachmentRow CreateListAttachmentRow(ArchiveThreadSummary summary, string? postId, CapturedAttachment attachment)
+    {
+        ArchiveAttachmentRow row = new(attachment);
+        row = row with
         {
-            LoadThumbnail = token => LoadListThumbnailAsync(summary, attachment, token),
+            LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
             OpenPreview = async () =>
             {
                 if (OpenGallery != null) await OpenGallery(summary.Id, null, this);
             }
         };
+        return row;
+    }
 
-    private Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary,
-        CapturedAttachment attachment, CancellationToken cancellationToken) => Task.Run(async () =>
+    private Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary, string? postId,
+        CapturedAttachment attachment, Action<MediaAttachmentBinding?> setBinding, CancellationToken cancellationToken) => Task.Run(async () =>
     {
-        string? path = attachment.PlannedPath;
-        if (attachment.IsDeleted || string.IsNullOrEmpty(path) ||
-            SavedMediaTypes.Classify(attachment.OriginalFileName ?? path) != SavedMediaKind.Image)
+        var openReader = _openReader;
+        if (attachment.IsDeleted || postId == null || openReader == null) return null;
+        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await using ArchiveReader reader = await openReader(loading.Token);
+        ArchivedThreadView? thread = await reader.ReadThreadAsync(summary.Id, loading.Token);
+        if (thread == null) return null;
+        List<MediaAssetSnapshot> manifests = new();
+        foreach (string directory in thread.MediaDirectories)
+            manifests.Add(await MediaAssetReader.OpenAsync(directory, loading.Token));
+        ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifests, summary.Id, postId, attachment);
+        setBinding(resolved?.Binding);
+        if (resolved == null || SavedMediaTypes.Classify(resolved.Asset.OriginalFileName ?? resolved.Asset.Path) != SavedMediaKind.Image)
             return null;
-        string relative = Path.GetRelativePath(summary.MediaDirectory, path);
-        if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            return null;
-        // File opening, codec inspection and decoding are synchronous even for an
-        // asynchronous FileStream. Keep the whole operation off the UI thread.
-        await _thumbnailGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-            if (stream.Length > 64L * 1024 * 1024) return null;
-            using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
-            if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0 ||
-                (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
-            int width = Math.Min(codec.Info.Width, Math.Min(160,
-                Math.Max(1, (int)(120L * codec.Info.Width / codec.Info.Height))));
-            stream.Position = 0;
-            cancellationToken.ThrowIfCancellationRequested();
-            Bitmap bitmap = Bitmap.DecodeToWidth(stream, width);
-            if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
-            return bitmap;
-        }
-        catch (FileNotFoundException) { return null; }
-        catch (DirectoryNotFoundException) { return null; }
+        await _thumbnailGate.WaitAsync(loading.Token);
+        try { return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120); }
         finally { _thumbnailGate.Release(); }
     }, cancellationToken);
 
-    internal static ArchiveAssetRow? FindMatchingAsset(CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)
-        => assets.LastOrDefault(asset => attachment.MediaId != null
-            && asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant
-            && (attachment.ExpectedMd5 == null || attachment.ExpectedMd5 == asset.Asset.Md5)
-            && (attachment.ExpectedSize == null || attachment.ExpectedSize == asset.Asset.Length));
+    internal static ArchiveAssetRow? FindMatchingAsset(ResourceId resource, string postId,
+        CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)
+    {
+        ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
+        return resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
+    }
 
     internal static async Task<Bitmap?> DecodeThumbnailAsync(ArchiveAssetRow row, CancellationToken cancellationToken, int maximumWidth = 240, int maximumHeight = 180)
     {

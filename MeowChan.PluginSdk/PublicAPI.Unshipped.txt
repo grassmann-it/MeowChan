@@ -1,1 +1,6 @@
 #nullable enable
+MeowChan.PluginSdk.SourceDescription.Maturity.get -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceDescription.Maturity.init -> void
+MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Experimental = 1 -> MeowChan.PluginSdk.SourceMaturity
+MeowChan.PluginSdk.SourceMaturity.Unspecified = 0 -> MeowChan.PluginSdk.SourceMaturity

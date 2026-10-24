@@ -4,12 +4,13 @@ using MeowChan.Interfaces;
 using MeowChan.Downloader;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
+using MeowChan.Storage;
 using Serilog;
 
 namespace MeowChan.PluginHost.Sources;
 
 /// <summary>An optional local provider adapter. Only asynchronous checks acquire a plugin worker.</summary>
-public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptorSource, IDisposable
+public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptorSource, ISourceMediaIntegrityPolicyProvider, IDisposable
 {
     private readonly object _lifecycle = new();
     private readonly Func<CancellationToken, Task<IPluginWorkerClient>> _worker;
@@ -17,6 +18,8 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     private bool _enabled = true;
     private bool _disposed;
     public SourceDescription Description { get; }
+    /// <summary>Fresh host-owned source/profile policy; source metadata never grants permission.</summary>
+    public ISourceMediaIntegrityPolicy? MediaIntegrityPolicy { get; init; }
     public PluginSourceRouter Router { get; }
     public override string Name => Description.SourceId;
     public override string NiceName => Description.Name;

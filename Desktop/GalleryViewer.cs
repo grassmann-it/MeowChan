@@ -33,6 +33,7 @@ internal sealed class GalleryViewer : UserControl
     private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
     private readonly TextBlock _scope = new() { Name = "GalleryScope", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _provenance = new() { Name = "GalleryProvenance", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
     private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"),
         TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
@@ -232,6 +233,7 @@ internal sealed class GalleryViewer : UserControl
         infoHeadline.Children.Add(_position); Grid.SetColumn(_position, 1);
         infoContent.Children.Add(infoHeadline);
         infoContent.Children.Add(_scope);
+        infoContent.Children.Add(_provenance);
         infoContent.Children.Add(_warnings);
         infoContent.Children.Add(_favoriteError);
         infoContent.Children.Add(_ratingStatus);
@@ -757,12 +759,17 @@ internal sealed class GalleryViewer : UserControl
 
     private void UpdateContext()
     {
-        _context.Children.Clear(); if (_entry == null) return;
+        _context.Children.Clear();
+        _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
+        _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
+        if (_entry == null) return;
         GalleryEntry entry = _entry;
         Command(_context, "GalleryReturnImage", Texts.T("gallery.viewer7"), () => SetContextOpen(false));
         AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread);
         AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName);
-        AddContext(entry.Asset.Length.ToString("N0", Texts.Culture) + " bytes");
+        AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length));
+        string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
+        if (provenance.Length > 0) AddContext(provenance);
         if (entry.Historical) AddContext(Texts.T("gallery.viewer8"));
         GalleryEntry[] associations = _associations.Where(value => value.Key == entry.Key && value.Post != null)
             .DistinctBy(value => (value.Post!.PostId, value.Attachment?.Position)).ToArray();
@@ -938,6 +945,7 @@ internal sealed class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
+        _provenance.Text = string.Empty; _provenance.IsVisible = false;
         UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = false;
         _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();

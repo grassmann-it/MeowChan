@@ -8,6 +8,7 @@ using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
@@ -89,8 +90,9 @@ public partial class MainWindow
             TextWrapping = TextWrapping.Wrap,
             Text = entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ " + entry.Key.Thread.Thread + Environment.NewLine
                 + (entry.Asset.OriginalFileName ?? entry.Asset.Path) + Environment.NewLine
-                + entry.Asset.Length.ToString("N0", Texts.Culture) + " bytes" + Environment.NewLine
+                + MediaProvenanceText.LocalSize(entry.Asset.Length) + Environment.NewLine
                 + "SHA-256: " + entry.Asset.Sha256 + Environment.NewLine
+                + MediaProvenanceText.Details(entry.AttachmentResolution?.Binding) + Environment.NewLine
                 + (entry.Post?.PostId ?? Texts.T("gallery.noPost"))
         };
         Button close = CommandBindings.CreateButton("window.close", () => dialog.Close());

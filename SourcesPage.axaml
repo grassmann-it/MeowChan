@@ -25,6 +25,20 @@
                 <StackPanel Spacing="12">
                     <Button x:Name="SourceBackButton" HorizontalAlignment="Left" Click="OnBackClick" />
                     <TextBlock x:Name="SourceHeading" Classes="section-title" FontSize="18" />
+                    <TextBlock x:Name="SourceExperimental" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="False" />
+                    <StackPanel x:Name="SourceMediaIntegrityPanel" Spacing="6" IsVisible="False">
+                        <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
+                        <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
+                            <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock x:Name="SourceMediaIntegrityScope" Classes="muted" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <ursa:Banner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="False">
+                            <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
+                                <TextBlock x:Name="SourceMediaIntegrityError" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                            </ScrollViewer>
+                        </ursa:Banner>
+                    </StackPanel>
                     <TextBlock x:Name="SourceIdentity" Classes="muted mono" TextWrapping="Wrap" />
                     <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
                     <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" />

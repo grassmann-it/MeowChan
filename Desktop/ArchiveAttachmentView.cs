@@ -49,6 +49,7 @@ public sealed class ArchiveAttachmentView : UserControl
         }
     };
     private readonly TextBlock _label = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 };
+    private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
     private CancellationTokenSource? _loading;
@@ -61,7 +62,7 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         _slot.Children.Add(_image); _slot.Children.Add(_status); _slot.Children.Add(_play);
         StackPanel content = new() { Spacing = 5 };
-        content.Children.Add(_slot); content.Children.Add(_label);
+        content.Children.Add(_slot); content.Children.Add(_label); content.Children.Add(_provenance);
         _button = new Button { Content = content, Padding = new Thickness(8),
             HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
@@ -95,11 +96,15 @@ public sealed class ArchiveAttachmentView : UserControl
         _label.MaxWidth = _status.MaxWidth = large ? 360 : 240;
         _button.MaxWidth = large ? 376 : 256;
         _button.HorizontalAlignment = large ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
-        _label.Text = row?.Label ?? string.Empty;
+        _label.Text = row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty;
+        _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
+        _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
+        _provenance.MaxWidth = large ? 360 : 240;
         _play.IsVisible = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
             == MeowChan.Gallery.SavedMediaKind.Video;
         _status.Text = Texts.T("archive.loadingThumbnail");
-        ToolTip.SetTip(_button, _label.Text);
+        ToolTip.SetTip(_button, row?.Label ?? string.Empty);
+        Avalonia.Automation.AutomationProperties.SetName(_button, row?.Label ?? string.Empty);
     }
 
     private void RefreshViewport()
@@ -132,6 +137,7 @@ public sealed class ArchiveAttachmentView : UserControl
             Bitmap? bitmap = await pending.WaitAsync(LoadTimeout, loading.Token);
             if (request != _request || loading.IsCancellationRequested || !_visible)
             { bitmap?.Dispose(); return; }
+            UpdateLabel();
             _bitmap = bitmap;
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;
@@ -145,6 +151,7 @@ public sealed class ArchiveAttachmentView : UserControl
             loading.Cancel();
             if (pending != null) _ = DisposeLateAsync(pending);
             if (request != _request || !_visible) return;
+            UpdateLabel();
             // A cancelled shared media scan is not a pending thumbnail anymore.
             _status.Text = exception is OperationCanceledException or TimeoutException ? Texts.T("archive.previewLoadFailed") : exception.Message;
             _status.IsVisible = true;

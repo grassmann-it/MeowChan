@@ -1,0 +1,26 @@
+{
+  "live": "LIVE03 original33534 bytes vs API33552 bytes; no independent identity/no-auto-decompression diagnostic in that historical observation.",
+  "upstream": {
+    "repository": "InfinityNow/LynxChan",
+    "commit": "d5c38e4b5e2d27a3046625b990e385d2bf4e22bd",
+    "files": {
+      "src/be/engine/formOps.js": {
+        "sha256": "ab2dfb756d1eb0cafec7b4f621b52cc53752e928d0e45d03e52f02c7bb06a1af",
+        "lines": "102-104",
+        "url": "https://gitgud.io/InfinityNow/LynxChan/-/raw/d5c38e4b5e2d27a3046625b990e385d2bf4e22bd/src/be/engine/formOps.js"
+      },
+      "src/be/engine/uploadHandler.js": {
+        "sha256": "99b409310485f17086598fdf1f1edf4c20c7ae83238f9f157f9eb95d35ea90b4",
+        "lines": "475-478,936,948-950",
+        "url": "https://gitgud.io/InfinityNow/LynxChan/-/raw/d5c38e4b5e2d27a3046625b990e385d2bf4e22bd/src/be/engine/uploadHandler.js"
+      }
+    }
+  },
+  "observation": "Operator-linked fork copies input size/hash into file metadata. A stripping/reencode cause is NOT established in these inspected fork modules; do not transfer general LynxChan findings.",
+  "scope": "Research metadata only, no upstream implementation incorporated",
+  "date": "2026-10-24",
+  "maturity": "Experimental",
+  "providerMetadataSemantics": "Unknown / conditional upload; not a universal delivery guarantee",
+  "mapping": "Expected size and supplied MD5 remain unchanged. No permission is granted by the plugin or maturity declaration.",
+  "deployedRevisionVerified": false
+}

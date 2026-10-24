@@ -32,6 +32,7 @@ internal sealed class PluginEntryPresentation
     internal IReadOnlyList<SourceDescription> Sources => DescriptionMetadata?.Sources ?? Array.Empty<SourceDescription>();
     internal IReadOnlyList<FilterDescription> Filters => DescriptionMetadata?.Filters ?? Array.Empty<FilterDescription>();
     internal bool IsSource => Sources.Count > 0;
+    internal bool HasExperimentalSources => Sources.Any(source => source.Maturity == SourceMaturity.Experimental);
     internal bool IsFilter => Filters.Count > 0;
     internal PluginAvailability Availability { get; private init; }
     internal PluginReleaseSnapshot? Active { get; private init; }

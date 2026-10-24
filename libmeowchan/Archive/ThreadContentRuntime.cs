@@ -75,6 +75,7 @@ internal sealed class ThreadContentContext
     private readonly SemaphoreSlim _captureGate = new SemaphoreSlim(1, 1);
     private readonly ConcurrentDictionary<(string MediaId, string Variant), CandidateDecision> _decisions = new();
     private readonly ConcurrentDictionary<(string MediaId, string Variant), (string PostId, int Position)> _postIds = new();
+    private readonly ConcurrentDictionary<string, IReadOnlyList<AttachmentRevisionReference>> _attachmentReferences = new(StringComparer.Ordinal);
     private FailureInfo? _filterFailure;
     private bool _enabled;
     private DateTimeOffset? _capturedAt;
@@ -134,21 +135,26 @@ internal sealed class ThreadContentContext
         if (enabled) await CaptureAsync(null, cancellationToken, forceLatest: true).ConfigureAwait(false);
     }
 
-    internal async Task CaptureAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken, bool forceLatest = false)
+    internal async Task CaptureAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken, bool forceLatest = false,
+        bool restoredObservation = false)
     {
         await _captureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
         bool enabled;
         lock (_state) enabled = _enabled;
-        if (observed != null) { _latest = observed; _lastObservedSourceState = observed.SourceState; RememberPostIds(observed.Posts); }
+        if (observed != null)
+        {
+            if (!restoredObservation) observed = ArchiveCatalog.StampObservedAttachments(observed);
+            _latest = observed; _lastObservedSourceState = observed.SourceState; RememberPostIds(observed.Posts);
+        }
         observed ??= enabled && (forceLatest || _capturedAt == null) ? _latest : null;
         if (enabled && observed != null)
             _pending = _pending == null ? observed : ArchiveCaptureMerge.Merge(_pending, observed);
         if (_pending == null) { await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false); return; }
         try
         {
-            await _runtime.Catalog.CaptureAsync(_pending with { SourceState = _lastObservedSourceState ?? _pending.SourceState }, cancellationToken).ConfigureAwait(false);
+            await _runtime.Catalog.CapturePreservingRevisionsAsync(_pending with { SourceState = _lastObservedSourceState ?? _pending.SourceState }, cancellationToken).ConfigureAwait(false);
             lock (_state) { _capturedAt = _pending.CapturedAt; _captureFailure = null; }
             _pending = null;
         }
@@ -187,7 +193,13 @@ internal sealed class ThreadContentContext
             {
                 CandidateMetadata metadata = new CandidateMetadata(new CandidateKey(_id, item.MediaIdentifier, item.Variant), item.DownloadUri,
                     item.DestinationPath, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName, item.LegacyPath,
-                    Path.GetExtension(item.OriginalFileName ?? item.DestinationPath));
+                    Path.GetExtension(item.OriginalFileName ?? item.DestinationPath))
+                {
+                    ExpectedSha256 = item.ExpectedSha256,
+                    AcquisitionRevisionKey = MediaIntegrityValidation.Acquisition(item),
+                    AttachmentReferences = Array.AsReadOnly(item.AttachmentReferences.Concat(
+                        _attachmentReferences.GetValueOrDefault(MediaIntegrityValidation.Acquisition(item)) ?? Array.Empty<AttachmentRevisionReference>()).Distinct().ToArray())
+                };
                 if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)
                     || !SameMetadata(decision.Metadata, metadata))
                 {
@@ -213,8 +225,14 @@ internal sealed class ThreadContentContext
     private DownloadItem ToItem(CandidateMetadata metadata, BaseThread owner, bool explicitRetry = false)
     {
         DownloadItem item = new DownloadItem(metadata.DownloadUri, metadata.DestinationPath, owner.Board.ImageBoard, owner,
-            metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath, metadata.Key.Variant);
-        if (_postIds.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out var post)) { item.FilterPostId = post.PostId; item.FilterPosition = post.Position; }
+            metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath, metadata.Key.Variant)
+        {
+            ExpectedSha256 = metadata.ExpectedSha256, AcquisitionRevisionKey = metadata.AcquisitionRevisionKey,
+            AttachmentReferences = metadata.AttachmentReferences
+        };
+        AttachmentRevisionReference? frozenPost = item.AttachmentReferences.FirstOrDefault();
+        if (frozenPost != null) { item.FilterPostId = frozenPost.PostId; item.FilterPosition = frozenPost.Position; }
+        else if (_postIds.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out var post)) { item.FilterPostId = post.PostId; item.FilterPosition = post.Position; }
         if (_decisions.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out CandidateDecision? decision)
             && decision.Selection.EffectiveRule.ImageFilter.Mode == MediaImageFilterMode.Plugin
             && decision.Selection.Reason != MediaSelectionReason.PreviouslySaved)
@@ -246,6 +264,11 @@ internal sealed class ThreadContentContext
                 ? new RuleBypassFilter(decision, Current, Record)
                 : _runtime.OriginalFilters?.Create(item, decision, Current, Record) ?? new MissingFilter(Record);
         }
+        // Explicit retry may replace the effective rule (including removing its plugin filter).
+        // Derive the actual byte cap only after that final rule has been selected.
+        if (_decisions.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out CandidateDecision? limitDecision))
+            item.MaximumActualBytes = limitDecision.Selection.EffectiveRule.SizeLimit.Mode == MediaSizeLimitMode.Limited
+                ? limitDecision.Selection.EffectiveRule.SizeLimit.Bytes : null;
         return item;
     }
 
@@ -267,13 +290,27 @@ internal sealed class ThreadContentContext
     internal void RememberPostIds(IEnumerable<CapturedPost> posts)
     {
         foreach (CapturedPost post in posts) foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
-            if (attachment.MediaId != null) _postIds[(attachment.MediaId, attachment.Variant)] = (post.PostId, attachment.Position);
+        {
+            if (attachment.MediaId == null) continue;
+            _postIds[(attachment.MediaId, attachment.Variant)] = (post.PostId, attachment.Position);
+            if (attachment.Url == null || attachment.AttachmentRevisionKey == null) continue;
+            MediaProviderMetadata provider = new(attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName,
+                attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+            string acquisition = MediaRevisionKeys.CreateAcquisitionKey(_id, provider);
+            AttachmentRevisionReference reference = new(_id, post.PostId, attachment.Position,
+                attachment.AttachmentRevisionKey);
+            _attachmentReferences.AddOrUpdate(acquisition, Array.AsReadOnly(new[] { reference }),
+                (_, existing) => Array.AsReadOnly(existing.Append(reference).Distinct().ToArray()));
+        }
     }
 
     internal DownloadItem BindRestoredMediaFilter(DownloadItem item, BaseThread owner, bool explicitRetry)
     {
         if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)) return item;
-        return ToItem(decision.Metadata, owner, explicitRetry);
+        CandidateMetadata metadata = new(decision.Metadata.Key, item.DownloadUri, item.DestinationPath, item.ExpectedSize,
+            item.ExpectedMd5, item.OriginalFileName, item.LegacyPath, decision.Metadata.Extension) {
+            ExpectedSha256 = item.ExpectedSha256, AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = item.AttachmentReferences };
+        return ToItem(metadata, owner, explicitRetry);
     }
 
     private sealed class MissingFilter(Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
@@ -319,6 +356,9 @@ internal sealed class ThreadContentContext
 
     private static bool SameMetadata(CandidateMetadata first, CandidateMetadata second) => first.DownloadUri == second.DownloadUri
         && first.ExpectedSize == second.ExpectedSize && first.ExpectedMd5 == second.ExpectedMd5
+        && first.ExpectedSha256 == second.ExpectedSha256 && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
+        && first.AttachmentReferences.Select(reference => reference.RevisionKey).OrderBy(key => key, StringComparer.Ordinal)
+            .SequenceEqual(second.AttachmentReferences.Select(reference => reference.RevisionKey).OrderBy(key => key, StringComparer.Ordinal))
         && first.OriginalFileName == second.OriginalFileName;
 }
 

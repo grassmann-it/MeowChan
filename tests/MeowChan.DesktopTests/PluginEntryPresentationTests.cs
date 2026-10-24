@@ -258,6 +258,23 @@ public sealed class PluginEntryPresentationTests
         Assert.False(view.IsDraftStale);
     }
 
+    [Fact]
+    public void ExperimentalBadgeUsesTheDisplayedTypedDescriptionAndKeepsItsOrigin()
+    {
+        SourceDescription source = new("source", "Source", new Uri("https://example.test"),
+            SourceCapabilities.ThreadRead, [], [], new("1", [])) { Maturity = SourceMaturity.Experimental };
+        PluginReleaseSnapshot active = Release("active") with { Description = Description() with { Sources = [source] } };
+        PluginCandidateSnapshot candidate = Candidate("candidate");
+        PluginEntryPresentation current = PluginEntryPresentation.Create(Entry(active, candidate));
+        Assert.False(current.HasExperimentalSources);
+        Assert.Equal(PluginDescriptionOrigin.Candidate, current.DescriptionOrigin);
+        PluginEntryPresentation retained = PluginEntryPresentation.Create(Entry(active, candidate with { Description = null }));
+        Assert.True(retained.HasExperimentalSources);
+        Assert.Equal(PluginDescriptionOrigin.ActiveFallback, retained.DescriptionOrigin);
+        PluginEntryPresentation pending = PluginEntryPresentation.Create(Entry(Release("plain"), candidate, pending: active));
+        Assert.False(pending.HasExperimentalSources);
+    }
+
     private static PluginWorkerSnapshot Worker(string build, string configuration) =>
         new(new("instance", build, configuration), "ready", 100, null, null, []);
 

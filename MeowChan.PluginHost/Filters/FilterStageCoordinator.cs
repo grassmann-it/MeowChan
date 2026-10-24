@@ -191,6 +191,8 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         private long _size;
         private string? _targetTemporary;
         private bool _disposed;
+        private ISourceMediaIntegrityPolicy? _sourcePolicy;
+        private SourceMediaIntegrityPolicySnapshot? _sourcePermission;
         internal FilterPluginBinding Binding { get; }
         internal FileStream? Image { get; private set; }
         internal bool Readable { get; private set; }
@@ -207,6 +209,8 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         {
             _lifetime.Token.ThrowIfCancellationRequested();
             if (_disposed || !_current() || !Binding.IsCurrent()) throw new MediaFilterOmissionException(false, "filter_binding_changed");
+            if (_sourcePermission != null && _sourcePolicy?.GetSnapshot() != _sourcePermission)
+                throw new MediaFilterOmissionException(false, "filter_source_permission_changed");
             _owner.CheckBudget();
         }
 
@@ -217,6 +221,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
             try
             {
                 EnsureCurrent();
+                SourceMediaIntegrityPolicySnapshot? startedPermission = item.MediaIntegrityPolicy?.GetSnapshot();
                 await SaveJournalAsync(null, 0, token).ConfigureAwait(false);
                 using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
@@ -226,6 +231,10 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                     while ((read = await source.ReadAsync(buffer, _lifetime.Token).ConfigureAwait(false)) > 0)
                     {
                         await throttle(read, _lifetime.Token).ConfigureAwait(false);
+                        if (item.MaximumActualBytes is long actualMaximum && _size + read > actualMaximum
+                            || _decision.Selection.EffectiveRule.SizeLimit.Mode == MeowChan.Rules.MediaSizeLimitMode.Limited
+                                && _size + read > _decision.Selection.EffectiveRule.SizeLimit.Bytes)
+                            throw new MediaFilterOmissionException(true, "filter_actual_rule_byte_limit");
                         if (_size + read > _owner._options.MaximumImageBytes) throw new MediaFilterOmissionException(false, "filter_image_byte_limit");
                         EnsureCurrent(); _owner.CheckBudget(read); _size += read;
                         sha.AppendData(buffer, 0, read); md5.AppendData(buffer, 0, read);
@@ -235,8 +244,15 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 }
                 string digest = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
                 string actualMd5 = Convert.ToBase64String(md5.GetHashAndReset());
-                if (item.ExpectedSize is long expected && expected != _size || item.ExpectedMd5 is string expectedMd5 && expectedMd5 != actualMd5)
-                    throw new MediaFilterOmissionException(false, "filter_original_integrity", "Filter original does not match provider integrity metadata.");
+                try
+                {
+                    _sourcePermission = MediaIntegrityValidation.AuthorizeAssessment(item, new MediaActualIntegrity(_size, actualMd5, digest));
+                    _sourcePolicy = item.MediaIntegrityPolicy;
+                    if (_sourcePermission != null && _sourcePermission != startedPermission)
+                        throw new InvalidDataException("Source permission changed during filter staging.");
+                }
+                catch (InvalidDataException exception)
+                { throw new MediaFilterOmissionException(false, "filter_original_integrity", exception.Message); }
                 await SaveJournalAsync(digest, _size, _lifetime.Token).ConfigureAwait(false);
                 Image = new FileStream(ImagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.RandomAccess);
                 (int width, int height) dimensions;
@@ -248,8 +264,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 Image.Position = 0;
                 EnsureCurrent(); Readable = true; _owner._assets[_token] = this;
                 MeowChan.ResourceId resource = _decision.Metadata.Key.Resource;
-                string revision = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new object?[] {
-                    item.DownloadUri.AbsoluteUri, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName })))).ToLowerInvariant();
+                string revision = MediaIntegrityValidation.Acquisition(item);
                 ImageFilterRequest request = new(_decision.Selection.EffectiveRule.ImageFilter.FilterKey!,
                     new FilterCandidate(new SourceMediaId(new SourceThreadId(resource.Source, resource.Board, resource.Thread!),
                         item.MediaIdentifier, _decision.Metadata.Key.Variant), item.FilterPostId!, item.FilterPosition, item.DownloadUri, item.OriginalFileName),

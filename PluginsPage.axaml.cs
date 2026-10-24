@@ -208,7 +208,9 @@ public partial class PluginsPage : UserControl
                 content.Description.Text = PluginContentPresentation.DescribeDescription(presentation);
                 content.Origin.Text = presentation.HasRetainedDescription ? Texts.T("plugins.lastDescriptionShort") : string.Empty;
                 content.Origin.IsVisible = presentation.HasRetainedDescription;
-                content.State.Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata) + " · " + PluginContentPresentation.DescribeStatus(presentation);
+                content.State.Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata)
+                    + (presentation.HasExperimentalSources ? " · " + Texts.T("plugins.experimental") : string.Empty)
+                    + " · " + PluginContentPresentation.DescribeStatus(presentation);
                 PluginCatalogEntry[] similar = entries.Where(other => string.Equals(other.Name, entry.Name, StringComparison.CurrentCultureIgnoreCase)).ToArray();
                 content.Identity.IsVisible = similar.Length > 1;
                 if (similar.Length > 1)
@@ -278,11 +280,16 @@ public partial class PluginsPage : UserControl
         RenderTechnicalIdentity(entry);
         C<TextBlock>("PluginDescription").Text = PluginContentPresentation.DescribeDescription(presentation);
         C<TextBlock>("PluginDescriptionOrigin").Text = PluginContentPresentation.DescribeDescriptionOrigin(presentation.DescriptionOrigin);
-        C<TextBlock>("PluginDescriptionOrigin").IsVisible = presentation.HasRetainedDescription;
+        C<TextBlock>("PluginDescriptionOrigin").IsVisible = presentation.HasRetainedDescription || presentation.HasExperimentalSources;
         string? author = presentation.DescriptionMetadata?.Author;
         C<TextBlock>("PluginAuthor").Text = string.IsNullOrWhiteSpace(author) ? string.Empty : Texts.T("plugins.author", author);
         C<TextBlock>("PluginAuthor").IsVisible = !string.IsNullOrWhiteSpace(author);
         C<TextBlock>("PluginType").Text = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
+        C<Border>("PluginExperimentalChip").IsVisible = presentation.HasExperimentalSources;
+        C<TextBlock>("PluginExperimental").Text = Texts.T("plugins.experimental");
+        C<TextBlock>("PluginExperimentalHint").IsVisible = presentation.HasExperimentalSources;
+        C<TextBlock>("PluginExperimentalHint").Text = Texts.T("plugins.experimentalHint",
+            string.Join(", ", presentation.Sources.Where(source => source.Maturity == SourceMaturity.Experimental).Select(source => source.Name)));
         C<Border>("PluginVersionChip").IsVisible = !string.IsNullOrEmpty(presentation.CandidateVersion);
         C<TextBlock>("PluginVersion").Text = presentation.CandidateVersion is { } version ? Texts.T("plugins.fileVersion", version) : string.Empty;
         string? pluginId = presentation.PluginId ?? presentation.DescriptionMetadata?.PluginId;

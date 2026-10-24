@@ -198,7 +198,11 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1"
+                ? "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1"
+                ? "source integrity: focused Sources/Plugins consent and Experimental fixture at the requested actual scale"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1"
                 ? "ratings: targeted direct/menu late failures and detached tile refresh; exact keys and store reopen"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1"
                 ? Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_PRESENTATION_ONLY") == "1"
@@ -279,6 +283,16 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY") == "1")
+            {
+                await GalleryIntegrityChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")
+            {
+                await SourceIntegrityChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (_archiveCleanupMode)
             {
                 await ArchiveCleanupChecks.RunAsync(mainWindow);

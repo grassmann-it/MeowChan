@@ -2,6 +2,9 @@ namespace MeowChan.Downloader;
 
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using MeowChan.Storage;
 using MeowChan.Interfaces;
 
 public class DownloadItem
@@ -14,6 +17,32 @@ public class DownloadItem
     public string Variant { get; }
     public long? ExpectedSize { get; }
     public string? ExpectedMd5 { get; }
+    public string? ExpectedSha256 { get; init; }
+    public string? AcquisitionRevisionKey { get; init; }
+    private IReadOnlyList<AttachmentRevisionReference> _attachmentReferences = MediaAttachmentReferences.Empty;
+    public IReadOnlyList<AttachmentRevisionReference> AttachmentReferences
+    {
+        get => _attachmentReferences;
+        init => _attachmentReferences = MediaAttachmentReferences.CopyOf(value);
+    }
+    public ISourceMediaIntegrityPolicy? MediaIntegrityPolicy { get; init; }
+    internal Action? AuthorizePublication { get; private set; }
+    internal DownloadItem WithPublicationAuthorization(Action? authorize)
+    {
+        DownloadItem copy = (DownloadItem)MemberwiseClone();
+        copy.AuthorizePublication = authorize;
+        return copy;
+    }
+    internal long? TransportContentLength { get; private set; }
+    internal SourceMediaIntegrityPolicySnapshot? TransferPolicySnapshot { get; private set; }
+    internal long? MaximumActualBytes { get; set; }
+    internal DownloadItem WithTransportLength(long? length)
+    {
+        DownloadItem copy = (DownloadItem)MemberwiseClone();
+        copy.TransportContentLength = length;
+        copy.TransferPolicySnapshot = MediaIntegrityPolicy?.GetSnapshot();
+        return copy;
+    }
     public string? OriginalFileName { get; }
     public string? LegacyPath { get; }
     internal IOriginalMediaFilter? Filter { get; set; }
@@ -58,6 +87,7 @@ public class DownloadItem
 
         DownloadUri = downloadUri;
         ImageBoard = imageBoard;
+        MediaIntegrityPolicy = (imageBoard as ISourceMediaIntegrityPolicyProvider)?.MediaIntegrityPolicy;
         Thread = thread;
         MediaIdentifier = mediaIdentifier;
         MeowChan.Rules.MediaRuleScope.ValidateIdentity(variant, nameof(variant));

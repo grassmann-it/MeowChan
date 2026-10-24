@@ -66,7 +66,7 @@ internal static class ArchiveCleanupMediaInventory
             var frozen = Array.AsReadOnly(assets.ToArray());
             long bytes = assets.Sum(asset => asset.Length);
             return new(directory, manifest.Generation, frozen, bytes, false, null,
-                ArchiveCleanupFingerprint.Of(new { directory, manifest.Generation, Entries = before, Assets = frozen }), null);
+                ArchiveCleanupFingerprint.Of(new { directory, manifest.Generation, Entries = before, Assets = frozen }), null) { Manifest = manifest };
         }
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
         {

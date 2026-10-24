@@ -55,9 +55,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
 
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
-        Func<HttpClient>? transportFactory = null)
+        Func<HttpClient>? transportFactory = null,
+        Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null)
     {
         _queue = queue; _logger = logger;
+        _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
@@ -174,10 +176,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected) || selected != activation.PluginId)) continue;
                 HttpClient media = ProviderHttpClientFactory.CreatePolicyClient(_transport, source.SourceId, _httpPolicy, _logger);
                 _services.Add(media);
-                PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue);
+                PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue)
+                { MediaIntegrityPolicy = _sourceMediaIntegrityPolicyFactory?.Invoke(activation.PluginId, source.SourceId) };
                 if (!activation.Enabled || activation.Active == null) adapter.SetEnabled(false);
                 sources.Add(adapter);
-                _sourceOwners.Add(adapter, activation.PluginId);
+                lock (_state) _sourceOwners.Add(adapter, activation.PluginId);
             }
         }
         IReadOnlyList<ValidationIssue> conflicts = SdkValidation.ValidateDescriptions(descriptions.Select(item => item.Description).ToArray());
@@ -188,9 +191,16 @@ internal sealed partial class PluginSession : IAsyncDisposable
         foreach (PluginSourceImageBoard source in conflicting)
         {
             warnings.Add(source.NiceName + ": conflicting URL ownership; source unavailable.");
-            sources.Remove(source); _sourceOwners.Remove(source); source.Dispose();
+            sources.Remove(source);
+            lock (_state) _sourceOwners.Remove(source);
+            source.Dispose();
         }
-        Sources = sources.AsReadOnly();
+        lock (_state)
+        {
+            Sources = sources.AsReadOnly();
+            foreach (PluginSourceImageBoard source in Sources)
+                SetSourceMediaIntegrityActive(source, IsSourceMediaIntegrityActive(source));
+        }
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
         LogStartupPhase("adapters-routing", null, adaptersStarted, true);
     }
@@ -290,7 +300,12 @@ internal sealed partial class PluginSession : IAsyncDisposable
             if (_disposed || !_active.TryGetValue(change.PluginId, out PluginActivationSnapshot? activation)) return;
             _active[change.PluginId] = activation with { Enabled = change.Enabled, LifecycleRevision = change.LifecycleRevision };
             foreach (KeyValuePair<PluginSourceImageBoard, string> item in _sourceOwners.Where(item => item.Value == change.PluginId))
-                item.Key.SetEnabled(change.Enabled && activation.Active != null);
+            {
+                bool enabled = change.Enabled && activation.Active != null;
+                // Invalidate before returning from the synchronous lifecycle notification.
+                SetSourceMediaIntegrityActive(item.Key, enabled);
+                item.Key.SetEnabled(enabled);
+            }
             if (!change.Enabled) _clients.Remove(change.PluginId, out client);
         }
         if (client != null)
@@ -303,7 +318,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        lock (_state) { if (_disposed) return; _disposed = true; }
+        lock (_state)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            foreach (PluginSourceImageBoard source in Sources)
+                if (source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy) policy.Retire();
+        }
         ProfileStore.LifecycleChanged -= OnLifecycleChanged;
         ProfileStore.GrantChanged -= OnGrantChanged;
         await _lifetime.CancelAsync().ConfigureAwait(false);

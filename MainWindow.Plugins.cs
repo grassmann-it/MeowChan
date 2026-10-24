@@ -25,6 +25,8 @@ public partial class MainWindow
         {
             if (NavigateWorkspace(WorkspacePage.Plugins)) _ = _pluginsPage.ActivateAsync(source);
         };
+        _sourcesPage.GetSourceMediaIntegrityPolicies = _session.GetSourceMediaIntegrityPolicies;
+        _sourcesPage.SetSourceMediaIntegrityPermission = _session.SetSourceMediaIntegrityPermissionAsync;
         AttachPluginServices();
     }
     private void AttachPluginServices()

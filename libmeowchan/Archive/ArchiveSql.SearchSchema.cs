@@ -84,8 +84,6 @@ internal static partial class ArchiveSql
                 WriteQuotes(connection, transaction, view.Summary, post);
             }
         }
-        using SqliteCommand version = Command(connection, transaction, $"PRAGMA user_version={SchemaVersion}");
-        version.ExecuteNonQuery();
     }
 
     internal static void WriteQuotes(SqliteConnection connection, SqliteTransaction transaction, ArchiveThreadSummary thread, CapturedPost post)

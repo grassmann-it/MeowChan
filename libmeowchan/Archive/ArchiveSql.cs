@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 3;
+    internal const int SchemaVersion = 4;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -44,7 +44,7 @@ internal static partial class ArchiveSql
 
     internal static void ValidateSchema(SqliteConnection connection)
     {
-        if (GetPragma(connection, "user_version") is not (1 or 2 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
+        if (GetPragma(connection, "user_version") is not (1 or 2 or 3 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         using SqliteCommand journal = connection.CreateCommand();
         journal.CommandText = "PRAGMA journal_mode";
@@ -79,6 +79,14 @@ internal static partial class ArchiveSql
             using SqliteCommand sourceContract = connection.CreateCommand();
             sourceContract.CommandText = "SELECT source,board,thread,decimal_post_order FROM archive_source_contracts LIMIT 0";
             using SqliteDataReader sourceContractReader = sourceContract.ExecuteReader();
+        }
+        if (GetPragma(connection, "user_version") >= 4)
+        {
+            using SqliteCommand integrity = connection.CreateCommand();
+            integrity.CommandText = "SELECT expected_sha256,attachment_revision_key FROM archive_attachments LIMIT 0; "
+                + "SELECT expected_sha256,acquisition_revision_key,attachment_references_json FROM media_decisions LIMIT 0;";
+            using SqliteDataReader integrityReader = integrity.ExecuteReader();
+            while (integrityReader.NextResult()) { }
         }
     }
 
@@ -183,6 +191,7 @@ internal static partial class ArchiveSql
         Dictionary<string, List<CapturedAttachment>> attachments = new Dictionary<string, List<CapturedAttachment>>(StringComparer.Ordinal);
         using (SqliteCommand command = Command(connection, transaction, """
             SELECT post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted
+            """ + AttachmentIntegrityColumns(connection) + "\n" + """
             FROM archive_attachments WHERE source=$source AND board=$board AND thread=$thread ORDER BY post,position
             """))
         {
@@ -195,7 +204,8 @@ internal static partial class ArchiveSql
                     attachments.Add(post, list = new List<CapturedAttachment>());
                 list.Add(new CapturedAttachment(reader.GetInt32(1), NullableString(reader, 2), reader.GetString(3),
                     NullableString(reader, 4), NullableString(reader, 5), NullableString(reader, 6),
-                    reader.IsDBNull(7) ? null : reader.GetInt64(7), NullableString(reader, 8), reader.GetInt32(9) == 1));
+                    reader.IsDBNull(7) ? null : reader.GetInt64(7), NullableString(reader, 8), reader.GetInt32(9) == 1)
+                    { ExpectedSha256 = NullableString(reader, 10), AttachmentRevisionKey = NullableString(reader, 11) });
             }
         }
         using SqliteCommand postsCommand = Command(connection, transaction, """

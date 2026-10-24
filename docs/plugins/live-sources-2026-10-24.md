@@ -106,3 +106,63 @@ live outcomes. The separate Continue reading GUI acceptance is recorded in
 [STATUS](../architecture/1.0.0/STATUS.md); its later test-only fixture corrections
 do not rebind any LIVE01/LIVE03 live result. No new publish, broad API/NuGet/ABI,
 full URSA, native platform or release acceptance follows from this report.
+
+## Experimental-source consent follow-up (Freeze09)
+
+The later **three-source opt-in check passed** on Freeze09: one executed xUnit
+case, zero skips, on local Linux-x64. This separately verifies the selected
+Kohlchan, Wizchan and Endchan originals with explicit permission; it leaves the
+historical strict failures and six-source result above unchanged. 4chan, 8kun
+and Lainchan were not rerun in this follow-up.
+
+For each source, strict default checking first produced **NeedsIntervention**
+with no accepted attachment binding. The real host permission was then enabled
+for that profile/plugin owner/source, followed by one manual missing-media retry.
+The second original response had exactly the same bytes as the first. Provider
+metadata stayed unchanged; the concrete attachment revision retained separate
+actual values and an explicit-permission acceptance record.
+
+| Source / board / thread · post / position | Provider → actual bytes | Accepted at UTC · outcome / receipt |
+| --- | --- | --- |
+| Kohlchan · cyber / 1730 · 1730 / 0 | 4,845 → 4,759 | 18:16:04 · **PASS** · [receipt](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze09/live-once-normal-flow/evidence/kohlchan.json) |
+| Wizchan · hob / 71222 · 71222 / 0 | 90,011 → 89,933 | 18:16:12 · **PASS** · [receipt](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze09/live-once-normal-flow/evidence/wizchan.json) |
+| Endchan · operate / 30442 · 30443 / 0 | 33,552 → 33,534 | 18:16:19 · **PASS** · [receipt](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze09/live-once-normal-flow/evidence/endchan.json) |
+
+Times are UTC on 2026-10-24, shown to whole seconds; receipts retain full precision.
+None of these three attachments supplied provider SHA256. Their separately
+measured local hashes were:
+
+| Source | Provider MD5 → actual MD5 (Base64) | Actual SHA256 |
+| --- | --- | --- |
+| Kohlchan | not supplied → `Pryeq1uF0apG7mkxD9p7Cg==` | `7f664113ba4d9f4514cde8bb56f0b2efe646ae75a3e7b3deb49c04545100d941` |
+| Wizchan | `023KrHT15Yw35hsJU/Paxg==` → `trT2lvNT8ShmM+pDl0m3jQ==` | `5a401d768f9846ca5b53d5268c799d7fd6b047e256411505a5fb1d85ee85f9d0` |
+| Endchan | not supplied → `MTOChsbTElHWBmjM0GCHIg==` | `a16bcd2903de0570910c3749da0ed5feda999d8879a7567505f3139e87a50b32` |
+
+Permission was revoked after acceptance. Local verified reads, Gallery selection
+of the exact bound asset and HTML-export bytes then passed both before and after
+opening a **fresh paused DesktopSessionHost in the same OS process**, with
+rejecting HTTP transport and zero offline attempts. All three private profiles
+were deleted. The separate [Freeze06 Core process proof](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze06/os-proof/summary.json)
+passed in two actual OS processes with synthetic bytes and a fresh denying test
+policy in the second; its scope excludes Desktop/SDK/live-source process restart.
+
+Freeze09 used exactly **12 HTTP200 GETs**, four per source: one catalog, one
+thread, one strict original and the same original once after permission. There
+were no automatic retries, fallback originals or denied extra requests. The
+source-integrity task total is **22 GETs** across the following preserved attempts;
+the earlier LIVE01/LIVE03 and identity-diagnostic requests above are separate.
+
+- [Freeze06](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze06/live-once/binding.json): **FAIL**, zero GETs; catalog work remained paused before network access.
+- [Freeze08](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze08/live-once-repair/evidence/summary.json): **FAIL**, ten GETs (4 + 4 + 2); Kohlchan/Wizchan failed the final audit after blocked additional thread attempts, and Endchan stopped before an original GET.
+- [Freeze09](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze09/live-once-normal-flow/binding.json): **PASS**, twelve GETs; [three-source summary](../../../oChan-ursa-execution-20261023/post-ursa/source-integrity-implementation-20261024/w20/freeze09/live-once-normal-flow/evidence/summary.json).
+
+Freeze09 source digest is
+`61cb0dbe51c8e8d8a6904bc6555e11e5d3e19af5ee45f3728d026de45383ca73`.
+Its binding SHA256 is
+`911a4ad45589f1669faeda3359996652fafd9acc774a82537fb392252164edaf`;
+summary SHA256 is
+`f3b12d8b42dc08311109309e5c6f85bdad12aec3058f21b17b80729cf7439388`.
+These sibling receipts are local evidence outside Git delivery. Provider SHA256,
+local integrity and transfer limits remain strict; deployed EXIF/post-processing
+causes remain unproved. This bounded follow-up establishes no provider-wide,
+new six-source, native-platform or release acceptance.

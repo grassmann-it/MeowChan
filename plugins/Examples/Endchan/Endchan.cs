@@ -38,7 +38,7 @@ public sealed class EndchanPlugin : ISourcePlugin
          new UrlRoute(SourceResourceKind.Thread, "endchan.org", "/{board}/res/{thread}.html", AllowTrailingSlash: false)
             { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal }],
         [new HttpHostDeclaration(Host, HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia)],
-        EmptySchema, PostOrderKind.DecimalPostId);
+        EmptySchema, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental };
 
     public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

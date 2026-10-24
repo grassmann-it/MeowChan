@@ -45,7 +45,7 @@ public partial class ArchivePage
             foreach (ArchivePostRow post in posts.OfType<ArchivePostRow>())
                 foreach (ArchiveAttachmentRow row in post.Attachments)
                 {
-                    ArchiveAssetRow? match = FindMatchingAsset(row.Attachment, _assets);
+                    ArchiveAssetRow? match = FindMatchingAsset(threadId, post.Id, row.Attachment, _assets);
                     GalleryEntry? entry = match == null ? null : Entry(match);
                     row.FavoriteAvailable = () => entry != null && ToggleArchiveFavoriteAsync != null;
                     row.IsFavorite = () => entry != null && IsArchiveFavorite?.Invoke(entry) == true;
@@ -97,11 +97,11 @@ public partial class ArchivePage
             asset = list switch { DataGrid grid => grid.SelectedItem as ArchiveAssetRow, ListBox tiles => tiles.SelectedItem as ArchiveAssetRow, _ => null };
             origin = list;
         }
-        if (attachment != null) asset = FindMatchingAsset(attachment.Attachment, _assets);
+        string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+        if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
         if (_selectedThread == null || _thread == null || origin == null) return;
         e.Handled = true;
-        string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
         ContextMenu menu = BuildArchiveMediaMenu(asset, attachment, origin, postId);
         ArchiveMediaMenu?.Close();
         ArchiveMediaMenu = menu;
@@ -119,10 +119,10 @@ public partial class ArchivePage
         var attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
         var asset = ancestors.Select(c => c.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
         if (asset == null && attachment == null && owner.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles") asset = SelectedMediaRow();
-        if (attachment != null) asset = FindMatchingAsset(attachment.Attachment, _assets);
+        string? postId = ancestors.Select(c => c.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+        if (attachment != null) asset = postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return false;
         var origin = (Control?)attachmentView ?? owner;
-        string? postId = ancestors.Select(c => c.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
         return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId), e);
     }
 
@@ -140,12 +140,16 @@ public partial class ArchivePage
         GalleryEntry[] entries = GallerySelection.Build(thread, assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
             true, includeOtherMedia: true).Entries.ToArray();
         GalleryEntry? entry = asset == null ? null : entries.FirstOrDefault(item => item.Key == new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId)
-            && (postId == null || item.Post?.PostId == postId));
+            && (postId == null || item.Post?.PostId == postId)
+            && (attachment == null || item.Attachment?.Position == attachment.Attachment.Position));
         if (entry == null && asset != null)
             entry = new GalleryEntry(new GalleryAssetKey(threadId, asset.Manifest.Directory, asset.Asset.AssetId), asset.Manifest, asset.Asset,
                 null, null, !asset.Asset.IsCurrent, true) { ThreadUrl = thread.Summary.Url };
         GalleryEntry? target = entry;
-        GalleryEntry? galleryTarget = target == null ? null : galleryEntries.FirstOrDefault(item => item.Key == target.Key);
+        // Keep the chosen post/position and its provenance when the visible sequence shares the same bytes.
+        if (attachment != null && target != null)
+            galleryEntries = galleryEntries.Select(item => item.Key == target.Key ? target : item).ToArray();
+        GalleryEntry? galleryTarget = target == null ? null : galleryEntries.FirstOrDefault(item => item.EntryKey == target.EntryKey);
         bool saved = target != null;
         string missing = Texts.T("archive.notSaved");
         var unavailable = new List<string>();
@@ -206,7 +210,8 @@ public partial class ArchivePage
         {
             string details = target == null ? attachment?.Label + Environment.NewLine + missing
                 : (target.Asset.OriginalFileName ?? target.Asset.Path) + Environment.NewLine + target.Asset.Path + Environment.NewLine
-                    + target.Asset.Length.ToString("N0", Texts.Culture) + " bytes" + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
+                    + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
+                    + Environment.NewLine + MediaProvenanceText.Details(target.AttachmentResolution?.Binding)
                     + Environment.NewLine + threadId.Source + " /" + threadId.Board + "/ " + threadId.Thread
                     + Environment.NewLine + (target.Post?.PostId ?? Texts.T("gallery.noPost"));
             return ShowArchiveMetadataAsync(CommandCatalog.Label("media.details"), details);

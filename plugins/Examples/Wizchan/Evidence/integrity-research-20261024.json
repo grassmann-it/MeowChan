@@ -1,0 +1,31 @@
+{
+  "live": "API90011 bytes and MD5 differed from served89933 bytes and MD5; identity/no-auto-decompression returned identical served bytes.",
+  "upstream": {
+    "repository": "fallenPineapple/NPFchan",
+    "commit": "905213ac23e72b119d40d477260beffa84801f20",
+    "files": {
+      "post.php": {
+        "sha256": "b03c7298c9d3be4e5be5f2830ea33388c069c3f48b6f80d09751fa2f434c8a12",
+        "lines": "907-921,975-1008,1061-1068",
+        "url": "https://raw.githubusercontent.com/fallenPineapple/NPFchan/905213ac23e72b119d40d477260beffa84801f20/post.php"
+      },
+      "inc/functions.php": {
+        "sha256": "1e53ee9c63313fe0f328df3446534506cf44766557ef46c5156cbf94adf3b313",
+        "lines": "1422",
+        "url": "https://raw.githubusercontent.com/fallenPineapple/NPFchan/905213ac23e72b119d40d477260beffa84801f20/inc/functions.php"
+      },
+      "inc/api.php": {
+        "sha256": "66725d3feccb8f87e8c5dc9bc0aa9cecc1ecd8db138306b57b6d2a92c6367fa9",
+        "lines": "45-50,90-107",
+        "url": "https://raw.githubusercontent.com/fallenPineapple/NPFchan/905213ac23e72b119d40d477260beffa84801f20/inc/api.php"
+      }
+    }
+  },
+  "observation": "Upload size/hash can survive optional image transformation; actual deployed revision/configuration and exact object cause remain unproven.",
+  "scope": "Research metadata only, no upstream implementation incorporated",
+  "date": "2026-10-24",
+  "maturity": "Experimental",
+  "providerMetadataSemantics": "Unknown / conditional upload; not a universal delivery guarantee",
+  "mapping": "Expected size and supplied MD5 remain unchanged. No permission is granted by the plugin or maturity declaration.",
+  "deployedRevisionVerified": false
+}

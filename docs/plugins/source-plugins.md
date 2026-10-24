@@ -151,6 +151,15 @@ media identity must not depend on local directories or display filenames. MD5 is
 base64 of 16 bytes; SHA-256 is 64 hexadecimal characters. Unknown metadata remains
 unknown rather than inferred from a hash-shaped URL.
 
+Preserve `ExpectedSize`, `ExpectedMd5` and `ExpectedSha256` as the provider supplied
+them; do not replace them with measured download values or assume they describe
+bytes before EXIF processing. The host records actual local integrity separately
+for the concrete attachment revision. Only the user's explicit permission in
+[Sources](using-plugins.md#experimental-sources-and-media-checks) can allow provider
+size/MD5 differences. Provider SHA256, local verification and transfer limits
+remain strict. Plugin settings and `SourceDescription.Maturity =
+SourceMaturity.Experimental` cannot grant this permission.
+
 Set `Attachments` presence only when that field is supplied. Explicit deletion
 markers are observations, not instructions to erase saved bytes. A deleted
 attachment without `MediaId` identifies the previously captured position. Keep

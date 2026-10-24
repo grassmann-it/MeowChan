@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using MeowChan.Storage;
 
 namespace MeowChan.Archive;
 
@@ -67,6 +68,14 @@ internal static class ArchiveValidation
                 if (attachment.Url != null) ValidateUrl(attachment.Url);
                 if (attachment.PlannedPath != null) ValidatePath(attachment.PlannedPath);
                 if (attachment.ExpectedSize < 0) throw new ArgumentOutOfRangeException(nameof(attachment.ExpectedSize));
+                if (attachment.ExpectedSha256 != null && (attachment.ExpectedSha256.Length != 64
+                    || attachment.ExpectedSha256.Any(character => !Uri.IsHexDigit(character))))
+                    throw new ArgumentException("ExpectedSha256 must contain a hexadecimal SHA256 checksum.");
+                if (attachment.AttachmentRevisionKey != null && (attachment.MediaId == null
+                    || attachment.AttachmentRevisionKey != MediaRevisionKeys.CreateAttachmentKey(snapshot.Id, post.PostId, attachment.Position,
+                        new(attachment.MediaId, attachment.Variant, attachment.Url!, attachment.OriginalFileName,
+                            attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256))))
+                    throw new ArgumentException("The captured attachment revision differs from its provider metadata.");
                 if (attachment.ExpectedMd5 != null)
                 {
                     try

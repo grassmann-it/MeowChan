@@ -45,26 +45,20 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 CreateDecisionSchema(connection, transaction);
                 ArchiveSql.CreateSearchSchema(connection, transaction);
                 ArchiveSql.CreateSourceContractSchema(connection, transaction);
+                ArchiveSql.CreateIntegritySchema(connection, transaction);
                 using SqliteCommand schema = ArchiveSql.Command(connection, transaction,
                     $"PRAGMA application_id={ArchiveSql.ApplicationId}; PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
-            if (version == 1 && application == ArchiveSql.ApplicationId)
+            if ((version is 1 or 2 or 3) && application == ArchiveSql.ApplicationId)
             {
                 ArchiveSql.ValidateSchema(connection);
                 using SqliteTransaction migration = connection.BeginTransaction();
-                ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
-                ArchiveSql.CreateSourceContractSchema(connection, migration);
-                cancellationToken.ThrowIfCancellationRequested();
-                migration.Commit();
-            }
-            if (version == 2 && application == ArchiveSql.ApplicationId)
-            {
-                ArchiveSql.ValidateSchema(connection);
-                using SqliteTransaction migration = connection.BeginTransaction();
-                ArchiveSql.CreateSourceContractSchema(connection, migration);
+                if (version == 1) ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
+                if (version <= 2) ArchiveSql.CreateSourceContractSchema(connection, migration);
+                ArchiveSql.CreateIntegritySchema(connection, migration);
                 using SqliteCommand schema = ArchiveSql.Command(connection, migration, $"PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();
@@ -128,6 +122,11 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     /// not this explicit operation. Posts and missing fields are retained; this never commits media bytes.
     /// </summary>
     public Task CaptureAsync(CapturedThreadSnapshot snapshot, CancellationToken cancellationToken = default)
+        => CapturePreservingRevisionsAsync(StampObservedAttachments(snapshot), cancellationToken);
+
+    // Runtime restores/replays are not new observations. Their explicit legacy null keys
+    // and previously frozen revisions must survive persistence without reclassification.
+    internal Task CapturePreservingRevisionsAsync(CapturedThreadSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         CapturedThreadSnapshot captured = ArchiveValidation.CopySnapshot(snapshot);
         return WriteAsync((connection, transaction) =>
@@ -254,8 +253,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
         {
             using SqliteCommand insert = ArchiveSql.Command(connection, transaction, """
-                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted)
-                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$deleted)
+                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted,expected_sha256,attachment_revision_key)
+                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$deleted,$sha,$attachmentRevision)
                 """);
             ArchiveSql.AddId(insert, id);
             insert.Parameters.AddWithValue("$post", post.PostId);
@@ -267,6 +266,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             insert.Parameters.AddWithValue("$path", (object?)attachment.PlannedPath ?? DBNull.Value);
             insert.Parameters.AddWithValue("$size", (object?)attachment.ExpectedSize ?? DBNull.Value);
             insert.Parameters.AddWithValue("$md5", (object?)attachment.ExpectedMd5 ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$sha", (object?)attachment.ExpectedSha256 ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$attachmentRevision", (object?)attachment.AttachmentRevisionKey ?? DBNull.Value);
             insert.Parameters.AddWithValue("$deleted", attachment.IsDeleted ? 1 : 0);
             insert.ExecuteNonQuery();
         }

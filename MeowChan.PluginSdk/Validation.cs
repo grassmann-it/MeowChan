@@ -563,6 +563,7 @@ public static class SdkValidation
             if (source.Capabilities == SourceCapabilities.None || (source.Capabilities & ~known) != 0)
                 Add(path + ".capabilities", "unknown_capability", "Declare supported source capabilities.");
             EnumValue(source.PostOrder, path + ".postOrder");
+            EnumValue(source.Maturity, path + ".maturity");
             Schema(source.Settings, path + ".settings", SettingScope.Source);
             if (source.Routes?.Count > 64)
             { Add(path + ".routes", "too_large", "Collection exceeds its entry limit."); return; }

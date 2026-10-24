@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -32,9 +33,11 @@ public sealed class MediaAssetSnapshot
 {
     private readonly MediaAssetReference[] _assets;
     private readonly Dictionary<string, MediaAssetReference> _byId;
+    private readonly IReadOnlyDictionary<string, MediaAttachmentBinding> _attachmentBindings;
 
     internal MediaAssetSnapshot(string directory, MediaManifestStatus status, int? manifestVersion,
-        string? generation, IEnumerable<MediaAssetReference> assets, string? warning = null)
+        string? generation, IEnumerable<MediaAssetReference> assets, string? warning = null,
+        IReadOnlyDictionary<string, MediaAttachmentBinding>? attachmentBindings = null)
     {
         Directory = directory;
         Status = status;
@@ -45,6 +48,9 @@ public sealed class MediaAssetSnapshot
             .ThenBy(asset => asset.RequestedFileName, StringComparer.Ordinal)
             .ThenBy(asset => asset.AssetId, StringComparer.Ordinal).ToArray();
         _byId = _assets.ToDictionary(asset => asset.AssetId, StringComparer.Ordinal);
+        _attachmentBindings = new ReadOnlyDictionary<string, MediaAttachmentBinding>(attachmentBindings == null
+            ? new Dictionary<string, MediaAttachmentBinding>(StringComparer.Ordinal)
+            : attachmentBindings.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
     }
 
     public string Directory { get; }
@@ -54,6 +60,13 @@ public sealed class MediaAssetSnapshot
     public string? Generation { get; }
     public string? Warning { get; }
     public int Count => _assets.Length;
+    public IReadOnlyDictionary<string, MediaAttachmentBinding> AttachmentBindings => _attachmentBindings;
+
+    public MediaAttachmentBinding? FindAttachmentBinding(string revisionKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(revisionKey);
+        return _attachmentBindings.GetValueOrDefault(revisionKey);
+    }
 
     /// <summary>Returns at most 500 references from this same immutable view. No filesystem work occurs.</summary>
     public IReadOnlyList<MediaAssetReference> GetPage(int offset = 0, int limit = 100)
@@ -157,8 +170,21 @@ public sealed partial class MediaStore
                 Path.Combine(directory, entry.FileName), entry.Length, entry.Sha256.ToLowerInvariant(),
                 entry.SourceUrl, entry.OriginalFileName, current) { Md5 = entry.Md5 });
         }
+        try
+        {
+            Dictionary<string, MediaAssetReference> byId = assets.ToDictionary(asset => asset.AssetId, StringComparer.Ordinal);
+            foreach (var pair in read.Manifest.AttachmentBindings)
+            {
+                MediaIntegrityValidation.ValidateBinding(pair.Key, pair.Value);
+                MediaAttachmentBinding binding = pair.Value;
+                if (!byId.TryGetValue(binding.AssetId, out MediaAssetReference? asset)
+                    || !MediaAttachmentResolver.BindingMatchesAsset(binding, asset)) return CorruptAssetSnapshot(directory);
+            }
+        }
+        catch (Exception error) when (error is InvalidDataException or ArgumentException or FormatException or NullReferenceException)
+        { return CorruptAssetSnapshot(directory); }
         return new MediaAssetSnapshot(directory, MediaManifestStatus.Available, read.SourceVersion,
-            read.Generation, assets);
+            read.Generation, assets, attachmentBindings: read.Manifest.AttachmentBindings);
     }
 
     private static MediaAssetSnapshot CorruptAssetSnapshot(string directory)

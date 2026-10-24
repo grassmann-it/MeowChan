@@ -4,6 +4,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
 
@@ -45,6 +46,18 @@ public sealed class SourcesTests
         Assert.Equal("Sitzung gestoppt oder wird beendet", Assert.Single(SourcesSnapshot.From([Provider("4chan")],
             empty with { State = DesktopSessionState.Stopped })).Summary);
         Texts.SetLanguage("en");
+    }
+
+    [Fact]
+    public void SourcePolicyProjectionSelectsActualOwnerAndFailsClosedForAmbiguity()
+    {
+        SourceMediaIntegrityPolicyView old = new(new("profile", "old-owner", "source", false, 4), true, false, SourceMaturity.Experimental);
+        SourceMediaIntegrityPolicyView current = new(new("profile", "new-owner", "source", false, 1), false, true, SourceMaturity.Unspecified);
+        Assert.Same(current, SourcesSnapshot.FindPolicy("source", [old, current]));
+        Assert.Null(SourcesSnapshot.FindPolicy("other-source", [current]));
+        Assert.Null(SourcesSnapshot.FindPolicy("source", [old, current with { IsActive = false }]));
+        Assert.Null(SourcesSnapshot.FindPolicy("source", [old with { IsActive = true }, current]));
+        Assert.Same(old, SourcesSnapshot.FindPolicy("source", [old]));
     }
 
     private static ProviderDescriptor Provider(string id) => new ProviderDescriptor(id, id,

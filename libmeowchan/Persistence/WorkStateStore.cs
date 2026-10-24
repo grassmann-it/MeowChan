@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using MeowChan.Storage;
 
 /// <summary>Authoritative watch intent and retry state. All writes are serialized by the profile lease.</summary>
 public interface IWorkStateStore
@@ -47,6 +48,15 @@ public sealed record MediaWork
     public required string DestinationPath { get; init; }
     public required string DownloadUrl { get; init; }
     public string? ExpectedMd5 { get; init; }
+    public string? ExpectedSha256 { get; init; }
+    public string? AcquisitionRevisionKey { get; init; }
+    private IReadOnlyList<AttachmentRevisionReference> _attachmentReferences = MediaAttachmentReferences.Empty;
+    public IReadOnlyList<AttachmentRevisionReference> AttachmentReferences
+    {
+        get => _attachmentReferences;
+        init => _attachmentReferences = MediaAttachmentReferences.CopyOf(value);
+    }
+    public string? CommittedAssetId { get; init; }
     public long? ExpectedSize { get; init; }
     public string? OriginalFileName { get; init; }
     public string? LegacyPath { get; init; }
@@ -263,5 +273,15 @@ public sealed class WorkStateStore : IWorkStateStore
             || media.HttpStatus is < 100 or > 599
             || media.DueAt != null && media.LastAttemptAt != null && media.DueAt < media.LastAttemptAt)
             throw new InvalidDataException("Invalid durable media work.");
+        if (media.ExpectedSha256 != null && !MediaIntegrityValidation.IsSha256(media.ExpectedSha256)
+            || media.CommittedAssetId != null && !MediaIntegrityValidation.IsSha256(media.CommittedAssetId)
+            || media.AttachmentReferences == null)
+            throw new InvalidDataException("Invalid durable media integrity metadata.");
+        MediaProviderMetadata provider = new(media.MediaIdentifier, media.Variant, media.DownloadUrl, media.OriginalFileName,
+            media.ExpectedSize, media.ExpectedMd5, media.ExpectedSha256);
+        foreach (AttachmentRevisionReference reference in media.AttachmentReferences)
+            if (reference == null || reference.RevisionKey != MediaRevisionKeys.CreateAttachmentKey(reference.Resource, reference.PostId, reference.Position, provider)
+                || media.AcquisitionRevisionKey != MediaRevisionKeys.CreateAcquisitionKey(reference.Resource, provider))
+                throw new InvalidDataException("Invalid durable attachment reference.");
     }
 }

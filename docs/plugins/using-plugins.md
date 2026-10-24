@@ -52,6 +52,46 @@ Expand **Developer details** for technical information, **Copy technical details
 and source editing/testing tools. Ordinary plugin use does not require opening
 this section. To add or edit a trusted `.cs` source, follow the next sections.
 
+## Experimental sources and media checks
+
+**Kohlchan**, **Wizchan** and **Endchan** are labelled **Experimental**. Their
+provider size or MD5 metadata can differ from the delivered file. The default
+is strict checking; the label alone grants no exception.
+
+Open **Sources**, select the source and choose **Allow provider size and MD5
+mismatches** only if you want to accept those differences. Sources is the only
+place to grant or revoke this permission. It is off by default and applies to
+that profile, plugin owner and source. Updates from the same plugin owner retain
+it; another owner or profile does not inherit it. A successful save takes effect
+immediately for new media acceptance by the active source. This is separate from
+plugin/source settings saved for the next start. An inactive source's saved
+permission does not allow it to save new media.
+
+Enabling this permission does not automatically retry earlier failed downloads.
+After a successful save, open **Downloads**, select the affected thread and choose
+**Retry missing media** (**Fehlende Medien erneut versuchen**) in its details.
+This action is also available for eligible **Completed** (**Abgeschlossen**) work;
+queue and source limits still apply.
+
+The exception permits only provider size and MD5 differences. Any supplied
+provider SHA256, local integrity verification, complete HTTP transfer, byte/pixel
+and temporary-storage limits, cancellation and filter decisions remain strict.
+For each accepted attachment revision, the original provider metadata, measured
+local length/hashes and acceptance record remain distinct and refer to that
+concrete medium.
+
+Clear the checkbox to revoke permission. Once the change succeeds, new
+acceptance requiring the exception is blocked. Already accepted archived media
+remains usable when its local length and SHA256 verify. An earlier acceptance
+record does not authorize a new attachment revision or reference.
+
+The [dated live-source report](live-sources-2026-10-24.md) retains the historical
+integrity failures for these three sources. Their deployed cause, including any
+EXIF processing, has not been established. The later [three-source consent
+follow-up](live-sources-2026-10-24.md#experimental-source-consent-follow-up-freeze09)
+passed for the selected originals after explicit permission and manual retry.
+Release readiness and broader source availability remain separate assessments.
+
 ## Install a source file
 
 1. Open **Plugins** from the application menu or footer (under **Tools** in compact views). The source detail
@@ -146,8 +186,9 @@ saved. See [settings and grants](filters-and-settings.md) before enabling a filt
 
 ## English and German labels
 
-The labels below come from the implemented [localization
-catalog](../../Desktop/Localization/PluginCatalog.cs).
+The labels below come from the implemented [plugin localization
+catalog](../../Desktop/Localization/PluginCatalog.cs) and [Sources
+catalog](../../Desktop/Localization/SourcesCatalog.cs).
 
 | English | Deutsch |
 | --- | --- |
@@ -169,3 +210,5 @@ catalog](../../Desktop/Localization/PluginCatalog.cs).
 | Use last good saved build next start | Letzte gute gespeicherte Fassung beim nächsten Start verwenden |
 | Enable plugin / Disable plugin | Plugin aktivieren / Plugin deaktivieren |
 | Revoke access | Zugriff widerrufen |
+| Experimental | Experimentell |
+| Allow provider size and MD5 mismatches | Abweichende Anbietergröße und MD5 zulassen |

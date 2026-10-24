@@ -16,6 +16,8 @@ public sealed record MediaCommitResult(string Path, long Length, string Sha256, 
 {
     /// <summary>The concrete asset in the thread manifest, set by MediaStore after commit or restore.</summary>
     public string? AssetId { get; init; }
+    public string? AcquisitionRevisionKey { get; init; }
+    public IReadOnlyList<string> AttachmentRevisionKeys { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -33,7 +35,7 @@ public sealed partial class MediaStore
     private const string LegacyManifestFileName = ".ochan-manifest.json";
     private const string DirectoryLeaseFileName = ".meowchan-store.lock";
     private const string LegacyDirectoryLeaseFileName = ".ochan-store.lock";
-    private const int ManifestVersion = 2;
+    private const int ManifestVersion = 3;
     private const int MaximumManifestBytes = 32 * 1024 * 1024;
     private const int MaximumRecoveryCandidates = 256;
     private const int MaximumVerificationCacheEntries = 4096;
@@ -83,10 +85,10 @@ public sealed partial class MediaStore
     public async Task<MediaCommitResult?> TryRestoreAsync(DownloadItem item, CancellationToken cancellationToken)
     {
         string destination = GetDestination(item);
+        MediaIntegrityValidation.ValidateItem(item);
         byte[]? expectedMd5 = ValidateExpectedMetadata(item);
         cancellationToken.ThrowIfCancellationRequested();
         string directory = Path.GetDirectoryName(destination)!;
-        string requestedName = Path.GetFileName(destination);
         if (!HasRestoreInputs(item, destination, expectedMd5))
         {
             ForgetVerifiedFile(destination);
@@ -102,21 +104,17 @@ public sealed partial class MediaStore
             // still be imported from its legacy path below, without a read probe creating files.
             using FileStream directoryLease = await AcquireDirectoryLeaseAsync(directory, cancellationToken).ConfigureAwait(false);
             ManifestRead manifestRead = await ReadWriterManifestAsync(directory, cancellationToken).ConfigureAwait(false);
-            if (manifestRead.Manifest.Entries.TryGetValue(requestedName, out MediaManifestEntry? entry)
-                && EntryMatchesItem(entry, item)
-                && TryGetEntryPath(directory, entry!.FileName, out string? recordedPath))
-            {
-                FileDigest? digest = await VerifyManifestFileAsync(item, destination, recordedPath!, entry,
-                    expectedMd5, cancellationToken).ConfigureAwait(false);
-                if (digest != null)
-                {
-                    return ToResult(item, recordedPath!, digest, true);
-                }
-            }
-            else
-            {
-                ForgetVerifiedFile(destination);
-            }
+            if (manifestRead.Corrupt && item.AttachmentReferences.Count > 0)
+                throw new InvalidDataException("Cannot bind media from a corrupt manifest.");
+            MediaCommitResult? bound = await TryRestoreBoundAsync(manifestRead.Manifest, item, directory, cancellationToken).ConfigureAwait(false);
+            if (bound != null) return bound;
+            // New observed references require their own acquisition, never legacy size/mediaId inference.
+            if (item.AttachmentReferences.Count > 0) return null;
+            (MediaCommitResult? strict, bool ambiguous) = await TryRestoreStrictAsync(manifestRead.Manifest, item,
+                destination, directory, expectedMd5, cancellationToken).ConfigureAwait(false);
+            if (strict != null) return strict;
+            if (ambiguous) return null;
+            ForgetVerifiedFile(destination);
 
             if (item.ExpectedSize.HasValue && expectedMd5 != null)
             {
@@ -124,6 +122,7 @@ public sealed partial class MediaStore
                 if (digest != null && MatchesExpected(item, expectedMd5, digest))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    item.AuthorizePublication?.Invoke();
                     AddManifestEntry(manifestRead.Manifest, item, destination, digest);
                     await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
                     return ToResult(item, destination, digest, true);
@@ -143,6 +142,7 @@ public sealed partial class MediaStore
                     }
 
                     cancellationToken.ThrowIfCancellationRequested();
+                    item.AuthorizePublication?.Invoke();
                     AddManifestEntry(manifestRead.Manifest, item, candidatePath, candidateDigest);
                     await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
                     return ToResult(item, candidatePath, candidateDigest, true);
@@ -212,7 +212,9 @@ public sealed partial class MediaStore
         string? expectedSha256, Action? authorizeCommit, Func<string, CancellationToken, Task>? recordTemporary)
     {
         ArgumentNullException.ThrowIfNull(source);
+        SourceMediaIntegrityPolicySnapshot? startedPolicy = item.MediaIntegrityPolicy?.GetSnapshot();
         string destination = GetDestination(item);
+        MediaIntegrityValidation.ValidateItem(item);
         byte[]? expectedMd5 = ValidateExpectedMetadata(item);
         string directory = Path.GetDirectoryName(destination)!;
         cancellationToken.ThrowIfCancellationRequested();
@@ -223,13 +225,16 @@ public sealed partial class MediaStore
         {
             if (recordTemporary != null) await recordTemporary(temporaryPath, cancellationToken).ConfigureAwait(false);
             FileDigest digest;
+            SourceMediaIntegrityPolicySnapshot? policy;
             await using (FileStream temporaryStream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                digest = await CopyAndHashAsync(source, temporaryStream, cancellationToken, throttleAsync).ConfigureAwait(false);
-                if (!MatchesExpected(item, expectedMd5, digest) || expectedSha256 != null && digest.Sha256 != expectedSha256)
+                digest = await CopyAndHashAsync(source, temporaryStream, cancellationToken, throttleAsync, item.MaximumActualBytes).ConfigureAwait(false);
+                policy = MediaIntegrityValidation.AuthorizeAssessment(item, Actual(digest));
+                if (policy != null && policy != startedPolicy) throw new InvalidDataException("Source permission changed during transfer.");
+                if (expectedSha256 != null && digest.Sha256 != expectedSha256)
                 {
-                    throw new InvalidDataException("Downloaded media does not match its expected size or MD5 checksum.");
+                    throw new InvalidDataException("The media copy differs from its verified stage SHA256.");
                 }
 
                 await temporaryStream.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -243,11 +248,22 @@ public sealed partial class MediaStore
                 using FileStream directoryLease = await AcquireDirectoryLeaseAsync(directory, cancellationToken).ConfigureAwait(false);
                 ForgetVerifiedFile(destination);
                 ManifestRead manifestRead = await ReadWriterManifestAsync(directory, cancellationToken).ConfigureAwait(false);
+                if (manifestRead.Corrupt && item.AttachmentReferences.Count > 0)
+                    throw new InvalidDataException("Cannot publish attachment bindings over a corrupt manifest.");
                 string publishedPath = destination;
                 bool reused = false;
 
+                // An exact prior binding is immutable, even when another version became current.
+                string? boundPath = BoundPathForCommit(manifestRead.Manifest, item, digest, directory);
+                if (boundPath != null)
+                {
+                    publishedPath = boundPath;
+                    reused = await HasSameContentAsync(boundPath, digest, cancellationToken).ConfigureAwait(false);
+                    if (!reused && (File.Exists(boundPath) || Directory.Exists(boundPath)))
+                        throw new InvalidDataException("The immutable bound asset was modified.");
+                }
                 // Prefer a previously assigned conflict path when it still contains these exact bytes.
-                if (manifestRead.Manifest.Entries.TryGetValue(Path.GetFileName(destination), out MediaManifestEntry? entry)
+                else if (manifestRead.Manifest.Entries.TryGetValue(Path.GetFileName(destination), out MediaManifestEntry? entry)
                     && EntryMatchesItem(entry, item)
                     && TryGetEntryPath(directory, entry!.FileName, out string? recordedPath)
                     && await HasSameContentAsync(recordedPath!, digest, cancellationToken).ConfigureAwait(false))
@@ -286,7 +302,18 @@ public sealed partial class MediaStore
                     }
                 }
 
+                // Recheck collision before publication and retain the permission gate through manifest save.
+                string? boundAssetId = FindBoundAssetId(manifestRead.Manifest, item);
+                string assetId = boundAssetId ?? GetAssetId(Path.GetFileName(item.DestinationPath), new MediaManifestEntry {
+                    MediaIdentifier = item.MediaIdentifier, Variant = item.Variant, FileName = Path.GetFileName(publishedPath), Sha256 = digest.Sha256 });
+                ValidateBindingCollisions(manifestRead.Manifest, item, assetId, digest);
                 cancellationToken.ThrowIfCancellationRequested();
+                await using MediaAcceptanceLease? acceptanceLease = policy == null ? null
+                    : await item.MediaIntegrityPolicy!.AcquireAcceptanceLeaseAsync(policy.Revision, cancellationToken).ConfigureAwait(false);
+                if (acceptanceLease != null && (acceptanceLease.Snapshot != policy || !acceptanceLease.Snapshot.AllowProviderSizeMd5Mismatch))
+                    throw new InvalidDataException("Source permission changed before publication.");
+                cancellationToken.ThrowIfCancellationRequested();
+                item.AuthorizePublication?.Invoke();
                 authorizeCommit?.Invoke();
                 if (!reused)
                 {
@@ -294,9 +321,10 @@ public sealed partial class MediaStore
                     _moveFile(temporaryPath, publishedPath, false);
                 }
 
-                AddManifestEntry(manifestRead.Manifest, item, publishedPath, digest);
+                if (boundAssetId == null) AddManifestEntry(manifestRead.Manifest, item, publishedPath, digest, acceptanceLease?.Snapshot);
+                else AddBindings(manifestRead.Manifest, item, boundAssetId, digest, acceptanceLease?.Snapshot);
                 await SaveManifestAsync(directory, manifestRead, CancellationToken.None).ConfigureAwait(false);
-                return ToResult(item, publishedPath, digest, reused);
+                return ToResult(item, publishedPath, digest, reused) with { AssetId = assetId };
             }
             finally
             {
@@ -389,11 +417,12 @@ public sealed partial class MediaStore
     private static bool MatchesExpected(DownloadItem item, byte[]? expectedMd5, FileDigest digest)
     {
         return (!item.ExpectedSize.HasValue || item.ExpectedSize.Value == digest.Length)
-            && (expectedMd5 == null || CryptographicOperations.FixedTimeEquals(expectedMd5, digest.Md5));
+            && (expectedMd5 == null || CryptographicOperations.FixedTimeEquals(expectedMd5, digest.Md5))
+            && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, digest.Sha256, StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<FileDigest> CopyAndHashAsync(Stream source, Stream? destination,
-        CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null)
+        CancellationToken cancellationToken, Func<int, CancellationToken, Task>? throttleAsync = null, long? maximumBytes = null)
     {
         using IncrementalHash sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
@@ -407,6 +436,8 @@ public sealed partial class MediaStore
                 await throttleAsync(bytesRead, cancellationToken).ConfigureAwait(false);
             }
 
+            if (maximumBytes is long maximum && checked(length + bytesRead) > maximum)
+                throw new InvalidDataException("Actual media bytes exceed the effective rule limit.");
             if (destination != null)
             {
                 await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
@@ -474,7 +505,7 @@ public sealed partial class MediaStore
         }
 
         VerificationFingerprint fingerprint = new VerificationFingerprint(actualPath, before,
-            item.ExpectedSize, expectedMd5 == null ? null : Convert.ToBase64String(expectedMd5),
+            item.ExpectedSize, expectedMd5 == null ? null : Convert.ToBase64String(expectedMd5), item.ExpectedSha256,
             new ManifestEntryFingerprint(entry.MediaIdentifier, entry.Variant, entry.SourceUrl, entry.FileName, entry.Length,
                 entry.Sha256, entry.Md5, entry.ExpectedMd5, entry.OriginalFileName));
         FileDigest? cached = FindVerifiedFile(cacheKey, fingerprint);
@@ -692,7 +723,9 @@ public sealed partial class MediaStore
         };
         return new MediaCommitResult(path, digest.Length, digest.Sha256, reused)
         {
-            AssetId = GetAssetId(Path.GetFileName(item.DestinationPath), identity)
+            AssetId = GetAssetId(Path.GetFileName(item.DestinationPath), identity),
+            AcquisitionRevisionKey = item.AcquisitionRevisionKey,
+            AttachmentRevisionKeys = Array.AsReadOnly(System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(item.AttachmentReferences, reference => reference.RevisionKey)))
         };
     }
 
@@ -736,7 +769,8 @@ public sealed partial class MediaStore
             || (OperatingSystem.IsMacOS() && exception.HResult == 35);
     }
 
-    private static void AddManifestEntry(MediaManifest manifest, DownloadItem item, string actualPath, FileDigest digest)
+    private static void AddManifestEntry(MediaManifest manifest, DownloadItem item, string actualPath, FileDigest digest,
+        SourceMediaIntegrityPolicySnapshot? policy = null)
     {
         string requestedName = Path.GetFileName(item.DestinationPath);
         MediaManifestEntry entry = new MediaManifestEntry
@@ -751,6 +785,7 @@ public sealed partial class MediaStore
             ExpectedMd5 = item.ExpectedMd5,
             OriginalFileName = item.OriginalFileName
         };
+        AddBindings(manifest, item, GetAssetId(requestedName, entry), digest, policy);
         manifest.Entries[requestedName] = entry;
         AddAsset(manifest, requestedName, entry);
     }
@@ -775,6 +810,8 @@ public sealed partial class MediaStore
     private async Task<ManifestRead> ReadWriterManifestAsync(string directory, CancellationToken cancellationToken)
     {
         ManifestRead current = await ReadManifestAsync(directory, ManifestFileName, cancellationToken).ConfigureAwait(false);
+        if (current.Corrupt && current.SourceVersion == 3)
+            throw new InvalidDataException("The v3 media manifest has invalid attachment evidence and cannot be replaced.");
         if (!current.Missing) return current;
         string legacyPath = Path.Combine(directory, LegacyManifestFileName);
         FileAttributes legacyAttributes;
@@ -820,34 +857,58 @@ public sealed partial class MediaStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         string path = Path.Combine(directory, fileName);
+        int? wireVersion = null;
         try
         {
             byte[] bytes = await ReadManifestBytesAsync(path, cancellationToken).ConfigureAwait(false);
             string generation = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            // Preserve the declared schema even if a typed field later fails deserialization.
+            using JsonDocument wireDocument = JsonDocument.Parse(bytes);
+            if (wireDocument.RootElement.ValueKind == JsonValueKind.Object
+                && wireDocument.RootElement.TryGetProperty("Version", out JsonElement versionElement)
+                && versionElement.ValueKind == JsonValueKind.Number && versionElement.TryGetInt32(out int declaredVersion))
+                wireVersion = declaredVersion;
+            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != ManifestVersion)
+                throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             MediaManifest? manifest = JsonSerializer.Deserialize<MediaManifest>(bytes, JsonOptions);
-            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != ManifestVersion)
+            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != ManifestVersion)
             {
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             }
 
             if (manifest == null || manifest.Version < 1 || manifest.Entries == null || manifest.Assets == null)
             {
-                return NewManifestRead(corrupt: true);
+                return NewManifestRead(corrupt: true) with { SourceVersion = manifest?.Version };
             }
 
             int sourceVersion = manifest.Version;
-            // Version 1 names only its current assets. Never infer ownership of other files.
-            if (sourceVersion == 1) manifest.Assets.Clear();
-            foreach (KeyValuePair<string, MediaManifestEntry> pair in manifest.Entries)
+            try
             {
-                if (pair.Value != null) AddAsset(manifest, pair.Key, pair.Value);
+                if (sourceVersion == 3)
+                {
+                    ValidateUniqueJson(wireDocument.RootElement);
+                    if (!wireDocument.RootElement.TryGetProperty("AttachmentBindings", out JsonElement bindings) || bindings.ValueKind != JsonValueKind.Object)
+                        throw new InvalidDataException("A v3 manifest must contain its binding inventory.");
+                }
+                if (sourceVersion < 3) manifest.AttachmentBindings = new(StringComparer.Ordinal);
+                // Version 1 names only its current assets. Never infer ownership of other files.
+                if (sourceVersion == 1) manifest.Assets.Clear();
+                foreach (KeyValuePair<string, MediaManifestEntry> pair in manifest.Entries)
+                {
+                    if (pair.Value != null) AddAsset(manifest, pair.Key, pair.Value);
+                }
+                ValidateManifestBindings(manifest);
+            }
+            catch (Exception failure) when (sourceVersion == 3 && (failure is InvalidDataException or ArgumentException))
+            {
+                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion };
             }
             manifest.Version = ManifestVersion;
             return new ManifestRead(manifest, false, false, generation, sourceVersion);
         }
         catch (JsonException)
         {
-            return NewManifestRead(corrupt: true);
+            return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion };
         }
         catch (FileNotFoundException)
         {
@@ -955,7 +1016,7 @@ public sealed partial class MediaStore
     private sealed record ManifestEntryFingerprint(string MediaIdentifier, string Variant, string SourceUrl, string FileName,
         long Length, string Sha256, string Md5, string? ExpectedMd5, string? OriginalFileName);
     private sealed record VerificationFingerprint(string ActualPath, FileStamp Stamp, long? ExpectedSize,
-        string? ExpectedMd5, ManifestEntryFingerprint ManifestEntry);
+        string? ExpectedMd5, string? ExpectedSha256, ManifestEntryFingerprint ManifestEntry);
     private sealed record VerifiedFile(VerificationFingerprint Fingerprint, FileDigest Digest, long VerifiedAtTimestamp);
     private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt, bool Missing, string? Generation, int? SourceVersion);
 
@@ -965,6 +1026,7 @@ public sealed partial class MediaStore
         public int Version { get; set; }
         public Dictionary<string, MediaManifestEntry> Entries { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, MediaManifestAsset> Assets { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, MediaAttachmentBinding> AttachmentBindings { get; set; } = new(StringComparer.Ordinal);
     }
 
     private sealed class MediaManifestAsset

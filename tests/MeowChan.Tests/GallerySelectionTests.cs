@@ -20,7 +20,7 @@ public sealed class GallerySelectionTests
         // More than both the 50-post UI page and the 500-post public reader page.
         CapturedPost[] posts = Enumerable.Range(0, 502).Select(index => new CapturedPost(
             (1000 + index).ToString(), index, PostFieldPresence.All, Html: index == 0 ? "needle" : "other post",
-            Attachments: new[] { new CapturedAttachment(0, "shared"), new CapturedAttachment(1, "shared") })).ToArray();
+            Attachments: new[] { Attachment(0), Attachment(1) })).ToArray();
         for (int index = 0; index < 52; index++)
         {
             ResourceId id = new("4chan", "g", (1000 + index).ToString());
@@ -41,6 +41,7 @@ public sealed class GallerySelectionTests
         Assert.Equal(53, (await reader.SelectThreadIdsAsync(query)).Count);
         MediaAssetSnapshot manifest = await CreateManifestAsync(directory.Path);
         ArchivedThreadView thread = (await reader.ReadThreadAsync(first))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, first, posts);
         GalleryThreadResult sequence = GallerySelection.Build(thread, new[] { manifest });
         Assert.Equal(1004, sequence.Entries.Count);
         Assert.Equal("1050", sequence.Entries[100].Post!.PostId);
@@ -54,9 +55,11 @@ public sealed class GallerySelectionTests
         Assert.NotEqual(sequence.Entries[0].Key, otherEntry.Key);
         await catalog.CaptureAsync(new CapturedThreadSnapshot(first, thread.Summary.Url, "Same title",
             ThreadSourceState.Archived, DateTimeOffset.UtcNow, directory.Path,
-            new[] { new CapturedPost("2000", 502, PostFieldPresence.All, Attachments: new[] { new CapturedAttachment(0, "shared") }) }));
+            new[] { new CapturedPost("2000", 502, PostFieldPresence.All, Attachments: new[] { Attachment(0) }) }));
         Assert.Equal(1004, sequence.Entries.Count);
-        Assert.Equal(1005, GallerySelection.Build((await reader.ReadThreadAsync(first))!, new[] { manifest }).Entries.Count);
+        ArchivedThreadView updated = (await reader.ReadThreadAsync(first))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, first, updated.GetPosts(500, 500));
+        Assert.Equal(1005, GallerySelection.Build(updated, new[] { manifest }).Entries.Count);
     }
 
     [Fact]
@@ -69,16 +72,20 @@ public sealed class GallerySelectionTests
         await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/42", "Video",
             ThreadSourceState.Archived, DateTimeOffset.UtcNow, directory.Path,
             new[] { new CapturedPost("43", 0, PostFieldPresence.All,
-                Attachments: new[] { new CapturedAttachment(0, "shared", OriginalFileName: "shared.webm") }) }));
+                Attachments: new[] { Attachment(0) with { OriginalFileName = "shared.webm" } }) }));
         MediaAssetSnapshot manifest = await CreateManifestAsync(directory.Path, "shared.webm");
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         ArchivedThreadView thread = (await reader.ReadThreadAsync(id))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, id, thread.GetPosts());
         Assert.Empty(GallerySelection.Build(thread, new[] { manifest }).Entries);
         GalleryEntry entry = Assert.Single(GallerySelection.Build(thread, new[] { manifest }, includeOtherMedia: true).Entries);
         Assert.Equal(SavedMediaKind.Video, entry.Kind);
         Assert.Equal("43", entry.Post!.PostId);
         Assert.Equal(0, entry.Attachment!.Position);
     }
+
+    private static CapturedAttachment Attachment(int position) => new(position, "shared", Url: "https://offline.invalid/shared.png",
+        ExpectedSize: 3, ExpectedMd5: Convert.ToBase64String(MD5.HashData(new byte[] { 1, 2, 3 })));
 
     private static async Task<MediaAssetSnapshot> CreateManifestAsync(string directory, string fileName = "shared.png")
     {

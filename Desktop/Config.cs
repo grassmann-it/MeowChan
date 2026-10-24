@@ -35,6 +35,24 @@ namespace MeowChan
         };
     }
 
+    /// <summary>Host-owned consent. Plugin settings and metadata cannot grant it.</summary>
+    public sealed record SourceMediaIntegrityPermission(string PluginOwnerId, string SourceId,
+        bool AllowProviderSizeMd5Mismatch, long Revision)
+    {
+        public static string CreateKey(string pluginOwnerId, string sourceId)
+        {
+            ValidateIdentity(pluginOwnerId, nameof(pluginOwnerId));
+            ValidateIdentity(sourceId, nameof(sourceId));
+            return Uri.EscapeDataString(pluginOwnerId) + "/" + Uri.EscapeDataString(sourceId);
+        }
+
+        internal static void ValidateIdentity(string value, string name)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length > 256 || value.Any(char.IsControl))
+                throw new ArgumentException("A bounded source/owner identity is required.", name);
+        }
+    }
+
     public class Config : IJsonOnDeserialized
     {
         private string? _profileDirectory;
@@ -53,6 +71,7 @@ namespace MeowChan
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
+        public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
@@ -356,6 +375,18 @@ namespace MeowChan
 
         public void Validate()
         {
+            if (SourceMediaIntegrityPermissions == null || SourceMediaIntegrityPermissions.Count > 1024)
+                throw new InvalidDataException("Saved source media permissions are invalid.");
+            foreach ((string key, SourceMediaIntegrityPermission permission) in SourceMediaIntegrityPermissions)
+            {
+                if (permission == null || permission.Revision < 0)
+                    throw new InvalidDataException("Saved source media permission identity is invalid.");
+                string expectedKey;
+                try { expectedKey = SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId); }
+                catch (ArgumentException error) { throw new InvalidDataException("Saved source media permission identity is invalid.", error); }
+                if (!string.Equals(key, expectedKey, StringComparison.Ordinal))
+                    throw new InvalidDataException("Saved source media permission identity is invalid.");
+            }
             if (SchemaVersion != 1)
                 throw new InvalidDataException($"Unsupported settings schema version: {SchemaVersion}.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
@@ -405,6 +436,7 @@ namespace MeowChan
             return new Config
             {
                 SchemaVersion = SchemaVersion,
+                SourceMediaIntegrityPermissions = SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal),
                 DownloadPath = DownloadPath,
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
@@ -469,6 +501,10 @@ namespace MeowChan
             string absoluteDownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
 
             SchemaVersion = source.SchemaVersion;
+            // Consent is portable within this profile's clones, never across profile-bound instances.
+            if (string.Equals(_profileDirectory, source._profileDirectory,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                SourceMediaIntegrityPermissions = source.SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal);
             DownloadPath = absoluteDownloadPath;
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;

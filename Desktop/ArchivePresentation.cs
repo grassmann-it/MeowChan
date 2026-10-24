@@ -63,7 +63,9 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public bool LargePreview { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
-    public string Label => Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment");
+    public MediaAttachmentBinding? Binding { get; set; }
+    public string Label => (Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment"))
+        + (MediaProvenanceText.Summary(Binding) is { Length: > 0 } provenance ? "\n" + provenance : string.Empty);
 }
 
 internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,

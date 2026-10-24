@@ -35,6 +35,7 @@ public sealed class MixedGallerySelectionTests
                 [Attachment("video", 0, [4, 5, 6]), Attachment("unknown", 1, [10, 11, 12]), Attachment("video", 2, [4, 5, 6])])]));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         ArchivedThreadView thread = (await reader.ReadThreadAsync(Id))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, Id, thread.GetPosts());
         GalleryThreadResult images = GallerySelection.Build(thread, [manifest]);
         // Unknown suffixes retain the existing image-decoder fallback in the default selection.
         Assert.Equal(new[] { "image", "unknown" }, images.Entries.Select(entry => entry.Asset.MediaIdentifier));
@@ -88,6 +89,7 @@ public sealed class MixedGallerySelectionTests
              new CapturedPost("124", 1, PostFieldPresence.All, Attachments: [Attachment("shared", 1, oldBytes)])]));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         ArchivedThreadView thread = (await reader.ReadThreadAsync(Id))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, Id, thread.GetPosts());
         GalleryThreadResult selection = GallerySelection.Build(thread, [manifest], includeOtherMedia: true);
         GalleryEntry[] assigned = selection.Entries.Where(entry => !entry.Unassigned).ToArray();
         Assert.Equal(2, assigned.Length);
@@ -113,6 +115,7 @@ public sealed class MixedGallerySelectionTests
             [new CapturedPost("123", 0, PostFieldPresence.All, Attachments: [Attachment("shared", 2, currentBytes)]),
              new CapturedPost("124", 1, PostFieldPresence.All, Attachments: [Attachment("shared", 1, currentBytes)])]));
         ArchivedThreadView updated = (await reader.ReadThreadAsync(Id))!;
+        manifest = await CommittedMediaTestFixture.BindAsync(directory.Path, Id, updated.GetPosts());
         GalleryThreadResult currentOnly = GallerySelection.Build(updated, [manifest], includeOtherMedia: true);
         Assert.Equal(2, currentOnly.Entries.Count);
         Assert.All(currentOnly.Entries, entry =>
@@ -146,7 +149,7 @@ public sealed class MixedGallerySelectionTests
         => Assert.Equal(expected, SavedMediaTypes.Classify(path));
 
     private static CapturedAttachment Attachment(string id, int position, byte[] bytes) =>
-        new(position, id, ExpectedSize: bytes.Length, ExpectedMd5: Convert.ToBase64String(MD5.HashData(bytes)));
+        new(position, id, Url: "https://stub.test/" + id, ExpectedSize: bytes.Length, ExpectedMd5: Convert.ToBase64String(MD5.HashData(bytes)));
 
     private static async Task SaveAsync(MediaStore store, StubImageBoard provider, ProbeThread owner,
         string directory, string id, string originalName, byte[] bytes)

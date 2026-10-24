@@ -8,6 +8,7 @@ namespace MeowChan.Desktop;
 internal sealed record SourceWatchRow(DiagnosticTarget Target, string Resource, string Work, string Observation);
 internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, IReadOnlyList<SourceWatchRow> Watches)
 {
+    internal SourceMediaIntegrityPolicyView? MediaIntegrityPolicy { get; init; }
     public string Id => Descriptor.SourceId;
     public string Name => Descriptor.DisplayName;
     public string Address => Descriptor.BaseUri.AbsoluteUri;
@@ -16,7 +17,8 @@ internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, 
 /// <summary>Observations retain watch lifetimes and never turn a single 404 into provider-wide offline status.</summary>
 internal static class SourcesSnapshot
 {
-    internal static IReadOnlyList<SourceRow> From(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view)
+    internal static IReadOnlyList<SourceRow> From(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view,
+        IReadOnlyList<SourceMediaIntegrityPolicyView>? policies = null)
     {
         return Array.AsReadOnly(providers.Select(provider =>
         {
@@ -50,9 +52,18 @@ internal static class SourcesSnapshot
                 : Texts.T("sources.watchCounts", threads.Length, boards.Length,
                     threads.Sum(thread => (long)thread.Snapshot.Downloads.Queued), threads.Sum(thread => (long)thread.Snapshot.Downloads.Active));
             if (view.State is DesktopSessionState.Stopping or DesktopSessionState.Stopped) summary = Texts.T("sources.stopped");
-            return new SourceRow(provider, summary, Array.AsReadOnly(watches.ToArray()));
+            return new SourceRow(provider, summary, Array.AsReadOnly(watches.ToArray()))
+            { MediaIntegrityPolicy = FindPolicy(provider.SourceId, policies) };
         }).ToArray());
     }
+    internal static SourceMediaIntegrityPolicyView? FindPolicy(string sourceId, IReadOnlyList<SourceMediaIntegrityPolicyView>? policies)
+    {
+        SourceMediaIntegrityPolicyView[] matching = policies?.Where(policy => policy.Snapshot.SourceId == sourceId).ToArray() ?? [];
+        SourceMediaIntegrityPolicyView[] active = matching.Where(policy => policy.IsActive).ToArray();
+        // Ambiguous ownership never chooses a consent target by list order.
+        return active.Length == 1 ? active[0] : active.Length == 0 && matching.Length == 1 ? matching[0] : null;
+    }
+
     private static string FormatFailure(FailureInfo failure) => failure.HttpStatusCode is System.Net.HttpStatusCode code
         ? "HTTP " + (int)code + " · " + failure.Message : failure.Message;
 

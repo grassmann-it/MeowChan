@@ -18,7 +18,12 @@ public enum PostFieldPresence
 /// </summary>
 public sealed record CapturedAttachment(int Position, string? MediaId, string Variant = "original",
     string? Url = null, string? OriginalFileName = null, string? PlannedPath = null,
-    long? ExpectedSize = null, string? ExpectedMd5 = null, bool IsDeleted = false);
+    long? ExpectedSize = null, string? ExpectedMd5 = null, bool IsDeleted = false)
+{
+    public string? ExpectedSha256 { get; init; }
+    /// <summary>Host-computed observed revision. Null denotes legacy, unbound provenance.</summary>
+    public string? AttachmentRevisionKey { get; init; }
+}
 
 /// <summary>
 /// Fields distinguishes missing fields from explicitly delivered empty/null values. Ordinal is

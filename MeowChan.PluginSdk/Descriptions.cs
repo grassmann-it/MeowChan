@@ -15,6 +15,9 @@ public enum SourceCapabilities
 public enum HttpHostPurpose { None = 0, Metadata = 1, OriginalMedia = 2, PreviewMedia = 4 }
 
 public enum PostOrderKind { StableOrdinal, DecimalPostId }
+
+/// <summary>Informational source maturity; it does not authorize relaxed media integrity checks.</summary>
+public enum SourceMaturity { Unspecified, Experimental }
 public enum InformationKind { Text, Value, List }
 
 public sealed record PluginDescription(string PluginId, string Name, string PluginVersion,
@@ -26,7 +29,10 @@ public sealed record PluginDescription(string PluginId, string Name, string Plug
 public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri,
     SourceCapabilities Capabilities, IReadOnlyList<UrlRoute> Routes,
     IReadOnlyList<HttpHostDeclaration> HttpHosts, SettingsSchema Settings,
-    PostOrderKind PostOrder = PostOrderKind.StableOrdinal);
+    PostOrderKind PostOrder = PostOrderKind.StableOrdinal)
+{
+    public SourceMaturity Maturity { get; init; }
+}
 
 /// <summary>Exact DNS host, without scheme, port, wildcard, credentials or path.</summary>
 public sealed record HttpHostDeclaration(string Host, HttpHostPurpose Purpose);

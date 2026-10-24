@@ -85,14 +85,23 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         if (!Source.Router.TryResolve(snapshot.Url, out SourceResourceKind kind, out string boardId, out string? id, out _)
             || kind != SourceResourceKind.Thread || boardId != Board.BoardCode || id != ThreadId)
             throw new PluginWorkerException("invalid_source_result", "Snapshot URL does not identify the requested thread.");
+        ResourceId resource = new(Source.Name, Board.BoardCode, ThreadId);
         List<CapturedPost> posts = new();
-        Dictionary<string, DownloadItem> observedMedia = new(StringComparer.Ordinal);
+        Dictionary<string, (SourceAttachment Attachment, string Destination, string? Legacy, string AcquisitionKey)> candidates = new(StringComparer.Ordinal);
+        Dictionary<string, List<AttachmentRevisionReference>> references = new(StringComparer.Ordinal);
         foreach (SourcePost post in snapshot.Posts)
         {
             List<CapturedAttachment> attachments = new();
             foreach (SourceAttachment attachment in post.Attachments ?? Array.Empty<SourceAttachment>())
             {
                 string? destination = null;
+                string? attachmentRevisionKey = null;
+                MediaProviderMetadata? provider = attachment.MediaId == null ? null
+                    : new(attachment.MediaId, attachment.Variant, attachment.Url?.AbsoluteUri!, attachment.OriginalFileName,
+                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+                // New incomplete metadata also gets a key; only deletion markers without an identity have none.
+                if (provider != null)
+                    attachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(resource, post.PostId, attachment.Position, provider);
                 if (!attachment.IsDeleted && attachment.MediaId != null && attachment.Url != null)
                 {
                     // Original source identities remain byte-for-byte compatible with 0.9.
@@ -105,22 +114,42 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                         "8kun" => LegacyPath(mediaId + extension),
                         _ => null
                     };
-                    observedMedia[MediaKey(mediaId, attachment.Variant)] = new DownloadItem(attachment.Url, destination, Source, this, mediaId,
-                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.OriginalFileName, legacy, attachment.Variant);
+                    string acquisitionKey = MediaRevisionKeys.CreateAcquisitionKey(resource, provider!);
+                    if (!references.TryGetValue(acquisitionKey, out List<AttachmentRevisionReference>? acquisitionReferences))
+                        references[acquisitionKey] = acquisitionReferences = new();
+                    acquisitionReferences.Add(new(resource, post.PostId, attachment.Position, attachmentRevisionKey!));
+                    candidates[MediaKey(mediaId, attachment.Variant)] = (attachment, destination, legacy, acquisitionKey);
                 }
                 attachments.Add(new CapturedAttachment(attachment.Position, attachment.MediaId, attachment.Variant,
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
-                    attachment.ExpectedMd5, attachment.IsDeleted));
+                    attachment.ExpectedMd5, attachment.IsDeleted)
+                {
+                    ExpectedSha256 = attachment.ExpectedSha256,
+                    AttachmentRevisionKey = attachmentRevisionKey
+                });
             }
             string? html = post.TextFormat == SourceTextFormat.Html ? post.Text
                 : post.Text == null ? null : WebUtility.HtmlEncode(post.Text).Replace("\n", "<br>", StringComparison.Ordinal);
             posts.Add(new CapturedPost(post.PostId, post.Ordinal, (PostFieldPresence)(int)post.Fields,
                 post.PostedAt, post.Subject, post.Author, html, post.IsDeleted, attachments.AsReadOnly()));
         }
+        Dictionary<string, DownloadItem> observedMedia = new(StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            var (attachment, destination, legacy, acquisitionKey) = candidate.Value;
+            observedMedia[candidate.Key] = new DownloadItem(attachment.Url!, destination, Source, this, attachment.MediaId!,
+                attachment.ExpectedSize, attachment.ExpectedMd5, attachment.OriginalFileName, legacy, attachment.Variant)
+            {
+                ExpectedSha256 = attachment.ExpectedSha256,
+                AcquisitionRevisionKey = acquisitionKey,
+                AttachmentReferences = Array.AsReadOnly(references[acquisitionKey].ToArray()),
+                MediaIntegrityPolicy = Source.MediaIntegrityPolicy
+            };
+        }
         token.ThrowIfCancellationRequested();
         string title = snapshot.Title ?? Title;
         ThreadSourceState state = snapshot.SourceState == SourceThreadState.Archived ? ThreadSourceState.Archived : ThreadSourceState.Active;
-        CapturedThreadSnapshot capture = new(new ResourceId(Source.Name, Board.BoardCode, ThreadId), Url, title,
+        CapturedThreadSnapshot capture = new(resource, Url, title,
             state, DateTimeOffset.UtcNow, DownloadDirectory, posts.AsReadOnly())
             { DecimalPostOrder = Source.Description.PostOrder == PostOrderKind.DecimalPostId };
         if (state == ThreadSourceState.Archived) await ObserveSourceEndWithCancellationAsync(state, capture, token).ConfigureAwait(false);

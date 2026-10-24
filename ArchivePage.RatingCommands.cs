@@ -23,7 +23,10 @@ public partial class ArchivePage
         if (!parents.Contains(pane)) return null;
         ArchiveAssetRow? row = parents.Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
         if (row == null && parents.Select(control => control.DataContext).OfType<ArchiveAttachmentRow>().FirstOrDefault() is { } attachment)
-            row = FindMatchingAsset(attachment.Attachment, _assets);
+        {
+            string? postId = parents.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+            row = postId == null ? null : FindMatchingAsset(_thread.Summary.Id, postId, attachment.Attachment, _assets);
+        }
         if (row == null)
             row = parents.FirstOrDefault(control => control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles") switch
             { DataGrid grid => grid.SelectedItem as ArchiveAssetRow, ListBox list => list.SelectedItem as ArchiveAssetRow, _ => null };

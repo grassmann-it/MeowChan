@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Persistence;
+using MeowChan.Storage;
 
 namespace MeowChan.Desktop;
 
@@ -29,6 +30,26 @@ internal sealed partial class DesktopSessionHost
             return await Task.Run(() => CollectArchiveCleanupPreviewCoreAsync(frozen, token), token).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
+    }
+
+    internal static bool HasMatchingCleanupMedia(ResourceId resource, MediaWork work, IEnumerable<MediaAssetSnapshot> manifests)
+    {
+        MediaAssetSnapshot[] frozen = manifests.ToArray();
+        CapturedAttachment Attachment(int position, string? key) => new(position, work.MediaIdentifier, work.Variant,
+            work.DownloadUrl, work.OriginalFileName, work.DestinationPath, work.ExpectedSize, work.ExpectedMd5)
+            { ExpectedSha256 = work.ExpectedSha256, AttachmentRevisionKey = key };
+        bool Match(string postId, CapturedAttachment attachment, string? acquisition)
+        {
+            ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(frozen, resource, postId, attachment);
+            return resolved != null && resolved.Asset.RequestedFileName == Path.GetFileName(work.DestinationPath)
+                && (acquisition == null ? resolved.IsLegacy : resolved.Binding?.AcquisitionRevisionKey == acquisition
+                    && resolved.Asset.AssetId == work.CommittedAssetId);
+        }
+        if (work.AcquisitionRevisionKey != null || work.AttachmentReferences.Count > 0)
+            return work.AcquisitionRevisionKey != null && work.CommittedAssetId != null && work.AttachmentReferences.Count > 0
+                && work.AttachmentReferences.All(reference => reference.Resource == resource
+                    && Match(reference.PostId, Attachment(reference.Position, reference.RevisionKey), work.AcquisitionRevisionKey));
+        return Match(resource.Thread!, Attachment(0, null), null);
     }
 
     // Execution owns _commands and its reservation when calling this method. Never reacquire either.
@@ -125,11 +146,8 @@ internal sealed partial class DesktopSessionHost
             var succeeded = before.Work?.Entries.Where(entry => entry.Resource.IsThread && entry.Resource.Url == thread.Summary.Url)
                 .SelectMany(entry => entry.Media).Where(work => work.Status == MediaWorkStatus.Succeeded).ToArray()
                 ?? Array.Empty<MediaWork>();
-            if (succeeded.Any(work => !directories.SelectMany(directory => directory.Assets).Any(asset =>
-                asset.MediaIdentifier == work.MediaIdentifier && asset.Variant == work.Variant
-                && asset.RequestedFileName == Path.GetFileName(work.DestinationPath)
-                && (work.ExpectedSize == null || work.ExpectedSize == asset.Length)
-                && (work.ExpectedMd5 == null || work.ExpectedMd5 == asset.Md5))))
+            if (succeeded.Any(work => !HasMatchingCleanupMedia(thread.Summary.Id, work,
+                directories.Where(directory => directory.Manifest != null).Select(directory => directory.Manifest!))))
                 media = media with { SavedAssetCount = null, Error = "Succeeded media work has no matching verified stored asset.",
                     EvidenceToken = ArchiveCleanupFingerprint.Of(new { media.EvidenceToken, Succeeded = succeeded }) };
             return media;

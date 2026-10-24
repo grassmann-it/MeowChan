@@ -18,7 +18,12 @@ internal sealed record ArchiveCleanupStorageAnchor(ResourceId Thread, string Dir
 
 internal sealed record ArchiveCleanupDirectoryEvidence(string Directory, string? ManifestGeneration,
     IReadOnlyList<MediaAssetReference> Assets, long VerifiedBytes, bool Missing,
-    ArchiveCleanupStorageAnchor? StorageAnchor, string Fingerprint, string? Error);
+    ArchiveCleanupStorageAnchor? StorageAnchor, string Fingerprint, string? Error)
+{
+    // Generation and verified asset fields already participate in the cleanup evidence token.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public MediaAssetSnapshot? Manifest { get; init; }
+}
 
 internal sealed record ArchiveCleanupMediaEvidence(int? SavedAssetCount, long VerifiedBytes,
     IReadOnlyList<ArchiveCleanupDirectoryEvidence> Directories, string EvidenceToken, string? Error);

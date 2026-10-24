@@ -18,6 +18,7 @@ public sealed record GalleryEntry(GalleryAssetKey Key, MediaAssetSnapshot Manife
     public SavedMediaKind Kind => SavedMediaTypes.Classify(Asset.OriginalFileName ?? Asset.Path);
     public GalleryEntryKey EntryKey => new(Key, Post?.PostId, Attachment?.Position);
     public string ThreadUrl { get; init; } = string.Empty;
+    public ResolvedMediaAttachment? AttachmentResolution { get; init; }
 }
 
 public sealed record GalleryThreadResult(IReadOnlyList<GalleryEntry> Entries, IReadOnlyList<string> Warnings);
@@ -70,16 +71,13 @@ public static class GallerySelection
                 .OrderBy(value => value.Position))
             {
                 if (attachment.IsDeleted || attachment.MediaId == null) continue;
-                (MediaAssetSnapshot Manifest, MediaAssetReference Asset)? match = images.LastOrDefault(pair =>
-                    pair.Asset.MediaIdentifier == attachment.MediaId && pair.Asset.Variant == attachment.Variant
-                    && (attachment.ExpectedMd5 == null || string.Equals(pair.Asset.Md5, attachment.ExpectedMd5, StringComparison.OrdinalIgnoreCase))
-                    && (attachment.ExpectedSize == null || pair.Asset.Length == attachment.ExpectedSize));
-                if (match == null || match.Value.Asset == null) continue;
-                GalleryAssetKey key = new(thread.Summary.Id, match.Value.Manifest.Directory, match.Value.Asset.AssetId);
+                ResolvedMediaAttachment? match = MediaAttachmentResolver.Resolve(snapshots, thread.Summary.Id, post.PostId, attachment);
+                if (match == null || !images.Any(pair => ReferenceEquals(pair.Manifest, match.Snapshot) && pair.Asset.AssetId == match.Asset.AssetId)) continue;
+                GalleryAssetKey key = new(thread.Summary.Id, match.Snapshot.Directory, match.Asset.AssetId);
                 represented.Add(key);
-                // The same asset may appear in multiple posts; retain each post association in thread order.
-                entries.Add(new GalleryEntry(key, match.Value.Manifest, match.Value.Asset, post, attachment,
-                    !match.Value.Asset.IsCurrent, false) { ThreadUrl = thread.Summary.Url });
+                // The same bytes may have several exact post bindings; retain each binding's provenance.
+                entries.Add(new GalleryEntry(key, match.Snapshot, match.Asset, post, attachment,
+                    !match.Asset.IsCurrent, false) { ThreadUrl = thread.Summary.Url, AttachmentResolution = match });
             }
         }
     }

@@ -62,9 +62,11 @@
               <TextBlock x:Name="PluginCapabilities" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <WrapPanel x:Name="PluginCompactIdentity" ItemSpacing="6" LineSpacing="6">
                 <Border x:Name="PluginTypeChip" Classes="plugin-chip"><TextBlock x:Name="PluginType" /></Border>
+                <Border x:Name="PluginExperimentalChip" Classes="plugin-chip" IsVisible="False"><TextBlock x:Name="PluginExperimental" /></Border>
                 <Border x:Name="PluginVersionChip" Classes="plugin-chip" IsVisible="False"><TextBlock x:Name="PluginVersion" TextWrapping="Wrap" /></Border>
                 <Border x:Name="PluginIdChip" Classes="plugin-chip" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
               </WrapPanel>
+              <TextBlock x:Name="PluginExperimentalHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <TextBlock x:Name="PluginStatusHint" TextWrapping="Wrap" IsVisible="False" />
               <WrapPanel x:Name="PluginPrimaryActions" ItemSpacing="8" LineSpacing="6">

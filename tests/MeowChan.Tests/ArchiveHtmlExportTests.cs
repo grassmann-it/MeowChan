@@ -676,8 +676,8 @@ public sealed class ArchiveHtmlExportTests
         ThreadSourceState.Archived, DateTimeOffset.UtcNow, media,
         new[] {
             new CapturedPost("123", 0, PostFieldPresence.All, Html: "&lt;img src=x onerror=alert(1)&gt;<script>secret-script</script>\n<a href='#p124'>&gt;&gt;124</a><a href='#p999'>&gt;&gt;999</a><a href='/a/thread/400#p400'>&gt;&gt;400</a><a href='https://external.test/#p9'>&gt;&gt;9</a>",
-                Attachments: new[] { new CapturedAttachment(0, "456", OriginalFileName: "../<evil>.bin", ExpectedSize: Bytes.Length, ExpectedMd5: Md5),
-                    new CapturedAttachment(1, "missing"), new CapturedAttachment(2, "456", ExpectedMd5: Convert.ToBase64String(MD5.HashData(new byte[] { 5, 5, 5, 5 }))) }),
+                Attachments: new[] { new CapturedAttachment(0, "456", Url: "https://stub.test/media/456.bin", OriginalFileName: "../<evil>.bin", ExpectedSize: Bytes.Length, ExpectedMd5: Md5),
+                    new CapturedAttachment(1, "missing"), new CapturedAttachment(2, "456", Url: "https://stub.test/media/456.bin", ExpectedMd5: Convert.ToBase64String(MD5.HashData(new byte[] { 5, 5, 5, 5 }))) }),
             new CapturedPost("124", 1, PostFieldPresence.All, Html: "retained", IsDeleted: true)
         });
     private static async Task<string> SaveAsync(string root, byte[]? payload = null)
@@ -688,6 +688,8 @@ public sealed class ArchiveHtmlExportTests
             board, board.GetThread(new Uri("https://stub.test/g/thread/123")), "456", expectedSize: payload.Length, expectedMd5: Convert.ToBase64String(MD5.HashData(payload)));
         using MemoryStream source = new(payload, false);
         MediaCommitResult result = await new MediaStore().CommitAsync(item, source, CancellationToken.None);
-        return Path.GetDirectoryName(result.Path)!;
+        string directory = Path.GetDirectoryName(result.Path)!;
+        await CommittedMediaTestFixture.BindAsync(directory, Id, Snapshot(directory).Posts);
+        return directory;
     }
 }

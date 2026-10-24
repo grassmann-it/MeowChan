@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
@@ -23,6 +24,8 @@ public partial class SourcesPage : UserControl
     private readonly Func<string, Task<bool>>? _submit;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
     private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
+    private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
+    private SourceMediaIntegritySaveError? _sourceMediaIntegritySaveError;
     private readonly Dictionary<string, SourceCard> _sourceCards = new Dictionary<string, SourceCard>(StringComparer.Ordinal);
     private string? _selectedId;
     private bool _available;
@@ -32,6 +35,8 @@ public partial class SourcesPage : UserControl
     private bool _showDetails;
     private bool _narrow;
     internal Action<string>? OpenPluginSettings { get; set; }
+    internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
+    internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
@@ -50,7 +55,7 @@ public partial class SourcesPage : UserControl
     {
         if (_ended) return;
         _available = available;
-        _rows = SourcesSnapshot.From(providers, view);
+        _rows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
         if (!_rows.Any(row => row.Id == _selectedId)) _selectedId = _rows.FirstOrDefault()?.Id;
         this.FindControl<TextBlock>("SourceCount")!.Text = Texts.T("sources.count", _rows.Count);
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
@@ -85,13 +90,16 @@ public partial class SourcesPage : UserControl
                 card = new SourceCard(select, name, address, observation);
                 _sourceCards.Add(row.Id, card); cards.Children.Add(select);
             }
-            card.Name.Text = (row.Id == _selectedId ? "● " : "") + row.Name;
+            card.Name.Text = (row.Id == _selectedId ? "● " : "") + SourceDisplayName(row);
             card.Address.Text = row.Address;
             card.Observation.Text = row.Summary;
             card.Control.IsEnabled = !_busy;
         }
         RenderDetails();
     }
+
+    private static string SourceDisplayName(SourceRow row) => row.Name +
+        (row.MediaIntegrityPolicy?.Maturity == SourceMaturity.Experimental ? " · " + Texts.T("sources.experimental") : string.Empty);
 
     private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
     private void RenderDetails()
@@ -100,8 +108,9 @@ public partial class SourcesPage : UserControl
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
         {
             source.Value.Name.Text = (source.Key == _selectedId ? "● " : "")
-                + (_rows.FirstOrDefault(row => row.Id == source.Key)?.Name ?? source.Key);
+                + (_rows.FirstOrDefault(row => row.Id == source.Key) is { } sourceRow ? SourceDisplayName(sourceRow) : source.Key);
             source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
+            source.Value.Control.IsEnabled = !_busy;
         }
         SourceRow? row = Selected;
         Border details = this.FindControl<Border>("SourceDetailsPanel")!;
@@ -135,6 +144,7 @@ public partial class SourcesPage : UserControl
         this.FindControl<Button>("SourcePluginButton")!.Content = Texts.T("plugins.manageSource");
         this.FindControl<Button>("SourcePluginButton")!.IsEnabled = OpenPluginSettings != null;
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
+        RenderSourceMediaIntegrity(row);
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
         CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website", row.Address));
@@ -179,6 +189,79 @@ public partial class SourcesPage : UserControl
             this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
         this.FindControl<TextBox>("SourceUrlInput")!.IsEnabled = _available && !_busy;
         RefreshWatchSelection();
+    }
+
+    private void RenderSourceMediaIntegrity(SourceRow row)
+    {
+        SourceMediaIntegrityPolicyView? policy = row.MediaIntegrityPolicy;
+        TextBlock experimental = this.FindControl<TextBlock>("SourceExperimental")!;
+        experimental.IsVisible = policy?.Maturity == SourceMaturity.Experimental;
+        experimental.Text = Texts.T("sources.experimental");
+        this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null;
+        RenderSourceMediaIntegrityError(policy);
+        if (policy == null) return;
+        this.FindControl<TextBlock>("SourceMediaIntegrityExplanation")!.Text = Texts.T("sources.providerMismatchExplanation");
+        this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = Texts.T("sources.allowProviderMismatch");
+        CheckBox permission = this.FindControl<CheckBox>("SourceAllowProviderMismatch")!;
+        permission.IsChecked = policy.IsGranted;
+        permission.IsEnabled = _available && !_busy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
+        this.FindControl<TextBlock>("SourceMediaIntegrityScope")!.Text = Texts.T("sources.providerMismatchScope", row.Name);
+        this.FindControl<TextBlock>("SourceMediaIntegrityStatus")!.Text = Texts.T(!policy.IsActive
+            ? "sources.providerMismatchInactive" : policy.IsGranted ? "sources.providerMismatchAllowed" : "sources.providerMismatchStrict");
+    }
+
+    private async void OnSourceMediaPermissionClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || !_available || _busy || SetSourceMediaIntegrityPermission is not { } save ||
+            Selected?.MediaIntegrityPolicy is not { } policy) return;
+        // Capture the authority, revision and intent before any await or selection refresh.
+        string ownerId = policy.Snapshot.PluginOwnerId;
+        string sourceId = policy.Snapshot.SourceId;
+        long revision = policy.Snapshot.Revision;
+        bool allow = this.FindControl<CheckBox>("SourceAllowProviderMismatch")!.IsChecked == true;
+        _sourceMediaIntegritySaveError = null;
+        SourceMediaIntegritySaveError? saveError = null;
+        _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
+        try { await save(ownerId, sourceId, allow, revision); }
+        catch (Exception error)
+        {
+            if (!_ended && Selected?.Id == sourceId && Selected.MediaIntegrityPolicy?.Snapshot.PluginOwnerId == ownerId)
+                _sourceMediaIntegritySaveError = saveError = new(ownerId, sourceId, error.Message);
+        }
+        finally
+        {
+            _busy = false;
+            if (!_ended)
+            {
+                if (GetSourceMediaIntegrityPolicies?.Invoke() is { } current)
+                    _rows = _rows.Select(row => row with { MediaIntegrityPolicy = SourcesSnapshot.FindPolicy(row.Id, current) }).ToArray();
+                BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
+                if (saveError != null) RevealSourceMediaIntegrityErrorAfterLayout(saveError);
+            }
+        }
+    }
+
+    private void RenderSourceMediaIntegrityError(SourceMediaIntegrityPolicyView? policy)
+    {
+        SourceMediaIntegritySaveError? error = _sourceMediaIntegritySaveError;
+        bool belongsToSelection = error != null && policy is { } selected
+            && selected.Snapshot.PluginOwnerId == error.PluginOwnerId && selected.Snapshot.SourceId == error.SourceId;
+        if (!belongsToSelection) _sourceMediaIntegritySaveError = null;
+        this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!.IsVisible = belongsToSelection;
+        this.FindControl<TextBlock>("SourceMediaIntegrityError")!.Text = belongsToSelection
+            ? Texts.T("sources.providerMismatchSaveFailed", error!.Message) : string.Empty;
+    }
+
+    private void RevealSourceMediaIntegrityErrorAfterLayout(SourceMediaIntegritySaveError expected)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended || !IsEffectivelyVisible || TopLevel.GetTopLevel(this) == null ||
+                !ReferenceEquals(_sourceMediaIntegritySaveError, expected) || Selected?.MediaIntegrityPolicy is not { } policy ||
+                policy.Snapshot.PluginOwnerId != expected.PluginOwnerId || policy.Snapshot.SourceId != expected.SourceId) return;
+            Ursa.Controls.Banner banner = this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!;
+            if (banner.IsEffectivelyVisible) banner.BringIntoView();
+        }, DispatcherPriority.Loaded);
     }
 
     private void FocusSourceControlAfterLayout(Control target)

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using MeowChan.Rules;
+using MeowChan.Storage;
 
 namespace MeowChan.Archive;
 
@@ -25,6 +27,7 @@ public sealed partial class ArchiveCatalog
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(rules);
+        candidate = CopyCandidateIntegrity(candidate);
         return WriteAsync((SqliteConnection connection, SqliteTransaction transaction) =>
         {
             CandidateDecision? existing = FindDecision(connection, transaction, candidate.Key);
@@ -32,13 +35,17 @@ public sealed partial class ArchiveCatalog
             {
                 CandidateMetadata updated = new CandidateMetadata(candidate.Key, candidate.DownloadUri,
                     existing.Metadata.DestinationPath, candidate.ExpectedSize, candidate.ExpectedMd5,
-                    candidate.OriginalFileName, existing.Metadata.LegacyPath, candidate.Extension);
-                if (updated == existing.Metadata) return existing;
+                    candidate.OriginalFileName, existing.Metadata.LegacyPath, candidate.Extension)
+                    { ExpectedSha256 = candidate.ExpectedSha256, AcquisitionRevisionKey = candidate.AcquisitionRevisionKey,
+                        AttachmentReferences = candidate.AttachmentReferences };
+                if ((updated with { AttachmentReferences = existing.Metadata.AttachmentReferences }) == existing.Metadata
+                    && updated.AttachmentReferences.SequenceEqual(existing.Metadata.AttachmentReferences)) return existing;
                 using SqliteCommand update = connection.CreateCommand();
                 update.Transaction = transaction;
                 update.CommandText = """
                     UPDATE media_decisions SET download_uri=$uri, expected_size=$size, expected_md5=$md5,
-                        original_filename=$name, extension=$extension
+                        original_filename=$name, extension=$extension, expected_sha256=$sha,
+                        acquisition_revision_key=$acquisition, attachment_references_json=$references
                     WHERE source_id=$source AND board_id=$board AND thread_id=$thread AND media_id=$media AND variant=$variant;
                     """;
                 AddCandidateKey(update, candidate.Key);
@@ -57,9 +64,9 @@ public sealed partial class ArchiveCatalog
             insert.CommandText = """
                 INSERT INTO media_decisions (source_id, board_id, thread_id, media_id, variant,
                     download_uri, destination_path, expected_size, expected_md5, original_filename,
-                    legacy_path, extension, selection_json, decided_at_utc)
+                    legacy_path, extension, selection_json, decided_at_utc,expected_sha256,acquisition_revision_key,attachment_references_json)
                 VALUES ($source,$board,$thread,$media,$variant,$uri,$destination,$size,$md5,$name,
-                    $legacy,$extension,$selection,$decided);
+                    $legacy,$extension,$selection,$decided,$sha,$acquisition,$references);
                 """;
             AddCandidateKey(insert, candidate.Key);
             AddObservedMetadata(insert, candidate);
@@ -107,6 +114,7 @@ public sealed partial class ArchiveCatalog
         command.CommandText = """
             SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
                 original_filename,legacy_path,extension,selection_json,decided_at_utc
+            """ + ArchiveSql.CandidateIntegrityColumns(connection) + "\n" + """
             FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
             ORDER BY media_id,variant;
             """;
@@ -143,6 +151,7 @@ public sealed partial class ArchiveCatalog
         command.CommandText = """
             SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
                 original_filename,legacy_path,extension,selection_json,decided_at_utc
+            """ + ArchiveSql.CandidateIntegrityColumns(connection) + "\n" + """
             FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
                 AND media_id=$media AND variant=$variant;
             """;
@@ -158,7 +167,10 @@ public sealed partial class ArchiveCatalog
             CandidateMetadata metadata = new CandidateMetadata(
                 new CandidateKey(resource, reader.GetString(0), reader.GetString(1)), new Uri(reader.GetString(2)),
                 reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt64(4), CandidateOptionalString(reader, 5),
-                CandidateOptionalString(reader, 6), CandidateOptionalString(reader, 7), CandidateOptionalString(reader, 8));
+                CandidateOptionalString(reader, 6), CandidateOptionalString(reader, 7), CandidateOptionalString(reader, 8))
+                { ExpectedSha256 = CandidateOptionalString(reader, 11), AcquisitionRevisionKey = CandidateOptionalString(reader, 12),
+                    AttachmentReferences = ReadAttachmentReferences(CandidateOptionalString(reader, 13)) };
+            metadata = CopyCandidateIntegrity(metadata);
             MediaSelectionResult selection = DeserializeSelection(reader.GetString(9));
             DateTimeOffset decidedAt = DateTimeOffset.ParseExact(reader.GetString(10), "O", CultureInfo.InvariantCulture);
             return new CandidateDecision(metadata, selection, decidedAt);
@@ -185,6 +197,10 @@ public sealed partial class ArchiveCatalog
         command.Parameters.AddWithValue("$uri", candidate.DownloadUri.AbsoluteUri);
         command.Parameters.AddWithValue("$size", (object?)candidate.ExpectedSize ?? DBNull.Value);
         command.Parameters.AddWithValue("$md5", (object?)candidate.ExpectedMd5 ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sha", (object?)candidate.ExpectedSha256 ?? DBNull.Value);
+        command.Parameters.AddWithValue("$acquisition", (object?)candidate.AcquisitionRevisionKey ?? DBNull.Value);
+        command.Parameters.AddWithValue("$references", candidate.AttachmentReferences.Count == 0 ? (object)DBNull.Value
+            : JsonSerializer.Serialize(candidate.AttachmentReferences));
         command.Parameters.AddWithValue("$name", (object?)candidate.OriginalFileName ?? DBNull.Value);
         command.Parameters.AddWithValue("$extension", (object?)candidate.Extension ?? DBNull.Value);
     }

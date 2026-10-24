@@ -89,3 +89,29 @@ archived snapshot and catalog contents are tested with clearly synthetic data.
 Compiler → Worker → Registry → Queue → Store → restart/reader/gallery/export,
 real media acquisition and release-package delivery remain separate acceptance
 work; these tests do not mark R10-13 complete.
+
+## Experimental maturity and source permission
+
+This source declares `SourceMaturity.Experimental`. This marks limited confidence
+in provider observations; it grants no access and disables no integrity checks.
+Accepting provider size or MD5 discrepancies requires an explicit one-time opt-in
+for this source in each profile; missing permission means false. Files matching
+provider expectations work without this mismatch permission. Manage the permission
+on Sources, separately from plugin installation/activation and this maturity label.
+Plugin settings do not grant permission. Provider SHA256, transport completeness,
+stage/local SHA256, actual byte limits and filter limits remain strict.
+
+Provider size and any supplied checksum remain unchanged as Expected metadata.
+The host owns actual downloaded length/hashes, transport limits, local verification
+and any separately approved mismatch policy. Experimental does not mean an
+HTTP200 body matched provider size/hash, nor that a previous failed live case is
+now successful.
+
+API4845 bytes vs served4759 bytes; identity diagnosis confirmed the same representation. No API MD5 expectation.
+
+Conditional in-place EXIF stripping with retained upload size is an evidenced upstream mechanism, not a proven cause of this object.
+The provider's deployed historical version/settings are not bound to this review;
+the API values are not universally reclassified as upload metadata. See
+`Evidence/integrity-research-20261024.json` for source paths, revision/body hashes
+and exact scope. No per-format size adjustment, checksum removal, or hash inferred
+from an original basename is applied.
