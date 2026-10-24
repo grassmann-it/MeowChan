@@ -40,6 +40,9 @@ public partial class MainWindow
         string? failure = null;
         int[] workerPids = Array.Empty<int>();
         Dictionary<string, string> revisions = new();
+        bool? startupPaused = null;
+        string[] startupWarnings = Array.Empty<string>();
+        PluginProfileSnapshot? startupProfile = null;
 #pragma warning disable IL3000
         var managedAssemblies = new[] { typeof(App).Assembly, typeof(Registry).Assembly }.Select(assembly => new
         {
@@ -55,11 +58,14 @@ public partial class MainWindow
                 _session.StartupError ?? "Source activation session is not ready.");
             RequireWorkflow(Math.Abs(RenderScaling - descriptor.ExpectedScale) < .01, "Source activation scaling differs.");
             var plugins = _session.Plugins ?? throw new InvalidOperationException("Source activation bypassed PluginSession.");
-            RequireWorkflow(plugins.Warnings.Count == 0 && _session.IsPaused, "Source activation startup has warnings or is not paused.");
+            startupPaused = _session.IsPaused;
+            startupWarnings = plugins.Warnings.ToArray();
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
+            startupProfile = installed;
+            RequireAuthorStartupState(installed, startupWarnings, startupPaused.Value, phase);
             foreach (var plugin in installed.Plugins)
             {
-                RequireWorkflow(plugin.Enabled && plugin.Active != null && plugin.Problem == null, "Source activation inventory is unavailable: " + plugin.PluginId);
+                RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
                 revisions[plugin.PluginId] = plugin.Active!.ExecutionRevision;
             }
             if (phase == "install")
@@ -209,6 +215,13 @@ public partial class MainWindow
             await File.WriteAllTextAsync(evidencePath, JsonSerializer.Serialize(new
             {
                 schemaVersion = 1, completed, failure, phase = "source-activation", sourcePhase = phase, checks, candidates,
+                startup = new { paused = startupPaused, warnings = startupWarnings, plugins = startupProfile?.Plugins.Select(plugin => new
+                {
+                    plugin.PluginId, plugin.Enabled, plugin.Problem, plugin.SelectedCandidateId,
+                    activePluginName = plugin.Active?.Description.Name, activeCandidateId = plugin.Active?.CandidateId, activeExecutionRevision = plugin.Active?.ExecutionRevision,
+                    pendingCandidateId = plugin.Pending?.CandidateId,
+                    presentCandidateIds = plugin.Candidates.Where(candidate => candidate.IsPresent).Select(candidate => candidate.CandidateId).ToArray()
+                }).ToArray() },
                 revisions, workerPids, managedAssemblies, profile = descriptor.Profile, workingDirectory = Environment.CurrentDirectory,
                 processId = Environment.ProcessId, processPath = Environment.ProcessPath,
                 processSha256 = Environment.ProcessPath == null ? null : AuthorHash(Environment.ProcessPath),
@@ -217,6 +230,31 @@ public partial class MainWindow
                 scope = "Same owned profile, delivered .cs bytes, explicit candidate selection, actual startup activation and production workers; terminal fixture HTTP, no live-source claim."
             }, AuthorJson));
         }
+    }
+    internal static void RequireAuthorStartupState(PluginProfileSnapshot installed, IReadOnlyList<string> warnings, bool isPaused, string phase)
+    {
+        RequireWorkflow(isPaused, "Source activation startup is not paused.");
+        RequireWorkflow(phase is "install" or "acquire" or "offline", "Unknown author startup phase.");
+        const string selectedAdvisory = "Multiple candidates exist; the selected candidate is retained.";
+        string[] authorIds = { "meowchan.source.lainchan", AuthorFilterId };
+        List<string> expectedWarnings = new();
+        foreach (var plugin in installed.Plugins)
+        {
+            RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
+            if (phase != "install" && authorIds.Contains(plugin.PluginId, StringComparer.Ordinal))
+            {
+                RequireWorkflow(plugin.Problem == selectedAdvisory && plugin.SelectedCandidateId == plugin.Active!.CandidateId
+                    && plugin.Pending == null && plugin.Candidates.Count == 2
+                    && plugin.Candidates.All(candidate => candidate.IsPresent && candidate.Problem == null),
+                    "Author selection advisory/state differs: " + plugin.PluginId);
+                expectedWarnings.Add(plugin.Active!.Description.Name + ": " + selectedAdvisory);
+            }
+            else RequireWorkflow(plugin.Problem == null, "Unexpected author startup problem: " + plugin.PluginId + ": " + plugin.Problem);
+        }
+        RequireWorkflow(phase == "install" || expectedWarnings.Count == 2
+            && authorIds.All(id => installed.Plugins.Count(plugin => plugin.PluginId == id) == 1), "Both explicitly selected author candidates must be present.");
+        RequireWorkflow(warnings.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(expectedWarnings.OrderBy(value => value, StringComparer.Ordinal)),
+            "Author startup warning inventory differs: " + string.Join(" | ", warnings));
     }
     private static string AuthorHash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 }

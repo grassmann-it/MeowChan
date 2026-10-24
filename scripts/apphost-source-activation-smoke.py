@@ -36,6 +36,34 @@ def validate_template(data):
         raise ValueError('Actual form/template/rule evidence differs')
 
 
+SELECTED_ADVISORY = 'Multiple candidates exist; the selected candidate is retained.'
+
+
+def validate_startup(metrics, phase):
+    startup = metrics.get('startup')
+    if not isinstance(startup, dict) or startup.get('paused') is not True:
+        raise ValueError('Source activation startup was not paused')
+    rows = startup.get('plugins')
+    if (not isinstance(rows, list) or len(rows) != 5
+            or {row.get('pluginId') for row in rows} != set(metrics['revisions'])):
+        raise ValueError('Source activation startup plugin inventory differs')
+    expected = []
+    for row in rows:
+        if row.get('enabled') is not True or not row.get('activeCandidateId') or row.get('activeExecutionRevision') != metrics['revisions'][row['pluginId']]:
+            raise ValueError('Source activation startup active inventory differs')
+        if phase != 'install' and row['pluginId'] in SOURCES:
+            if (row.get('problem') != SELECTED_ADVISORY or row.get('selectedCandidateId') != row['activeCandidateId']
+                    or row.get('pendingCandidateId') is not None or len(row.get('presentCandidateIds', [])) != 2
+                    or len(set(row['presentCandidateIds'])) != 2 or row['activeCandidateId'] not in row['presentCandidateIds']
+                    or not row.get('activePluginName')):
+                raise ValueError('Explicit author selection startup advisory differs')
+            expected.append(row['activePluginName'] + ': ' + SELECTED_ADVISORY)
+        elif row.get('problem') is not None:
+            raise ValueError('Unexpected startup plugin problem')
+    if (phase != 'install' and len(expected) != 2) or sorted(startup.get('warnings', [])) != sorted(expected):
+        raise ValueError('Exact ID-bound author startup warning inventory differs')
+
+
 def validate_metrics(metrics, phase, profile, working, scale, closure):
     required = {'author-normal-shutdown-and-lease'} | ({'author-source-installed', 'author-build-test-probe-isolated', 'author-explicit-pending-selection'}
         if phase == 'install' else {'author-source-cache-hit-on-restart', 'author-archive-verified', 'author-durable-filter-decisions',
@@ -47,6 +75,7 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
             or metrics.get('unexpectedRequests') != 0 or not isinstance(metrics.get('revisions'), dict) or len(metrics['revisions']) != 5
             or type(metrics.get('processId')) is not int or metrics['processId'] <= 0):
         raise ValueError('Source activation process evidence differs')
+    validate_startup(metrics, phase)
     requests = metrics.get('requests')
     expected_requests = ['https://lainchan.org/demo/res/123.json'] if phase == 'install' else plugin.REQUESTS if phase == 'acquire' else []
     if not isinstance(requests, list) or len(requests) != len(expected_requests) or set(requests) != set(expected_requests):
@@ -99,7 +128,8 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
     allowed = {'LANG', 'LC_ALL', 'TZ', 'MEOWCHAN_PROFILE', 'MEOWCHAN_DISABLE_UPDATE_CHECK', 'AVALONIA_GLOBAL_SCALE_FACTOR',
                'XDG_RUNTIME_DIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'MEOWCHAN_DESKTOP_SMOKE_XVFB', 'XDG_SESSION_TYPE'}
     environment = {key: value for key, value in environment.items() if key in allowed}
-    environment.update(PATH='/usr/bin:/bin', HOME=str(home), __EGL_VENDOR_LIBRARY_FILENAMES='/usr/share/glvnd/egl_vendor.d/50_mesa.json')
+    # Keep the app's owned-root guard consistent with Python's selected temporary parent.
+    environment.update(PATH='/usr/bin:/bin', HOME=str(home), TMPDIR=str(root.parent), __EGL_VENDOR_LIBRARY_FILENAMES='/usr/share/glvnd/egl_vendor.d/50_mesa.json')
     authority = root / ('xauthority-' + phase)
     authority.touch(mode=0o600)
     sandbox = plugin.sandbox(apphost, root, working)

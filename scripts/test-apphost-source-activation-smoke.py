@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import copy
 import importlib.util
+import tempfile
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 spec = importlib.util.spec_from_file_location('author', Path(__file__).with_name('apphost-source-activation-smoke.py'))
 author = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(author)
@@ -22,6 +23,30 @@ class AuthorEvidenceTests(unittest.TestCase):
             self.metrics['revisions'][proof['pluginId']] = proof['executionRevision']
         self.metrics['revisions'].pop('0')
         self.metrics['revisions'].pop('1')
+        self.metrics['startup'] = dict(paused=True, warnings=[], plugins=[])
+        for plugin_id, revision in self.metrics['revisions'].items():
+            targeted = plugin_id in author.SOURCES
+            row = dict(pluginId=plugin_id, enabled=True, problem=author.SELECTED_ADVISORY if targeted else None,
+                selectedCandidateId='a'*64, activeCandidateId='a'*64, activeExecutionRevision=revision,
+                pendingCandidateId=None, activePluginName=plugin_id, presentCandidateIds=['a'*64, 'b'*64] if targeted else ['a'*64])
+            self.metrics['startup']['plugins'].append(row)
+            if targeted: self.metrics['startup']['warnings'].append(plugin_id + ': ' + author.SELECTED_ADVISORY)
+    def test_startup_rejects_each_unexpected_state(self):
+        good = copy.deepcopy(self.metrics)
+        for fault in ('unpaused', 'missing', 'extra', 'duplicate', 'wrong_id', 'wrong_selection', 'pending'):
+            with self.subTest(fault=fault):
+                self.metrics = copy.deepcopy(good)
+                startup = self.metrics['startup']
+                target = next(row for row in startup['plugins'] if row['pluginId'] in author.SOURCES)
+                if fault == 'unpaused': startup['paused'] = False
+                elif fault == 'missing': startup['warnings'].pop()
+                elif fault == 'extra': startup['warnings'].append('unrelated warning')
+                elif fault == 'duplicate': startup['warnings'][0] = startup['warnings'][1]
+                elif fault == 'wrong_id': next(row for row in startup['plugins'] if row['pluginId'] not in author.SOURCES)['problem'] = author.SELECTED_ADVISORY
+                elif fault == 'wrong_selection': target['selectedCandidateId'] = 'wrong'
+                elif fault == 'pending': target['pendingCandidateId'] = 'pending'
+                with self.assertRaises(ValueError): self.validate()
+        self.metrics = good
     def validate(self):
         with patch.object(author.plugin, 'validate_assembly_bindings', return_value=[]):
             return author.validate_metrics(self.metrics, 'acquire', Path('/profile'), Path('/working'), 1, self.closure)
@@ -56,5 +81,33 @@ class AuthorEvidenceTests(unittest.TestCase):
         author.validate_template(data)
         data['ruleParameters'] = dict(author.PARAMETERS, aspectRatio='')
         with self.assertRaises(ValueError): author.validate_template(data)
+
+
+class AuthorTemporaryRootTests(unittest.TestCase):
+    def test_all_phase_children_use_owned_root_parent_without_changing_profile(self):
+        # Mock the process boundary: this test starts no DBus/GUI/apphost process.
+        with tempfile.TemporaryDirectory(prefix='meowchan-workflow-tmpdir-test-') as temporary:
+            root = Path(temporary).resolve()
+            (root / '.workflow-owner').write_text('a' * 32)
+            def phase_environment(root, phase, profile, isolated, scale):
+                working = root / ('cwd-' + phase)
+                working.mkdir()
+                return working, {'TMPDIR': '/wrong-parent', 'MEOWCHAN_PROFILE': str(profile), 'XDG_RUNTIME_DIR': str(working / 'runtime')}
+            process = Mock()
+            process.wait.return_value = 2
+            with patch.object(author.workflow, 'phase_environment', side_effect=phase_environment), \
+                    patch.object(author.plugin, 'sandbox', side_effect=lambda *args: ['bwrap', '--smoke-plugin-workflow']), \
+                    patch.object(author.subprocess, 'Popen', return_value=process) as popen, \
+                    patch.object(author.desktop, 'stop_owned_processes'):
+                for phase in author.PHASES:
+                    author.run_phase(root / 'package/MeowChan', root, phase, root / ('evidence-' + phase), 1, 1, {})
+            self.assertEqual(3, popen.call_count)
+            for call, phase in zip(popen.call_args_list, author.PHASES):
+                environment = call.kwargs['env']
+                self.assertEqual(str(root.parent), environment['TMPDIR'])
+                self.assertEqual(str(root / 'profile-download'), environment['MEOWCHAN_PROFILE'])
+                self.assertEqual(str(root / ('cwd-' + phase) / 'runtime'), environment['XDG_RUNTIME_DIR'])
+                self.assertIn('--smoke-source-activation', call.args[0])
+                self.assertEqual(str(root / 'download.json'), call.args[0][-1])
 
 if __name__ == '__main__': unittest.main()
