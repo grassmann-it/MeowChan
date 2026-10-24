@@ -4,8 +4,8 @@ Start with [Lainchan](../../plugins/Examples/Lainchan/Lainchan.cs) or
 [Kohlchan](../../plugins/Examples/Kohlchan/Kohlchan.cs). Their adjacent READMEs
 record the provider evidence and unsupported assumptions. The supplied independent
 [Wizchan](../../plugins/Examples/Wizchan/Wizchan.cs) and
-[Endchan](../../plugins/Examples/Endchan/Endchan.cs) examples are also complete
-SDK-only single files. Consult their
+[Endchan](../../plugins/Examples/Endchan/Endchan.cs) source implementations are also
+complete SDK-only single files. Consult their
 [Wizchan evidence](../../plugins/Examples/Wizchan/README.md) and
 [Endchan evidence](../../plugins/Examples/Endchan/README.md) for exact supported
 hosts, routes and limitations. API-family similarity is not provider evidence.

@@ -37,7 +37,11 @@ preferences also fall back to Barebones. Saved **Barebones**, **Simple** and
 In 1.0, **Tools** contains only destinations that are not already shown in the
 footer. Advanced shows all destinations, including Plugins, directly when there
 is enough room; a narrow window moves the extra destinations into Tools.
-**Continue reading** (German: **Weiterlesen**) stays directly in the footer.
+**Continue reading** (German: **Weiterlesen**) is a book icon immediately left
+of Pause in the header, with a labelled entry in the app menu. The icon appears
+when the feature is enabled and a saved reading position is known; it is hidden
+while the reader or gallery is visible. When no icon is shown on Downloads or
+the archive list, use the app-menu entry to check the reading-position state.
 
 ### Close and minimize to tray
 
@@ -235,8 +239,9 @@ and F1 or ? opens keyboard help. Space plays or pauses an active local video.
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps exactly one deliberately opened reader position for this profile. After
-restarting, choose **Continue reading** in the footer or beside Archive in the app
-menu. The app keeps its normal start page until you choose that action. Only
+restarting, choose the **Continue reading** book icon left of Pause in the header,
+or the labelled **Continue reading** entry in the app menu. The app keeps its
+normal start page until you choose that action. Only
 locally captured posts are read; no source request or download is started.
 
 **Forget reading position** removes the entry immediately and keeps the setting

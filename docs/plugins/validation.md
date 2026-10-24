@@ -66,6 +66,15 @@ cover the existing providers; [runtime process tests](../../tests/MeowChan.Plugi
 and [compiler tests](../../tests/MeowChan.PluginCompiler.Tests/CompilerIntegrationTests.cs)
 exercise their separate mechanisms.
 
+## Live-source results — 2026-10-24
+
+The [six-source live report](live-sources-2026-10-24.md) records actual bundles,
+HostHttp, productive media acquisition, archive verification and fresh-host
+offline outcomes. Three selected sources passed the full path; three selected
+originals disagreed with API byte sizes and did not obtain archive/media PASS.
+The six-source acceptance remains incomplete. These dated outcomes do not
+replace the historical fixture and compiler results below.
+
 ## Current example evidence
 
 On 2026-10-22 the Lainchan/Kohlchan example suite passed 48 targeted tests. Both
@@ -92,7 +101,7 @@ release checks; consult the candidate's release notes for their actual results.
 
 ## Wizchan and Endchan validation
 
-Wizchan and Endchan are supplied as independent SDK-only example sources.
+Wizchan and Endchan are supplied as independent SDK-only source implementations.
 The [2026-10-24 local results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
 bind their parser/HTTP/routing tests, seven-plugin delivery, SDK-free probes and
 production fixture acquisition/offline restore to the tested candidate. The

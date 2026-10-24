@@ -15,6 +15,7 @@ candidate and the delivered compiler, with no developer SDK required.
 - [Settings, image filters and scoped data access](filters-and-settings.md)
 - [Optional hosting, prebuilt bundles and resources](hosting-and-resources.md)
 - [Validate a plugin and interpret failures](validation.md)
+- [Six-source live results, 2026-10-24](live-sources-2026-10-24.md) — three full acquisition/offline passes; three original-size mismatches
 
 The SDK targets **.NET 10**, with contract version **1.0.0**. `libmeowchan`,
 `MeowChan.PluginSdk` and the optional host APIs are **not stable in 1.x**; minor
