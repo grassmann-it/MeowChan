@@ -441,8 +441,15 @@ internal static class ShowcaseCaptures
         window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SettingsPageVisible);
         SettingsEditor settings = window.SettingsEditor;
+        settings.OpenSectionNavigation();
+        settings.GoToSection("settings.interface");
+        await Program.WaitUntilAsync(() => settings.FindControl<Control>("SettingsInterfacePage")!.IsEffectivelyVisible);
         settings.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
+        await CaptureAsync(window, "smoke-1.0-settings-interface.png");
+        settings.OpenSectionNavigation();
+        settings.GoToSection("settings.reading-media");
         await Program.WaitUntilAsync(() => settings.FindControl<ComboBox>("ReadingFontSizeInput")!.IsEffectivelyVisible);
+        settings.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
         await CaptureAsync(window, "v0.9.0-settings.png");
 
         window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
