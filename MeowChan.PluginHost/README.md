@@ -28,6 +28,33 @@ redirects or add retries. Every explicit redirect is checked against declared
 metadata hosts; bodies are limited after decompression. Provider pacing/cooldown
 returns `HostHttpDeferred` immediately, releasing the call slot.
 
+`PluginOriginalMediaHttp.CreateClient(transport, source, policy, logger)` creates
+an original-media client for one source. It accepts bodyless GET/HEAD and follows
+at most five explicit redirects. The initial URI and every redirect destination
+must use an exact declared `HttpHostPurpose.OriginalMedia` host; metadata or
+preview permission is insufficient. Credentials, fragments, custom ports,
+HTTPS-to-HTTP downgrades and unsupported or credential-bearing headers are
+rejected. Transport must still disable automatic redirects/retries; a raw
+transport guard detects an unexpected final URI before the request policy can
+replace the response's request message.
+
+All redirect headers and policy retries share one 60-second deadline, including
+initial admission. This additionally bounds the initial healthy admission queue,
+which the general request policy can otherwise retain before starting its own
+network budget. Caller cancellation propagates; this shared deadline expires as
+`TimeoutException`. The deadline ends when final response headers are returned.
+The caller owns that response and its body, including read cancellation and body
+idle deadlines; `DownloadWorker` supplies those checks for application downloads.
+Redirect handling grants no source-integrity exception and does not alter
+transport-length, hash or commit checks.
+
+The returned media `HttpClient` owns its redirect/guard/policy wrappers and must
+be disposed by its consumer. It borrows the supplied transport and never disposes
+or mutates it. Intermediate and rejected responses are disposed by the wrapper;
+the final response remains the caller's responsibility. As with other public
+Host helpers, this API is part of the explicitly unstable 1.x Host surface, not
+an additional Core or PluginSdk contract.
+
 Default limits:
 
 | Resource | Default |

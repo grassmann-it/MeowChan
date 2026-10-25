@@ -1,9 +1,9 @@
 # Local media filters
 
-This page describes the source/filter wave being integrated separately from the
-1.0.0-alpha.2 release candidate. It is not a release announcement or a claim that
-these filters have passed packaged or native-platform checks. The adjacent
-plugin READMEs record their actual implementation limits and test evidence.
+This page describes the local filters prepared for 1.0.0-alpha.2. The release
+inventory identifies the exact delivered source and validation run; this guide
+does not replace packaged or native-platform evidence. The adjacent plugin
+READMEs describe implementation limits and test scope.
 
 These filters help decide which newly acquired originals to keep. They run
 locally through the existing plugin worker. The host downloads the original to
