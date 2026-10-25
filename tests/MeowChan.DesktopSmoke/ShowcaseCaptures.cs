@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -86,8 +87,19 @@ internal static class ShowcaseCaptures
                 active.Focus();
                 active.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
                 active.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+                await Program.WaitUntilAsync(() => active.IsChecked == true && inactive.IsChecked == false && !page.IsBusy);
+                // At 1440 DIP the table uses the narrow layout and retains the
+                // selected reader. Follow its real Back action to show results.
+                if (!shown.IsEffectivelyVisible)
+                {
+                    Button back = page.FindControl<Button>("ArchiveBackButton")!;
+                    if (!back.IsEffectivelyVisible || !back.IsEffectivelyEnabled)
+                        throw new InvalidOperationException("The chosen archive layout is hidden without a reachable Back action.");
+                    new ButtonAutomationPeer(back).Invoke();
+                }
                 await Program.WaitUntilAsync(() => active.IsChecked == true && inactive.IsChecked == false
                     && shown.IsEffectivelyVisible && !hidden.IsEffectivelyVisible && !page.IsBusy);
+                Console.WriteLine($"SHOWCASE archive layout={page.ArchiveLayoutPreference}; activation={activation + 1}; selected={active.IsChecked}; other={inactive.IsChecked}; results={shown.IsEffectivelyVisible}; pageWidth={page.Bounds.Width}.");
             }
             await CaptureAsync(window, tableMode ? "smoke-1.0-archive-table.png" : "smoke-1.0-archive-list.png");
         }
