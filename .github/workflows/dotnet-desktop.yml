@@ -86,7 +86,9 @@ jobs:
         if: runner.os == 'Windows' || runner.os == 'macOS'
         # The largest exact client scene is 1520x920; reserve 40 DIP for its
         # native frame. Other growth probes explicitly fit the usable work area.
-        run: python scripts/prepare-ci-desktop.py --allow-disposable-desktop --min-work-height 960 --report artifacts/build-evidence/native-desktop.json
+        run: |
+          python scripts/prepare-ci-desktop.py --allow-disposable-desktop --min-work-height 960 --report artifacts/build-evidence/native-desktop.json
+          python scripts/prepare-ci-desktop.py --allow-disposable-desktop --verify-only --min-work-height 960 --report artifacts/build-evidence/native-desktop-lifetime.json
       - name: Check declared public APIs and require release review for candidates
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
