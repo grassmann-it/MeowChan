@@ -1,0 +1,42 @@
+{
+  "scope": "Bounded Python requests metadata/HTML preflight; no media or production-host acceptance. No raw post contents retained here.",
+  "max_decoded_body_bytes": 8388608,
+  "redirects_followed": false,
+  "requests": [
+    {
+      "url": "https://uboachan.net/yn/",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/html",
+        "Last-Modified": "Tue, 20 Oct 2026 12:42:49 GMT",
+        "ETag": "W/\"6ad761c9-c1fb\""
+      },
+      "bytes": 49659,
+      "sha256": "3c685e3389c580e8acb39fd36c2c2f579aa2bbdc31e2ee1bb0b1d912a3a90e04"
+    },
+    {
+      "url": "https://uboachan.net/yn/res/11198.json",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json",
+        "Last-Modified": "Tue, 07 Apr 2026 01:18:38 GMT",
+        "ETag": "\"69d45b6e-6ef\""
+      },
+      "bytes": 1775,
+      "sha256": "89e91b32a6e5fcdb909b08dbab6ff207e0bca4d388fb2859f560762c2a70ced4"
+    },
+    {
+      "url": "https://uboachan.net/ot/catalog.json",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json",
+        "Last-Modified": "Sat, 24 Oct 2026 10:42:11 GMT",
+        "ETag": "\"6adc8b83-59157\""
+      },
+      "bytes": 364887,
+      "sha256": "a74108d6f8405bccb6330faff4fc0295d823aed51855a3888854f33063f58a58",
+      "jsonType": "list",
+      "entries": 465
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "scope": "Bounded Python requests metadata/HTML preflight; no media or production-host acceptance. No raw post contents retained here.",
+  "max_decoded_body_bytes": 8388608,
+  "redirects_followed": false,
+  "requests": [
+    {
+      "url": "https://2ch.hk/pr/",
+      "status": 301,
+      "headers": {
+        "Content-Type": "text/html",
+        "Location": "https://2ch.su/pr/"
+      },
+      "bytes": 162,
+      "sha256": "9e17cb15dd75bbbd5dbb984eda674863c3b10ab72613cf8a39a00c3e11a8492a"
+    },
+    {
+      "url": "https://2ch.su/pr/",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "last-modified": "Sun, 25 Oct 2026 15:20:29 GMT",
+        "etag": "W/\"6ade1e3d-5d275\""
+      },
+      "bytes": 381557,
+      "sha256": "03caf561f6c854093ae1e4a4ff87389b9f0e36f2cf28114e57803d566f78ed63"
+    },
+    {
+      "url": "https://2ch.hk/pr/catalog.json",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Last-Modified": "Sun, 25 Oct 2026 15:20:30 GMT",
+        "ETag": "W/\"6ade1e3e-9345d\""
+      },
+      "bytes": 603229,
+      "sha256": "7c3ec768e86d39a964dbe5d4d036ec43f664429117d73f9cb6e2bbc2cbdfe176"
+    },
+    {
+      "url": "https://2ch.su/pr/res/1215536.html",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "last-modified": "Mon, 19 Oct 2026 07:53:36 GMT",
+        "etag": "W/\"6ad5cc80-1442a\""
+      },
+      "bytes": 82986,
+      "sha256": "8008a3c45121553715a1d47edcbb008d6f45c781956d17567d733e8609884040"
+    },
+    {
+      "url": "https://2ch.hk/mu/catalog.json",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Last-Modified": "Sun, 25 Oct 2026 14:42:00 GMT",
+        "ETag": "W/\"6ade1538-82203\""
+      },
+      "bytes": 532995,
+      "sha256": "aba719df1fa0f7be38a6070f6eabc047510b6ef8963b9e939a31f92b96553b8c",
+      "jsonType": "dict",
+      "entries": 201
+    },
+    {
+      "url": "https://2ch.hk/pr/res/3782434.json",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Last-Modified": "Sun, 25 Oct 2026 13:18:14 GMT",
+        "ETag": "W/\"6ade0196-6b53\""
+      },
+      "bytes": 27475,
+      "sha256": "8284f94f4da803c03dd53cb27ff8b89000b2e6898944be0b92adfe2c4e052223"
+    }
+  ]
+}
