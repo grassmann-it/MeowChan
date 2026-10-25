@@ -22,6 +22,8 @@
     <ProjectReference Include="../../plugins/Examples/Leftypol/MeowChan.Plugin.Leftypol.csproj" />
     <ProjectReference Include="../../plugins/Examples/Dvach/MeowChan.Plugin.Dvach.csproj" />
     <ProjectReference Include="../../plugins/Examples/Uboachan/MeowChan.Plugin.Uboachan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/Zzzchan/MeowChan.Plugin.Zzzchan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/SushiChan/MeowChan.Plugin.SushiChan.csproj" />
     <Using Include="Xunit" />
     <None Update="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

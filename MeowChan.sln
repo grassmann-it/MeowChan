@@ -73,12 +73,24 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.Uboachan", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.MetadataFilters.Tests", "tests/MeowChan.MetadataFilters.Tests/MeowChan.MetadataFilters.Tests.csproj", "{BFFD6CC9-7931-57EB-9461-CD672E079471}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.Zzzchan", "plugins/Examples/Zzzchan/MeowChan.Plugin.Zzzchan.csproj", "{8B32E333-E62E-5C1B-AE0A-049126FF8383}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeowChan.Plugin.SushiChan", "plugins/Examples/SushiChan/MeowChan.Plugin.SushiChan.csproj", "{EC569903-3115-52D6-A09C-26FFCCE0DD6C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8B32E333-E62E-5C1B-AE0A-049126FF8383}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B32E333-E62E-5C1B-AE0A-049126FF8383}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B32E333-E62E-5C1B-AE0A-049126FF8383}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B32E333-E62E-5C1B-AE0A-049126FF8383}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC569903-3115-52D6-A09C-26FFCCE0DD6C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC569903-3115-52D6-A09C-26FFCCE0DD6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC569903-3115-52D6-A09C-26FFCCE0DD6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC569903-3115-52D6-A09C-26FFCCE0DD6C}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A4E81481-F30D-5BED-9981-C802BAC2ACE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A4E81481-F30D-5BED-9981-C802BAC2ACE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A4E81481-F30D-5BED-9981-C802BAC2ACE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
