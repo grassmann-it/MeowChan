@@ -6,19 +6,29 @@
 
 <p align="center"><strong>1.0.0</strong></p>
 
-<p align="center">Save threads. Browse your archive. Keep it offline.</p>
+<p align="center">More chans. Better reading. Your archive, offline.</p>
 
-MeowChan is a cross-platform imageboard downloader and offline archive with eleven supplied imageboard sources, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
+Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-Download **MeowChan 1.0.0** from the [release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0). The [release notes](docs/releases/v1.0.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
+[**Get MeowChan 1.0.0 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.0.0.md) · [Platform requirements](docs/platform-support.md)
 
-1.0 adds the Semi + Ursa UI rework, configurable shortcuts, reading groups, saved
-searches, ratings, notes, archive cleanup and more source/filter plugins. If you
-run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new)
-and try [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0)
-with an untouched profile or pre-upgrade backup.
+## What's new in 1.0 🐾
 
-## Choose the view that fits your work
+- **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts.
+- **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
+- **Keep the media you want.** **5 local media filters** cover dimensions, file size/original names, SHA-256 blocklists, animation/actual format and PNG metadata fields. The supplied inventory totals **16 plugins**, with **14 editable C# examples** and a bundled compiler. See the [plugin guide](docs/plugins/README.md) for installation, permissions and limits.
+- **Settle in and read.** Save named reader groups, use optional Continue reading to return to your saved place, and keep post bookmarks and notes.
+- **Find your favorites again.** Save archive searches, star threads and media, and rate images. Search captured posts and browse your collection without contacting the source.
+- **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
+- **Enjoy the originals.** Browse local media in the gallery; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
+
+The [1.0 release notes](docs/releases/v1.0.0.md) cover the changes and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
+
+## A look at the desktop
+
+The screenshots in this README were captured for **0.9.0**. They illustrate the earlier layouts and offline archive workflow; they do **not** show the 1.0 redesign. The [capture notes](docs/screenshots/README.md) retain their source checkpoints and provenance.
+
+### Choose the view that fits your work
 
 **Barebones** is the default for a new profile. It keeps URLs, thread titles, media progress and the main actions in a compact window.
 
@@ -30,7 +40,7 @@ with an untouched profile or pre-upgrade backup.
 
 Switch views at the bottom right while work continues. **Simple** sits between these layouts; [see its Downloads view](docs/screenshots/v0.9.0-downloads.png). Each view remembers its own table columns, widths and order. These two comparison images use the same six passive offline example rows; they do not show live downloads.
 
-## Explore your saved threads
+### Explore your saved threads
 
 - **Read offline:** Search captured posts and saved media, follow replies, and open threads in the full-window [reader](docs/screenshots/v0.9.0-reader.png).
 - **Browse images:** Use the [gallery](docs/screenshots/v0.9.0-gallery.png) to zoom, pan and view a saved image beside its captured post.
@@ -42,9 +52,6 @@ The [interface gallery and capture notes](docs/screenshots/README.md) show more 
 ## Quick start
 
 Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
-
-The screenshots below retain their documented 0.9.0 capture provenance; see the
-[1.0 release notes](docs/releases/v1.0.0.md) for current features.
 
 1. [Download MeowChan 1.0.0](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
@@ -67,7 +74,7 @@ Downloads contain the application, runtime, icon and required legal notices only
 
 The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
 
-## Downloads, gallery, reader and archive
+## Screenshot tour · 0.9.0
 
 [![MeowChan Downloads in Simple Dark view with saved, active and paused media](docs/screenshots/v0.9.0-downloads.png)](docs/screenshots/v0.9.0-downloads.png)
 
@@ -87,7 +94,7 @@ Find retained threads and media offline. Open images from all matching threads a
 
 These scenes use original offline demo artwork and synthetic posts captured in isolated Linux Xvfb/Openbox sessions at 100% scaling. The Barebones, Advanced, gallery, Settings and Rules images reflect the final 0.9.0 UI at functional source checkpoint `be2f807`; the other 11 retain their earlier `b8e1291` source capture. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 16-image set](docs/screenshots/README.md) describe both captures and their limits; these source-built images do not establish native package acceptance or live source availability.
 
-## What's new in 0.9.0
+## Previous release: 0.9.0
 
 - A redesigned Avalonia interface with Barebones as the default, plus Simple and Advanced views of the same running session. Each view remembers its own layout and table columns.
 - Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
@@ -106,6 +113,8 @@ These scenes use original offline demo artwork and synthetic posts captured in i
 The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libmeowchan` continues to work independently of the UI.
 
 ## Desktop views
+
+The following layout reference describes the 0.9.0 interface shown above. For the current workflow, see the [user guide](docs/Help.md).
 
 MeowChan 0.9.0 uses **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Switch views without restarting downloads or losing the current selection and URL input:
 
@@ -231,7 +240,7 @@ dotnet pack libmeowchan/libmeowchan.csproj -c Release -o artifacts/packages
 
 The [library guide](libmeowchan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibMeowChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
 
-Provider registration is explicit. Sources shows registered adapter capabilities and actual watch observations. Provider descriptions are passive and optional. The 1.0 development source adds SDK-only C# source/image-filter plugins and an optional process host; see the [plugin author and installation guide](docs/plugins/README.md) for examples, activation and current validation limits. The core library does not require the plugin host or compiler. A daemon, TUI and terminal browser remain later work. The library already exposes local search, quotes/backlinks and portable single-thread HTML export. Provider registration is independent of whether its website is currently reachable.
+Provider registration is explicit. Sources shows registered adapter capabilities and actual watch observations. Provider descriptions are passive and optional. MeowChan 1.0 includes SDK-only C# source/image-filter plugins and an optional process host; see the [plugin author and installation guide](docs/plugins/README.md) for examples, activation and current validation limits. The core library does not require the plugin host or compiler. A daemon, TUI and terminal browser remain later work. The library already exposes local search, quotes/backlinks and portable single-thread HTML export. Provider registration is independent of whether its website is currently reachable.
 
 ## Verification
 
