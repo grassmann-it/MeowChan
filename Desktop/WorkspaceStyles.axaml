@@ -191,6 +191,12 @@
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="32" /><Setter Property="FontSize" Value="13" /></Style>
+    <!-- Semi's translucent dark-blue selection has little contrast on dark fields.
+         Keep its native presenter and retained-selection behavior with an opaque pair. -->
+    <Style Selector="TextBox">
+        <Setter Property="SelectionBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Workspace.OnAccent}" />
+    </Style>
     <Style Selector="ComboBox.footer-mode"><Setter Property="MinHeight" Value="28" /><Setter Property="FontSize" Value="12" /></Style>
     <Style Selector="DataGrid">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
