@@ -126,6 +126,7 @@ jobs:
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
           python -m unittest discover -s tests -p test_prerelease.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
+          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_local_package.py -v
@@ -157,6 +158,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
+      - name: Prepare disposable native desktop for wide layout checks
+        if: runner.os == 'Windows' || runner.os == 'macOS'
+        run: python scripts/prepare-ci-desktop.py --allow-disposable-desktop --report artifacts/build-evidence/native-desktop.json
       - name: Exercise native graphical startup and fallback paths
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
       - name: Exercise tray lifecycle separately on the disposable runner

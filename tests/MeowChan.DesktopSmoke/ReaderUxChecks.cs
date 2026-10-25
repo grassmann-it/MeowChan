@@ -114,7 +114,14 @@ internal static class ReaderUxChecks
         // geometry, which may have been fitted to a small runner desktop. Set
         // this independent wide reader-layout scene after that fixture returns.
         window.Width = 1520; window.Height = 920;
-        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
+        try
+        {
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
+        }
+        finally
+        {
+            Console.WriteLine($"SMOKE wide reader geometry: target=1520x920, requested={window.Width}x{window.Height}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}, screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+        }
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
         ArchivePage page = window.ArchivePage;
