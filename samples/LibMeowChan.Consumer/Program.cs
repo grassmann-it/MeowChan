@@ -35,6 +35,7 @@ internal static class Program
                 CheckSavedWork(new WorkStateStore(lease.ProfileDirectory, lease), directory, generation: 2);
 
             await CheckIndependentArchiveAsync(directory);
+            await LegacyIntegrityConsumerChecks.VerifyAsync(transport, directory);
             Console.WriteLine("Package consumer passed: durable work, verified media restore, passive gallery, independent archive, export update/history, and clean shutdown.");
         }
         finally
