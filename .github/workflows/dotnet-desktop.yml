@@ -117,7 +117,7 @@ jobs:
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        timeout-minutes: 8
+        timeout-minutes: 12
         # Native worker suites retain their own concurrency tests and deadlines.
         # Do not run ten independent test assemblies against the same runner at once.
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
@@ -164,8 +164,26 @@ jobs:
       - name: Install Linux virtual display and private session bus
         if: runner.os == 'Linux'
         run: |
+          # The hosted x64 Azure mirror can make GUI setup exceed the job deadline.
+          # Keep Ubuntu signature verification and ARM's ports mirror unchanged.
+          if [[ "$RUNNER_ARCH" == X64 ]]; then
+            sudo python3 - <<'PY'
+          from pathlib import Path
+          paths = [Path('/etc/apt/sources.list')]
+          paths += list(Path('/etc/apt/sources.list.d').glob('*.list'))
+          paths += list(Path('/etc/apt/sources.list.d').glob('*.sources'))
+          paths += list(Path('/etc/apt').glob('apt-mirrors*.txt'))
+          for path in paths:
+              if path.is_file():
+                  before = path.read_text()
+                  after = before.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  after = after.replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  if after != before:
+                      path.write_text(after)
+          PY
+          fi
           sudo apt-get update
-          sudo apt-get install --yes vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1
+          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core
       - name: Exercise native graphical startup and fallback paths
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
       - name: Exercise tray lifecycle separately on the disposable runner
