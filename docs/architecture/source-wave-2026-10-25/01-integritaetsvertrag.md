@@ -1,7 +1,7 @@
 # NW-01 — Anbietergrößen, gemischte Hashes und Ausnahmeumfang
 
 Status: Nutzer nimmt die Empfehlung ausdrücklich an (Rootweitergabe
-„Empfehlung umsetzen“). **Implementierung lokal, Prüfung läuft.** Größenhinweise
+„Empfehlung umsetzen“). **Lokal implementiert; gezielte Komponententests grün, integrierte Lieferung offen.** Größenhinweise
 bleiben nichtautoritativ, SHA-1 wird strikt geprüft, Leftypol-Ausnahme nur nach
 expliziter Quellen-/Profilfreigabe. Alle fünf neuen Quellen sind standardmäßig
 aus/Experimental. Für 2ch wurde keine Abweichungsausnahme erteilt.
@@ -80,5 +80,28 @@ keinen exakten Rundungsvertrag des API. Deshalb Rohwert + Label `Кб`, Precisio
 Rohantworten/UTC/Hashes: externe Arbeitsbelege `nw01-research/` im isolierten
 Source-/Filter-Wave-Arbeitsverzeichnis. Dies ist kein Produkt-Live-PASS.
 
-Öffentliche API ist additiv inventarisiert; gezielte Runtime-/Consumerabnahme
-steht bis zum freigegebenen Testslot aus. Lieferentscheidung bleibt NW-07.
+## Gezielte lokale Prüfung
+
+Alle Befehle einzeln von Root freigegeben und unter
+`flock -o /tmp/meowchan-ui-1.0-build.lock`, isolierte Contracts-Arbeitskopie:
+
+| Stand | Prüfung | Ergebnis |
+| --- | --- | --- |
+| SDK549429c / Checkout e75558c | SDK SourceValidationTests inkl. Rohwert-/SHA1-Roundtrip und Negativfällen | 27/27 PASS |
+| 01530ba | Coreintegrität, Persistenz, Manifest/Store, Resolver, Contentrevision/-runtime | 149/149 PASS |
+| 45df69f | SourceIntegrityAdapterTests mit echtem Hostmapping, SHA1 strikt trotz Größen-/MD5-Freigabe | 4/4 PASS |
+| 45df69f | Desktop ArchiveAttachmentMatchingTests: exaktes Cleanup v1/v2, EN/DE Herkunft, tatsächliche Größe | 7/7 PASS |
+| 5c58e15 | SourceMediaIntegrityTests nach letzten Reviewkorrekturen inkl. Variantprojektion und gemischter Altnachweise | 26/26 PASS |
+
+SDK/Core-APIanalyzer ohne Diagnosen. Bestehende fremde xUnit-/Avaloniawarnungen
+sind kein neuer Paketfehler. Der erste Corelauf fand einen echten Fehler beim
+Anreichern alter Assetnachweise vor neuer Referenz; behoben und derselbe
+149-Fälle-Lauf ohne abgeschwächte Assertions wiederholt. Zusätzlich hält der
+Restore den bekannten SHA1-Nachweis über spätere historische Nullnachweise fest.
+
+Öffentliche PackageReference-Consumer sind um neue SDK-/Corefelder, Restart und
+Galeriebindung erweitert; ihre Ausführung am gemeinsam ausgelieferten Paketfeed
+bleibt Aufgabe der Integration FE-05/NW-07. Reale Filterstage-/Workerprüfung führt
+ebenfalls der Integrator durch. Kein Produkt-Live-PASS, GUI-/Native-/Releaseabschluss
+oder Integritätsausnahme für2ch wird aus diesen Komponentenfällen abgeleitet.
+Lieferentscheidung bleibt NW-07.
