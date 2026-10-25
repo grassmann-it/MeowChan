@@ -14,40 +14,45 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 
 ## What's new in 1.0 🐾
 
-- **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts.
+- **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts. Settings are organized into eight focused pages.
 - **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
 - **Keep the media you want.** **5 local media filters** cover dimensions, file size/original names, SHA-256 blocklists, animation/actual format and PNG metadata fields. The supplied inventory totals **16 plugins**, with **14 editable C# examples** and a bundled compiler. See the [plugin guide](docs/plugins/README.md) for installation, permissions and limits.
 - **Settle in and read.** Save named reader groups, use optional Continue reading to return to your saved place, and keep post bookmarks and notes.
 - **Find your favorites again.** Save archive searches, star threads and media, and rate media. Search captured posts and browse your collection without contacting the source.
 - **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
-- **Enjoy the originals.** Browse local media in the gallery; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
+- **Enjoy the originals.** Give images and video more room with the gallery’s optional **media focus** view; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
 
 The [1.0 release notes](docs/releases/v1.0.0.md) cover the changes and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
 
-## A look at the desktop
+## Take a look around · 1.0
 
-The screenshots in this README were captured for **0.9.0**. They illustrate the earlier layouts and offline archive workflow; they do **not** show the 1.0 redesign. The [capture notes](docs/screenshots/README.md) retain their source checkpoints and provenance.
+These are current, source-built UI captures using offline demonstration data. The [1.0 capture notes](docs/screenshots/v1.0.0/README.md) record the source checkpoint and capture conditions; the images do not establish native package acceptance or live source availability.
 
-### Choose the view that fits your work
+### Watch threads without losing the overview
 
-**Barebones** is the default for a new profile. It keeps URLs, thread titles, media progress and the main actions in a compact window.
+Paste thread or board URLs, track saved media and inspect watch details. Choose Barebones, Simple or Advanced to suit your workspace.
 
-[![Barebones Downloads with six demonstration threads and compact progress rows](docs/screenshots/v0.9.0-barebones.png)](docs/screenshots/v0.9.0-barebones.png)
+[![MeowChan 1.0 Downloads with offline demonstration watches](docs/screenshots/v1.0.0/downloads.png)](docs/screenshots/v1.0.0/downloads.png)
 
-**Advanced** shows the same selected thread and download session with separate source, ID, status, queued and active columns. Its details panel exposes the thread URL, destination and available actions.
+### Make your archive easy to come back to
 
-[![Advanced Downloads with the same six demonstration threads, separate columns and thread details](docs/screenshots/v0.9.0-advanced.png)](docs/screenshots/v0.9.0-advanced.png)
+Find captured threads and local media, save useful searches, and keep favorites and ratings close at hand. Prefer rows? There is also an [Archive table view](docs/screenshots/v1.0.0/archive-table.png).
 
-Switch views at the bottom right while work continues. **Simple** sits between these layouts; [see its Downloads view](docs/screenshots/v0.9.0-downloads.png). Each view remembers its own table columns, widths and order. These two comparison images use the same six passive offline example rows; they do not show live downloads.
+[![MeowChan 1.0 Archive with saved offline demonstration content](docs/screenshots/v1.0.0/archive.png)](docs/screenshots/v1.0.0/archive.png)
 
-### Explore your saved threads
+### Give the media some room
 
-- **Read offline:** Search captured posts and saved media, follow replies, and open threads in the full-window [reader](docs/screenshots/v0.9.0-reader.png).
-- **Browse images:** Use the [gallery](docs/screenshots/v0.9.0-gallery.png) to zoom, pan and view a saved image beside its captured post.
-- **Keep and share:** Mark saved media as favorites and export verified originals or portable offline HTML collections.
-- **Control downloads:** Set media rules by source, board or thread, inspect retry details and manage several watches together.
+**Media focus** folds away gallery tools and details. Return to the [regular gallery](docs/screenshots/v1.0.0/gallery.png) when you want more controls and captured post context; video keeps its compact playback strip.
 
-The [interface gallery and capture notes](docs/screenshots/README.md) show more real UI, including Archive, Settings, Rules and About.
+[![MeowChan 1.0 gallery in media focus view](docs/screenshots/v1.0.0/gallery-focus.png)](docs/screenshots/v1.0.0/gallery-focus.png)
+
+### Settle in and read offline
+
+Read captured posts with local media, follow replies, and return to saved reading positions. Reader groups, post bookmarks and notes help you keep your place.
+
+[![MeowChan 1.0 offline reader with captured demonstration posts](docs/screenshots/v1.0.0/reader.png)](docs/screenshots/v1.0.0/reader.png)
+
+Explore the eight-page [Settings workspace](docs/screenshots/v1.0.0/settings.png) and [media rules](docs/screenshots/v1.0.0/rules.png). Historical 0.9.0 screenshots and their original source checkpoints remain in the [earlier interface gallery and capture notes](docs/screenshots/README.md).
 
 ## Quick start
 
@@ -74,26 +79,6 @@ Downloads contain the application, runtime, icon and required legal notices only
 
 The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
 
-## Screenshot tour · 0.9.0
-
-[![MeowChan Downloads in Simple Dark view with saved, active and paused media](docs/screenshots/v0.9.0-downloads.png)](docs/screenshots/v0.9.0-downloads.png)
-
-Downloads keeps watched threads and their saved/selected media progress together. Details show a temporary media 404 and its earliest retry while the thread remains watched.
-
-[![MeowChan gallery showing a saved landscape with navigation, zoom and captured post context](docs/screenshots/v0.9.0-gallery.png)](docs/screenshots/v0.9.0-gallery.png)
-
-Browse local images at Fit or 1:1, zoom and pan, and show the associated captured post.
-
-[![MeowChan full-window offline reader with a large saved image, readable post text and post/thread navigation](docs/screenshots/v0.9.0-reader.png)](docs/screenshots/v0.9.0-reader.png)
-
-Read captured posts at full window size, with large local media and navigation between posts and threads.
-
-[![MeowChan Archive with local search results and saved-media tiles](docs/screenshots/v0.9.0-archive.png)](docs/screenshots/v0.9.0-archive.png)
-
-Find retained threads and media offline. Open images from all matching threads across every results page.
-
-These scenes use original offline demo artwork and synthetic posts captured in isolated Linux Xvfb/Openbox sessions at 100% scaling. The Barebones, Advanced, gallery, Settings and Rules images reflect the final 0.9.0 UI at functional source checkpoint `be2f807`; the other 11 retain their earlier `b8e1291` source capture. Downloads uses passive example states; archive, gallery, reader, favorites and exports use persisted local data. See more of the actual UI in [expanded reader replies](docs/screenshots/v0.9.0-reader-replies.png), [favorites](docs/screenshots/v0.9.0-favorites.png), [original-file export](docs/screenshots/v0.9.0-favorites-original-result.png), [Settings](docs/screenshots/v0.9.0-settings.png), [Rules](docs/screenshots/v0.9.0-rules.png) and [About with the cat and support link](docs/screenshots/v0.9.0-about.png). The [image provenance and complete 16-image set](docs/screenshots/README.md) describe both captures and their limits; these source-built images do not establish native package acceptance or live source availability.
-
 ## Previous release: 0.9.0
 
 - A redesigned Avalonia interface with Barebones as the default, plus Simple and Advanced views of the same running session. Each view remembers its own layout and table columns.
@@ -114,7 +99,7 @@ The 4chan/8kun providers, shared download queue, verified storage and durable se
 
 ## Desktop views
 
-The following layout reference describes the 0.9.0 interface shown above. For the current workflow, see the [user guide](docs/Help.md).
+The following layout reference describes the historical 0.9.0 interface. For the current workflow, see the [user guide](docs/Help.md).
 
 MeowChan 0.9.0 uses **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Switch views without restarting downloads or losing the current selection and URL input:
 
