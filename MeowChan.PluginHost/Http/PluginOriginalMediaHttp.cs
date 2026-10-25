@@ -27,6 +27,7 @@ public static class PluginOriginalMediaHttp
         private static readonly HashSet<string> SafeHeaders = new(StringComparer.OrdinalIgnoreCase)
         { "Accept", "Accept-Encoding", "Accept-Language", "User-Agent" };
         private readonly HttpClient _transport;
+        private readonly HttpClient _checkedTransport;
         private readonly HttpClient _client;
         private readonly HashSet<string> _hosts;
         private readonly TimeProvider _clock;
@@ -34,7 +35,10 @@ public static class PluginOriginalMediaHttp
         internal RedirectHandler(HttpClient transport, SourceDescription source, RequestPolicyState policy, ILogger? logger)
         {
             _transport = transport;
-            _client = ProviderHttpClientFactory.CreatePolicyClient(transport, source.SourceId, policy, logger);
+            // RequestPolicyHandler replaces response.RequestMessage with its
+            // caller's message. Check the raw destination before that rewrite.
+            _checkedTransport = new HttpClient(new TransportGuard(transport)) { Timeout = Timeout.InfiniteTimeSpan };
+            _client = ProviderHttpClientFactory.CreatePolicyClient(_checkedTransport, source.SourceId, policy, logger);
             _hosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.OriginalMedia))
                 .Select(host => host.Host).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _clock = policy.TimeProvider;
@@ -88,6 +92,8 @@ public static class PluginOriginalMediaHttp
             { throw new OperationCanceledException(cancellationToken); }
             catch (OperationCanceledException exception) when (deadline.IsCancellationRequested)
             { throw new TimeoutException("Original-media redirect headers exceeded their shared 60-second deadline.", exception); }
+            catch (UnvalidatedTransportRedirectException exception)
+            { throw new HttpRequestException("Original-media transport followed an unvalidated redirect.", exception); }
         }
 
         private void Validate(Uri uri)
@@ -99,8 +105,30 @@ public static class PluginOriginalMediaHttp
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _client.Dispose();
+            if (disposing) { _client.Dispose(); _checkedTransport.Dispose(); }
             base.Dispose(disposing);
+        }
+    }
+
+    private sealed class UnvalidatedTransportRedirectException : Exception { }
+
+    private sealed class TransportGuard(HttpClient transport) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            using HttpRequestMessage raw = new(request.Method, request.RequestUri)
+            { Version = request.Version, VersionPolicy = request.VersionPolicy };
+            foreach (var header in request.Headers) raw.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            foreach (var option in request.Options) raw.Options.Set(new HttpRequestOptionsKey<object?>(option.Key), option.Value);
+            HttpResponseMessage response = await transport.SendAsync(raw, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if ((response.RequestMessage?.RequestUri ?? request.RequestUri) != request.RequestUri)
+                    throw new UnvalidatedTransportRedirectException();
+                return response;
+            }
+            catch { response.Dispose(); throw; }
         }
     }
 }

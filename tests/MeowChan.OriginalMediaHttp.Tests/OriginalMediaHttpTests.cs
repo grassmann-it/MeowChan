@@ -102,12 +102,12 @@ public sealed class OriginalMediaHttpTests
     {
         foreach (bool hidden in new[] { false, true })
         {
-            TrackingContent content = new([1]);
-            using HttpClient transport = new(new Handler((request, _) => Task.FromResult(
-                Response(hidden ? new HttpRequestMessage(HttpMethod.Get, "https://foreign.invalid/file") : request, hidden ? 200 : 302, content))));
+            TrackingContent content = new([1]); int sent = 0;
+            using HttpClient transport = new(new Handler((request, _) =>
+            { sent++; return Task.FromResult(Response(hidden ? new HttpRequestMessage(HttpMethod.Get, "https://foreign.invalid/file") : request, hidden ? 200 : 302, content)); }));
             using HttpClient client = Client(transport);
             await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(Initial, HttpCompletionOption.ResponseHeadersRead));
-            Assert.True(content.Disposed);
+            Assert.True(content.Disposed); Assert.Equal(1, sent);
         }
     }
 
