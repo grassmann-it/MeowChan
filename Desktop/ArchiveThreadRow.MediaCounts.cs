@@ -5,6 +5,10 @@ namespace MeowChan.Desktop;
 
 internal sealed partial record ArchiveThreadRow
 {
+    // This is a mutable row view model, selected by reference inside UI collections.
+    // Projection/favorite updates must not change its equality or hash-set membership.
+    public bool Equals(ArchiveThreadRow? other) => ReferenceEquals(this, other);
+    public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
     private ArchiveThreadMediaCount? _mediaCount;
     private ThreadWorkSnapshot? _mediaCountWork = Work;
     public string CompactMedia => _mediaCount?.SavedVersions is int count ? count.ToString(Texts.Culture) : "—";

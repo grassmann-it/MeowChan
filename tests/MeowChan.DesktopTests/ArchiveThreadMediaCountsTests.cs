@@ -128,11 +128,16 @@ public sealed class ArchiveThreadMediaCountsTests
         await ManifestAsync(temp.Path, 1);
         ArchiveThreadRow row = new(Summary(temp.Path));
         row.SetMediaCount(await ArchiveThreadMediaInventory.ReadAsync([temp.Path]), null);
+        HashSet<ArchiveThreadRow> selected = [row];
+        int selectedHash = row.GetHashCode();
         List<string?> changes = [];
         row.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
         await ManifestAsync(temp.Path, 2);
         row.SetMediaCount(await ArchiveThreadMediaInventory.ReadAsync([temp.Path]), null);
         Assert.Equal("2", row.CompactMedia);
+        Assert.Equal(selectedHash, row.GetHashCode());
+        Assert.True(selected.Contains(row));
+        Assert.True(selected.Remove(row));
         Assert.Equal(new[] { nameof(row.CompactMedia), nameof(row.SavedMediaCount), nameof(row.MediaStatus) }, changes);
         Assert.Equal(8, row.Posts);
     }
