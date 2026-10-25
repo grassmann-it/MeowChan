@@ -18,7 +18,7 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 - **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
 - **Keep the media you want.** **5 local media filters** cover dimensions, file size/original names, SHA-256 blocklists, animation/actual format and PNG metadata fields. The supplied inventory totals **16 plugins**, with **14 editable C# examples** and a bundled compiler. See the [plugin guide](docs/plugins/README.md) for installation, permissions and limits.
 - **Settle in and read.** Save named reader groups, use optional Continue reading to return to your saved place, and keep post bookmarks and notes.
-- **Find your favorites again.** Save archive searches, star threads and media, and rate images. Search captured posts and browse your collection without contacting the source.
+- **Find your favorites again.** Save archive searches, star threads and media, and rate media. Search captured posts and browse your collection without contacting the source.
 - **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
 - **Enjoy the originals.** Browse local media in the gallery; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
 

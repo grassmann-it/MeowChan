@@ -5,7 +5,7 @@ and optionally captures posts for local reading and search. This guide describes
 **MeowChan 1.0.0**. See the [1.0.0 release notes](releases/v1.0.0.md) for
 packages and upgrade details.
 
-4chan and 8kun are built in; supplied source plugins add Lainchan, Kohlchan,
+The supplied source plugins support 4chan, 8kun, Lainchan, Kohlchan,
 Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Open **Plugins**
 from the app menu or footer (under **Tools** in compact views), then select a
 plugin to see its purpose, status and actions. The [plugin guide](plugins/README.md)
