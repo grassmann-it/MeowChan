@@ -27,13 +27,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     // Status and time belong to the themed transport below the black media viewport.
-    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
-    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
-    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Width = 44, Height = 44, CornerRadius = new CornerRadius(22), Padding = new Thickness(10) };
-    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Width = 36, Height = 36, Padding = new Thickness(8) };
-    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Height = 36 };
-    private readonly Slider _seek = new() { Name = "GalleryVideoSeek", Minimum = 0, Maximum = 1000, MinWidth = 140 };
-    private readonly Slider _volume = new() { Name = "GalleryVideoVolume", Minimum = 0, Maximum = 100, Value = 70, Width = 100 };
+    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", FontSize = 12, Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
+    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", FontSize = 12, MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") };
+    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(10) };
+    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
+    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
+    private readonly Slider _seek = new() { Name = "GalleryVideoSeek", Classes = { "media-slider" }, Minimum = 0, Maximum = 1000, MinWidth = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Slider _volume = new() { Name = "GalleryVideoVolume", Classes = { "media-slider" }, Minimum = 0, Maximum = 100, Value = 70, Width = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
     private readonly SemaphoreSlim _operations = new(1, 1);
     private CancellationTokenSource? _loading;
@@ -172,20 +172,39 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         CommandBindings.BindExisting(_playPause, "video.play-pause");
         CommandBindings.BindExisting(_mute, "video.mute");
         CommandBindings.BindExisting(_loop, "video.loop");
-        WrapPanel buttons = new() { HorizontalAlignment = HorizontalAlignment.Center };
-        buttons.Children.Add(_playPause);
-        StackPanel audio = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        audio.Children.Add(_mute); audio.Children.Add(_volume);
-        buttons.Children.Add(audio);
-        buttons.Children.Add(_loop);
-        foreach (Control control in buttons.Children) control.Margin = new Thickness(6, 2);
-        _loop.VerticalAlignment = VerticalAlignment.Center;
+        foreach (Slider slider in new[] { _seek, _volume })
+        {
+            // Retain Semi's slider input/template with a slim media track and
+            // a full-height pointer/focus target.
+            slider.Resources["SliderTrackWidth"] = 3d;
+            slider.Resources["SliderThumbWidth"] = 12d;
+            slider.Resources["SliderThumbHeight"] = 12d;
+        }
+        StackPanel secondary = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        secondary.Children.Add(_mute); secondary.Children.Add(_volume); secondary.Children.Add(_loop);
         Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         timeline.Children.Add(_seek);
         timeline.Children.Add(_time); Grid.SetColumn(_time, 1);
-        StackPanel transport = new() { Spacing = 8 };
-        transport.Children.Add(timeline);
-        transport.Children.Add(buttons);
+        Grid controls = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+        controls.Children.Add(_playPause);
+        controls.Children.Add(timeline); Grid.SetColumn(timeline, 1);
+        controls.Children.Add(secondary); Grid.SetColumn(secondary, 2);
+        // A narrow post-context pane gets two deliberate rows, never a loosely
+        // wrapping button pile. Audio and loop remain reachable at every width.
+        bool compact = false;
+        SizeChanged += (_, _) =>
+        {
+            bool nextCompact = Bounds.Width < 560;
+            if (compact == nextCompact) return;
+            compact = nextCompact;
+            controls.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto");
+            controls.RowSpacing = compact ? 4 : 0;
+            Grid.SetRow(timeline, 0); Grid.SetColumn(timeline, compact ? 0 : 1); Grid.SetColumnSpan(timeline, compact ? 3 : 1);
+            Grid.SetRow(_playPause, compact ? 1 : 0);
+            Grid.SetRow(secondary, compact ? 1 : 0);
+        };
+        StackPanel transport = new();
+        transport.Children.Add(controls);
         transport.Children.Add(_status);
         Border transportPanel = new() { Name = "GalleryVideoTransport", Classes = { "workspace-media-transport" }, Child = transport };
         // Seek, time, volume and playback form one reserved surface. Its dynamic
@@ -250,14 +269,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             AutomationProperties.SetHelpText(control, tip);
             ToolTip.SetTip(control, tip);
         }
-        _playPause.Content = CommandBindings.Icon("video.play-pause", 22, _isPlaying ? "playing" : "paused");
+        _playPause.Content = TransportIcon("video.play-pause", 20, _isPlaying ? "playing" : "paused");
         ActionName(_playPause, "video.play-pause", Texts.T(_isPlaying ? "viewer.video.pause" : "viewer.video.play"));
-        _mute.Content = CommandBindings.Icon("video.mute", 18, _muted ? "muted" : "audible");
+        _mute.Content = TransportIcon("video.mute", 18, _muted ? "muted" : "audible");
         _mute.IsChecked = _muted;
         string audioUnavailable = Texts.T(_audioTracks == 0 ? "viewer.video.noAudioTrack" : "viewer.video.audioUnavailable");
         ActionName(_mute, "video.mute", _audioAvailable ? Texts.T(_muted ? "viewer.video.unmute" : "viewer.video.mute") : audioUnavailable);
-        _loop.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
-            Children = { CommandBindings.Icon("video.loop"), new TextBlock { Text = Texts.T("viewer.video.loop"), VerticalAlignment = VerticalAlignment.Center } } };
+        _loop.Content = TransportIcon("video.loop", 18);
         _loop.IsChecked = Volatile.Read(ref _loopEnabled) != 0;
         ActionName(_loop, "video.loop", Texts.T(_loop.IsChecked == true ? "viewer.video.loop.disable" : "viewer.video.loop.enable"));
         AutomationProperties.SetName(_seek, Texts.T("viewer.video.position"));
@@ -265,6 +283,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
         ToolTip.SetTip(_volume, volumeLabel);
+    }
+    private static Control TransportIcon(string command, int size, string? state = null)
+    {
+        Border icon = (Border)CommandBindings.Icon(command, size, state);
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
+        return icon;
     }
     internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
     {

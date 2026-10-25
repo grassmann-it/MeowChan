@@ -272,6 +272,57 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
     </Style>
     <Style Selector="Border.workspace-media-tools, Border.workspace-media-caption, Border.workspace-media-transport"><Setter Property="Padding" Value="8" /></Style>
+    <!-- Video transport is a quiet strip attached to the viewport, not another
+         settings card. Keep the gallery's action/caption surfaces independent. -->
+    <Style Selector="Border.workspace-media-transport">
+        <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Button.media-control, ToggleButton.media-control">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.media-play">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="Button.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.media-control:checked /template/ ContentPresenter#PART_ContentPresenter, Button.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="ToggleButton.media-control:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHover}" />
+    </Style>
+    <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="Slider.media-slider">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Slider.media-slider /template/ Grid#SliderContainer">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Slider.media-slider /template/ Thumb">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
+    </Style>
+    <Style Selector="Slider.media-slider:disabled /template/ RepeatButton#PART_IncreaseButton">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
+    </Style>
+    <Style Selector="Slider.media-slider:disabled /template/ RepeatButton#PART_DecreaseButton">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Slider.media-slider:disabled /template/ Thumb">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <Style Selector="WrapPanel.workspace-actions, WrapPanel.workspace-toolbar, WrapPanel.workspace-tool-group">
         <Setter Property="ItemSpacing" Value="{StaticResource Workspace.Space.8}" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.8}" />
     </Style>
