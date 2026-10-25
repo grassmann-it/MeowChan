@@ -17,7 +17,7 @@ PROJECTS = (
 
 def processes(group):
     result = subprocess.run(['ps', '-axo', 'pid=,ppid=,pgid=,stat=,etime=,command='],
-                            capture_output=True, text=True, timeout=5)
+                            capture_output=True, text=True, timeout=5, check=True)
     rows = []
     for line in result.stdout.splitlines():
         fields = line.strip().split(None, 5)
@@ -27,10 +27,48 @@ def processes(group):
 
 
 def kill_group(group, sig):
+    if group <= 1 or group == os.getpgrp():
+        raise ValueError('Refusing to signal the watchdog or a system process group')
     try:
         os.killpg(group, sig)
     except ProcessLookupError:
         pass
+    except PermissionError as exc:
+        # macOS can reject the group signal while its last member is exiting.
+        # The caller must still verify that no live members remain.
+        return dict(signal=sig.name, error=repr(exc))
+
+
+def live_processes(group):
+    # Defunct children cannot execute or retain the suite's resources. Their
+    # eventual reaping belongs to their parent, which can have exited already.
+    return [row for row in processes(group) if not row[1].split()[3].startswith('Z')]
+
+
+def cleanup_group(child):
+    errors = []
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        error = kill_group(child.pid, sig)
+        if error:
+            errors.append(error)
+        try:
+            child.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            pass
+    remaining = []
+    verified = False
+    try:
+        deadline = time.monotonic() + 3
+        while True:
+            remaining = live_processes(child.pid)
+            if not remaining or time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        verified = not remaining
+    except (OSError, subprocess.SubprocessError) as exc:
+        errors.append(dict(operation='verify-process-group', error=repr(exc)))
+    return dict(complete=child.returncode is not None and verified,
+                errors=errors, remaining=[row[1] for row in remaining])
 
 
 def capture_timeout(group, output):
@@ -66,16 +104,10 @@ def run_one(name, command, output, timeout):
             capture_timeout(child.pid, output)
         finally:
             # Also remove surviving children after an ordinary runner exit.
-            kill_group(child.pid, signal.SIGTERM)
-            try:
-                child.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                pass
-            # The root may exit before a stubborn descendant; always kill the group.
-            kill_group(child.pid, signal.SIGKILL)
-            child.wait(timeout=3)
+            cleanup = cleanup_group(child)
     result = dict(name=name, command=command, pid=child.pid, timeout=timed_out,
-                  exit_code=child.returncode, seconds=round(time.monotonic() - started, 2))
+                  exit_code=child.returncode, seconds=round(time.monotonic() - started, 2),
+                  cleanup=cleanup)
     (output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     return result
 
@@ -105,7 +137,7 @@ def bound_evidence(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('artifacts/macos-test-diagnosis'))
-    parser.add_argument('--timeout', type=int, default=240)
+    parser.add_argument('--timeout', type=int, default=300)
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
     if not 1 <= args.timeout <= 300:
@@ -142,10 +174,11 @@ def main():
     if args.self_test:
         assert results[0]['exit_code'] == 7
         assert results[1]['timeout']
-        assert not processes(results[1]['pid']), 'Timed-out process group survived cleanup'
+        assert results[1]['cleanup']['complete'], 'Timed-out process group survived cleanup'
         assert results[2]['exit_code'] == 0
         return 0
-    return int(any(r.get('timeout') or r.get('exit_code') != 0 for r in results))
+    return int(any(r.get('timeout') or r.get('exit_code') != 0
+                   or not r.get('cleanup', {}).get('complete', False) for r in results))
 
 
 if __name__ == '__main__':

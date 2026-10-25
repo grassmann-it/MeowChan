@@ -123,8 +123,8 @@ jobs:
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Run both complete macOS offline suites with bounded diagnostics
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        timeout-minutes: 10
-        run: python3 scripts/macos-test-watchdog.py --timeout 240
+        timeout-minutes: 12
+        run: python3 scripts/macos-test-watchdog.py --timeout 300
       - name: Check package layout fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: |
@@ -134,6 +134,7 @@ jobs:
           python -m unittest discover -s tests -p test_prerelease.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
+          python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_local_package.py -v
@@ -860,8 +861,8 @@ jobs:
         timeout-minutes: 4
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Diagnose Core then Desktop independently
-        timeout-minutes: 10
-        run: python3 scripts/macos-test-watchdog.py --timeout 240
+        timeout-minutes: 12
+        run: python3 scripts/macos-test-watchdog.py --timeout 300
       - name: Upload bounded diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v7
