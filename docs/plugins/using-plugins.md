@@ -8,7 +8,57 @@ required for the corresponding plugin operations.
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied plugins include
-   **Lainchan**, The separate source/filter candidate adds five Experimental sources to the three
+   **Lainchan**, **Kohlchan**, **Wizchan**, **Endchan** and
+   **Image dimensions (example)**. Selecting an entry shows
+   its purpose, current status and available actions. Use the category selector
+   for sources, image filters or all plugins. Sources → source details →
+   **Plugin settings and tests** is another route to that source's entry.
+2. Choose **Enable plugin** or **Disable plugin** to change availability now.
+   These actions use the already selected valid build; manual enablement grants
+   no provider-size/MD5 exception. The eight supplied experimental sources default
+   disabled at first registration; existing saved states are retained. See
+   [experimental activation](#experimental-sources-and-media-checks) for their distinct checks.
+   **Source and watches**
+   opens the related source and its watched entries when available.
+3. Use **Actions** → **Open settings** to reach available plugin/source options.
+   Review your changes and choose **Save for next start**, then restart MeowChan
+   to use them. An **Unsaved draft** has not been saved; **Saved for next start**
+   is separate from the build and settings currently in use.
+4. To try the supplied dimensions filter, open Media rules for one intended
+   source/thread, choose it under **Image filter**, set its width/height or
+   orientation criteria, and **Grant required access for this scope**. Save the
+   rule. It examines supported JPEG/PNG originals for new decisions; previously
+   saved originals remain available. See [filter settings and grants](filters-and-settings.md).
+
+Use an isolated preview profile and media folder for experiments. Only run plugin
+code you trust: a separate process still has your user permissions. A successful
+test leaves the active production build unchanged; saved plugin/source settings
+and candidate selections take effect at the next app start.
+
+## Purpose, status and actions
+
+The overview puts the plugin's purpose and status first, with its type and a
+compact version. Read any unavailable or attention message before acting.
+Descriptions labelled **Last known description** can come from an earlier saved
+build; they do not establish a successful current start. Plugin status describes
+local availability. It does not establish website reachability or successful
+downloads. The [dated live-source results](live-sources-2026-10-24.md) retain
+unresolved metadata conflicts for Kohlchan, Wizchan and Endchan.
+
+Right-click a plugin entry, or focus it and use the context-menu key (normally
+Shift+F10), for its actions. The **Actions** buttons offer the same choices.
+**Open details**, **Open settings**, **View permissions** and **Show developer
+details** take you to the relevant part of that plugin. Unavailable actions show
+their reason. Enable/disable does not save a settings draft; candidate selection
+and rollback remain choices for the next start.
+
+Expand **Developer details** for technical information, **Copy technical details**
+and source editing/testing tools. Ordinary plugin use does not require opening
+this section. To add or edit a trusted `.cs` source, follow the next sections.
+
+## Experimental sources and media checks
+
+The separate source/filter candidate adds five Experimental sources to the three
 existing ones. All eight supplied identities start disabled when first registered
 in a profile. Existing profiles keep their saved enable/disable and permission
 choices; an upgrade does not reset them. Candidate registration is not a claim
