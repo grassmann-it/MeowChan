@@ -147,6 +147,46 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
     }
 
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public async Task StageSha1RemainsStrictEvenWithExplicitSizeMd5Permission(bool validSha1)
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4), filterAssembly: typeof(FileRulesFilter).Assembly.Location);
+        StageIntegrityPolicy consent = new(h.Root.Path);
+        string sha1 = Convert.ToBase64String(validSha1 ? SHA1.HashData(h.Bytes) : new byte[20]);
+        DownloadItem item = await h.ItemAsync(new(), sha1, mismatch: true, integrityPolicy: consent);
+        if (validSha1)
+        {
+            await h.RunAsync(item);
+            Assert.Equal(h.Bytes, await File.ReadAllBytesAsync(item.DestinationPath));
+            Assert.NotNull(await new MediaStore().TryRestoreAsync(item, CancellationToken.None));
+        }
+        else
+        {
+            MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+            Assert.False(error.IsNoMatch); Assert.Equal("filter_original_integrity", error.ReasonCode);
+            Assert.False(File.Exists(item.DestinationPath));
+            Assert.Equal(MediaSelectionOutcome.TechnicalOmission,
+                Assert.Single(await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Selection.Outcome);
+        }
+        Assert.Equal(1, h.Transfers); Assert.Equal(0, h.ImageReads);
+        Assert.Equal(validSha1 ? 1 : 0, h.Evaluations);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    private sealed class StageIntegrityPolicy(string profile) : ISourceMediaIntegrityPolicy
+    {
+        private readonly SourceMediaIntegrityPolicySnapshot snapshot = new(profile, "fixture.source.stub", "stub", true, 1);
+        public SourceMediaIntegrityPolicySnapshot GetSnapshot() => snapshot;
+        public ValueTask<MediaAcceptanceLease> AcquireAcceptanceLeaseAsync(long expectedRevision, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested(); Assert.Equal(snapshot.Revision, expectedRevision);
+            return ValueTask.FromResult<MediaAcceptanceLease>(new StageAcceptanceLease(snapshot));
+        }
+        private sealed class StageAcceptanceLease(SourceMediaIntegrityPolicySnapshot value) : MediaAcceptanceLease(value)
+        { public override ValueTask DisposeAsync() => ValueTask.CompletedTask; }
+    }
+
     private static byte[] WaveContainer(string format)
     {
         if (format == "gif")
@@ -630,7 +670,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         private readonly bool _resourceFilter;
         public IPluginWorkerClient Worker { get; private set; } = null!;
         public byte[] Bytes { get; }
-        public int Transfers, ImageReads;
+        public int Transfers, ImageReads, Evaluations;
         public bool Current = true;
         public Action? OnRead, OnResult;
         public Func<Task>? BeforeResult;
@@ -677,7 +717,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
                 SettingsSnapshot settings = FilterRuleSettings.Create(request.Decision.Selection.EffectiveRule.ImageFilter, h.Worker.Description.Filters.Single());
                 return Task.FromResult<FilterPluginBinding?>(new(h.Worker.Description.PluginId, "execution", "configuration", "grant-1", h.Operation,
                     settings, () => h.Current, async (filterRequest, operation, token) => {
-                        h.LastToken = filterRequest.AssetToken;
+                        h.LastToken = filterRequest.AssetToken; h.Evaluations++;
                         ImageFilterResult result = await h.Worker.EvaluateAsync(filterRequest, operation, token);
                         if (h.BeforeResult != null) await h.BeforeResult();
                         h.OnResult?.Invoke(); return result;
@@ -685,13 +725,16 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             });
             return h;
         }
-        public async Task<DownloadItem> ItemAsync(Dictionary<string, string> values)
+        public async Task<DownloadItem> ItemAsync(Dictionary<string, string> values, string? expectedSha1 = null,
+            bool mismatch = false, ISourceMediaIntegrityPolicy? integrityPolicy = null)
         {
             MediaImageFilterRule filter = new(MediaImageFilterMode.Plugin, Worker.Description.PluginId, Worker.Description.Filters.Single().Key, parameters: values);
             await Content.Rules.SaveAsync(new[] { new MediaRule(MediaRuleScope.Global) { ImageFilter = filter } });
             string path = StorageLayout.GetMediaPath(Root.Path, "stub", "g", "123", "456", ".png");
-            DownloadItem item = new(new Uri("https://stub.test/456.png"), path, _board, _thread, "456", Bytes.Length, Convert.ToBase64String(MD5.HashData(Bytes)), "original.png") { FilterPostId = "123" };
-            CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, Bytes.Length, item.ExpectedMd5, "original.png", extension: ".png"), Content.Rules);
+            DownloadItem item = new(new Uri("https://stub.test/456.png"), path, _board, _thread, "456", Bytes.Length + (mismatch ? 1 : 0), Convert.ToBase64String(mismatch ? new byte[16] : MD5.HashData(Bytes)), "original.png")
+                { FilterPostId = "123", ExpectedSha1 = expectedSha1, MediaIntegrityPolicy = integrityPolicy };
+            CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, item.ExpectedSize, item.ExpectedMd5, "original.png", extension: ".png")
+                { ExpectedSha1 = expectedSha1 }, Content.Rules);
             item.Filter = ((IOriginalMediaFilterFactory)Stage).Create(item, decision, () => Current && Content.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision,
                 async (noMatch, reason, token) => { await Content.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token); });
             return item;
