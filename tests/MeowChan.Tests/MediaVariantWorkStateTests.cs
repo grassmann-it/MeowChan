@@ -10,6 +10,34 @@ public sealed class MediaVariantWorkStateTests
     private const string Url = "https://stub.test/g/thread/1";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    [Theory]
+    [InlineData("commit")]
+    [InlineData("load")]
+    public void HistoricalRawMd5DescriptorsRetainCommitAndLoadCompatibility(string operation)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        WorkStateStore store = new(directory.Path, lease);
+        store.CommitIntent(new WorkResource { Url = Url, Generation = 1, OutputRoot = directory.Path,
+            Intent = WorkIntent.Watching, IsThread = true });
+        MediaWork initial = new() { ResourceUrl = Url, Generation = 1, MediaIdentifier = "historical",
+            DestinationPath = Path.Combine(directory.Path, "historical.bin"), DownloadUrl = "https://stub.test/historical.bin",
+            Status = MediaWorkStatus.Waiting, Attempts = 2, LastAttemptAt = DateTimeOffset.UtcNow.AddMinutes(-2),
+            DueAt = DateTimeOffset.UtcNow.AddMinutes(2) };
+        MediaWork raw = initial with { ExpectedMd5 = "historical-opaque-checksum" };
+        if (operation == "commit") Assert.True(store.CommitMedia(raw));
+        else
+        {
+            Assert.True(store.CommitMedia(initial));
+            using SqliteConnection db = Open(directory.Path);
+            using SqliteCommand oldPayload = db.CreateCommand();
+            oldPayload.CommandText = "UPDATE work_media SET payload=$payload";
+            oldPayload.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(raw, Json));
+            oldPayload.ExecuteNonQuery();
+        }
+        Assert.Equal(raw, Assert.Single(new WorkStateStore(directory.Path, lease).LoadMedia(Url, 1)));
+    }
+
     [Fact]
     public void Sha1AndRawProviderSizeHintSurviveDurableRestartAndRejectInvalidMetadata()
     {

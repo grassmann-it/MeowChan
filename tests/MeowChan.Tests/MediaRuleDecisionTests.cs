@@ -43,6 +43,38 @@ public sealed class MediaRuleDecisionTests
     }
 
     [Fact]
+    public async Task HistoricalExcludedDecisionRetainsRawChecksumAndFirstIntentThroughSchemaUpgrade()
+    {
+        await using DecisionFixture fixture = await DecisionFixture.CreateAsync();
+        MediaRuleSet firstRules = await fixture.Rules.SaveAsync(new[] { OnlyJpeg() });
+        CandidateMetadata initial = fixture.Metadata("historical", extension: ".png");
+        CandidateDecision first = await fixture.Catalog.GetOrCreateDecisionAsync(initial, fixture.Rules);
+        Assert.Equal(MediaSelectionOutcome.Excluded, first.Selection.Outcome);
+        // Recreate a pre-extension persisted row independently of current writers.
+        // Catalog metadata retained raw MD5, including excluded media.
+        await ExecuteSqlAsync(fixture.Catalog.DatabasePath, """
+            UPDATE media_decisions SET expected_md5='historical-opaque-checksum';
+            ALTER TABLE archive_attachments DROP COLUMN expected_sha1;
+            ALTER TABLE archive_attachments DROP COLUMN provider_size_hint_json;
+            ALTER TABLE media_decisions DROP COLUMN expected_sha1;
+            ALTER TABLE media_decisions DROP COLUMN provider_size_hint_json;
+            PRAGMA user_version=4;
+            """);
+        await fixture.Rules.SaveAsync(Array.Empty<MediaRule>());
+        await fixture.RestartAsync();
+        CandidateDecision restored = Assert.Single(await fixture.Catalog.GetDecisionsAsync(Thread));
+        Assert.Equal("historical-opaque-checksum", restored.Metadata.ExpectedMd5);
+        Assert.Equal(first.DecidedAtUtc, restored.DecidedAtUtc);
+        Assert.Equal(firstRules.Revision, restored.Selection.EffectiveRule.Revision);
+        Assert.Equal(MediaSelectionOutcome.Excluded, restored.Selection.Outcome);
+        Assert.Equal(MediaSelectionReason.TypeExcluded, restored.Selection.Reason);
+        Assert.Equal(initial.DestinationPath, restored.Metadata.DestinationPath);
+        CandidateDecision fresh = await fixture.Catalog.GetOrCreateDecisionAsync(fixture.Metadata("new", extension: ".png"), fixture.Rules);
+        Assert.Equal(MediaSelectionOutcome.Selected, fresh.Selection.Outcome);
+        Assert.False(File.Exists(initial.DestinationPath));
+    }
+
+    [Fact]
     public async Task SelectedIntentKeepsOriginalTargetAndRuleAfterLaterExclusion()
     {
         await using DecisionFixture fixture = await DecisionFixture.CreateAsync();
