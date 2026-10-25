@@ -83,7 +83,13 @@ public partial class ArchivePage
             ListBox cards = Control<ListBox>("ArchiveThreads");
             DataGrid table = Control<DataGrid>("ArchiveThreadTable");
             if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Clear();
-            if (!ReferenceEquals(source, table)) table.SelectedItems.Clear();
+            if (!ReferenceEquals(source, table))
+            {
+                // An unmeasured/hidden grid defers selection coercion. Clear the
+                // cached item too, so adding that same row runs its setter again.
+                table.SelectedItem = null;
+                table.SelectedItems.Clear();
+            }
             foreach (ArchiveThreadRow row in rows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)))
             {
                 if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Add(row);
