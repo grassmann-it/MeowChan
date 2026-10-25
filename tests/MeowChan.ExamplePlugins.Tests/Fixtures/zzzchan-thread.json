@@ -1,0 +1,60 @@
+{
+  "_id": "not-a-public-post-id",
+  "postId": 123,
+  "board": "demo",
+  "thread": null,
+  "date": "2026-09-20T20:39:27.884Z",
+  "subject": "Synthetic thread",
+  "name": "Synthetic author",
+  "message": "<span>Synthetic &amp; inert</span>",
+  "nomarkup": "Synthetic & inert",
+  "files": [
+    {
+      "filename": "shared.png",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "originalFilename": "picture.png",
+      "extension": ".png",
+      "mimetype": "image/png",
+      "size": 4,
+      "hasThumb": false,
+      "phash": "1234567890abcdef"
+    },
+    {
+      "filename": "video.webm",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "extension": ".webm",
+      "mimetype": "video/webm",
+      "size": 6
+    }
+  ],
+  "locked": true,
+  "cyclic": true,
+  "replyposts": 2,
+  "replyfiles": 1,
+  "replies": [
+    {
+      "_id": "other-internal-id",
+      "postId": 124,
+      "thread": 123,
+      "board": "demo",
+      "message": "Synthetic reply",
+      "files": [
+        {
+          "filename": "shared.png",
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "originalFilename": "picture.png",
+          "extension": ".png",
+          "mimetype": "image/png",
+          "size": 4,
+          "hasThumb": false,
+          "phash": "1234567890abcdef"
+        }
+      ]
+    },
+    {
+      "postId": 125,
+      "thread": 123,
+      "nomarkup": "reply with no files supplied"
+    }
+  ]
+}
