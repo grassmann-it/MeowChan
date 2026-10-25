@@ -153,8 +153,26 @@
         "dependencies": {
           "Microsoft.Data.Sqlite": "[10.0.12, )",
           "Newtonsoft.Json": "[13.0.3, )",
-          "Serilog": "[4.0.2, )",
-          "NodaTime": "[3.3.6, )"
+          "NodaTime": "[3.3.6, )",
+          "Serilog": "[4.0.2, )"
+        }
+      },
+      "meowchan.animationformatfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
+        }
+      },
+      "meowchan.filerulesfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
+        }
+      },
+      "meowchan.hashblocklistfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.imagedimensionsfilter": {
@@ -173,11 +191,17 @@
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.0, )",
-          "libmeowchan": "[0.9.0, )"
+          "libmeowchan": "[1.0.0, )"
         }
       },
       "meowchan.pluginsdk": {
         "type": "Project"
+      },
+      "meowchan.pngmetadatafilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0, )"
+        }
       }
     }
   }

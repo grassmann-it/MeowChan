@@ -160,38 +160,38 @@
       "meowchan.animationformatfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.filerulesfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.hashblocklistfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.imagedimensionsfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.pluginfilters.fixture": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       },
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )",
-          "libmeowchan": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )",
+          "libmeowchan": "[1.0.0, )"
         }
       },
       "meowchan.pluginsdk": {
@@ -200,7 +200,7 @@
       "meowchan.pngmetadatafilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+          "MeowChan.PluginSdk": "[1.0.0, )"
         }
       }
     }
