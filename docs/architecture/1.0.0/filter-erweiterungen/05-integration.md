@@ -23,8 +23,13 @@ Status: **teilweise implementiert, gemeinsame Abnahme offen**. Separater Branch
 
 **Produktiver Integrationsbefund:** Der bisherige Hostheader akzeptiert nur
 JPEG/PNG. Headerfix `d732a12` ergänzt GIF/WebP bei unveränderten Byte-/Pixelgrenzen;
-der Worker meldet dafür 57/57 Modultests bestanden. Echte neue Stagefälle sind
-vorbereitet; ihr Nachweis steht aus.
+der Worker meldet dafür 57/57 Modultests bestanden. Gemeinsamer Stand `3b7a9f1`:
+23/23 echte Stage-/IPC-/Workerfälle bestanden, 0 Skips/Fehler/Warnungen. Belegt
+sind Match/NoMatch, GIF/WebP trotz PNG-Dateiname, beschädigte Container als
+technische Auslassung, Pixelgrenze vor Workerread, Revisionwechsel ohne Commit
+sowie strikte SHA1-Prüfung trotz ausdrücklicher Größen-/MD5-Freigabe. Der erste
+Lauf `b0a7c81` hatte 22/23 PASS; fehlende exakte Revisionsreferenzen der neuen
+Consent-Testfixture wurden korrigiert, keine Produktionspolicy aufgeweicht.
 
 Pluginlabels und Pluginhilfe bleiben derzeit Englisch; Hostchrome folgt EN/DE.
 Das SDK bietet keinen Pluginlokalisierungsvertrag. Diese Abnahmelücke ist
