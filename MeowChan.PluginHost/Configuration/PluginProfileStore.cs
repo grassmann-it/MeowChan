@@ -259,6 +259,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
         byte[] bytes = SdkJson.Serialize(envelope);
         if (bytes.Length > MaximumStoreBytes) throw new IOException("Plugin profile state exceeds its bounded store size.");
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
+        bool preserveTemporary = false;
         try
         {
             await using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 8192, FileOptions.WriteThrough))
@@ -271,10 +272,23 @@ public sealed class PluginProfileStore : IPluginProfileStore
             // the old revision open. ReplaceFile supports that reader and keeps its
             // complete snapshot alive while publishing the new revision atomically.
             // The stable writer lease prevents competing initial creates/replacements.
-            if (File.Exists(path)) File.Replace(temporary, path, destinationBackupFileName: null);
+            if (File.Exists(path))
+            {
+                try { File.Replace(temporary, path, destinationBackupFileName: null); }
+                catch (IOException exception) when (OperatingSystem.IsWindows()
+                    && (exception.HResult == unchecked((int)0x80070498)
+                        || exception.HResult == unchecked((int)0x80070499)))
+                {
+                    // ReplaceFile errors 1176/1177 can already have moved the old
+                    // destination. Retain the complete new file for recovery and
+                    // report the original error; never fall back to another write.
+                    preserveTemporary = true;
+                    throw;
+                }
+            }
             else File.Move(temporary, path);
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        finally { if (!preserveTemporary && File.Exists(temporary)) File.Delete(temporary); }
         return Clone(next);
     }
 
