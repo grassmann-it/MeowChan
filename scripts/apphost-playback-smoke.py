@@ -20,7 +20,9 @@ spec = importlib.util.spec_from_file_location('desktop_runner', Path(__file__).w
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)
 CHECKS = {'video-poster-cache', 'initial-image', 'native-time-and-frame-progress', 'native-output-snapshot', 'pause-clock-held', 'play-resumed',
-          'video-image-stream-released', 'back-to-video', 'gallery-close-disposed', 'playing-shutdown-disposed'}
+          'video-image-stream-released', 'back-to-video', 'gallery-close-disposed', 'playing-shutdown-disposed',
+          'single-stateful-playback-button', 'mute-unmute-state', 'repeat-default-off', 'repeat-ended-restarted',
+          'repeat-disabled-at-end', 'repeat-reset-on-image', 'repeat-close-no-restart'}
 
 
 def sha256(path):
@@ -90,9 +92,15 @@ def validate_metrics(metrics, fixture_hash):
         raise ValueError('Insufficient initial native frames/time')
     if second['State'] != 'Playing' or second['Time'] < first['Time'] + 250 or any(second[k] <= first[k] for k in ('DecodedFrames', 'DisplayedFrames')):
         raise ValueError('Native frames/time did not advance')
+    if first.get('LoopEnabled') is not False or first.get('LoopRestarts') != 0:
+        raise ValueError('Repeat did not default off')
+    if not any(sample.get('LoopEnabled') is True and sample.get('LoopRestarts', 0) >= 1 and sample.get('State') == 'Playing' for sample in samples):
+        raise ValueError('Missing native repeat restart evidence')
+    if not any(sample.get('LoopEnabled') is False and sample.get('LoopRestarts', 0) >= 1 and sample.get('State') == 'Ended' for sample in samples):
+        raise ValueError('Missing disabled-repeat end evidence')
     for name, minimum, disposed in [('imageCleanup', 1, False), ('closeCleanup', 2, True), ('shutdownCleanup', 1, True)]:
         evidence = metrics[name]
-        if evidence['HasPlayback'] is not False or evidence['ReleasedStreams'] < minimum or evidence['CleanupFailures'] != 0:
+        if evidence['HasPlayback'] is not False or evidence.get('LoopEnabled') is not False or evidence['ReleasedStreams'] < minimum or evidence['CleanupFailures'] != 0:
             raise ValueError(name + ' did not release playback streams cleanly')
         if disposed and (evidence['Disposed'] is not True or evidence['HasEngine'] is not False):
             raise ValueError(name + ' did not dispose the native engine')

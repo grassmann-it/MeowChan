@@ -7,6 +7,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Automation;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
@@ -112,12 +114,17 @@ public partial class MainWindow
                     result = await player.InspectPlaybackAsync();
                     return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
                         && (OperatingSystem.IsWindows() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
-                        && MediaSmokeControl<Button>(viewer, "GalleryVideoPause").IsEffectivelyEnabled
+                        && MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause").IsEffectivelyEnabled
                         && player.IsEffectivelyVisible && player.Bounds.Width > 0 && player.Bounds.Height > 0;
                 }, "native decoded/displayed frames and enabled transport");
                 samples.Add(result!); SaveEvidence(); return result!;
             }
             var first = await PlayingSampleAsync();
+            RequireMediaSmoke(!first.LoopEnabled && first.LoopRestarts == 0, "Repeat must default off.");
+            RequireMediaSmoke(viewer.GetGalleryVisualDescendants().OfType<Button>().Count(button => button.Name == "GalleryVideoPlayPause") == 1
+                && !viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name is "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"),
+                "Video transport must expose one playback toggle without a visible Stop.");
+            checks.Add("single-stateful-playback-button"); checks.Add("repeat-default-off");
             await WaitMediaSmokeAsync(async () =>
             {
                 var current = await player.InspectPlaybackAsync();
@@ -140,7 +147,7 @@ public partial class MainWindow
                 catch (InvalidDataException) { return Task.FromResult(false); }
             }, "complete native frame snapshot");
             checks.Add("native-output-snapshot");
-            ClickMediaSmoke(viewer, "GalleryVideoPause");
+            ClickMediaSmoke(viewer, "GalleryVideoPlayPause");
             await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "pause state");
             var paused = await player.InspectPlaybackAsync();
             await Task.Delay(350);
@@ -148,7 +155,9 @@ public partial class MainWindow
             RequireMediaSmoke(stillPaused.State == "Paused" && Math.Abs(stillPaused.Time - paused.Time) <= 100,
                 "Pause did not hold the native playback clock.");
             samples.Add(stillPaused); checks.Add("pause-clock-held");
-            ClickMediaSmoke(viewer, "GalleryVideoPlay");
+            await WaitMediaSmokeAsync(() => Task.FromResult(AutomationProperties.GetName(MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause"))
+                == MeowChan.Desktop.Localization.Texts.T("viewer.video.play")), "paused accessible Play action");
+            ClickMediaSmoke(viewer, "GalleryVideoPlayPause");
             await PlayingSampleAsync();
             await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Time > stillPaused.Time + 200,
                 "resumed native clock");
@@ -158,34 +167,67 @@ public partial class MainWindow
                 for (int restart = 0; restart < 6; restart++)
                 {
                     int framesBefore = (await player.InspectPlaybackAsync()).SurfaceFrames;
-                    ClickMediaSmoke(viewer, "GalleryVideoStop");
+                    await player.StopPlaybackAsync(); // Retain the real native stop/replay regression without a visible Stop button.
                     await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).State == "Stopped", "software-output stop");
-                    ClickMediaSmoke(viewer, "GalleryVideoPlay");
+                    ClickMediaSmoke(viewer, "GalleryVideoPlayPause");
                     await PlayingSampleAsync();
                     await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).SurfaceFrames > framesBefore + 2,
                         "software-output frame progression after restart");
                 }
                 checks.Add("software-output-six-stop-play-cycles");
             }
+            bool initialMute = (await player.InspectPlaybackAsync()).Muted;
+            ClickMediaSmoke(viewer, "GalleryVideoMute");
+            await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted != initialMute, "mute native state");
+            ClickMediaSmoke(viewer, "GalleryVideoMute");
+            await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted == initialMute, "restore native mute state");
+            checks.Add("mute-unmute-state");
+            await WaitMediaSmokeAsync(async () => { var state = await player.InspectPlaybackAsync(); return state.Seekable && state.Length > 0; }, "seekable duration");
+            ClickMediaSmoke(viewer, "GalleryVideoLoop");
+            RequireMediaSmoke((await player.InspectPlaybackAsync()).LoopEnabled, "Repeat toggle did not activate the current video.");
+            MediaSmokeControl<Slider>(viewer, "GalleryVideoSeek").Value = 980;
+            await WaitMediaSmokeAsync(async () =>
+            { var state = await player.InspectPlaybackAsync(); return state.LoopRestarts >= 1 && state.State == "Playing" && state.Time < state.Length / 2; }, "EndReached repeat restart");
+            samples.Add(await player.InspectPlaybackAsync());
+            checks.Add("repeat-ended-restarted");
+            ClickMediaSmoke(viewer, "GalleryVideoLoop");
+            int repeats = (await player.InspectPlaybackAsync()).LoopRestarts;
+            MediaSmokeControl<Slider>(viewer, "GalleryVideoSeek").Value = 970;
+            await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).State == "Ended", "repeat disabled at end");
+            await Task.Delay(250);
+            var ended = await player.InspectPlaybackAsync(); samples.Add(ended);
+            RequireMediaSmoke(!ended.LoopEnabled && ended.LoopRestarts == repeats && ended.State == "Ended", "Disabled repeat restarted the media.");
+            checks.Add("repeat-disabled-at-end");
+            ClickMediaSmoke(viewer, "GalleryVideoPlayPause"); await PlayingSampleAsync();
+            ClickMediaSmoke(viewer, "GalleryVideoLoop");
             ClickMediaSmoke(viewer, "GalleryPrevious");
             await WaitMediaSmokeAsync(async () =>
             {
                 imageCleanup = await player.InspectPlaybackAsync();
-                return !imageCleanup.HasPlayback && imageCleanup.ReleasedStreams >= 1 && imageCleanup.CleanupFailures == 0
+                return !imageCleanup.HasPlayback && !imageCleanup.LoopEnabled && imageCleanup.ReleasedStreams >= 1 && imageCleanup.CleanupFailures == 0
                     && viewer.CaptureState().Key == entries[0].Key
                     && MediaSmokeControl<Button>(viewer, "GalleryActual").IsEffectivelyEnabled;
             }, "video-to-image stream cleanup");
             checks.Add("video-image-stream-released");
+            checks.Add("repeat-reset-on-image");
             ClickMediaSmoke(viewer, "GalleryNext");
             await PlayingSampleAsync();
             checks.Add("back-to-video");
+            RequireMediaSmoke(!(await player.InspectPlaybackAsync()).LoopEnabled, "A different display generation inherited repeat.");
+            ClickMediaSmoke(viewer, "GalleryVideoLoop");
+            MediaSmokeControl<Slider>(viewer, "GalleryVideoSeek").Value = 980;
             ClickMediaSmoke(viewer, "GalleryClose");
             await GalleryCleanupTask;
             closeCleanup = await player.InspectPlaybackAsync();
-            RequireMediaSmoke(closeCleanup.Disposed && !closeCleanup.HasPlayback && !closeCleanup.HasEngine
+            RequireMediaSmoke(closeCleanup.Disposed && !closeCleanup.HasPlayback && !closeCleanup.HasEngine && !closeCleanup.LoopEnabled
                 && closeCleanup.ReleasedStreams >= 2 && closeCleanup.CleanupFailures == 0,
                 "Gallery close did not dispose the native player, engine and verified stream.");
             checks.Add("gallery-close-disposed");
+            int afterCloseRepeats = closeCleanup.LoopRestarts;
+            await Task.Delay(200);
+            RequireMediaSmoke((await player.InspectPlaybackAsync()).LoopRestarts == afterCloseRepeats,
+                "A pending EndReached callback restarted a closed video.");
+            checks.Add("repeat-close-no-restart");
             // Also exercise ordinary app shutdown while a fresh native player is actively playing.
             await OpenMediaGalleryAsync(entries, entries[1].EntryKey);
             viewer = _gallery ?? throw new InvalidOperationException("Gallery did not reopen.");

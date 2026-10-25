@@ -4,6 +4,15 @@ internal static class R08dViewerCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("viewer.video.play", "Play video", "Video abspielen"),
+        ("viewer.video.pause", "Pause video", "Video pausieren"),
+        ("viewer.video.mute", "Mute", "Ton ausschalten"),
+        ("viewer.video.unmute", "Unmute", "Ton einschalten"),
+        ("viewer.video.loop", "Repeat", "Wiederholen"),
+        ("viewer.video.loop.enable", "Repeat this video", "Dieses Video wiederholen"),
+        ("viewer.video.loop.disable", "Turn off repeat", "Wiederholung ausschalten"),
+        ("viewer.video.position", "Video position", "Videoposition"),
+        ("viewer.video.volume", "Volume", "Lautstärke"),
         ("viewer.decodeWarning", "Could not improve image quality; the previous image is still shown. ", "Die Bildqualität konnte nicht verbessert werden; das bisherige Bild bleibt sichtbar. "),
         ("viewer.favorite.add", "Add to favorites", "Zu Favoriten hinzufügen"),
         ("viewer.favorite.remove", "Remove from favorites", "Aus Favoriten entfernen"),

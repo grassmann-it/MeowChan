@@ -26,7 +26,7 @@ internal static class LegacyCommandAdapters
         ["CopyVersionButton"] = "about.copy-version", ["CreditsTab"] = "about.show-credits", ["LicensesTab"] = "about.show-licenses",
         ["ProjectLink"] = "about.open-link", ["AuthorLink"] = "about.open-link", ["DonationLink"] = "about.open-link",
         ["ReadingFontSizeInput"] = "reader.font-size", ["ShowShortcutHelpInput"] = "viewer.shortcut-hints",
-        ["GalleryVideoPlay"] = "video.play", ["GalleryVideoPause"] = "video.pause", ["GalleryVideoStop"] = "video.stop"
+        ["GalleryVideoPlayPause"] = "video.play-pause", ["GalleryVideoMute"] = "video.mute", ["GalleryVideoLoop"] = "video.loop"
     };
     internal static void Register(Control root)
     {

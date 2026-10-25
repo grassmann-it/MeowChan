@@ -138,6 +138,28 @@ internal static class VideoContrastChecks
             Console.WriteLine("SMOKE video after end seek: " + JsonSerializer.Serialize(new
                 { theme = theme.ToString(), status.Text, playback = await player.InspectPlaybackAsync() }));
             Check(window, viewer, status, theme, "ended", failures);
+            if ((await player.InspectPlaybackAsync()).LoopEnabled)
+                throw new InvalidOperationException("Repeat did not default off for the verified video.");
+            Button playbackButton = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlayPause");
+            playbackButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitNativeAsync(player, evidence => evidence.State == "Playing" && evidence.Time > 100);
+            Button mute = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoMute");
+            bool originalMute = (await player.InspectPlaybackAsync()).Muted;
+            mute.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitNativeAsync(player, evidence => evidence.Muted != originalMute);
+            mute.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitNativeAsync(player, evidence => evidence.Muted == originalMute);
+            Button loop = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoLoop");
+            loop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            seek.Value = 980;
+            var repeated = await WaitNativeAsync(player, evidence => evidence.LoopEnabled && evidence.LoopRestarts > 0
+                && evidence.State == "Playing" && evidence.Time < evidence.Length / 2);
+            loop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            seek.Value = 970;
+            var finalEnd = await WaitNativeAsync(player, evidence => evidence.State == "Ended");
+            if (finalEnd.LoopEnabled || finalEnd.LoopRestarts != repeated.LoopRestarts)
+                throw new InvalidOperationException("Repeat continued after it was disabled.");
+            Console.WriteLine("SMOKE native video repeat/mute evidence: " + JsonSerializer.Serialize(new { theme = theme.ToString(), repeated, finalEnd }));
             await GalleryToolbarContrastChecks.RunAsync(window, viewer, theme, failures);
             Button next = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryNext");
             next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -149,6 +171,19 @@ internal static class VideoContrastChecks
             await window.GalleryCleanupTask;
         }
         if (failures.Count > 0) throw new InvalidOperationException("Video or gallery toolbar contrast failed: " + string.Join(", ", failures));
+    }
+
+    private static async Task<GalleryVideoPlayer.PlaybackEvidence> WaitNativeAsync(GalleryVideoPlayer player,
+        Func<GalleryVideoPlayer.PlaybackEvidence, bool> predicate)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            var evidence = await player.InspectPlaybackAsync();
+            if (predicate(evidence)) return evidence;
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Native transport state did not settle: " + JsonSerializer.Serialize(evidence));
+            await Task.Delay(25);
+        }
     }
 
     private static void Check(Window window, GalleryViewer viewer, TextBlock text, ThemeVariant theme, string state, List<string> failures)

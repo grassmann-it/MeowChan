@@ -23,7 +23,7 @@ internal static class GalleryCloseChecks
         if (videoFixture)
         {
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>()
-                .Any(button => button.Name == "GalleryVideoPause" && button.IsEffectivelyEnabled));
+                .Any(button => button.Name == "GalleryVideoPlayPause" && button.IsEffectivelyEnabled));
             await RequireNativePlaybackAsync(viewer);
         }
         else
@@ -115,7 +115,7 @@ internal static class GalleryCloseChecks
         {
             GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
             if ((await player.InspectPlaybackAsync()).State != "Playing")
-                viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlay")
+                viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlayPause")
                     .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await RequireNativePlaybackAsync(viewer);
             RequireUncoveredVideoTransport(viewer);
@@ -262,7 +262,7 @@ internal static class GalleryCloseChecks
         PixelPoint infoStart = info.PointToScreen(default);
         double infoScale = TopLevel.GetTopLevel(info)!.RenderScaling;
         foreach (Control transport in viewer.GetGalleryVisualDescendants().OfType<Control>()
-            .Where(control => control.Name is "GalleryVideoSeek" or "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+            .Where(control => control.Name is "GalleryVideoSeek" or "GalleryVideoPlayPause" or "GalleryVideoMute" or "GalleryVideoLoop"))
         {
             Require(transport.IsEffectivelyVisible && transport.Bounds.Width > 0 && transport.Bounds.Height > 0,
                 "Video transport is not visible: " + transport.Name);

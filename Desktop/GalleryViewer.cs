@@ -793,6 +793,14 @@ internal sealed class GalleryViewer : UserControl
         if (CommandBindings.Matches(e, "video.play-pause") && _entry?.Kind == SavedMediaKind.Video && _video != null &&
             !(e.Source is Visual spaceSource && spaceSource.GetVisualAncestors().Prepend(spaceSource).Any(control => control is Button)))
         { _ = _video.TogglePlaybackAsync(); e.Handled = true; return; }
+        if (_entry?.Kind == SavedMediaKind.Video && _video != null)
+        {
+            if (CommandBindings.Matches(e, "video.mute")) { _ = _video.ToggleMuteAsync(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.stop")) { _ = _video.StopPlaybackAsync(); e.Handled = true; return; }
+        }
         if (CommandBindings.Matches(e, "gallery.previous")) Move(-1);
         else if (CommandBindings.Matches(e, "gallery.next")) Move(1);
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);

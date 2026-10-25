@@ -81,10 +81,10 @@ internal static class VideoGalleryChecks
         await window.OpenGalleryAsync(Id);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         GalleryViewer viewer = (GalleryViewer)host.Content!;
-        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryVideoPause" && button.IsEnabled));
+        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryVideoPlayPause" && button.IsEnabled));
         Slider seek = Control<Slider>(viewer, "GalleryVideoSeek");
         await Program.WaitUntilAsync(() => seek.Value > 10);
-        Click(Control<Button>(viewer, "GalleryVideoPause"));
+        Click(Control<Button>(viewer, "GalleryVideoPlayPause"));
         await Task.Delay(250);
         double paused = seek.Value;
         await Task.Delay(300);
@@ -93,7 +93,7 @@ internal static class VideoGalleryChecks
         seek.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
         Require(viewer.CaptureState().PostId == "2000", "Gallery arrow stole the video slider's key.");
         seek.Value = 500;
-        Click(Control<Button>(viewer, "GalleryVideoPlay"));
+        Click(Control<Button>(viewer, "GalleryVideoPlayPause"));
         await Task.Delay(300);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1")
         {
@@ -107,14 +107,14 @@ internal static class VideoGalleryChecks
         Click(Control<Button>(viewer, "GalleryNext"));
         await Program.WaitUntilAsync(() => viewer.CaptureState().PostId == "2001" && Control<Button>(viewer, "GalleryActual").IsEnabled);
         Click(Control<Button>(viewer, "GalleryPrevious"));
-        await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPause").IsEnabled);
+        await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPlayPause").IsEnabled);
         Click(Control<Button>(viewer, "GalleryToggleContext"));
         await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
         Click(Control<Button>(viewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => !host.IsVisible && window.FindControl<ContentControl>("ReaderHost")!.IsVisible);
         await window.GalleryCleanupTask;
         Click(window.ArchivePage.FindControl<Button>("ArchiveGalleryReturn")!);
-        await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPause").IsEnabled);
+        await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPlayPause").IsEnabled);
         // Shutdown with a playing native video must await the verified stream and engine cleanup.
         Console.WriteLine("SMOKE production video: verified WebM clock, pause/play/seek, native frame capture, slider arrows, image switch and reader suspend/resume passed; leaving playback active for awaited shutdown.");
     }

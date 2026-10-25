@@ -15,10 +15,12 @@ spec.loader.exec_module(runner)
 
 
 def metrics():
-    clean = dict(HasPlayback=False, HasEngine=False, Disposed=True, ReleasedStreams=2, CleanupFailures=0)
+    clean = dict(HasPlayback=False, HasEngine=False, Disposed=True, ReleasedStreams=2, CleanupFailures=0, LoopEnabled=False)
     return dict(schemaVersion=1, completed=True, failure=None, fixtureSha256='AB', checks=list(runner.CHECKS),
-                samples=[dict(State='Playing', Time=300, DecodedFrames=3, DisplayedFrames=2),
-                         dict(State='Playing', Time=600, DecodedFrames=7, DisplayedFrames=4)],
+                samples=[dict(State='Playing', Time=300, DecodedFrames=3, DisplayedFrames=2, LoopEnabled=False, LoopRestarts=0),
+                         dict(State='Playing', Time=600, DecodedFrames=7, DisplayedFrames=4),
+                         dict(State='Playing', Time=300, LoopEnabled=True, LoopRestarts=1),
+                         dict(State='Ended', Time=12000, LoopEnabled=False, LoopRestarts=1)],
                 poster=dict(Generated=True, PersistentCacheHit=True, NonUniform=True, Width=1, Height=1, Sha256='00' * 32),
                 imageCleanup=clean.copy(), closeCleanup=clean.copy(), shutdownCleanup=clean.copy())
 
@@ -35,11 +37,19 @@ class PlaybackRunnerTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 runner.validate_metrics(bad, 'ab')
         for name in ('imageCleanup', 'closeCleanup', 'shutdownCleanup'):
-            for field, value in [('HasPlayback', True), ('ReleasedStreams', 0), ('CleanupFailures', 1)]:
+            for field, value in [('HasPlayback', True), ('ReleasedStreams', 0), ('CleanupFailures', 1), ('LoopEnabled', True)]:
                 bad = metrics()
                 bad[name][field] = value
                 with self.subTest(name=name, field=field), self.assertRaises(ValueError):
                     runner.validate_metrics(bad, 'ab')
+
+    def test_requires_native_repeat_progress_and_disabled_end(self):
+        for index, field, value in [(0, 'LoopEnabled', True), (0, 'LoopRestarts', 1),
+                                    (2, 'LoopRestarts', 0), (3, 'State', 'Playing')]:
+            bad = metrics()
+            bad['samples'][index][field] = value
+            with self.subTest(index=index, field=field), self.assertRaises(ValueError):
+                runner.validate_metrics(bad, 'ab')
 
     def test_rejects_incomplete_or_wrong_fixture(self):
         for key, value in [('completed', False), ('failure', 'failed'), ('fixtureSha256', 'wrong'), ('checks', [])]:

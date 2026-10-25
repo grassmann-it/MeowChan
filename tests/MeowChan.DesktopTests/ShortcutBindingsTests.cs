@@ -132,9 +132,20 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
+    [InlineData("video.mute")]
+    [InlineData("video.loop")]
+    public void VideoAudioAndRepeatCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
+    {
+        Assert.Equal(CommandAvailability.Contextual, CommandCatalog.Get(id).Availability);
+        Assert.Empty(EffectiveShortcutBindings.Build().For(id));
+        var bindings = new ShortcutBindingsSection().Set(id, new[] { ShortcutGesture.Parse("Primary+Shift+F9") });
+        Assert.Single(EffectiveShortcutBindings.Build(bindings).For(id));
+        Assert.Equal(new[] { "gallery" }, CommandCatalog.Get(id).ExecutionContexts);
+    }
+
+    [Theory]
     [InlineData("post.copy-link")]
     [InlineData("post.open-source")]
-    [InlineData("video.mute")]
     [InlineData("viewer.focus-mode")]
     [InlineData("table.reset-layout")]
     [InlineData("admission.monitor-all")]

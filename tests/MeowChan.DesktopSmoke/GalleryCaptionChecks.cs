@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Controls.Primitives;
@@ -11,6 +12,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -19,37 +21,48 @@ internal static class GalleryCaptionChecks
     internal static async Task RunAsync(MainWindow window, GalleryViewer viewer, bool video)
     {
         double width = window.Width, height = window.Height;
+        double minimumWidth = window.MinWidth;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
+        string language = Texts.Language;
         bool contextOpen = viewer.CaptureState().ContextOpen;
         string warnings = Find<TextBlock>(viewer, "GalleryWarnings").Text ?? string.Empty;
         try
         {
+            // Exercise the media component's 640-DIP contract without changing
+            // the product shell's separate 760-DIP minimum.
+            if (video) window.MinWidth = 640;
             if (!video) await CheckLiveThemeAsync(window, viewer);
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
                 Application.Current.RequestedThemeVariant = variant;
-                foreach (double testedWidth in new[] { 849d, 850d, 851d })
+                foreach (string testedLanguage in video ? new[] { "en", "de" } : new[] { language })
                 {
-                    window.Width = testedWidth; window.Height = 530;
-                    // Adjacent widths straddle the context breakpoint. A one-DIP
-                    // general resize tolerance would accept the previous width
-                    // before the native resize/layout has even happened.
-                    await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - testedWidth) < .5 / window.RenderScaling
-                        && Math.Abs(window.Bounds.Height - 530) < .5 / window.RenderScaling
-                        && Math.Abs(viewer.Bounds.Width - window.Bounds.Width) < .5 / window.RenderScaling);
-                    foreach (bool open in new[] { false, true })
+                    Texts.SetLanguage(testedLanguage);
+                    foreach (double testedWidth in video ? new[] { 640d, 849d, 850d, 851d } : new[] { 849d, 850d, 851d })
                     {
-                        SetContext(viewer, open);
-                        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-                        if (open && testedWidth == 850 && !video)
-                            await CheckContextSelectorAsync(window, viewer, variant);
-                        Check(window, viewer, video, variant.ToString(), testedWidth, open, "normal");
-                        if (open)
+                        window.Width = testedWidth; window.Height = 530;
+                        // Adjacent widths straddle the context breakpoint. A one-DIP
+                        // general resize tolerance would accept the previous width
+                        // before the native resize/layout has even happened.
+                        await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - testedWidth) < .5 / window.RenderScaling
+                            && Math.Abs(window.Bounds.Height - 530) < .5 / window.RenderScaling
+                            && Math.Abs(viewer.Bounds.Width - window.Bounds.Width) < .5 / window.RenderScaling);
+                        foreach (bool open in new[] { false, true })
                         {
-                            viewer.SetWarnings("Saved local fixture media. This deliberately long explanatory status wraps onto multiple lines beside the visible post context; all text and the Show in thread action must remain reachable.");
+                            SetContext(viewer, open);
                             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-                            Check(window, viewer, video, variant.ToString(), testedWidth, open, "wrapped");
-                            viewer.SetWarnings(warnings);
+                            if (open && testedWidth == 850 && !video)
+                                await CheckContextSelectorAsync(window, viewer, variant);
+                            Check(window, viewer, video, variant.ToString(), testedWidth, open, "normal");
+                            if (video && testedWidth == 640 && !open)
+                                Program.CaptureWindow(window, $"video-transport-{testedLanguage}-{variant}-640.png");
+                            if (open)
+                            {
+                                viewer.SetWarnings("Saved local fixture media. This deliberately long explanatory status wraps onto multiple lines beside the visible post context; all text and the Show in thread action must remain reachable.");
+                                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                                Check(window, viewer, video, variant.ToString(), testedWidth, open, "wrapped");
+                                viewer.SetWarnings(warnings);
+                            }
                         }
                     }
                 }
@@ -67,12 +80,14 @@ internal static class GalleryCaptionChecks
             viewer.SetWarnings(warnings);
             SetContext(viewer, contextOpen);
             Application.Current.RequestedThemeVariant = theme;
+            Texts.SetLanguage(language);
             window.Width = width; window.Height = height;
+            window.MinWidth = minimumWidth;
             viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
             await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         }
-        Console.WriteLine($"SMOKE gallery caption: {(video ? "real video" : "decoded image")},849/850/851,D/L,context open/closed,wrapped status,persistent tools below media passed.");
+        Console.WriteLine($"SMOKE gallery caption: {(video ? "real video, EN/DE,640/849/850/851" : "decoded image,849/850/851")},D/L,context open/closed,wrapped status,persistent tools below media passed.");
     }
 
     private static void Check(MainWindow window, GalleryViewer viewer, bool video, string theme,
@@ -111,14 +126,25 @@ internal static class GalleryCaptionChecks
             if (surfaceBounds.Height < 100 || transportBounds.Top < surfaceBounds.Bottom - 1
                 || transportBounds.Bottom > viewportBounds.Bottom + 1)
                 throw new InvalidOperationException("Video transport covers its picture or leaves the media viewport.");
-            foreach (Control action in transport.GetVisualDescendants().OfType<Control>()
+            Control[] actions = transport.GetVisualDescendants().OfType<Control>()
                 .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoVolume"
-                    or "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+                    or "GalleryVideoPlayPause" or "GalleryVideoMute" or "GalleryVideoLoop" or "GalleryVideoTime").ToArray();
+            foreach (Control action in actions)
             {
                 Rect bounds = Bounds(action, viewer), visible = VisibleBounds(action, viewer);
                 if (bounds.Width <= 0 || bounds.Height <= 0 || visible.Width < bounds.Width - 1 || visible.Height < bounds.Height - 1)
                     throw new InvalidOperationException("Video transport action is clipped: " + action.Name);
+                if (action is Button && (!action.Focusable || string.IsNullOrWhiteSpace(AutomationProperties.GetName(action))
+                    || string.IsNullOrWhiteSpace(ToolTip.GetTip(action)?.ToString())))
+                    throw new InvalidOperationException("Video action lacks keyboard focus, accessible name or tooltip: " + action.Name);
             }
+            for (int first = 0; first < actions.Length; first++)
+                for (int second = first + 1; second < actions.Length; second++)
+                    if (Bounds(actions[first], viewer).Intersect(Bounds(actions[second], viewer)) is { Width: > 1, Height: > 1 })
+                        throw new InvalidOperationException("Video transport targets overlap: " + actions[first].Name + " / " + actions[second].Name);
+            if (transport.GetVisualDescendants().OfType<Button>().Count(button => button.Name == "GalleryVideoPlayPause") != 1
+                || transport.GetVisualDescendants().OfType<Button>().Any(button => button.Name is "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+                throw new InvalidOperationException("Video requires one stateful playback button and no visible Stop.");
             foreach (string name in new[] { "GalleryVideoTime", "GalleryVideoStatus" })
             {
                 TextBlock text = Find<TextBlock>(viewer, name);
@@ -150,7 +176,7 @@ internal static class GalleryCaptionChecks
         if (contextOverlap || actionOverlap || outsideMediaWidth)
             throw new InvalidOperationException("Gallery caption overlaps the post context or extends beyond its media viewport.");
         foreach (Control transport in viewer.GetGalleryVisualDescendants().OfType<Control>()
-            .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+            .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoPlayPause" or "GalleryVideoMute" or "GalleryVideoLoop"))
             if (infoBounds.Intersects(Bounds(transport, viewer)))
                 throw new InvalidOperationException("Gallery caption covers video transport: " + transport.Name);
         if (!info.IsEffectivelyVisible || infoBounds.Height <= 0 || infoBounds.Left < 0 || infoBounds.Right > viewer.Bounds.Width
