@@ -152,7 +152,9 @@ public sealed partial class MediaStore
             if (binding.Reference != reference || binding.Provider != MediaIntegrityValidation.Provider(item)
                 || first != null && (first.AssetId != binding.AssetId || !MediaIntegrityValidation.CompatibleEvidence(first.Actual, binding.Actual)))
                 throw new InvalidDataException("The saved attachment bindings disagree.");
-            first = binding;
+            // Retain the strongest available evidence across mixed v3/v4 references.
+            // A later legacy binding without SHA-1 must not downgrade a known digest.
+            if (first == null || first.Actual.Sha1 == null && binding.Actual.Sha1 != null) first = binding;
         }
         if (first == null) return null;
         MediaManifestAsset asset = manifest.Assets[first.AssetId];

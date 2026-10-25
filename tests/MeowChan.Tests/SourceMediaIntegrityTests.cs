@@ -387,6 +387,25 @@ public sealed class SourceMediaIntegrityTests
     }
 
     [Fact]
+    public async Task MixedLegacyReferencesCannotDowngradeKnownSha1Evidence()
+    {
+        using TempDirectory directory = new(); using StubImageBoard board = new();
+        DownloadItem item = Item(board, directory, null, Bytes.Length, posts: ["123", "124"]);
+        await Commit(new MediaStore(), item);
+        JsonObject manifest = JsonNode.Parse(await File.ReadAllTextAsync(Manifest(item)))!.AsObject();
+        string wrongSha1 = Convert.ToBase64String(SHA1.HashData([99]));
+        foreach (JsonNode? entry in manifest["Entries"]!.AsObject().Select(pair => pair.Value)) entry!["Sha1"] = wrongSha1;
+        foreach (JsonNode? asset in manifest["Assets"]!.AsObject().Select(pair => pair.Value)) asset!["Entry"]!["Sha1"] = wrongSha1;
+        // Reference order is the actual canonical DownloadItem order: known digest
+        // first, historical omitted digest last. Both retain matching SHA256/MD5.
+        manifest["AttachmentBindings"]![item.AttachmentReferences[0].RevisionKey]!["Actual"]!["Sha1"] = wrongSha1;
+        manifest["AttachmentBindings"]![item.AttachmentReferences[1].RevisionKey]!["Actual"]!.AsObject().Remove("Sha1");
+        await File.WriteAllTextAsync(Manifest(item), manifest.ToJsonString());
+        Assert.Equal(MediaManifestStatus.Available, (await MediaAssetReader.OpenAsync(directory.Path)).Status);
+        Assert.Null(await new MediaStore().TryRestoreAsync(item, default));
+    }
+
+    [Fact]
     public void BuiltinCaptureProjectionDoesNotDropExtendedProviderMetadata()
     {
         using TempDirectory directory = new(); using StubImageBoard board = new();
