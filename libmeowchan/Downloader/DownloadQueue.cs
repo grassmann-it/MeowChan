@@ -463,7 +463,7 @@ public partial class DownloadQueue
         DownloadItem item = new(new Uri(media.DownloadUrl), media.DestinationPath, thread.Board.ImageBoard, thread, media.MediaIdentifier,
             media.ExpectedSize, media.ExpectedMd5, media.OriginalFileName, media.LegacyPath, media.Variant)
         {
-            ExpectedSha256 = media.ExpectedSha256, AcquisitionRevisionKey = media.AcquisitionRevisionKey,
+            ExpectedSha256 = media.ExpectedSha256, ExpectedSha1 = media.ExpectedSha1, ProviderSizeHint = media.ProviderSizeHint, AcquisitionRevisionKey = media.AcquisitionRevisionKey,
             AttachmentReferences = media.AttachmentReferences
         };
         return thread is Boards.Base.BaseThread baseThread ? baseThread.BindRestoredMediaFilter(item, explicitRetry) : item;
@@ -713,7 +713,7 @@ public partial class DownloadQueue
         {
             ResourceUrl = owner.Url, Generation = owner.Generation, MediaIdentifier = item.MediaIdentifier, Variant = item.Variant,
             DestinationPath = item.DestinationPath, DownloadUrl = item.DownloadUri.AbsoluteUri,
-            ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5, ExpectedSha256 = item.ExpectedSha256,
+            ExpectedSize = item.ExpectedSize, ExpectedMd5 = item.ExpectedMd5, ExpectedSha256 = item.ExpectedSha256, ExpectedSha1 = item.ExpectedSha1, ProviderSizeHint = item.ProviderSizeHint,
             AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = item.AttachmentReferences,
             OriginalFileName = item.OriginalFileName, LegacyPath = item.LegacyPath,
             Status = MediaWorkStatus.Ready
@@ -1449,12 +1449,12 @@ public partial class DownloadQueue
     private static bool SameRetrieval(DownloadItem first, DownloadItem second) =>
         first.ExpectedSize == second.ExpectedSize
         && string.Equals(first.ExpectedMd5, second.ExpectedMd5, StringComparison.Ordinal)
-        && first.ExpectedSha256 == second.ExpectedSha256 && first.DownloadUri == second.DownloadUri
+        && first.ExpectedSha256 == second.ExpectedSha256 && first.ExpectedSha1 == second.ExpectedSha1 && first.ProviderSizeHint == second.ProviderSizeHint && first.DownloadUri == second.DownloadUri
         && first.OriginalFileName == second.OriginalFileName && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
         && SameReferences(first.AttachmentReferences.Select(reference => reference.RevisionKey), second.AttachmentReferences.Select(reference => reference.RevisionKey));
 
     private static bool SameRetrieval(MediaWork first, DownloadItem second) => first.ExpectedSize == second.ExpectedSize
-        && first.ExpectedMd5 == second.ExpectedMd5 && first.ExpectedSha256 == second.ExpectedSha256
+        && first.ExpectedMd5 == second.ExpectedMd5 && first.ExpectedSha256 == second.ExpectedSha256 && first.ExpectedSha1 == second.ExpectedSha1 && first.ProviderSizeHint == second.ProviderSizeHint
         && first.DownloadUrl == second.DownloadUri.AbsoluteUri && first.OriginalFileName == second.OriginalFileName
         && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
         && SameReferences(first.AttachmentReferences.Select(reference => reference.RevisionKey), second.AttachmentReferences.Select(reference => reference.RevisionKey));

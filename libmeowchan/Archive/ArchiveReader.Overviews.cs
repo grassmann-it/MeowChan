@@ -81,7 +81,9 @@ public sealed partial class ArchiveReader
                         media.IsDBNull(6) ? null : media.GetInt64(6), media.IsDBNull(7) ? null : media.GetString(7),
                         media.GetInt32(8) != 0)
                         { ExpectedSha256 = media.IsDBNull(9) ? null : media.GetString(9),
-                            AttachmentRevisionKey = media.IsDBNull(10) ? null : media.GetString(10) };
+                            AttachmentRevisionKey = media.IsDBNull(10) ? null : media.GetString(10),
+                            ExpectedSha1 = media.IsDBNull(11) ? null : media.GetString(11),
+                            ProviderSizeHint = ArchiveSql.ReadSizeHint(media.IsDBNull(12) ? null : media.GetString(12)) };
             }
             previews[id] = new ArchiveThreadPreview(id, postId, text, attachment);
         }

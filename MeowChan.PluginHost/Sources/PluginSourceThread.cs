@@ -80,6 +80,9 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         }
     }
 
+    private static MediaProviderSizeHint? Hint(SourceSizeHint? hint) => hint == null ? null
+        : new(hint.RawValue, hint.UnitLabel, (MediaSizePrecision)(int)hint.Precision);
+
     private async Task ApplyAsync(SourceThreadSnapshot snapshot, DownloadQueue queue, CancellationToken token)
     {
         if (!Source.Router.TryResolve(snapshot.Url, out SourceResourceKind kind, out string boardId, out string? id, out _)
@@ -98,7 +101,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 string? attachmentRevisionKey = null;
                 MediaProviderMetadata? provider = attachment.MediaId == null ? null
                     : new(attachment.MediaId, attachment.Variant, attachment.Url?.AbsoluteUri!, attachment.OriginalFileName,
-                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = Hint(attachment.ProviderSizeHint) };
                 // New incomplete metadata also gets a key; only deletion markers without an identity have none.
                 if (provider != null)
                     attachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(resource, post.PostId, attachment.Position, provider);
@@ -124,7 +127,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
                     attachment.ExpectedMd5, attachment.IsDeleted)
                 {
-                    ExpectedSha256 = attachment.ExpectedSha256,
+                    ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = Hint(attachment.ProviderSizeHint),
                     AttachmentRevisionKey = attachmentRevisionKey
                 });
             }
@@ -140,7 +143,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             observedMedia[candidate.Key] = new DownloadItem(attachment.Url!, destination, Source, this, attachment.MediaId!,
                 attachment.ExpectedSize, attachment.ExpectedMd5, attachment.OriginalFileName, legacy, attachment.Variant)
             {
-                ExpectedSha256 = attachment.ExpectedSha256,
+                ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = Hint(attachment.ProviderSizeHint),
                 AcquisitionRevisionKey = acquisitionKey,
                 AttachmentReferences = Array.AsReadOnly(references[acquisitionKey].ToArray()),
                 MediaIntegrityPolicy = Source.MediaIntegrityPolicy

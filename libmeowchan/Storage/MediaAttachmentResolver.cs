@@ -38,7 +38,7 @@ public static class MediaAttachmentResolver
 
         // Legacy data has no host revision. Check every available provider expectation
         // and require an unambiguous existing manifest identity; never adopt loose files.
-        if (attachment.ExpectedSize == null && attachment.ExpectedMd5 == null && attachment.ExpectedSha256 == null
+        if (attachment.ExpectedSize == null && attachment.ExpectedMd5 == null && attachment.ExpectedSha256 == null && attachment.ExpectedSha1 == null
             && attachment.Url == null) return null;
         List<MediaAssetReference> matches = new();
         for (int offset = 0; offset < snapshot.Count; offset += 500)
@@ -55,7 +55,7 @@ public static class MediaAttachmentResolver
         if (ordered.Any(snapshot => snapshot.Status == MediaManifestStatus.Corrupt)) return null;
         if (attachment.AttachmentRevisionKey == null)
         {
-            if (attachment.ExpectedSize == null && attachment.ExpectedMd5 == null && attachment.ExpectedSha256 == null
+            if (attachment.ExpectedSize == null && attachment.ExpectedMd5 == null && attachment.ExpectedSha256 == null && attachment.ExpectedSha1 == null
                 && attachment.Url == null) return null;
             ResolvedMediaAttachment? legacy = null;
             foreach (MediaAssetSnapshot snapshot in ordered)
@@ -95,29 +95,36 @@ public static class MediaAttachmentResolver
             return binding.AssetId == asset.AssetId && binding.Provider.MediaId == asset.MediaIdentifier
                 && binding.Provider.Variant == asset.Variant && binding.Actual.Length == asset.Length
                 && string.Equals(binding.Actual.Sha256, asset.Sha256, StringComparison.OrdinalIgnoreCase)
-                && Md5Equals(binding.Actual.Md5, asset.Md5);
+                && Md5Equals(binding.Actual.Md5, asset.Md5)
+                && (binding.Actual.Sha1 == null || asset.Sha1 != null && Sha1Equals(binding.Actual.Sha1, asset.Sha1));
         }
         catch (Exception error) when (EvidenceError(error)) { return false; }
     }
 
     private static MediaProviderMetadata Provider(CapturedAttachment attachment) => new(attachment.MediaId!, attachment.Variant,
-        attachment.Url!, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+        attachment.Url!, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint };
 
     private static bool LegacyMatches(CapturedAttachment attachment, MediaAssetReference asset)
     {
         try
         {
             return asset.MediaIdentifier == attachment.MediaId && asset.Variant == attachment.Variant
-                && (attachment.ExpectedSize != null || attachment.ExpectedMd5 != null || attachment.ExpectedSha256 != null
+                && (attachment.ExpectedSize != null || attachment.ExpectedMd5 != null || attachment.ExpectedSha256 != null || attachment.ExpectedSha1 != null
                     || attachment.Url != null && attachment.Url == asset.SourceUrl)
                 && (attachment.ExpectedSize == null || attachment.ExpectedSize == asset.Length)
                 && (attachment.ExpectedMd5 == null || Md5Equals(attachment.ExpectedMd5, asset.Md5))
+                && (attachment.ExpectedSha1 == null || asset.Sha1 != null && Sha1Equals(attachment.ExpectedSha1, asset.Sha1))
                 && (attachment.ExpectedSha256 == null || MediaIntegrityValidation.IsSha256(attachment.ExpectedSha256)
                     && string.Equals(attachment.ExpectedSha256, asset.Sha256, StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception error) when (EvidenceError(error)) { return false; }
     }
 
+    private static bool Sha1Equals(string first, string second)
+    {
+        byte[] a = Convert.FromBase64String(first), b = Convert.FromBase64String(second);
+        return a.Length == 20 && b.Length == 20 && CryptographicOperations.FixedTimeEquals(a, b);
+    }
     private static bool Md5Equals(string first, string second)
     {
         byte[] a = Convert.FromBase64String(first), b = Convert.FromBase64String(second);

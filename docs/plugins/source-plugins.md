@@ -171,3 +171,21 @@ for discriminated result serialization in tests. JSON syntax alone does not
 validate identity, URL ownership, field presence or collection limits. Pass the
 cancellation token through every awaited host operation, and propagate cancellation
 instead of reporting a false source failure or success.
+
+## Provider hashes and approximate sizes
+
+`SourceAttachment.ExpectedSha1` is optional Base64 encoding of exactly 20 digest
+bytes. Use it only for an explicit SHA-1 provider checksum; never place a 20-byte
+checksum in `ExpectedMd5`. Both checksum expectations are strict. Source-specific
+size/MD5 permission does not permit a SHA-1 or SHA-256 mismatch. The host computes
+all hashes in the same pass over original bytes, including before filter access.
+Local immutable asset identity remains SHA-256.
+
+An approximate provider size belongs in `ProviderSizeHint = new SourceSizeHint(
+rawNumericText, providerUnitLabel, SourceSizePrecision.Unspecified)`, while
+`ExpectedSize` stays null. Preserve the provider's numeric spelling (including
+fraction/exponent) and label; claim Rounded/Truncated only with evidence. This is
+provenance, never an exact byte expectation, reservation or rule-size input. The
+host still measures and enforces actual byte limits. Supply these fields when
+freezing revision metadata; changing either produces a new v2 acquisition and
+attachment key. Metadata without these additions retains the v1 key encoding.

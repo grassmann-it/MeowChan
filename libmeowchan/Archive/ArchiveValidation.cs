@@ -67,6 +67,8 @@ internal static class ArchiveValidation
                 ValidateIdentifier(attachment.Variant, nameof(attachment.Variant));
                 if (attachment.Url != null) ValidateUrl(attachment.Url);
                 if (attachment.PlannedPath != null) ValidatePath(attachment.PlannedPath);
+                MediaIntegrityValidation.ValidateSha1(attachment.ExpectedSha1);
+                MediaIntegrityValidation.ValidateSizeHint(attachment.ProviderSizeHint);
                 if (attachment.ExpectedSize < 0) throw new ArgumentOutOfRangeException(nameof(attachment.ExpectedSize));
                 if (attachment.ExpectedSha256 != null && (attachment.ExpectedSha256.Length != 64
                     || attachment.ExpectedSha256.Any(character => !Uri.IsHexDigit(character))))
@@ -74,7 +76,7 @@ internal static class ArchiveValidation
                 if (attachment.AttachmentRevisionKey != null && (attachment.MediaId == null
                     || attachment.AttachmentRevisionKey != MediaRevisionKeys.CreateAttachmentKey(snapshot.Id, post.PostId, attachment.Position,
                         new(attachment.MediaId, attachment.Variant, attachment.Url!, attachment.OriginalFileName,
-                            attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256))))
+                            attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint })))
                     throw new ArgumentException("The captured attachment revision differs from its provider metadata.");
                 if (attachment.ExpectedMd5 != null)
                 {

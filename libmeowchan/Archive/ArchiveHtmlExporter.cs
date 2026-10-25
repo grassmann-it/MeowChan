@@ -294,6 +294,10 @@ public static class ArchiveHtmlExporter
                         await html.WriteLineAsync("<details><summary>Source-reported media information</summary><p>Size: "
                             + Encode(provenance.Provider.ExpectedSize?.ToString(CultureInfo.InvariantCulture) ?? "Unspecified")
                             + " bytes<br>MD5: " + Encode(provenance.Provider.ExpectedMd5 ?? "Unspecified")
+                            + "<br>SHA-1: " + Encode(provenance.Provider.ExpectedSha1 ?? "Unspecified")
+                            + (provenance.Provider.ProviderSizeHint is { } hint ? "<br>Size hint (not exact bytes): "
+                                + Encode(hint.RawValue) + " " + Encode(hint.UnitLabel) + " (" + Encode(hint.Precision.ToString()) + ")" : "")
+                            + "<br>Saved file SHA-1: " + Encode(provenance.Actual.Sha1 ?? "Unspecified")
                             + "<br>SHA-256: " + Encode(provenance.Provider.ExpectedSha256 ?? "Unspecified") + "</p></details>");
                     }
                 }

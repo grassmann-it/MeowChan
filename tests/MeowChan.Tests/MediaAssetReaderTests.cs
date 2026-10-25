@@ -107,7 +107,7 @@ public sealed class MediaAssetReaderTests
         await CommitAsync(new MediaStore(), Item(board, directory.Path, SecondBytes), SecondBytes);
         MediaAssetSnapshot migrated = await MediaAssetReader.OpenAsync(threadDirectory);
 
-        Assert.Equal(3, migrated.ManifestVersion);
+        Assert.Equal(4, migrated.ManifestVersion);
         Assert.True(File.Exists(manifestPath));
         Assert.Equal(versionOne, await File.ReadAllTextAsync(legacyManifestPath));
         Assert.Equal(2, migrated.Count);

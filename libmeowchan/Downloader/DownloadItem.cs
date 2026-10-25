@@ -18,6 +18,8 @@ public class DownloadItem
     public long? ExpectedSize { get; }
     public string? ExpectedMd5 { get; }
     public string? ExpectedSha256 { get; init; }
+    public string? ExpectedSha1 { get; init; }
+    public MeowChan.Storage.MediaProviderSizeHint? ProviderSizeHint { get; init; }
     public string? AcquisitionRevisionKey { get; init; }
     private IReadOnlyList<AttachmentRevisionReference> _attachmentReferences = MediaAttachmentReferences.Empty;
     public IReadOnlyList<AttachmentRevisionReference> AttachmentReferences

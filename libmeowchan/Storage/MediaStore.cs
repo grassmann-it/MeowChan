@@ -35,7 +35,7 @@ public sealed partial class MediaStore
     private const string LegacyManifestFileName = ".ochan-manifest.json";
     private const string DirectoryLeaseFileName = ".meowchan-store.lock";
     private const string LegacyDirectoryLeaseFileName = ".ochan-store.lock";
-    private const int ManifestVersion = 3;
+    private const int ManifestVersion = 4;
     private const int MaximumManifestBytes = 32 * 1024 * 1024;
     private const int MaximumRecoveryCandidates = 256;
     private const int MaximumVerificationCacheEntries = 4096;
@@ -418,7 +418,8 @@ public sealed partial class MediaStore
     {
         return (!item.ExpectedSize.HasValue || item.ExpectedSize.Value == digest.Length)
             && (expectedMd5 == null || CryptographicOperations.FixedTimeEquals(expectedMd5, digest.Md5))
-            && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, digest.Sha256, StringComparison.OrdinalIgnoreCase));
+            && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, digest.Sha256, StringComparison.OrdinalIgnoreCase))
+            && (item.ExpectedSha1 == null || SameMd5(item.ExpectedSha1, Convert.ToBase64String(digest.Sha1)));
     }
 
     private static async Task<FileDigest> CopyAndHashAsync(Stream source, Stream? destination,
@@ -426,6 +427,7 @@ public sealed partial class MediaStore
     {
         using IncrementalHash sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+        using IncrementalHash sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
         byte[] buffer = new byte[81920];
         long length = 0;
         int bytesRead;
@@ -445,11 +447,12 @@ public sealed partial class MediaStore
 
             sha256.AppendData(buffer, 0, bytesRead);
             md5.AppendData(buffer, 0, bytesRead);
+            sha1.AppendData(buffer, 0, bytesRead);
             length = checked(length + bytesRead);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return new FileDigest(length, Convert.ToHexString(sha256.GetHashAndReset()).ToLowerInvariant(), md5.GetHashAndReset());
+        return new FileDigest(length, Convert.ToHexString(sha256.GetHashAndReset()).ToLowerInvariant(), md5.GetHashAndReset(), sha1.GetHashAndReset());
     }
 
     private static FileStream OpenRead(string path)
@@ -505,9 +508,9 @@ public sealed partial class MediaStore
         }
 
         VerificationFingerprint fingerprint = new VerificationFingerprint(actualPath, before,
-            item.ExpectedSize, expectedMd5 == null ? null : Convert.ToBase64String(expectedMd5), item.ExpectedSha256,
+            item.ExpectedSize, expectedMd5 == null ? null : Convert.ToBase64String(expectedMd5), item.ExpectedSha256, item.ExpectedSha1,
             new ManifestEntryFingerprint(entry.MediaIdentifier, entry.Variant, entry.SourceUrl, entry.FileName, entry.Length,
-                entry.Sha256, entry.Md5, entry.ExpectedMd5, entry.OriginalFileName));
+                entry.Sha256, entry.Md5, entry.ExpectedMd5, entry.OriginalFileName, entry.Sha1));
         FileDigest? cached = FindVerifiedFile(cacheKey, fingerprint);
         if (cached != null)
         {
@@ -782,6 +785,7 @@ public sealed partial class MediaStore
             Length = digest.Length,
             Sha256 = digest.Sha256,
             Md5 = Convert.ToBase64String(digest.Md5),
+            Sha1 = Convert.ToBase64String(digest.Sha1),
             ExpectedMd5 = item.ExpectedMd5,
             OriginalFileName = item.OriginalFileName
         };
@@ -810,8 +814,8 @@ public sealed partial class MediaStore
     private async Task<ManifestRead> ReadWriterManifestAsync(string directory, CancellationToken cancellationToken)
     {
         ManifestRead current = await ReadManifestAsync(directory, ManifestFileName, cancellationToken).ConfigureAwait(false);
-        if (current.Corrupt && current.SourceVersion == 3)
-            throw new InvalidDataException("The v3 media manifest has invalid attachment evidence and cannot be replaced.");
+        if (current.Corrupt && current.SourceVersion >= 3)
+            throw new InvalidDataException("The media manifest has invalid attachment evidence and cannot be replaced.");
         if (!current.Missing) return current;
         string legacyPath = Path.Combine(directory, LegacyManifestFileName);
         FileAttributes legacyAttributes;
@@ -868,10 +872,10 @@ public sealed partial class MediaStore
                 && wireDocument.RootElement.TryGetProperty("Version", out JsonElement versionElement)
                 && versionElement.ValueKind == JsonValueKind.Number && versionElement.TryGetInt32(out int declaredVersion))
                 wireVersion = declaredVersion;
-            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != ManifestVersion)
+            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != 3 && wireVersion != ManifestVersion)
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             MediaManifest? manifest = JsonSerializer.Deserialize<MediaManifest>(bytes, JsonOptions);
-            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != ManifestVersion)
+            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != 3 && manifest.Version != ManifestVersion)
             {
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             }
@@ -884,11 +888,11 @@ public sealed partial class MediaStore
             int sourceVersion = manifest.Version;
             try
             {
-                if (sourceVersion == 3)
+                if (sourceVersion >= 3)
                 {
                     ValidateUniqueJson(wireDocument.RootElement);
                     if (!wireDocument.RootElement.TryGetProperty("AttachmentBindings", out JsonElement bindings) || bindings.ValueKind != JsonValueKind.Object)
-                        throw new InvalidDataException("A v3 manifest must contain its binding inventory.");
+                        throw new InvalidDataException("A manifest with attachment evidence must contain its binding inventory.");
                 }
                 if (sourceVersion < 3) manifest.AttachmentBindings = new(StringComparer.Ordinal);
                 // Version 1 names only its current assets. Never infer ownership of other files.
@@ -899,7 +903,7 @@ public sealed partial class MediaStore
                 }
                 ValidateManifestBindings(manifest);
             }
-            catch (Exception failure) when (sourceVersion == 3 && (failure is InvalidDataException or ArgumentException))
+            catch (Exception failure) when (sourceVersion >= 3 && (failure is InvalidDataException or ArgumentException))
             {
                 return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion };
             }
@@ -1011,12 +1015,12 @@ public sealed partial class MediaStore
         }
     }
 
-    private sealed record FileDigest(long Length, string Sha256, byte[] Md5);
+    private sealed record FileDigest(long Length, string Sha256, byte[] Md5, byte[] Sha1);
     private sealed record FileStamp(long Length, DateTime LastWriteTimeUtc, DateTime CreationTimeUtc);
     private sealed record ManifestEntryFingerprint(string MediaIdentifier, string Variant, string SourceUrl, string FileName,
-        long Length, string Sha256, string Md5, string? ExpectedMd5, string? OriginalFileName);
+        long Length, string Sha256, string Md5, string? ExpectedMd5, string? OriginalFileName, string? Sha1);
     private sealed record VerificationFingerprint(string ActualPath, FileStamp Stamp, long? ExpectedSize,
-        string? ExpectedMd5, string? ExpectedSha256, ManifestEntryFingerprint ManifestEntry);
+        string? ExpectedMd5, string? ExpectedSha256, string? ExpectedSha1, ManifestEntryFingerprint ManifestEntry);
     private sealed record VerifiedFile(VerificationFingerprint Fingerprint, FileDigest Digest, long VerifiedAtTimestamp);
     private sealed record ManifestRead(MediaManifest Manifest, bool Corrupt, bool Missing, string? Generation, int? SourceVersion);
 
@@ -1045,6 +1049,7 @@ public sealed partial class MediaStore
         public long Length { get; set; }
         public string Sha256 { get; set; } = string.Empty;
         public string Md5 { get; set; } = string.Empty;
+        public string? Sha1 { get; set; }
         public string? ExpectedMd5 { get; set; }
         public string? OriginalFileName { get; set; }
     }

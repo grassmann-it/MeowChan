@@ -36,7 +36,7 @@ public sealed partial class ArchiveCatalog
                 CandidateMetadata updated = new CandidateMetadata(candidate.Key, candidate.DownloadUri,
                     existing.Metadata.DestinationPath, candidate.ExpectedSize, candidate.ExpectedMd5,
                     candidate.OriginalFileName, existing.Metadata.LegacyPath, candidate.Extension)
-                    { ExpectedSha256 = candidate.ExpectedSha256, AcquisitionRevisionKey = candidate.AcquisitionRevisionKey,
+                    { ExpectedSha256 = candidate.ExpectedSha256, ExpectedSha1 = candidate.ExpectedSha1, ProviderSizeHint = candidate.ProviderSizeHint, AcquisitionRevisionKey = candidate.AcquisitionRevisionKey,
                         AttachmentReferences = candidate.AttachmentReferences };
                 if ((updated with { AttachmentReferences = existing.Metadata.AttachmentReferences }) == existing.Metadata
                     && updated.AttachmentReferences.SequenceEqual(existing.Metadata.AttachmentReferences)) return existing;
@@ -44,7 +44,7 @@ public sealed partial class ArchiveCatalog
                 update.Transaction = transaction;
                 update.CommandText = """
                     UPDATE media_decisions SET download_uri=$uri, expected_size=$size, expected_md5=$md5,
-                        original_filename=$name, extension=$extension, expected_sha256=$sha,
+                        original_filename=$name, extension=$extension, expected_sha256=$sha, expected_sha1=$sha1, provider_size_hint_json=$sizeHint,
                         acquisition_revision_key=$acquisition, attachment_references_json=$references
                     WHERE source_id=$source AND board_id=$board AND thread_id=$thread AND media_id=$media AND variant=$variant;
                     """;
@@ -64,9 +64,9 @@ public sealed partial class ArchiveCatalog
             insert.CommandText = """
                 INSERT INTO media_decisions (source_id, board_id, thread_id, media_id, variant,
                     download_uri, destination_path, expected_size, expected_md5, original_filename,
-                    legacy_path, extension, selection_json, decided_at_utc,expected_sha256,acquisition_revision_key,attachment_references_json)
+                    legacy_path, extension, selection_json, decided_at_utc,expected_sha256,acquisition_revision_key,attachment_references_json,expected_sha1,provider_size_hint_json)
                 VALUES ($source,$board,$thread,$media,$variant,$uri,$destination,$size,$md5,$name,
-                    $legacy,$extension,$selection,$decided,$sha,$acquisition,$references);
+                    $legacy,$extension,$selection,$decided,$sha,$acquisition,$references,$sha1,$sizeHint);
                 """;
             AddCandidateKey(insert, candidate.Key);
             AddObservedMetadata(insert, candidate);
@@ -169,7 +169,8 @@ public sealed partial class ArchiveCatalog
                 reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt64(4), CandidateOptionalString(reader, 5),
                 CandidateOptionalString(reader, 6), CandidateOptionalString(reader, 7), CandidateOptionalString(reader, 8))
                 { ExpectedSha256 = CandidateOptionalString(reader, 11), AcquisitionRevisionKey = CandidateOptionalString(reader, 12),
-                    AttachmentReferences = ReadAttachmentReferences(CandidateOptionalString(reader, 13)) };
+                    AttachmentReferences = ReadAttachmentReferences(CandidateOptionalString(reader, 13)),
+                    ExpectedSha1 = CandidateOptionalString(reader, 14), ProviderSizeHint = ArchiveSql.ReadSizeHint(CandidateOptionalString(reader, 15)) };
             metadata = CopyCandidateIntegrity(metadata);
             MediaSelectionResult selection = DeserializeSelection(reader.GetString(9));
             DateTimeOffset decidedAt = DateTimeOffset.ParseExact(reader.GetString(10), "O", CultureInfo.InvariantCulture);
@@ -197,6 +198,8 @@ public sealed partial class ArchiveCatalog
         command.Parameters.AddWithValue("$uri", candidate.DownloadUri.AbsoluteUri);
         command.Parameters.AddWithValue("$size", (object?)candidate.ExpectedSize ?? DBNull.Value);
         command.Parameters.AddWithValue("$md5", (object?)candidate.ExpectedMd5 ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sha1", (object?)candidate.ExpectedSha1 ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sizeHint", (object?)ArchiveSql.WriteSizeHint(candidate.ProviderSizeHint) ?? DBNull.Value);
         command.Parameters.AddWithValue("$sha", (object?)candidate.ExpectedSha256 ?? DBNull.Value);
         command.Parameters.AddWithValue("$acquisition", (object?)candidate.AcquisitionRevisionKey ?? DBNull.Value);
         command.Parameters.AddWithValue("$references", candidate.AttachmentReferences.Count == 0 ? (object)DBNull.Value

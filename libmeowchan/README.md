@@ -380,3 +380,15 @@ a watch. Existing providers need no new mandatory interface. Implement
 an optional adapter version. Missing capabilities mean unspecified, not unsupported.
 `CaptureAvailable` additionally requires initialized session content services;
 registration and descriptions do not imply online availability.
+
+### Provider SHA-1 and approximate sizes
+
+Provider metadata can add `ExpectedSha1` (Base64 of exactly 20 digest bytes) and
+`ProviderSizeHint` (raw numeric text, unit label, precision). Carry both through
+`DownloadItem`, `CapturedAttachment` and `CandidateMetadata` when freezing custom
+provider revisions. Approximate hints never become `ExpectedSize`; measured file
+length remains authoritative for local bytes. SHA-1 is a strict provider check;
+local identity and verification remain SHA-256. The size/MD5 exception cannot
+bypass SHA-1. New metadata uses v2 revision keys; unchanged legacy metadata retains
+its v1 keys. Manifest 4/archive schema 5 preserve the additions; the current
+reader also supports legacy manifests 1–3 and archive schemas 1–4 without writes.

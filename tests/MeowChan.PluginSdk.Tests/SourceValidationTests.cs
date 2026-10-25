@@ -4,6 +4,25 @@ namespace MeowChan.PluginSdk.Tests;
 
 public sealed class SourceValidationTests
 {
+    [Theory]
+    [InlineData("24")]
+    [InlineData("24.50")]
+    [InlineData("2.4e1")]
+    public void Sha1AndRawSizeHintRoundTripAndValidate(string raw)
+    {
+        SourceAttachment attachment = new(0, "m", Url: new Uri("https://source.test/m.png")) {
+            ExpectedSha1 = Convert.ToBase64String(new byte[20]), ProviderSizeHint = new(raw, "Кб") };
+        SourceAttachment copy = SdkJson.Deserialize<SourceAttachment>(SdkJson.Serialize(attachment));
+        Assert.Equal(attachment, copy); Assert.Null(copy.ExpectedSize);
+        IReadOnlyList<ValidationIssue> Validate(SourceAttachment value) => SdkValidation.ValidateThreadResult(
+            new ThreadReadRequest(TestContracts.Thread), new ThreadSnapshot(TestContracts.Snapshot(
+                new SourcePost("123", 0, SourceFieldPresence.Attachments, Attachments: [value]))), TestContracts.Source());
+        Assert.Empty(Validate(copy));
+        Assert.Contains(Validate(copy with { ExpectedSha1 = Convert.ToBase64String(new byte[16]) }), issue => issue.Path.EndsWith("expectedSha1"));
+        Assert.Contains(Validate(copy with { ProviderSizeHint = new("-1", "Кб") }), issue => issue.Code == "invalid_size_hint");
+        Assert.Contains(Validate(copy with { ProviderSizeHint = new(raw, "Кб", (SourceSizePrecision)99) }), issue => issue.Path.EndsWith("precision"));
+    }
+
     [Fact]
     public void UnchangedRequiresAnAcceptedBaselineAndCarriesNoPosts()
     {

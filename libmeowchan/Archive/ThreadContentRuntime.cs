@@ -195,7 +195,7 @@ internal sealed class ThreadContentContext
                     item.DestinationPath, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName, item.LegacyPath,
                     Path.GetExtension(item.OriginalFileName ?? item.DestinationPath))
                 {
-                    ExpectedSha256 = item.ExpectedSha256,
+                    ExpectedSha256 = item.ExpectedSha256, ExpectedSha1 = item.ExpectedSha1, ProviderSizeHint = item.ProviderSizeHint,
                     AcquisitionRevisionKey = MediaIntegrityValidation.Acquisition(item),
                     AttachmentReferences = Array.AsReadOnly(item.AttachmentReferences.Concat(
                         _attachmentReferences.GetValueOrDefault(MediaIntegrityValidation.Acquisition(item)) ?? Array.Empty<AttachmentRevisionReference>()).Distinct().ToArray())
@@ -227,7 +227,7 @@ internal sealed class ThreadContentContext
         DownloadItem item = new DownloadItem(metadata.DownloadUri, metadata.DestinationPath, owner.Board.ImageBoard, owner,
             metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath, metadata.Key.Variant)
         {
-            ExpectedSha256 = metadata.ExpectedSha256, AcquisitionRevisionKey = metadata.AcquisitionRevisionKey,
+            ExpectedSha256 = metadata.ExpectedSha256, ExpectedSha1 = metadata.ExpectedSha1, ProviderSizeHint = metadata.ProviderSizeHint, AcquisitionRevisionKey = metadata.AcquisitionRevisionKey,
             AttachmentReferences = metadata.AttachmentReferences
         };
         AttachmentRevisionReference? frozenPost = item.AttachmentReferences.FirstOrDefault();
@@ -295,7 +295,7 @@ internal sealed class ThreadContentContext
             _postIds[(attachment.MediaId, attachment.Variant)] = (post.PostId, attachment.Position);
             if (attachment.Url == null || attachment.AttachmentRevisionKey == null) continue;
             MediaProviderMetadata provider = new(attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName,
-                attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+                attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint };
             string acquisition = MediaRevisionKeys.CreateAcquisitionKey(_id, provider);
             AttachmentRevisionReference reference = new(_id, post.PostId, attachment.Position,
                 attachment.AttachmentRevisionKey);
@@ -309,7 +309,7 @@ internal sealed class ThreadContentContext
         if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)) return item;
         CandidateMetadata metadata = new(decision.Metadata.Key, item.DownloadUri, item.DestinationPath, item.ExpectedSize,
             item.ExpectedMd5, item.OriginalFileName, item.LegacyPath, decision.Metadata.Extension) {
-            ExpectedSha256 = item.ExpectedSha256, AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = item.AttachmentReferences };
+            ExpectedSha256 = item.ExpectedSha256, ExpectedSha1 = item.ExpectedSha1, ProviderSizeHint = item.ProviderSizeHint, AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = item.AttachmentReferences };
         return ToItem(metadata, owner, explicitRetry);
     }
 
@@ -356,7 +356,7 @@ internal sealed class ThreadContentContext
 
     private static bool SameMetadata(CandidateMetadata first, CandidateMetadata second) => first.DownloadUri == second.DownloadUri
         && first.ExpectedSize == second.ExpectedSize && first.ExpectedMd5 == second.ExpectedMd5
-        && first.ExpectedSha256 == second.ExpectedSha256 && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
+        && first.ExpectedSha256 == second.ExpectedSha256 && first.ExpectedSha1 == second.ExpectedSha1 && first.ProviderSizeHint == second.ProviderSizeHint && first.AcquisitionRevisionKey == second.AcquisitionRevisionKey
         && first.AttachmentReferences.Select(reference => reference.RevisionKey).OrderBy(key => key, StringComparer.Ordinal)
             .SequenceEqual(second.AttachmentReferences.Select(reference => reference.RevisionKey).OrderBy(key => key, StringComparer.Ordinal))
         && first.OriginalFileName == second.OriginalFileName;

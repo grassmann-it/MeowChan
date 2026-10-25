@@ -29,6 +29,19 @@ source and image-filter plugins.
 - **Update checks.** Settings and About expose version checking, a small update
   notice and platform download links. Checks do not install updates.
 
+### Source integrity additions (next source wave)
+
+- Provider SHA-1 is verified against the original bytes, including before image
+  filters receive access. Size/MD5 exceptions never bypass SHA-1 or SHA-256.
+- Rounded provider sizes use a separate raw hint and do not become exact byte
+  expectations or rule limits. Saved file sizes still describe measured bytes.
+- Archive schema 5 and media manifest 4 preserve these fields. Current readers
+  retain support for earlier schemas/manifests; older applications cannot write
+  these new formats. Existing revision keys without the new metadata stay stable.
+  Library/SDK positional constructors are unchanged; providers opt in through
+  `ExpectedSha1` and `ProviderSizeHint` initializers. SHA-1 uses Base64 of 20 bytes;
+  local asset identity and integrity continue to use SHA-256.
+
 ### Breaking (Library/SDK)
 
 `libmeowchan` and `MeowChan.PluginSdk` are not stable APIs in 1.x; minor releases

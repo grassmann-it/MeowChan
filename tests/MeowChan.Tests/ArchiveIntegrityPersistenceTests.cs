@@ -18,7 +18,8 @@ public sealed class ArchiveIntegrityPersistenceTests
     {
         using TempDirectory temp = new();
         CapturedAttachment raw = new(0, "media", Url: "https://source.test/media", ExpectedSize: 999, ExpectedMd5: Md5)
-            { ExpectedSha256 = new string('a', 64) };
+            { ExpectedSha256 = new string('a', 64), ExpectedSha1 = Convert.ToBase64String(SHA1.HashData([1, 2, 3])),
+                ProviderSizeHint = new("24.50", "Кб") };
         string expected = Key("post", raw);
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         {
@@ -83,11 +84,12 @@ public sealed class ArchiveIntegrityPersistenceTests
     {
         using TempDirectory temp = new();
         string target = Path.Combine(temp.Path, "media", "original.bin");
-        MediaProviderMetadata provider = new("media", "original", "https://source.test/media", "original.bin", 3, Md5, new string('c', 64));
+        MediaProviderMetadata provider = new("media", "original", "https://source.test/media", "original.bin", 3, Md5, new string('c', 64))
+            { ExpectedSha1 = Convert.ToBase64String(SHA1.HashData([1, 2, 3])), ProviderSizeHint = new("2.4e1", "Кб") };
         List<AttachmentRevisionReference> refs = [new(Id, "one", 0, MediaRevisionKeys.CreateAttachmentKey(Id, "one", 0, provider)),
             new(Id, "two", 1, MediaRevisionKeys.CreateAttachmentKey(Id, "two", 1, provider))];
         CandidateMetadata metadata = new(new(Id, "media"), new(provider.Url), target, provider.ExpectedSize, provider.ExpectedMd5, provider.OriginalFileName)
-            { ExpectedSha256 = provider.ExpectedSha256, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Id, provider), AttachmentReferences = refs };
+            { ExpectedSha256 = provider.ExpectedSha256, ExpectedSha1 = provider.ExpectedSha1, ProviderSizeHint = provider.ProviderSizeHint, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Id, provider), AttachmentReferences = refs };
         CandidateDecision first;
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         {
@@ -103,6 +105,7 @@ public sealed class ArchiveIntegrityPersistenceTests
         CandidateDecision saved = Assert.Single(await reopened.GetDecisionsAsync(Id));
         Assert.Equal(first.DecidedAtUtc, saved.DecidedAtUtc); Assert.Equal(target, saved.Metadata.DestinationPath);
         Assert.Equal(provider.ExpectedSha256, saved.Metadata.ExpectedSha256);
+        Assert.Equal(provider.ExpectedSha1, saved.Metadata.ExpectedSha1); Assert.Equal(provider.ProviderSizeHint, saved.Metadata.ProviderSizeHint);
         Assert.Equal(first.Metadata.AcquisitionRevisionKey, saved.Metadata.AcquisitionRevisionKey);
         Assert.Equal(first.Metadata.AttachmentReferences, saved.Metadata.AttachmentReferences);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
@@ -110,7 +113,7 @@ public sealed class ArchiveIntegrityPersistenceTests
         MediaProviderMetadata next = provider with { Url = provider.Url + "?revision=2", ExpectedSha256 = new string('d', 64) };
         CandidateMetadata changed = new(new(Id, "media"), new(next.Url), Path.Combine(temp.Path, "other.bin"),
             next.ExpectedSize, next.ExpectedMd5, next.OriginalFileName)
-            { ExpectedSha256 = next.ExpectedSha256, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Id, next),
+            { ExpectedSha256 = next.ExpectedSha256, ExpectedSha1 = next.ExpectedSha1, ProviderSizeHint = next.ProviderSizeHint, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Id, next),
                 AttachmentReferences = [new(Id, "new-post", 0, MediaRevisionKeys.CreateAttachmentKey(Id, "new-post", 0, next))] };
         MediaRuleStore restartedRules = new(temp.Path, reopenedLease); await restartedRules.LoadAsync();
         CandidateDecision updated = await reopened.GetOrCreateDecisionAsync(changed, restartedRules);
@@ -122,8 +125,8 @@ public sealed class ArchiveIntegrityPersistenceTests
     }
 
     [Theory]
-    [InlineData(1)] [InlineData(2)] [InlineData(3)]
-    public async Task LegacyCatalogReadsWithoutWritesAndMigratesToFourWithoutInventingBindings(int version)
+    [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    public async Task LegacyCatalogReadsWithoutWritesAndMigratesToFiveWithoutInventingBindings(int version)
     {
         using TempDirectory temp = new();
         CreateLegacy(temp.Path);
@@ -131,9 +134,11 @@ public sealed class ArchiveIntegrityPersistenceTests
         {
             using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
             { await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease); }
-            Execute(temp.Path, "ALTER TABLE archive_attachments DROP COLUMN expected_sha256; ALTER TABLE archive_attachments DROP COLUMN attachment_revision_key; "
+            Execute(temp.Path, "ALTER TABLE archive_attachments DROP COLUMN expected_sha1; ALTER TABLE archive_attachments DROP COLUMN provider_size_hint_json; "
+                + "ALTER TABLE media_decisions DROP COLUMN expected_sha1; ALTER TABLE media_decisions DROP COLUMN provider_size_hint_json; "
+                + (version == 4 ? "" : "ALTER TABLE archive_attachments DROP COLUMN expected_sha256; ALTER TABLE archive_attachments DROP COLUMN attachment_revision_key; "
                 + "ALTER TABLE media_decisions DROP COLUMN expected_sha256; ALTER TABLE media_decisions DROP COLUMN acquisition_revision_key; "
-                + "ALTER TABLE media_decisions DROP COLUMN attachment_references_json; "
+                + "ALTER TABLE media_decisions DROP COLUMN attachment_references_json; ")
                 + (version == 2 ? "DROP TABLE archive_source_contracts; " : "") + "PRAGMA user_version=" + version);
         }
         byte[] before = await File.ReadAllBytesAsync(Path.Combine(temp.Path, "archive.db"));
@@ -150,7 +155,7 @@ public sealed class ArchiveIntegrityPersistenceTests
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
             Assert.Null(Attachment(await reader.ReadThreadAsync(Id)).AttachmentRevisionKey);
         }
-        Assert.Equal(4L, Scalar(temp.Path, "PRAGMA user_version"));
+        Assert.Equal(5L, Scalar(temp.Path, "PRAGMA user_version"));
         Assert.False(Directory.Exists(Path.Combine(temp.Path, "disconnected")));
     }
 
@@ -170,7 +175,7 @@ public sealed class ArchiveIntegrityPersistenceTests
 
     private static CapturedAttachment Attachment(ArchivedThreadView? view) => Assert.Single(Assert.Single(view!.GetPosts()).Attachments!);
     private static string Key(string post, CapturedAttachment attachment) => MediaRevisionKeys.CreateAttachmentKey(Id, post, attachment.Position,
-        new(attachment.MediaId!, attachment.Variant, attachment.Url!, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256));
+        new(attachment.MediaId!, attachment.Variant, attachment.Url!, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint });
     private static CapturedThreadSnapshot Snapshot(string profile, params CapturedPost[] posts) => new(Id, "https://source.test/thread", "title",
         ThreadSourceState.Archived, DateTimeOffset.UtcNow, Path.Combine(profile, "media"), posts);
     private static SqliteConnection Open(string profile)

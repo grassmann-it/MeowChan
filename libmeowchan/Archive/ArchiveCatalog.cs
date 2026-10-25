@@ -52,7 +52,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
-            if ((version is 1 or 2 or 3) && application == ArchiveSql.ApplicationId)
+            if ((version is 1 or 2 or 3 or 4) && application == ArchiveSql.ApplicationId)
             {
                 ArchiveSql.ValidateSchema(connection);
                 using SqliteTransaction migration = connection.BeginTransaction();
@@ -253,8 +253,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
         {
             using SqliteCommand insert = ArchiveSql.Command(connection, transaction, """
-                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted,expected_sha256,attachment_revision_key)
-                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$deleted,$sha,$attachmentRevision)
+                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted,expected_sha256,attachment_revision_key,expected_sha1,provider_size_hint_json)
+                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$deleted,$sha,$attachmentRevision,$sha1,$sizeHint)
                 """);
             ArchiveSql.AddId(insert, id);
             insert.Parameters.AddWithValue("$post", post.PostId);
@@ -267,6 +267,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             insert.Parameters.AddWithValue("$size", (object?)attachment.ExpectedSize ?? DBNull.Value);
             insert.Parameters.AddWithValue("$md5", (object?)attachment.ExpectedMd5 ?? DBNull.Value);
             insert.Parameters.AddWithValue("$sha", (object?)attachment.ExpectedSha256 ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$sha1", (object?)attachment.ExpectedSha1 ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$sizeHint", (object?)ArchiveSql.WriteSizeHint(attachment.ProviderSizeHint) ?? DBNull.Value);
             insert.Parameters.AddWithValue("$attachmentRevision", (object?)attachment.AttachmentRevisionKey ?? DBNull.Value);
             insert.Parameters.AddWithValue("$deleted", attachment.IsDeleted ? 1 : 0);
             insert.ExecuteNonQuery();

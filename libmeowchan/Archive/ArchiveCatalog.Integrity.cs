@@ -20,7 +20,7 @@ public sealed partial class ArchiveCatalog
                 if (attachment.MediaId == null) return attachment;
                 string key = MediaRevisionKeys.CreateAttachmentKey(snapshot.Id, post.PostId, attachment.Position,
                     new(attachment.MediaId, attachment.Variant, attachment.Url!, attachment.OriginalFileName,
-                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256));
+                        attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint });
                 if (attachment.AttachmentRevisionKey != null && attachment.AttachmentRevisionKey != key)
                     throw new ArgumentException("The captured attachment revision differs from its provider metadata.");
                 return attachment with { AttachmentRevisionKey = key };
@@ -33,7 +33,8 @@ public sealed partial class ArchiveCatalog
         if (metadata.ExpectedSha256 != null && !MediaIntegrityValidation.IsSha256(metadata.ExpectedSha256))
             throw new InvalidDataException("Invalid candidate provider SHA256.");
         MediaProviderMetadata provider = new(metadata.Key.MediaId, metadata.Key.Variant, metadata.DownloadUri.AbsoluteUri,
-            metadata.OriginalFileName, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.ExpectedSha256);
+            metadata.OriginalFileName, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.ExpectedSha256) { ExpectedSha1 = metadata.ExpectedSha1, ProviderSizeHint = metadata.ProviderSizeHint };
+        MediaIntegrityValidation.ValidateProvider(provider);
         string acquisition = MediaRevisionKeys.CreateAcquisitionKey(metadata.Key.Resource, provider);
         if (metadata.AcquisitionRevisionKey != null && metadata.AcquisitionRevisionKey != acquisition)
             throw new InvalidDataException("The saved acquisition revision differs from its provider metadata.");

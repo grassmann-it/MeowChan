@@ -29,12 +29,13 @@ public sealed partial class MediaStore
     private async Task<(MediaCommitResult? Result, bool Ambiguous)> TryRestoreStrictAsync(MediaManifest manifest,
         DownloadItem item, string destination, string directory, byte[]? expectedMd5, CancellationToken token)
     {
-        bool hasExpected = item.ExpectedSize != null || item.ExpectedMd5 != null || item.ExpectedSha256 != null;
+        bool hasExpected = item.ExpectedSize != null || item.ExpectedMd5 != null || item.ExpectedSha256 != null || item.ExpectedSha1 != null;
         MediaManifestEntry[] candidates = manifest.Assets.Values.Where(asset => asset.RequestedFileName == Path.GetFileName(item.DestinationPath))
             .Select(asset => asset.Entry).Where(entry => EntryMatchesItem(entry, item)
                 && (item.ExpectedSize == null || item.ExpectedSize == entry.Length)
                 && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, entry.Sha256, StringComparison.OrdinalIgnoreCase))
                 && (item.ExpectedMd5 == null || string.IsNullOrEmpty(entry.Md5) || SameMd5(item.ExpectedMd5, entry.Md5))
+                && (item.ExpectedSha1 == null || entry.Sha1 == null || SameMd5(item.ExpectedSha1, entry.Sha1))
                 && (hasExpected || entry.SourceUrl == item.DownloadUri.AbsoluteUri)).ToArray();
         // History can retain an earlier path that was subsequently damaged and repaired elsewhere.
         // Count actual verified copies, not stale manifest claims; never select latest/current.
@@ -61,7 +62,7 @@ public sealed partial class MediaStore
         catch (FormatException) { return false; }
     }
 
-    private static MediaActualIntegrity Actual(FileDigest digest) => new(digest.Length, Convert.ToBase64String(digest.Md5), digest.Sha256);
+    private static MediaActualIntegrity Actual(FileDigest digest) => new(digest.Length, Convert.ToBase64String(digest.Md5), digest.Sha256) { Sha1 = Convert.ToBase64String(digest.Sha1) };
 
     private static void ValidateManifestBindings(MediaManifest manifest)
     {
@@ -74,6 +75,7 @@ public sealed partial class MediaStore
                 || binding.AssetId != GetAssetId(asset.RequestedFileName, asset.Entry)
                 || asset.Entry.MediaIdentifier != binding.Provider.MediaId || asset.Entry.Variant != binding.Provider.Variant
                 || asset.Entry.Length != binding.Actual.Length || asset.Entry.Md5 != binding.Actual.Md5
+                || binding.Actual.Sha1 != null && (asset.Entry.Sha1 == null || !SameMd5(binding.Actual.Sha1, asset.Entry.Sha1))
                 || !string.Equals(asset.Entry.Sha256, binding.Actual.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("An attachment binding disagrees with its immutable asset.");
         }
@@ -85,7 +87,7 @@ public sealed partial class MediaStore
         MediaActualIntegrity actual = Actual(digest);
         foreach (AttachmentRevisionReference reference in item.AttachmentReferences)
             if (manifest.AttachmentBindings.TryGetValue(reference.RevisionKey, out MediaAttachmentBinding? previous)
-                && (previous.Reference != reference || previous.Provider != provider || previous.Actual != actual || previous.AssetId != assetId))
+                && (previous.Reference != reference || previous.Provider != provider || !MediaIntegrityValidation.MatchesMeasured(previous.Actual, actual) || previous.AssetId != assetId))
                 throw new InvalidDataException("An immutable attachment revision is already bound to different bytes or another asset.");
     }
 
@@ -96,7 +98,7 @@ public sealed partial class MediaStore
         MediaProviderMetadata provider = MediaIntegrityValidation.Provider(item);
         MediaActualIntegrity actual = Actual(digest);
         ProviderIntegrityAssessment assessment = ProviderIntegrityAssessment.Assess(provider, actual);
-        if (assessment.Sha256Mismatch || !assessment.IsStrictMatch && policy == null)
+        if (assessment.Sha1Mismatch || assessment.Sha256Mismatch || !assessment.IsStrictMatch && policy == null)
             throw new InvalidDataException("A new binding needs current authorization for a provider discrepancy.");
         MediaAcceptanceRecord acceptance = new(assessment.IsStrictMatch ? MediaAcceptanceKind.Strict : MediaAcceptanceKind.ExplicitProviderMismatch,
             assessment.SizeMismatch, assessment.Md5Mismatch, DateTimeOffset.UtcNow, policy?.ProfileId, policy?.PluginOwnerId, policy?.SourceId, policy?.Revision);
@@ -118,7 +120,7 @@ public sealed partial class MediaStore
         foreach (AttachmentRevisionReference reference in item.AttachmentReferences)
         {
             if (!manifest.AttachmentBindings.TryGetValue(reference.RevisionKey, out MediaAttachmentBinding? binding)) continue;
-            if (binding.Provider != MediaIntegrityValidation.Provider(item) || binding.Actual != Actual(digest)
+            if (binding.Provider != MediaIntegrityValidation.Provider(item) || !MediaIntegrityValidation.MatchesMeasured(binding.Actual, Actual(digest))
                 || assetId != null && assetId != binding.AssetId)
                 throw new InvalidDataException("An immutable attachment revision cannot be rebound.");
             assetId = binding.AssetId;
@@ -138,7 +140,7 @@ public sealed partial class MediaStore
         {
             if (!manifest.AttachmentBindings.TryGetValue(reference.RevisionKey, out MediaAttachmentBinding? binding)) return null;
             if (binding.Reference != reference || binding.Provider != MediaIntegrityValidation.Provider(item)
-                || first != null && (first.AssetId != binding.AssetId || first.Actual != binding.Actual))
+                || first != null && (first.AssetId != binding.AssetId || !MediaIntegrityValidation.CompatibleEvidence(first.Actual, binding.Actual)))
                 throw new InvalidDataException("The saved attachment bindings disagree.");
             first = binding;
         }
@@ -146,7 +148,7 @@ public sealed partial class MediaStore
         MediaManifestAsset asset = manifest.Assets[first.AssetId];
         if (!TryGetEntryPath(directory, asset.Entry.FileName, out string? path)) throw new InvalidDataException("Invalid bound asset path.");
         FileDigest? digest = await TryHashFileAsync(path!, token, first.Actual.Length).ConfigureAwait(false);
-        if (digest == null || Actual(digest) != first.Actual) return null;
+        if (digest == null || !MediaIntegrityValidation.MatchesMeasured(first.Actual, Actual(digest))) return null;
         return new MediaCommitResult(path!, digest.Length, digest.Sha256, true) {
             AssetId = first.AssetId, AcquisitionRevisionKey = item.AcquisitionRevisionKey,
             AttachmentRevisionKeys = Array.AsReadOnly(item.AttachmentReferences.Select(reference => reference.RevisionKey).ToArray()) };

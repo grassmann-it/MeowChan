@@ -49,6 +49,8 @@ public sealed record MediaWork
     public required string DownloadUrl { get; init; }
     public string? ExpectedMd5 { get; init; }
     public string? ExpectedSha256 { get; init; }
+    public string? ExpectedSha1 { get; init; }
+    public MeowChan.Storage.MediaProviderSizeHint? ProviderSizeHint { get; init; }
     public string? AcquisitionRevisionKey { get; init; }
     private IReadOnlyList<AttachmentRevisionReference> _attachmentReferences = MediaAttachmentReferences.Empty;
     public IReadOnlyList<AttachmentRevisionReference> AttachmentReferences
@@ -278,7 +280,8 @@ public sealed class WorkStateStore : IWorkStateStore
             || media.AttachmentReferences == null)
             throw new InvalidDataException("Invalid durable media integrity metadata.");
         MediaProviderMetadata provider = new(media.MediaIdentifier, media.Variant, media.DownloadUrl, media.OriginalFileName,
-            media.ExpectedSize, media.ExpectedMd5, media.ExpectedSha256);
+            media.ExpectedSize, media.ExpectedMd5, media.ExpectedSha256) { ExpectedSha1 = media.ExpectedSha1, ProviderSizeHint = media.ProviderSizeHint };
+        MediaIntegrityValidation.ValidateProvider(provider);
         foreach (AttachmentRevisionReference reference in media.AttachmentReferences)
             if (reference == null || reference.RevisionKey != MediaRevisionKeys.CreateAttachmentKey(reference.Resource, reference.PostId, reference.Position, provider)
                 || media.AcquisitionRevisionKey != MediaRevisionKeys.CreateAcquisitionKey(reference.Resource, provider))

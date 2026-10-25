@@ -21,7 +21,9 @@ public sealed class SourceMediaIntegrityTests
     {
         MediaProviderMetadata raw = new("m", "original", "https://stub.test/m", null, 4, null, null);
         string key = MediaRevisionKeys.CreateAcquisitionKey(Resource, raw);
-        Assert.StartsWith("acq-v1:", key);
+        Assert.Equal("acq-v1:d06dd1b70bde24eb57ca751654dbaa412b0ae267902bed2708bd842667653d5b", key);
+        Assert.Equal("att-v1:eff9c51075b322780269276bb60c9bb337cd2193879f9d5e7ea4787b4f9164e6",
+            MediaRevisionKeys.CreateAttachmentKey(Resource, "post", 0, raw));
         Assert.Equal(key, MediaRevisionKeys.CreateAcquisitionKey(Resource, raw));
         Assert.NotEqual(key, MediaRevisionKeys.CreateAcquisitionKey(Resource, raw with { OriginalFileName = "" }));
         Assert.NotEqual(MediaRevisionKeys.CreateAttachmentKey(Resource, "12", 3, raw),
@@ -57,7 +59,7 @@ public sealed class SourceMediaIntegrityTests
         DownloadItem item = Item(board, directory, policy, 9, md5: Convert.ToBase64String(MD5.HashData(new byte[] { 99 })), posts: ["123", "124"]);
         MediaCommitResult result = await Commit(new MediaStore(), item);
         JsonObject manifest = JsonNode.Parse(await File.ReadAllTextAsync(Manifest(item)))!.AsObject();
-        Assert.Equal(3, (int)manifest["Version"]!);
+        Assert.Equal(4, (int)manifest["Version"]!);
         Assert.Equal(2, manifest["AttachmentBindings"]!.AsObject().Count);
         JsonNode binding = manifest["AttachmentBindings"]![item.AttachmentReferences[0].RevisionKey]!;
         Assert.Equal(9, (long)binding["Provider"]!["ExpectedSize"]!);
@@ -336,15 +338,75 @@ public sealed class SourceMediaIntegrityTests
         await Assert.ThrowsAsync<InvalidDataException>(() => MediaAssetReader.OpenAsync(directory.Path));
     }
 
-    private static DownloadItem Item(StubImageBoard board, TempDirectory directory, TestPolicy? policy,
-        long? size, string? md5 = null, string? sha = null, string[]? posts = null, string url = "https://stub.test/media/m.bin")
+    [Fact]
+    public async Task Sha1IsMeasuredPersistedAndStrictEvenWithMismatchPermission()
     {
-        MediaProviderMetadata provider = new("m", "original", url, "m.bin", size, md5, sha);
+        using TempDirectory directory = new(); using StubImageBoard board = new();
+        string sha1 = Convert.ToBase64String(SHA1.HashData(Bytes));
+        MediaProviderSizeHint hint = new("2.4e1", "Кб");
+        DownloadItem valid = Item(board, directory, null, null, sha1: sha1, hint: hint);
+        MediaCommitResult committed = await Commit(new MediaStore(), valid);
+        MediaAssetSnapshot snapshot = await MediaAssetReader.OpenAsync(directory.Path);
+        MediaAttachmentBinding binding = snapshot.FindAttachmentBinding(valid.AttachmentReferences[0].RevisionKey)!;
+        Assert.Equal(sha1, binding.Actual.Sha1); Assert.Equal(sha1, binding.Provider.ExpectedSha1);
+        Assert.Equal(hint, binding.Provider.ProviderSizeHint); Assert.Null(binding.Provider.ExpectedSize);
+        Assert.Equal(sha1, snapshot.FindById(binding.AssetId)!.Sha1);
+        Assert.Equal(committed.AssetId, (await new MediaStore().TryRestoreAsync(valid, default))!.AssetId);
+        Assert.StartsWith("acq-v2:", valid.AcquisitionRevisionKey);
+        DownloadItem invalid = Item(board, directory, new TestPolicy(), 9,
+            sha1: Convert.ToBase64String(SHA1.HashData([99])), hint: hint);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Commit(new MediaStore(), invalid));
+        Assert.Equal(Bytes, await File.ReadAllBytesAsync(committed.Path));
+        await File.WriteAllBytesAsync(committed.Path, [2, 4, 6, 8]);
+        Assert.Null(await new MediaStore().TryRestoreAsync(valid, default));
+    }
+
+    [Fact]
+    public async Task HistoricalV3BindingWithoutSha1ReusesItsExactBytes()
+    {
+        using TempDirectory directory = new(); using StubImageBoard board = new();
+        DownloadItem item = Item(board, directory, null, Bytes.Length);
+        MediaCommitResult committed = await Commit(new MediaStore(), item);
+        JsonObject manifest = JsonNode.Parse(await File.ReadAllTextAsync(Manifest(item)))!.AsObject();
+        manifest["Version"] = 3;
+        foreach (JsonNode? entry in manifest["Entries"]!.AsObject().Select(pair => pair.Value)) entry!.AsObject().Remove("Sha1");
+        foreach (JsonNode? asset in manifest["Assets"]!.AsObject().Select(pair => pair.Value)) asset!["Entry"]!.AsObject().Remove("Sha1");
+        foreach (JsonNode? binding in manifest["AttachmentBindings"]!.AsObject().Select(pair => pair.Value))
+        {
+            binding!["Actual"]!.AsObject().Remove("Sha1");
+            binding["Provider"]!.AsObject().Remove("ExpectedSha1");
+            binding["Provider"]!.AsObject().Remove("ProviderSizeHint");
+        }
+        await File.WriteAllTextAsync(Manifest(item), manifest.ToJsonString());
+        Assert.Equal(committed.AssetId, (await new MediaStore().TryRestoreAsync(item, default))!.AssetId);
+        Assert.Equal(committed.AssetId, (await Commit(new MediaStore(), item)).AssetId);
+        DownloadItem additional = Item(board, directory, null, Bytes.Length, posts: ["123", "124"]);
+        Assert.Equal(committed.AssetId, (await Commit(new MediaStore(), additional)).AssetId);
+        Assert.Equal(committed.AssetId, (await new MediaStore().TryRestoreAsync(additional, default))!.AssetId);
+        Assert.Equal(MediaManifestStatus.Available, (await MediaAssetReader.OpenAsync(directory.Path)).Status);
+    }
+
+    [Fact]
+    public void MissingSha1EvidenceAndMd5ShapedSha1NeverPass()
+    {
+        string sha1 = Convert.ToBase64String(SHA1.HashData(Bytes));
+        MediaProviderMetadata provider = new("m", "original", "https://stub.test/m", null, null, null, null) { ExpectedSha1 = sha1 };
+        MediaActualIntegrity old = new(Bytes.Length, Convert.ToBase64String(MD5.HashData(Bytes)), Convert.ToHexString(SHA256.HashData(Bytes)));
+        Assert.True(ProviderIntegrityAssessment.Assess(provider, old).Sha1Mismatch);
+        Assert.Throws<InvalidDataException>(() => ProviderIntegrityAssessment.Assess(provider with { ExpectedSha1 = old.Md5 }, old));
+        string key = MediaRevisionKeys.CreateAcquisitionKey(Resource, provider);
+        Assert.NotEqual(key, MediaRevisionKeys.CreateAcquisitionKey(Resource, provider with { ProviderSizeHint = new("24", "Кб") }));
+    }
+
+    private static DownloadItem Item(StubImageBoard board, TempDirectory directory, TestPolicy? policy,
+        long? size, string? md5 = null, string? sha = null, string[]? posts = null, string url = "https://stub.test/media/m.bin", string? sha1 = null, MediaProviderSizeHint? hint = null)
+    {
+        MediaProviderMetadata provider = new("m", "original", url, "m.bin", size, md5, sha) { ExpectedSha1 = sha1, ProviderSizeHint = hint };
         AttachmentRevisionReference[] references = (posts ?? ["123"]).Select(post => new AttachmentRevisionReference(Resource,
             post, 0, MediaRevisionKeys.CreateAttachmentKey(Resource, post, 0, provider))).ToArray();
         return new DownloadItem(new Uri(url), Path.Combine(directory.Path, "m.bin"), board,
             board.GetThread(new Uri("https://stub.test/g/thread/123")), "m", size, md5, "m.bin") {
-            ExpectedSha256 = sha, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, provider),
+            ExpectedSha256 = sha, ExpectedSha1 = sha1, ProviderSizeHint = hint, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, provider),
             AttachmentReferences = references, MediaIntegrityPolicy = policy };
     }
     private static string Manifest(DownloadItem item) => Path.Combine(Path.GetDirectoryName(item.DestinationPath)!, ".meowchan-manifest.json");

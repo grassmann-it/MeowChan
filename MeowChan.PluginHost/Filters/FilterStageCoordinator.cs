@@ -225,6 +225,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 await SaveJournalAsync(null, 0, token).ConfigureAwait(false);
                 using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+                using IncrementalHash sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
                 await using (FileStream file = new(ImagePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 {
                     byte[] buffer = new byte[65536]; int read;
@@ -237,7 +238,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                             throw new MediaFilterOmissionException(true, "filter_actual_rule_byte_limit");
                         if (_size + read > _owner._options.MaximumImageBytes) throw new MediaFilterOmissionException(false, "filter_image_byte_limit");
                         EnsureCurrent(); _owner.CheckBudget(read); _size += read;
-                        sha.AppendData(buffer, 0, read); md5.AppendData(buffer, 0, read);
+                        sha.AppendData(buffer, 0, read); md5.AppendData(buffer, 0, read); sha1.AppendData(buffer, 0, read);
                         await file.WriteAsync(buffer.AsMemory(0, read), _lifetime.Token).ConfigureAwait(false);
                     }
                     await file.FlushAsync(_lifetime.Token).ConfigureAwait(false); file.Flush(true);
@@ -246,7 +247,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 string actualMd5 = Convert.ToBase64String(md5.GetHashAndReset());
                 try
                 {
-                    _sourcePermission = MediaIntegrityValidation.AuthorizeAssessment(item, new MediaActualIntegrity(_size, actualMd5, digest));
+                    _sourcePermission = MediaIntegrityValidation.AuthorizeAssessment(item, new MediaActualIntegrity(_size, actualMd5, digest) { Sha1 = Convert.ToBase64String(sha1.GetHashAndReset()) });
                     _sourcePolicy = item.MediaIntegrityPolicy;
                     if (_sourcePermission != null && _sourcePermission != startedPermission)
                         throw new InvalidDataException("Source permission changed during filter staging.");

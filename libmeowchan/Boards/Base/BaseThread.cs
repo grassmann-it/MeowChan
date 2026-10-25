@@ -505,13 +505,14 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                         Board.ImageBoard, this, attachment.MediaId, attachment.ExpectedSize, attachment.ExpectedMd5,
                         attachment.OriginalFileName, null, attachment.Variant)
                     {
-                        ExpectedSha256 = attachment.ExpectedSha256,
+                        ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint,
                         AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(_restoredFinalSnapshot.Id, new MediaProviderMetadata(
-                            attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256)),
+                            attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint }),
                         AttachmentReferences = _restoredFinalSnapshot.Posts.SelectMany(savedPost =>
                             (savedPost.Attachments ?? Array.Empty<CapturedAttachment>()).Where(saved => saved.MediaId == attachment.MediaId
                                 && saved.Variant == attachment.Variant && saved.Url == attachment.Url && saved.ExpectedSize == attachment.ExpectedSize
                                 && saved.ExpectedMd5 == attachment.ExpectedMd5 && saved.ExpectedSha256 == attachment.ExpectedSha256
+                                && saved.ExpectedSha1 == attachment.ExpectedSha1 && saved.ProviderSizeHint == attachment.ProviderSizeHint
                                 && saved.OriginalFileName == attachment.OriginalFileName && saved.AttachmentRevisionKey != null)
                             .Select(saved => new AttachmentRevisionReference(_restoredFinalSnapshot.Id, savedPost.PostId, saved.Position, saved.AttachmentRevisionKey!))).ToArray()
                     });

@@ -23,6 +23,7 @@ public sealed record MediaAssetReference(string AssetId, string MediaIdentifier,
 {
     /// <summary>The checksum of the published bytes; permits matching a captured provider attachment.</summary>
     public string Md5 { get; init; } = string.Empty;
+    public string? Sha1 { get; init; }
 }
 
 /// <summary>
@@ -168,7 +169,7 @@ public sealed partial class MediaStore
                 && currentId == pair.Key;
             assets.Add(new MediaAssetReference(pair.Key, entry.MediaIdentifier, entry.Variant, asset.RequestedFileName,
                 Path.Combine(directory, entry.FileName), entry.Length, entry.Sha256.ToLowerInvariant(),
-                entry.SourceUrl, entry.OriginalFileName, current) { Md5 = entry.Md5 });
+                entry.SourceUrl, entry.OriginalFileName, current) { Md5 = entry.Md5, Sha1 = entry.Sha1 });
         }
         try
         {
@@ -197,6 +198,8 @@ public sealed partial class MediaStore
             || !TryGetEntryPath(directory, entry.FileName, out _) || string.IsNullOrWhiteSpace(entry.MediaIdentifier) || string.IsNullOrWhiteSpace(entry.Variant)
             || entry.Length < 0 || entry.Sha256 == null || entry.Sha256.Length != 64
             || !Uri.TryCreate(entry.SourceUrl, UriKind.Absolute, out _)) return false;
+        try { MediaIntegrityValidation.ValidateSha1(entry.Sha1); }
+        catch (InvalidDataException) { return false; }
         foreach (char character in entry.Sha256)
             if (!Uri.IsHexDigit(character)) return false;
         return true;

@@ -23,6 +23,9 @@ internal static class MediaProvenanceText
         void Add(string line) => text += (text.Length == 0 ? "" : Environment.NewLine) + line;
         if (provider.ExpectedSize is long size)
             Add(T("Source reported: ", "Anbieterangabe: ") + size.ToString("N0", Texts.Culture) + " bytes");
+        if (provider.ProviderSizeHint is MediaProviderSizeHint hint)
+            Add(T("Source size hint (not exact bytes): ", "Größenhinweis des Anbieters (keine exakte Bytezahl): ")
+                + hint.RawValue + " " + hint.UnitLabel + " (" + hint.Precision + ")");
         return text;
     }
 
@@ -33,6 +36,8 @@ internal static class MediaProvenanceText
         void Add(string line) => text += (text.Length == 0 ? "" : Environment.NewLine) + line;
         Add(T("Saved file MD5: ", "MD5 der gespeicherten Datei: ") + binding.Actual.Md5);
         if (binding.Provider.ExpectedMd5 != null) Add(T("Source MD5: ", "Anbieter-MD5: ") + binding.Provider.ExpectedMd5);
+        if (binding.Actual.Sha1 != null) Add(T("Saved file SHA-1: ", "SHA-1 der gespeicherten Datei: ") + binding.Actual.Sha1);
+        if (binding.Provider.ExpectedSha1 != null) Add(T("Source SHA-1: ", "Anbieter-SHA-1: ") + binding.Provider.ExpectedSha1);
         if (binding.Provider.ExpectedSha256 != null) Add(T("Source SHA-256: ", "Anbieter-SHA-256: ") + binding.Provider.ExpectedSha256);
         if (binding.Provider.Url != null) Add(T("Source URL: ", "Anbieter-URL: ") + binding.Provider.Url);
         return text;

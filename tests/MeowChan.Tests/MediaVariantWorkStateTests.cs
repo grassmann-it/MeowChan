@@ -11,6 +11,23 @@ public sealed class MediaVariantWorkStateTests
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void Sha1AndRawProviderSizeHintSurviveDurableRestartAndRejectInvalidMetadata()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        WorkStateStore store = new(directory.Path, lease);
+        store.CommitIntent(new WorkResource { Url = Url, Generation = 1, OutputRoot = directory.Path,
+            Intent = WorkIntent.Watching, IsThread = true });
+        MediaWork media = new() { ResourceUrl = Url, Generation = 1, MediaIdentifier = "m",
+            DestinationPath = Path.Combine(directory.Path, "m.bin"), DownloadUrl = "https://stub.test/m.bin",
+            ExpectedSha1 = Convert.ToBase64String(new byte[20]), ProviderSizeHint = new("24.50", "Кб") };
+        Assert.True(store.CommitMedia(media));
+        Assert.Equal(media, Assert.Single(new WorkStateStore(directory.Path, lease).LoadMedia(Url, 1)));
+        Assert.Throws<InvalidDataException>(() => store.CommitMedia(media with { ExpectedSha1 = Convert.ToBase64String(new byte[16]) }));
+        Assert.Throws<InvalidDataException>(() => store.CommitMedia(media with { ProviderSizeHint = new("-1", "Кб") }));
+    }
+
+    [Fact]
     public void LegacyPrimaryKeyUpgradeIsAtomicIdempotentAndPreservesOriginalPayloadAndDeadlines()
     {
         using TempDirectory directory = new();
