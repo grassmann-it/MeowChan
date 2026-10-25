@@ -297,7 +297,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 player.Paused += (_, _) => Post(generation, () => { _isPlaying = false; RefreshTransportPresentation(); });
                 player.Stopped += (_, _) => Post(generation, () => { _isPlaying = false; UpdateTime(0); RefreshTransportPresentation(); });
                 player.SeekableChanged += (_, args) => Post(generation, () =>
-                { _canSeek = args.Seekable; _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
+                { _canSeek = args.Seekable != 0; _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
                 player.LengthChanged += (_, args) => Post(generation, () =>
                 { _length = Math.Max(0, args.Length); UpdateTime(_position); _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
                 player.TimeChanged += (_, args) => Post(generation, () => UpdateTime(args.Time));
