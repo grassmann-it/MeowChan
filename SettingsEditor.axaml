@@ -8,6 +8,17 @@
              x:Class="MeowChan.SettingsEditor" x:DataType="local:SettingsEditor"
              SizeChanged="OnEditorSizeChanged">
     <UserControl.Styles>
+        <Style Selector="ToggleButton.settings-category">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="10,7" />
+        </Style>
+        <Style Selector="ToggleButton.settings-category:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+        </Style>
         <!-- Keyboard focus enters the template's text box, so it needs the field semantics too. -->
         <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
             <Setter Property="AutomationProperties.Name" Value="{Binding (AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}" />
@@ -36,7 +47,7 @@
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
         </StackPanel>
-        <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="16" Margin="20,0,20,16">
+        <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="16" Margin="20,0,20,16" MaxWidth="1088" HorizontalAlignment="Center">
             <desktop:SectionNavigationControl x:Name="SettingsSections" Grid.ColumnSpan="2" Margin="0,0,0,12" />
             <ScrollViewer x:Name="SettingsCategories" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
                 <StackPanel x:Name="SettingsCategoryLinks" Spacing="4" IsEnabled="{Binding IsEditable}" />
@@ -44,7 +55,7 @@
         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" Grid.Column="1"
                       HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
             <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="24">
-                <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsInterfacePage" Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,6" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
@@ -86,7 +97,7 @@
                         <TextBlock Text="{Binding LanguagePacksHint}" Classes="muted workspace-help" Margin="0,6,0,0" />
                     </Expander>
                 </StackPanel>
-                <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsReadingMediaPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsReadingMediaHeading" Text="{Binding ReadingMediaTitle}" Classes="section-title" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
@@ -107,7 +118,7 @@
                     <Button x:Name="ForgetReadingPositionButton" Content="{Binding ForgetReadingPositionLabel}" AutomationProperties.Name="{Binding ForgetReadingPositionLabel}" Click="OnForgetReadingPositionClick" IsEnabled="{Binding CanForgetReadingPosition}" HorizontalAlignment="Left" />
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsDownloadsPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,10" />
                     <StackPanel Classes="workspace-field" Margin="0,0,0,12">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" Classes="workspace-field-label" />
@@ -146,7 +157,8 @@
                         </Grid>
                     </Border>
                 </StackPanel>
-                <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
+                    <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding AdvancedBudgetsLabel}" Classes="section-title" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
@@ -189,7 +201,7 @@
                         </StackPanel>
                     </Expander>
                 </StackPanel>
-                <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsUpdatesPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsUpdatesHeading" Text="{Binding UpdatesTitle}" Classes="section-title" />
                     <CheckBox x:Name="AutomaticUpdatesInput" AutomationProperties.Name="{Binding AutomaticUpdateChecksLabel}" AutomationProperties.HelpText="{Binding UpdatePrivacyHint}" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding AutomaticUpdateChecks, Mode=TwoWay}">
                         <TextBlock Text="{Binding AutomaticUpdateChecksLabel}" TextWrapping="Wrap" />
@@ -200,14 +212,14 @@
                     <TextBlock x:Name="UpdatePrivacyText" Text="{Binding UpdatePrivacyHint}" Classes="muted workspace-help" />
                     <TextBlock x:Name="UpdateDisabledText" Text="{Binding UpdateDisabledReason}" IsVisible="{Binding UpdatesDisabled}" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel x:Name="SettingsNotificationsSection" Spacing="8" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsNotificationsSection" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsNotificationsHeading" Text="{Binding NotificationsTitle}" Classes="section-title" />
                     <CheckBox x:Name="InformationNotificationsInput" IsChecked="{Binding ShowInformationNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding InformationNotificationsLabel}"><TextBlock Text="{Binding InformationNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="WarningNotificationsInput" IsChecked="{Binding ShowWarningNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding WarningNotificationsLabel}"><TextBlock Text="{Binding WarningNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="ErrorNotificationsInput" IsChecked="{Binding ShowErrorNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding ErrorNotificationsLabel}"><TextBlock Text="{Binding ErrorNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <TextBlock Text="{Binding NotificationsHint}" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Spacing="10" IsEnabled="{Binding IsEditable}">
+                <StackPanel x:Name="SettingsBehaviorPage" Spacing="10" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" />
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
@@ -216,7 +228,7 @@
                     <TextBlock Text="{Binding SupportedSources}" Classes="muted workspace-help" />
                     <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
                 </StackPanel>
-                <commands:ShortcutEditor x:Name="ShortcutsEditor" IsEnabled="{Binding IsEditable}" />
+                <commands:ShortcutEditor x:Name="ShortcutsEditor" IsVisible="False" IsEnabled="{Binding IsEditable}" />
                 <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
                     <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     <Expander x:Name="SettingsErrorDetails" Header="{Binding ErrorDetailsLabel}" IsVisible="{Binding HasErrorDetails}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -227,7 +239,7 @@
         </ScrollViewer>
         </Grid>
         <Border Grid.Row="2" Classes="workspace-dialog-footer">
-            <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6" HorizontalAlignment="Stretch" MaxWidth="1088">
+            <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6" HorizontalAlignment="Center" MaxWidth="1088">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                     <TextBlock Text="{Binding BusyStatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />

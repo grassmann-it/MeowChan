@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Layout;
+using Avalonia.Controls.Primitives;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop;
 
@@ -16,6 +17,44 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private SectionNavigationController? _sectionNavigation;
+    private string _selectedCategoryId = "settings.interface";
+
+    // Pages keep their editors and draft for this editor's entire lifetime.
+    private IEnumerable<(string Id, Control Page)> CategoryPages()
+    {
+        yield return ("settings.interface", SettingsInterfacePage);
+        yield return ("settings.reading-media", SettingsReadingMediaPage);
+        yield return ("settings.downloads", SettingsDownloadsPage);
+        yield return ("settings.worker-budgets", SettingsWorkerBudgetsPage);
+        yield return ("settings.updates", SettingsUpdatesPage);
+        yield return ("settings.notifications", SettingsNotificationsSection);
+        yield return ("settings.behavior", SettingsBehaviorPage);
+        yield return ("settings.shortcuts", ShortcutsEditor);
+    }
+
+    private void SelectCategory(string id)
+    {
+        if (!CategoryPages().Any(item => item.Id == id)) return;
+        bool changed = _selectedCategoryId != id;
+        _selectedCategoryId = id;
+        foreach (var item in CategoryPages()) item.Page.IsVisible = item.Id == id;
+        foreach (ToggleButton button in SettingsCategoryLinks.Children.OfType<ToggleButton>())
+        {
+            bool selected = Equals(button.Tag, id);
+            button.IsChecked = selected;
+        }
+        if (changed) SettingsScrollViewer.Offset = default;
+    }
+
+    private void SelectCategoryContaining(Control input)
+    {
+        foreach (var item in CategoryPages())
+        {
+            if (!ReferenceEquals(input, item.Page) && !input.GetVisualAncestors().Contains(item.Page)) continue;
+            SelectCategory(item.Id);
+            return;
+        }
+    }
     private long _sectionFocusTransferRevision;
     private (TopLevel Owner, object? Focus, string? SectionId)? _pendingSectionFocusTransfer;
 
@@ -78,13 +117,15 @@ public partial class SettingsEditor
     }
     public bool CanOpenSectionNavigation => IsEditable && _sectionNavigation?.IsAvailable == true;
     public string? SelectedSectionId => SettingsCategoryLinks.Children.OfType<Button>()
-        .FirstOrDefault(button => button.IsKeyboardFocusWithin)?.Tag as string ?? SettingsSections.SelectedSectionId;
+        .FirstOrDefault(button => button.IsKeyboardFocusWithin)?.Tag as string
+        ?? (SettingsSections.IsKeyboardFocusWithin ? SettingsSections.SelectedSectionId : null) ?? _selectedCategoryId;
     public void OpenSectionNavigation()
     {
         if (!CanOpenSectionNavigation) return;
         SettingsSections.OpenNavigation();
         if (SettingsCategories.IsVisible)
-            SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault()?.Focus();
+            (SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, _selectedCategoryId))
+                ?? SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault())?.Focus();
     }
     public bool CanGoToSection(string id) => IsEditable
         && (SettingsSections.IsExpanded || SettingsCategories.IsVisible && SettingsCategories.IsKeyboardFocusWithin)
@@ -110,10 +151,10 @@ public partial class SettingsEditor
         SettingsCategoryLinks.Children.Clear();
         foreach (SectionDescriptor section in sections)
         {
-            var button = new Button { Tag = section.Id, HorizontalAlignment = HorizontalAlignment.Stretch,
+            var button = new ToggleButton { Tag = section.Id, HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Content = new TextBlock { Text = section.Title, TextWrapping = Avalonia.Media.TextWrapping.Wrap } };
-            button.Classes.Add("subtle");
+            button.Classes.Add("settings-category");
             AutomationProperties.SetName(button, section.Title);
             CommandBindings.BindExisting(button, "sections.go-to");
             // A later Tab/focus back into navigation supersedes an older queued
@@ -122,6 +163,7 @@ public partial class SettingsEditor
             button.Click += (_, _) => SettingsSections.Navigate(section.Id);
             SettingsCategoryLinks.Children.Add(button);
         }
+        SelectCategory(_selectedCategoryId);
         if (focused != null && SettingsCategories.IsVisible)
             SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, focused))?.Focus();
     }
@@ -131,15 +173,15 @@ public partial class SettingsEditor
         if (_sectionNavigation == null || _isClosed) return;
         var sections = new List<SectionDescriptor>
         {
-            new("settings.interface", InterfaceTitle, () => SettingsInterfaceHeading),
-            new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading),
-            new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading),
-            new("settings.worker-budgets", AdvancedBudgetsLabel, () => SettingsWorkerBudgetsHeading,
-                () => SettingsWorkerBudgetsHeading.IsExpanded = true),
-            new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading)
+            new("settings.interface", InterfaceTitle, () => SettingsInterfaceHeading, () => SelectCategory("settings.interface")),
+            new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading, () => SelectCategory("settings.reading-media")),
+            new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading, () => SelectCategory("settings.downloads")),
+            new("settings.worker-budgets", AdvancedBudgetsLabel, () => SettingsWorkerBudgetsPageTitle,
+                () => { SelectCategory("settings.worker-budgets"); SettingsWorkerBudgetsHeading.IsExpanded = true; }),
+            new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading, () => SelectCategory("settings.updates"))
         };
         AddOptional("settings.notifications", "SettingsNotificationsHeading");
-        sections.Add(new("settings.behavior", BehaviorTitle, () => SettingsBehaviorHeading));
+        sections.Add(new("settings.behavior", BehaviorTitle, () => SettingsBehaviorHeading, () => SelectCategory("settings.behavior")));
         AddOptional("settings.shortcuts", "ShortcutsEditor");
         _sectionNavigation.SetSections(sections);
         SettingsSections.Refresh();
@@ -158,7 +200,7 @@ public partial class SettingsEditor
                 return name == "ShortcutsEditor"
                     ? (current as MeowChan.Desktop.Commands.ShortcutEditor)?.SectionHeading ?? current
                     : current;
-            }));
+            }, () => SelectCategory(id)));
         }
     }
 }

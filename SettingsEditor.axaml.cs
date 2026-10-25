@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -502,13 +503,16 @@ namespace MeowChan
             SettingsFormLayout.ColumnSpacing = categories ? 16 : 0;
             Grid.SetColumn(SettingsScrollViewer, categories ? 1 : 0);
             Grid.SetColumnSpan(SettingsScrollViewer, categories ? 1 : 2);
-            double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60 - (categories ? 192 : 0)));
+            double sharedWidth = Math.Min(1088, Math.Max(0, e.NewSize.Width - 40));
+            SettingsFormLayout.Width = sharedWidth;
+            SettingsHeader.Width = sharedWidth;
+            SettingsFooter.Width = sharedWidth;
+            double width = Math.Max(0, sharedWidth - 20 - (categories ? 192 : 0));
             SettingsContent.Width = width;
-            SettingsHeader.Width = Math.Min(1088, Math.Max(0, e.NewSize.Width - 40));
             if (presentationChanged && navigationFocus && focusOwner != null)
                 QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
             bool narrow = width < 700;
-            foreach (Grid row in SettingsContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
+            foreach (Grid row in SettingsContent.GetLogicalDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
                 row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
                 row.RowSpacing = narrow ? 6 : 0;
@@ -703,6 +707,10 @@ namespace MeowChan
                 if (!ValidateNumericDraft())
                     return;
 
+                // Reveal before shortcut validation captures focus for its guarded
+                // deferred error reveal. A valid draft keeps the current page.
+                if (EffectiveShortcutBindings.Build(ShortcutsEditor.Draft).Issues.Any(issue => issue.BlocksSave))
+                    SelectCategory("settings.shortcuts");
                 if (!ShortcutsEditor.ValidateDraft()) return;
                 Config candidate = _config.Clone();
                 candidate.ShortcutBindings = ShortcutsEditor.Draft.Clone();

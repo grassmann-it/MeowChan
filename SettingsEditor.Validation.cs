@@ -125,6 +125,7 @@ public partial class SettingsEditor
         StatusMessage = Texts.T("settings.unsaved");
         if (!focusError) return false;
         Control first = _firstInvalidInput;
+        SelectCategoryContaining(first);
         Dispatcher.UIThread.Post(() =>
         {
             if (_isClosed || _firstInvalidInput != first) return;
