@@ -156,7 +156,21 @@ public sealed class SourceWaveProcessRestartTests
         var gallery = GallerySelection.Build(thread, [snapshot]);
         Assert.Equal(2, gallery.Entries.Count);
         var work = Assert.Single(host.GetThreadWorkSnapshots(), row => row.Url == MakabaUboachanWaveFixtures.ThreadUrl(source));
-        Assert.All(work.Media, row => { Assert.Equal(MediaWorkStatus.Succeeded, row.Status); Assert.Equal(1, row.Attempts); });
+        Assert.All(work.Media, row =>
+        {
+            Assert.Equal(MediaWorkStatus.Succeeded, row.Status);
+            // RecordDurableResultLocked resets the failure/retry counter after success.
+            // Exact HTTP acquisition counts are checked independently above; Attempts
+            // is not a lifetime request count and the full journal survives unchanged.
+            Assert.Equal(0, row.Attempts);
+            Assert.Equal(0, row.ConsecutiveNotFound);
+            Assert.NotNull(row.LastAttemptAt);
+            Assert.NotNull(row.CommittedAssetId);
+            Assert.Null(row.Failure);
+            Assert.Null(row.HttpStatus);
+            Assert.Null(row.DueAt);
+            Assert.False(row.ManualAttempt);
+        });
         var board = Assert.Single(host.Plugins!.Sources, row => row.Name == source);
         var threadHandle = board.GetThread(new Uri(MakabaUboachanWaveFixtures.ThreadUrl(source)));
         List<object> attachmentProofs = [];
