@@ -30,10 +30,12 @@ NW-05/06 benötigen nach den Stichproben keine neue Integritätssemantik.
    Ohne sie kann der Adapter strikt arbeiten, liefert für den konkreten Anhang
    aber korrekt einen Integritätsfehler. Weder MD5 löschen noch durch Ist-MD5 ersetzen.
 
-## Betroffene Verträge und Umsetzung nach Entscheidung
+## Historische Vertragsanalyse vor der Umsetzung
 
-`MeowChan.PluginSdk/SourceContracts.cs` bietet aktuell ExpectedSize, ExpectedMd5
-und ExpectedSha256, kein SHA-1 oder Größenpräzisionsfeld. Betroffen wären DTO-
+Zum Planungsbeginn bot `MeowChan.PluginSdk/SourceContracts.cs` ExpectedSize,
+ExpectedMd5 und ExpectedSha256, noch kein SHA-1 oder Größenpräzisionsfeld.
+Die unten dokumentierte additive Umsetzung hat diese Lücke geschlossen.
+Betroffen waren DTO-
 Validierung/JSON, Hostmapping, Coremedienmodell, Anhangsrevision und Manifest,
 Integritätsprüfung sowie Anzeige/Diagnose der Anbieter-/Istwerte. Vor Änderungen
 alle tatsächlichen Übergänge verfolgen; kein nur im SDK vorhandenes Feld liefern.
