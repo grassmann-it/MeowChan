@@ -1,9 +1,11 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/package-plugins.py'
 SPEC = importlib.util.spec_from_file_location('plugin_package', SCRIPT)
@@ -15,6 +17,21 @@ class PluginPackagingTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='meowchan-plugin-package-')
         self.root = Path(self.temporary.name)
+        self.unix_helpers = set()
+        if os.name == 'nt':
+            # NTFS does not represent Unix execute bits. Emulate them only for
+            # synthetic cross-target helpers; all other stat values stay real.
+            original_stat = Path.stat
+            def fixture_stat(path, *args, **kwargs):
+                value = original_stat(path, *args, **kwargs)
+                if path in self.unix_helpers:
+                    fields = list(value)
+                    fields[0] |= 0o111
+                    return os.stat_result(fields)
+                return value
+            patch = mock.patch.object(Path, 'stat', autospec=True, side_effect=fixture_stat)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -42,6 +59,8 @@ class PluginPackagingTests(unittest.TestCase):
         for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
             path = self.put(directory + '/' + name + ('.exe' if runtime.startswith('win-') else ''), header)
             path.chmod(0o755)
+            if not runtime.startswith('win-'):
+                self.unix_helpers.add(path)
             self.put(directory + '/' + name + '.dll')
             self.json(directory + '/' + name + '.deps.json', {'libraries': {}})
             config = {'includedFrameworks': [{'name': 'Microsoft.NETCore.App', 'version': '10.0.11'}]} if self_contained else {'framework': {'name': 'Microsoft.NETCore.App', 'version': '10.0.0'}}
@@ -178,7 +197,9 @@ class PluginPackagingTests(unittest.TestCase):
 
     def test_non_executable_unix_helper_is_rejected(self):
         self.fixture()
-        (self.root / 'plugin-worker/MeowChan.PluginWorker').chmod(0o644)
+        helper = self.root / 'plugin-worker/MeowChan.PluginWorker'
+        helper.chmod(0o644)
+        self.unix_helpers.discard(helper)
         with self.assertRaisesRegex(ValueError, 'not executable'):
             PACKAGE.verify(self.root, 'linux-x64')
 

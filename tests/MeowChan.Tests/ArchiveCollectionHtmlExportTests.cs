@@ -23,8 +23,9 @@ public sealed class ArchiveCollectionHtmlExportTests
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
         string media1 = await SaveAsync(Path.Combine(dir.Path, "one"));
-        string media2 = await SaveAsync(Path.Combine(dir.Path, "two"));
+        string media2 = await SaveAsync(Path.Combine(dir.Path, "two"), Second);
         ResourceId otherSource = First with { Source = "other" };
+        await CommittedMediaTestFixture.BindAsync(media1, otherSource, Snapshot(otherSource, media1).Posts);
         await catalog.CaptureAsync(Snapshot(First, media1, "<a href='/a/thread/400#p400'>&gt;&gt;400</a><a href='https://external.test/#p9'>&gt;&gt;9</a><script>secret</script>"));
         await catalog.CaptureAsync(Snapshot(Second, media2, "Second text"));
         await catalog.CaptureAsync(Snapshot(otherSource, media1, "Other source"));
@@ -67,7 +68,7 @@ public sealed class ArchiveCollectionHtmlExportTests
         using ProfileLease lease = ProfileLease.Acquire(dir.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(dir.Path, lease);
         string one = await SaveAsync(Path.Combine(dir.Path, "one"));
-        string two = await SaveAsync(Path.Combine(dir.Path, "two"));
+        string two = await SaveAsync(Path.Combine(dir.Path, "two"), Second);
         await catalog.CaptureAsync(Snapshot(First, one));
         await catalog.CaptureAsync(Snapshot(Second, two));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(dir.Path);
@@ -444,14 +445,17 @@ public sealed class ArchiveCollectionHtmlExportTests
     private static CapturedThreadSnapshot Snapshot(ResourceId id, string media, string text = "captured") => new(id,
         "https://boards.4chan.org/" + id.Board + "/thread/" + id.Thread, "Title <" + id.Thread + ">", ThreadSourceState.Archived,
         DateTimeOffset.UtcNow, media, [new CapturedPost(id.Thread!, 0, PostFieldPresence.All, Html: text,
-            Attachments: [new CapturedAttachment(0, "456", OriginalFileName: "../file.bin", ExpectedSize: Bytes.Length, ExpectedMd5: Md5)])]);
-    private static async Task<string> SaveAsync(string root)
+            Attachments: [new CapturedAttachment(0, "456", OriginalFileName: "../file.bin", Url: "https://stub.test/456.bin", ExpectedSize: Bytes.Length, ExpectedMd5: Md5)])]);
+    private static async Task<string> SaveAsync(string root, ResourceId? resource = null)
     {
         using StubImageBoard board = new();
         DownloadItem item = new(new Uri("https://stub.test/456.bin"), Path.Combine(root, "media", "456.bin"), board,
             board.GetThread(new Uri("https://stub.test/g/thread/123")), "456", expectedSize: Bytes.Length, expectedMd5: Md5);
         using MemoryStream input = new(Bytes, false);
         MediaCommitResult result = await new MediaStore().CommitAsync(item, input, CancellationToken.None);
-        return Path.GetDirectoryName(result.Path)!;
+        string directory = Path.GetDirectoryName(result.Path)!;
+        ResourceId identity = resource ?? First;
+        await CommittedMediaTestFixture.BindAsync(directory, identity, Snapshot(identity, directory).Posts);
+        return directory;
     }
 }

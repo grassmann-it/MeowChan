@@ -22,7 +22,7 @@ public sealed class ContentRevisionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FinalSourceSnapshotDuringActiveOldDownloadRetainsBothBytesAndDoesNotSignalIdleEarly(bool eightKun)
+    public async Task FinalSourceSnapshotRejectsSupersededPublicationAndDoesNotSignalIdleEarly(bool eightKun)
     {
         using TempDirectory profile = new TempDirectory();
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
@@ -70,15 +70,21 @@ public sealed class ContentRevisionTests
         Assert.Equal(1, thread.DownloadedMediaCount);
         Assert.Equal(ThreadActivity.Finished, thread.Activity);
         MediaAssetSnapshot assets = await MediaAssetReader.OpenAsync(thread.DownloadDirectory);
-        Assert.Equal(2, assets.Count);
+        // The durable work row now owns revision 1. Revision 0 must fail the
+        // publication guard rather than publish a stale acquisition.
+        Assert.Equal(1, assets.Count);
         MediaAssetReference current = Assert.Single(assets.GetPage(), asset => asset.IsCurrent);
         Assert.Equal(Hash(Payloads[1]), current.Sha256);
-        Assert.Contains(assets.GetPage(), asset => !asset.IsCurrent && asset.Sha256 == Hash(Payloads[0]));
+        Assert.DoesNotContain(assets.GetPage(), asset => asset.Sha256 == Hash(Payloads[0]));
         await using ArchiveReader reader = await runtime.OpenReaderAsync();
         ArchivedThreadView archived = (await reader.ReadThreadAsync(new ResourceId(eightKun ? "8kun" : "4chan", "g", "123")))!;
         Assert.Equal(eightKun ? ThreadSourceState.NotFound : ThreadSourceState.Archived, archived.Summary.SourceState);
         CapturedPost post = Assert.Single(archived.GetPosts());
-        Assert.Equal(Convert.ToBase64String(MD5.HashData(Payloads[1])), Assert.Single(post.Attachments!).ExpectedMd5);
+        CapturedAttachment attachment = Assert.Single(post.Attachments!);
+        Assert.Equal(Convert.ToBase64String(MD5.HashData(Payloads[1])), attachment.ExpectedMd5);
+        ResolvedMediaAttachment resolved = Assert.IsType<ResolvedMediaAttachment>(MediaAttachmentResolver.Resolve(
+            assets, archived.Summary.Id, post.PostId, attachment));
+        Assert.Equal(current.AssetId, resolved.Asset.AssetId);
     }
 
     [Theory]

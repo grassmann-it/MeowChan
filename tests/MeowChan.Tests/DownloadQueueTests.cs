@@ -241,9 +241,9 @@ public sealed class DownloadQueueTests
             Task<bool>[] attempts = Enumerable.Range(0, 32).Select(async attempt =>
             {
                 await start.Task;
-                // A refreshed URL still represents the same thread/medium/destination job.
+                // Concurrent submissions must describe the exact same retrieval revision.
                 return queue.TryEnqueue(new DownloadItem(
-                    new Uri($"https://stub.test/media/shared.bin?attempt={attempt}"),
+                    item.DownloadUri,
                     item.DestinationPath, board, thread, item.MediaIdentifier));
             }).ToArray();
             start.SetResult();
@@ -672,6 +672,9 @@ public sealed class DownloadQueueTests
             Task<bool> manualWait = queue.EnqueueAsync(CreateItem(board, manual, directory, "manual.bin", "manual"));
             Assert.False(boardWait.IsCompleted);
             Assert.False(manualWait.IsCompleted);
+            // Fair admission chooses among storage-ready waiters. Wait for that
+            // fixture precondition before releasing capacity on slower hosts.
+            await TestWait.UntilAsync(() => AdmissionTargetsReady(queue, 2));
             handler.Release(1);
             await handler.WaitForStartsAsync(1);
             Assert.True(await manualWait.WaitAsync(TestWait.Timeout));
@@ -844,6 +847,20 @@ public sealed class DownloadQueueTests
             Assert.Equal((0, 0, 0), queue.GetCapacitySnapshot());
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    private static bool AdmissionTargetsReady(DownloadQueue queue, int expected)
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        object stateLock = typeof(DownloadQueue).GetField("_stateLock", flags)!.GetValue(queue)!;
+        lock (stateLock)
+        {
+            System.Collections.IEnumerable waiters = (System.Collections.IEnumerable)typeof(DownloadQueue)
+                .GetField("_admissionWaiters", flags)!.GetValue(queue)!;
+            object[] values = waiters.Cast<object>().ToArray();
+            return values.Length == expected && values.All(waiter =>
+                (bool)waiter.GetType().GetProperty("TargetReady")!.GetValue(waiter)!);
+        }
     }
 
     private static IThread Thread(StubImageBoard board, int id)
