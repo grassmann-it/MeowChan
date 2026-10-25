@@ -1,10 +1,12 @@
 import importlib.util
+import ast
 import json
 import os
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/package-plugins.py'
@@ -14,6 +16,35 @@ SPEC.loader.exec_module(PACKAGE)
 
 
 class PluginPackagingTests(unittest.TestCase):
+    def test_build_graph_and_sdk_free_probe_match_required_payload(self):
+        repository = SCRIPT.parents[1]
+        delivery = ET.parse(repository / 'packaging/PluginDelivery.targets').getroot()
+        prefix = '$(_PluginRepositoryRoot)'
+        def registered_paths(item):
+            return [repository / path.removeprefix(prefix)
+                    for node in delivery.iter(item)
+                    for path in node.attrib['Include'].split(';')]
+        projects = registered_paths('_ShippedPluginProject')
+        assemblies = []
+        for project in projects:
+            graph = ET.parse(project).getroot()
+            assemblies.append(graph.findtext('.//AssemblyName'))
+            self.assertFalse(list(graph.iter('PackageReference')), project)
+            self.assertEqual(['../../../MeowChan.PluginSdk/MeowChan.PluginSdk.csproj'],
+                             [node.attrib['Include'] for node in graph.iter('ProjectReference')], project)
+        self.assertEqual(set(PACKAGE.PLUGINS), set(assemblies))
+        self.assertEqual(len(PACKAGE.PLUGINS), len(assemblies))
+        sources = registered_paths('_PluginExampleSource')
+        self.assertTrue(all(path.is_file() for path in sources))
+        self.assertEqual(set(PACKAGE.SOURCES), {path.name for path in sources})
+        self.assertEqual(len(PACKAGE.SOURCES), len(sources))
+        probe = ast.parse((repository / 'tests/PluginDeliverySmoke/sdk_free_worker_probe.py').read_text())
+        expected_ids = [ast.literal_eval(node.value) for node in ast.walk(probe)
+                        if isinstance(node, ast.Assign)
+                        and any(isinstance(target, ast.Name) and target.id == 'expected_ids' for target in node.targets)]
+        self.assertEqual(1, len(expected_ids))
+        self.assertEqual(set(PACKAGE.PLUGINS), set(expected_ids[0]))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='meowchan-plugin-package-')
         # Python 3.12 on Windows may return the 8.3 TEMP spelling. The verifier
