@@ -128,8 +128,10 @@ internal static class DownloadSearchChecks
                     Application.Current!.RequestedThemeVariant = theme;
                     Require(missingColumn.IsVisible == (mode == "Advanced") && !retryColumn.IsVisible,
                         "Optional work columns did not preserve their Advanced-only preference.");
-                    window.Width = mode == "Barebones" ? 640 : 760;
-                    window.Height = mode == "Barebones" ? 480 : 500;
+                    double minimumWidth = mode == "Barebones" ? 640 : 760;
+                    double requestedHeight = mode == "Barebones" ? 480 : 500;
+                    window.Width = minimumWidth;
+                    window.Height = requestedHeight;
                     await Task.Delay(80);
                     window.UpdateLayout();
                     Control actions = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
@@ -145,12 +147,13 @@ internal static class DownloadSearchChecks
                             "A download tab or count is covered by list actions.");
                     }
                     Require(window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible, "Compact header hid the direct details action.");
-                    foreach (double width in new[] { window.Width, 1380d })
+                    foreach (double width in new[] { minimumWidth, 1380d })
                     {
                         window.Width = width;
+                        window.Height = requestedHeight;
                         try
                         {
-                            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, window.Height));
+                            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, requestedHeight));
                         }
                         finally
                         {
@@ -195,8 +198,9 @@ internal static class DownloadSearchChecks
                     // The wide layout probe may exceed a small hosted desktop.
                     // Restore its bounded geometry before the next mode switch;
                     // Simple -> Advanced intentionally preserves the live size.
-                    window.Width = mode == "Barebones" ? 640 : 760;
-                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, window.Width, window.Height));
+                    window.Width = minimumWidth;
+                    window.Height = requestedHeight;
+                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, minimumWidth, requestedHeight));
                 }
             }
             ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;

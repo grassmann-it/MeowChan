@@ -124,8 +124,10 @@ internal static partial class RulesPageChecks
                 Math.Floor((window.Screens.ScreenFromWindow(window)?.WorkingArea.Height ?? 2000) / window.RenderScaling) - 64));
             window.Width = overviewWidth;
             window.Height = overviewHeight;
-            await WaitLayoutAsync(window, () => Math.Abs(window.Bounds.Width - overviewWidth) <= 1
-                && Math.Abs(window.Bounds.Height - overviewHeight) <= 1 && Fits(window, page.FindControl<Button>("SaveRuleButton")!));
+            // A small/high-DPI work area can make this bounded overview land on
+            // the mode minimum too; use the same measured Win32 frame allowance.
+            await WaitLayoutAsync(window, () => PresentationChecks.MatchesRequestedSize(window, overviewWidth, overviewHeight)
+                && Fits(window, page.FindControl<Button>("SaveRuleButton")!));
             Program.CaptureWindow(window, "smoke-rules-board-inheritance.png");
 
             page.EditScope(thread);

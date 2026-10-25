@@ -82,6 +82,13 @@ jobs:
           mkdir -p artifacts/build-evidence
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
+      - name: Prepare disposable native desktop for wide layout checks
+        if: runner.os == 'Windows' || runner.os == 'macOS'
+        # The largest exact client scene is 1520x920; reserve 40 DIP for its
+        # native frame. Other growth probes explicitly fit the usable work area.
+        run: |
+          python scripts/prepare-ci-desktop.py --allow-disposable-desktop --min-work-height 960 --report artifacts/build-evidence/native-desktop.json
+          python scripts/prepare-ci-desktop.py --allow-disposable-desktop --verify-only --min-work-height 960 --report artifacts/build-evidence/native-desktop-lifetime.json
       - name: Check declared public APIs and require release review for candidates
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
@@ -126,6 +133,7 @@ jobs:
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
           python -m unittest discover -s tests -p test_prerelease.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
+          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
       - name: Check local library package contract fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_local_package.py -v

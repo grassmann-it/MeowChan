@@ -155,13 +155,19 @@ internal static class SettingsPageChecks
             foreach (string mode in footerOnly ? new[] { "Barebones" } : new[] { "Simple", "Barebones" })
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
-                window.Width = mode == "Barebones" ? 640 : 760;
-                window.Height = mode == "Barebones" ? 480 : 500;
-                double targetWidth = window.Width;
-                double targetHeight = window.Height;
-                await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
-                    && Math.Abs(window.Bounds.Width - targetWidth) <= 1
-                    && Math.Abs(window.Bounds.Height - targetHeight) <= 1);
+                double targetWidth = mode == "Barebones" ? 640 : 760;
+                double targetHeight = mode == "Barebones" ? 480 : 500;
+                window.Width = targetWidth;
+                window.Height = targetHeight;
+                try
+                {
+                    await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
+                        && PresentationChecks.MatchesRequestedSize(window, targetWidth, targetHeight));
+                }
+                finally
+                {
+                    Console.WriteLine($"SMOKE settings minimum geometry: mode={mode}, target={targetWidth}x{targetHeight}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}.");
+                }
                 foreach (string language in new[] { "en", "de" })
                 {
                     Texts.SetLanguage(language);
