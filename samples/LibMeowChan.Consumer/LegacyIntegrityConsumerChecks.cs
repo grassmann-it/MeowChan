@@ -56,7 +56,7 @@ internal static class LegacyIntegrityConsumerChecks
             await read.CopyToAsync(copy);
             if (!copy.ToArray().AsSpan().SequenceEqual(bytes)) throw new InvalidOperationException("Historical binding returned different bytes.");
         }
-        using DemoProvider source = new(transport);
+        DemoProvider source = new(transport); // Borrows the caller-owned transport.
         DownloadItem item = new(new Uri(provider.Url), savedPath, source,
             source.GetThread(new Uri("https://demo.invalid/demo/thread/1")), provider.MediaId,
             provider.ExpectedSize, provider.ExpectedMd5, provider.OriginalFileName) {
