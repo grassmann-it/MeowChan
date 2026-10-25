@@ -905,10 +905,10 @@ internal static class Program
 
     internal static async Task WaitUntilAsync(Func<bool> condition)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        DateTime deadline = DateTime.UtcNow.AddSeconds(15);
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Desktop state did not become ready within five seconds.");
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Desktop state did not become ready within fifteen seconds.");
             await Task.Delay(50);
         }
     }

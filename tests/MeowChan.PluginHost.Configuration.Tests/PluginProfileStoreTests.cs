@@ -427,6 +427,45 @@ public sealed class PluginProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenReaderRetainsOldRevisionWhileNewRevisionsArePublished()
+    {
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([Candidate("a")], 0);
+        byte[] original = await File.ReadAllBytesAsync(store.StorePath);
+        await using FileStream reader = new(store.StorePath, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        for (int i = 0; i < 20; i++)
+        {
+            state = await store.SetEnabledAsync("test.plugin", i % 2 == 0, state.Revision);
+            PluginProfileSnapshot published = await Store().ReadAsync();
+            Assert.Equal(i + 2, published.Revision);
+            Assert.Equal(i % 2 == 0, Assert.Single(published.Plugins).Enabled);
+        }
+        byte[] retained = new byte[checked((int)reader.Length)];
+        await reader.ReadExactlyAsync(retained);
+        Assert.Equal(original, retained);
+        Assert.Equal(21, (await Store().ReadAsync()).Revision);
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.StorePath)!, ".state-*.tmp"));
+    }
+
+    [Fact]
+    public async Task WindowsReaderWithoutDeleteSharingRejectsWriteWithoutChangingRevision()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([Candidate("a")], 0);
+        byte[] original = await File.ReadAllBytesAsync(store.StorePath);
+        await using (FileStream reader = new(store.StorePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            Exception? error = await Record.ExceptionAsync(() => store.SetEnabledAsync("test.plugin", false, state.Revision));
+            Assert.True(error is IOException or UnauthorizedAccessException, error?.ToString() ?? "Write unexpectedly succeeded.");
+            Assert.Equal(original, await File.ReadAllBytesAsync(store.StorePath));
+        }
+        Assert.Equal(state.Revision, (await Store().ReadAsync()).Revision);
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.StorePath)!, ".state-*.tmp"));
+    }
+
+    [Fact]
     public async Task ConcurrentReadersAlwaysObserveACompleteAtomicRevision()
     {
         PluginProfileStore store = Store();

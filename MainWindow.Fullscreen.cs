@@ -483,6 +483,18 @@ public partial class MainWindow
             TraceFullscreen($"normal frame before maximize correction applied={expected}");
             Width = expected.Width;
             Height = expected.Height;
+            // X11 can acknowledge the undecorated exit frame after Width/Height
+            // already contain the intended normal client size. Reassigning those
+            // unchanged properties then sends no native resize and leaves this
+            // pending maximize waiting forever. Reissue only this guarded Linux
+            // correction; the native resize/frame acknowledgement still gates
+            // ContinueFullscreenMaximizeRestore before it may maximize.
+            if (OperatingSystem.IsLinux() && _fullscreenMaximizeRestoreClient == expected
+                && !_fullscreenMaximizeRestoreCancelled && !_restoringFullscreen && !_isClosing
+                && WindowState == WindowState.Normal
+                && (Math.Abs(ClientSize.Width - expected.Width) > 1
+                    || Math.Abs(ClientSize.Height - expected.Height) > 1))
+                PlatformImpl?.Resize(expected, WindowResizeReason.Application);
         }, DispatcherPriority.Background);
     }
 

@@ -267,7 +267,12 @@ public sealed class PluginProfileStore : IPluginProfileStore
                 stream.Flush(flushToDisk: true);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            File.Move(temporary, path, overwrite: true);
+            // Windows MoveFileEx can deny overwrite while a share-delete reader holds
+            // the old revision open. ReplaceFile supports that reader and keeps its
+            // complete snapshot alive while publishing the new revision atomically.
+            // The stable writer lease prevents competing initial creates/replacements.
+            if (File.Exists(path)) File.Replace(temporary, path, destinationBackupFileName: null);
+            else File.Move(temporary, path);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         return Clone(next);
