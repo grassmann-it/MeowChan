@@ -1,6 +1,6 @@
 # Local media filters
 
-This page describes the local filters prepared for 1.0.0-alpha.2. The release
+This page describes the local filters supplied with 1.0.0. The release
 inventory identifies the exact delivered source and validation run; this guide
 does not replace packaged or native-platform evidence. The adjacent plugin
 READMEs describe implementation limits and test scope.

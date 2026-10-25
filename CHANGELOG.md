@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 (unreleased)
+## 1.0.0
 
 MeowChan keeps its compact Barebones view and existing download, archive and
 reader workflows while moving the desktop to Semi + Ursa and adding editable
@@ -10,7 +10,10 @@ source and image-filter plugins.
 
 - **Plugin sources.** The desktop runs 4chan and 8kun through isolated workers;
   the standalone library still offers explicit provider registration. Lainchan,
-  Kohlchan and an image-dimensions filter are included as editable examples.
+  Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan
+  extend the delivery to eleven sources. Five local filters cover dimensions,
+  file rules, SHA-256 blocklists, animation/format and PNG metadata presence.
+  Fourteen editable examples are included.
   The bundled compiler builds local C# files without an installed .NET SDK or
   runtime package downloads.
 - **Plugin management.** Inspect candidates, edit files, validate settings and
@@ -26,10 +29,13 @@ source and image-filter plugins.
   optional last-reading-position resume accompany the theme migration. Reader
   navigation sits at the lower right without covering posts, and video captions
   stay clear of the post context. Barebones remains a complete persistent view.
+- **Archive counts and video controls.** Saved media counts no longer depend on
+  the current download generation. Video uses one Play/Pause control, per-media
+  repeat and audio controls that explain missing tracks or output.
 - **Update checks.** Settings and About expose version checking, a small update
   notice and platform download links. Checks do not install updates.
 
-### Source integrity additions (next source wave)
+### Source integrity additions
 
 - Provider SHA-1 is verified against the original bytes, including before image
   filters receive access. Size/MD5 exceptions never bypass SHA-1 or SHA-256.
@@ -79,8 +85,9 @@ media variants separate. Extract the complete desktop payload, including its
 `plugin-worker`, `plugin-compiler` and `plugins` directories. Authoring and
 hosting instructions are in the [plugin guide](docs/plugins/README.md).
 
-This entry describes the local 1.0 candidate, not a published release. Native
-platform acceptance and final package evidence are tracked separately.
+Package source, automated validation run and checksums are recorded in the release
+inventory. Physical hardware, accessibility and everyday-use coverage retain
+the limitations in the [release notes](docs/releases/v1.0.0.md).
 
 ## 0.9.0
 
