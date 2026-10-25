@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Frozen packaged production Host policy across four actual OS processes.
+"""Frozen production Host policy across four actual OS processes.
 
 Caller holds /tmp/meowchan-ui-1.0-build.lock. No build, restore or network leg.
 Uses the existing package closure/read-only sandbox and controlled PNG bytes.
@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,78 @@ ORIGINAL = 'https://wizchan.org/demo/src/1000-0.png'
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def build_closure(root, apphost):
+    """Inventory a caller-frozen build without creating or claiming a delivery package."""
+    root = Path(root)
+    require(not root.is_symlink(), 'Build root must not be a symlink')
+    root = root.resolve(strict=True)
+    require(root.is_dir() and Path(apphost).resolve(strict=True).is_relative_to(root), 'Apphost must belong to build root')
+    entries = [dict(path='.', kind='directory')]
+    total = 0
+
+    def visit(directory):
+        nonlocal total
+        with os.scandir(directory) as scan:
+            for item in scan:
+                path = Path(item.path)
+                details = item.stat(follow_symlinks=False)
+                name = path.relative_to(root).as_posix()
+                kind = 'symlink' if stat.S_ISLNK(details.st_mode) else 'directory' if stat.S_ISDIR(details.st_mode) else 'file' if stat.S_ISREG(details.st_mode) else 'other'
+                require(kind != 'other', 'Unsupported build closure entry: ' + name)
+                record = dict(path=name, kind=kind)
+                if kind == 'file':
+                    require(details.st_size <= workflow.MAX_CLOSURE_FILE_BYTES, 'Build file exceeds closure bound')
+                    total += details.st_size
+                    require(total <= workflow.MAX_CLOSURE_BYTES, 'Build closure exceeds byte bound')
+                    record.update(bytes=details.st_size, sha256=workflow.sha256(path))
+                elif kind == 'symlink':
+                    target = os.readlink(path)
+                    workflow.validate_link_text(target)
+                    workflow.confined_path(path, root)
+                    record['target'] = target
+                entries.append(record)
+                require(len(entries) <= workflow.MAX_CLOSURE_ENTRIES, 'Build closure exceeds entry bound')
+                if kind == 'directory':
+                    visit(path)
+
+    visit(root)
+    entries.sort(key=lambda row: row['path'])
+    expected = {row['path']: row for row in entries}
+    member = Path(apphost).resolve(strict=True).relative_to(root).as_posix()
+    require(expected.get(member, {}).get('kind') == 'file', 'Apphost must be a regular build member')
+    bundle = plugin.bundle_inventory(Path(apphost))
+    if bundle is None:
+        for required in ('MeowChan.dll', 'MeowChan.deps.json', 'MeowChan.runtimeconfig.json', 'libmeowchan.dll'):
+            path = workflow.confined_path(Path(apphost).parent / required, root)
+            require(expected.get(path.relative_to(root).as_posix(), {}).get('kind') == 'file', 'Required managed build payload missing: ' + required)
+    manifest = dict(entries=entries, contentSha256=workflow.records_sha256(entries), entryCount=len(entries),
+        fileCount=sum(row['kind'] == 'file' for row in entries), verifiedBytes=total,
+        archiveMetadataEntries=[], archiveMetadataSha256=workflow.records_sha256([]),
+        root=str(root), apphostMember=member, bundle=bundle, verifiedBeforeRun=True, verifiedAfterRun=False,
+        binding='frozen-build-directory', scope='Exact build directory bytes; no archive/package or SDK-free acceptance claim')
+    workflow.verify_extracted_closure(root, manifest)
+    return manifest
+
+
+def build_sandbox(apphost, root, working):
+    """Reuse the existing network/read-only sandbox; allow installed /usr runtime.
+
+    Archive mode retains its stricter SDK-free runtime masks unchanged. This mode
+    executes a framework-dependent build and makes no SDK-free/package claim.
+    """
+    original = plugin.sandbox(apphost, root, working)
+    runtime_roots = {'/usr/share/dotnet', '/usr/lib/dotnet', '/usr/local/share/dotnet', '/usr/local/lib/dotnet'}
+    command, index = [], 0
+    while index < len(original):
+        if original[index] == '--tmpfs' and index + 1 < len(original) and original[index + 1] in runtime_roots:
+            index += 2
+        elif original[index:index + 3] == ['--setenv', 'DOTNET_ROOT', '/no-sdk']:
+            index += 3
+        else:
+            command.append(original[index]); index += 1
+    return command
 
 
 TERMINAL_PROCESS_STATES = {'Z', 'X', 'x'}
@@ -142,13 +215,14 @@ def validate_metrics(data, phase, root, profile, working, scale, closure):
     require(data.get('requests') == ([THREAD, ORIGINAL, ORIGINAL] if phase == 'acquire' else []),
             'Strict/retry inventory or zero offline HTTP attempts differs')
     before, after = data.get('initialPolicy'), data.get('finalPolicy')
-    for value, granted in ((before, phase == 'revoke'), (after, phase == 'acquire')):
-        require(isinstance(value, dict) and value.get('IsActive') is True and value.get('IsGranted') is granted,
+    for value, granted, active in ((before, phase == 'revoke', phase != 'acquire'), (after, phase == 'acquire', True)):
+        require(isinstance(value, dict) and value.get('IsActive') is active and value.get('IsGranted') is granted,
                 'Fresh or final production policy authority differs')
         snapshot = value.get('Snapshot', {})
         require(snapshot.get('ProfileId') == str(profile) and snapshot.get('PluginOwnerId') == OWNER
                 and snapshot.get('SourceId') == SOURCE and snapshot.get('AllowProviderSizeMd5Mismatch') is granted
                 and type(snapshot.get('Revision')) is int, 'Profile/owner/source policy identity differs')
+    validate_activation_metrics(data, phase, profile)
     proof = data.get('proof', {})
     require(proof.get('exactRestoreWithoutNewAcceptance') is True and isinstance(proof.get('binding'), dict)
             and proof.get('galleryAssetId') == proof['binding'].get('AssetId')
@@ -162,6 +236,38 @@ def validate_metrics(data, phase, root, profile, working, scale, closure):
             and all(type(pid) is int and pid > 0 and not Path('/proc', str(pid)).exists() for pid in worker_pids),
             'Production worker absent from acquisition or survived normal shutdown')
     return plugin.validate_assembly_bindings(data, closure)
+
+
+def validate_activation_metrics(data, phase, profile):
+    """The same process proof now starts from host default-off, never implicit consent."""
+    activation = data.get('activationEvidence')
+    if phase == 'acquire':
+        require(isinstance(activation, dict) and activation.get('status') == 'Succeeded'
+                and activation.get('before') == data.get('initialPolicy')
+                and activation.get('requestsBeforeAdmission') == 0 and activation.get('watchesBeforeAdmission') == 0,
+                'Explicit combined consent or pre-admission no-work proof missing')
+        before, after = activation['before'], activation.get('after', {})
+        require(before.get('IsActive') is False and before.get('IsGranted') is False
+                and after.get('IsActive') is True and after.get('IsGranted') is True,
+                'Combined consent did not change fresh disabled/strict state')
+        old, fresh = before.get('Snapshot', {}), after.get('Snapshot', {})
+        require(fresh.get('ProfileId') == str(profile) and fresh.get('PluginOwnerId') == OWNER
+                and fresh.get('SourceId') == SOURCE and fresh.get('AllowProviderSizeMd5Mismatch') is True
+                and type(old.get('Revision')) is int and type(fresh.get('Revision')) is int
+                and fresh['Revision'] >= old['Revision'] + 2,
+                'Enable and grant did not use fresh revisions on the same authority')
+    else:
+        require(activation is None, 'A restart silently repeated combined activation')
+    admission = data.get('urlAdmissionEvidence')
+    if phase == 'deny':
+        require(isinstance(admission, dict) and admission.get('url') == 'https://wizchan.org/demo/res/124.html'
+                and admission.get('before') == admission.get('after') == data.get('finalPolicy')
+                and admission['after'].get('IsActive') is True and admission['after'].get('IsGranted') is False
+                and admission['after'].get('Snapshot', {}).get('AllowProviderSizeMd5Mismatch') is False
+                and admission.get('watches') == 2 and admission.get('requests') == 0,
+                'Further URL changed revoked policy, started work or was not admitted')
+    else:
+        require(admission is None, 'Unexpected further-URL admission phase')
 
 
 def run_phase(apphost, root, phase, destination, timeout, scale, closure):
@@ -181,7 +287,7 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
                        __EGL_VENDOR_LIBRARY_FILENAMES='/usr/share/glvnd/egl_vendor.d/50_mesa.json')
     authority = root / ('xauthority-policy-' + phase)
     authority.touch(mode=0o600)
-    sandbox = plugin.sandbox(apphost, root, working)
+    sandbox = (build_sandbox if closure.get('binding') == 'frozen-build-directory' else plugin.sandbox)(apphost, root, working)
     require(sandbox[-1] == '--smoke-plugin-workflow', 'Sandbox switch contract changed')
     sandbox[-1] = '--smoke-source-policy-process'
     command = ['dbus-run-session', '--config-file=' + str(working / 'bus.conf'), '--', 'xvfb-run', '--auth-file=' + str(authority),
@@ -234,10 +340,12 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apphost', type=Path)
-    parser.add_argument('--archive', type=Path, required=True)
-    parser.add_argument('--archive-root', type=Path, required=True)
-    parser.add_argument('--archive-member', required=True)
+    parser.add_argument('--archive', type=Path)
+    parser.add_argument('--archive-root', type=Path)
+    parser.add_argument('--archive-member')
+    parser.add_argument('--build-root', type=Path, help='Caller-frozen build output; mutually exclusive with all archive arguments')
     parser.add_argument('--source-commit', required=True)
+    parser.add_argument('--source-digest', help='Full frozen source digest; required for direct build output')
     parser.add_argument('--evidence-dir', type=Path, required=True)
     parser.add_argument('--timeout', type=float, default=120)
     parser.add_argument('--scale', type=float, choices=(1, 1.5, 2), default=1)
@@ -248,23 +356,35 @@ def main(argv=None):
     if missing:
         parser.error('Isolation dependencies missing: ' + ', '.join(missing))
     apphost = args.apphost.resolve(strict=True)
-    closure = plugin.plugin_archive_closure(args.archive, args.archive_root, args.archive_member, apphost)
+    if args.build_root:
+        if any(value is not None for value in (args.archive, args.archive_root, args.archive_member)):
+            parser.error('--build-root cannot be combined with archive arguments')
+        if not args.source_digest or not re.fullmatch('[0-9a-fA-F]{64}', args.source_digest):
+            parser.error('--build-root requires the full --source-digest from the integrated freeze receipt')
+        closure = build_closure(args.build_root, apphost)
+    else:
+        if any(value is None for value in (args.archive, args.archive_root, args.archive_member)):
+            parser.error('Provide --build-root or all three archive arguments')
+        closure = plugin.plugin_archive_closure(args.archive, args.archive_root, args.archive_member, apphost)
+    input_root = Path(closure['root'])
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
     report = dict(schemaVersion=1, passed=False, declaredSourceCommit=args.source_commit, phases=[],
+                  declaredSourceDigest=args.source_digest,
                   driverPath=str(Path(__file__).resolve()), driverSha256=workflow.sha256(Path(__file__).resolve()),
-                  scope='Actual packaged production Host/config/plugin policy across four OS processes; controlled terminal HTTP and local exact bytes; no live or decoded-gallery proof.')
+                  scope='Actual production Host/config/plugin policy across four OS processes; controlled terminal HTTP and local exact bytes; no live or decoded-gallery proof.'
+                        + (' Frozen build output; no package or SDK-free claim.' if args.build_root else ' Verified existing delivery archive.'))
     try:
         with tempfile.TemporaryDirectory(prefix='meowchan-workflow-policy-') as temporary:
             root = Path(temporary).resolve(strict=True)
             workflow.ensure_disk_reserve(destination, root)
             (root / '.workflow-owner').write_text(os.urandom(16).hex())
             package = root / 'package'
-            shutil.copytree(args.archive_root.resolve(strict=True), package, symlinks=True)
+            shutil.copytree(input_root, package, symlinks=True)
             workflow.ensure_disk_reserve(destination, root)
             closure = dict(closure, root=str(package))
             workflow.verify_extracted_closure(package, closure)
-            relocated = package / apphost.relative_to(args.archive_root.resolve(strict=True))
+            relocated = package / apphost.relative_to(input_root)
             report['executedApphost'] = str(relocated)
             grant_config = None
             for phase in PHASES:
@@ -282,15 +402,18 @@ def main(argv=None):
                 if phase == 'acquire':
                     grant_config = (root / 'profile-download/settings.json').read_bytes()
             rows = report['phases']
-            report['passed'] = (len(rows) == 4 and all(row['passed'] for row in rows)
+            phases_passed = (len(rows) == 4 and all(row['passed'] for row in rows)
                 and len({row['processId'] for row in rows}) == 4
                 and all(row['proof'] == rows[0]['proof'] and row['pluginProof'] == rows[0]['pluginProof'] for row in rows)
                 and rows[1]['finalPolicy']['Snapshot']['Revision'] > rows[1]['initialPolicy']['Snapshot']['Revision']
                 and rows[3]['initialPolicy']['Snapshot']['Revision'] == rows[0]['finalPolicy']['Snapshot']['Revision'] + 1)
             closure['afterContentSha256'] = workflow.verify_extracted_closure(package, closure)
+            closure['inputRootAfterContentSha256'] = workflow.verify_extracted_closure(input_root, closure)
             closure['verifiedAfterRun'] = True
-            report['archiveClosure'] = closure
+            report['buildClosure' if args.build_root else 'archiveClosure'] = closure
+            report['passed'] = phases_passed
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        report['passed'] = False
         report['error'] = str(error)
     (destination / 'source-policy-process.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(dict(passed=report['passed'], report=str(destination / 'source-policy-process.json'))))

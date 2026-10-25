@@ -76,6 +76,12 @@ public sealed class SourceIntegrityLiveAcceptanceTests(ITestOutputHelper output)
             Assert.True(host.IsPaused);
             Assert.Empty(host.Plugins!.Warnings);
             var installed = await host.Plugins.ProfileStore.ReadAsync();
+            Assert.False(installed.Plugins.Single(plugin => plugin.PluginId == selection.PluginId).Enabled);
+            Assert.Equal(0, live.ActualNetworkSends);
+            Assert.Empty(host.GetThreadWorkSnapshots());
+            // Preserve this probe's strict-first contract: manual Host enable grants
+            // no exception. The separate activation smoke exercises combined consent.
+            installed = await host.Plugins.ProfileStore.SetEnabledAsync(selection.PluginId, true, installed.Revision);
             var active = Assert.Single(installed.Plugins, plugin => plugin.PluginId == selection.PluginId).Active!;
             var candidate = Assert.Single(installed.Plugins.Single(plugin => plugin.PluginId == selection.PluginId).Candidates);
             byte[] bundleBytes = await File.ReadAllBytesAsync(candidate.CandidatePath!);

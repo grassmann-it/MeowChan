@@ -13,6 +13,132 @@ public sealed class PluginProfileStoreTests : IDisposable
     public void Dispose() { if (Directory.Exists(profile)) Directory.Delete(profile, true); }
 
     [Fact]
+    public async Task OptionalDefaultAppliesAtFirstObservationAndStartupWithoutChangingLegacyDefault()
+    {
+        PluginProfileStore store = new(profile, pluginId => pluginId != "test.plugin");
+        PluginCandidateObservation candidate = Candidate("a");
+        PluginProfileSnapshot state = await store.ObserveCandidateAsync(candidate, 0);
+        Assert.False(Assert.Single(state.Plugins).Enabled);
+        Assert.False(Assert.Single((await Store().ReadAsync()).Plugins).Enabled);
+        Assert.Null(state.Plugins[0].Active);
+        state = await store.ApplyStartupAsync([candidate], state.Revision);
+        Assert.False(state.Plugins[0].Enabled);
+        Assert.NotNull(state.Plugins[0].Active);
+
+        PluginCandidateObservation independent = candidate with { CandidateId = "independent.cs", PluginId = "independent.plugin",
+            Description = candidate.Description! with { PluginId = "independent.plugin" } };
+        state = await store.ApplyStartupAsync([candidate, independent], state.Revision);
+        Assert.True(state.Plugins.Single(plugin => plugin.PluginId == independent.PluginId).Enabled);
+
+        PluginCandidateObservation legacy = candidate with { CandidateId = "legacy.cs", PluginId = "legacy.plugin",
+            Description = candidate.Description! with { PluginId = "legacy.plugin" } };
+        state = await Store().ApplyStartupAsync([candidate, independent, legacy], state.Revision);
+        Assert.True(state.Plugins.Single(plugin => plugin.PluginId == legacy.PluginId).Enabled);
+        Assert.False(state.Plugins.Single(plugin => plugin.PluginId == candidate.PluginId).Enabled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FirstStartupWithMultipleCandidatesKeepsDefaultThroughExplicitSelection(bool reverse)
+    {
+        PluginProfileStore store = new(profile, _ => false);
+        PluginCandidateObservation a = Candidate("a");
+        PluginCandidateObservation b = Candidate("b") with { CandidateId = "other.cs" };
+        PluginProfileSnapshot state = await store.ApplyStartupAsync(reverse ? [b, a] : [a, b], 0);
+        Assert.False(Assert.Single(state.Plugins).Enabled);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].SelectedCandidateId);
+        Assert.Empty(state.Grants);
+        state = await store.SelectCandidateAsync("test.plugin", "local.cs", state.Revision);
+        state = await store.ApplyStartupAsync([b, a], state.Revision);
+        Assert.False(state.Plugins[0].Enabled);
+        Assert.Equal("a", Active(state).ExecutionRevision);
+        Assert.Empty(state.Grants);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SavedIdentityChoicesAndGrantsOverrideLaterHostDefaults(bool savedEnabled, bool nextDefault)
+    {
+        PluginProfileStore original = Store();
+        PluginCandidateObservation candidate = Candidate("a");
+        PluginProfileSnapshot state = await original.ApplyStartupAsync([candidate], 0);
+        state = await original.SetEnabledAsync("test.plugin", savedEnabled, state.Revision);
+        state = await original.SetGrantAsync("test.plugin", "dimensions", new("source", "board"), FilterDataAccess.OriginalImage, state.Revision);
+        PluginGrantSnapshot grant = Assert.Single(state.Grants);
+        PluginProfileStore policyStore = new(profile, _ => nextDefault);
+        state = await policyStore.ObserveCandidateAsync(Candidate("b"), state.Revision);
+        Assert.Equal(savedEnabled, Assert.Single(state.Plugins).Enabled);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await new PluginProfileStore(profile, _ => nextDefault).ApplyStartupAsync([candidate], state.Revision);
+            Assert.Equal(savedEnabled, Assert.Single(state.Plugins).Enabled);
+            Assert.Equal(grant, Assert.Single(state.Grants));
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task ProvisionalOwnerCannotBypassResolvedDefaultOrLoseDisableChoice(bool resolvedDefault, bool provisionalEnabled, bool viaObservation)
+    {
+        PluginCandidateObservation unknown = new("local.cs", "unavailable-local", null, null, "Compile error");
+        PluginProfileStore original = Store();
+        PluginProfileSnapshot state = await original.ApplyStartupAsync([unknown], 0);
+        state = await original.SetEnabledAsync(unknown.PluginId, provisionalEnabled, state.Revision);
+        PluginProfileStore policyStore = new(profile, pluginId => pluginId != "test.plugin" || resolvedDefault);
+        PluginCandidateObservation repaired = Candidate("fixed");
+        state = viaObservation
+            ? await policyStore.ObserveCandidateAsync(repaired, state.Revision)
+            : await policyStore.ApplyStartupAsync([repaired], state.Revision);
+        Assert.Equal("test.plugin", Assert.Single(state.Plugins).PluginId);
+        Assert.Equal(resolvedDefault && provisionalEnabled, state.Plugins[0].Enabled);
+        Assert.Equal(state.Plugins[0].Enabled, Assert.Single((await Store().ReadAsync()).Plugins).Enabled);
+        Assert.Empty(state.Grants);
+        state = await policyStore.ApplyStartupAsync([repaired], state.Revision);
+        Assert.Equal(resolvedDefault && provisionalEnabled, state.Plugins[0].Enabled);
+        Assert.Equal("fixed", Active(state).ExecutionRevision);
+    }
+
+    [Fact]
+    public async Task DisabledDefaultDoesNotCreateABuildForAnUnavailableCandidate()
+    {
+        PluginProfileStore store = new(profile, _ => false);
+        PluginCandidateObservation broken = new("local.cs", "test.plugin", null, null, "Compile error");
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([broken], 0);
+        Assert.False(Assert.Single(state.Plugins).Enabled);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].LastGood);
+        Assert.Equal("Compile error", state.Plugins[0].Problem);
+        state = await store.SetEnabledAsync("test.plugin", true, state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].LastGood);
+        Assert.Empty(state.Grants);
+    }
+
+    [Fact]
+    public async Task OptionalDefaultNeverRepairsOrOverwritesCorruptProfile()
+    {
+        PluginProfileStore store = new(profile, _ => false);
+        await store.ApplyStartupAsync([Candidate("a")], 0);
+        byte[] corrupt = "{truncated"u8.ToArray();
+        await File.WriteAllBytesAsync(store.StorePath, corrupt);
+        await Assert.ThrowsAsync<PluginProfileCorruptException>(() => store.ObserveCandidateAsync(Candidate("b"), 1));
+        await Assert.ThrowsAsync<PluginProfileCorruptException>(() => store.ApplyStartupAsync([Candidate("b")], 1));
+        Assert.Equal(corrupt, await File.ReadAllBytesAsync(store.StorePath));
+    }
+
+    [Fact]
     public async Task SettingsAndTestBuildWaitForRestartAndEnableUsesCurrentRelease()
     {
         PluginProfileStore store = Store();

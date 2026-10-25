@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -25,6 +26,7 @@ internal sealed class MediaRatingsManagerDialog : Window
     private readonly TextBox _search = new() { Name = "MediaRatingsSearch" };
     private readonly ListBox _list = new() { Name = "MediaRatingsList" };
     private readonly TextBox _identity = new() { Name = "MediaRatingsIdentity", IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _summary = new() { Name = "MediaRatingsSummary", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _remove;
     private readonly Button _confirm = new() { Name = "MediaRatingsConfirmRemove", IsVisible = false };
@@ -43,6 +45,19 @@ internal sealed class MediaRatingsManagerDialog : Window
         _search.PlaceholderText = MediaRatingText.Get("Search identities", "Identitäten durchsuchen");
         AutomationProperties.SetName(_search, _search.PlaceholderText);
         _search.TextChanged += (_, _) => Filter();
+        _summary.Classes.Add("workspace-meta");
+        _list.ItemTemplate = new FuncDataTemplate<Row>((row, _) =>
+        {
+            if (row == null) return new TextBlock();
+            TextBlock value = new() { Text = MediaRatingText.Value(row.Entry.Value) };
+            value.Classes.Add("section-title");
+            var key = row.Entry.Key;
+            TextBlock target = new() { Text = $"{key.Thread.Source} /{key.Thread.Board}/ {key.Thread.Thread} · {key.MediaIdentifier} · {key.Variant}", TextWrapping = TextWrapping.Wrap };
+            target.Classes.Add("workspace-meta");
+            StackPanel item = new() { Spacing = 4, Margin = new Thickness(4, 8), Children = { value, target } };
+            AutomationProperties.SetName(item, row.ToString());
+            return item;
+        });
         _list.SelectionChanged += (_, _) =>
         {
             if (_frozen != null) return;
@@ -55,14 +70,20 @@ internal sealed class MediaRatingsManagerDialog : Window
         _confirm.Click += async (_, _) => await ConfirmAsync();
         _cancel.Click += (_, _) => EndConfirmation();
         _close.Click += (_, _) => Close();
-        AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive); _error.Classes.Add("error");
-        StackPanel footer = new() { Spacing = 8 };
-        footer.Children.Add(_identity); footer.Children.Add(_error);
-        WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 6 };
+        AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive); _error.Classes.Add("workspace-error");
+        _remove.Classes.Add("danger"); _confirm.Classes.Add("danger");
+        _identity.MaxHeight = 120;
+        ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(_identity, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
+        StackPanel detail = new() { Spacing = 8, Children = { _identity, _error } };
+        WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         foreach (Button button in new[] { _remove, _confirm, _cancel, _close }) buttons.Children.Add(button);
-        footer.Children.Add(buttons);
-        Grid grid = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        grid.Children.Add(_search); grid.Children.Add(_list); Grid.SetRow(_list, 1); grid.Children.Add(footer); Grid.SetRow(footer, 2); Content = grid;
+        Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
+        footer.Classes.Add("workspace-dialog-footer");
+        StackPanel header = new() { Spacing = 8, Children = { _search, _summary } };
+        Grid grid = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 12 };
+        grid.Children.Add(header); grid.Children.Add(_list); Grid.SetRow(_list, 1);
+        grid.Children.Add(detail); Grid.SetRow(detail, 2); grid.Children.Add(footer); Grid.SetRow(footer, 3); Content = grid;
         CommandRouter router = new(this);
         router.Register(new("media.rating.remove-selected", this, () => IsVisible, () => !_busy && _frozen == null && _list.SelectedItem is Row, BeginRemove, Priority: 300));
         KeyDown += (_, e) => router.Route(e);
@@ -80,7 +101,11 @@ internal sealed class MediaRatingsManagerDialog : Window
     {
         if (_frozen != null || _busy) return;
         string query = _search.Text ?? string.Empty;
-        _list.ItemsSource = _entries.Select(entry => new Row(entry)).Where(row => row.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        Row[] visible = _entries.Select(entry => new Row(entry)).Where(row => row.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        _list.ItemsSource = visible;
+        _summary.Text = visible.Length == 0
+            ? MediaRatingText.Get(query.Length == 0 ? "No saved ratings." : "No matching ratings.", query.Length == 0 ? "Keine gespeicherten Bewertungen." : "Keine passenden Bewertungen.")
+            : MediaRatingText.Get($"{visible.Length} shown · {_entries.Count} saved ratings", $"{visible.Length} angezeigt · {_entries.Count} gespeicherte Bewertungen");
         _list.SelectedItem = null; _identity.Text = string.Empty; _remove.IsEnabled = false;
     }
     private void BeginRemove()

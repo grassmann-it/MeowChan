@@ -391,7 +391,8 @@ internal static class PresentationChecks
             && window.FindControl<SelectableTextBlock>("InspectorTitle")!.Text == thread.Title);
         Require(window.FindControl<SelectableTextBlock>("InspectorUrl")!.Text == thread.Url
             && window.FindControl<SelectableTextBlock>("InspectorDirectory")!.Text == thread.DownloadDirectory
-            && window.FindControl<SelectableTextBlock>("InspectorError")!.Text == thread.ErrorDetails,
+            && window.FindControl<SelectableTextBlock>("InspectorError")!.Text == thread.IssueDetails
+            && window.FindControl<SelectableTextBlock>("InspectorContext")!.Text == thread.ContextDetails,
             "The inspector did not display the selected snapshot's exact URL, assigned directory and error.");
         Require(window.FindControl<SelectableTextBlock>("InspectorStatus")!.Text == thread.Status,
             "The inspector hid or changed the selected thread's retained status.");

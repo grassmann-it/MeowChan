@@ -43,7 +43,14 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
             var installed = await host.Plugins.ProfileStore.ReadAsync();
             Assert.Equal(7, installed.Plugins.Count);
-            Assert.All(installed.Plugins, plugin => { Assert.True(plugin.Enabled); Assert.NotNull(plugin.Active); Assert.Null(plugin.Problem); });
+            // 0.9 has no plugin identities yet: first discovery uses current Host
+            // defaults, then subsequent normal restarts must preserve those values.
+            string[] defaultOff = ["meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan"];
+            Assert.All(installed.Plugins, plugin =>
+            {
+                Assert.Equal(!defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
+                Assert.NotNull(plugin.Active); Assert.Null(plugin.Problem);
+            });
             Dictionary<string, string> current = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);
             if (revisions == null) revisions = current;
             else Assert.Equal(revisions.OrderBy(pair => pair.Key), current.OrderBy(pair => pair.Key));

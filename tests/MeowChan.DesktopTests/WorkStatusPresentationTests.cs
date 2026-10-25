@@ -70,6 +70,15 @@ public sealed class WorkStatusPresentationTests
         Assert.Equal(before.ExceptionHint, paused.ExceptionHint);
         Assert.Equal(before, resumed);
         Assert.Equal(before.Details, paused.Details);
+        Assert.Equal(before.ContextDetails, paused.ContextDetails);
+        Assert.Equal(before.IssueDetails, paused.IssueDetails);
+        string due = Texts.T("work.nextDue", End.AddMinutes(15).ToLocalTime().ToString("g", Texts.Culture));
+        string deadline = Texts.T("work.deadline", End.AddHours(12).ToLocalTime().ToString("g", Texts.Culture));
+        Assert.Contains(due, before.ContextDetails);
+        Assert.Contains(deadline, before.ContextDetails);
+        Assert.DoesNotContain(due, before.IssueDetails);
+        Assert.DoesNotContain(deadline, before.IssueDetails);
+        Assert.Contains("404", before.IssueDetails);
         Assert.Contains(Texts.T("work.paused"), paused.Status);
         Assert.DoesNotContain(Texts.T("work.paused"), resumed.Status);
     }
@@ -97,6 +106,30 @@ public sealed class WorkStatusPresentationTests
         Assert.Equal("—", row.EarliestRetryText);
         Assert.Equal(100, row.Completion);
         Assert.NotEqual(Texts.T("work.completed"), row.Status);
+    }
+
+    [Fact]
+    public void SavedQuantityUsesSelectedMediaAndKeepsWatchingDistinct()
+    {
+        ThreadWorkSnapshot work = Work(WorkIntent.Watching, MediaWorkStatus.Succeeded) with
+        {
+            Source = ThreadSourceStateValue.Active, EndObservedAt = null,
+            Media = Enumerable.Range(1, 5).Select(id => Media(id.ToString(), MediaWorkStatus.Succeeded)).ToArray()
+        };
+        ThreadSnapshot snapshot = new(new ResourceId("fixture", "b", "1"), work.Url, "Fixture", "/never/read",
+            MeowChan.Interfaces.ThreadActivity.Finished, MeowChan.Interfaces.ThreadSourceState.Active,
+            null, 10, 10, new Dictionary<string, FailureInfo>(), null, new MeowChan.Downloader.DownloadCounts(0, 0))
+            { Work = work, Content = new MeowChan.Archive.ThreadContentStatus(true, null, null, null, 5) };
+        using ThreadRow row = new(new DesktopThreadEntry(1, snapshot, "Fixture", "b"));
+        Assert.Equal(10, row.KnownMedia);
+        Assert.Equal(5, row.ExcludedMedia);
+        Assert.Equal(5, row.CompletedMedia);
+        Assert.Equal(5, row.SelectedMedia);
+        Assert.Equal(Texts.T("work.saved", 5, 5), row.SavedProgress);
+        Assert.Equal(100, row.Completion);
+        Assert.Equal(Texts.T("work.watching"), row.Status);
+        Assert.Empty(row.IssueDetails);
+        Assert.Empty(row.ContextDetails);
     }
 
     private static ThreadWorkSnapshot Work(WorkIntent intent, MediaWorkStatus missingStatus) => new(

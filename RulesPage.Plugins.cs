@@ -53,7 +53,7 @@ public partial class RulesPage
         {
             _filterRenderedDraft = _draft; panel.Children.Clear(); _filterEditor = null;
             panel.IsEnabled = IsEditable && RuleEnabled;
-            panel.Children.Add(FilterLabel(Texts.T("plugins.ruleFilter")));
+            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.ruleFilter")));
             ComboBox mode = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                 ItemsSource = new[] { Texts.T("plugins.filterInherit"), Texts.T("plugins.filterDisabled"), Texts.T("plugins.filterPlugin") }, SelectedIndex = (int)_draft.ImageFilter.Mode };
             AutomationProperties.SetName(mode, Texts.T("plugins.ruleFilter"));
@@ -88,6 +88,7 @@ public partial class RulesPage
                 _draft.ImageFilter = new(MediaImageFilterMode.Plugin, choice.PluginId, choice.Filter.Key, choice.Filter.Settings.Version);
                 _draft.FilterParameters = null; _draft.FilterValidationErrors = Array.Empty<FieldValidationError>(); _draft.FilterSchemaAcknowledged = false; _filterRenderedDraft = null; DraftChanged(); RefreshFilterEditor();
             };
+            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.filterChoice")));
             panel.Children.Add(select);
             if (selectedFilter == null)
             {
@@ -206,17 +207,29 @@ public partial class RulesPage
         && first.PluginId == second.PluginId && first.FilterKey == second.FilterKey && first.SchemaVersion == second.SchemaVersion
         && first.Parameters.Count == second.Parameters.Count && first.Parameters.All(pair => second.Parameters.TryGetValue(pair.Key, out string? value) && value == pair.Value);
     private static TextBlock FilterLabel(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock RuleFieldLabel(string text)
+    {
+        TextBlock label = FilterLabel(text); label.Classes.Add("workspace-field-label"); return label;
+    }
     private void AddGrantControls(StackPanel panel, FilterChoice filter)
     {
+        panel.Children.Add(RuleFieldLabel(Texts.T("plugins.grants")));
+        TextBlock grantHelp = FilterLabel(Texts.T("ud.rules.grantImmediate")); grantHelp.Classes.Add("workspace-help"); panel.Children.Add(grantHelp);
         panel.Children.Add(FilterLabel(Texts.T("plugins.grantScope", FormatScope(_draft.Scope), filter.Filter.RequiredAccess)));
         if (!_grantTargets.TryGetValue(_draft.Scope, out GrantTarget? target))
             _grantTargets[_draft.Scope] = target = new() { Source = _draft.Scope.Source ?? string.Empty, Board = _draft.Scope.Board ?? string.Empty };
         TextBox source = new() { Text = target.Source, IsReadOnly = _draft.Scope.Source != null,
             PlaceholderText = Texts.T("plugins.grantSource") };
-        AutomationProperties.SetName(source, Texts.T("plugins.grantSource")); panel.Children.Add(source);
+        TextBlock sourceLabel = RuleFieldLabel(Texts.T("plugins.grantSource"));
+        StackPanel sourceField = new(); sourceField.Classes.Add("workspace-field"); sourceField.Children.Add(sourceLabel); panel.Children.Add(sourceField);
+        AutomationProperties.SetLabeledBy(source, sourceLabel);
+        AutomationProperties.SetName(source, Texts.T("plugins.grantSource")); sourceField.Children.Add(source);
         TextBox board = new() { Text = target.Board, IsReadOnly = _draft.Scope.Board != null,
             PlaceholderText = Texts.T("plugins.grantBoard") };
-        AutomationProperties.SetName(board, Texts.T("plugins.grantBoard")); panel.Children.Add(board);
+        TextBlock boardLabel = RuleFieldLabel(Texts.T("plugins.grantBoard"));
+        StackPanel boardField = new(); boardField.Classes.Add("workspace-field"); boardField.Children.Add(boardLabel); panel.Children.Add(boardField);
+        AutomationProperties.SetLabeledBy(board, boardLabel);
+        AutomationProperties.SetName(board, Texts.T("plugins.grantBoard")); boardField.Children.Add(board);
         TextBlock status = FilterLabel(string.Empty); status.Name = "RuleFilterGrantStatus"; panel.Children.Add(status);
         StackPanel origins = new() { Spacing = 6 }; panel.Children.Add(origins);
         MediaRuleScope ruleScope = _draft.Scope;
@@ -237,6 +250,7 @@ public partial class RulesPage
                 string origin = PluginGrantPresentation.Describe(grant, _confirmed.Rules.Select(rule => rule.Scope).Append(ruleScope), effective: true);
                 origins.Children.Add(FilterLabel(origin));
                 Button revoke = new() { Content = Texts.T("plugins.revokeGrant"), Tag = grant.Scope };
+                revoke.Classes.Add("danger");
                 AutomationProperties.SetName(revoke, Texts.T("plugins.revokeGrant") + ": " + origin);
                 revoke.Click += async (_, _) => await ChangeRuleGrantAsync(filter, grant.Scope, FilterDataAccess.None);
                 origins.Children.Add(revoke);

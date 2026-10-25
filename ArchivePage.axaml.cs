@@ -106,6 +106,7 @@ public partial class ArchivePage : UserControl
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
         InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
         InitializePaginationFocus();
+        InitializeArchivePresentation();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -487,6 +488,7 @@ public partial class ArchivePage : UserControl
         bool ready = _available && !_busy && !_ended;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
         UpdateSearchActions(ready);
+        RefreshArchiveSearchContext();
         Control<Button>("ArchiveResetFilters").IsEnabled = ready;
         UpdateResultsExportAction(ready);
         Control<Button>("ExportArchiveButton").IsEnabled = ready && _selectedThread != null && !_exportRunning;
@@ -749,7 +751,6 @@ public partial class ArchivePage : UserControl
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateLayoutMode();
-        Control<ScrollViewer>("ArchiveSearchPanelScroll").MaxHeight = Math.Max(120, Bounds.Height * .55);
     }
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
     private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)

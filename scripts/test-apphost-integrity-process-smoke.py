@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Narrow lifecycle classification tests; never launches a desktop or child process."""
 import importlib.util
+import copy
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,95 @@ from unittest.mock import Mock, patch
 _spec = importlib.util.spec_from_file_location('policy_process_runner', Path(__file__).with_name('apphost-integrity-process-smoke.py'))
 runner = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(runner)
+
+
+class BuildClosureTests(unittest.TestCase):
+    def test_direct_build_retains_network_and_readonly_guards_but_allows_installed_runtime(self):
+        archive = ['bwrap', '--unshare-net', '--ro-bind', '/usr', '/usr', '--tmpfs', '/usr/share/dotnet',
+                   '--setenv', 'PATH', '/no-sdk', '--setenv', 'DOTNET_ROOT', '/no-sdk', '/owned/MeowChan', '--smoke-plugin-workflow']
+        with patch.object(runner.plugin, 'sandbox', return_value=archive):
+            command = runner.build_sandbox(None, None, None)
+        self.assertEqual(command, ['bwrap', '--unshare-net', '--ro-bind', '/usr', '/usr',
+            '--setenv', 'PATH', '/no-sdk', '/owned/MeowChan', '--smoke-plugin-workflow'])
+        self.assertIn('--tmpfs', archive)  # The established archive sandbox is not mutated.
+
+    def seed(self, root):
+        for name in ('MeowChan', 'MeowChan.dll', 'MeowChan.deps.json', 'MeowChan.runtimeconfig.json', 'libmeowchan.dll'):
+            (root / name).write_bytes(('fixture-' + name).encode())
+        return root / 'MeowChan'
+
+    def test_exact_build_tree_detects_added_removed_and_modified_payload(self):
+        for fault in ('added', 'removed', 'changed'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                apphost = self.seed(root)
+                closure = runner.build_closure(root, apphost)
+                self.assertEqual(closure['binding'], 'frozen-build-directory')
+                self.assertEqual(closure['fileCount'], 5)
+                self.assertEqual(runner.workflow.verify_extracted_closure(root, closure), closure['contentSha256'])
+                if fault == 'added': (root / 'foreign.dll').write_bytes(b'foreign')
+                if fault == 'removed': (root / 'MeowChan.dll').unlink()
+                if fault == 'changed': (root / 'MeowChan.dll').write_bytes(b'changed')
+                with self.assertRaises(ValueError):
+                    runner.workflow.verify_extracted_closure(root, closure)
+
+    def test_no_archive_mode_still_rejects_escape_links_and_missing_runtime_payload(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            apphost = self.seed(root)
+            (root / 'escape').symlink_to('../outside')
+            with self.assertRaises(ValueError): runner.build_closure(root, apphost)
+            (root / 'escape').unlink()
+            (root / 'MeowChan.runtimeconfig.json').unlink()
+            with self.assertRaisesRegex(ValueError, '^Archive contains a broken or cyclic link$') as failure:
+                runner.build_closure(root, apphost)
+            self.assertIsInstance(failure.exception.__cause__, FileNotFoundError)
+            self.assertEqual(failure.exception.__cause__.filename, str(root / 'MeowChan.runtimeconfig.json'))
+
+
+class ActivationEvidenceTests(unittest.TestCase):
+    def policy(self, active, granted, revision):
+        return dict(IsActive=active, IsGranted=granted, Snapshot=dict(
+            ProfileId='/owned/profile', PluginOwnerId=runner.OWNER, SourceId=runner.SOURCE,
+            AllowProviderSizeMd5Mismatch=active and granted, Revision=revision))
+
+    def acquired(self):
+        before, after = self.policy(False, False, 0), self.policy(True, True, 2)
+        return dict(initialPolicy=before, activationEvidence=dict(before=before, after=after,
+                    status='Succeeded', requestsBeforeAdmission=0, watchesBeforeAdmission=0), urlAdmissionEvidence=None)
+
+    def test_default_off_combined_consent_and_fresh_revision_are_required(self):
+        good = self.acquired()
+        runner.validate_activation_metrics(good, 'acquire', Path('/owned/profile'))
+        for fault in ('missing', 'http', 'watch', 'old-revision', 'wrong-owner', 'not-granted', 'was-active'):
+            bad = copy.deepcopy(good)
+            activation = bad['activationEvidence']
+            if fault == 'missing': bad['activationEvidence'] = None
+            if fault == 'http': activation['requestsBeforeAdmission'] = 1
+            if fault == 'watch': activation['watchesBeforeAdmission'] = 1
+            if fault == 'old-revision': activation['after']['Snapshot']['Revision'] = 1
+            if fault == 'wrong-owner': activation['after']['Snapshot']['PluginOwnerId'] = 'other-owner'
+            if fault == 'not-granted': activation['after']['IsGranted'] = False
+            if fault == 'was-active': activation['before']['IsActive'] = True
+            with self.subTest(fault=fault), self.assertRaises(ValueError):
+                runner.validate_activation_metrics(bad, 'acquire', Path('/owned/profile'))
+
+    def test_later_url_must_preserve_exact_revoked_policy_and_zero_http(self):
+        policy = self.policy(True, False, 6)
+        good = dict(finalPolicy=policy, activationEvidence=None, urlAdmissionEvidence=dict(
+            url='https://wizchan.org/demo/res/124.html', before=policy, after=policy, watches=2, requests=0))
+        runner.validate_activation_metrics(good, 'deny', Path('/owned/profile'))
+        for fault in ('regrant', 'revision', 'http', 'watch', 'activation-on-restart'):
+            bad = copy.deepcopy(good)
+            # The runner receives separate objects after JSON decoding.
+            bad['urlAdmissionEvidence']['after'] = copy.deepcopy(policy)
+            if fault == 'regrant': bad['urlAdmissionEvidence']['after']['IsGranted'] = True
+            if fault == 'revision': bad['urlAdmissionEvidence']['after']['Snapshot']['Revision'] += 1
+            if fault == 'http': bad['urlAdmissionEvidence']['requests'] = 1
+            if fault == 'watch': bad['urlAdmissionEvidence']['watches'] = 1
+            if fault == 'activation-on-restart': bad['activationEvidence'] = self.acquired()['activationEvidence']
+            with self.subTest(fault=fault), self.assertRaises(ValueError):
+                runner.validate_activation_metrics(bad, 'deny', Path('/owned/profile'))
 
 
 class GroupExitTests(unittest.TestCase):

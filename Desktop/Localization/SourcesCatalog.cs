@@ -36,7 +36,7 @@ internal static class SourcesCatalog
         ("sources.captureUnavailable", "Post capture is not available in this session.", "Posterfassung ist in dieser Sitzung nicht verfügbar."),
         ("sources.rules", "Source rules", "Quellenregeln"),
         ("sources.diagnostics", "Show diagnostics", "Diagnose anzeigen"),
-        ("sources.urlHint", "Paste thread or board URLs. Uses the same admission as Downloads.", "Thread- oder Board-URLs einfügen. Wird wie unter Downloads hinzugefügt."),
+        ("sources.urlHint", "Paste thread or board URLs. Uses the same admission as Downloads. Disabled experimental sources ask before activation and permission.", "Thread- oder Board-URLs einfügen. Wird wie unter Downloads hinzugefügt. Deaktivierte experimentelle Quellen fragen vor Aktivierung und Freigabe nach."),
         ("sources.urlResult", "See Downloads for the individual URL results.", "Die einzelnen URL-Ergebnisse stehen unter Downloads."),
         ("sources.noObservation", "No active observation", "Keine aktive Beobachtung"),
         ("sources.noProblem", "No currently reported problem", "Aktuell kein gemeldetes Problem"),

@@ -21,7 +21,7 @@ public partial class SourcesPage : UserControl
     private readonly Action<string>? _editRules;
     private readonly Action? _openDiagnostics;
     private readonly Action? _openDownloads;
-    private readonly Func<string, Task<bool>>? _submit;
+    private readonly Func<string, Action<Window>, Task<bool>>? _submit;
     private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
     private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
     private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
@@ -32,6 +32,8 @@ public partial class SourcesPage : UserControl
     private bool _busy;
     private bool _ended;
     private bool _hasUrlResult;
+    private long _sourceSelectionRevision;
+    private Action? _cancelSubmitFocusRestore;
     private bool _showDetails;
     private bool _narrow;
     internal Action<string>? OpenPluginSettings { get; set; }
@@ -40,9 +42,17 @@ public partial class SourcesPage : UserControl
     internal bool IsBusy => _busy;
     internal event EventHandler? BusyChanged;
 
-    public SourcesPage() { InitializeComponent(); InitializeContextMenus(); }
+    public SourcesPage()
+    {
+        InitializeComponent(); InitializeContextMenus();
+        DetachedFromVisualTree += (_, _) => _cancelSubmitFocusRestore?.Invoke();
+    }
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action openDownloads, Func<string, Task<bool>> submit) : this()
+        Action openDiagnostics, Action openDownloads, Func<string, Task<bool>> submit)
+        : this(openWatch, editRules, openDiagnostics, openDownloads, (input, _) => submit(input)) { }
+
+    internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
+        Action openDiagnostics, Action openDownloads, Func<string, Action<Window>, Task<bool>> submit) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
@@ -54,9 +64,10 @@ public partial class SourcesPage : UserControl
     internal void Refresh(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view, bool available)
     {
         if (_ended) return;
+        if (view.State != DesktopSessionState.Ready) _cancelSubmitFocusRestore?.Invoke();
         _available = available;
         _rows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
-        if (!_rows.Any(row => row.Id == _selectedId)) _selectedId = _rows.FirstOrDefault()?.Id;
+        if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
         this.FindControl<TextBlock>("SourceCount")!.Text = Texts.T("sources.count", _rows.Count);
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
         StackPanel cards = this.FindControl<StackPanel>("SourceCards")!;
@@ -69,9 +80,9 @@ public partial class SourcesPage : UserControl
         {
             if (!_sourceCards.TryGetValue(row.Id, out SourceCard? card))
             {
-                TextBlock name = new TextBlock { FontSize = 17, FontWeight = Avalonia.Media.FontWeight.SemiBold };
-                TextBlock address = new TextBlock(); address.Classes.Add("muted");
-                TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("muted");
+                TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
+                TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
+                TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
                 StackPanel labels = new StackPanel { Spacing = 4 };
                 labels.Children.Add(name); labels.Children.Add(address); labels.Children.Add(observation);
                 Button select = new Button { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
@@ -80,7 +91,7 @@ public partial class SourcesPage : UserControl
                 select.Click += (_, _) =>
                 {
                     if (_selectedId != sourceId) SetActionError(string.Empty);
-                    _selectedId = sourceId;
+                    SetSelectedSource(sourceId);
                     _showDetails = true;
                     RenderDetails();
                     if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
@@ -100,6 +111,14 @@ public partial class SourcesPage : UserControl
 
     private static string SourceDisplayName(SourceRow row) => row.Name +
         (row.MediaIntegrityPolicy?.Maturity == SourceMaturity.Experimental ? " · " + Texts.T("sources.experimental") : string.Empty);
+
+    private void SetSelectedSource(string? sourceId)
+    {
+        if (_selectedId == sourceId) return;
+        _cancelSubmitFocusRestore?.Invoke();
+        _selectedId = sourceId;
+        _sourceSelectionRevision++;
+    }
 
     private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
     private void RenderDetails()
@@ -164,11 +183,11 @@ public partial class SourcesPage : UserControl
         {
             string state = row.Descriptor.Capabilities is not ProviderCapabilities supported ? "sources.unspecified"
                 : supported.HasFlag(capability) ? "sources.supported" : "sources.unsupported";
-            StackPanel labels = new StackPanel { Spacing = 5 };
-            labels.Children.Add(new TextBlock { Text = Texts.T(label), FontWeight = Avalonia.Media.FontWeight.SemiBold, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-            TextBlock value = new TextBlock { Text = Texts.T(state) }; value.Classes.Add("muted"); labels.Children.Add(value);
-            Border card = new Border { Child = labels, Padding = new Thickness(12), Width = 205 };
-            card.Classes.Add("panel"); capabilities.Children.Add(card);
+            StackPanel labels = new StackPanel { Spacing = 4 };
+            TextBlock capabilityLabel = new() { Text = Texts.T(label) }; capabilityLabel.Classes.Add("workspace-field-label"); labels.Children.Add(capabilityLabel);
+            TextBlock value = new TextBlock { Text = Texts.T(state) }; value.Classes.Add("workspace-meta"); labels.Children.Add(value);
+            Border card = new Border { Child = labels, Padding = new Thickness(0, 4, 12, 4), Width = 205 };
+            capabilities.Children.Add(card);
         }
         this.FindControl<TextBlock>("SourceCaptureAvailability")!.Text = Texts.T(row.Descriptor.CaptureAvailable
             ? "sources.captureAvailable" : "sources.captureUnavailable");
@@ -289,7 +308,7 @@ public partial class SourcesPage : UserControl
     internal void SelectSource(string sourceId)
     {
         if (!_rows.Any(row => row.Id == sourceId)) return;
-        _selectedId = sourceId;
+        SetSelectedSource(sourceId);
         _showDetails = true;
         RenderDetails();
         if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
@@ -338,26 +357,192 @@ public partial class SourcesPage : UserControl
     private async Task SubmitAsync()
     {
         if (_ended || !_available || _busy || _submit == null) return;
-        string input = this.FindControl<TextBox>("SourceUrlInput")!.Text ?? string.Empty;
-        SetActionError(null);
-        _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
+        _cancelSubmitFocusRestore?.Invoke();
+        TextBox editor = this.FindControl<TextBox>("SourceUrlInput")!;
+        string input = editor.Text ?? string.Empty;
+        Button submitButton = this.FindControl<Button>("SourceAddButton")!;
+        // A real Add click may focus the button before its busy disable.
+        TopLevel? owner = editor.IsKeyboardFocusWithin || submitButton.IsKeyboardFocusWithin
+            ? TopLevel.GetTopLevel(editor) : null;
+        long selectionRevision = _sourceSelectionRevision;
+        bool accepted = false;
+        bool newerInput = false;
+        bool observing = owner != null;
+        Window? ownerWindow = owner as Window;
+        Window? admissionModal = null;
+        bool sawAdmissionModal = false;
+        bool modalOwnerDeactivated = false;
+        bool awaitingAdmissionOwnerActivation = false;
+        TaskCompletionSource? ownerActivation = null;
+        List<Action> stopModalObservers = new();
+        void StopObserving()
+        {
+            if (!observing) return;
+            observing = false;
+            owner?.RemoveHandler(GotFocusEvent, OnNewFocus);
+            owner?.RemoveHandler(PointerPressedEvent, OnNewPointer);
+            owner?.RemoveHandler(KeyDownEvent, OnNewKey);
+            if (ownerWindow != null)
+            {
+                ownerWindow.Deactivated -= OnOwnerDeactivated;
+                ownerWindow.Activated -= OnOwnerActivated;
+                ownerWindow.Closing -= OnOwnerClosing;
+                ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+            }
+            editor.PropertyChanged -= OnEditorPropertyChanged;
+            foreach (Action stop in stopModalObservers) stop();
+            stopModalObservers.Clear();
+            if (_cancelSubmitFocusRestore == CancelFocusRestore) _cancelSubmitFocusRestore = null;
+        }
+        void CancelFocusRestore()
+        {
+            newerInput = true;
+            ownerActivation?.TrySetResult();
+            StopObserving();
+        }
+        void OnOwnerActivated(object? sender, EventArgs e)
+        {
+            // Close can raise a managed owner activation before Modal.Closed,
+            // followed by a native deactivation/activation bounce. Only the
+            // first activation after the exact normal Closed ends its return.
+            if (admissionModal == null) awaitingAdmissionOwnerActivation = false;
+            ownerActivation?.TrySetResult();
+        }
+        void OnOwnerDeactivated(object? sender, EventArgs e)
+        {
+            if (admissionModal != null) modalOwnerDeactivated = true;
+            else if (!awaitingAdmissionOwnerActivation) CancelFocusRestore();
+        }
+        void OnOwnerClosing(object? sender, WindowClosingEventArgs e) => CancelFocusRestore();
+        void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == IsVisibleProperty && ownerWindow is { IsVisible: false }
+                || e.Property == Window.WindowStateProperty && ownerWindow is { WindowState: WindowState.Minimized })
+                CancelFocusRestore();
+        }
+        void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == TextBox.TextProperty) CancelFocusRestore();
+        }
+        void ObserveAdmissionModal(Window modal)
+        {
+            // This callback belongs to this exact submit operation. Cancellation
+            // must never attach new observers or revive a stale focus claim.
+            if (!observing) return;
+            sawAdmissionModal = true;
+            admissionModal = modal;
+            modalOwnerDeactivated = false;
+            awaitingAdmissionOwnerActivation = false;
+            WindowClosingEventArgs? closing = null;
+            void OnOpened(object? sender, EventArgs e)
+            {
+                if (!ReferenceEquals(modal.Owner, ownerWindow)) CancelFocusRestore();
+            }
+            void OnClosing(object? sender, WindowClosingEventArgs e) => closing = e;
+            void OnDeactivated(object? sender, EventArgs e)
+            {
+                // Keep the original args so a later handler's canceled Closing
+                // cannot make an external activation look like a normal close.
+                if (closing is not { Cancel: false }) CancelFocusRestore();
+            }
+            void OnClosed(object? sender, EventArgs e)
+            {
+                if (!observing || !ReferenceEquals(admissionModal, modal)) return;
+                admissionModal = null;
+                // No timer or blanket deactivation exemption: this one normal
+                // owned-modal return lasts only until its next owner activation.
+                awaitingAdmissionOwnerActivation = closing is { Cancel: false } && modalOwnerDeactivated;
+            }
+            modal.Opened += OnOpened;
+            modal.Closing += OnClosing;
+            modal.Deactivated += OnDeactivated;
+            modal.Closed += OnClosed;
+            stopModalObservers.Add(() =>
+            {
+                modal.Opened -= OnOpened;
+                modal.Closing -= OnClosing;
+                modal.Deactivated -= OnDeactivated;
+                modal.Closed -= OnClosed;
+            });
+        }
+        void OnNewFocus(object? sender, FocusChangedEventArgs e) => CancelFocusRestore();
+        void OnNewPointer(object? sender, PointerPressedEventArgs e) => CancelFocusRestore();
+        void OnNewKey(object? sender, KeyEventArgs e) => CancelFocusRestore();
+        // Disabling the busy editor clears native focus. Remember later choices,
+        // including focus that subsequently moves to null, until completion.
+        owner?.AddHandler(GotFocusEvent, OnNewFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+        owner?.AddHandler(PointerPressedEvent, OnNewPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
+        owner?.AddHandler(KeyDownEvent, OnNewKey, RoutingStrategies.Tunnel, handledEventsToo: true);
+        if (ownerWindow != null)
+        {
+            ownerWindow.Deactivated += OnOwnerDeactivated;
+            ownerWindow.Activated += OnOwnerActivated;
+            ownerWindow.Closing += OnOwnerClosing;
+            ownerWindow.PropertyChanged += OnOwnerPropertyChanged;
+        }
+        if (observing)
+        {
+            editor.PropertyChanged += OnEditorPropertyChanged;
+            _cancelSubmitFocusRestore = CancelFocusRestore;
+        }
         try
         {
-            bool accepted = await _submit(input);
-            if (_ended) return;
-            _hasUrlResult = true;
-            if (accepted && this.FindControl<TextBox>("SourceUrlInput")!.Text == input)
-                this.FindControl<TextBox>("SourceUrlInput")!.Text = string.Empty;
+            SetActionError(null);
+            _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
+            try
+            {
+                accepted = await _submit(input, ObserveAdmissionModal);
+                if (_ended) return;
+                _hasUrlResult = true;
+                if (accepted && editor.Text == input) editor.Text = string.Empty;
+            }
+            catch (Exception exception)
+            {
+                if (!_ended) SetActionError(exception.Message);
+            }
+            finally
+            {
+                _busy = false;
+                if (!_ended) { BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails(); }
+            }
+            if (!accepted && owner != null)
+            {
+                bool RestoreInputOrAwaitOwnerActivation()
+                {
+                    if (_ended || _busy || !_available || newerInput || selectionRevision != _sourceSelectionRevision
+                        || editor.Text != input || !IsEffectivelyVisible || !editor.IsEffectivelyVisible
+                        || !editor.IsEffectivelyEnabled || !ReferenceEquals(TopLevel.GetTopLevel(editor), owner)
+                        || owner is Window { IsVisible: false } or Window { IsEnabled: false }) return false;
+                    if (owner is Window { IsActive: false })
+                    {
+                        if (!sawAdmissionModal || !awaitingAdmissionOwnerActivation) return false;
+                        // Recheck at Loaded: the owner may have become inactive
+                        // since submit completion. Preserve only this exact return
+                        // until its first activation or permanent cancellation.
+                        ownerActivation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                        return true;
+                    }
+                    var focus = owner.FocusManager?.GetFocusedElement();
+                    if (focus != null && !ReferenceEquals(focus, editor)) return false;
+                    editor.BringIntoView();
+                    editor.Focus();
+                    return false;
+                }
+                bool awaitingOwner = await Dispatcher.UIThread.InvokeAsync(RestoreInputOrAwaitOwnerActivation, DispatcherPriority.Loaded);
+                if (awaitingOwner)
+                {
+                    await ownerActivation!.Task;
+                    // The event clears the one-shot return or cancellation sets
+                    // newerInput. This callback cannot start another owner wait.
+                    await Dispatcher.UIThread.InvokeAsync(() => { RestoreInputOrAwaitOwnerActivation(); }, DispatcherPriority.Loaded);
+                }
+            }
         }
-        catch (Exception exception)
-        {
-            if (!_ended) SetActionError(exception.Message);
-        }
-        finally
-        {
-            _busy = false;
-            if (!_ended) { BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails(); }
-        }
+        finally { StopObserving(); }
     }
-    internal void EndLifetime() { _ended = true; _available = false; BusyChanged = null; }
+    internal void EndLifetime()
+    {
+        _ended = true; _available = false; BusyChanged = null;
+        _cancelSubmitFocusRestore?.Invoke();
+    }
 }

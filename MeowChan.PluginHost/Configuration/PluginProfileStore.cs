@@ -16,10 +16,19 @@ public sealed class PluginProfileStore : IPluginProfileStore
     private readonly string directory;
     private readonly string path;
     private readonly string lockPath;
+    private readonly Func<string, bool> initiallyEnabled;
 
-    public PluginProfileStore(string profileDirectory)
+    public PluginProfileStore(string profileDirectory) : this(profileDirectory, static _ => true) { }
+
+    /// <summary>
+    /// Uses the host's default only when a plugin identity is first recorded. Saved enable choices
+    /// remain authoritative; resolving a provisional owner cannot bypass a disabled default.
+    /// </summary>
+    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
+        ArgumentNullException.ThrowIfNull(initiallyEnabled);
+        this.initiallyEnabled = initiallyEnabled;
         directory = Path.Combine(Path.GetFullPath(profileDirectory), "plugin-state");
         path = Path.Combine(directory, "state.json");
         lockPath = Path.Combine(directory, "state.lock");
@@ -305,13 +314,13 @@ public sealed class PluginProfileStore : IPluginProfileStore
     private static T Clone<T>(T value) => SdkJson.Deserialize<T>(SdkJson.Serialize(value));
     private static PluginActivationSnapshot Find(PluginProfileSnapshot state, string pluginId) => state.Plugins.SingleOrDefault(plugin => plugin.PluginId == pluginId)
         ?? throw new KeyNotFoundException("Unknown plugin: " + pluginId);
-    private static PluginActivationSnapshot FindOrCreate(PluginProfileSnapshot state, string pluginId) => state.Plugins.SingleOrDefault(plugin => plugin.PluginId == pluginId)
-        ?? new(pluginId, true, 0, null, null, null, null, null, Array.Empty<PluginCandidateSnapshot>(), null);
+    private PluginActivationSnapshot FindOrCreate(PluginProfileSnapshot state, string pluginId) => state.Plugins.SingleOrDefault(plugin => plugin.PluginId == pluginId)
+        ?? new(pluginId, initiallyEnabled(pluginId), 0, null, null, null, null, null, Array.Empty<PluginCandidateSnapshot>(), null);
     private static PluginProfileSnapshot Replace(PluginProfileSnapshot state, PluginActivationSnapshot plugin) => state with
     { Plugins = state.Plugins.Where(item => item.PluginId != plugin.PluginId).Append(plugin).ToArray() };
     private static PluginCandidateSnapshot ToSnapshot(PluginCandidateObservation candidate) => new(candidate.CandidateId, candidate.PluginId,
         candidate.Artifact, candidate.Description, true, candidate.Problem, candidate.CandidatePath);
-    private static PluginProfileSnapshot ReleaseProvisionalOwners(PluginProfileSnapshot state, IReadOnlyList<PluginCandidateObservation> observations)
+    private PluginProfileSnapshot ReleaseProvisionalOwners(PluginProfileSnapshot state, IReadOnlyList<PluginCandidateObservation> observations)
     {
         List<PluginActivationSnapshot> plugins = new();
         Dictionary<string, PluginActivationSnapshot> discovered = new(StringComparer.Ordinal);
@@ -325,8 +334,13 @@ public sealed class PluginProfileStore : IPluginProfileStore
             foreach (PluginCandidateObservation observation in observations.Where(observation => observation.Description is not null
                 && observation.PluginId != plugin.PluginId && plugin.Candidates.Any(candidate => candidate.CandidateId == observation.CandidateId)))
                 if (!state.Plugins.Any(existing => existing.PluginId == observation.PluginId) && !discovered.ContainsKey(observation.PluginId))
-                    discovered.Add(observation.PluginId, FindOrCreate(state, observation.PluginId) with
-                    { Enabled = plugin.Enabled, LifecycleRevision = plugin.LifecycleRevision });
+                {
+                    // A loader placeholder's enabled state is not consent for the newly described identity.
+                    // Retain an explicit disable while applying that identity's first-recording default.
+                    PluginActivationSnapshot resolved = FindOrCreate(state, observation.PluginId);
+                    discovered.Add(observation.PluginId, resolved with
+                    { Enabled = plugin.Enabled && resolved.Enabled, LifecycleRevision = plugin.LifecycleRevision });
+                }
             PluginCandidateSnapshot[] retained = plugin.Candidates.Where(candidate => !observations.Any(observation =>
                 observation.CandidateId == candidate.CandidateId && observation.PluginId != plugin.PluginId && observation.Description is not null)).ToArray();
             if (retained.Length != 0) plugins.Add(plugin with { Candidates = retained });

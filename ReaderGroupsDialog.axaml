@@ -1,25 +1,31 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MeowChan.ReaderGroupsDialog" Width="720" Height="620" MinWidth="480" MinHeight="400"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
     <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="GroupMessage" TextWrapping="Wrap" /></ScrollViewer>
-    <ScrollViewer x:Name="GroupEditorScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="8">
-        <ListBox x:Name="Groups" Height="90" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-        <WrapPanel x:Name="GroupActions" />
-        <TextBlock x:Name="GroupNameLabel" />
-        <TextBox x:Name="GroupName" />
-        <TextBlock x:Name="GroupNameError" TextWrapping="Wrap" />
-        <TextBlock x:Name="GroupMembersLabel" />
-        <ListBox x:Name="GroupMembers" Height="130" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-        <WrapPanel x:Name="MemberActions" />
-        <TextBlock x:Name="GroupSearchLabel" />
-        <TextBox x:Name="GroupSearch" MaxLength="512" />
-        <TextBlock x:Name="GroupSearchStatus" TextWrapping="Wrap" />
-        <ListBox x:Name="GroupCandidates" Height="100" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-        <WrapPanel x:Name="CandidateActions" />
-      </StackPanel>
-    </ScrollViewer>
-    <WrapPanel x:Name="GroupFooter" Grid.Row="2" HorizontalAlignment="Right" />
+    <Grid x:Name="GroupWorkspace" Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
+      <Grid x:Name="GroupListPane" RowDefinitions="*,Auto" RowSpacing="8">
+        <ListBox x:Name="Groups" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+        <WrapPanel x:Name="GroupActions" Grid.Row="1" ItemSpacing="8" LineSpacing="8" />
+      </Grid>
+      <ScrollViewer x:Name="GroupEditorScroll" Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="8">
+          <TextBlock x:Name="GroupNameLabel" Classes="section-title" TextWrapping="Wrap" />
+          <TextBox x:Name="GroupName" />
+          <TextBlock x:Name="GroupNameError" Classes="workspace-error" TextWrapping="Wrap" />
+          <TextBlock x:Name="GroupMembersLabel" Classes="section-title" Margin="0,8,0,0" TextWrapping="Wrap" />
+          <ListBox x:Name="GroupMembers" Height="160" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+          <WrapPanel x:Name="MemberActions" ItemSpacing="8" LineSpacing="8" />
+          <TextBlock x:Name="GroupSearchLabel" Classes="section-title" Margin="0,8,0,0" TextWrapping="Wrap" />
+          <TextBox x:Name="GroupSearch" MaxLength="512" />
+          <TextBlock x:Name="GroupSearchStatus" Classes="workspace-meta" TextWrapping="Wrap" />
+          <ListBox x:Name="GroupCandidates" Height="140" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+          <WrapPanel x:Name="CandidateActions" ItemSpacing="8" LineSpacing="8" />
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+    <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="-16,0,-16,-16">
+      <WrapPanel x:Name="GroupFooter" HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8" />
+    </Border>
   </Grid>
 </Window>

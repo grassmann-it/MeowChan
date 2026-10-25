@@ -302,6 +302,13 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginCapabilities").Text = functions;
         C<TextBlock>("PluginCapabilities").IsVisible = functions.Length > 0;
         C<TextBlock>("PluginStatus").Text = PluginContentPresentation.DescribeStatus(presentation);
+        // Problems belong beside the normal actions. Paths, fingerprints and full
+        // compiler diagnostics remain available in the optional developer details.
+        string attention = string.Join("\n", new[] { presentation.CandidateProblem, presentation.ActivationProblem,
+            presentation.HasWorkerProblem ? presentation.Worker?.FailureMessage : null }
+            .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal));
+        C<TextBlock>("PluginAttention").Text = attention;
+        C<TextBlock>("PluginAttention").IsVisible = attention.Length > 0;
         string hint = PluginContentPresentation.DescribeStatusHint(presentation);
         C<TextBlock>("PluginStatusHint").Text = hint;
         C<TextBlock>("PluginStatusHint").IsVisible = hint.Length > 0;
@@ -325,6 +332,11 @@ public partial class PluginsPage : UserControl
         PluginConfigurationDraft? draft = CurrentDraft;
         bool stale = draft != null && draft.ExpectedRevision != _catalog?.Profile.Revision;
         C<TextBlock>("PluginDraftStatus").Text = Texts.T(stale ? "plugins.stale" : draft?.Dirty == true ? "plugins.draft" : "plugins.settingsHint");
+        C<TextBlock>("PluginDraftStatus").Classes.Set("workspace-error", stale);
+        TextBlock draftSummary = C<TextBlock>("PluginDraftSummary");
+        draftSummary.Text = C<TextBlock>("PluginDraftStatus").Text;
+        draftSummary.IsVisible = stale || draft?.Dirty == true;
+        draftSummary.Classes.Set("workspace-error", stale);
         SetAction("PluginSave", stale ? "plugins.stale" : "plugins.reason.unchanged", draft?.Dirty == true && !stale);
         SetAction("PluginDiscard", "plugins.reason.noDraft", draft != null);
         ShowReasons("PluginDraftReasons", "PluginSave", "PluginDiscard");

@@ -52,8 +52,10 @@ internal static class GalleryCaptionChecks
             SetContext(viewer, false);
             viewer.Focus();
             Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
-            await Program.WaitUntilAsync(() => !chrome.IsVisible);
-            Check(window, viewer, video, "Dark", 851, false, "chrome-hidden");
+            await Task.Delay(4200); // Tools must remain available beyond the former auto-hide timeout.
+            if (!chrome.IsEffectivelyVisible)
+                throw new InvalidOperationException("Gallery tools disappeared while the pointer was idle.");
+            Check(window, viewer, video, "Dark", 851, false, "tools-idle-visible");
         }
         finally
         {
@@ -65,7 +67,7 @@ internal static class GalleryCaptionChecks
             await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         }
-        Console.WriteLine($"SMOKE gallery caption: {(video ? "real video" : "decoded image")},849/850/851,D/L,context open/closed,wrapped status,hidden toolbar passed.");
+        Console.WriteLine($"SMOKE gallery caption: {(video ? "real video" : "decoded image")},849/850/851,D/L,context open/closed,wrapped status,persistent tools below media passed.");
     }
 
     private static void Check(MainWindow window, GalleryViewer viewer, bool video, string theme,
@@ -78,6 +80,44 @@ internal static class GalleryCaptionChecks
         Rect infoBounds = Bounds(info, viewer);
         Rect contextBounds = Bounds(context, viewer);
         Rect viewportBounds = Bounds(viewport, viewer);
+        Border tools = Find<Border>(viewer, "GalleryOverlayControls");
+        Rect toolsBounds = Bounds(tools, viewer);
+        if (!tools.IsEffectivelyVisible || toolsBounds.Height <= 0 || toolsBounds.Left < 0
+            || toolsBounds.Right > viewer.Bounds.Width || toolsBounds.Bottom > infoBounds.Top + 1
+            || viewport.IsVisible && (toolsBounds.Top < viewportBounds.Bottom - 1 || viewportBounds.Height < 100))
+            throw new InvalidOperationException("Gallery tools cover media, leave the gallery, or consume its usable height.");
+        foreach (Button tool in tools.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible))
+        {
+            Rect bounds = Bounds(tool, viewer), visible = VisibleBounds(tool, viewer);
+            if (bounds.Width <= 0 || bounds.Height <= 0 || visible.Width < bounds.Width - 1 || visible.Height < bounds.Height - 1)
+                throw new InvalidOperationException("Gallery tool is clipped: " + tool.Name);
+        }
+        if (video && viewport.IsVisible)
+        {
+            Border transport = Find<Border>(viewer, "GalleryVideoTransport");
+            Color background = Solid(transport.Background);
+            Rect transportBounds = Bounds(transport, viewer);
+            Control surface = viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .Single(control => control.Name is "GalleryNativeVideo" or "GallerySoftwareVideo");
+            Rect surfaceBounds = Bounds(surface, viewer);
+            if (surfaceBounds.Height < 100 || transportBounds.Top < surfaceBounds.Bottom - 1
+                || transportBounds.Bottom > viewportBounds.Bottom + 1)
+                throw new InvalidOperationException("Video transport covers its picture or leaves the media viewport.");
+            foreach (Control action in transport.GetVisualDescendants().OfType<Control>()
+                .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoVolume"
+                    or "GalleryVideoPlay" or "GalleryVideoPause" or "GalleryVideoStop"))
+            {
+                Rect bounds = Bounds(action, viewer), visible = VisibleBounds(action, viewer);
+                if (bounds.Width <= 0 || bounds.Height <= 0 || visible.Width < bounds.Width - 1 || visible.Height < bounds.Height - 1)
+                    throw new InvalidOperationException("Video transport action is clipped: " + action.Name);
+            }
+            foreach (string name in new[] { "GalleryVideoTime", "GalleryVideoStatus" })
+            {
+                TextBlock text = Find<TextBlock>(viewer, name);
+                if (text.IsEffectivelyVisible && Contrast(text.Foreground, background) < 4.5)
+                    throw new InvalidOperationException(name + " lost readable contrast on its themed transport.");
+            }
+        }
         bool contextOverlap = contextOpen && infoBounds.Intersects(contextBounds);
         bool outsideMediaWidth = contextOpen && viewport.IsVisible && infoBounds.Intersects(viewportBounds)
             && (infoBounds.Left < viewportBounds.Left || infoBounds.Right > viewportBounds.Right);

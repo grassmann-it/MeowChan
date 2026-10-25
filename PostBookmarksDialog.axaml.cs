@@ -140,7 +140,8 @@ internal partial class PostBookmarksDialog : Window
     private Control CreateRow(PostBookmark entry)
     {
         TextBlock availability = new() { Text = Texts.T("bookmarks.loading"), TextWrapping = TextWrapping.Wrap };
-        StackPanel row = new() { Spacing = 3, Margin = new Thickness(4), Children =
+        availability.Classes.Add("muted");
+        StackPanel row = new() { Spacing = 4, Margin = new Thickness(4, 8), Children =
         {
             new TextBlock { Text = entry.Key.ToString(), TextWrapping = TextWrapping.Wrap }, availability,
             new TextBlock { Text = Preview(entry.Note), TextWrapping = TextWrapping.Wrap, IsVisible = entry.Note.Length > 0 }
@@ -422,10 +423,14 @@ internal partial class PostBookmarksDialog : Window
                 MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             Button cancel = new() { Content = Texts.T("bookmarks.keepEditing") };
             Button accept = new() { Content = action };
-            StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
+            accept.Classes.Add("danger");
+            WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
                 Children = { cancel, accept } };
-            confirm.Content = new StackPanel { Margin = new Thickness(16), Spacing = 12,
-                Children = { new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap }, buttons } };
+            Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
+            footer.Classes.Add("workspace-dialog-footer");
+            Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new("Auto,Auto"), RowSpacing = 12 };
+            layout.Children.Add(new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap });
+            layout.Children.Add(footer); Grid.SetRow(footer, 1); confirm.Content = layout;
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
             confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };

@@ -123,6 +123,9 @@ internal static class DiagnosticsChecks
                         Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics && settings.DownloadPath == "retained diagnosis draft",
                             "Diagnostics navigation lost the selected page or settings draft.");
                         Require(page.FindControl<TextBox>("DiagnosticDetails")!.Text!.Contains("HTTP 429"), "The complete diagnostic was not rendered.");
+                        Require(page.FindControl<TextBlock>("DiagnosticSelectionTitle")!.Text == (grid.SelectedItem as DiagnosticEntry)?.Summary
+                            && page.FindControl<TextBlock>("DiagnosticSelectionContext")!.Text?.Contains((grid.SelectedItem as DiagnosticEntry)!.Resource, StringComparison.Ordinal) == true,
+                            "Selected diagnostic details lost their current summary or exact resource context.");
                         RequireIconLabel(page.FindControl<Button>("CopyDiagnosticButton")!, Texts.T("diagnostics.copy"));
                         RequireIconLabel(page.FindControl<Button>("OpenDiagnosticWatchButton")!, Texts.T("diagnostics.openWatch"));
                         RequireIconLabel(page.FindControl<Button>("RetryDiagnosticButton")!, Texts.T("check.action"));
@@ -152,6 +155,9 @@ internal static class DiagnosticsChecks
                         Require(!page.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled
                             && !page.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled
                             && !page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled, "Removed diagnostics left actions enabled.");
+                        Require(grid.SelectedItem == null && page.FindControl<TextBlock>("DiagnosticSelectionHint")!.IsVisible
+                            && page.FindControl<TextBlock>("DiagnosticSelectionHint")!.Text == Texts.T("diagnostics.selectionGone"),
+                            "A removed current diagnostic was silently replaced or its loss was unexplained.");
                     }
                 }
             }

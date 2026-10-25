@@ -12,7 +12,7 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="5">
                     <TextBlock Tag="nav.sources" Classes="page-title localized" />
-                    <TextBlock Tag="sources.subtitle" Classes="muted localized" TextWrapping="Wrap" />
+                    <TextBlock Tag="sources.subtitle" Classes="workspace-help localized" TextWrapping="Wrap" />
                 </StackPanel>
                 <TextBlock x:Name="SourceCount" Grid.Column="1" Classes="muted" VerticalAlignment="Top" />
             </Grid>
@@ -21,49 +21,53 @@
                 <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
                 <StackPanel x:Name="SourceCards" Spacing="10" />
               </StackPanel>
-              <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="panel" Padding="16">
+              <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
                 <StackPanel Spacing="12">
                     <Button x:Name="SourceBackButton" HorizontalAlignment="Left" Click="OnBackClick" />
-                    <TextBlock x:Name="SourceHeading" Classes="section-title" FontSize="18" />
-                    <TextBlock x:Name="SourceExperimental" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="False" />
+                    <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" />
+                    <TextBlock x:Name="SourceExperimental" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
                     <StackPanel x:Name="SourceMediaIntegrityPanel" Spacing="6" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
                             <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock x:Name="SourceMediaIntegrityScope" Classes="muted" TextWrapping="Wrap" />
-                        <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="SourceMediaIntegrityRetryHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+                        <TextBlock x:Name="SourceMediaIntegrityScope" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="SourceMediaIntegrityRetryHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
                         <ursa:Banner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="False">
                             <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
-                                <TextBlock x:Name="SourceMediaIntegrityError" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="SourceMediaIntegrityError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                             </ScrollViewer>
                         </ursa:Banner>
                     </StackPanel>
-                    <TextBlock x:Name="SourceIdentity" Classes="muted mono" TextWrapping="Wrap" />
                     <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
+                    <TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" />
                     <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" />
-                    <TextBlock x:Name="SourceCaptureAvailability" Classes="muted" TextWrapping="Wrap" />
-                    <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="6">
-                            <TextBlock x:Name="SourceHosts" Classes="muted" TextWrapping="Wrap" />
-                            <TextBlock x:Name="SourceVersion" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock x:Name="SourceCaptureAvailability" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <TextBlock x:Name="SourceIdentity" Classes="workspace-meta mono" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SourceHosts" Classes="workspace-help" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SourceVersion" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                     </Expander>
-                    <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <WrapPanel Classes="workspace-toolbar">
                         <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
                         <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
                         <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
                     </WrapPanel>
-                    <TextBlock Tag="sources.urlHint" Classes="muted localized" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox x:Name="SourceUrlInput" KeyDown="OnUrlKeyDown" />
-                        <Button x:Name="SourceAddButton" Grid.Column="1" Tag="action.add" Classes="primary localized" Click="OnAddClick" />
-                    </Grid>
-                    <TextBlock x:Name="SourceUrlResult" Classes="muted" TextWrapping="Wrap" />
+                    <StackPanel Classes="workspace-field">
+                        <TextBlock x:Name="SourceUrlLabel" Tag="detail.url" Classes="workspace-field-label localized" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox AutomationProperties.LabeledBy="{Binding ElementName=SourceUrlLabel}" x:Name="SourceUrlInput" KeyDown="OnUrlKeyDown" />
+                            <Button x:Name="SourceAddButton" Grid.Column="1" Tag="action.add" Classes="primary localized" Click="OnAddClick" />
+                        </Grid>
+                        <TextBlock Tag="sources.urlHint" Classes="workspace-help localized" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SourceUrlResult" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <Button x:Name="SourceDownloadsButton" Tag="nav.downloads" Classes="localized" HorizontalAlignment="Left" Click="OnDownloadsClick" />
-                    <TextBlock Tag="sources.watches" Classes="localized" FontWeight="SemiBold" />
-                    <TextBlock x:Name="SourceWatchSummary" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Tag="sources.watches" Classes="section-title localized" />
+                    <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
                     <DataGrid x:Name="SourceWatchesGrid" AutoGenerateColumns="False" IsReadOnly="True"
                               GridLinesVisibility="None" SelectionMode="Single" RowHeight="40"
                               MinHeight="100" MaxHeight="240" SelectionChanged="OnWatchSelectionChanged">
@@ -80,7 +84,7 @@
                         <TextBlock x:Name="SourcesOperationStatus" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                     </StackPanel>
                     <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" x:Name="SourcesActionErrorBanner" IsVisible="False">
-                        <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
+                        <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
                     </ursa:Banner>
                 </StackPanel>
               </Border>

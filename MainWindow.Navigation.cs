@@ -157,7 +157,8 @@ public partial class MainWindow
         _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
         {
             if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage.EditScope(Rules.MediaRuleScope.ForSource(source));
-        }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads), SubmitInputAsync);
+        }, () => NavigateWorkspace(WorkspacePage.Diagnostics), () => NavigateWorkspace(WorkspacePage.Downloads),
+            (input, observeModal) => SubmitInputAsync(input, observeModal));
         _sourcesPage.BusyChanged += OnSettingsBusyChanged;
         this.FindControl<ContentControl>("SourcesPageHost")!.Content = _sourcesPage;
         InitializePluginPage();

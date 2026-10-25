@@ -26,6 +26,7 @@ public partial class MainWindow
         string? failure = null;
         object? proof = null;
         object? initialPolicy = null, finalPolicy = null, pluginProof = null, galleryObservation = null;
+        object? activationEvidence = null, urlAdmissionEvidence = null;
         int[] workerPids = Array.Empty<int>();
         long? acceptedPolicyRevision = null;
 #pragma warning disable IL3000
@@ -64,14 +65,46 @@ public partial class MainWindow
             pluginProof = new { owner, source, active.ExecutionRevision, assemblySha256 = assemblySha,
                 bundleManifestSha256 = PolicyHash(await File.ReadAllBytesAsync(candidate.CandidatePath!)) };
             var initial = Policy(); initialPolicy = initial;
-            RequireWorkflow(initial.IsActive && initial.Snapshot.ProfileId == descriptor.Profile, "Wrong active profile authority.");
+            RequireWorkflow(initial.IsActive == (fixture.Phase != "acquire")
+                && initial.Snapshot.ProfileId == descriptor.Profile, "Wrong initial profile authority/default.");
             RequireWorkflow(ApphostWorkflowSmoke.SamePath(_session.Config.DownloadPath, descriptor.DownloadRoot)
                 && _session.Config.SaveUrlsOnExit && !_session.Config.AutomaticUpdateChecks, "Restored config escaped the same owned production profile.");
             RequireWorkflow(initial.IsGranted == (fixture.Phase == "revoke") && initial.Snapshot.AllowProviderSizeMd5Mismatch == (fixture.Phase == "revoke"),
                 "Fresh production authority differs from the preceding durable grant/revoke.");
             if (fixture.Phase == "acquire")
             {
+                string[] defaultOff = { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan" };
+                RequireWorkflow(installed.Plugins.Count == 7 && plugins.Sources.Count == 6
+                    && installed.Plugins.All(plugin => plugin.Enabled == !defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal)),
+                    "Fresh delivered default/inventory differs.");
                 RequireWorkflow(_session.GetSourceMediaIntegrityPolicies().All(row => !row.IsGranted), "Fresh profile not strict.");
+                RequireWorkflow(fixture.Http.Requests.IsEmpty && plugins.Runtime.GetSnapshots().Count == 0
+                    && _session.GetThreadWorkSnapshots().Count == 0, "Fresh disabled source started work before consent.");
+                var projection = await _session.ProjectExperimentalSourceActivationAsync(ApphostIntegrityProcessSmoke.ThreadUrl);
+                RequireWorkflow(projection.Status == ExperimentalSourceActivationProjectionStatus.ConfirmationRequired
+                    && projection.Target != null && fixture.Http.Requests.IsEmpty
+                    && _session.GetThreadWorkSnapshots().Count == 0 && plugins.Runtime.GetSnapshots().Count == 0,
+                    "Local activation projection started HTTP/work or missed the disabled source.");
+                var activated = await _session.ActivateAndAllowExperimentalSourceAsync(projection.Target!);
+                var combined = Policy();
+                RequireWorkflow(activated.Status == ExperimentalSourceActivationStatus.Succeeded && combined.IsActive && combined.IsGranted
+                    && combined.Snapshot.AllowProviderSizeMd5Mismatch && combined.Snapshot.Revision > initial.Snapshot.Revision
+                    && fixture.Http.Requests.IsEmpty && _session.GetThreadWorkSnapshots().Count == 0,
+                    "Combined explicit Host consent did not activate/grant without admitting a URL.");
+                RequireWorkflow(_session.GetSourceMediaIntegrityPolicies().Where(row => row.Snapshot.SourceId != source)
+                    .All(row => !row.IsGranted), "Combined consent changed another source's grant.");
+                var savedCombined = Config.LoadConfig(descriptor.Profile).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(owner, source)];
+                RequireWorkflow(savedCombined.AllowProviderSizeMd5Mismatch && savedCombined.Revision == combined.Snapshot.Revision,
+                    "Combined consent did not persist the actual fresh policy revision.");
+                activationEvidence = new { before = initial, after = combined, status = activated.Status.ToString(),
+                    requestsBeforeAdmission = fixture.Http.Requests.Count, watchesBeforeAdmission = _session.GetThreadWorkSnapshots().Count };
+                // Preserve the existing strict-reject/identical-original retry proof.
+                // This explicit revoke also proves that an active URL cannot regrant.
+                await _session.SetSourceMediaIntegrityPermissionAsync(owner, source, false, combined.Snapshot.Revision);
+                var strictPolicy = Policy();
+                var activeProjection = await _session.ProjectExperimentalSourceActivationAsync(ApphostIntegrityProcessSmoke.ThreadUrl);
+                RequireWorkflow(activeProjection.Status == ExperimentalSourceActivationProjectionStatus.NotRequired
+                    && !Policy().IsGranted && Policy().Snapshot == strictPolicy.Snapshot, "Active strict projection recreated a grant.");
                 RequireWorkflow((await _session.AddAsync(ApphostIntegrityProcessSmoke.ThreadUrl)).Status == AdmissionStatus.Added, "Fixture admission failed.");
                 await _session.SetPausedAsync(false);
                 await WaitWorkflowAsync(() => Work() is { Status: MediaWorkStatus.NeedsIntervention, Failure: not null }
@@ -82,9 +115,9 @@ public partial class MainWindow
                 var rejected = await ReadAsync();
                 RequireWorkflow(rejected.Snapshot.AttachmentBindings.Count == 0 && rejected.Snapshot.Count == 0
                     && !File.Exists(rejected.Attachment.PlannedPath), "Strict rejection published an asset or binding.");
-                await _session.SetSourceMediaIntegrityPermissionAsync(owner, source, true, initial.Snapshot.Revision);
+                await _session.SetSourceMediaIntegrityPermissionAsync(owner, source, true, strictPolicy.Snapshot.Revision);
                 var granted = Policy(); acceptedPolicyRevision = granted.Snapshot.Revision;
-                RequireWorkflow(granted.IsGranted && granted.Snapshot.AllowProviderSizeMd5Mismatch && granted.Snapshot.Revision > initial.Snapshot.Revision,
+                RequireWorkflow(granted.IsGranted && granted.Snapshot.AllowProviderSizeMd5Mismatch && granted.Snapshot.Revision > strictPolicy.Snapshot.Revision,
                     "Explicit real Host command did not grant permission.");
                 var saved = Config.LoadConfig(descriptor.Profile).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(owner, source)];
                 RequireWorkflow(saved.AllowProviderSizeMd5Mismatch && saved.Revision == granted.Snapshot.Revision, "Host grant not durably saved.");
@@ -198,6 +231,19 @@ public partial class MainWindow
                 galleryHistoricalEntryKey = gallery.EntryKey, galleryCurrentEntryKey = currentGallery.EntryKey,
                 galleryEntryCount = galleryResult.Entries.Count,
                 manifestSha256 = PolicyHash(await File.ReadAllBytesAsync(Path.Combine(captured.Snapshot.Directory, ".meowchan-manifest.json"))) };
+            if (fixture.Phase == "deny")
+            {
+                const string anotherUrl = "https://wizchan.org/demo/res/124.html";
+                var beforeUrl = Policy();
+                var projection = await _session.ProjectExperimentalSourceActivationAsync(anotherUrl);
+                RequireWorkflow(projection.Status == ExperimentalSourceActivationProjectionStatus.NotRequired,
+                    "A revoked active source requested a fresh automatic grant.");
+                RequireWorkflow((await _session.AddAsync(anotherUrl)).Status == AdmissionStatus.Added
+                    && Policy() == beforeUrl && !Policy().IsGranted && fixture.Http.Requests.IsEmpty,
+                    "Further paused URL admission changed a revoked policy or attempted HTTP.");
+                urlAdmissionEvidence = new { url = anotherUrl, before = beforeUrl, after = Policy(),
+                    watches = _session.GetThreadWorkSnapshots().Count, requests = fixture.Http.Requests.Count };
+            }
             finalPolicy = Policy();
             workerPids = plugins.Runtime.GetSnapshots().Where(row => row.ProcessId.HasValue).Select(row => row.ProcessId!.Value).ToArray();
             await CloseWorkflowNormallyAsync();
@@ -215,6 +261,7 @@ public partial class MainWindow
             File.WriteAllText(Path.Combine(descriptor.Profile, "apphost-policy-process.json"), JsonSerializer.Serialize(new {
                 schemaVersion = 1, completed, failure, phase = fixture.Phase, profile = descriptor.Profile,
                 ownerToken = descriptor.OwnerToken, processId = Environment.ProcessId, workerPids, initialPolicy, finalPolicy, pluginProof, proof, galleryObservation,
+                activationEvidence, urlAdmissionEvidence,
                 normalShutdown = completed, profileLeaseReleased = completed, requests = fixture.Http.Requests.ToArray(),
                 unexpectedRequests = fixture.Http.Unexpected, renderScaling = RenderScaling,
                 processPath = Environment.ProcessPath, processSha256 = Environment.ProcessPath == null ? null : PolicyHash(File.ReadAllBytes(Environment.ProcessPath)),

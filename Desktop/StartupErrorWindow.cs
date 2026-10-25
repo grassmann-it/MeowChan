@@ -32,17 +32,16 @@ public sealed class StartupErrorWindow : Window
 
         _heading = new TextBlock
         {
-            FontSize = 22,
-            FontWeight = FontWeight.SemiBold,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(16, 16, 16, 12)
         };
+        _heading.Classes.Add("page-title");
         SelectableTextBlock detail = new SelectableTextBlock
         {
             Text = message,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(14)
+            TextWrapping = TextWrapping.Wrap
         };
-        detail[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Error");
+        detail.Classes.Add("workspace-error");
         ScrollViewer scroll = new ScrollViewer
         {
             Content = detail,
@@ -51,13 +50,10 @@ public sealed class StartupErrorWindow : Window
         };
         Border errorPanel = new Border
         {
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 18),
+            Margin = new Thickness(16, 0, 16, 16),
             Child = scroll
         };
-        errorPanel[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
-        errorPanel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
+        errorPanel.Classes.Add("workspace-section");
         _exitButton = new Button
         {
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -65,16 +61,17 @@ public sealed class StartupErrorWindow : Window
             IsCancel = true
         };
         _exitButton.Click += (_, _) => Close();
+        Border footer = new() { Child = _exitButton };
+        footer.Classes.Add("workspace-dialog-footer");
         Grid layout = new Grid
         {
-            Margin = new Thickness(24),
             RowDefinitions = new RowDefinitions("Auto,*,Auto")
         };
         layout.Children.Add(_heading);
         Grid.SetRow(errorPanel, 1);
         layout.Children.Add(errorPanel);
-        Grid.SetRow(_exitButton, 2);
-        layout.Children.Add(_exitButton);
+        Grid.SetRow(footer, 2);
+        layout.Children.Add(footer);
         Content = layout;
 
         // Texts has built-in English before Initialize, including for profile startup failures.

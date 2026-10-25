@@ -56,7 +56,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, Bitmap> _trayMenuIcons = new Dictionary<string, Bitmap>();
     private readonly List<AdmissionFeedback> _admissionResults = new List<AdmissionFeedback>();
 
-    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error);
+    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error, bool Skipped = false);
 
     public ObservableCollection<ThreadRow> UrlList { get; } = new ObservableCollection<ThreadRow>();
     public ObservableCollection<BoardRow> BoardsList { get; } = new ObservableCollection<BoardRow>();
@@ -74,6 +74,7 @@ public partial class MainWindow : Window
         }
         _session = session ?? new DesktopSessionHost();
         _config = _session.Config;
+        InitializeStartupWindowSize();
         try
         {
             Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
@@ -299,13 +300,18 @@ public partial class MainWindow : Window
     private async void OnAddUrl(object? sender, RoutedEventArgs e)
     {
         if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences) return;
+        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
+        // Capture the Add button too, before the busy state disables it.
+        using var focusReturn = new ExperimentalAdmissionFocusReturn(this, urlInput,
+            this.FindControl<Button>("AddUrlButton")!);
+        _experimentalAdmissionFocusReturn = focusReturn;
+        string enteredText = urlInput.Text ?? string.Empty;
+        bool accepted = false;
         _importing = true;
         UpdateInteractionState();
-        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
-        string enteredText = urlInput.Text ?? string.Empty;
         try
         {
-            bool accepted = await SubmitInputAsync(enteredText);
+            accepted = await SubmitInputAsync(enteredText);
             if (!string.IsNullOrWhiteSpace(enteredText) && accepted && urlInput.Text == enteredText)
             {
                 urlInput.Text = string.Empty;
@@ -315,17 +321,26 @@ public partial class MainWindow : Window
         {
             _importing = false;
             UpdateInteractionState();
+            try
+            {
+                if (!accepted) focusReturn.Restore();
+            }
+            finally
+            {
+                if (ReferenceEquals(_experimentalAdmissionFocusReturn, focusReturn))
+                    _experimentalAdmissionFocusReturn = null;
+            }
         }
     }
 
-    private async Task<bool> SubmitInputAsync(string? input)
+    private async Task<bool> SubmitInputAsync(string? input, Action<Window>? observeExperimentalModal = null)
     {
         if (!_restoreCompleted || _isClosing) return false;
         _admissionResults.Clear();
         bool allAccepted = true;
         try
         {
-            allAccepted = await SubmitAdmissionBatchAsync(input);
+            allAccepted = await SubmitAdmissionBatchAsync(input, observeExperimentalModal);
             if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
@@ -368,7 +383,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap, MaxHeight = 150,
             Text = string.Join(Environment.NewLine, _admissionResults.Select(item =>
             {
-                string key = item.Status switch
+                string key = item.Skipped ? "activation.skippedLabel" : item.Status switch
                 {
                     AdmissionStatus.Added => "admission.added",
                     AdmissionStatus.AlreadyPresent => "admission.alreadyPresent",

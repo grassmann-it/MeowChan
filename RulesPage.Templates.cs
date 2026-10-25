@@ -135,9 +135,9 @@ public partial class RulesPage
                 _templateHintView = TemplateText(string.Empty); panel.Children.Add(_templateHintView);
                 WrapPanel top = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(top);
                 _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
-                _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
+                _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Classes.Add("workspace-error"); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
-                _templateCatalogWarningView = TemplateText(string.Empty); panel.Children.Add(_templateCatalogWarningView);
+                _templateCatalogWarningView = TemplateText(string.Empty); _templateCatalogWarningView.Classes.Add("workspace-warning"); panel.Children.Add(_templateCatalogWarningView);
                 _templateEmptyView = TemplateText(string.Empty); panel.Children.Add(_templateEmptyView);
                 _templateList = new ComboBox { Name = "RuleTemplateList", HorizontalAlignment = HorizontalAlignment.Stretch };
                 _templateList.SelectionChanged += (_, _) =>
@@ -147,13 +147,13 @@ public partial class RulesPage
                     _templatePreview = null; RefreshTemplatesPanel();
                 };
                 panel.Children.Add(_templateList);
-                WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
+                WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
                 foreach (string id in new[] { "create", "edit", "delete", "preview", "undo-apply" })
                 {
                     string command = "rules.template-" + id;
                     Button button = AddTemplateButton(actions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
                     _templateActionButtons.Add(id, button);
-                    if (id == "delete") _templateDeleteConfirmation = new(button);
+                    if (id == "delete") { button.Classes.Add("danger"); _templateDeleteConfirmation = new(button); }
                 }
                 _templateUndoView = TemplateText(string.Empty); panel.Children.Add(_templateUndoView);
                 _templatePreviewHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templatePreviewHost);
@@ -202,8 +202,12 @@ public partial class RulesPage
         finally { _renderingTemplates = false; }
     }
     private sealed record TemplateChoice(Guid Id, string Label) { public override string ToString() => Label; }
-    private static TextBlock TemplateText(string text, bool heading = false) => new() { Text = text, TextWrapping = TextWrapping.Wrap,
-        FontWeight = heading ? FontWeight.SemiBold : FontWeight.Normal, Focusable = heading };
+    private static TextBlock TemplateText(string text, bool heading = false)
+    {
+        TextBlock label = new() { Text = text, TextWrapping = TextWrapping.Wrap, Focusable = heading };
+        if (heading) label.Classes.Add("section-title");
+        return label;
+    }
     private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true)
     {
         Button button = new() { Name = key.Replace('.', '-'), Content = Texts.T(key), IsEnabled = enabled };
@@ -260,7 +264,7 @@ public partial class RulesPage
         panel.Children.Add(TemplateText(Texts.T("templates.effectBefore", EffectiveDescription(preview.Target))));
         panel.Children.Add(TemplateText(Texts.T("templates.effectAfter", EffectiveDescription(preview.After))));
         panel.Children.Add(TemplateText(Texts.T("templates.replaceWarning")));
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
+        WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
         AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; });
         Button apply = AddTemplateButton(actions, "templates.apply",
             async () => await ExecuteTemplateCommandAsync("rules.template-apply"), CanExecuteTemplateCommand("rules.template-apply"));

@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using LibVLCSharp.Avalonia;
@@ -23,10 +24,9 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
-    // The video viewport stays black in both application themes. Its text must
-    // retain bright ink instead of inheriting Light theme's dark page foreground.
-    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Avalonia.Media.Brushes.White };
-    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", VerticalAlignment = VerticalAlignment.Center, Foreground = Avalonia.Media.Brushes.White };
+    // Status and time belong to the themed transport below the black media viewport.
+    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
+    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
     private readonly Button _play = new() { Name = "GalleryVideoPlay" };
     private readonly Button _pause = new() { Name = "GalleryVideoPause" };
     private readonly Button _stop = new() { Name = "GalleryVideoStop" };
@@ -127,17 +127,29 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         CommandBindings.Apply(_stop, "video.stop", iconWithLabel: true);
         AutomationProperties.SetName(_seek, Text("Video position", "Videoposition"));
         AutomationProperties.SetName(_volume, Text("Volume", "Lautstärke"));
-        WrapPanel buttons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        foreach (Control control in new Control[] { _play, _pause, _stop, _time, _volume })
-        { control.Margin = new Thickness(4); buttons.Children.Add(control); }
-        // Keep status outside the picture, beside the transport. Gallery chrome
-        // overlays the top of the picture and can otherwise obscure wrapped errors.
-        Grid root = new() { RowDefinitions = new RowDefinitions("*,Auto,Auto,Auto"), RowSpacing = 6 };
+        WrapPanel buttons = new() { Classes = { "workspace-toolbar" }, HorizontalAlignment = HorizontalAlignment.Center };
+        foreach (Control control in new Control[] { _play, _pause, _stop, _volume })
+            buttons.Children.Add(control);
+        Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        timeline.Children.Add(_seek);
+        timeline.Children.Add(_time); Grid.SetColumn(_time, 1);
+        StackPanel transport = new() { Spacing = 8 };
+        transport.Children.Add(timeline);
+        transport.Children.Add(buttons);
+        transport.Children.Add(_status);
+        Border transportPanel = new() { Name = "GalleryVideoTransport", Classes = { "workspace-media-transport" }, Child = transport };
+        // Seek, time, volume and playback form one reserved surface. Its dynamic
+        // resources follow open-window theme changes without touching playback.
+        Grid root = new() { RowDefinitions = new RowDefinitions("*,Auto") };
         Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
         root.Children.Add(videoSurface);
-        root.Children.Add(_status); Grid.SetRow(_status, 1);
-        root.Children.Add(_seek); Grid.SetRow(_seek, 2);
-        root.Children.Add(buttons); Grid.SetRow(buttons, 3); Content = root;
+        root.Children.Add(transportPanel); Grid.SetRow(transportPanel, 1); Content = root;
+        _status.IsVisible = false;
+        _status.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == TextBlock.TextProperty)
+                _status.IsVisible = !string.IsNullOrWhiteSpace(_status.Text);
+        };
         EnableTransport(false);
         _play.Click += async (_, _) => await CommandAsync(player => { if (player.State == VLCState.Paused) player.SetPause(false); else player.Play(); });
         _pause.Click += async (_, _) => await CommandAsync(player => player.SetPause(true));

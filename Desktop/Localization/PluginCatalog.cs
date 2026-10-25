@@ -12,7 +12,7 @@ internal static class PluginCatalog
         ("targets.check", "Check download targets now", "Downloadziele jetzt prüfen"),
         ("nav.plugins", "Plugins", "Plugins"),
         ("plugins.experimental", "Experimental", "Experimentell"),
-        ("plugins.experimentalHint", "Experimental sources: {0}. Manage source permissions in Sources.", "Experimentelle Quellen: {0}. Quellenfreigaben werden unter Quellen verwaltet."),
+        ("plugins.experimentalHint", "Experimental sources: {0}. Submitting a URL for a disabled source can activate it with explicit permission for provider differences. Enabling here grants no new permission; existing permissions keep their effect. Manage permissions in Sources.", "Experimentelle Quellen: {0}. Eine URL für eine deaktivierte Quelle kann sie mit ausdrücklicher Abweichungsfreigabe aktivieren. Aktivieren an dieser Stelle erteilt keine neue Freigabe; bestehende Freigaben bleiben wirksam. Freigaben unter Quellen verwalten."),
         ("plugins.subtitle", "Sources and image filters in this profile.", "Quellen und Bildfilter dieses Profils."),
         ("plugins.localStatusHint", "Plugin status and descriptions do not indicate website availability.", "Pluginstatus und Beschreibungen sagen nichts über die Erreichbarkeit einer Website aus."),
         ("plugins.directoryDetails", "Plugin folder and diagnostics", "Pluginordner und Diagnose"),

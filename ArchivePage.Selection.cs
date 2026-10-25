@@ -147,6 +147,7 @@ public partial class ArchivePage
 
     private void UpdateArchiveSelectionActions()
     {
+        RefreshArchiveSelectionContext();
         if (this.FindControl<MenuItem>("ArchiveTableRemoveMenu") is MenuItem remove)
             remove.IsEnabled = _available && !_busy && FrozenArchiveSelection().Any(id => CanRemoveWatch?.Invoke(id) == true);
     }
@@ -157,7 +158,11 @@ public partial class ArchivePage
         _archivePointerContextHandled.Remove(list);
         Control? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => control is DataGridRow or ListBoxItem);
         ArchiveThreadRow? row = hit?.DataContext as ArchiveThreadRow;
-        if (row != null) _archiveLeadId = row.Summary.Id;
+        if (row != null)
+        {
+            _archiveLeadId = row.Summary.Id;
+            RefreshArchiveSelectionContext();
+        }
         if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed)
         {
             if (row != null) Dispatcher.UIThread.Post(async () =>
@@ -246,6 +251,7 @@ public partial class ArchivePage
                 if (row != null && _archiveSelectionIds.Contains(row.Summary.Id))
                 {
                     _archiveLeadId = row.Summary.Id; _contextThread = row;
+                    RefreshArchiveSelectionContext();
                     if (CanShowArchivePreviewBesideList &&
                         (_selectedThread != row.Summary.Id || (!_busy && _thread?.Summary.Id != row.Summary.Id)))
                         await LoadThreadAsync(row.Summary.Id);

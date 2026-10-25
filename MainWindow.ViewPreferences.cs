@@ -60,8 +60,9 @@ public partial class MainWindow
             if (_isClosing) return;
             FitStartupWindowToWorkingArea();
             RememberNormalGeometry();
-            if (_config.WindowMaximized) WindowState = WindowState.Maximized;
+            if ((_startupWindowClient != null || _startupFrameClient != null) && _config.WindowMaximized) WindowState = WindowState.Maximized;
             _windowPreferencesReady = true;
+            CompleteStartupWindowFit();
         }, DispatcherPriority.Loaded);
     }
 

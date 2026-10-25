@@ -45,6 +45,9 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Title { get; private set; } = string.Empty;
     public string Status { get; private set; } = string.Empty;
     public string Progress { get; private set; } = string.Empty;
+    public string SavedProgress => Texts.T("work.saved", CompletedMedia, SelectedMedia);
+    public string IssueDetails { get; private set; } = string.Empty;
+    public string ContextDetails { get; private set; } = string.Empty;
     public string ErrorDetails { get; private set; } = string.Empty;
     public bool CanRetryMedia => Snapshot.Work != null && WorkStatusFormatter.Format(Snapshot.Work, _isPaused).CanRetry;
     public string StatusDetails => string.IsNullOrEmpty(ErrorDetails) ? Status : Status + Environment.NewLine + ErrorDetails;
@@ -136,10 +139,14 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (snapshot.Content?.SelectionFailure is FailureInfo selectionFailure)
             ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + selectionFailure.Message;
 
+        IssueDetails = ErrorDetails;
+        ContextDetails = string.Empty;
         if (snapshot.Work is ThreadWorkSnapshot work)
         {
             WorkStatusPresentation presentation = WorkStatusFormatter.Format(work, _isPaused);
             Status = presentation.Status;
+            IssueDetails = string.Join(Environment.NewLine, new[] { presentation.IssueDetails, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
+            ContextDetails = presentation.ContextDetails;
             ExceptionHint = presentation.ExceptionHint;
             Progress = presentation.Status + " · " + presentation.Progress;
             if (snapshot.Content?.ExcludedMedia > 0)

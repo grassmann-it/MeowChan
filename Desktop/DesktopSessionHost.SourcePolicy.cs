@@ -40,18 +40,24 @@ internal sealed partial class DesktopSessionHost
         try
         {
             EnsureReady();
-            SourceMediaIntegrityPolicyService policy = GetOrCreateSourceMediaIntegrityPolicy(pluginOwnerId, sourceId);
-            await policy.SetPermissionAsync(allow, expectedRevision, permission =>
-            {
-                Config candidate = Config.Clone();
-                candidate.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(pluginOwnerId, sourceId)] = permission;
-                candidate.Validate();
-                candidate.SaveConfig(_profileLease.ProfileDirectory);
-                Config.CopyFrom(candidate);
-            }).ConfigureAwait(false);
+            await SetSourceMediaIntegrityPermissionCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
         SignalChanged();
+    }
+
+    // Caller already holds _commands. Keep the existing authority and persistence path.
+    private Task SetSourceMediaIntegrityPermissionCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
+    {
+        SourceMediaIntegrityPolicyService policy = GetOrCreateSourceMediaIntegrityPolicy(pluginOwnerId, sourceId);
+        return policy.SetPermissionAsync(allow, expectedRevision, permission =>
+        {
+            Config candidate = Config.Clone();
+            candidate.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(pluginOwnerId, sourceId)] = permission;
+            candidate.Validate();
+            candidate.SaveConfig(_profileLease.ProfileDirectory);
+            Config.CopyFrom(candidate);
+        });
     }
 
     internal void RetireSourceMediaIntegrityPolicies()

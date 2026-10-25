@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ExperimentalActivationDialog"
+        Width="620" Height="460" MinWidth="360" MinHeight="330"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid RowDefinitions="*,Auto" KeyboardNavigation.TabNavigation="Cycle">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <Border Classes="workspace-dialog-body">
+                <StackPanel Classes="workspace-dialog-content">
+                    <TextBlock x:Name="ActivationHeading" Classes="section-title" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ActivationExplanation" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ActivationScope" Classes="workspace-meta" TextWrapping="Wrap" />
+                    <Border x:Name="ActivationStatusPanel" Classes="workspace-warning" IsVisible="False">
+                        <TextBlock x:Name="ActivationStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                    </Border>
+                    <ursa:LoadingIcon x:Name="ActivationBusy" IsVisible="False" IsLoading="False" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+        <Border Grid.Row="1" Classes="workspace-dialog-footer">
+            <StackPanel Spacing="8">
+                <Button x:Name="ActivationCancel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                <Button x:Name="ActivationConfirm" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
+                    <TextBlock x:Name="ActivationConfirmLabel" TextWrapping="Wrap" TextAlignment="Center" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -61,9 +61,14 @@ public partial class ArchivePage
         Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 220,
             WindowStartupLocation = WindowStartupLocation.CenterOwner };
         TextBox details = new() { Text = content, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
-        Button close = new() { Content = Texts.T("action.close") };
-        Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
-        layout.Children.Add(details); layout.Children.Add(close); Grid.SetRow(close, 1);
+        TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 16, 16, 0) };
+        heading.Classes.Add("section-title");
+        Button close = new() { Content = Texts.T("action.close"), MinWidth = 96, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        Border body = new() { Child = details }; body.Classes.Add("workspace-dialog-body");
+        Border footer = new() { Child = close }; footer.Classes.Add("workspace-dialog-footer");
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        layout.Children.Add(heading); layout.Children.Add(body); Grid.SetRow(body, 1);
+        layout.Children.Add(footer); Grid.SetRow(footer, 2);
         close.Click += (_, _) => dialog.Close();
         dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; dialog.Close(); } };
         dialog.Content = layout;

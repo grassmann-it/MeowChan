@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -35,6 +38,11 @@ public partial class SavedArchiveSearchesDialog : Window
     private bool _closed;
     private bool _closingAccepted;
     private bool _discardCloses;
+    private bool _initialFocusEligible = true;
+    private bool _initialFocusQueued;
+    private bool _initialFocusWasActive;
+    private Control? _initialFocusTarget;
+    private EditKind _initialFocusEdit;
     private readonly ArchiveSearchSpec? _initialDefinition;
     private ListBox List => this.FindControl<ListBox>("SavedSearchList")!;
     private TextBox NameInput => this.FindControl<TextBox>("SavedSearchName")!;
@@ -48,9 +56,8 @@ public partial class SavedArchiveSearchesDialog : Window
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>
         {
             string detail = entry == null ? "" : entry.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported") + " " + entry.UnsupportedReason;
-            var label = new TextBlock { Text = entry?.Name, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-            var description = new TextBlock { Text = detail, TextWrapping = TextWrapping.Wrap, Opacity = .8 };
-            var panel = new StackPanel { Spacing = 3, Children = { label, description } };
+            var label = new TextBlock { Text = entry?.Name, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+            var panel = new StackPanel { Margin = new Avalonia.Thickness(4, 8), Children = { label } };
             AutomationProperties.SetName(panel, entry?.Name + ". " + detail);
             ToolTip.SetTip(panel, entry?.Name + "\n" + detail);
             return panel;
@@ -75,15 +82,27 @@ public partial class SavedArchiveSearchesDialog : Window
             if (_router.Route(e)) return;
             if (e.Key == Key.Escape) { e.Handled = true; if (_edit != EditKind.None) CancelEdit(); else Close(); }
         };
+        AddHandler(PointerPressedEvent, OnInitialFocusPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyDownEvent, OnInitialFocusKey, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(GotFocusEvent, OnInitialFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        Activated += OnInitialFocusActivated;
+        Deactivated += OnInitialFocusDeactivated;
+        LayoutUpdated += OnInitialFocusLayout;
+        PropertyChanged += OnInitialFocusVisibility;
         Opened += async (_, _) =>
         {
             await ReloadAsync();
             if (_closed) return;
-            if (_initialDefinition != null && _snapshot?.CanWrite == true) Begin(EditKind.Create, _initialDefinition);
-            else List.Focus();
+            if (_initialDefinition != null && _snapshot?.CanWrite == true)
+            {
+                Begin(EditKind.Create, _initialDefinition, focusEditor: false);
+                PrepareInitialFocus(NameInput, EditKind.Create);
+            }
+            else PrepareInitialFocus(List, EditKind.None);
         };
         Closing += (_, e) =>
         {
+            CancelInitialFocus();
             if (_closingAccepted) return;
             if (_working) { _lifetime.Cancel(); return; }
             if (HasNameChanges()) { e.Cancel = true; _discardCloses = true; ShowDiscard(); return; }
@@ -92,12 +111,99 @@ public partial class SavedArchiveSearchesDialog : Window
         };
         Closed += (_, _) =>
         {
-            _closed = true; _lifetime.Cancel();
+            _closed = true; _lifetime.Cancel(); CancelInitialFocus();
             _page.SearchStateChanged -= OnPageStateChanged; _host.StateChanged -= OnHostStateChanged; Texts.Changed -= OnLanguageChanged;
             foreach (IDisposable registration in _registrations) registration.Dispose();
             _router.Dispose();
         };
-        Localize(); Refresh();
+        SizeChanged += (_, _) => ArrangeWorkspace();
+        Localize(); Refresh(); ArrangeWorkspace();
+    }
+    // Initial focus belongs to this opening only. Opened/Reload can complete before
+    // native activation or the newly rendered editor's first layout has completed.
+    private void PrepareInitialFocus(Control target, EditKind edit)
+    {
+        if (!_initialFocusEligible) return;
+        _initialFocusTarget = target; _initialFocusEdit = edit;
+        QueueInitialFocus();
+    }
+    private void OnInitialFocusPointer(object? sender, PointerPressedEventArgs args) => CancelInitialFocus();
+    private void OnInitialFocusKey(object? sender, KeyEventArgs args) => CancelInitialFocus();
+    private void OnInitialFocusChanged(object? sender, FocusChangedEventArgs args)
+    {
+        if (FocusManager?.GetFocusedElement() is Control focused
+            && ReferenceEquals(TopLevel.GetTopLevel(focused), this)
+            && (_initialFocusTarget == null || !_initialFocusTarget.IsKeyboardFocusWithin))
+            CancelInitialFocus();
+    }
+    private void OnInitialFocusActivated(object? sender, EventArgs args)
+    {
+        _initialFocusWasActive = true;
+        QueueInitialFocus();
+    }
+    private void OnInitialFocusDeactivated(object? sender, EventArgs args)
+    {
+        if (_initialFocusWasActive) CancelInitialFocus();
+    }
+    private void OnInitialFocusLayout(object? sender, EventArgs args) => QueueInitialFocus();
+    private void OnInitialFocusVisibility(object? sender, AvaloniaPropertyChangedEventArgs args)
+    {
+        if (args.Property == IsVisibleProperty && !IsVisible) CancelInitialFocus();
+    }
+    private bool InitialFocusReady()
+    {
+        if (!_initialFocusEligible || _initialFocusTarget is not { } target) return false;
+        if (_closed || _lifetime.IsCancellationRequested || !Ready || !IsVisible || _edit != _initialFocusEdit
+            || OwnedWindows.Any(window => window.IsVisible))
+        {
+            CancelInitialFocus(); return false;
+        }
+        if (target.IsKeyboardFocusWithin) { CancelInitialFocus(); return false; }
+        // A newer focus selection in our dialog wins even if a later layout clears it.
+        if (FocusManager?.GetFocusedElement() is Control focused
+            && ReferenceEquals(TopLevel.GetTopLevel(focused), this))
+        {
+            CancelInitialFocus(); return false;
+        }
+        return IsActive && !_working && IsEnabled && IsMeasureValid && IsArrangeValid
+            && target.Focusable && target.IsEffectivelyVisible && target.IsEffectivelyEnabled
+            && ReferenceEquals(TopLevel.GetTopLevel(target), this)
+            && target.IsMeasureValid && target.IsArrangeValid && target.Bounds.Width > 0 && target.Bounds.Height > 0;
+    }
+    private void QueueInitialFocus()
+    {
+        if (_initialFocusQueued || !InitialFocusReady()) return;
+        _initialFocusQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _initialFocusQueued = false;
+            if (!InitialFocusReady()) return;
+            Control target = _initialFocusTarget!;
+            // Consume before focusing: this can never become a recurring focus trap.
+            CancelInitialFocus();
+            if (target.Focus() && ReferenceEquals(target, NameInput)) NameInput.SelectAll();
+        }, DispatcherPriority.Loaded);
+    }
+    private void CancelInitialFocus()
+    {
+        _initialFocusEligible = false; _initialFocusTarget = null;
+        RemoveHandler(PointerPressedEvent, OnInitialFocusPointer);
+        RemoveHandler(KeyDownEvent, OnInitialFocusKey);
+        RemoveHandler(GotFocusEvent, OnInitialFocusChanged);
+        Activated -= OnInitialFocusActivated; Deactivated -= OnInitialFocusDeactivated;
+        LayoutUpdated -= OnInitialFocusLayout; PropertyChanged -= OnInitialFocusVisibility;
+    }
+    private void ArrangeWorkspace()
+    {
+        Grid layout = (Grid)Content!;
+        layout.RowDefinitions[1].Height = _edit == EditKind.None ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        layout.RowDefinitions[3].Height = _edit == EditKind.None ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        bool stacked = ClientSize.Width < 580;
+        Grid workspace = this.FindControl<Grid>("SavedSearchWorkspace")!;
+        workspace.ColumnDefinitions = new(stacked ? "*" : "220,*");
+        workspace.RowDefinitions = new(stacked ? "*,*" : "*");
+        ScrollViewer detail = this.FindControl<ScrollViewer>("SavedSearchSelection")!;
+        Grid.SetColumn(detail, stacked ? 0 : 1); Grid.SetRow(detail, stacked ? 1 : 0);
     }
     internal void CloseForLifetime() { if (_closed) return; _closingAccepted = true; _lifetime.Cancel(); Close(); }
     private Button Button(string name) => this.FindControl<Button>(name)!;
@@ -115,7 +221,7 @@ public partial class SavedArchiveSearchesDialog : Window
     private bool CanCapture() => _snapshot?.CanWrite == true && _page.CanSaveCurrentSearch;
     private bool CanEditSelection() => _snapshot?.CanWrite == true && Selected != null;
     private bool HasNameChanges() => (_edit is EditKind.Create or EditKind.Rename || _edit == EditKind.Discard && (_discardedEdit is EditKind.Create or EditKind.Rename)) && (NameInput.Text ?? "") != _initialName;
-    private void Begin(EditKind kind, ArchiveSearchSpec? frozen = null)
+    private void Begin(EditKind kind, ArchiveSearchSpec? frozen = null, bool focusEditor = true)
     {
         if (_closed || _working || _edit != EditKind.None || _snapshot == null || !Ready) return;
         if (kind is EditKind.Create or EditKind.Replace)
@@ -130,13 +236,17 @@ public partial class SavedArchiveSearchesDialog : Window
         NameInput.Text = _initialName;
         RenderEditor();
         if (kind == EditKind.Apply && !_page.HasUnappliedSearchDraft) { _ = ConfirmAsync(); return; }
+        if (!focusEditor) return;
         if (kind is EditKind.Create or EditKind.Rename) { NameInput.Focus(); NameInput.SelectAll(); }
         else Button("SavedSearchConfirm").Focus();
     }
     private void RenderEditor()
     {
+        if (_initialFocusTarget != null && _edit != _initialFocusEdit) CancelInitialFocus();
         this.FindControl<StackPanel>("SavedSearchEditor")!.IsVisible = _edit != EditKind.None;
         NameInput.IsVisible = _edit is EditKind.Create or EditKind.Rename;
+        Button("SavedSearchConfirm").Classes.Set("danger", _edit is EditKind.Delete or EditKind.Discard);
+        Button("SavedSearchConfirm").Classes.Set("primary", _edit is not (EditKind.Delete or EditKind.Discard));
         this.FindControl<TextBlock>("SavedSearchPrompt")!.Text = Texts.T("savedSearch.prompt." + _edit, _initialName);
         this.FindControl<TextBlock>("SavedSearchDefinition")!.Text = _edit == EditKind.Discard ? "" : _definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : "";
         ToolTip.SetTip(this.FindControl<TextBlock>("SavedSearchDefinition")!, this.FindControl<TextBlock>("SavedSearchDefinition")!.Text);
@@ -237,6 +347,13 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     private void Refresh()
     {
+        this.FindControl<ScrollViewer>("SavedSearchEditorScroll")!.IsVisible = _edit != EditKind.None;
+        this.FindControl<Grid>("SavedSearchWorkspace")!.IsVisible = _edit == EditKind.None;
+        ArrangeWorkspace();
+        this.FindControl<TextBlock>("SavedSearchSelectionName")!.Text = Selected?.Name ?? "";
+        this.FindControl<TextBlock>("SavedSearchSelectionDefinition")!.Text = Selected is { } selected
+            ? selected.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec) : Texts.T("savedSearch.unsupported") + " " + selected.UnsupportedReason
+            : "";
         foreach (string id in new[] { "SavedSearchCreate", "SavedSearchApply", "SavedSearchRename", "SavedSearchReplace", "SavedSearchDelete" })
         {
             Button(id).IsVisible = _edit == EditKind.None;

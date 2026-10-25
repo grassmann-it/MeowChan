@@ -171,12 +171,16 @@ internal static class ShowcaseCaptures
                 window.UpdateLayout();
                 SelectableTextBlock progress = window.FindControl<SelectableTextBlock>("InspectorProgress")!;
                 SelectableTextBlock error = window.FindControl<SelectableTextBlock>("InspectorError")!;
+                SelectableTextBlock context = window.FindControl<SelectableTextBlock>("InspectorContext")!;
                 return window.FindControl<Border>("WorkspaceInspector")!.IsEffectivelyVisible
                     && progress.IsEffectivelyVisible && progress.Bounds.Width > 0
                     && progress.Text == waiting.Progress
                     && progress.Text!.Contains("1 waiting (404)", StringComparison.Ordinal)
-                    && error.IsEffectivelyVisible && error.Text == waiting.ErrorDetails
-                    && error.Text!.Contains("Earliest retry:", StringComparison.Ordinal);
+                    && error.IsEffectivelyVisible && error.Text == waiting.IssueDetails
+                    && error.Text!.Contains("404", StringComparison.Ordinal)
+                    && !error.Text.Contains("Earliest retry:", StringComparison.Ordinal)
+                    && context.IsEffectivelyVisible && context.Text == waiting.ContextDetails
+                    && context.Text!.Contains("Earliest retry:", StringComparison.Ordinal);
             });
             await CaptureAsync(window, "v0.9.0-downloads.png");
         }

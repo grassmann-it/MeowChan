@@ -9,51 +9,48 @@
         Foreground="{DynamicResource Workspace.Text}">
     <Window.Styles>
         <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
-        <Style Selector="Button.link">
-            <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Padding" Value="8,6"/>
-        </Style>
     </Window.Styles>
-    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
-        <Grid ColumnDefinitions="72,*,Auto" ColumnSpacing="14" Margin="0,0,0,14">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Grid ColumnDefinitions="72,*" ColumnSpacing="16" Margin="16,16,16,12">
             <Image x:Name="CatLogo" Width="72" Height="72" Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                <TextBlock Text="MeowChan" FontSize="26" FontWeight="SemiBold"/>
-                <SelectableTextBlock x:Name="VersionText"/>
+                <TextBlock FontSize="26" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
+                <WrapPanel ItemSpacing="12" LineSpacing="4">
+                    <SelectableTextBlock x:Name="VersionText" VerticalAlignment="Center"/>
+                    <Button x:Name="CopyVersionButton" Classes="subtle" Click="OnCopyVersionClick"/>
+                </WrapPanel>
             </StackPanel>
-            <Button x:Name="CopyVersionButton" Grid.Column="2" VerticalAlignment="Center" Click="OnCopyVersionClick"/>
         </Grid>
-        <TabControl x:Name="AboutTabs" Grid.Row="1">
+        <TabControl x:Name="AboutTabs" Grid.Row="1" Margin="16,0">
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="14" Margin="12">
+                    <StackPanel Spacing="16" Margin="12">
                         <TextBlock x:Name="DescriptionText" FontSize="15"/>
                         <TextBlock x:Name="AuthorText"/>
-                        <Border x:Name="UpdateSection" BorderThickness="1" BorderBrush="{DynamicResource Workspace.Border}" CornerRadius="6" Padding="12">
+                        <Border x:Name="UpdateSection" Classes="workspace-section">
                             <StackPanel Spacing="8">
-                                <TextBlock x:Name="UpdatesTitle" FontSize="17" FontWeight="SemiBold" />
+                                <TextBlock x:Name="UpdatesTitle" Classes="section-title" />
                                 <TextBlock x:Name="UpdateStatusText" AutomationProperties.LiveSetting="Polite" />
-                                <TextBlock x:Name="LastUpdateCheckText" Classes="muted" FontSize="12" />
+                                <TextBlock x:Name="LastUpdateCheckText" Classes="workspace-help" />
                                 <Button x:Name="CheckUpdatesButton" HorizontalAlignment="Left" Click="OnCheckUpdatesClick" />
                                 <TextBlock x:Name="AvailableUpdateText" AutomationProperties.LiveSetting="Polite" />
-                                <WrapPanel x:Name="UpdateActions">
+                                <WrapPanel x:Name="UpdateActions" ItemSpacing="8" LineSpacing="8">
                                     <Button x:Name="UpdateReleaseButton" Classes="link" Click="OnUpdateReleaseClick" />
                                     <Button x:Name="UpdateDownloadButton" Classes="link" Click="OnUpdateDownloadClick" />
                                     <Button x:Name="SkipUpdateButton" Classes="link" Click="OnSkipUpdateClick" />
                                 </WrapPanel>
-                                <TextBlock x:Name="UpdateBrowserHint" Classes="muted" FontSize="12" />
-                                <TextBlock x:Name="UpdatePrivacyText" Classes="muted" FontSize="12" />
-                                <TextBlock x:Name="UpdateActionErrorText" Foreground="{DynamicResource Workspace.Error}" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="UpdateBrowserHint" Classes="workspace-help" />
+                                <TextBlock x:Name="UpdatePrivacyText" Classes="workspace-help" />
+                                <TextBlock x:Name="UpdateActionErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Border>
-                        <WrapPanel>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8">
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>
                         <StackPanel Spacing="6" Margin="0,8,0,0">
-                            <TextBlock x:Name="SupportTitle" FontSize="17" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="SupportTitle" Classes="section-title"/>
                             <TextBlock x:Name="SupportDescription"/>
                             <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
                                     Tag="https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ" Click="OnLinkClick"/>
@@ -63,9 +60,9 @@
             </TabItem>
             <TabItem x:Name="CreditsTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="14" Margin="12">
+                    <StackPanel Spacing="16" Margin="12">
                         <TextBlock x:Name="HistoryText"/>
-                        <WrapPanel>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8">
                             <Button Content="YChan" Classes="link" Tag="https://sourceforge.net/projects/ychan/" Click="OnLinkClick"/>
                             <Button Content="Issung / GChan" Classes="link" Tag="https://github.com/Issung/GChan" Click="OnLinkClick"/>
                         </WrapPanel>
@@ -78,11 +75,15 @@
             <TabItem x:Name="LicensesTab">
                 <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="8">
                     <TextBox x:Name="LicenseSearchBox" Grid.Row="0" TextChanged="OnLicenseSearchChanged"/>
-                    <TextBlock x:Name="LicenseHintText" Grid.Row="1" Foreground="{DynamicResource Workspace.Muted}"/>
-                    <Grid Grid.Row="2" ColumnDefinitions="230,*" ColumnSpacing="8">
+                    <TextBlock x:Name="LicenseHintText" Grid.Row="1" Classes="workspace-help"/>
+                    <Grid Grid.Row="2" ColumnDefinitions="*,2*" ColumnSpacing="8">
                         <ListBox x:Name="LicenseList" SelectionChanged="OnLicenseSelectionChanged"/>
                         <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
-                            <SelectableTextBlock x:Name="LicenseMetadataText" TextWrapping="Wrap"/>
+                            <Expander x:Name="LicenseMetadataExpander" HorizontalAlignment="Stretch" MaxHeight="140">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <SelectableTextBlock x:Name="LicenseMetadataText" TextWrapping="Wrap"/>
+                                </ScrollViewer>
+                            </Expander>
                             <TextBox x:Name="LicenseFullText" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True"
                                      TextWrapping="Wrap" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                         </Grid>
@@ -90,9 +91,11 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
-            <SelectableTextBlock x:Name="LinkErrorText" Foreground="{DynamicResource Workspace.Error}" TextWrapping="Wrap"/>
-            <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
-        </Grid>
+        <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="0,12,0,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <SelectableTextBlock x:Name="LinkErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"/>
+                <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

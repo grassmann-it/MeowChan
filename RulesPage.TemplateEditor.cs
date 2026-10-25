@@ -108,7 +108,7 @@ public partial class RulesPage
         if (_templateEditor is not { } editor || _templateEditorView == null) return;
         _templateEditorView.IsEnabled = IsEditable;
         _templateEditorErrorView!.Text = editor.Error ?? string.Empty; _templateEditorErrorView.IsVisible = editor.Error != null;
-        _templateEditorStaleView!.Text = Texts.T("templates.editorStale"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
+        _templateEditorStaleView!.Text = Texts.T("templates.editorStale"); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         _templateEditorSaveButton!.IsEnabled = IsEditable && _templates?.Revision == editor.Revision;
     }
     private void FocusTemplateEditorError(TemplateEditorDraft editor)
@@ -138,20 +138,29 @@ public partial class RulesPage
     {
         TemplateEditorDraft editor = _templateEditor!;
         _templateParameterEditor = null;
-        StackPanel panel = new() { Spacing = 8, IsEnabled = IsEditable }; _templateEditorView = panel; parent.Children.Add(new Border { Child = panel, Padding = new Avalonia.Thickness(12), BorderThickness = new Avalonia.Thickness(1) });
+        StackPanel panel = new() { Spacing = 8, IsEnabled = IsEditable }; _templateEditorView = panel;
+        Border section = new() { Child = panel }; section.Classes.Add("workspace-section"); parent.Children.Add(section);
         panel.Children.Add(TemplateText(Texts.T("templates.editor"), true));
+        panel.Children.Add(RuleFieldLabel(Texts.T("templates.name")));
         TextBox name = new() { Name = "RuleTemplateName", Text = editor.Name, MaxLength = 120, PlaceholderText = Texts.T("templates.name") };
         AutomationProperties.SetName(name, Texts.T("templates.name")); name.TextChanging += (_, _) => editor.Name = name.Text ?? string.Empty; panel.Children.Add(name);
         AddTemplateInclude(panel, "templates.includeTypes", editor.IncludeTypes, value => editor.IncludeTypes = value);
+        panel.Children.Add(RuleFieldLabel(TypesLabel));
         ComboBox types = new() { Name = "RuleTemplateTypesMode", ItemsSource = TypesModeChoices, SelectedIndex = (int)editor.TypesMode, HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetName(types, TypesLabel); types.SelectionChanged += (_, _) => { if (types.SelectedIndex >= 0) editor.TypesMode = (MediaTypeSelectionMode)types.SelectedIndex; }; panel.Children.Add(types);
+        panel.Children.Add(RuleFieldLabel(ExtensionsLabel));
         RuleExtensionsInput tags = new() { Name = "RuleTemplateExtensions" }; tags.Bind(editor.Extensions); panel.Children.Add(tags);
+        TextBlock extensionsHelp = TemplateText(ExtensionsHint); extensionsHelp.Classes.Add("workspace-help"); panel.Children.Add(extensionsHelp);
         AddTemplateInclude(panel, "templates.includeSize", editor.IncludeSize, value => editor.IncludeSize = value);
+        panel.Children.Add(RuleFieldLabel(SizeLabel));
         ComboBox sizes = new() { Name = "RuleTemplateSizeMode", ItemsSource = SizeModeChoices, SelectedIndex = (int)editor.SizeMode, HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetName(sizes, SizeLabel); sizes.SelectionChanged += (_, _) => { if (sizes.SelectedIndex >= 0) editor.SizeMode = (MediaSizeLimitMode)sizes.SelectedIndex; }; panel.Children.Add(sizes);
+        panel.Children.Add(RuleFieldLabel(MegabytesLabel));
         TextBox megabytes = new() { Name = "RuleTemplateMegabytes", Text = editor.Megabytes }; AutomationProperties.SetName(megabytes, MegabytesLabel);
         megabytes.TextChanging += (_, _) => { editor.Megabytes = megabytes.Text ?? string.Empty; editor.Culture = Texts.Culture; }; panel.Children.Add(megabytes);
+        TextBlock sizeHelp = TemplateText(MegabytesHint); sizeHelp.Classes.Add("workspace-help"); panel.Children.Add(sizeHelp);
         AddTemplateInclude(panel, "templates.includeFilter", editor.IncludeFilter, value => editor.IncludeFilter = value);
+        panel.Children.Add(RuleFieldLabel(Texts.T("plugins.ruleFilter")));
         ComboBox modes = new() { Name = "RuleTemplateFilterMode", ItemsSource = new[] { Texts.T("plugins.filterInherit"), Texts.T("plugins.filterDisabled"), Texts.T("plugins.filterPlugin") }, SelectedIndex = (int)editor.Filter.Mode,
             HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetName(modes, Texts.T("plugins.ruleFilter"));
@@ -174,6 +183,7 @@ public partial class RulesPage
         {
             panel.Children.Add(TemplateText(editor.Filter.PluginId + "/" + editor.Filter.FilterKey + " @" + editor.Filter.SchemaVersion));
             FilterChoice[] choices = FilterChoices();
+            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.filterChoice")));
             ComboBox filters = new() { Name = "RuleTemplateFilterChoice", ItemsSource = choices, SelectedItem = choices.FirstOrDefault(f => f.PluginId == editor.Filter.PluginId && f.Filter.Key == editor.Filter.FilterKey), HorizontalAlignment = HorizontalAlignment.Stretch };
             AutomationProperties.SetName(filters, Texts.T("plugins.filterChoice"));
             filters.SelectionChanged += (_, _) =>
@@ -200,14 +210,15 @@ public partial class RulesPage
             foreach (var pair in editor.Filter.Parameters) panel.Children.Add(TemplateText(pair.Key + " = " + pair.Value));
             panel.Children.Add(TemplateText(Texts.T("templates.noGrants")));
         }
-        _templateEditorErrorView = TemplateText(editor.Error ?? string.Empty); _templateEditorErrorView.Name = "RuleTemplateEditorError";
+        _templateEditorErrorView = TemplateText(editor.Error ?? string.Empty); _templateEditorErrorView.Name = "RuleTemplateEditorError"; _templateEditorErrorView.Classes.Add("workspace-error");
         _templateEditorErrorView.Focusable = true; _templateEditorErrorView.IsVisible = editor.Error != null; panel.Children.Add(_templateEditorErrorView);
-        _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
+        _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         panel.Children.Add(_templateEditorStaleView);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(actions);
+        WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
         Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; });
         _templateEditorConfirmation = new(cancel);
         _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision);
+        _templateEditorSaveButton.Classes.Add("primary");
     }
     private static void AddTemplateInclude(StackPanel panel, string key, bool value, Action<bool> set)
     {

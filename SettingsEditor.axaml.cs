@@ -477,15 +477,42 @@ namespace MeowChan
 
         private void OnEditorSizeChanged(object? sender, SizeChangedEventArgs e)
         {
-            double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60));
+            bool categories = e.NewSize.Width >= 820;
+            bool presentationChanged = categories != SettingsCategories.IsVisible;
+            bool navigationFocus = SettingsCategories.IsKeyboardFocusWithin || SettingsSections.IsKeyboardFocusWithin;
+            string? selectedSection = SelectedSectionId;
+            TopLevel? focusOwner = TopLevel.GetTopLevel(this);
+            Control? focusOrigin = focusOwner?.FocusManager?.GetFocusedElement() as Control;
+            if (presentationChanged && !navigationFocus && _pendingSectionFocusTransfer is { } pending
+                && ReferenceEquals(pending.Owner, focusOwner)
+                && ReferenceEquals(pending.Focus, focusOrigin))
+            {
+                navigationFocus = true;
+                selectedSection = pending.SectionId;
+            }
+            if (presentationChanged)
+            {
+                _sectionFocusTransferRevision++;
+                _pendingSectionFocusTransfer = null;
+                if (navigationFocus) _sectionNavigation?.CancelPendingNavigation();
+            }
+            SettingsCategories.IsVisible = categories;
+            SettingsSections.IsVisible = !categories;
+            SettingsFormLayout.ColumnDefinitions[0].Width = new GridLength(categories ? 176 : 0);
+            SettingsFormLayout.ColumnSpacing = categories ? 16 : 0;
+            Grid.SetColumn(SettingsScrollViewer, categories ? 1 : 0);
+            Grid.SetColumnSpan(SettingsScrollViewer, categories ? 1 : 2);
+            double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60 - (categories ? 192 : 0)));
             SettingsContent.Width = width;
-            SettingsHeader.Width = width;
+            SettingsHeader.Width = Math.Min(1088, Math.Max(0, e.NewSize.Width - 40));
+            if (presentationChanged && navigationFocus && focusOwner != null)
+                QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
                 row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
                 row.RowSpacing = narrow ? 6 : 0;
-                row.ColumnSpacing = narrow ? 0 : 32;
+                row.ColumnSpacing = narrow ? 0 : 24;
                 Control editor = row.Children[1];
                 Grid.SetColumn(editor, narrow ? 0 : 1);
                 Grid.SetRow(editor, narrow ? 1 : 0);

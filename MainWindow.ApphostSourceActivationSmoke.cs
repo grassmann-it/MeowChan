@@ -61,6 +61,9 @@ public partial class MainWindow
             startupPaused = _session.IsPaused;
             startupWarnings = plugins.Warnings.ToArray();
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
+            // The author workflow requires active delivered adapters; establish that
+            // prerequisite explicitly without granting a source-integrity exception.
+            installed = await EnableApphostFixtureSourcesAsync(plugins, installed);
             startupProfile = installed;
             RequireAuthorStartupState(installed, startupWarnings, startupPaused.Value, phase);
             foreach (var plugin in installed.Plugins)

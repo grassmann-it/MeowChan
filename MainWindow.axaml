@@ -16,7 +16,7 @@
                             <Image x:Name="WorkspaceLogo" Source="avares://MeowChan/Assets/meowchan.png" Width="30" Height="30"
                                    Stretch="Uniform" VerticalAlignment="Center" />
                         </Button>
-                        <TextBlock Text="MeowChan" Classes="brand" VerticalAlignment="Center" />
+                        <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted"
@@ -177,7 +177,7 @@
                                         <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding StatusDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                                 <TextBlock Text="{Binding Status}" FontSize="12" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" ToolTip.Tip="{Binding Progress}">
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="12" />
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="12" />
@@ -235,14 +235,14 @@
                             <DataGridTemplateColumn Header="Board" Width="200" SortMemberPath="NiceName">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:BoardRow">
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding NiceName}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding NiceName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding NiceName}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Status" Width="*" SortMemberPath="Status">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:BoardRow">
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding Status}" ToolTip.Tip="{Binding ErrorDetails}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Status}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ErrorDetails}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -281,47 +281,57 @@
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="16,2,16,16" Spacing="12">
                                 <TextBlock x:Name="InspectorEmptyState" Tag="detail.empty" Classes="localized muted" TextWrapping="Wrap" />
-                                <StackPanel x:Name="InspectorSelection" Spacing="12" IsVisible="False">
+                                <StackPanel x:Name="InspectorSelection" Classes="workspace-section-body" IsVisible="False">
                                     <StackPanel Spacing="5">
                                         <TextBlock x:Name="InspectorKind" Classes="muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorTitle" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
                                         <SelectableTextBlock x:Name="InspectorSource" Classes="muted" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                                        <TextBlock Tag="detail.status" Classes="localized muted" />
-                                        <SelectableTextBlock x:Name="InspectorStatus" Grid.Column="1" TextWrapping="Wrap" HorizontalAlignment="Right" />
-                                    </Grid>
-                                    <StackPanel x:Name="InspectorErrorSection" Spacing="5">
-                                        <TextBlock Tag="detail.error" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorError" TextWrapping="Wrap" FontSize="12" />
+                                    <StackPanel Classes="workspace-field">
+                                        <TextBlock Tag="detail.status" Classes="localized workspace-meta" />
+                                        <SelectableTextBlock x:Name="InspectorStatus" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <WrapPanel x:Name="InspectorLocalActions" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" IsVisible="False">
-                                        <Button x:Name="InspectorReadPosts" Classes="subtle" Click="OnInspectorReadPosts" />
-                                        <Button x:Name="InspectorGallery" Classes="subtle" Click="OnInspectorGallery" />
-                                        <Button x:Name="InspectorHtmlExport" Classes="subtle" Click="OnInspectorHtmlExport" />
-                                    </WrapPanel>
-                                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
-                                        <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Click="OnInspectorOpenFolderClick" />
-                                        <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
+                                    <StackPanel x:Name="InspectorErrorSection" Spacing="8">
+                                        <TextBlock Tag="detail.error" Classes="localized muted" FontSize="12" />
+                                        <SelectableTextBlock x:Name="InspectorError" Classes="workspace-error" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <SelectableTextBlock x:Name="InspectorContext" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
+                                    <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
                                         <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
                                         <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />
-                                        <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" />
                                     </WrapPanel>
-                                    <StackPanel x:Name="InspectorMediaSection" Spacing="6">
+                                    <StackPanel Spacing="8">
+                                        <WrapPanel x:Name="InspectorLocalActions" Classes="workspace-toolbar" Orientation="Horizontal" IsVisible="False">
+                                            <Button x:Name="InspectorReadPosts" Classes="subtle" Click="OnInspectorReadPosts" />
+                                            <Button x:Name="InspectorGallery" Classes="subtle" Click="OnInspectorGallery" />
+                                            <Button x:Name="InspectorHtmlExport" Classes="subtle" Click="OnInspectorHtmlExport" />
+                                        </WrapPanel>
+                                        <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
+                                            <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized subtle" Content="Open folder" Click="OnInspectorOpenFolderClick" />
+                                            <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized subtle" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <StackPanel x:Name="InspectorMediaSection" Classes="workspace-section-header">
                                         <TextBlock Tag="detail.progress" Classes="localized muted" FontSize="12" />
                                         <SelectableTextBlock x:Name="InspectorProgress" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
                                         <TextBlock x:Name="InspectorKnownMedia" Classes="muted" TextWrapping="Wrap" />
                                         <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" />
                                     </StackPanel>
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Tag="detail.url" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="12" />
-                                    </StackPanel>
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Tag="detail.directory" Classes="localized muted" FontSize="12" />
-                                        <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="12" />
-                                    </StackPanel>
+                                    <Expander x:Name="InspectorSourceDetails">
+                                        <Expander.Header><TextBlock Tag="detail.source" Classes="localized" /></Expander.Header>
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Tag="detail.url" Classes="localized workspace-meta" />
+                                                <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Tag="detail.directory" Classes="localized workspace-meta" />
+                                                <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                            <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" />
+                                        </StackPanel>
+                                    </Expander>
 
                                     <Border BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                         <StackPanel Spacing="8">
@@ -396,12 +406,17 @@
         <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
         <ContentControl x:Name="GalleryHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" />
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
-                Background="{DynamicResource Workspace.Panel}" BorderBrush="{DynamicResource Workspace.Border}"
-                BorderThickness="1" CornerRadius="10" Padding="24" Margin="20" MaxWidth="620"
-                HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Grid RowDefinitions="*,Auto" RowSpacing="18">
-                <ScrollViewer><TextBlock x:Name="ShellHelpText" TextWrapping="Wrap" /></ScrollViewer>
-                <Button x:Name="ShellHelpClose" Grid.Row="1" HorizontalAlignment="Right" />
+                Classes="panel" Margin="20" MaxWidth="620"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock x:Name="ShellHelpTitle" Classes="section-title" Margin="16,16,16,12" />
+                <ScrollViewer Grid.Row="1" Margin="16,0,16,16" Classes="InsetContent"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="ShellHelpText" TextWrapping="Wrap" LineHeight="22" />
+                </ScrollViewer>
+                <Border Grid.Row="2" Classes="workspace-dialog-footer">
+                    <Button x:Name="ShellHelpClose" HorizontalAlignment="Right" MinWidth="96" />
+                </Border>
             </Grid>
         </Border>
     </Grid>

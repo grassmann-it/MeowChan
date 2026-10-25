@@ -38,6 +38,10 @@ internal sealed class ArchiveCleanupDialog : Window
     private readonly ListBox _list = new();
     private readonly StackPanel _inventoryControls = new() { Spacing = 8 };
     private readonly TextBox _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 52, MaxHeight = 100 };
+    private readonly Expander _detailsSection = new() { HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
+    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _candidatesHeading = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _lossHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _loss = new() { TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _ack = new();
     private readonly StackPanel _confirmation = new() { Spacing = 8, IsVisible = false };
@@ -90,7 +94,12 @@ internal sealed class ArchiveCleanupDialog : Window
         Named(_loss, "LossSummary"); Named(_ack, "ConfirmAcknowledgement"); Named(_refresh, "Refresh");
         Named(_selectShown, "SelectShown"); Named(_clear, "ClearSelection"); Named(_review, "Review");
         Named(_confirm, "Confirm"); Named(_back, "Back"); Named(_cancel, "Cancel"); Named(_close, "Close"); Named(_folder, "OpenFolder");
-        _error.Classes.Add("error");
+        _error.Classes.Add("workspace-error");
+        _hint.Classes.Add("workspace-help"); _scope.Classes.Add("workspace-meta"); _loss.Classes.Add("workspace-warning");
+        _heading.Classes.Add("page-title"); _candidatesHeading.Classes.Add("section-title");
+        _lossHeading.Classes.Add("section-title"); _selectionSummary.Classes.Add("section-title");
+        _review.Classes.Add("primary"); _confirm.Classes.Add("danger");
+        _back.Classes.Add("subtle"); _close.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         _search.TextChanged += (_, _) => RenderRows();
@@ -125,28 +134,42 @@ internal sealed class ArchiveCleanupDialog : Window
             catch (Exception error) { _error.Text = T("Could not open the storage folder.", "Speicherordner konnte nicht geöffnet werden.") + "\n" + error.Message; }
         };
         Named(_hint, "Hint");
-        StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(_hint); header.Children.Add(_scope);
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_heading); header.Children.Add(_hint); header.Children.Add(_scope);
+        _inventoryControls.Children.Add(_candidatesHeading);
         _inventoryControls.Children.Add(_search);
         _inventoryControls.Children.Add(_filter);
-        WrapPanel choose = new() { ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel choose = new() { ItemSpacing = 8, LineSpacing = 8 };
         choose.Children.Add(_selectShown); choose.Children.Add(_clear); _inventoryControls.Children.Add(choose);
         header.Children.Add(_inventoryControls);
-        StackPanel bottom = new() { Spacing = 8 };
-        bottom.Children.Add(_selectionSummary); bottom.Children.Add(_details); bottom.Children.Add(_folder);
-        _confirmation.Children.Add(_loss); _confirmation.Children.Add(_ack); bottom.Children.Add(_confirmation);
-        // Keep the completion text beside the next safe action, including at minimum window size.
-        _outcome.Children.Add(_status); _outcome.Children.Add(_error); bottom.Children.Add(_outcome);
-        WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
+        StackPanel detailsContent = new() { Spacing = 8 };
+        detailsContent.Children.Add(_details); detailsContent.Children.Add(_folder);
+        _detailsSection.Content = detailsContent;
+        StackPanel bottom = new() { Spacing = 12 };
+        bottom.Children.Add(_selectionSummary); bottom.Children.Add(_detailsSection);
+        _confirmation.Children.Add(_lossHeading); _confirmation.Children.Add(_loss); _confirmation.Children.Add(_ack);
+        Border warning = new() { Child = _confirmation };
+        warning.Classes.Add("workspace-warning");
+        // Visibility follows the confirmation itself, without a blank warning surface in the preview.
+        _confirmation.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) warning.IsVisible = _confirmation.IsVisible; };
+        warning.IsVisible = false; bottom.Children.Add(warning);
+        _outcome.Children.Add(_status); _outcome.Children.Add(_error);
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        actions.Classes.Add("workspace-actions");
         foreach (Button button in new[] { _refresh, _close, _cancel, _back, _review, _confirm }) actions.Children.Add(button);
-        _outcome.Children.Add(actions);
-        // One scrolling body keeps all actions reachable at the supported narrow/minimum size.
-        Grid body = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
+        StackPanel footerContent = new() { Spacing = 12 };
+        footerContent.Children.Add(new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        footerContent.Children.Add(actions);
+        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
+        // Inventory/loss details scroll independently; the next safe action stays in the fixed footer.
+        Grid body = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
         body.Children.Add(header); body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
-        Content = new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        KeyboardNavigation.SetTabNavigation(body, KeyboardNavigationMode.Cycle);
+        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto") };
+        layout.Children.Add(new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        layout.Children.Add(footer); Grid.SetRow(footer, 1); Content = layout;
+        KeyboardNavigation.SetTabNavigation(layout, KeyboardNavigationMode.Cycle);
         names.Complete();
         Localize();
         KeyDown += (_, e) =>
@@ -174,7 +197,10 @@ internal sealed class ArchiveCleanupDialog : Window
     private void Localize()
     {
         if (_closed) return;
-        Title = ArchiveCleanupText.Title;
+        Title = ArchiveCleanupText.Title; _heading.Text = Title;
+        _candidatesHeading.Text = T("Archive inventory", "Archivbestand");
+        _detailsSection.Header = T("Selected thread: details and storage", "Gewählter Thread: Details und Speicherort");
+        _lossHeading.Text = T("This local data will be permanently deleted", "Diese lokalen Daten werden endgültig gelöscht");
         _hint.Text = T("Review the whole archive. Candidates have 0–2 verified saved asset versions, including history and variants. Favorites, ratings, bookmarks, groups, reading positions and unfinished work are protected. Unknown storage is never treated as empty.",
             "Prüft das gesamte Archiv. Kandidaten haben 0–2 nachgewiesene gespeicherte Assetfassungen, einschließlich Historie und Varianten. Favoriten, Bewertungen, Lesezeichen, Gruppen, Lesestellen und unerledigte Aufträge sind geschützt. Unbekannter Speicher gilt niemals als leer.");
         _search.PlaceholderText = T("Search identity or title", "Identität oder Titel suchen");
@@ -226,12 +252,20 @@ internal sealed class ArchiveCleanupDialog : Window
             IsEnabled = _selection.CanSelect(row), IsChecked = _selection.IsSelected(row.Id) };
         AutomationProperties.SetName(choice, ArchiveCleanupText.Identity(row.Id) + " · " + ArchiveCleanupText.State(row.Eligibility) + " · " + ArchiveCleanupText.Media(row));
         choice.IsCheckedChanged += (_, _) => { _selection.SetSelected(row.Id, choice.IsChecked == true); UpdateSummary(); UpdateActions(); };
-        StackPanel text = new() { Spacing = 3 };
-        text.Children.Add(new TextBlock { Text = ArchiveCleanupText.Identity(row.Id) + " · " + row.Title, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-        text.Children.Add(new TextBlock { Text = ArchiveCleanupText.Media(row), TextWrapping = TextWrapping.Wrap });
-        text.Children.Add(new TextBlock { Text = ArchiveCleanupText.State(row.Eligibility) + (row.Reasons.Count > 0 ? " · " + ArchiveCleanupText.Reasons(row) : ""), TextWrapping = TextWrapping.Wrap });
-        Grid content = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Margin = new Thickness(0, 4) };
+        StackPanel text = new() { Spacing = 4 };
+        text.Children.Add(new TextBlock { Text = row.Title, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+        TextBlock identity = new() { Text = ArchiveCleanupText.Identity(row.Id), TextWrapping = TextWrapping.Wrap };
+        identity.Classes.Add("workspace-meta"); text.Children.Add(identity);
+        StackPanel state = new() { Spacing = 4 };
+        state.Children.Add(new TextBlock { Text = row.Media.SavedAssetCount is int count
+            ? T($"{count:N0} saved versions", $"{count:N0} gespeicherte Fassungen")
+            : T("Saved versions: unknown", "Gespeicherte Fassungen: unbekannt"), TextWrapping = TextWrapping.Wrap });
+        TextBlock protection = new() { Text = ArchiveCleanupText.State(row.Eligibility)
+            + (row.Reasons.Count > 0 ? " · " + ArchiveCleanupText.Reasons(row) : ""), TextWrapping = TextWrapping.Wrap };
+        protection.Classes.Add("workspace-meta"); state.Children.Add(protection);
+        Grid content = new() { ColumnDefinitions = new ColumnDefinitions("Auto,2*,*"), ColumnSpacing = 12, Margin = new Thickness(0, 8) };
         content.Children.Add(choice); content.Children.Add(text); Grid.SetColumn(text, 1);
+        content.Children.Add(state); Grid.SetColumn(state, 2);
         return content;
     }
 
@@ -247,8 +281,9 @@ internal sealed class ArchiveCleanupDialog : Window
     {
         ArchiveCleanupPreviewRow? row = _list.SelectedItem as ArchiveCleanupPreviewRow;
         _details.Text = row == null ? "" : ArchiveCleanupText.Identity(row.Id) + "\n" + row.Title + "\n"
-            + ArchiveCleanupText.Reasons(row) + "\n" + row.Summary.MediaDirectory
+            + ArchiveCleanupText.Media(row) + "\n" + ArchiveCleanupText.Reasons(row) + "\n" + row.Summary.MediaDirectory
             + (row.Media.Error == null ? "" : "\n" + row.Media.Error);
+        _detailsSection.IsVisible = row != null;
         _details.IsVisible = row != null;
         _folder.MaxWidth = 300;
         _folder.Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = row?.Media.SavedAssetCount == null
@@ -274,7 +309,7 @@ internal sealed class ArchiveCleanupDialog : Window
         bool choosing = !_busy && !confirming && !_closed;
         // The exact loss summary replaces the inventory during confirmation. Back preserves its selection.
         _hint.IsVisible = _inventoryControls.IsVisible = _list.IsVisible = !confirming;
-        _details.IsVisible = !confirming && _list.SelectedItem is ArchiveCleanupPreviewRow;
+        _detailsSection.IsVisible = _details.IsVisible = !confirming && _list.SelectedItem is ArchiveCleanupPreviewRow;
         _folder.IsVisible = _details.IsVisible && _openFolder != null;
         _list.IsEnabled = choosing && _selection.CanChoose;
         _search.IsEnabled = _filter.IsEnabled = choosing;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -19,6 +20,8 @@ public partial class DiagnosticsPage : UserControl
     private readonly Func<string, Task>? _copy;
     private IReadOnlyList<DiagnosticEntry> _entries = Array.Empty<DiagnosticEntry>();
     private bool _available;
+    private bool _refreshingDiagnostics;
+    private bool _diagnosticSelectionRemoved;
     private bool _retryBusy;
     private readonly Func<DiagnosticTarget, Task<CheckRequestStatus>>? _retry;
     private readonly Func<DiagnosticTarget, bool>? _canRetry;
@@ -74,8 +77,15 @@ public partial class DiagnosticsPage : UserControl
         if (!_entries.SequenceEqual(snapshot.Entries))
         {
             _entries = snapshot.Entries;
-            grid.ItemsSource = _entries;
-            grid.SelectedItem = _entries.FirstOrDefault(entry => entry.Key == selected);
+            DiagnosticEntry? retained = _entries.FirstOrDefault(entry => entry.Key == selected);
+            if (selected != null) _diagnosticSelectionRemoved = retained == null;
+            _refreshingDiagnostics = true;
+            try
+            {
+                grid.ItemsSource = _entries;
+                grid.SelectedItem = retained;
+            }
+            finally { _refreshingDiagnostics = false; }
         }
         this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = _entries.Count == 0;
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
@@ -96,10 +106,42 @@ public partial class DiagnosticsPage : UserControl
     }
 
     private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry;
-    private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshSelection();
+    private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_refreshingDiagnostics) _diagnosticSelectionRemoved = false;
+        RefreshSelection();
+    }
+
+    private void OnDiagnosticPageSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        // Both panes stay mounted: resizing never replaces a selected target,
+        // changes its command context or hides the focused details editor.
+        bool wide = Bounds.Width >= 1000;
+        Grid split = this.FindControl<Grid>("DiagnosticSplit")!;
+        split.ColumnDefinitions[0].Width = new GridLength(wide ? 3 : 1, GridUnitType.Star);
+        split.ColumnDefinitions[1].Width = wide ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
+        split.ColumnSpacing = wide ? 12 : 0;
+        split.RowSpacing = wide ? 0 : 12;
+        Control detail = this.FindControl<Border>("DiagnosticDetailPane")!;
+        Grid.SetColumn(detail, wide ? 1 : 0);
+        Grid.SetRow(detail, wide ? 0 : 1);
+    }
     private void RefreshSelection()
     {
-        this.FindControl<TextBox>("DiagnosticDetails")!.Text = Selected?.Details ?? string.Empty;
+        DiagnosticEntry? selected = Selected;
+        TextBlock hint = this.FindControl<TextBlock>("DiagnosticSelectionHint")!;
+        hint.Text = Texts.T(_diagnosticSelectionRemoved ? "diagnostics.selectionGone" : "diagnostics.choose");
+        hint.IsVisible = selected == null;
+        TextBlock title = this.FindControl<TextBlock>("DiagnosticSelectionTitle")!;
+        title.Text = selected?.Summary ?? string.Empty;
+        title.IsVisible = selected != null;
+        TextBlock context = this.FindControl<TextBlock>("DiagnosticSelectionContext")!;
+        context.Text = selected == null ? string.Empty : selected.Category + " · " + selected.Resource;
+        context.IsVisible = selected != null;
+        this.FindControl<TextBox>("DiagnosticDetails")!.Text = selected?.Details ?? string.Empty;
+        this.FindControl<TextBox>("DiagnosticDetails")!.IsVisible = selected != null;
+        AutomationProperties.SetName(this.FindControl<TextBox>("DiagnosticDetails")!,
+            selected == null ? Texts.T("diagnostics.choose") : selected.Summary);
         this.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled = _available && Selected != null;
         this.FindControl<Button>("OpenDiagnosticWatchButton")!.IsEnabled = _available && Selected?.Target != null;
         CommandBindings.ApplyLabeled(this.FindControl<Button>("RetryDiagnosticButton")!, "watch.check",

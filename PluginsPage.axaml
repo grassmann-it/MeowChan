@@ -1,19 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:plugins="using:MeowChan.Desktop.Plugins" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.PluginsPage" SizeChanged="OnPageSizeChanged">
-  <UserControl.Styles>
-    <Style Selector="Border.plugin-chip">
-      <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
-      <Setter Property="CornerRadius" Value="4" />
-      <Setter Property="Padding" Value="7,3" />
-    </Style>
-    <Style Selector="Border.plugin-chip TextBlock">
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-  </UserControl.Styles>
-  <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="10">
-    <StackPanel Spacing="6">
-      <WrapPanel ItemSpacing="8" LineSpacing="6">
-        <TextBlock x:Name="PluginsTitle" FontSize="24" FontWeight="SemiBold" Margin="0,0,8,0" />
+  <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="12">
+    <StackPanel Classes="workspace-page-header">
+      <WrapPanel Classes="workspace-toolbar">
+        <TextBlock x:Name="PluginsTitle" Classes="page-title" Margin="0,0,8,0" />
         <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
         <Button x:Name="PluginsFolder" Click="OnFolderClick" />
       </WrapPanel>
@@ -49,44 +39,50 @@
         <TextBlock x:Name="PluginChooseHint" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" />
       </Border>
       <ScrollViewer x:Name="PluginDetailsPane" Grid.Column="1" IsVisible="False">
-        <StackPanel x:Name="PluginDetailContent" Spacing="10">
+        <StackPanel x:Name="PluginDetailContent" Spacing="12">
           <Button x:Name="PluginBack" HorizontalAlignment="Left" Click="OnBackClick" />
-          <Border x:Name="PluginPurposeCard" Classes="panel" Padding="12">
-            <StackPanel Spacing="6">
+          <Border x:Name="PluginPurposeCard" Classes="workspace-section">
+            <StackPanel Classes="workspace-section-header">
               <WrapPanel ItemSpacing="10" LineSpacing="4">
-                <TextBlock x:Name="PluginHeading" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginHeading" Classes="page-title" TextWrapping="Wrap" />
                 <TextBlock x:Name="PluginAuthor" Classes="muted" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
               </WrapPanel>
               <TextBlock x:Name="PluginDescriptionOrigin" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
-              <TextBlock x:Name="PluginCapabilities" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <WrapPanel x:Name="PluginCompactIdentity" ItemSpacing="6" LineSpacing="6">
-                <Border x:Name="PluginTypeChip" Classes="plugin-chip"><TextBlock x:Name="PluginType" /></Border>
-                <Border x:Name="PluginExperimentalChip" Classes="plugin-chip" IsVisible="False"><TextBlock x:Name="PluginExperimental" /></Border>
-                <Border x:Name="PluginVersionChip" Classes="plugin-chip" IsVisible="False"><TextBlock x:Name="PluginVersion" TextWrapping="Wrap" /></Border>
-                <Border x:Name="PluginIdChip" Classes="plugin-chip" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
+                <Border x:Name="PluginTypeChip" Classes="workspace-status"><TextBlock x:Name="PluginType" Classes="workspace-status" /></Border>
+                <Border x:Name="PluginExperimentalChip" Classes="workspace-status workspace-status-warning" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="workspace-status" /></Border>
+                <Border x:Name="PluginVersionChip" Classes="workspace-status" IsVisible="False"><TextBlock x:Name="PluginVersion" Classes="workspace-status" TextWrapping="Wrap" /></Border>
+                <Border x:Name="PluginIdChip" Classes="workspace-status" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="workspace-status muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
               </WrapPanel>
-              <TextBlock x:Name="PluginExperimentalHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-              <TextBlock x:Name="PluginStatusHint" TextWrapping="Wrap" IsVisible="False" />
-              <WrapPanel x:Name="PluginPrimaryActions" ItemSpacing="8" LineSpacing="6">
+              <WrapPanel x:Name="PluginPrimaryActions" Classes="workspace-toolbar">
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
                 <Button x:Name="PluginWatches" Click="OnWatchesClick" />
                 <Button x:Name="PluginMoreActions" Click="OnPluginMoreActionsClick" />
               </WrapPanel>
+              <TextBlock x:Name="PluginExperimentalHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginDraftSummary" Classes="workspace-status" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginAttention" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+              <TextBlock x:Name="PluginStatusHint" TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock x:Name="PluginCapabilities" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
               <SelectableTextBlock x:Name="PluginActivationReasons" TextWrapping="Wrap" Focusable="True" />
               <SelectableTextBlock x:Name="PluginActionHint" TextWrapping="Wrap" Focusable="True" Classes="muted" IsVisible="False" />
             </StackPanel>
           </Border>
           <desktop:SectionNavigationControl x:Name="PluginSections" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
-          <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" />
-          <WrapPanel ItemSpacing="8" LineSpacing="6">
-            <Button x:Name="PluginSave" Classes="primary" Click="OnSaveClick" />
-            <Button x:Name="PluginDiscard" Click="OnDiscardClick" />
-          </WrapPanel>
-          <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" />
+          <Border Classes="workspace-section">
+            <StackPanel Classes="workspace-section-header">
+              <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+              <WrapPanel Classes="workspace-actions">
+                <Button x:Name="PluginSave" Classes="primary" Click="OnSaveClick" />
+                <Button x:Name="PluginDiscard" Click="OnDiscardClick" />
+              </WrapPanel>
+              <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" />
+            </StackPanel>
+          </Border>
           <Expander x:Name="PluginInfoExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginInformation" Spacing="8" /></Expander>
           <Expander x:Name="PluginGrantExpander" HorizontalAlignment="Stretch"><StackPanel x:Name="PluginGrants" Spacing="8" /></Expander>
           <Expander x:Name="PluginDeveloperExpander" HorizontalAlignment="Stretch">

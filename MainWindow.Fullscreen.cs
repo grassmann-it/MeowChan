@@ -98,6 +98,8 @@ public partial class MainWindow
     private void RememberNormalGeometry()
     {
         if (WindowState != WindowState.Normal || _fullscreenOrigin != null || _restoringFullscreen || ClientSize.Width <= 0 || IsFullscreenRestoreStale(ClientSize)) return;
+        if (_startupWindowClient is Size target
+            && (Math.Abs(ClientSize.Width - target.Width) > 1 || Math.Abs(ClientSize.Height - target.Height) > 1)) return;
         _lastNormalClient = ClientSize;
         _lastNormalPosition = Position;
         if (FrameSize is Size frame)
@@ -247,6 +249,7 @@ public partial class MainWindow
 
     private void OnFullscreenRestoreResized(object? sender, WindowResizedEventArgs e)
     {
+        ObserveStartupWindowResize(e);
         if (_fullscreenOrigin != null || _fullscreenExitIntent != null || _restoringFullscreen)
             TraceFullscreen($"resized reason={e.Reason} event-client={e.ClientSize}");
         if (_fullscreenMaximizeRestoreClient != null)
@@ -316,6 +319,7 @@ public partial class MainWindow
 
     internal void RequestNormalWindowSize(Size requested)
     {
+        if (!_applyingStartupWindowSize) CancelStartupWindowFit();
         TraceFullscreen($"normal size requested={requested}");
         if (OperatingSystem.IsMacOS() && (_restoringFullscreen || _fullscreenMaximizeRestoreClient != null))
         {
@@ -543,7 +547,12 @@ public partial class MainWindow
         Border help = WorkspaceControl<Border>("ShellHelpOverlay");
         if (!help.IsVisible) return false;
         help.IsVisible = false;
-        if (_helpOrigin?.IsEffectivelyVisible == true) _helpOrigin.Focus();
+        if (_helpOrigin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin
+            && origin.IsAttachedToVisualTree() && ReferenceEquals(TopLevel.GetTopLevel(origin), this))
+        {
+            if (!origin.Focus()) Focus();
+        }
+        else Focus();
         _helpOrigin = null;
         return true;
     }
@@ -587,11 +596,22 @@ public partial class MainWindow
         ids.AddRange(CommandCatalog.All.Where(command => command.IsImplemented
             && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
             && command.ShortcutDisplay != null).Select(command => command.Id));
-        WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine,
-            ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _))
-                .Select(id => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-                    + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)));
-        WorkspaceControl<TextBlock>("ShellHelpText").Text += Environment.NewLine + Texts.T("viewer.help.escape");
+        WorkspaceControl<TextBlock>("ShellHelpTitle").Text = Texts.T("shortcuts.title");
+        // The command registry supplies the visible help and its scoped gestures.
+        // Keep this named text surface for the existing automation consumers.
+        string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
+            && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
+        string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
+            + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty);
+        List<string> sections = new();
+        foreach ((string label, bool shell) in new[] { ("help.scope.current", false), ("help.scope.application", true) })
+        {
+            string[] lines = effectiveIds.Where(id => CommandCatalog.Get(id).ExecutionContexts.Contains("shell") == shell)
+                .Select(HelpLine).ToArray();
+            if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
+        }
+        WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
+            + Environment.NewLine + Environment.NewLine + Texts.T("help.escape");
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         help.IsVisible = true;
         WorkspaceControl<Button>("ShellHelpClose").Focus();

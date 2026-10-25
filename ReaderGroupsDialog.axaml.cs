@@ -55,10 +55,10 @@ public partial class ReaderGroupsDialog : Window
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
         C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => new TextBlock
-            { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+            { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) });
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
             C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => new TextBlock
-                { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+                { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) });
         _router = new CommandRouter(this);
         foreach ((string action, string panel) in new[] { ("create", "GroupActions"), ("rename", "GroupActions"), ("delete", "GroupActions"),
             ("remove-member", "MemberActions"), ("move-up", "MemberActions"), ("move-down", "MemberActions"),
@@ -67,7 +67,9 @@ public partial class ReaderGroupsDialog : Window
             string id = "reader-groups." + action;
             Button button = CommandBindings.CreateButton(id, () => _ = ExecuteCommandAsync(id), () => CanExecute(id));
             button.Name = "GroupCommand_" + action.Replace('-', '_');
-            button.Margin = new Thickness(0, 0, 6, 4); _buttons[id] = button;
+            if (action == "save") button.Classes.Add("primary");
+            if (action == "delete" || action == "remove-member") button.Classes.Add("danger");
+            _buttons[id] = button;
             C<WrapPanel>(panel).Children.Add(button);
             _router.Register(new CommandRegistration(id, this, () => IsVisible && !_closed && !_confirming,
                 () => CanExecute(id), () => _ = ExecuteCommandAsync(id), Priority: 300));
@@ -123,7 +125,21 @@ public partial class ReaderGroupsDialog : Window
             _lifetime.Dispose();
         };
         _host.StateChanged += HostChanged; Texts.Changed += LanguageChanged;
-        Localize();
+        SizeChanged += (_, _) => ArrangeWorkspace();
+        Localize(); ArrangeWorkspace();
+    }
+
+    // Keep the group list beside its editor when it fits; minimum windows retain
+    // the same controls, names, draft and return offsets in a stacked workspace.
+    private void ArrangeWorkspace()
+    {
+        bool stacked = ClientSize.Width < 680;
+        Grid workspace = C<Grid>("GroupWorkspace");
+        workspace.ColumnDefinitions = new(stacked ? "*" : "220,*");
+        workspace.RowDefinitions = new(stacked ? "*,2*" : "*");
+        ScrollViewer editor = C<ScrollViewer>("GroupEditorScroll");
+        Grid.SetColumn(editor, stacked ? 0 : 1); Grid.SetRow(editor, stacked ? 1 : 0);
+        C<ListBox>("Groups").Height = double.NaN;
     }
 
     private void HostChanged() => Dispatcher.UIThread.Post(() =>
@@ -451,11 +467,13 @@ internal static class ReaderGroupsPrompt
             MinHeight = 180, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
         Button yes = new() { Content = accept }, no = new() { Content = cancel };
         yes.Click += (_, _) => prompt.Close(true); no.Click += (_, _) => prompt.Close(false);
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(no); actions.Children.Add(yes);
         Grid content = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
         content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
-        Grid.SetRow(actions, 1); content.Children.Add(actions); prompt.Content = content;
+        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
+        footer.Classes.Add("workspace-dialog-footer");
+        Grid.SetRow(footer, 1); content.Children.Add(footer); prompt.Content = content;
         prompt.Opened += (_, _) => no.Focus();
         // Fixed dialog dismissal, independent of all freely assigned application gestures.
         prompt.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; prompt.Close(false); } };

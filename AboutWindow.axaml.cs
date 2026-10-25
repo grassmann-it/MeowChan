@@ -74,6 +74,7 @@ public partial class AboutWindow : Window
         IconsText.Text = Texts.T("about.featherCredits");
         LicenseText.Text = Texts.T("about.license");
         LicenseSearchBox.PlaceholderText = Texts.T("about.licenseSearch");
+        LicenseMetadataExpander.Header = Texts.T("about.sources");
         LicenseHintText.Text = _legal.Error is null ? Texts.T("about.licenseHint") : Texts.T("about.licenseReadFailed", _legal.Error);
         CloseButton.Content = Texts.T("action.close");
         if (_failedLink != null)

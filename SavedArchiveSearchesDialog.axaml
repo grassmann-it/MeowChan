@@ -1,28 +1,44 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="360" MinHeight="330"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="10">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto,*,Auto" RowSpacing="12">
         <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />
-        <ListBox x:Name="SavedSearchList" Focusable="True" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-        <TextBlock x:Name="SavedSearchStatus" Grid.Row="2" TextWrapping="Wrap" />
-        <StackPanel x:Name="SavedSearchEditor" Grid.Row="3" Spacing="6" IsVisible="False">
-            <TextBlock x:Name="SavedSearchPrompt" TextWrapping="Wrap" />
+        <Grid x:Name="SavedSearchWorkspace" Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
+            <ListBox x:Name="SavedSearchList" Focusable="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+            <ScrollViewer x:Name="SavedSearchSelection" Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="SavedSearchSelectionName" Classes="section-title" TextWrapping="Wrap" />
+                    <TextBlock x:Name="SavedSearchSelectionDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+        <ScrollViewer Grid.Row="2" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+            <TextBlock x:Name="SavedSearchStatus" TextWrapping="Wrap" />
+        </ScrollViewer>
+        <ScrollViewer x:Name="SavedSearchEditorScroll" Grid.Row="3" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="SavedSearchEditor" Spacing="8" IsVisible="False">
+            <TextBlock x:Name="SavedSearchPrompt" Classes="section-title" TextWrapping="Wrap" />
             <TextBox x:Name="SavedSearchName" />
-            <TextBlock x:Name="SavedSearchDefinition" TextWrapping="Wrap" MaxHeight="110" />
-            <WrapPanel ItemSpacing="6" LineSpacing="6">
-                <Button x:Name="SavedSearchConfirm" />
+            <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
+                <TextBlock x:Name="SavedSearchDefinition" Classes="workspace-meta" TextWrapping="Wrap" />
+            </ScrollViewer>
+            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                <Button x:Name="SavedSearchConfirm" Classes="primary" />
                 <Button x:Name="SavedSearchCancelEdit" />
             </WrapPanel>
         </StackPanel>
-        <WrapPanel Grid.Row="4" ItemSpacing="6" LineSpacing="6">
-            <Button x:Name="SavedSearchCreate" />
-            <Button x:Name="SavedSearchApply" />
-            <Button x:Name="SavedSearchRename" />
-            <Button x:Name="SavedSearchReplace" />
-            <Button x:Name="SavedSearchDelete" />
-            <Button x:Name="SavedSearchReload" />
-            <Button x:Name="SavedSearchRecover" IsVisible="False" />
-            <Button x:Name="SavedSearchClose" />
-        </WrapPanel>
+        </ScrollViewer>
+        <Border Grid.Row="4" Classes="workspace-dialog-footer" Margin="-16,0,-16,-16">
+            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                <Button x:Name="SavedSearchCreate" />
+                <Button x:Name="SavedSearchApply" Classes="primary" />
+                <Button x:Name="SavedSearchRename" />
+                <Button x:Name="SavedSearchReplace" />
+                <Button x:Name="SavedSearchDelete" Classes="danger" />
+                <Button x:Name="SavedSearchReload" />
+                <Button x:Name="SavedSearchRecover" IsVisible="False" />
+                <Button x:Name="SavedSearchClose" />
+            </WrapPanel>
+        </Border>
     </Grid>
 </Window>

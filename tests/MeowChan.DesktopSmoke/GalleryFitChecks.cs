@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -301,11 +302,29 @@ internal static class GalleryFitChecks
     {
         viewer.Width = width; viewer.Height = height; viewer.UpdateLayout();
         Grid viewport = Control<Grid>(viewer, "GalleryViewport");
-        // Parent Bounds can update before its child layout. Initial Show must read
-        // the compact viewport, otherwise its valid retained Fit can cover growth.
-        await Program.WaitUntilAsync(() => Math.Abs(viewer.Bounds.Width - width) < 1 && Math.Abs(viewer.Bounds.Height - height) < 1
-            && viewport.Bounds.Width >= width - 9 && viewport.Bounds.Width <= width + 1
-            && Math.Abs(viewport.Bounds.Height - height) < 1);
+        Border tools = Control<Border>(viewer, "GalleryOverlayControls");
+        Border caption = Control<Border>(viewer, "GalleryOverlayInfo");
+        // Parent Bounds can update before its children. Wait for the actual
+        // media area AND the reserved footer before Show captures its Fit target.
+        await Program.WaitUntilAsync(() =>
+        {
+            if (Math.Abs(viewer.Bounds.Width - width) >= 1 || Math.Abs(viewer.Bounds.Height - height) >= 1
+                || viewport.Bounds.Width < width - 9 || viewport.Bounds.Width > width + 1
+                || viewport.Bounds.Height <= 0 || tools.Bounds.Height <= 0 || caption.Bounds.Height <= 0
+                || !tools.IsEffectivelyVisible || !caption.IsEffectivelyVisible
+                || viewport.TranslatePoint(default, viewer) is not Point mediaOrigin
+                || tools.TranslatePoint(default, viewer) is not Point toolsOrigin
+                || caption.TranslatePoint(default, viewer) is not Point captionOrigin) return false;
+            double mediaBottom = mediaOrigin.Y + viewport.Bounds.Height;
+            double toolsBottom = toolsOrigin.Y + tools.Bounds.Height;
+            double captionBottom = captionOrigin.Y + caption.Bounds.Height;
+            double footerHeight = tools.Bounds.Height + tools.Margin.Top + tools.Margin.Bottom
+                + caption.Bounds.Height + caption.Margin.Top + caption.Margin.Bottom;
+            return Math.Abs(mediaOrigin.Y) < 1 && Math.Abs(mediaBottom + tools.Margin.Top - toolsOrigin.Y) < 1
+                && Math.Abs(toolsBottom + tools.Margin.Bottom + caption.Margin.Top - captionOrigin.Y) < 1
+                && Math.Abs(captionBottom + caption.Margin.Bottom - height) < 1
+                && Math.Abs(viewport.Bounds.Height + footerHeight - height) < 1;
+        });
     }
 
     private static Task SettledAsync() => Task.Delay(350);

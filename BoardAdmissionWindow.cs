@@ -68,6 +68,7 @@ internal sealed class BoardAdmissionWindow : Window
     private readonly CancellationTokenSource _cancel = new();
     private readonly Button _apply;
     private readonly CheckBox _direct;
+    private readonly TextBlock _total = new() { Name = "BoardAdmissionTotal", FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private bool _closing;
 
     public BoardAdmissionWindow(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
@@ -77,20 +78,20 @@ internal sealed class BoardAdmissionWindow : Window
         Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var shell = new Grid { Margin = new Thickness(20), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        var intro = new StackPanel { Spacing = 7 };
-        intro.Children.Add(new TextBlock { Text = Title, FontSize = 23, FontWeight = FontWeight.SemiBold });
-        intro.Children.Add(Wrapped(Texts.T("wizard.intro")));
-        intro.Children.Add(Wrapped(Texts.T("wizard.semantics")));
+        var intro = new StackPanel { Spacing = 8 };
+        intro.Children.Add(new TextBlock { Text = Title, Classes = { "page-title" } });
+        intro.Children.Add(Help(Texts.T("wizard.intro")));
+        intro.Children.Add(new Expander { Header = Texts.T("wizard.rulesHelp"), Content = Help(Texts.T("wizard.semantics")) });
         shell.Children.Add(intro);
         var tabs = new TabControl { Name = "BoardAdmissionTabs" };
         var items = new List<TabItem>();
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
         {
-            var rulePanel = new StackPanel { Spacing = 6 };
-            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 16, IsVisible = false };
-            var matches = Wrapped(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
+            var rulePanel = new StackPanel { Spacing = 8 };
+            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+            var matches = Help(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
             var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
-            var status = Wrapped(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
+            var status = Help(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
             var list = new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 };
             var retry = new Button { Name = "BoardAdmissionRetry", Content = Texts.T("wizard.retry"), IsVisible = false };
             var draft = new Draft { Url = url, Initial = readPolicy(url), RulePanel = rulePanel, Summary = summary,
@@ -98,32 +99,37 @@ internal sealed class BoardAdmissionWindow : Window
             reinclude.Click += (_, _) => ReincludeMatches(draft);
             draft.Exceptions = new(draft.Initial.Exceptions, StringComparer.Ordinal);
             _drafts.Add(draft);
-            var header = new StackPanel { Spacing = 7 };
-            header.Children.Add(Wrapped(url));
+            var header = new StackPanel { Spacing = 8 };
+            header.Children.Add(new SelectableTextBlock { Text = url, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap });
+            header.Children.Add(new TextBlock { Text = Texts.T("wizard.rulesTitle"), Classes = { "section-title" } });
             var add = new Button { Name = "BoardAdmissionAddRule", Content = Texts.T("wizard.ruleAdd") };
             add.Click += (_, _) => AddRule(draft, new(ThreadTextField.TitleAndOpeningPost, ThreadTextAction.Exclude, string.Empty));
             var clear = new Button { Name = "BoardAdmissionClearTextRules", Content = Texts.T("wizard.clearTextRules") };
             AutomationProperties.SetName(clear, Texts.T("wizard.clearTextRules"));
             AutomationProperties.SetHelpText(clear, Texts.T("wizard.clearTextRulesHint"));
             clear.Click += (_, _) => ClearTextRules(draft);
-            var ruleActions = new WrapPanel { Orientation = Orientation.Horizontal };
-            add.Margin = new Thickness(0, 0, 8, 6); clear.Margin = new Thickness(0, 0, 0, 6);
+            var ruleActions = new WrapPanel { Orientation = Orientation.Horizontal, Classes = { "workspace-toolbar" } };
             ruleActions.Children.Add(add); ruleActions.Children.Add(clear);
             header.Children.Add(ruleActions);
-            header.Children.Add(Wrapped(Texts.T("wizard.clearTextRulesHint")));
+            header.Children.Add(Help(Texts.T("wizard.clearTextRulesHint")));
             header.Children.Add(new ScrollViewer { Content = rulePanel, MaxHeight = 180 });
-            header.Children.Add(summary); header.Children.Add(matches); header.Children.Add(reinclude); header.Children.Add(status);
+            var previewHeader = new StackPanel { Spacing = 8 };
+            previewHeader.Children.Add(new TextBlock { Text = Texts.T("wizard.previewTitle"), Classes = { "section-title" } });
+            previewHeader.Children.Add(status); previewHeader.Children.Add(summary); previewHeader.Children.Add(matches); previewHeader.Children.Add(reinclude);
             retry.Click += async (_, _) => await LoadAsync(draft);
-            header.Children.Add(retry);
-            var content = new StackPanel { Spacing = 8 };
-            content.Children.Add(header); content.Children.Add(list);
+            previewHeader.Children.Add(retry);
+            var previewPanel = new StackPanel { Spacing = 8 };
+            previewPanel.Children.Add(previewHeader); previewPanel.Children.Add(list);
+            var content = new StackPanel { Spacing = 16, Margin = new Thickness(0, 12, 0, 0) };
+            content.Children.Add(header); content.Children.Add(previewPanel);
             items.Add(new TabItem { Header = new Uri(url).Host + new Uri(url).AbsolutePath,
                 Content = new ScrollViewer { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
             foreach (var rule in draft.Initial.Rules) AddRule(draft, rule);
         }
         tabs.ItemsSource = items; Grid.SetRow(tabs, 1); shell.Children.Add(tabs);
-        var footer = new StackPanel { Spacing = 7 };
-        footer.Children.Add(Wrapped(Texts.T("wizard.applyHint")));
+        var footer = new StackPanel { Spacing = 8 };
+        footer.Children.Add(_total);
+        footer.Children.Add(Help(Texts.T("wizard.applyHint")));
         _direct = new CheckBox { Name = "BoardAdmissionDirectFuture", Content = Wrapped(Texts.T("wizard.directFuture")), IsChecked = !showWizard };
         AutomationProperties.SetName(_direct, Texts.T("wizard.directFuture"));
         footer.Children.Add(_direct);
@@ -147,14 +153,15 @@ internal sealed class BoardAdmissionWindow : Window
         Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
     }
     private static TextBlock Wrapped(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock Help(string text) => new() { Text = text, Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private static FuncDataTemplate<PreviewRow> MakeTemplate() => new((row, _) =>
     {
         if (row == null) return new TextBlock();
-        var panel = new StackPanel { Spacing = 3, Margin = new Thickness(3, 6), DataContext = row };
+        var panel = new StackPanel { Spacing = 8, Margin = new Thickness(4, 8), DataContext = row };
         var include = new CheckBox { Name = "BoardAdmissionInclude", Content = Wrapped(row.Title) };
         AutomationProperties.SetName(include, row.Title);
         include.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(PreviewRow.Included)) { Mode = BindingMode.TwoWay });
-        var reason = Wrapped(row.Reason);
+        var reason = Help(row.Reason);
         reason.Bind(TextBlock.TextProperty, new Binding(nameof(PreviewRow.Reason)));
         var decision = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         reason.VerticalAlignment = VerticalAlignment.Center;
@@ -188,7 +195,7 @@ internal sealed class BoardAdmissionWindow : Window
         AutomationProperties.SetName(action, Texts.T("wizard.ruleAction"));
         AutomationProperties.SetName(text, Texts.T("wizard.ruleText"));
         var remove = new Button { Name = "BoardAdmissionRemoveRule", Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 6 };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 8 };
         grid.Children.Add(field); Grid.SetColumn(action, 1); grid.Children.Add(action); Grid.SetColumn(text, 2); grid.Children.Add(text); Grid.SetColumn(remove, 3); grid.Children.Add(remove);
         var editor = new RuleEditor(field, action, text, grid); draft.Editors.Add(editor); draft.RulePanel.Children.Add(grid);
         field.SelectionChanged += (_, _) => Refresh(draft); action.SelectionChanged += (_, _) => Refresh(draft);
@@ -210,6 +217,13 @@ internal sealed class BoardAdmissionWindow : Window
     private void Refresh(Draft draft)
     {
         bool valid = RulesValid(draft);
+        foreach (RuleEditor editor in draft.Editors)
+        {
+            bool invalid = string.IsNullOrWhiteSpace(editor.Text.Text);
+            editor.Text.Classes.Set("workspace-invalid", invalid);
+            AutomationProperties.SetHelpText(editor.Text, invalid ? Texts.T("wizard.invalid") : string.Empty);
+        }
+        draft.Summary.Classes.Set("workspace-error", !valid);
         draft.Summary.IsVisible = !valid || draft.Loaded;
         draft.Matches.IsVisible = valid && draft.Loaded;
         draft.Reinclude.IsVisible = valid && draft.Loaded;
@@ -239,7 +253,18 @@ internal sealed class BoardAdmissionWindow : Window
             if (draft.List.ItemsSource is not IEnumerable<PreviewRow> current || !current.SequenceEqual(ordered))
                 draft.List.ItemsSource = ordered;
         }
-        _apply.IsEnabled = CanApply;
+        RefreshTotal();
+    }
+    private void RefreshTotal()
+    {
+        bool ready = CanApply;
+        _apply.IsEnabled = ready;
+        int loaded = _drafts.Count(draft => draft.Loaded);
+        int invalid = _drafts.Count(draft => !RulesValid(draft));
+        _total.Text = ready
+            ? Texts.T("wizard.batchSummary", loaded, _drafts.Count, _drafts.Sum(draft => draft.Rows.Count(row => row.Included)))
+            : Texts.T("wizard.batchPending", loaded, _drafts.Count, invalid);
+        AutomationProperties.SetHelpText(_apply, ready ? Texts.T("wizard.applyHint") : _total.Text + " " + Texts.T("wizard.applyHint"));
     }
     private static bool PreviouslyExcluded(Draft draft, PreviewRow row) =>
         row.Thread.Suppressed && !draft.Reactivated.Contains(row.Thread.Url)
@@ -260,7 +285,9 @@ internal sealed class BoardAdmissionWindow : Window
     {
         if (draft.Loading || _closing) return;
         draft.Loading = true;
-        draft.Loaded = false; draft.Status.Text = Texts.T("wizard.loading"); _apply.IsEnabled = false;
+        draft.Loaded = false; draft.Status.Text = Texts.T("wizard.loading");
+        draft.Status.Classes.Set("workspace-error", false);
+        Refresh(draft);
         draft.Retry.IsEnabled = false; draft.List.IsEnabled = false;
         try
         {
@@ -273,14 +300,20 @@ internal sealed class BoardAdmissionWindow : Window
                 Reset = () => { draft.Exceptions.Remove(thread.Url); draft.Reactivated.Remove(thread.Url); Refresh(draft); }
             }).ToList();
             draft.List.ItemsSource = draft.Rows;
-            draft.Loaded = true; draft.Status.Text = draft.Rows.Count == 0 ? Texts.T("wizard.empty") : string.Empty;
+            draft.Loaded = true; draft.Status.Text = draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.loaded", draft.Rows.Count);
             draft.Retry.IsVisible = false; draft.List.IsEnabled = true;
             Refresh(draft);
         }
         catch (OperationCanceledException) when (_cancel.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (!_closing) { draft.Status.Text = Texts.T("wizard.failed", exception.Message); draft.Retry.IsVisible = true; }
+            if (!_closing)
+            {
+                draft.Status.Text = Texts.T("wizard.failed", exception.Message);
+                draft.Status.Classes.Set("workspace-error", true);
+                draft.Retry.IsVisible = true;
+                RefreshTotal();
+            }
         }
         finally { draft.Loading = false; draft.Retry.IsEnabled = true; }
     }

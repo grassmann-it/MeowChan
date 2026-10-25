@@ -69,7 +69,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory,
             Path.Combine(profileDirectory, "plugin-cache")));
         Inventory = new PluginInstallationInventory();
-        ProfileStore = new PluginProfileStore(profileDirectory);
+        ProfileStore = new PluginProfileStore(profileDirectory, ExperimentalSourceActivationPolicy.InitiallyEnabled);
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,

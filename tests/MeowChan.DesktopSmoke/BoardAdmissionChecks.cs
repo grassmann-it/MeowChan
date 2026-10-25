@@ -72,12 +72,27 @@ internal static class BoardAdmissionChecks
         await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionApply" && button.IsEnabled));
         TextBlock Matches() => modal.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "BoardAdmissionMatches");
         await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 2));
-        await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<CheckBox>().Count(check => check.Name == "BoardAdmissionInclude") >= 2);
-        CheckBox[] rows = modal.GetVisualDescendants().OfType<CheckBox>().Where(check => check.Name == "BoardAdmissionInclude").ToArray();
-        if (rows.Length < 2 || rows.Take(2).Any(check => check.Content is not TextBlock text || !text.Text!.Contains("/dpt/")))
-            throw new InvalidOperationException("Matching removed threads were hidden behind unrelated catalog entries.");
-        rows[0].IsChecked = true;
+        ListBox preview = modal.GetVisualDescendants().OfType<ListBox>().Single(control => control.Name == "BoardAdmissionPreview");
+        object[] removed = UdBoardVirtualizedRows.ExactRemovedTargets(preview, board);
+        await UdBoardVirtualizedRows.RealizeAsync(modal, preview, removed[0], "initial-excluded");
+        await UdBoardVirtualizedRows.RealizeAsync(modal, preview, removed[1], "initial-excluded");
+        CheckBox first = await UdBoardVirtualizedRows.RealizeAsync(modal, preview, removed[0], "before-include");
+        UdBoardVirtualizedRows.PointerClick(modal, first, removed[0]);
         await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 1));
+        if (first.IsChecked != true || !UdBoardVirtualizedRows.Included(removed[0]) || UdBoardVirtualizedRows.Included(removed[1]) || !first.IsFocused)
+            throw new InvalidOperationException("Exact row2 click did not include only row2 and retain checkbox focus.");
+        UdBoardVirtualizedRows.Trace(modal, preview, removed[0], first, "after-include");
+        CheckBox second = await UdBoardVirtualizedRows.RealizeAsync(modal, preview, removed[1], "before-include");
+        UdBoardVirtualizedRows.PointerClick(modal, second, removed[1]);
+        await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 0)
+            && UdBoardVirtualizedRows.Included(removed[0]) && UdBoardVirtualizedRows.Included(removed[1]) && second.IsChecked == true && second.IsFocused);
+        UdBoardVirtualizedRows.Trace(modal, preview, removed[1], second, "after-include");
+        // Restore only row3's excluded state to retain the original separate bulk-reinclude contract.
+        second = await UdBoardVirtualizedRows.RealizeAsync(modal, preview, removed[1], "before-restoring-bulk-precondition");
+        UdBoardVirtualizedRows.PointerClick(modal, second, removed[1]);
+        await Program.WaitUntilAsync(() => Matches().Text == Texts.T("wizard.matches", 2, 1)
+            && UdBoardVirtualizedRows.Included(removed[0]) && !UdBoardVirtualizedRows.Included(removed[1]) && second.IsChecked == false && second.IsFocused);
+        UdBoardVirtualizedRows.Trace(modal, preview, removed[1], second, "restored-original-bulk-precondition");
         Button reinclude = modal.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BoardAdmissionReinclude");
         if (!reinclude.IsEnabled) throw new InvalidOperationException("Matching excluded threads cannot be reactivated together.");
         Click(reinclude);
@@ -87,6 +102,9 @@ internal static class BoardAdmissionChecks
         var accepted = await result ?? throw new InvalidOperationException("Explicit reactivation was not accepted.");
         if (accepted.Reactivations == null || accepted.Reactivations[board].Length != 2)
             throw new InvalidOperationException("Matching removed thread did not retain its explicit reactivation.");
+        if (!accepted.Reactivations[board].OrderBy(url => url, StringComparer.Ordinal)
+            .SequenceEqual(new[] { board + "thread/2", board + "thread/3" }))
+            throw new InvalidOperationException("Bulk acceptance did not retain exactly the two clicked row identities2/3.");
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }

@@ -51,10 +51,18 @@ public partial class ArchivePage
     private void EnsureExportDialog()
     {
         if (_exportCard != null) return;
-        StackPanel content = new() { Spacing = 8 };
-        content.Children.Add(ExportName(new TextBlock { FontSize = 19, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportTitle"));
-        content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportSummary"));
-        content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportHint"));
+        StackPanel content = new() { Spacing = 12 };
+        TextBlock title = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportTitle");
+        title.Classes.Add("page-title");
+        TextBlock compactScope = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportScopeCompact");
+        compactScope.Classes.Add("section-title");
+        TextBlock summary = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportSummary");
+        summary.Classes.Add("workspace-meta");
+        content.Children.Add(ExportName(new Expander { Content = summary, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportScopeDetails"));
+        TextBlock hint = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportHint");
+        hint.Classes.Add("workspace-help"); content.Children.Add(hint);
+        TextBlock targetLabel = ExportName(new TextBlock(), "ArchiveExportTargetLabel");
+        targetLabel.Classes.Add("section-title"); content.Children.Add(targetLabel);
         content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportHistoryLabel"));
         ComboBox previous = ExportName(new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportHistory");
         previous.SelectionChanged += (_, _) => UpdateExportMode();
@@ -77,31 +85,45 @@ public partial class ArchivePage
         content.Children.Add(ExportName(new Expander { Content = legacyContent, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportLegacySection"));
         content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportBackupHint"));
         CheckBox backup = ExportName(new CheckBox(), "ArchiveExportBackup"); content.Children.Add(backup);
-        content.Children.Add(ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination"));
+        TextBox destination = ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination");
+        Avalonia.Automation.AutomationProperties.SetLabeledBy(destination, targetLabel); content.Children.Add(destination);
         Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
+        TextBlock optionsLabel = ExportName(new TextBlock(), "ArchiveExportOptionsLabel");
+        optionsLabel.Classes.Add("section-title"); content.Children.Add(optionsLabel);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
-        StackPanel statusLine = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        Grid statusLine = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
         statusLine.Children.Add(ExportName(new Ursa.Controls.LoadingIcon { Width = 16, Height = 16, IsVisible = false, Focusable = false }, "ArchiveExportLoading"));
         TextBlock status = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportStatus");
         Avalonia.Automation.AutomationProperties.SetLiveSetting(status, Avalonia.Automation.AutomationLiveSetting.Polite);
-        statusLine.Children.Add(status); content.Children.Add(statusLine);
+        statusLine.Children.Add(status); Grid.SetColumn(status, 1);
         TextBlock error = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportError");
-        error.Classes.Add("error");
+        error.Classes.Add("workspace-error");
         Avalonia.Automation.AutomationProperties.SetLiveSetting(error, Avalonia.Automation.AutomationLiveSetting.Assertive);
-        content.Children.Add(ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
+        Ursa.Controls.Banner errorBanner = ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
             CanClose = false, IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner"));
+            Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
         Grid body = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 10 };
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
-        body.Children.Add(fixedScope);
+        StackPanel header = new() { Spacing = 8 };
+        header.Children.Add(title); header.Children.Add(compactScope); header.Children.Add(fixedScope);
+        body.Children.Add(header);
         ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Grid.SetRow(scroll, 1); body.Children.Add(scroll);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;
-        actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start); Grid.SetRow(actions, 2); body.Children.Add(actions);
-        _exportCard = new Border { Child = body, MaxWidth = 680, Padding = new Thickness(16), Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
+        close.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
+        actions.Children.Add(close); actions.Children.Add(open); actions.Children.Add(start);
+        StackPanel outcome = new() { Spacing = 8 };
+        outcome.Children.Add(statusLine); outcome.Children.Add(errorBanner);
+        StackPanel footerContent = new() { Spacing = 12 };
+        footerContent.Children.Add(new ScrollViewer { Content = outcome, MaxHeight = 140, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        footerContent.Children.Add(actions);
+        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
+        Grid.SetRow(footer, 2); body.Children.Add(footer);
+        header.Margin = new Thickness(16, 16, 16, 0); scroll.Margin = new Thickness(16, 0);
+        _exportCard = new Border { Child = body, MaxWidth = 680, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         NameScope.SetNameScope(_exportCard, _exportNames);
         _exportNames.Complete();
         _exportCard.Classes.Add("panel");
@@ -142,6 +164,9 @@ public partial class ArchivePage
     {
         if (_exportCard == null) return;
         UpdateExportSummary();
+        Control<TextBlock>("ArchiveExportTargetLabel").Text = Texts.T("export.target");
+        Control<TextBlock>("ArchiveExportOptionsLabel").Text = Texts.T("export.options");
+        Control<Expander>("ArchiveExportScopeDetails").Header = Texts.T("export.scopeDetails");
         Control<TextBlock>("ArchiveExportTitle").Text = Texts.T(_exportAllResults ? "export.resultsTitle" : "archive.export");
         Control<TextBlock>("ArchiveExportHint").Text = Texts.T(_exportAllResults ? "export.resultsHint" : IsCollectionExport ? "export.collectionHint" : "export.hint");
         Control<TextBlock>("ArchiveExportHistoryLabel").Text = Texts.T(IsCollectionExport ? "export.collectionKnown" : "export.known");

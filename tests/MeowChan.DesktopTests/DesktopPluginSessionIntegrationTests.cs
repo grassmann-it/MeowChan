@@ -23,6 +23,61 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     private const string FilterId = "meowchan.example.image-dimensions";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(45);
 
+    [Theory]
+    [InlineData("meowchan.source.kohlchan", "kohlchan", true)]
+    [InlineData("meowchan.source.wizchan", "wizchan", true)]
+    [InlineData("meowchan.source.endchan", "endchan", true)]
+    [InlineData("meowchan.source.4chan", "4chan", false)]
+    [InlineData("meowchan.source.8kun", "8kun", false)]
+    [InlineData("meowchan.source.lainchan", "lainchan", false)]
+    [InlineData("test.experimental", "kohlchan", false)]
+    [InlineData("MEOWCHAN.SOURCE.KOHLCHAN", "kohlchan", false)]
+    public void ExperimentalActivationPolicyUsesOnlyExactHostOwnedIdentities(string pluginId, string sourceId, bool eligible)
+    {
+        Assert.Equal(eligible, ExperimentalSourceActivationPolicy.IsDisabledByDefault(pluginId));
+        Assert.Equal(!eligible, ExperimentalSourceActivationPolicy.InitiallyEnabled(pluginId));
+        Assert.Equal(eligible, ExperimentalSourceActivationPolicy.IsEligible(pluginId, sourceId));
+        Assert.False(ExperimentalSourceActivationPolicy.IsEligible(pluginId, "other-source"));
+        Assert.False(ExperimentalSourceActivationPolicy.IsEligible(pluginId, sourceId.ToUpperInvariant()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FreshPluginIdentitiesRemainDisabledAndLocallyRoutableAcrossRestartWithoutChangingConsent(bool savedConsent)
+    {
+        using TempDirectory profile = new();
+        Configure(profile.Path);
+        SourceMediaIntegrityPermission? permission = savedConsent ? new("meowchan.source.kohlchan", "kohlchan", true, 7) : null;
+        if (permission is not null)
+        {
+            Config config = Config.LoadConfig(profile.Path);
+            config.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)] = permission;
+            config.SaveConfig(profile.Path);
+        }
+        for (int restart = 0; restart < 2; restart++)
+        {
+            using DesktopPluginFixtures fixture = new() { RejectAll = true };
+            DesktopSessionHost host = Create(profile.Path, fixture);
+            try
+            {
+                PluginProfileSnapshot state = await StartAndInspectPayloadAsync(host, fixture);
+                Assert.Empty(state.Grants);
+                if (permission is null) Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
+                else Assert.Equal(permission, Assert.Single(host.Config.SourceMediaIntegrityPermissions).Value);
+                Assert.All(host.GetSourceMediaIntegrityPolicies(), policy =>
+                    Assert.Equal(savedConsent && policy.Snapshot.PluginOwnerId == "meowchan.source.kohlchan"
+                        && policy.Snapshot.SourceId == "kohlchan", policy.IsGranted));
+                Assert.All(host.Plugins!.Sources.Where(source => source.Name is "kohlchan" or "wizchan" or "endchan"),
+                    source => Assert.False(source.Enabled));
+                Assert.Empty(fixture.Requests);
+                Assert.Equal(0, fixture.Unexpected);
+                Assert.Empty(host.Plugins.Runtime.GetSnapshots());
+            }
+            finally { await StopAndVerifyAsync(host); }
+        }
+    }
+
     [Fact]
     public async Task DeliveredSourcesAndFilterUseTheRealDesktopSessionThenRestoreTwiceOffline()
     {
@@ -33,7 +88,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Dictionary<string, string> revisions;
         try
         {
-            PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(host);
+            PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(host, fixture);
+            installed = await EnableFixtureSourcesAsync(host, installed);
             revisions = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);
             foreach (string source in DesktopPluginFixtures.Sources)
                 installed = await host.Plugins!.ProfileStore.SetGrantAsync(FilterId, "dimensions", new(source, "demo"),
@@ -80,7 +136,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
             DesktopSessionHost restored = Create(profile.Path, offline);
             try
             {
-                PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(restored);
+                PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(restored, offline, kohlchanEnabled: true);
                 Assert.True(restored.IsPaused);
                 Assert.Equal(2, installed.Grants.Count);
                 Assert.All(installed.Plugins, plugin => Assert.Equal(revisions[plugin.PluginId], plugin.Active!.ExecutionRevision));
@@ -110,7 +166,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         DesktopSessionHost host = Create(profile.Path, fixture);
         try
         {
-            await StartAndInspectPayloadAsync(host);
+            PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(host, fixture);
+            await EnableFixtureSourcesAsync(host, installed);
             await host.SetPausedAsync(false);
             foreach (string source in DesktopPluginFixtures.Sources)
             {
@@ -139,7 +196,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         DesktopSessionHost host = Create(profile.Path, fixture);
         try
         {
-            await StartAndInspectPayloadAsync(host);
+            await StartAndInspectPayloadAsync(host, fixture);
             await host.SetPausedAsync(false);
             Assert.Equal(AdmissionStatus.Added, (await host.AddAsync(DesktopPluginFixtures.ThreadUrl("lainchan"))).Status);
             await fixture.MetadataStarted.Task.WaitAsync(Deadline);
@@ -163,7 +220,22 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         updateSessionFactory: (path, config) => new UpdateSession(path, config, fixture.Client(), disableEnvironment: () => "1"),
         pluginTransportFactory: fixture.Client);
 
-    private async Task<PluginProfileSnapshot> StartAndInspectPayloadAsync(DesktopSessionHost host)
+    private static async Task<PluginProfileSnapshot> EnableFixtureSourcesAsync(DesktopSessionHost host, PluginProfileSnapshot state)
+    {
+        // Exercise the ordinary strict enable path; fixture acquisition grants no source-integrity exception.
+        foreach (string source in DesktopPluginFixtures.Sources)
+        {
+            string pluginId = "meowchan.source." + source;
+            if (!state.Plugins.Single(plugin => plugin.PluginId == pluginId).Enabled)
+                state = await host.Plugins!.ProfileStore.SetEnabledAsync(pluginId, true, state.Revision);
+        }
+        Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
+        Assert.All(host.GetSourceMediaIntegrityPolicies(), policy => Assert.False(policy.IsGranted));
+        return state;
+    }
+
+    private async Task<PluginProfileSnapshot> StartAndInspectPayloadAsync(DesktopSessionHost host, DesktopPluginFixtures fixture,
+        bool kohlchanEnabled = false)
     {
         string app = AppContext.BaseDirectory;
         string suffix = OperatingSystem.IsWindows() ? ".exe" : "";
@@ -186,11 +258,15 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(host.Plugins.Warnings);
         Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
         AssertNewSourceRouting(host);
+        Assert.Empty(fixture.Requests);
+        Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
         Assert.Equal(7, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
-            Assert.True(plugin.Enabled);
+            bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)
+                || (kohlchanEnabled && plugin.PluginId == "meowchan.source.kohlchan");
+            Assert.Equal(expectedEnabled, plugin.Enabled);
             Assert.NotNull(plugin.Active);
             Assert.Null(plugin.Problem);
             PluginCandidateSnapshot candidate = Assert.Single(plugin.Candidates);
@@ -201,6 +277,21 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
             Assert.Equal(expectedHash, plugin.Active.Artifact.AssemblySha256, ignoreCase: true);
             Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(plugin.Active.Artifact.AssemblyPath))), ignoreCase: true);
         }
+        foreach (var source in host.Plugins.Sources)
+        {
+            // Delivered source IDs and plugin owner IDs are distinct identities.
+            string owner = source.Name switch
+            {
+                "4chan" => "meowchan.official.4chan",
+                "8kun" => "meowchan.official.8kun",
+                "lainchan" => "meowchan.source.lainchan",
+                "kohlchan" => "meowchan.source.kohlchan",
+                "wizchan" => "meowchan.source.wizchan",
+                "endchan" => "meowchan.source.endchan",
+                _ => throw new InvalidOperationException("Unexpected delivered source: " + source.Name)
+            };
+            Assert.Equal(profile.Plugins.Single(plugin => plugin.PluginId == owner).Enabled, source.Enabled);
+        }
         return profile;
     }
 
@@ -210,6 +301,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         // Routing itself remains passive and must not need metadata or a production worker.
         foreach (var route in new[]
         {
+            (Source: "kohlchan", Input: "https://kohlchan.net/demo/", Kind: SourceResourceKind.Board, Canonical: "https://kohlchan.net/demo/"),
+            (Source: "kohlchan", Input: "https://kohlchan.net/demo/res/123.html", Kind: SourceResourceKind.Thread, Canonical: "https://kohlchan.net/demo/res/123.html"),
             (Source: "wizchan", Input: "https://wizchan.org/demo/", Kind: SourceResourceKind.Board, Canonical: "https://wizchan.org/demo/"),
             (Source: "wizchan", Input: "https://wizchan.org/demo/index.html", Kind: SourceResourceKind.Board, Canonical: "https://wizchan.org/demo/"),
             (Source: "wizchan", Input: "https://wizchan.org/demo/res/123.html#p124", Kind: SourceResourceKind.Thread, Canonical: "https://wizchan.org/demo/res/123.html"),

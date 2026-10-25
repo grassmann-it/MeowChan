@@ -150,11 +150,16 @@ public partial class MainWindow
                 {
                     _normalWorkspaceInspectorVisible = _workspaceInspectorVisible;
                     _normalWorkspaceNarrowInspectorVisible = _workspaceNarrowInspectorVisible;
-                    _normalWorkspaceWidth = double.IsFinite(Width) ? Width : 1380;
-                    _normalWorkspaceHeight = double.IsFinite(Height) ? Height : 850;
-                    _normalWorkspaceState = WindowState;
-                    WindowState = WindowState.Normal;
-                    SetWorkspaceWindowSize(850, 530);
+                    // Initial mode selects presentation only. Persisted geometry is
+                    // already installed before the first native window is opened.
+                    if (_appliedWorkspaceMode != null)
+                    {
+                        _normalWorkspaceWidth = double.IsFinite(Width) ? Width : 1380;
+                        _normalWorkspaceHeight = double.IsFinite(Height) ? Height : 850;
+                        _normalWorkspaceState = WindowState;
+                        WindowState = WindowState.Normal;
+                        SetWorkspaceWindowSize(850, 530);
+                    }
                     _workspaceInspectorVisible = false;
                     _workspaceNarrowInspectorVisible = false;
                 }
@@ -232,7 +237,7 @@ public partial class MainWindow
             }
             }
             finally { _applyingColumnProfile = false; }
-            double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
+            double rowHeight = barebones || _config.CompactDensity ? WorkspaceMetrics.CompactRowHeight : WorkspaceMetrics.NormalRowHeight;
             threads.RowHeight = rowHeight;
             WorkspaceControl<DataGrid>("BoardsDataGrid").RowHeight = rowHeight;
             LocalizeWorkspace();
@@ -396,6 +401,7 @@ public partial class MainWindow
         string url;
         string directory;
         string error;
+        string context = string.Empty;
         if (selected is ThreadRow thread)
         {
             title = string.IsNullOrWhiteSpace(thread.Title) ? "#" + thread.ThreadId : thread.Title;
@@ -403,7 +409,8 @@ public partial class MainWindow
             status = thread.Status;
             url = thread.Url;
             directory = thread.DownloadDirectory;
-            error = thread.ErrorDetails;
+            error = thread.IssueDetails;
+            context = thread.ContextDetails;
             WorkspaceControl<SelectableTextBlock>("InspectorProgress").Text = thread.Progress;
             WorkspaceControl<ProgressBar>("InspectorProgressBar").Value = thread.Completion;
             AutomationProperties.SetName(WorkspaceControl<ProgressBar>("InspectorProgressBar"), thread.Progress);
@@ -427,6 +434,9 @@ public partial class MainWindow
         WorkspaceControl<SelectableTextBlock>("InspectorUrl").Text = url;
         WorkspaceControl<SelectableTextBlock>("InspectorDirectory").Text = directory;
         WorkspaceControl<StackPanel>("InspectorMediaSection").IsVisible = isThread;
+        SelectableTextBlock workContext = WorkspaceControl<SelectableTextBlock>("InspectorContext");
+        workContext.Text = context;
+        workContext.IsVisible = !string.IsNullOrWhiteSpace(context);
         SelectableTextBlock errors = WorkspaceControl<SelectableTextBlock>("InspectorError");
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
         errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));

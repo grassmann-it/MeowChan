@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MeowChan.Archive;
 using MeowChan.Favorites;
+using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Ratings;
@@ -37,7 +38,6 @@ internal static class MediaRatingFixture
     {
         string directory = MediaDirectory(profile); Directory.CreateDirectory(directory);
         Dictionary<string, object> current = new(), assets = new();
-        Dictionary<int, string> md5s = new();
         foreach (Spec spec in Specs)
         {
             using SKBitmap bitmap = new(120, 80);
@@ -47,9 +47,9 @@ internal static class MediaRatingFixture
             byte[] bytes = png.ToArray();
             string hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             string filename = $"rating-{spec.Index:D2}.png", requested = spec.Media + ".png";
-            md5s[spec.Index] = Convert.ToBase64String(MD5.HashData(bytes));
+            string md5 = Convert.ToBase64String(MD5.HashData(bytes));
             var entry = new { MediaIdentifier = spec.Media, spec.Variant, SourceUrl = "https://offline.invalid/" + filename,
-                FileName = filename, OriginalFileName = filename, Length = bytes.Length, Sha256 = hash, Md5 = md5s[spec.Index] };
+                FileName = filename, OriginalFileName = filename, Length = bytes.Length, Sha256 = hash, Md5 = md5 };
             string identity = JsonSerializer.Serialize(new[] { requested, spec.Media, filename, hash });
             string assetId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
             assets[assetId] = new { RequestedFileName = requested, Entry = entry }; current[requested] = entry;
@@ -68,14 +68,63 @@ internal static class MediaRatingFixture
                 Attachments: group.GroupBy(item => item.spec.Media).Select((media, position) =>
                 {
                     Spec spec = media.OrderByDescending(item => item.spec.Index).First().spec;
-                    return new CapturedAttachment(position, spec.Media, spec.Variant, OriginalFileName: $"rating-{spec.Index:D2}.png",
-                        ExpectedMd5: md5s[spec.Index]);
+                    MediaAssetReference asset = manifest.GetPage(0, 100).Single(item => item.OriginalFileName == $"rating-{spec.Index:D2}.png");
+                    return new CapturedAttachment(position, spec.Media, spec.Variant, asset.SourceUrl, asset.OriginalFileName,
+                        ExpectedSize: asset.Length, ExpectedMd5: asset.Md5) { ExpectedSha256 = asset.Sha256 };
                 }).ToArray())).ToArray();
+        bool lateError = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1";
+        ResourceId[] targets = lateError ? new[] { Thread, OtherThread } : new[] { Thread };
+        // Capture stamps exact host revision keys. Give each post observation its own
+        // strict receipt, including the two distinct posts referring to the m2 bytes.
+        Dictionary<string, MediaAttachmentBinding> bindings = new();
+        foreach (ResourceId target in targets)
+        foreach (CapturedPost post in posts)
+        foreach (CapturedAttachment attachment in post.Attachments!)
+        {
+            MediaAssetReference asset = manifest.GetPage(0, 100).Single(item => item.OriginalFileName == attachment.OriginalFileName);
+            MediaProviderMetadata provider = new(attachment.MediaId!, attachment.Variant, attachment.Url!, attachment.OriginalFileName,
+                attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256);
+            MediaActualIntegrity actual = new(asset.Length, asset.Md5, asset.Sha256);
+            if (!ProviderIntegrityAssessment.Assess(provider, actual).IsStrictMatch)
+                throw new InvalidOperationException("Rating fixture provider metadata must match its generated PNG: " + post.PostId);
+            string revision = MediaRevisionKeys.CreateAttachmentKey(target, post.PostId, attachment.Position, provider);
+            bindings.Add(revision, new(new(target, post.PostId, attachment.Position, revision),
+                MediaRevisionKeys.CreateAcquisitionKey(target, provider), asset.AssetId, provider, actual,
+                new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UnixEpoch)));
+        }
+        await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"),
+            JsonSerializer.Serialize(new { Version = 3, Entries = current, Assets = assets, AttachmentBindings = bindings }));
+        manifest = await MediaAssetReader.OpenAsync(directory);
+        if (manifest.Status != MediaManifestStatus.Available || manifest.Count != 20)
+            throw new InvalidOperationException("Strict rating fixture must preserve all 20 manifest versions.");
         await catalog.CaptureAsync(new(Thread, "https://offline.invalid/b/thread/42", "URSA16 rating comparison",
             ThreadSourceState.Archived, new DateTimeOffset(2026, 10, 23, 12, 0, 0, TimeSpan.Zero), directory, posts));
-        if (Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_LATE_ERROR_ONLY") == "1")
+        if (lateError)
             await catalog.CaptureAsync(new(OtherThread, "https://offline.invalid/c/thread/99", "Other source for late rating error",
                 ThreadSourceState.Archived, new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero), directory, posts));
+        await using (ArchiveReader reader = await ArchiveReader.OpenAsync(profile))
+        foreach (ResourceId target in targets)
+        {
+            ArchivedThreadView observed = await reader.ReadThreadAsync(target)
+                ?? throw new InvalidOperationException("Rating fixture capture was not readable: " + target);
+            if (observed.PostCount != posts.Length)
+                throw new InvalidOperationException("Rating fixture lost captured posts.");
+            foreach (CapturedPost post in observed.GetPosts())
+            foreach (CapturedAttachment attachment in post.Attachments!)
+            {
+                ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifest, target, post.PostId, attachment);
+                MediaAssetReference expected = manifest.GetPage(0, 100).Single(item => item.OriginalFileName == attachment.OriginalFileName);
+                if (attachment.AttachmentRevisionKey == null || resolved is not { IsLegacy: false }
+                    || resolved.Binding?.Acceptance.Kind != MediaAcceptanceKind.Strict || resolved.Asset.AssetId != expected.AssetId)
+                    throw new InvalidOperationException("Rating fixture lost exact strict binding after Capture/SQL reload: " + post.PostId);
+            }
+            GalleryEntry[] shared = GallerySelection.Build(observed, new[] { manifest }, true, true).Entries
+                .Where(entry => entry.Asset.MediaIdentifier == "m2").ToArray();
+            if (shared.Length != 2 || shared.Any(entry => entry.Unassigned)
+                || !shared.Select(entry => entry.Post!.PostId).Order().SequenceEqual(new[] { "102", "199" })
+                || shared.Select(entry => FavoriteAssetKey.From(target, entry.Asset)).Distinct().Count() != 1)
+                throw new InvalidOperationException("Rating fixture must retain two strict post observations of one exact m2 rating identity.");
+        }
         MediaRatingStore ratings = new(profile, lease); FavoriteStore favorites = new(profile, lease);
         foreach (Spec spec in Specs)
         {

@@ -18,12 +18,13 @@ namespace MeowChan.Desktop.Commands;
 /// <summary>Settings-owned draft. Capture never persists or publishes bindings.</summary>
 public sealed class ShortcutEditor : UserControl
 {
-    private readonly StackPanel _root = new() { Spacing = 8 };
-    private readonly TextBlock _heading = new() { Name = "SettingsShortcutsHeading", FontSize = 18, FontWeight = FontWeight.SemiBold };
+    private readonly StackPanel _root = new() { Spacing = 12 };
+    private readonly TextBlock _heading = new() { Name = "SettingsShortcutsHeading" };
     public Control SectionHeading => _heading;
     private readonly TextBox _search = new();
     private readonly ListBox _actions = new() { Height = 210 };
     private readonly StackPanel _detail = new() { Spacing = 8 };
+    private readonly Border _detailFrame = new() { IsVisible = false };
     private readonly TextBlock _errors = new() { TextWrapping = TextWrapping.Wrap };
     private readonly KeyGestureInput _capture = new() { MinHeight = 36, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _explicit = new();
@@ -38,6 +39,11 @@ public sealed class ShortcutEditor : UserControl
     public ShortcutEditor()
     {
         Name = "ShortcutEditor";
+        _heading.Classes.Add("section-title");
+        _errors.Classes.Add("workspace-error");
+        _pendingLabel.Classes.Add("workspace-help");
+        _detailFrame.Classes.Add("workspace-section");
+        _detailFrame.Child = _detail;
         Content = _root;
         // TextChanged is posted asynchronously. A validation search reset must
         // finish rebuilding selection before its guarded error-focus request.
@@ -123,11 +129,25 @@ public sealed class ShortcutEditor : UserControl
         _root.Children.Clear();
         _heading.Text = Texts.T("shortcuts.title");
         _root.Children.Add(_heading);
-        _root.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text = T("Bindings apply after Save in every view. Text editing, Tab and Escape remain available. System shortcuts may intercept keys.", "Belegungen gelten nach Speichern in jeder Ansicht. Texteingabe, Tab und Escape bleiben verfügbar. Systemkürzel können Tasten abfangen.") });
+        var hint = new TextBlock { Text = T("Bindings apply after Save in every view. Text editing, Tab and Escape remain available. System shortcuts may intercept keys.", "Belegungen gelten nach Speichern in jeder Ansicht. Texteingabe, Tab und Escape bleiben verfügbar. Systemkürzel können Tasten abfangen.") };
+        hint.Classes.Add("workspace-help");
+        _root.Children.Add(hint);
         _search.PlaceholderText = T("Search action, context or shortcut", "Aktion, Bereich oder Kürzel suchen");
         AutomationProperties.SetName(_search, _search.PlaceholderText?.ToString());
         AutomationProperties.SetName(_actions, T("Actions and shortcuts", "Aktionen und Tastenkürzel"));
-        _root.Children.Add(_search); _root.Children.Add(_actions); _root.Children.Add(_detail); _root.Children.Add(_errors);
+        _root.Children.Add(_search);
+        var tableHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0) };
+        foreach (var (label, column) in new[] { (T("Action", "Aktion"), 0), (T("Context", "Bereich"), 1), (T("Effective binding", "Wirksame Belegung"), 2) })
+        {
+            var text = new TextBlock { Text = label };
+            text.Classes.Add("workspace-field-label");
+            Grid.SetColumn(text, column);
+            tableHeader.Children.Add(text);
+        }
+        _root.Children.Add(tableHeader);
+        _root.Children.Add(_actions);
+        _root.Children.Add(_detailFrame);
+        _root.Children.Add(_errors);
         var reset = Button(T("Reset all known actions", "Alle bekannten Aktionen zurücksetzen"), () => { Draft = Draft.ResetKnown(); Changed(); });
         reset.IsEnabled = Draft.IsEditable;
         _root.Children.Add(reset);
@@ -137,13 +157,36 @@ public sealed class ShortcutEditor : UserControl
     {
         string query = _search.Text?.Trim() ?? "";
         var snapshot = EffectiveShortcutBindings.Build(Draft);
-        var items = CommandCatalog.All.Select(c => new ListBoxItem
+        var items = CommandCatalog.All.Select(command =>
         {
-            Tag = c.Id,
-            Content = new TextBlock { Text = c.Label + " · " + string.Join(", ", c.ExecutionContexts) + " · " + (snapshot.Display(c.Id) ?? T("Unbound", "Unbelegt")) + " · " + (!c.IsImplemented || c.Contexts.All(x => x.EndsWith(":planned", StringComparison.Ordinal)) ? T("Unavailable", "Nicht verfügbar") : Draft.HasOverride(c.Id) ? T("Custom", "Benutzer") : T("Default", "Standard")), TextWrapping = TextWrapping.Wrap }
-        }).Where(i => query.Length == 0 || ((TextBlock)i.Content!).Text!.Contains(query, StringComparison.OrdinalIgnoreCase) || ((string)i.Tag!).Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+            string context = string.Join(", ", command.ExecutionContexts);
+            string binding = snapshot.Display(command.Id) ?? T("Unbound", "Unbelegt");
+            string state = !command.IsImplemented || command.Contexts.All(x => x.EndsWith(":planned", StringComparison.Ordinal))
+                ? T("Unavailable", "Nicht verfügbar") : Draft.HasOverride(command.Id) ? T("Custom", "Benutzer") : T("Default", "Standard");
+            string accessible = command.Label + " · " + context + " · " + binding + " · " + state;
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12 };
+            row.Children.Add(new TextBlock { Text = command.Label, TextWrapping = TextWrapping.Wrap });
+            var contextText = new TextBlock { Text = context };
+            contextText.Classes.Add("workspace-meta");
+            Grid.SetColumn(contextText, 1);
+            row.Children.Add(contextText);
+            var bindingColumn = new StackPanel { Spacing = 4 };
+            bindingColumn.Children.Add(new TextBlock { Text = binding, TextWrapping = TextWrapping.Wrap });
+            var stateText = new TextBlock { Text = state };
+            stateText.Classes.Add("workspace-status");
+            bindingColumn.Children.Add(stateText);
+            Grid.SetColumn(bindingColumn, 2);
+            row.Children.Add(bindingColumn);
+            var item = new ListBoxItem { Tag = command.Id, Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            AutomationProperties.SetName(item, accessible);
+            return (Item: item, Search: accessible + " · " + command.Id);
+        }).Where(row => query.Length == 0 || row.Search.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(row => row.Item).ToArray();
         string? selected = _selected;
         _actions.ItemsSource = items;
+        // Rebuilt rows replace every previous container. Native Once navigation
+        // must not retain a removed row as its next tab destination.
+        KeyboardNavigation.SetTabOnceActiveElement(_actions, null);
         _selected = selected;
         _actions.SelectedItem = items.FirstOrDefault(i => (string)i.Tag! == selected);
         ShowIssues(snapshot.Issues);
@@ -157,9 +200,15 @@ public sealed class ShortcutEditor : UserControl
     private void RefreshDetail()
     {
         _detail.Children.Clear();
+        _detailFrame.IsVisible = _selected != null;
         if (_selected == null || !CommandCatalog.TryGet(_selected, out var command)) return;
         _detail.IsEnabled = Draft.IsEditable && command!.IsImplemented;
-        _detail.Children.Add(new TextBlock { Text = command!.Label + " · " + string.Join(", ", command.ExecutionContexts), TextWrapping = TextWrapping.Wrap });
+        var title = new TextBlock { Text = command!.Label };
+        title.Classes.Add("section-title");
+        _detail.Children.Add(title);
+        var context = new TextBlock { Text = string.Join(", ", command.ExecutionContexts) };
+        context.Classes.Add("workspace-meta");
+        _detail.Children.Add(context);
         var gestures = DraftGestures(_selected);
         for (int i = 0; i < gestures.Count; i++)
         {

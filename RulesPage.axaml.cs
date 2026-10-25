@@ -162,6 +162,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         }
     }
     public string ExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes" ? Texts.T("rules.invalidTypes") : string.Empty;
+    public bool HasMegabytesError => _draft.SizeMode == MediaSizeLimitMode.Limited && _validationKey == "rules.invalidSize";
+    public string MegabytesError => HasMegabytesError ? Texts.T("rules.invalidSize") : string.Empty;
+    public string DraftStateLabel => Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _draft.Stale ? "rules.stale" : _draft.Dirty ? "rules.unsaved" :
+        FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed");
     public bool HasTypeSelection => _draft.TypesMode == MediaTypeSelectionMode.Selected;
     public bool HasSizeLimit => _draft.SizeMode == MediaSizeLimitMode.Limited;
 
@@ -581,6 +585,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         Raise(string.Empty);
         SynchronizeModeSelections();
+        RuleMegabytesInput.Classes.Set("workspace-invalid", HasMegabytesError);
         RefreshOriginActionLabels();
         RefreshFilterEditor();
         RuleExtensionsInput.Bind(_draft.ExtensionInput);

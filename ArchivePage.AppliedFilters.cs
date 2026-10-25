@@ -54,6 +54,12 @@ public partial class ArchivePage
         WrapPanel panel = Control<WrapPanel>("ArchiveAppliedFilters"); panel.Children.Clear();
         if (_appliedSearch == null) return;
         var tags = AppliedFilterLabels(_appliedSearch.Spec);
+        if (tags.Count > 0)
+        {
+            TextBlock label = new() { Text = Texts.T("archive.appliedFilters"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            label.Classes.Add("workspace-meta");
+            panel.Children.Add(label);
+        }
         for (int i = 0; i < tags.Count; i++)
         {
             var item = tags[i]; int index = i;
@@ -131,8 +137,8 @@ public partial class ArchivePage
         }));
         if (success)
         {
-            var tags = Control<WrapPanel>("ArchiveAppliedFilters").Children;
-            if (tags.Count > 0) tags[Math.Clamp(focusIndex, 0, tags.Count - 1)].Focus();
+            var tags = Control<WrapPanel>("ArchiveAppliedFilters").Children.OfType<ClosableTag>().ToArray();
+            if (tags.Length > 0) tags[Math.Clamp(focusIndex, 0, tags.Length - 1)].Focus();
             else Control<TextBox>("ArchiveSearchText").Focus();
         }
         return success;

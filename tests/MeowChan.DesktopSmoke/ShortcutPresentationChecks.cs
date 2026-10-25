@@ -122,10 +122,10 @@ internal static class ShortcutPresentationChecks
                 search.Text = "navigation.archive";
                 actions.SelectedItem = actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == "navigation.archive");
                 await RevealFocusAsync(search);
-                Require(((TextBlock)actions.Items.OfType<ListBoxItem>().Single().Content!).Text!
-                    .Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal), "Search row kept an old language label.");
-                Require(((TextBlock)actions.Items.OfType<ListBoxItem>().Single().Content!).Text!
-                    .Contains(CommandCatalog.ShortcutDisplay("navigation.archive")!, StringComparison.Ordinal), "Editor row omitted the committed remap.");
+                string rowText = string.Join(" · ", ((Control)actions.Items.OfType<ListBoxItem>().Single().Content!)
+                    .GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text));
+                Require(rowText.Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal), "Search row kept an old language label.");
+                Require(rowText.Contains(CommandCatalog.ShortcutDisplay("navigation.archive")!, StringComparison.Ordinal), "Editor row omitted the committed remap.");
                 await CaptureAsync(cell, "editor", search);
                 string beforeCapture = editor.Draft.Raw.GetRawText();
                 Button record = Action("Record additional shortcut", "Weiteres Kürzel aufnehmen");

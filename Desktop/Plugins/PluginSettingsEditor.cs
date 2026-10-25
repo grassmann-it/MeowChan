@@ -57,7 +57,7 @@ internal sealed class PluginSettingsEditor : StackPanel
         HashSet<string> names = new(StringComparer.Ordinal);
         foreach (SettingDefinition field in draft.Schema.Fields)
         {
-            TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap };
+            TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-field-label" } };
             StackPanel content = new() { Spacing = 6 };
             Control editor;
             if (field.Kind == SettingKind.Boolean)
@@ -144,11 +144,11 @@ internal sealed class PluginSettingsEditor : StackPanel
             _definitions.Add(field.Key, field);
             content.Children.Add(editor);
             // Keep correction and its error adjacent even when the schema help exceeds the viewport.
-            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error" } };
+            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error", "workspace-error" } };
             AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
             _errors.Add(field.Key, error); content.Children.Add(error);
             if (!string.IsNullOrEmpty(field.Help))
-                content.Children.Add(new TextBlock { Text = field.Help, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
+                content.Children.Add(new TextBlock { Text = field.Help, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-help" } });
             FormItem item = new() { Content = content, HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch };
             FormItem.SetLabel(item, label);

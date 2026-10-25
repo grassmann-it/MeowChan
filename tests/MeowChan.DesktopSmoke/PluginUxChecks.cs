@@ -154,6 +154,9 @@ internal static class PluginUxChecks
         await Program.WaitUntilAsync(() => RootedVisible(editor));
         TextBox limit = (TextBox)editor.FindField("limit")!;
         await RevealAsync(window, limit); limit.Text = "1.5 unfinished ü";
+        Require(C<TextBlock>(page, "PluginDraftSummary").IsVisible
+            && C<TextBlock>(page, "PluginDraftSummary").Text == Texts.T("plugins.draft"),
+            "The overview does not distinguish the unsaved draft from the active or next-start state.");
         PluginConfigurationDraft draft = page.CurrentDraft!;
         string fingerprint = draft.Sources[PluginUxFixture.SourceId].EditorFingerprint;
         string beforeFiles = HashFiles(root);
@@ -210,6 +213,9 @@ internal static class PluginUxChecks
             && !C<Button>(page, "PluginSave").IsEnabled
             && C<TextBlock>(page, "PluginDraftStatus").Text == Texts.T("plugins.stale"),
             "Independent profile write rebased, saved or discarded the invalid draft instead of exposing stale state.");
+        Require(C<TextBlock>(page, "PluginDraftSummary").IsVisible
+            && C<TextBlock>(page, "PluginDraftSummary").Text == Texts.T("plugins.stale"),
+            "The stale draft disappeared from the overview while saved next-start settings exist.");
         Require(VisibleText(page).Contains(PluginContentPresentation.DescribePending(PluginPendingKind.Configuration), StringComparison.Ordinal),
             "The same-code next-start settings notice disappeared behind technical details.");
         Observation(window, page, fixture, "draft-and-disclosure", new { fingerprint,
@@ -322,6 +328,10 @@ internal static class PluginUxChecks
             "A retained description lost either its original text or its visible provenance.");
         Require(!C<Button>(page, "PluginSelectCandidate").IsEnabled,
             "The failed candidate can be selected as a valid next-start build.");
+        Require(RootedVisible(C<TextBlock>(page, "PluginAttention"))
+            && C<TextBlock>(page, "PluginAttention").Text?.Contains(page.Selected!.Candidate!.Problem!, StringComparison.Ordinal) == true
+            && !C<Expander>(page, "PluginDeveloperExpander").IsExpanded,
+            "The failed candidate's actual reason requires opening developer details.");
         C<ScrollViewer>(page, "PluginDetailsPane").Offset = default;
         await Settle(); Program.CaptureWindow(window, "smoke-pux-retained-failure-reference.png");
         await fixture.FailSourceAsync(missing: true); await page.RefreshAsync();

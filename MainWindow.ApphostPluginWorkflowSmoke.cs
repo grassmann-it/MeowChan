@@ -54,6 +54,9 @@ public partial class MainWindow
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
             RequireWorkflow(manifests.Length == 7 && installed.Plugins.Count == 7, "Delivered plugin inventory differs.");
             RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }), "Delivered source inventory differs.");
+            // This worker/download fixture explicitly enables its delivered sources through
+            // the Host lifecycle. It does not grant a provider-integrity exception.
+            installed = await EnableApphostFixtureSourcesAsync(plugins, installed);
             foreach (PluginActivationSnapshot plugin in installed.Plugins)
             {
                 RequireWorkflow(plugin.Enabled && plugin.Active != null && plugin.Problem == null && plugin.Candidates.Count == 1, "Plugin activation failed: " + plugin.PluginId);
@@ -188,6 +191,14 @@ public partial class MainWindow
                 scope = "Published apphost, providers:null, delivered PluginSession sources/filter/helpers, terminal offline fixture HTTP, explicit fixture production worker capacity 5; no live-source claim."
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
+    }
+
+    private static async Task<PluginProfileSnapshot> EnableApphostFixtureSourcesAsync(PluginSession plugins, PluginProfileSnapshot installed)
+    {
+        foreach (string owner in new[] { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan" })
+            if (!installed.Plugins.Single(plugin => plugin.PluginId == owner).Enabled)
+                installed = await plugins.ProfileStore.SetEnabledAsync(owner, true, installed.Revision);
+        return installed;
     }
 
     private bool PluginWorkflowCompleted(IReadOnlyCollection<string> expectedSourceIds)

@@ -22,69 +22,71 @@
                         </ComboBox>
                         <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
                     </Grid>
-                    <TextBlock Text="{Binding ScopeCountLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ScopeCountLabel}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="NewRuleScopeExpander" Header="{Binding NewScopeLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8" Margin="0,10,0,0">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding ScopeKindLabel}" VerticalAlignment="Center" />
+                                <TextBlock Classes="workspace-field-label" Text="{Binding ScopeKindLabel}" VerticalAlignment="Center" />
                                 <ComboBox x:Name="NewRuleScopeKindInput" Grid.Column="1" ItemsSource="{Binding ScopeKindChoices}" SelectedIndex="{Binding NewScopeKind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsSource}">
-                                <TextBlock Text="{Binding SourceIdLabel}" VerticalAlignment="Center" />
+                                <TextBlock Classes="workspace-field-label" Text="{Binding SourceIdLabel}" VerticalAlignment="Center" />
                                 <desktop:IdentitySuggestionBox x:Name="NewRuleSourceInput" Grid.Column="1" Text="{Binding NewSourceId, Mode=TwoWay}" PlaceholderText="4chan" />
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsBoard}">
-                                <TextBlock Text="{Binding BoardIdLabel}" VerticalAlignment="Center" />
+                                <TextBlock Classes="workspace-field-label" Text="{Binding BoardIdLabel}" VerticalAlignment="Center" />
                                 <desktop:IdentitySuggestionBox x:Name="NewRuleBoardInput" Grid.Column="1" Text="{Binding NewBoardId, Mode=TwoWay}" PlaceholderText="g" />
                             </Grid>
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32" IsVisible="{Binding NeedsThread}">
-                                <TextBlock Text="{Binding ThreadIdLabel}" VerticalAlignment="Center" />
+                                <TextBlock Classes="workspace-field-label" Text="{Binding ThreadIdLabel}" VerticalAlignment="Center" />
                                 <TextBox x:Name="NewRuleThreadInput" Grid.Column="1" Text="{Binding NewThreadId, Mode=TwoWay}" PlaceholderText="123" />
                             </Grid>
-                            <TextBlock x:Name="RuleSuggestionsHint" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock x:Name="RuleSuggestionsHint" Classes="workspace-help" TextWrapping="Wrap" />
                             <Button x:Name="RuleRetrySuggestions" IsVisible="False" />
-                            <TextBlock Text="{Binding IdentityHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding IdentityHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             <Button x:Name="OpenNewRuleScopeButton" Click="OnOpenNewScope" HorizontalAlignment="Right" />
                         </StackPanel>
                     </Expander>
                 </StackPanel>
                 <StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <TextBlock Text="{Binding DraftStateLabel}" Classes="workspace-meta" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" Margin="0,0,0,10"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
                     <Button x:Name="OpenParentRuleButton" IsVisible="False" Click="OnOpenParentScope" Margin="0,0,0,6" />
                     <CheckBox x:Name="RuleEnabledInput" Content="{Binding EnabledLabel}" IsChecked="{Binding RuleEnabled, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding EnabledHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <TextBlock Text="{Binding EnabledHint}" Classes="workspace-help" TextWrapping="Wrap" Margin="0,4,0,4" />
                     <StackPanel IsEnabled="{Binding RuleEnabled}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding TypesLabel}" FontWeight="Medium" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleTypesModeInput" ItemsSource="{Binding TypesModeChoices}" SelectedIndex="{Binding TypesMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <TextBlock Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding TypesOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <StackPanel IsVisible="{Binding HasTypeSelection}" Spacing="6" Margin="0,10,0,0">
-                            <TextBlock Text="{Binding ExtensionsLabel}" FontWeight="Medium" />
+                        <StackPanel IsVisible="{Binding HasTypeSelection}" Classes="workspace-field" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding ExtensionsLabel}" Classes="workspace-field-label" />
                             <controls:RuleExtensionsInput x:Name="RuleExtensionsInput" PlaceholderText="JPG, PNG, WebM" />
-                            <TextBlock Text="{Binding ExtensionsError}" Classes="error" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding ExtensionsHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ExtensionsError}" Classes="workspace-error" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ExtensionsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding SizeLabel}" FontWeight="Medium" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleSizeModeInput" ItemsSource="{Binding SizeModeChoices}" SelectedIndex="{Binding SizeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <TextBlock Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding SizeOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <StackPanel IsVisible="{Binding HasSizeLimit}" Spacing="6" Margin="0,10,0,0">
-                            <TextBlock Text="{Binding MegabytesLabel}" FontWeight="Medium" />
-                            <TextBox x:Name="RuleMegabytesInput" Text="{Binding MegabytesText, Mode=TwoWay}" PlaceholderText="10" />
-                            <TextBlock Text="{Binding MegabytesHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                        <StackPanel IsVisible="{Binding HasSizeLimit}" Classes="workspace-field" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding MegabytesLabel}" Classes="workspace-field-label" />
+                            <TextBox AutomationProperties.Name="{Binding MegabytesLabel}" AutomationProperties.HelpText="{Binding MegabytesHint}" x:Name="RuleMegabytesInput" Text="{Binding MegabytesText, Mode=TwoWay}" PlaceholderText="10" />
+                            <TextBlock Text="{Binding MegabytesError}" Classes="workspace-error" TextWrapping="Wrap" IsVisible="{Binding HasMegabytesError}" />
+                            <TextBlock Text="{Binding MegabytesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -93,15 +95,15 @@
                 <StackPanel Spacing="8">
                     <TextBlock Text="{Binding PreviewTitle}" Classes="section-title" />
                     <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasValidationError}">
-                        <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                        <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     </ursa:Banner>
                     <StackPanel Spacing="0" IsVisible="{Binding HasPreview}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock Text="{Binding TypesLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveTypes" Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="RuleTypesOrigin" Text="{Binding TypesOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RuleTypesOrigin" Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
                                     <Button x:Name="OpenTypesOriginButton" IsEnabled="{Binding CanOpenTypesOrigin}" IsVisible="{Binding CanOpenTypesOrigin}"
                                             Click="OnOpenTypesOrigin" HorizontalAlignment="Left" />
                                 </StackPanel>
@@ -110,21 +112,21 @@
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
                                 <TextBlock Text="{Binding SizeLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveSize" Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="RuleSizeOrigin" Text="{Binding SizeOriginLabel}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RuleSizeOrigin" Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
                                     <Button x:Name="OpenSizeOriginButton" IsEnabled="{Binding CanOpenSizeOrigin}" IsVisible="{Binding CanOpenSizeOrigin}"
                                             Click="OnOpenSizeOrigin" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </Grid>
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="{Binding FutureHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding UnknownHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding FutureHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding UnknownHint}" Classes="workspace-help" TextWrapping="Wrap" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
-        <Border Grid.Row="2" Padding="20,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}">
+        <Border Grid.Row="2" Classes="workspace-dialog-footer" Padding="20,12">
             <Grid x:Name="RulesFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6"
                   HorizontalAlignment="Left" Width="{Binding Bounds.Width, ElementName=RulesContent}">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
@@ -134,11 +136,11 @@
                             <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
                         <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
-                            <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                            <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         </ursa:Banner>
                     </StackPanel>
                 </ScrollViewer>
-                <StackPanel x:Name="RulesFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <StackPanel x:Name="RulesFooterActions" Classes="workspace-actions" Grid.Column="1" HorizontalAlignment="Right">
                     <Button x:Name="DiscardRuleButton" IsEnabled="{Binding IsEditable}" Click="OnDiscardDraft" />
                     <Button x:Name="SaveRuleButton" Classes="primary" IsEnabled="{Binding CanSave}" Click="OnSaveRule" />
                 </StackPanel>

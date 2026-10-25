@@ -32,18 +32,18 @@ internal sealed class GalleryViewer : UserControl
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
-    private readonly TextBlock _scope = new() { Name = "GalleryScope", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _scope = new() { Name = "GalleryScope", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _provenance = new() { Name = "GalleryProvenance", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _warnings = new() { Name = "GalleryWarnings", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
-    private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"),
+    private readonly SelectableTextBlock _favoriteError = new() { Name = "GalleryFavoriteError", Classes = { "workspace-error" },
         TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
     private readonly Button _readPosts;
-    private readonly TextBlock _position = new() { [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-    private readonly TextBlock _quality = new() { [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _quality = new() { TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _context = new() { Spacing = 12 };
-    private readonly Border _contextPanel = new() { Name = "GalleryContext", Padding = new Thickness(18), IsVisible = false, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel") };
+    private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-    private readonly Grid _visualRoot = new() { ClipToBounds = true };
+    private readonly Grid _visualRoot = new() { ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
     private readonly Grid _nativeVideoOverlay = new() { Background = Brushes.Transparent, ClipToBounds = true };
     private readonly Button _previous;
     private readonly Button _next;
@@ -56,21 +56,15 @@ internal sealed class GalleryViewer : UserControl
     private readonly ToggleButton _favorite;
     private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
-    private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Padding = new Thickness(12), [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"), IsVisible = false };
+    private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Classes = { "workspace-section" }, IsVisible = false };
     private readonly StackPanel _helpContent = new() { Spacing = 6 };
-    private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Padding = new Thickness(8),
-        Margin = new Thickness(10, 10, 10, 0), CornerRadius = new CornerRadius(8),
-        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
-        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
-    private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Padding = new Thickness(8, 5),
-        Margin = new Thickness(10, 0, 10, 10), CornerRadius = new CornerRadius(8),
-        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
-        HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Bottom };
-    private readonly Border _statusPlate = new() { Padding = new Thickness(14, 10), CornerRadius = new CornerRadius(7),
-        [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
+    private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
+        Margin = new Thickness(8, 8, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
+        Margin = new Thickness(8, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Border _statusPlate = new() { Classes = { "workspace-media-caption" },
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = 650, IsHitTestVisible = false, IsVisible = false };
-    private readonly DispatcherTimer _chromeTimer = new() { Interval = TimeSpan.FromSeconds(4) };
     private GalleryVideoPlayer? _video;
     private bool _videoSuspended;
     private bool _nativeOverlayActive;
@@ -143,7 +137,7 @@ internal sealed class GalleryViewer : UserControl
     private string? _ratingError;
     private bool _ratingAvailable;
     private readonly Button _ratingButton = new() { Name = "GalleryRating" };
-    private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", TextWrapping = TextWrapping.Wrap };
     internal void SetRating(int? value, string? error, bool available = true)
     {
         _ratingValue = value; _ratingError = error; _ratingAvailable = available;
@@ -206,27 +200,40 @@ internal sealed class GalleryViewer : UserControl
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         Grid root = _visualRoot;
-        WrapPanel toolbar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        _close = Command(toolbar, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
-        _previous = Command(toolbar, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
-        _next = Command(toolbar, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
-        _fit = Command(toolbar, "GalleryFit", Texts.T("gallery.fit"), Fit);
-        _actual = Command(toolbar, "GalleryActual", "1:1", ActualPixels);
-        _zoomOut = Command(toolbar, "GalleryMinus", "−", () => Zoom(1 / 1.1));
-        _zoomIn = Command(toolbar, "GalleryPlus", "+", () => Zoom(1.1));
-        _contextToggle = (ToggleButton)Command(toolbar, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
-        _favorite = (ToggleButton)Command(toolbar, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
+        WrapPanel toolbar = new() { Classes = { "workspace-toolbar" }, HorizontalAlignment = HorizontalAlignment.Center };
+        StackPanel ToolGroup(string name)
+        {
+            StackPanel group = new() { Name = name, Classes = { "workspace-tool-group" } };
+            toolbar.Children.Add(group);
+            return group;
+        }
+        StackPanel navigation = ToolGroup("GalleryNavigationTools");
+        StackPanel zoom = ToolGroup("GalleryZoomTools");
+        StackPanel media = ToolGroup("GalleryMediaTools");
+        StackPanel view = ToolGroup("GalleryViewTools");
+        _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
+        _previous = Command(navigation, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
+        _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
+        _fit = Command(zoom, "GalleryFit", Texts.T("gallery.fit"), Fit);
+        _actual = Command(zoom, "GalleryActual", "1:1", ActualPixels);
+        _zoomOut = Command(zoom, "GalleryMinus", "−", () => Zoom(1 / 1.1));
+        _zoomIn = Command(zoom, "GalleryPlus", "+", () => Zoom(1.1));
+        _contextToggle = (ToggleButton)Command(media, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
+        _favorite = (ToggleButton)Command(media, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
         _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
-        toolbar.Children.Add(_ratingButton);
-        _exportOriginal = Command(toolbar, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
+        media.Children.Add(_ratingButton);
+        _exportOriginal = Command(media, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); });
-        Command(toolbar, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
-        _helpButton = Command(toolbar, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
-        _readPosts = Command(toolbar, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
+        Command(view, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
+        _helpButton = Command(view, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
+        _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
-        // Chrome follows the host theme; the media viewport keeps its black matte.
+        // Reserve tools below the picture: every action remains visible without covering media.
+        // The media viewport keeps its black matte; the footer follows the host theme.
         _chrome.Child = toolbar;
+        foreach (TextBlock text in new[] { _quality, _position, _scope, _ratingStatus })
+            text.Classes.Add("workspace-meta");
         StackPanel infoContent = new() { Spacing = 2 };
         Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
         infoHeadline.Children.Add(_quality);
@@ -243,7 +250,7 @@ internal sealed class GalleryViewer : UserControl
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         _helpPanel.HorizontalAlignment = HorizontalAlignment.Right;
         _helpPanel.VerticalAlignment = VerticalAlignment.Top;
-        _helpPanel.Margin = new Thickness(12, 94, 12, 12);
+        _helpPanel.Margin = new Thickness(12);
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
         _viewport.Children.Add(_image);
@@ -263,21 +270,12 @@ internal sealed class GalleryViewer : UserControl
         };
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_body);
-        root.Children.Add(_infoOverlay);
-        root.Children.Add(_chrome);
+        root.Children.Add(_chrome); Grid.SetRow(_chrome, 1);
+        root.Children.Add(_infoOverlay); Grid.SetRow(_infoOverlay, 2);
         root.Children.Add(_helpPanel);
         Content = root;
-        _chromeTimer.Tick += (_, _) => HideChromeIfSafe();
-        _chrome.SizeChanged += (_, _) => { if (_contextOpen) LayoutContext(); };
-        _infoOverlay.SizeChanged += (_, _) => { if (_contextOpen) LayoutContext(); };
-        root.AddHandler(PointerMovedEvent, (_, _) => RevealChrome(), RoutingStrategies.Tunnel, handledEventsToo: true);
-        root.PointerEntered += (_, _) => RevealChrome();
-        root.PointerPressed += (_, _) => RevealChrome();
-        _nativeVideoOverlay.AddHandler(PointerMovedEvent, (_, _) => RevealChrome(), RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
-        _nativeVideoOverlay.PointerEntered += (_, _) => RevealChrome();
-        _nativeVideoOverlay.PointerPressed += (_, _) => RevealChrome();
         _nativeVideoOverlay.ContextRequested += (_, e) =>
         {
             if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control => control is TextBox or ComboBox or Slider)) return;
@@ -285,10 +283,10 @@ internal sealed class GalleryViewer : UserControl
         };
         SizeChanged += (_, _) =>
         {
-            _chrome.MaxWidth = Math.Max(0, Bounds.Width - 20);
+            _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
             LayoutContext();
         };
-        _viewport.SizeChanged += (_, _) => { UpdateInfoOverlayPosition(); FitIfAutomatic(); };
+        _viewport.SizeChanged += (_, _) => FitIfAutomatic();
         _viewport.PointerWheelChanged += (_, e) => { Focus(); Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), e.GetPosition(_viewport)); e.Handled = true; };
         _viewport.PointerPressed += (_, e) =>
         {
@@ -317,7 +315,6 @@ internal sealed class GalleryViewer : UserControl
             ShortcutService.Changed += OnShortcutBindingsChanged;
             _scaleOwner = TopLevel.GetTopLevel(this);
             if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
-            RevealChrome();
         };
         DetachedFromVisualTree += (_, _) =>
         {
@@ -325,7 +322,6 @@ internal sealed class GalleryViewer : UserControl
             ShortcutService.Changed -= OnShortcutBindingsChanged;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
             _scaleOwner = null;
-            _chromeTimer.Stop();
         };
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
@@ -335,29 +331,6 @@ internal sealed class GalleryViewer : UserControl
         SetImageCommands(false);
     }
 
-    private void RevealChrome()
-    {
-        _chrome.IsVisible = true;
-        _chromeTimer.Stop();
-        if (!_nativeOverlayFallback) _chromeTimer.Start();
-    }
-
-    private void HideChromeIfSafe()
-    {
-        if (_nativeOverlayFallback) return;
-        if (_helpOpen || _contextOpen || _chrome.IsPointerOver || _helpPanel.IsPointerOver ||
-            _viewport.ContextMenu?.IsOpen == true || _nativeVideoOverlay.ContextMenu?.IsOpen == true ||
-            _video?.IsKeyboardFocusWithin == true)
-            return;
-        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control focused &&
-            !ReferenceEquals(focused, this) && focused.GetVisualAncestors().Contains(this))
-            return;
-        if (_nativeOverlayActive && TopLevel.GetTopLevel(_nativeVideoOverlay)?.FocusManager?.GetFocusedElement() is Control nativeFocused &&
-            !ReferenceEquals(nativeFocused, _nativeVideoOverlay) && nativeFocused.GetVisualAncestors().Contains(_nativeVideoOverlay))
-            return;
-        _chromeTimer.Stop();
-        _chrome.IsVisible = false;
-    }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
@@ -441,8 +414,8 @@ internal sealed class GalleryViewer : UserControl
     {
         string? id = CommandId(name);
         Button button = name is "GalleryToggleContext" or "GalleryFavorite"
-            ? new ToggleButton { Name = name, Margin = new Thickness(0, 0, 6, 6) }
-            : new Button { Name = name, Margin = new Thickness(0, 0, 6, 6) };
+            ? new ToggleButton { Name = name }
+            : new Button { Name = name };
         if (id == null) { button.Content = label; AutomationProperties.SetName(button, label); }
         else
         {
@@ -464,7 +437,6 @@ internal sealed class GalleryViewer : UserControl
     private void SetContextOpen(bool open, bool notify = true)
     {
         if (_contextOpen == open) return;
-        RevealChrome();
         _contextOpen = open;
         LayoutContext();
         UpdateContextButton();
@@ -500,7 +472,6 @@ internal sealed class GalleryViewer : UserControl
 
     private void SetHelp(bool open, bool expanded = false)
     {
-        RevealChrome();
         bool wasOpen = _helpOpen;
         _helpOpen = open;
         _helpExpanded = expanded;
@@ -513,15 +484,15 @@ internal sealed class GalleryViewer : UserControl
         _helpPanel.IsVisible = _helpOpen;
         _helpContent.Children.Clear();
         if (!_helpOpen) return;
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), FontWeight = FontWeight.Bold });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Classes = { "section-title" } });
         string[] ids = _helpExpanded
             ? new[] { "gallery.previous", "gallery.next", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
-        WrapPanel actions = new() { ItemSpacing = 6 };
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.escape"), Classes = { "workspace-help" } });
+        WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
         Command(actions, "GalleryHelpClose", Texts.T("action.close"), () => SetHelp(false));
         _helpContent.Children.Add(actions);
@@ -530,7 +501,6 @@ internal sealed class GalleryViewer : UserControl
     private void ShowMediaMenu()
     {
         if (_entry == null) return;
-        RevealChrome();
         GalleryEntry entry = _entry;
         static MenuItem Item(string id, Action action, bool enabled = true)
         {
@@ -568,15 +538,13 @@ internal sealed class GalleryViewer : UserControl
         if (_nativeOverlayActive == active) return;
         Grid previous = _nativeOverlayActive ? _nativeVideoOverlay : _visualRoot;
         Grid next = active ? _nativeVideoOverlay : _visualRoot;
-        foreach (Control control in new Control[] { _infoOverlay, _chrome, _helpPanel })
+        foreach (Control control in new Control[] { _helpPanel })
         {
             previous.Children.Remove(control);
             next.Children.Add(control);
         }
         _nativeOverlayActive = active;
         _video?.SetNativeOverlay(active ? _nativeVideoOverlay : null);
-        UpdateInfoOverlayPosition();
-        RevealChrome();
     }
 
     private void CheckNativeOverlayTransparency()
@@ -594,14 +562,13 @@ internal sealed class GalleryViewer : UserControl
     {
         if (_nativeOverlayFallback == fallback) return;
         _nativeOverlayFallback = fallback;
-        _visualRoot.RowDefinitions = new RowDefinitions(fallback ? "Auto,Auto,*,Auto" : "*");
-        Grid.SetRow(_chrome, 0);
-        Grid.SetRow(_helpPanel, fallback ? 1 : 0);
-        Grid.SetRow(_body, fallback ? 2 : 0);
-        Grid.SetRow(_infoOverlay, fallback ? 3 : 0);
-        _helpPanel.Margin = fallback ? new Thickness(12, 0, 12, 0) : new Thickness(12, 94, 12, 12);
+        _visualRoot.RowDefinitions = new RowDefinitions(fallback ? "Auto,*,Auto,Auto" : "*,Auto,Auto");
+        Grid.SetRow(_helpPanel, 0);
+        Grid.SetRow(_body, fallback ? 1 : 0);
+        Grid.SetRow(_chrome, fallback ? 2 : 1);
+        Grid.SetRow(_infoOverlay, fallback ? 3 : 2);
+        _helpPanel.Margin = new Thickness(12);
         LayoutContext();
-        RevealChrome();
     }
 
     internal GalleryViewerState CaptureState() => new(_entry?.Key, _entry?.Post?.PostId, _entry?.Attachment?.Position,
@@ -646,7 +613,6 @@ internal sealed class GalleryViewer : UserControl
         _readPosts.IsVisible = false;
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
-        UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = true;
         SetFavorite(false);
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;
@@ -658,7 +624,6 @@ internal sealed class GalleryViewer : UserControl
             {
                 _video = new GalleryVideoPlayer();
                 _video.VolumeChanged += volume => { _videoVolume = volume; VideoVolumeChanged?.Invoke(volume); };
-                _video.LayoutUpdated += (_, _) => UpdateInfoOverlayPosition();
                 UseNativeVideoOverlay(true);
                 _viewport.Children.Add(_video);
             }
@@ -666,7 +631,6 @@ internal sealed class GalleryViewer : UserControl
             if (_nativeOverlayUnsupported) SetVideoFallbackLayout(true);
             _video.Configure(_videoAutoplay, _videoStartMuted, _videoVolume);
             _image.IsVisible = _status.IsVisible = false; _video.IsVisible = true;
-            UpdateInfoOverlayPosition();
             if (_nativeOverlayUnsupported)
                 Dispatcher.UIThread.Post(() => _nativeOverlayWindow?.Hide(), DispatcherPriority.Loaded);
             if (_nativeOverlayActive)
@@ -804,33 +768,14 @@ internal sealed class GalleryViewer : UserControl
         bool compact = Bounds.Width < 850;
         _contextPanel.IsVisible = _contextOpen; _viewport.IsVisible = !(_contextOpen && compact);
         _contextPanel.Width = compact ? double.NaN : 320;
-        _contextPanel.Margin = _contextOpen && !_nativeOverlayFallback
-            ? new Thickness(0, Math.Max(68, _chrome.Bounds.Height + 14), 0, Math.Max(58, _infoOverlay.Bounds.Height + 14))
-            : default;
+        _contextPanel.Margin = default;
         Grid.SetColumn(_contextPanel, compact ? 0 : 1);
         Grid.SetColumnSpan(_contextPanel, compact ? 2 : 1);
-        UpdateInfoOverlayPosition();
         FitIfAutomatic();
-    }
-    private void UpdateInfoOverlayPosition()
-    {
-        double bottom = _entry?.Kind == SavedMediaKind.Video && _viewport.IsVisible &&
-            !_nativeOverlayActive && !_nativeOverlayFallback && _video != null
-            ? Math.Ceiling(_video.TransportBottomInset) + 10 : 10;
-        // Video transport can lift the caption well above its usual bottom
-        // reserve. Keep it inside the media column rather than across the post
-        // context. Native video chrome already has its own media-sized window;
-        // fallback chrome has a separate row, and compact context hides media.
-        double right = 10;
-        if (_contextOpen && _viewport.IsVisible && !_nativeOverlayActive && !_nativeOverlayFallback)
-            right += Math.Max(0, _body.Bounds.Width - _viewport.Bounds.Right);
-        Thickness margin = new(10, 0, right, bottom);
-        if (_infoOverlay.Margin != margin) _infoOverlay.Margin = margin;
     }
     private void Move(int delta) { if (delta < 0 ? _previous.IsEnabled : _next.IsEnabled) MoveRequested?.Invoke(delta); }
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        RevealChrome();
         if (e.Handled || ShortcutService.IsCapturing) return;
         Control routingOwner = sender is Control control ? control : this;
         if (!CommandRouter.IsRoutingContextActive(routingOwner, e.Source)) return;
@@ -946,7 +891,6 @@ internal sealed class GalleryViewer : UserControl
     {
         ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
-        UpdateInfoOverlayPosition();
         _exportOriginal.IsEnabled = false;
         _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();

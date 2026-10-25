@@ -61,7 +61,9 @@ internal sealed class DraftDiscardConfirmation
         if (IsOpen) return;
         ++_generation; _confirm = confirm; _context = context; _completedFocus = completedFocus;
         _surface.PopupHeader = Texts.T("draft.discardTitle", target);
-        _surface.PopupContent = new TextBlock { Text = Texts.T("draft.discardBody"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 380 };
+        TextBlock explanation = new() { Text = Texts.T("draft.discardBody"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 380 };
+        explanation.Classes.Add("workspace-warning");
+        _surface.PopupContent = explanation;
         _actionLabel = actionLabel ?? Texts.T("rules.discard");
         _surface.IsDropdownOpen = true;
     }
@@ -72,7 +74,7 @@ internal sealed class DraftDiscardConfirmation
         Button? cancel = _surface.CancelButton;
         Button? confirm = _surface.ConfirmButton;
         if (cancel != null) { cancel.Content = Texts.T("draft.keepEditing"); AutomationProperties.SetName(cancel, Texts.T("draft.keepEditing")); cancel.Focus(); }
-        if (confirm != null) { confirm.Content = _actionLabel; AutomationProperties.SetName(confirm, _actionLabel); }
+        if (confirm != null) { confirm.Content = _actionLabel; confirm.Classes.Add("danger"); AutomationProperties.SetName(confirm, _actionLabel); }
     }
     private async Task ConfirmAsync()
     {

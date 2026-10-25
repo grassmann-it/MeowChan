@@ -27,6 +27,11 @@ internal static class SourceIntegrityChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_EXPERIMENTAL_ACTIVATION_GUI_ONLY") == "1")
+        {
+            await ExperimentalActivationChecks.RunAsync(window);
+            return;
+        }
         string expectedScaleText = Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_EXPECT_SCALE")
             ?? throw new InvalidOperationException("Specify MEOWCHAN_SOURCE_INTEGRITY_EXPECT_SCALE as 1, 1.5 or 2 for this GUI slice.");
         double expectedScale = double.Parse(expectedScaleText, CultureInfo.InvariantCulture);
