@@ -58,7 +58,18 @@ public sealed record SourcePost(string PostId, long Ordinal, SourceFieldPresence
 public sealed record SourceAttachment(int Position, string? MediaId, string Variant = "original",
     Uri? Url = null, string? OriginalFileName = null, string? Extension = null,
     long? ExpectedSize = null, string? ExpectedMd5 = null, string? ExpectedSha256 = null,
-    string? MimeType = null, bool IsDeleted = false);
+    string? MimeType = null, bool IsDeleted = false)
+{
+    /// <summary>Provider checksum, base64 of exactly 20 bytes. Never a local content identity.</summary>
+    public string? ExpectedSha1 { get; init; }
+    /// <summary>A non-authoritative provider size annotation, never an exact byte expectation.</summary>
+    public SourceSizeHint? ProviderSizeHint { get; init; }
+}
+
+public enum SourceSizePrecision { Unspecified = 0, Rounded = 1, Truncated = 2 }
+/// <summary>Raw numeric text, original provider unit label and explicitly stated precision.</summary>
+public sealed record SourceSizeHint(string RawValue, string UnitLabel,
+    SourceSizePrecision Precision = SourceSizePrecision.Unspecified);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(CatalogSnapshot), "snapshot")]

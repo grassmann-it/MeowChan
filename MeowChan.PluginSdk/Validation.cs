@@ -826,6 +826,22 @@ public static class SdkValidation
                     Add(path + ".expectedMd5", "invalid_hash", "MD5 must be base64 of 16 bytes.");
             }
             Sha256(attachment.ExpectedSha256, path + ".expectedSha256");
+            if (attachment.ExpectedSha1 is not null)
+            {
+                Span<byte> bytes = stackalloc byte[20];
+                if (!Convert.TryFromBase64String(attachment.ExpectedSha1, bytes, out int written) || written != 20)
+                    Add(path + ".expectedSha1", "invalid_hash", "SHA-1 must be base64 of 20 bytes.");
+            }
+            if (attachment.ProviderSizeHint is SourceSizeHint hint)
+            {
+                if (hint.RawValue is not { Length: > 0 and <= 64 }
+                    || !decimal.TryParse(hint.RawValue, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal raw) || raw < 0)
+                    Add(path + ".providerSizeHint.rawValue", "invalid_size_hint", "Size hint must be bounded nonnegative invariant numeric text.");
+                if (hint.UnitLabel is not { Length: > 0 and <= 32 })
+                    Add(path + ".providerSizeHint.unitLabel", "invalid_size_hint", "Size hint unit label must contain 1–32 characters.");
+                EnumValue(hint.Precision, path + ".providerSizeHint.precision");
+            }
         }
 
         internal void CatalogSnapshot(SourceCatalogSnapshot? snapshot, SourceDescription source, string path)

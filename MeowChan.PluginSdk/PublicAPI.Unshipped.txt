@@ -1,1 +1,17 @@
 #nullable enable
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.get -> string?
+MeowChan.PluginSdk.SourceAttachment.ExpectedSha1.init -> void
+MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.get -> MeowChan.PluginSdk.SourceSizeHint?
+MeowChan.PluginSdk.SourceAttachment.ProviderSizeHint.init -> void
+MeowChan.PluginSdk.SourceSizeHint
+MeowChan.PluginSdk.SourceSizeHint.RawValue.get -> string!
+MeowChan.PluginSdk.SourceSizeHint.RawValue.init -> void
+MeowChan.PluginSdk.SourceSizeHint.UnitLabel.get -> string!
+MeowChan.PluginSdk.SourceSizeHint.UnitLabel.init -> void
+MeowChan.PluginSdk.SourceSizeHint.Precision.get -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizeHint.Precision.init -> void
+MeowChan.PluginSdk.SourceSizeHint.SourceSizeHint(string! RawValue, string! UnitLabel, MeowChan.PluginSdk.SourceSizePrecision Precision = MeowChan.PluginSdk.SourceSizePrecision.Unspecified) -> void
+MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Unspecified = 0 -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Rounded = 1 -> MeowChan.PluginSdk.SourceSizePrecision
+MeowChan.PluginSdk.SourceSizePrecision.Truncated = 2 -> MeowChan.PluginSdk.SourceSizePrecision
