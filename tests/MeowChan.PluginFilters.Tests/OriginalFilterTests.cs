@@ -25,6 +25,56 @@ namespace MeowChan.PluginFilters.Tests;
 
 public sealed class OriginalFilterTests(ITestOutputHelper output)
 {
+    // Exercise the acquisition/stage/IPC/worker/catalog boundary, not just direct plugin parsers.
+    [Theory]
+    [InlineData("files", true)] [InlineData("files", false)]
+    [InlineData("hashes", true)] [InlineData("hashes", false)]
+    [InlineData("format", true)] [InlineData("format", false)]
+    [InlineData("metadata", true)] [InlineData("metadata", false)]
+    public async Task WaveFiltersUseVerifiedStageAndPersistTheirDecision(string kind, bool matches)
+    {
+        byte[] bytes = Png(8, 4);
+        string assembly = kind switch {
+            "files" => typeof(FileRulesFilter).Assembly.Location,
+            "hashes" => typeof(HashBlocklistFilter).Assembly.Location,
+            "format" => typeof(AnimationFormatFilter).Assembly.Location,
+            _ => typeof(PngMetadataFilter).Assembly.Location
+        };
+        Dictionary<string, string> values = kind switch {
+            "files" => new() { ["minimumBytes"] = matches ? bytes.Length.ToString() : (bytes.Length + 1).ToString(),
+                ["nameMode"] = "exact", ["nameText"] = "original.png" },
+            "hashes" => new() { ["blockedSha256"] = matches ? new string('0', 64) + "\n" + new string('1', 64)
+                : new string('0', 64) + "\n" + Convert.ToHexString(SHA256.HashData(bytes)) },
+            "format" => new() { ["format"] = matches ? "png" : "jpeg", ["animation"] = "static" },
+            _ => new() { ["field"] = "parameters", ["presence"] = matches ? "absent" : "present" }
+        };
+        await using Harness h = await Harness.StartAsync(bytes, filterAssembly: assembly);
+        DownloadItem item = await h.ItemAsync(values);
+        string? expectedReason = kind switch { "files" => "below_minimum_bytes", "hashes" => "sha256_blocked",
+            "format" => "format_mismatch", _ => "metadata_absent" };
+        if (matches)
+        {
+            await h.RunAsync(item);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(item.DestinationPath));
+            Assert.NotNull(await new MediaStore().TryRestoreAsync(item, CancellationToken.None));
+        }
+        else
+        {
+            MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+            Assert.True(error.IsNoMatch); Assert.Equal(expectedReason, error.ReasonCode);
+            Assert.False(File.Exists(item.DestinationPath));
+        }
+        Assert.Equal(1, h.Transfers);
+        Assert.Equal(kind is "format" or "metadata", h.ImageReads > 0);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+        CandidateDecision decision = Assert.Single(await h.Content.Catalog.GetDecisionsAsync(h.Resource));
+        Assert.Equal(matches ? MediaSelectionOutcome.Selected : MediaSelectionOutcome.Excluded, decision.Selection.Outcome);
+        await using ArchiveReader reader = await h.Content.OpenReaderAsync();
+        Assert.Equal(1, (await reader.ReadThreadAsync(h.Resource))!.PostCount);
+        MediaRuleStore reopened = new(h.Root.Path, h.Profile); await reopened.LoadAsync();
+        Assert.Equal(values.OrderBy(pair => pair.Key), reopened.Resolve(h.Resource).ImageFilter.Parameters.OrderBy(pair => pair.Key));
+    }
+
     [Fact]
     public async Task RealWorkerMatchCommitsOneTransferSameBytesAndRestoresOffline()
     {
@@ -507,7 +557,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             _board = new(new DelegateHandler((_, _) => { Transfers++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Bytes) }); }));
             _thread = new(_board.Board, new Uri("https://stub.test/g/thread/123"));
         }
-        public static async Task<Harness> StartAsync(byte[] bytes, FilterStageOptions? options = null, bool resourceFilter = false, PluginWorkerOptions? workerOptions = null)
+        public static async Task<Harness> StartAsync(byte[] bytes, FilterStageOptions? options = null, bool resourceFilter = false, PluginWorkerOptions? workerOptions = null, string? filterAssembly = null)
         {
             Harness h = new(bytes, options, resourceFilter, workerOptions);
             await h.Content.InitializeAsync();
@@ -517,7 +567,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
                 new[] { new CapturedPost("123", 0, PostFieldPresence.All, Html: "preserve capture") }));
             string root = FindRoot();
             string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
-            string assembly = resourceFilter ? typeof(ResourceFilter).Assembly.Location : typeof(ImageDimensionsFilter).Assembly.Location;
+            string assembly = filterAssembly ?? (resourceFilter ? typeof(ResourceFilter).Assembly.Location : typeof(ImageDimensionsFilter).Assembly.Location);
             string helperRoot = Path.Combine(root, "tests/MeowChan.PluginFilters.Helper/bin/Release/net10.0");
             List<PluginArtifactResource> resources = new();
             if (resourceFilter) foreach (string file in Directory.EnumerateFiles(helperRoot))

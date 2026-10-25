@@ -105,8 +105,14 @@ internal sealed class PluginSettingsEditor : StackPanel
             {
                 // TextBox intentionally handles Integer and Uri too. Conversion, clamping or MaxLength
                 // here would destroy rejected or historical raw input before the existing validator sees it.
+                // Long text schemas (for example a pasted hash list) need a bounded multiline
+                // editor. This is presentation only: never trim, cap or normalize raw input.
+                bool multiline = field.Kind == SettingKind.Text &&
+                    (field.MaximumLength > 1024 || draft.Text(field.Key).Contains('\n'));
                 TextBox input = new() { Text = draft.Text(field.Key), HorizontalAlignment = HorizontalAlignment.Stretch,
-                    PlaceholderText = field.Kind == SettingKind.Uri ? "https://…" : null };
+                    PlaceholderText = field.Kind == SettingKind.Uri ? "https://…" : null,
+                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+                    MinHeight = multiline ? 96 : 0, MaxHeight = multiline ? 192 : double.PositiveInfinity };
                 CheckBox? set = null;
                 if (!field.IsRequired)
                 {

@@ -130,8 +130,8 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(7, report['plugins'])
-                    self.assertEqual(5, report['editable_sources'])
+                    self.assertEqual(11, report['plugins'])
+                    self.assertEqual(9, report['editable_sources'])
                 finally:
                     self.root = outer
 
@@ -141,19 +141,22 @@ class PluginPackagingTests(unittest.TestCase):
             PACKAGE.verify(self.root, 'linux-x64')
         self.assertTrue(PACKAGE.verify(self.root, 'linux-x64', development=True)['passed'])
 
-    def test_exact_bundled_inventory_includes_both_new_sources(self):
+    def test_exact_bundled_inventory_includes_filters(self):
         self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
                           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter',
-                          'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan'}, set(PACKAGE.PLUGINS))
-        self.assertEqual({'Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs'}, set(PACKAGE.SOURCES))
+                          'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan',
+                          'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter'}, set(PACKAGE.PLUGINS))
+        self.assertEqual({'Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs',
+                          'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs'}, set(PACKAGE.SOURCES))
         self.assertEqual(5, len(PACKAGE.RUNTIMES))
         self.fixture()
-        for source in ('Wizchan', 'Endchan'):
+        for assembly_name, source in ([('MeowChan.Plugin.Wizchan', 'Wizchan'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
+                [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter')]):
             with self.subTest(source=source):
-                manifest = self.root / ('plugins/MeowChan.Plugin.' + source + '.plugin.json')
+                manifest = self.root / ('plugins/' + assembly_name + '.plugin.json')
                 original = manifest.read_bytes()
                 manifest.unlink()
-                with self.assertRaisesRegex(ValueError, 'seven required plugins'):
+                with self.assertRaisesRegex(ValueError, 'required plugin inventory'):
                     PACKAGE.verify(self.root, 'linux-x64')
                 manifest.write_bytes(original)
                 editable = self.root / ('plugins/sources/' + source + '.cs')
@@ -162,7 +165,7 @@ class PluginPackagingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Missing'):
                     PACKAGE.verify(self.root, 'linux-x64')
                 editable.write_bytes(original)
-                assembly = self.root / ('plugins/assemblies/MeowChan.Plugin.' + source + '.dll')
+                assembly = self.root / ('plugins/assemblies/' + assembly_name + '.dll')
                 original = assembly.read_bytes()
                 assembly.write_bytes(b'modified')
                 with self.assertRaisesRegex(ValueError, 'assembly hash'):

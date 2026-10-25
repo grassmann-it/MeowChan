@@ -36,7 +36,8 @@ REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo
             'https://endchan.net/.media/endchan-keep.png', 'https://endchan.net/.media/endchan-drop.png'}
 PLUGIN_IDS = {'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.source.lainchan',
               'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
-              'meowchan.example.image-dimensions'}
+              'meowchan.example.image-dimensions',
+              'meowchan.filter.file-rules', 'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
 

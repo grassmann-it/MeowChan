@@ -88,7 +88,7 @@ public sealed class LiveSourceAcceptanceTests(ITestOutputHelper output)
                 result.DescribedNames[id] = Assert.Single(plugins.Sources, source => source.Name == id).NiceName;
             Assert.Equal(Names.OrderBy(row => row.Key), result.DescribedNames.OrderBy(row => row.Key));
             var installed = await plugins.ProfileStore.ReadAsync();
-            Assert.Equal(7, installed.Plugins.Count);
+            Assert.Equal(11, installed.Plugins.Count);
             revisions = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);
             var active = Assert.Single(installed.Plugins, plugin => plugin.PluginId == selection.PluginId).Active!;
             Assert.Equal(Names[selection.SourceId], active.Description.Name);

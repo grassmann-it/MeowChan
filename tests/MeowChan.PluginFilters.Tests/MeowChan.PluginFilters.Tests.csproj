@@ -9,6 +9,10 @@
     <ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
     <ProjectReference Include="../../MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/FileRulesFilter/MeowChan.FileRulesFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/HashBlocklistFilter/MeowChan.HashBlocklistFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/AnimationFormatFilter/MeowChan.AnimationFormatFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/PngMetadataFilter/MeowChan.PngMetadataFilter.csproj" />
     <ProjectReference Include="../MeowChan.PluginFilters.Fixture/MeowChan.PluginFilters.Fixture.csproj" />
     <ProjectReference Include="../MeowChan.PluginFilters.Helper/MeowChan.PluginFilters.Helper.csproj" ReferenceOutputAssembly="false" />
     <None Update="Fixtures/*" CopyToOutputDirectory="PreserveNewest" />

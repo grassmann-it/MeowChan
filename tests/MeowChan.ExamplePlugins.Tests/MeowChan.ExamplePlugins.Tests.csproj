@@ -17,6 +17,11 @@
     <ProjectReference Include="../../plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj" />
     <ProjectReference Include="../../plugins/Examples/Wizchan/MeowChan.Plugin.Wizchan.csproj" />
     <ProjectReference Include="../../plugins/Examples/Endchan/MeowChan.Plugin.Endchan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/AnimationFormatFilter/MeowChan.AnimationFormatFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/PngMetadataFilter/MeowChan.PngMetadataFilter.csproj" />
+    <ProjectReference Include="../../plugins/Examples/Leftypol/MeowChan.Plugin.Leftypol.csproj" />
+    <ProjectReference Include="../../plugins/Examples/Dvach/MeowChan.Plugin.Dvach.csproj" />
+    <ProjectReference Include="../../plugins/Examples/Uboachan/MeowChan.Plugin.Uboachan.csproj" />
     <Using Include="Xunit" />
     <None Update="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

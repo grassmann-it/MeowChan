@@ -42,7 +42,7 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.Empty(host.Plugins.Warnings);
             Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
             var installed = await host.Plugins.ProfileStore.ReadAsync();
-            Assert.Equal(7, installed.Plugins.Count);
+            Assert.Equal(11, installed.Plugins.Count);
             // 0.9 has no plugin identities yet: first discovery uses current Host
             // defaults, then subsequent normal restarts must preserve those values.
             string[] defaultOff = ["meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan"];

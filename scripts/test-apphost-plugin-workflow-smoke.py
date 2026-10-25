@@ -40,8 +40,8 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
         self.assertEqual(['bound'], self.validate(self.metrics()))
         self.assertEqual(['bound'], self.validate(self.metrics('restore')))
 
-    def test_seven_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
-        self.assertEqual(7, len(runner.PLUGIN_IDS))
+    def test_eleven_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
+        self.assertEqual(11, len(runner.PLUGIN_IDS))
         self.assertEqual(12, len(runner.REQUESTS))
         for source in ('wizchan', 'endchan'):
             metrics = self.metrics()

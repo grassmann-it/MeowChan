@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Describe all seven delivered plugins through the actual SDK-inaccessible Linux worker.
+"""Describe all delivered plugins through the actual SDK-inaccessible Linux worker.
 
 An isolated packaging probe, not the production session/HTTP/filter acceptance suite.
 """
@@ -61,7 +61,11 @@ def main():
     expected_ids = {'MeowChan.Plugin.FourChan': 'meowchan.official.4chan', 'MeowChan.Plugin.EightKun': 'meowchan.official.8kun',
                     'MeowChan.Plugin.Lainchan': 'meowchan.source.lainchan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
                     'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions',
-                    'MeowChan.Plugin.Wizchan': 'meowchan.source.wizchan', 'MeowChan.Plugin.Endchan': 'meowchan.source.endchan'}
+                    'MeowChan.Plugin.Wizchan': 'meowchan.source.wizchan', 'MeowChan.Plugin.Endchan': 'meowchan.source.endchan',
+                    'MeowChan.FileRulesFilter': 'meowchan.filter.file-rules',
+                    'MeowChan.HashBlocklistFilter': 'meowchan.filter.hash-blocklist',
+                    'MeowChan.AnimationFormatFilter': 'meowchan.filter.animation-format',
+                    'MeowChan.PngMetadataFilter': 'meowchan.filter.png-metadata'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):

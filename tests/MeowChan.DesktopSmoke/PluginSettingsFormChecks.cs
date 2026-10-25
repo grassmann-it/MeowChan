@@ -85,6 +85,7 @@ internal static class PluginSettingsFormChecks
                     new("a-b", scope, SettingKind.Integer, "A very long number label " + new string('x', 120), "Number help", true),
                     new("a.b", scope, SettingKind.Uri, "URI", IsRequired: true),
                     new("a_b", scope, SettingKind.Text, "Optional text"),
+                    new("hashes", scope, SettingKind.Text, "Hash list", IsRequired: true, MaximumLength: 20480),
                     new("flag", scope, SettingKind.Boolean, "Optional flag"),
                     new("mode", scope, SettingKind.Enum, "Mode", Options: new[] { new SettingOption("stable", "Translated label") })
                 });
@@ -97,6 +98,12 @@ internal static class PluginSettingsFormChecks
                 host.Content = new ScrollViewer { Content = expander };
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Require(!draft.Dirty && editor.SettingsForm.Items.Count == schema.Fields.Count && editor.SettingsForm.Items.OfType<FormItem>().Count() == schema.Fields.Count, "Form rendering changed the draft or omitted schema items.");
+                TextBox hashes = (TextBox)editor.FindField("hashes")!;
+                Require(hashes.AcceptsReturn && hashes.TextWrapping == Avalonia.Media.TextWrapping.Wrap && hashes.MaxHeight <= 192,
+                    "Long text schemas require a bounded multiline editor.");
+                string pasted = new string('a', 64) + "\n" + new string('b', 64) + "\n";
+                hashes.Text = pasted;
+                Require(draft.Text("hashes") == pasted, "Multiline paste was normalized or not synchronized into the draft.");
                 Control[] inputs = schema.Fields.Select(field => editor.FindField(field.Key)!).ToArray();
                 Require(inputs.Select(input => input.Name).Distinct().Count() == inputs.Length && inputs.Select(AutomationProperties.GetAutomationId).Distinct().Count() == inputs.Length, "Colliding sanitized field names lost a field identity.");
                 Require(AutomationProperties.GetIsRequiredForForm(inputs[0]) && AutomationProperties.GetHelpText(inputs[0]) == "Number help", "Form accessibility omitted required status or help.");

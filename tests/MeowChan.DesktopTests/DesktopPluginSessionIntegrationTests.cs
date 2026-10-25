@@ -242,7 +242,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-worker", "MeowChan.PluginWorker" + suffix)));
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
-        Assert.Equal(7, manifests.Length);
+        Assert.Equal(11, manifests.Length);
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
         Stopwatch startup = Stopwatch.StartNew();
@@ -261,7 +261,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        Assert.Equal(7, profile.Plugins.Count);
+        Assert.Equal(11, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)
