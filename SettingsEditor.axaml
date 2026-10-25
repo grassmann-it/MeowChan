@@ -52,7 +52,7 @@
                                 <TextBlock x:Name="WorkspaceModeFieldLabel" Text="{Binding WorkspaceModeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding ModeHint}" Classes="muted workspace-help" />
                             </StackPanel>
-                            <ComboBox x:Name="WorkspaceModeInput" AutomationProperties.LabeledBy="{Binding ElementName=WorkspaceModeFieldLabel}" AutomationProperties.Name="{Binding WorkspaceModeLabel}" AutomationProperties.HelpText="{Binding ModeHint}" Grid.Column="1" HorizontalAlignment="Stretch"
+                            <ComboBox x:Name="WorkspaceModeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=WorkspaceModeFieldLabel}" AutomationProperties.Name="{Binding WorkspaceModeLabel}" AutomationProperties.HelpText="{Binding ModeHint}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding WorkspaceChoices}" SelectedItem="{Binding SelectedWorkspaceMode, Mode=TwoWay}">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
@@ -61,7 +61,7 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="LanguageFieldLabel" Text="{Binding LanguageLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <ComboBox x:Name="LanguageInput" AutomationProperties.LabeledBy="{Binding ElementName=LanguageFieldLabel}" AutomationProperties.Name="{Binding LanguageLabel}" Grid.Column="1" HorizontalAlignment="Stretch"
+                            <ComboBox x:Name="LanguageInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=LanguageFieldLabel}" AutomationProperties.Name="{Binding LanguageLabel}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding LanguageChoices}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="localization:LanguageInfo"><TextBlock Text="{Binding NativeName}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
@@ -70,7 +70,7 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="ThemeFieldLabel" Text="{Binding ThemeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <ComboBox x:Name="ThemeInput" AutomationProperties.LabeledBy="{Binding ElementName=ThemeFieldLabel}" AutomationProperties.Name="{Binding ThemeLabel}" Grid.Column="1" HorizontalAlignment="Stretch"
+                            <ComboBox x:Name="ThemeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=ThemeFieldLabel}" AutomationProperties.Name="{Binding ThemeLabel}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding ThemeChoices}" SelectedItem="{Binding SelectedTheme, Mode=TwoWay}">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
@@ -79,7 +79,7 @@
                     <Border Padding="0,10">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="DensityFieldLabel" Text="{Binding DensityLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <CheckBox x:Name="CompactDensityInput" AutomationProperties.LabeledBy="{Binding ElementName=DensityFieldLabel}" AutomationProperties.Name="{Binding DensityLabel}" Grid.Column="1" Content="{Binding CompactLabel}" IsChecked="{Binding CompactDensity, Mode=TwoWay}" />
+                            <CheckBox x:Name="CompactDensityInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=DensityFieldLabel}" AutomationProperties.Name="{Binding DensityLabel}" Grid.Column="1" Content="{Binding CompactLabel}" IsChecked="{Binding CompactDensity, Mode=TwoWay}" />
                         </Grid>
                     </Border>
                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}">
@@ -91,7 +91,7 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="ReadingFontSizeFieldLabel" Text="{Binding ReadingFontSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <ComboBox x:Name="ReadingFontSizeInput" AutomationProperties.LabeledBy="{Binding ElementName=ReadingFontSizeFieldLabel}" AutomationProperties.Name="{Binding ReadingFontSizeLabel}" Grid.Column="1" ItemsSource="{Binding ReadingFontSizeChoices}" SelectedItem="{Binding SelectedReadingFontSize, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                            <ComboBox x:Name="ReadingFontSizeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=ReadingFontSizeFieldLabel}" AutomationProperties.Name="{Binding ReadingFontSizeLabel}" Grid.Column="1" ItemsSource="{Binding ReadingFontSizeChoices}" SelectedItem="{Binding SelectedReadingFontSize, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
@@ -100,7 +100,7 @@
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="VideoVolumeFieldLabel" Text="{Binding VideoVolumeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                        <desktop:AccessibleNumberInput x:Name="VideoVolumeInput" AutomationProperties.LabeledBy="{Binding ElementName=VideoVolumeFieldLabel}" AutomationProperties.Name="{Binding VideoVolumeLabel}" AutomationProperties.HelpText="{Binding VolumeHelp}" Grid.Column="1" Value="{Binding VideoVolume, Mode=TwoWay}" Minimum="0" Maximum="100" Increment="1" />
+                        <desktop:AccessibleNumberInput x:Name="VideoVolumeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=VideoVolumeFieldLabel}" AutomationProperties.Name="{Binding VideoVolumeLabel}" AutomationProperties.HelpText="{Binding VolumeHelp}" Grid.Column="1" Value="{Binding VideoVolume, Mode=TwoWay}" Minimum="0" Maximum="100" Increment="1" />
                     </Grid>
                     <CheckBox x:Name="RememberReadingPositionInput" Content="{Binding RememberReadingPositionLabel}" IsChecked="{Binding RememberReadingPosition, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReadingPositionHint}" />
                     <TextBlock Text="{Binding ReadingPositionHint}" Classes="muted workspace-help" />
@@ -121,7 +121,7 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="RecheckFieldLabel" Text="{Binding RecheckLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <StackPanel Grid.Column="1" Spacing="4">
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="RecheckTimerInput" AutomationProperties.LabeledBy="{Binding ElementName=RecheckFieldLabel}" AutomationProperties.Name="{Binding RecheckLabel}" AutomationProperties.HelpText="{Binding RecheckTimerHelp}" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1" />
                                 <TextBlock x:Name="RecheckTimerInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
@@ -130,7 +130,7 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="BandwidthFieldLabel" Text="{Binding BandwidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <StackPanel Grid.Column="1" Spacing="4">
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthInputHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Increment="0.1" />
                                 <TextBlock x:Name="BandwidthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
@@ -139,7 +139,7 @@
                     <Border Padding="0,10">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="ParallelFieldLabel" Text="{Binding ParallelLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <StackPanel Grid.Column="1" Spacing="4">
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="2147483647" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsHelp}" />
                                 <TextBlock x:Name="ParallelDownloadsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
@@ -149,7 +149,7 @@
                 <StackPanel Spacing="8" IsEnabled="{Binding IsEditable}">
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
-                        <StackPanel Grid.Column="1" Spacing="4">
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="2147483647" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveInputHelp}" />
                                 <TextBlock x:Name="ReserveInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
@@ -160,28 +160,28 @@
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="ProductionWorkersFieldLabel" Text="{Binding ProductionWorkersLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ProductionWorkersInput" Value="{Binding ProductionWorkers, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProductionWorkersFieldLabel}" AutomationProperties.Name="{Binding ProductionWorkersLabel}" AutomationProperties.HelpText="{Binding ProductionWorkersHelp}" />
                                 <TextBlock x:Name="ProductionWorkersInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="WorkerIdleMinutesFieldLabel" Text="{Binding WorkerIdleMinutesLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="WorkerIdleMinutesInput" Value="{Binding WorkerIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=WorkerIdleMinutesFieldLabel}" AutomationProperties.Name="{Binding WorkerIdleMinutesLabel}" AutomationProperties.HelpText="{Binding WorkerIdleMinutesHelp}" />
                                 <TextBlock x:Name="WorkerIdleMinutesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="SourceHeapMiBFieldLabel" Text="{Binding SourceHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="SourceHeapMiBInput" Value="{Binding SourceHeapMiB, Mode=TwoWay}" Minimum="128" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourceHeapMiBFieldLabel}" AutomationProperties.Name="{Binding SourceHeapMiBLabel}" AutomationProperties.HelpText="{Binding SourceHeapMiBHelp}" />
                                 <TextBlock x:Name="SourceHeapMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="FilterHeapMiBFieldLabel" Text="{Binding FilterHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="FilterHeapMiBInput" Value="{Binding FilterHeapMiB, Mode=TwoWay}" Minimum="256" Maximum="2048" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FilterHeapMiBFieldLabel}" AutomationProperties.Name="{Binding FilterHeapMiBLabel}" AutomationProperties.HelpText="{Binding FilterHeapMiBHelp}" />
                                 <TextBlock x:Name="FilterHeapMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>

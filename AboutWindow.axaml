@@ -93,7 +93,7 @@
         </TabControl>
         <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="0,12,0,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <SelectableTextBlock x:Name="LinkErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"/>
+                <SelectableTextBlock x:Name="LinkErrorText" VerticalAlignment="Center" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"/>
                 <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
             </Grid>
         </Border>
