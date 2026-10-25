@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -378,7 +379,8 @@ class ReportAndProcessTests(unittest.TestCase):
             process = subprocess.Popen([str(apphost), '5'], start_new_session=True)
             observed = {}
             try:
-                runner.observe_apphosts(process.pid, observed, artifact, runtime, work, root)
+                runner.observe_apphosts(process.pid, observed, artifact, runtime, work, root,
+                                        attempts=[], deadline=time.monotonic() + 5)
                 self.assertEqual(observed[process.pid]['exeSha256'], artifact['payload_files']['MeowChan'])
                 self.assertTrue(observed[process.pid]['brieflyStoppedForPayloadHash'])
                 self.assertEqual(observed[process.pid]['payloadRoot'], str(root))

@@ -738,7 +738,7 @@ jobs:
         run: |
           mkdir -p artifacts/source-base
           base=artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz
-          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0-preview.3/MeowChan-0.9.0-video-sources.tar.gz
+          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-MeowChan-0.9.0-video-sources.tar.gz
           test "$(stat -c %s "$base")" = 725131331
           echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
       - name: Generate source overlay bound to both final native DMGs
@@ -770,7 +770,7 @@ jobs:
               with binary.open('rb') as data:
                   assert hashlib.file_digest(data, 'sha256').hexdigest() == record['signed_dmg']['sha256']
           base = manifest['source_base']
-          base['url'] = 'https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0-preview.3/' + base['file']
+          base['url'] = 'https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-' + base['file']
           (candidate / 'source-base.json').write_text(json.dumps(base, indent=2) + '\n')
           (candidate / 'README.txt').write_text('CI candidates only; no public release. Both DMGs and the source overlay bind to source.txt. ZIPs are retained only for inventory verification.\nUse the unchanged public source base identified in source-base.json together with the overlay.\nThe base is not duplicated in this CI artifact. A future release must offer both source assets.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
           lines = []
@@ -807,7 +807,7 @@ jobs:
         run: |
           mkdir -p artifacts/source-base
           base=artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz
-          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0-preview.3/MeowChan-0.9.0-video-sources.tar.gz
+          curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-MeowChan-0.9.0-video-sources.tar.gz
           test "$(stat -c %s "$base")" = 725131331
           echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
       - name: Verify actual managed identities, source pairing, legal files and asset inventory

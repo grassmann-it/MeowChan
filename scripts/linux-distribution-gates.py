@@ -353,10 +353,50 @@ def same_process(first, second):
     return all(first[key] == second[key] for key in ('pid', 'starttime', 'pgid', 'sid', 'uid'))
 
 
+def require_authenticated_parent(parent, identity, executable):
+    if (not same_process(parent['processIdentity'], identity)
+            or identity['state'] in ('Z', 'X') or executable != parent['finalExecutable']):
+        raise ValueError('Packaged worker parent lost its authenticated apphost identity/image')
+
+
+def packaged_worker_binding(attempt, observed, artifact, parent_identity, parent_exe, work, fixed_root):
+    """Classify only a fresh direct child whose inherited image became the packaged worker."""
+    pid, initial = attempt['pid'], attempt['initialIdentity']
+    if pid in observed:
+        raise ValueError('An authenticated apphost can never be reclassified as a worker')
+    if initial['pid'] != pid:
+        raise ValueError('Packaged worker candidate PID differs from its pinned identity')
+    parent = observed.get(initial['ppid'])
+    if parent is None or initial['ppid'] == pid:
+        raise ValueError('Packaged worker requires a directly authenticated apphost parent')
+    require_authenticated_parent(parent, parent_identity, parent_exe)
+    for identity in (attempt['identityBeforeSignal'], attempt['stopIdentity']):
+        if not same_process(initial, identity) or identity['ppid'] != initial['ppid']:
+            raise ValueError('Packaged worker child identity/direct parent changed')
+    if (attempt['initialExecutable'] != parent['finalExecutable']
+            or attempt['executableBeforeSignal'] != parent['finalExecutable']):
+        raise ValueError('Packaged worker did not inherit its authenticated parent image')
+    if (not attempt['stopConfirmed'] or attempt['stopIdentity']['state'] != 'T'
+            or not attempt['stopTaskStates'] or any(state != 'T' for state in attempt['stopTaskStates'].values())):
+        raise ValueError('Packaged worker classification requires a confirmed stop')
+    root = Path(parent['payloadRoot'])
+    if (not root.is_relative_to(work) or (fixed_root is not None and root != fixed_root)
+            or (fixed_root is None and not root.is_relative_to(work / 'tmp'))):
+        raise ValueError('Packaged worker parent payload escaped its verified work root')
+    # This one concrete helper is the observed fork/exec case. No basename-only
+    # exemption and no general manifest-binary allowlist.
+    member = str(PurePosixPath(artifact['apphost_member']).parent / 'plugin-worker/MeowChan.PluginWorker')
+    expected = artifact['payload_files'].get(member)
+    if (expected is None or attempt['stoppedExecutable']['path'] != str(root / member)
+            or attempt['actualHash'] != expected):
+        raise ValueError('Stopped child is not the exact manifest-bound packaged PluginWorker')
+    return parent, root, member, expected
+
+
 def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=None, *, attempts, deadline):
     """Authenticate one stopped, pinned process image; preserve every candidate failure."""
     for pid in descendants(process_id):
-        directory_fd = pid_fd = executable_fd = None
+        directory_fd = pid_fd = executable_fd = parent_directory_fd = None
         stopped = False
         attempt = None
         try:
@@ -443,15 +483,30 @@ def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=N
                     digest.update(chunk)
             actual_hash = digest.hexdigest()
             attempt['actualHash'] = actual_hash
+            parent = None
+            worker_member = worker_hash = None
             if initial_exe != stopped_exe or attempt['executableBeforeSignal'] != stopped_exe:
                 attempt['execTransitionObserved'] = True
-                raise ValueError('Apphost executable changed before its confirmed stop; candidate not authenticated')
+                if initial['ppid'] not in observed:
+                    raise ValueError('Apphost executable changed before its confirmed stop; candidate not authenticated')
+                parent_directory_fd = os.open(f"/proc/{initial['ppid']}",
+                                              os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+                parent_identity = proc_stat(parent_directory_fd)
+                parent_exe = proc_executable(parent_directory_fd)
+                parent, root, worker_member, worker_hash = packaged_worker_binding(
+                    attempt, observed, artifact, parent_identity, parent_exe, work, fixed_root)
+                attempt.update(parentIdentityBeforePayload=parent_identity,
+                               parentExecutableBeforePayload=parent_exe,
+                               parentAuthenticatedIdentity=parent['processIdentity'],
+                               expectedWorkerMember=worker_member, expectedWorkerHash=worker_hash,
+                               authenticatedAsApphost=False)
             executable = Path(stopped_exe['path'])
             if not executable.is_relative_to(work):
                 raise ValueError('Observed apphost escaped owned writable work directory')
-            root = executable
-            for _ in PurePosixPath(artifact['apphost_member']).parts:
-                root = root.parent
+            if parent is None:
+                root = executable
+                for _ in PurePosixPath(artifact['apphost_member']).parts:
+                    root = root.parent
             if fixed_root is not None and root != fixed_root:
                 raise ValueError('Executed apphost differs from the verified extracted path')
             if fixed_root is None and not root.is_relative_to(work / 'tmp'):
@@ -466,10 +521,21 @@ def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=N
             if (not same_process(initial, final) or final['state'] != 'T' or not final_tasks
                     or any(value != 'T' for value in final_tasks.values()) or final_exe != stopped_exe):
                 raise ValueError('Stopped apphost process/image identity changed during payload authentication')
-            if actual_hash != proof['apphostSha256']:
+            if parent is not None:
+                if final['ppid'] != initial['ppid']:
+                    raise ValueError('Packaged worker direct parent changed during authentication')
+                parent_final = proc_stat(parent_directory_fd)
+                parent_final_exe = proc_executable(parent_directory_fd)
+                attempt.update(parentIdentityAfterPayload=parent_final,
+                               parentExecutableAfterPayload=parent_final_exe)
+                require_authenticated_parent(parent, parent_final, parent_final_exe)
+            if actual_hash != (worker_hash if parent is not None else proof['apphostSha256']):
                 raise ValueError('Actually executed apphost bytes differ from verified payload')
             if time.monotonic() >= deadline:
                 raise ValueError('Apphost authentication exceeded the existing command deadline')
+            if parent is not None:
+                attempt.update(passed=True, classification='packaged-plugin-worker')
+                continue  # Resume in finally, but never add a worker to observedApphosts.
             observed[pid] = {'pid': pid, 'executable': str(executable), 'exeSha256': actual_hash,
                              'payloadRoot': str(root), 'payloadSha256': proof['sha256'],
                              'payloadBytes': proof['bytes'], 'elfMachine': proof['elfMachine'],
@@ -504,7 +570,7 @@ def observe_apphosts(process_id, observed, artifact, runtime, work, fixed_root=N
                             attempt.update(passed=False, resumeSignalError=str(resume_error))
                         raise
             finally:
-                for descriptor in (executable_fd, pid_fd, directory_fd):
+                for descriptor in (parent_directory_fd, executable_fd, pid_fd, directory_fd):
                     if descriptor is not None:
                         os.close(descriptor)
                 if attempt is not None:
@@ -699,6 +765,9 @@ def run_positive(launcher, root, artifact, manifest, args, label, extra_env=None
                              environment=environment, observer=observer, disk_paths=(args.work, args.evidence))
         result['observedApphosts'] = list(observed.values())
         result['apphostObservationAttempts'] = attempts
+        result['observedPackagedHelpers'] = [attempt for attempt in attempts
+                                            if attempt.get('classification') == 'packaged-plugin-worker'
+                                            and attempt.get('passed') is True]
         result['dispatchEnvironment'] = extra_env or {}
         results[kind] = result
         write_json(destination / 'dispatch.json', results)
