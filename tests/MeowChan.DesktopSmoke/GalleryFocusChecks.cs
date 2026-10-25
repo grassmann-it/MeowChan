@@ -83,7 +83,7 @@ internal static class GalleryFocusChecks
                 if (toggle.IsChecked == true) Click(toggle);
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 double expandedHeight = Find<Grid>(viewer, "GalleryViewport").Bounds.Height;
-                Program.CaptureWindow(window, $"gallery-tools-{testedLanguage}-{variant}-{testedWidth}.png");
+                Program.CaptureWindow(window, $"smoke-gallery-tools-{testedLanguage}-{variant}-{testedWidth}.png");
                 Click(toggle);
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 Require(Find<Grid>(viewer, "GalleryViewport").Bounds.Height > expandedHeight + 20,
@@ -98,13 +98,19 @@ internal static class GalleryFocusChecks
                         "Compact gallery action is clipped: " + name);
                 }
                 Require(AutomationProperties.GetName(toggle) == Texts.T("viewer.tools.show"), "Live language change lost the reveal label.");
-                Program.CaptureWindow(window, $"gallery-focus-{testedLanguage}-{variant}-{testedWidth}.png");
+                Program.CaptureWindow(window, $"smoke-gallery-focus-{testedLanguage}-{variant}-{testedWidth}.png");
             }
             await viewer.StopAsync();
             Require(toggle.IsChecked != true && fit.IsVisible, "Closing did not reset session-only focus mode.");
             GalleryViewer fresh = new();
-            Require(Find<ToggleButton>(fresh, "GalleryToolsToggle").IsChecked != true, "Focus mode leaked into a new gallery.");
-            await fresh.StopAsync();
+            object? previousContent = window.Content;
+            try
+            {
+                window.Content = fresh;
+                await Program.WaitUntilAsync(() => fresh.Bounds.Width > 100);
+                Require(Find<ToggleButton>(fresh, "GalleryToolsToggle").IsChecked != true, "Focus mode leaked into a new gallery.");
+            }
+            finally { await fresh.StopAsync(); window.Content = previousContent; }
             Console.WriteLine("SMOKE gallery focus: EN/DE Light/Dark at 640/850, visible navigation, reclaimed height, custom shortcut, focus transfer, retained errors and session reset passed.");
         }
         finally
@@ -128,13 +134,13 @@ internal static class GalleryFocusChecks
             "GalleryClose", "GalleryPrevious", "GalleryNext", "GalleryToolsToggle" })
             Require(Find<Control>(viewer, name).IsEffectivelyVisible, "Video focus hid an essential control: " + name);
         Require(!Find<Button>(viewer, "GalleryFit").IsEffectivelyVisible, "Video focus did not hide secondary tools.");
-        Program.CaptureWindow(window, $"gallery-video-focus-{theme}.png");
+        Program.CaptureWindow(window, $"smoke-gallery-video-focus-{theme}.png");
         Click(toggle);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Require(Find<Button>(viewer, "GalleryFit").IsEffectivelyVisible, "Video tools did not expand again.");
         Require(ReferenceEquals(player, viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single())
             && (await player.InspectPlaybackAsync()).HasPlayback, "Collapsing tools replaced or stopped the real video.");
-        Program.CaptureWindow(window, $"gallery-video-tools-{theme}.png");
+        Program.CaptureWindow(window, $"smoke-gallery-video-tools-{theme}.png");
         Console.WriteLine("SMOKE real video media focus: transport and navigation remain visible across collapse/expand in " + theme);
     }
 
