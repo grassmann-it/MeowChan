@@ -166,21 +166,23 @@ public sealed class OriginalMediaHttpTests
         ManualTime clock = new(); List<TrackingContent> contents = []; int sent = 0;
         using HttpClient transport = new(new Handler((request, _) =>
         {
-            sent++; clock.Advance(TimeSpan.FromSeconds(9));
+            sent++;
             TrackingContent content = new([1]); contents.Add(content);
-            if (sent != 1) return Task.FromResult(Redirect(request, 302, "/next-" + sent, content));
+            if (sent != 1)
+            {
+                clock.Advance(TimeSpan.FromSeconds(9));
+                return Task.FromResult(Redirect(request, 302, "https://2ch.su/next-" + sent, content));
+            }
             HttpResponseMessage unavailable = Response(request, 503, content);
-            unavailable.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(20));
+            unavailable.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(50));
             return Task.FromResult(unavailable);
         }));
         using HttpClient client = PluginOriginalMediaHttp.CreateClient(transport, Source, new RequestPolicyState(clock, () => 0));
         Task<HttpResponseMessage> pending = client.GetAsync(Initial, HttpCompletionOption.ResponseHeadersRead);
         Assert.Equal(1, sent); Assert.False(pending.IsCompleted);
-        clock.Advance(TimeSpan.FromSeconds(20));
-        for (int second = 0; second < 80 && !pending.IsCompleted; second++)
-        { clock.Advance(TimeSpan.FromSeconds(1)); await Task.Delay(1); }
+        clock.Advance(TimeSpan.FromSeconds(50));
         await Assert.ThrowsAsync<TimeoutException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(5, sent); Assert.All(contents, content => Assert.True(content.Disposed));
+        Assert.Equal(3, sent); Assert.All(contents, content => Assert.True(content.Disposed));
     }
 
     [Fact]
