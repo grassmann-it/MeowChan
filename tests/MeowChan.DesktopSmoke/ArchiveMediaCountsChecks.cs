@@ -52,6 +52,7 @@ internal static class ArchiveMediaCountsChecks
             Require(await page.ApplySearchSpecAsync(new(sort: ArchiveThreadSort.Title)), "Initial applied search failed.");
             Require(inventories == 0, "A hidden result page started media inventory.");
             page.IsVisible = true; // Empty-work stamps must not suppress the first visible count.
+            await Program.WaitUntilAsync(() => Volatile.Read(ref inventories) > 0);
             await page.ArchiveMediaCountTask;
             ArchiveThreadRow[] Rows() => page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource.Cast<ArchiveThreadRow>().ToArray();
             ArchiveThreadRow Row(ResourceId id) => Rows().Single(row => row.Summary.Id == id);
