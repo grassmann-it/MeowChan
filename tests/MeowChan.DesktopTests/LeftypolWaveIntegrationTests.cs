@@ -121,6 +121,8 @@ public sealed class LeftypolWaveIntegrationTests
             Assert.Empty(host.Plugins.Runtime.GetSnapshots());
 
             // Explicit provider permission never bypasses verification of local committed bytes.
+            await host.SetSourceMediaIntegrityPermissionAsync(Plugin, "leftypol", true, Policy(host).Snapshot.Revision);
+            Assert.True(Policy(host).IsGranted);
             var saved = await ReadAsync(host);
             var asset = Assert.Single(saved.Assets.GetPage(), row => row.MediaIdentifier == LeftypolWaveFixtures.Ids[0]);
             byte[] changed = await File.ReadAllBytesAsync(asset.Path);
