@@ -174,6 +174,27 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
     }
 
+    [Theory]
+    [InlineData("missing-name", "original_name_unavailable")]
+    [InlineData("unsupported-png", "unsupported_format")]
+    [InlineData("broken-png", "invalid_png_structure")]
+    public async Task TechnicalFilterOutcomesNeverBecomeIntentionalNoMatch(string kind, string reason)
+    {
+        byte[] bytes = kind == "unsupported-png" ? WaveContainer("gif") : Png(8, 4);
+        if (kind == "broken-png") bytes[29] ^= 1; // Bad IHDR CRC, with a readable host canvas header.
+        string assembly = kind == "missing-name" ? typeof(FileRulesFilter).Assembly.Location : typeof(PngMetadataFilter).Assembly.Location;
+        await using Harness h = await Harness.StartAsync(bytes, filterAssembly: assembly);
+        DownloadItem item = await h.ItemAsync(kind == "missing-name"
+            ? new() { ["nameMode"] = "contains", ["nameText"] = "file" } : new(), originalName: null);
+        MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.False(error.IsNoMatch); Assert.Equal(reason, error.ReasonCode);
+        Assert.Equal(1, h.Transfers); Assert.Equal(1, h.Evaluations);
+        Assert.False(File.Exists(item.DestinationPath));
+        Assert.Equal(MediaSelectionOutcome.TechnicalOmission,
+            Assert.Single(await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Selection.Outcome);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
     private sealed class StageIntegrityPolicy(string profile) : ISourceMediaIntegrityPolicy
     {
         private readonly SourceMediaIntegrityPolicySnapshot snapshot = new(profile, "fixture.source.stub", "stub", true, 1);
@@ -726,14 +747,14 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             return h;
         }
         public async Task<DownloadItem> ItemAsync(Dictionary<string, string> values, string? expectedSha1 = null,
-            bool mismatch = false, ISourceMediaIntegrityPolicy? integrityPolicy = null)
+            bool mismatch = false, ISourceMediaIntegrityPolicy? integrityPolicy = null, string? originalName = "original.png")
         {
             MediaImageFilterRule filter = new(MediaImageFilterMode.Plugin, Worker.Description.PluginId, Worker.Description.Filters.Single().Key, parameters: values);
             await Content.Rules.SaveAsync(new[] { new MediaRule(MediaRuleScope.Global) { ImageFilter = filter } });
             string path = StorageLayout.GetMediaPath(Root.Path, "stub", "g", "123", "456", ".png");
-            DownloadItem item = new(new Uri("https://stub.test/456.png"), path, _board, _thread, "456", Bytes.Length + (mismatch ? 1 : 0), Convert.ToBase64String(mismatch ? new byte[16] : MD5.HashData(Bytes)), "original.png")
+            DownloadItem item = new(new Uri("https://stub.test/456.png"), path, _board, _thread, "456", Bytes.Length + (mismatch ? 1 : 0), Convert.ToBase64String(mismatch ? new byte[16] : MD5.HashData(Bytes)), originalName)
                 { FilterPostId = "123", ExpectedSha1 = expectedSha1, MediaIntegrityPolicy = integrityPolicy };
-            CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, item.ExpectedSize, item.ExpectedMd5, "original.png", extension: ".png")
+            CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, item.ExpectedSize, item.ExpectedMd5, originalName, extension: ".png")
                 { ExpectedSha1 = expectedSha1 }, Content.Rules);
             item.Filter = ((IOriginalMediaFilterFactory)Stage).Create(item, decision, () => Current && Content.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision,
                 async (noMatch, reason, token) => { await Content.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token); });
