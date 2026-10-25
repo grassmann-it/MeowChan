@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from types import SimpleNamespace
 
 
 SPEC = importlib.util.spec_from_file_location("ci_desktop", Path(__file__).resolve().parents[1] / "scripts/prepare-ci-desktop.py")
@@ -47,7 +48,22 @@ class FakeDisplay:
 class DesktopPreparationTests(unittest.TestCase):
     def setUp(self):
         self.args = argparse.Namespace(min_width=1920, min_height=1080,
-                                       min_work_width=1600, min_work_height=1000)
+                                       min_work_width=1600, min_work_height=1000, verify_only=False)
+
+    def test_verify_only_never_enumerates_or_applies_modes(self):
+        self.args.verify_only = True
+        for actual, accepted in [(state(), True), (state(1024, 768, 1024, 728), False)]:
+            backend = SimpleNamespace(state=Mock(return_value=actual), modes=Mock(), apply=Mock())
+            report = {}
+            if accepted:
+                DESKTOP.prepare(backend, self.args, report)
+                self.assertEqual("verified", report["status"])
+            else:
+                with self.assertRaisesRegex(RuntimeError, "verify-only never changes"):
+                    DESKTOP.prepare(backend, self.args, report)
+            backend.modes.assert_not_called()
+            backend.apply.assert_not_called()
+            self.assertEqual(actual, report["after"])
 
     def test_sufficient_desktop_is_only_measured(self):
         backend = FakeDisplay(state(), [mode(0)], {})
@@ -103,6 +119,59 @@ class DesktopPreparationTests(unittest.TestCase):
             with patch.object(DESKTOP.sys, "platform", "linux"), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(1, DESKTOP.main(["--allow-disposable-desktop", "--report", str(target)]))
             self.assertEqual("failed", json.loads(target.read_text())["status"])
+
+
+class MacSessionConfigurationTests(unittest.TestCase):
+    def backend(self, begin_result=0, configure_result=0, complete_result=0):
+        def begin(output):
+            if begin_result == 0:
+                output._obj.value = 123
+            return begin_result
+        cg = SimpleNamespace(CGBeginDisplayConfiguration=Mock(side_effect=begin),
+                             CGConfigureDisplayWithDisplayMode=Mock(return_value=configure_result),
+                             CGCompleteDisplayConfiguration=Mock(return_value=complete_result),
+                             CGCancelDisplayConfiguration=Mock(return_value=0))
+        backend = object.__new__(DESKTOP.MacDisplay)
+        backend.cg, backend.display, backend.native_modes = cg, 42, [456]
+        return backend, cg
+
+    def test_success_uses_session_scope_and_does_not_cancel_consumed_configuration(self):
+        backend, cg = self.backend()
+        result = backend.apply({"id": 0})
+        self.assertTrue(result["applied"])
+        self.assertEqual(1, DESKTOP.CG_CONFIGURE_FOR_SESSION)
+        self.assertEqual(1, cg.CGCompleteDisplayConfiguration.call_args.args[1])
+        self.assertEqual("session", result["scope"])
+        cg.CGCancelDisplayConfiguration.assert_not_called()
+
+    def test_begin_failure_does_not_use_or_cancel_invalid_configuration(self):
+        backend, cg = self.backend(begin_result=1000)
+        self.assertFalse(backend.apply({"id": 0})["applied"])
+        cg.CGConfigureDisplayWithDisplayMode.assert_not_called()
+        cg.CGCompleteDisplayConfiguration.assert_not_called()
+        cg.CGCancelDisplayConfiguration.assert_not_called()
+
+    def test_configure_failure_cancels_owned_configuration_once(self):
+        backend, cg = self.backend(configure_result=1001)
+        result = backend.apply({"id": 0})
+        self.assertFalse(result["applied"])
+        self.assertEqual(0, result["cancel_result"])
+        cg.CGCompleteDisplayConfiguration.assert_not_called()
+        self.assertEqual(1, cg.CGCancelDisplayConfiguration.call_count)
+
+    def test_complete_failure_also_consumes_configuration_and_is_never_cancelled_again(self):
+        backend, cg = self.backend(complete_result=1002)
+        result = backend.apply({"id": 0})
+        self.assertFalse(result["applied"])
+        self.assertEqual(1002, result["complete_result"])
+        cg.CGCancelDisplayConfiguration.assert_not_called()
+
+    def test_exception_before_complete_cancels_owned_configuration(self):
+        backend, cg = self.backend()
+        cg.CGConfigureDisplayWithDisplayMode.side_effect = RuntimeError("configure failed")
+        with self.assertRaisesRegex(RuntimeError, "configure failed"):
+            backend.apply({"id": 0})
+        cg.CGCancelDisplayConfiguration.assert_called_once()
 
 
 if __name__ == "__main__":

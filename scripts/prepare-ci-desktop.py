@@ -15,6 +15,10 @@ import sys
 import time
 
 
+# Public CGConfigureOption: login session only, never persistent preferences.
+CG_CONFIGURE_FOR_SESSION = 1
+
+
 def sufficient(state, args):
     return (state["physical_width"] >= args.min_width
             and state["physical_height"] >= args.min_height
@@ -145,8 +149,14 @@ class MacDisplay:
         self.cg.CGDisplayModeGetRefreshRate.restype = ctypes.c_double
         self.cg.CGDisplayModeIsUsableForDesktopGUI.argtypes = [ptr]
         self.cg.CGDisplayModeIsUsableForDesktopGUI.restype = ctypes.c_bool
-        self.cg.CGDisplaySetDisplayMode.argtypes = [ctypes.c_uint32, ptr, ptr]
-        self.cg.CGDisplaySetDisplayMode.restype = ctypes.c_int32
+        self.cg.CGBeginDisplayConfiguration.argtypes = [ctypes.POINTER(ptr)]
+        self.cg.CGBeginDisplayConfiguration.restype = ctypes.c_int32
+        self.cg.CGConfigureDisplayWithDisplayMode.argtypes = [ptr, ctypes.c_uint32, ptr, ptr]
+        self.cg.CGConfigureDisplayWithDisplayMode.restype = ctypes.c_int32
+        self.cg.CGCompleteDisplayConfiguration.argtypes = [ptr, ctypes.c_uint32]
+        self.cg.CGCompleteDisplayConfiguration.restype = ctypes.c_int32
+        self.cg.CGCancelDisplayConfiguration.argtypes = [ptr]
+        self.cg.CGCancelDisplayConfiguration.restype = ctypes.c_int32
         self.cf.CFArrayGetCount.argtypes = [ptr]
         self.cf.CFArrayGetCount.restype = ctypes.c_long
         self.cf.CFArrayGetValueAtIndex.argtypes = [ptr, ctypes.c_long]
@@ -203,8 +213,29 @@ JSON.stringify({logical_width:f.size.width, logical_height:f.size.height,
         return result
 
     def apply(self, mode):
-        result = self.cg.CGDisplaySetDisplayMode(self.display, self.native_modes[mode["id"]], None)
-        return {"apply_result": result, "applied": result == 0}
+        config = ctypes.c_void_p()
+        begin = self.cg.CGBeginDisplayConfiguration(ctypes.byref(config))
+        result = {"scope": "session", "configuration_option": CG_CONFIGURE_FOR_SESSION,
+                  "begin_result": begin, "applied": False}
+        if begin or not config.value:
+            if not begin:
+                result["error"] = "CGBeginDisplayConfiguration returned no configuration"
+            return result
+        owns_config = True
+        try:
+            configured = self.cg.CGConfigureDisplayWithDisplayMode(config, self.display, self.native_modes[mode["id"]], None)
+            result["configure_result"] = configured
+            if configured:
+                return result
+            # Unlike CGDisplaySetDisplayMode's app lifetime, this survives the
+            # setter process. Complete consumes config on return, even on error.
+            completed = self.cg.CGCompleteDisplayConfiguration(config, CG_CONFIGURE_FOR_SESSION)
+            owns_config = False
+            result.update(complete_result=completed, applied=completed == 0)
+            return result
+        finally:
+            if owns_config:
+                result["cancel_result"] = self.cg.CGCancelDisplayConfiguration(config)
 
     def close(self):
         if self.array:
@@ -214,6 +245,12 @@ JSON.stringify({logical_width:f.size.width, logical_height:f.size.height,
 
 def prepare(backend, args, report):
     report["before"] = backend.state()
+    if args.verify_only:
+        report["after"] = report["before"]
+        if not sufficient(report["before"], args):
+            raise RuntimeError("Existing desktop does not meet requirements; verify-only never changes display modes")
+        report["status"] = "verified"
+        return
     report["supported_modes"] = backend.modes()
     report["attempts"] = []
     if sufficient(report["before"], args):
@@ -245,6 +282,8 @@ def main(argv=None):
     parser.add_argument("--allow-disposable-desktop", action="store_true",
                         help="Explicitly permit transient resolution changes on this disposable CI desktop")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--verify-only", action="store_true",
+                        help="Measure the current desktop in a separate process without enumerating or changing modes")
     parser.add_argument("--min-width", type=int, default=1920)
     parser.add_argument("--min-height", type=int, default=1080)
     parser.add_argument("--min-work-width", type=int, default=1600, help="Minimum usable width in DIP")
@@ -254,7 +293,7 @@ def main(argv=None):
         parser.error("Native desktop access requires --allow-disposable-desktop; never use this on a personal desktop")
     if any(value <= 0 for value in (args.min_width, args.min_height, args.min_work_width, args.min_work_height)):
         parser.error("Minimum dimensions must be positive")
-    report = {"platform": sys.platform, "status": "failed", "requirements": {
+    report = {"platform": sys.platform, "status": "failed", "verify_only": args.verify_only, "requirements": {
         "physical_width": args.min_width, "physical_height": args.min_height,
         "work_width_dip": args.min_work_width, "work_height_dip": args.min_work_height}}
     backend = None
