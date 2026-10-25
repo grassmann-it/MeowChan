@@ -107,6 +107,7 @@ public sealed class PngMetadataFilter : IImageFilterPlugin, IPluginSettingsValid
             cancellationToken.ThrowIfCancellationRequested();
             if (offset < 0 || count is < 1 or > SdkLimits.MaximumImageChunkBytes || offset > size - count) throw new EndOfStreamException();
             ImageAssetChunk chunk = await reader.ReadImageAsync(token, offset, count, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (chunk.Offset != offset || chunk.Bytes.Length != count || chunk.IsEnd != (offset + count == size)) throw new EndOfStreamException();
             return chunk.Bytes;
         }

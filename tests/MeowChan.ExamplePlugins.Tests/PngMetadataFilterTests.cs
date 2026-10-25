@@ -195,6 +195,34 @@ public sealed class PngMetadataFilterTests
         Assert.Equal(10, cancelled.Reads.Count);
     }
 
+    [Theory]
+    [InlineData(true, "present")]
+    [InlineData(false, "present")]
+    [InlineData(true, "absent")]
+    [InlineData(false, "absent")]
+    public async Task LateCancellationAtFinalIendReadCannotPublishAPresenceDecision(bool containsField, string presence)
+    {
+        using CancellationTokenSource cancellation = new();
+        byte[] png = containsField ? Png(after: [TextChunk("tEXt", "parameters", [])]) : Png();
+        Reader reader = new(png)
+        {
+            AfterRead = (offset, count) => { if (offset + count == png.Length) cancellation.Cancel(); }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Evaluate(reader, presence: presence, token: cancellation.Token));
+        Assert.Equal((png.Length - 4L, 4), reader.Reads[^1]);
+    }
+
+    [Theory]
+    [InlineData("notPNG!!")]
+    [InlineData("gif")]
+    public async Task LateCancellationAtNonPngReadCannotPublishUnavailable(string signature)
+    {
+        using CancellationTokenSource cancellation = new();
+        Reader reader = new(Encoding.ASCII.GetBytes(signature)) { AfterRead = (_, _) => cancellation.Cancel() };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Evaluate(reader, token: cancellation.Token));
+        Assert.Single(reader.Reads);
+    }
+
     private static Task<ImageFilterResult> Evaluate(byte[] bytes, string field = "parameters", string presence = "present", string? custom = null) =>
         Evaluate(new Reader(bytes), field, presence, custom);
     private static Task<ImageFilterResult> Evaluate(Reader reader, string field = "parameters", string presence = "present", string? custom = null, CancellationToken token = default) =>
@@ -218,6 +246,7 @@ public sealed class PngMetadataFilterTests
         internal List<(long Offset, int Count)> Reads { get; } = [];
         internal string? Fault { get; init; }
         internal Action<int>? OnRead { get; init; }
+        internal Action<long, int>? AfterRead { get; init; }
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -226,6 +255,9 @@ public sealed class PngMetadataFilterTests
             Assert.InRange(offset, 0, Bytes.Length - count);
             Reads.Add((offset, count)); OnRead?.Invoke(Reads.Count);
             cancellationToken.ThrowIfCancellationRequested();
+            // Model a host read that finishes with valid bytes as cancellation
+            // arrives. The filter must recheck its own lifetime after awaiting it.
+            AfterRead?.Invoke(offset, count);
             return Task.FromResult(new ImageAssetChunk(Fault == "offset" ? offset + 1 : offset,
                 Bytes.AsSpan((int)offset, Fault == "short" ? count - 1 : count).ToArray(), Fault == "end" || offset + count == Bytes.Length));
         }
