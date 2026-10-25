@@ -36,10 +36,12 @@ These are Python HTTP observations, not runtime/plugin-worker or download tests.
 
 Synthetic tests cover multiple attachments, null/empty files, escaping, foreign
 paths/endpoints, hash conversion, status/304/cancellation/size boundaries and
-lossless identities. The earlier staged parsers compiled and passed 46 combined synthetic cases;
-that historical run covered temporary fail-closed contract boundaries. The new
-approved size-hint/SHA1 mappings require a fresh SDK-bound focused run; no new
-PASS is claimed before it.
+lossless identities. The final approved size-hint/SHA1 mappings compiled and passed all **53 combined
+synthetic cases** on 2026-10-25, with no skips or errors. The focused run had two
+nullable warnings in existing test assertions; plugin projects emitted none.
+`makaba-uboachan-focused-tests/binding03.json` outside the checkout binds source,
+TRX and log bytes. The earlier46-case run covered the temporary fail-closed
+boundary and is retained only as historical evidence.
 No automatic board list, preview retrieval, posting/login, archive fallback or
 Delta API is supplied. Productive original/reader/gallery/offline-restart
 acceptance and native package delivery belong to NW-07.

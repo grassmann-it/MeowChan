@@ -36,8 +36,12 @@ productive HostHttp/download/archive/offline acceptance.
 
 Synthetic tests cover slot identities, empty names, mixed digest forms,
 malformed/unknown digests, metadata budgets, conditional requests, exact404,
-unexpected endpoints, host-owned deferrals and cancellation. The earlier staged parsers compiled and passed 46 combined synthetic cases;
-that historical run covered temporary fail-closed contract boundaries. The new
-approved mappings require a fresh SDK-bound focused run, still pending here. No posting, board discovery, previews,
+unexpected endpoints, host-owned deferrals and cancellation. The final approved size-hint/SHA1 mappings compiled and passed all **53 combined
+synthetic cases** on 2026-10-25, with no skips or errors. The focused run had two
+nullable warnings in existing test assertions; plugin projects emitted none.
+`makaba-uboachan-focused-tests/binding03.json` outside the checkout binds source,
+TRX and log bytes. The earlier46-case run covered the temporary fail-closed
+boundary and is retained only as historical evidence.
+No posting, board discovery, previews,
 archive fallback or last50 truncation is implemented. NW-07 owns actual worker,
 original/reader/gallery, restart and package delivery acceptance.
