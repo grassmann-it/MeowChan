@@ -79,7 +79,7 @@
                 </Grid></ScrollViewer>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
                     <Grid>
-                        <ListBox x:Name="ArchiveThreads" VerticalContentAlignment="Top" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
