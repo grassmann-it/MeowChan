@@ -59,6 +59,33 @@ internal static class SettingsSectionChecks
             await dialog;
         }
     }
+    // Use the public navigation contract: hidden category editors cannot be
+    // focused or revealed by BringIntoView alone.
+    internal static Task OpenFieldAsync(SettingsEditor editor, string field) => OpenAsync(editor, field switch
+    {
+        "WorkspaceModeInput" or "LanguageInput" or "ThemeInput" or "CompactDensityInput" => "settings.interface",
+        "VideoVolumeInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton" => "settings.reading-media",
+        "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput" => "settings.worker-budgets",
+        "AboutSettingsButton" => "settings.behavior",
+        _ => "settings.downloads"
+    });
+
+    internal static async Task OpenAsync(SettingsEditor editor, string section)
+    {
+        editor.OpenSectionNavigation();
+        Require(editor.CanGoToSection(section), "Settings category unavailable: " + section);
+        editor.GoToSection(section);
+        string heading = section switch
+        {
+            "settings.interface" => "SettingsInterfaceHeading",
+            "settings.reading-media" => "SettingsReadingMediaHeading",
+            "settings.worker-budgets" => "SettingsWorkerBudgetsPageTitle",
+            "settings.behavior" => "SettingsBehaviorHeading",
+            _ => "SettingsDownloadsHeading"
+        };
+        await Program.WaitUntilAsync(() => editor.FindControl<Control>(heading) is { IsEffectivelyVisible: true, IsFocused: true });
+    }
+
     private static void Require(bool ok, string message) { if (!ok) throw new InvalidOperationException(message); }
     private static async Task Wait(Func<bool> ready)
     {

@@ -51,6 +51,7 @@ internal static class SettingsChecks
             {
                 Console.WriteLine($"SMOKE settings blur begin: field={rejected.Field}; raw='{rejected.Raw}'.");
                 window.Editor.CancelChanges();
+                await SettingsSectionChecks.OpenFieldAsync(window.Editor, rejected.Field);
                 NumericUpDown number = window.Editor.FindControl<NumericUpDown>(rejected.Field)!;
                 for (var parent = number.Parent; parent != null; parent = parent.Parent)
                     if (parent is Expander group) group.IsExpanded = true;
@@ -85,6 +86,7 @@ internal static class SettingsChecks
                 Console.WriteLine($"SMOKE settings blur passed: field={rejected.Field}; raw='{number.Text}'; value={number.Value}; commits={commits}.");
             }
             window.Editor.CancelChanges();
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
             NumericUpDown timer = window.Editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
             TextBox validInput = timer.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
             validInput.Focus();
@@ -118,6 +120,7 @@ internal static class SettingsChecks
                 {
                     Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();
+                    await SettingsSectionChecks.OpenFieldAsync(window.Editor, name);
                     NumericUpDown input = window.Editor.FindControl<NumericUpDown>(name)!;
                     List<Expander> groups = new();
                     for (var parent = input.Parent; parent != null; parent = parent.Parent)
@@ -137,6 +140,7 @@ internal static class SettingsChecks
                     Require(input.Text == "invalid draft", "Restoring the vendor locale replaced an unvalidated numeric draft.");
                     // Users enter text in an existing editor, then may hide its group.
                     // Save must reopen that group and restore the actual editing focus.
+                    await SettingsSectionChecks.OpenAsync(window.Editor, "settings.interface");
                     foreach (Expander group in groups) group.IsExpanded = false;
                     window.UpdateLayout();
                     Button save = window.Editor.FindControl<Button>("SaveSettingsButton")!;
@@ -428,6 +432,7 @@ internal static class SettingsChecks
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
             Button browse = FindButton(window, "Browse");
             provider.CanPickFolder = false;
             Click(browse);

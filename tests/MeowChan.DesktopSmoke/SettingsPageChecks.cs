@@ -45,6 +45,7 @@ internal static class SettingsPageChecks
             window.UpdateLayout();
             Program.CaptureWindow(window, "smoke-settings-page-top-dark.png");
             Require(!window.OwnedWindows.OfType<SettingsWindow>().Any(), "Settings navigation opened a modal window.");
+            await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
             NumericUpDown timer = editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
             timer.Text = "invalid draft";
             editor.DownloadPath = draftPath;
@@ -171,6 +172,7 @@ internal static class SettingsPageChecks
                 foreach (string language in new[] { "en", "de" })
                 {
                     Texts.SetLanguage(language);
+                    await SettingsSectionChecks.OpenAsync(editor, "settings.interface");
                     editor.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = new Vector(0, 0);
                     await Program.WaitUntilAsync(() => InViewport(window, editor.FindControl<Button>("SaveSettingsButton")!)
                         && InViewport(window, editor.FindControl<Button>("CancelSettingsButton")!)
@@ -365,6 +367,7 @@ internal static class SettingsPageChecks
             SettingsEditor editor = window.SettingsEditor;
             await Program.WaitUntilAsync(() => editor.IsAttachedToVisualTree() && editor.IsEffectivelyVisible && editor.Bounds.Width > 0);
             string path = editor.DownloadPath;
+            await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
             Button browse = editor.FindControl<Button>("BrowseButton")!;
             Click(browse);
             Require(editor.IsBusy, "Picker did not enter pending state.");

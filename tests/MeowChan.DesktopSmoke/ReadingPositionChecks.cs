@@ -77,6 +77,7 @@ internal static class ReadingPositionChecks
             "Explicit top-bar resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
+        await SettingsSectionChecks.OpenAsync(window.SettingsEditor, "settings.reading-media");
         string positionFile = Path.Combine(profile, "reading-position.json");
         string retained = positionFile + ".test-retained";
         File.Move(positionFile, retained);

@@ -37,6 +37,7 @@ internal static class SettingsAccessibilityChecks
                         ("ParallelDownloadsInput", "settings.parallelDownloads", (string?)null)
                     })
                     {
+                        await SettingsSectionChecks.OpenFieldAsync(editor, field);
                         NumericUpDown input = editor.FindControl<NumericUpDown>(field)!;
                         TextBox text = input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
                         text.BringIntoView();

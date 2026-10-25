@@ -27,6 +27,7 @@ internal static class R08dPresentationChecks
         Click(window.FindControl<MenuItem>("SettingsMenuItem")!);
         await Program.WaitUntilAsync(() => window.SettingsPageVisible);
         SettingsEditor settings = window.SettingsEditor;
+        await SettingsSectionChecks.OpenAsync(settings, "settings.reading-media");
         ComboBox font = settings.FindControl<ComboBox>("ReadingFontSizeInput")!;
         Require(font.IsEnabled && font.SelectedItem != null && font.ItemCount >= 3,
             "The reading font size setting is unavailable in the real settings page.");
@@ -34,6 +35,7 @@ internal static class R08dPresentationChecks
         await Program.WaitUntilAsync(() => font.IsEffectivelyVisible && font.Bounds.Width > 0);
         Program.CaptureWindow(window, "smoke-r08d-settings-font.png");
 
+        await SettingsSectionChecks.OpenAsync(settings, "settings.behavior");
         Button aboutButton = settings.FindControl<Button>("AboutSettingsButton")!;
         string aboutLabel = Texts.T("r08d.settings.about");
         Require(aboutButton.Content is StackPanel panel && panel.Children.Count == 2

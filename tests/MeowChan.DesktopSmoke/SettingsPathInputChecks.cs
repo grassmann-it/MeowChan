@@ -52,6 +52,7 @@ internal static class SettingsPathInputChecks
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
             var path = window.Editor.FindControl<TextBox>("DownloadPathInput")!;
             var browse = window.Editor.FindControl<Button>("BrowseButton")!;
             string raw = "relative unfinished folder ü 日本 " + new string('x', 100);
@@ -136,6 +137,7 @@ internal static class SettingsPathInputChecks
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
             var path = window.Editor.FindControl<TextBox>("DownloadPathInput")!;
             var save = window.Editor.FindControl<Button>("SaveSettingsButton")!;
             if (select)
