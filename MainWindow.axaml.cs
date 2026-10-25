@@ -248,6 +248,7 @@ public partial class MainWindow : Window
         RefreshWorkspace();
 
         UpdatePauseControls(_restoreCompleted && !WorkspaceCommandBusy);
+        _archivePage?.NotifyArchiveMediaCountsChanged();
         RefreshDiagnosticPage(view);
         RefreshSourcesPage(view);
         HashSet<string> currentWarnings = new HashSet<string>(StringComparer.Ordinal);

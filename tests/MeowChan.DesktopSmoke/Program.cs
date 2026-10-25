@@ -307,6 +307,11 @@ internal static class Program
                 await SourceFilterWaveChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY") == "1")
+            {
+                await ArchiveMediaCountsChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")
             {
                 await SourceIntegrityChecks.RunAsync(mainWindow);

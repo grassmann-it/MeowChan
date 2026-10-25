@@ -24,9 +24,6 @@ internal sealed partial record ArchiveThreadRow(ArchiveThreadSummary Summary, Th
     public string Status => Summary.LastCapturedAt == null ? Texts.T("archive.mediaOnly")
         : Texts.T("archive.postsCount", Summary.PostCount);
     public int Posts => Summary.PostCount;
-    public string MediaStatus => Work == null ? Texts.T("gallery.unknown") : WorkStatusFormatter.Format(Work).Progress;
-    public string CompactMedia => Work == null ? "—" : Work.SavedMedia.ToString(Texts.Culture) + "/" + Work.Media.Count.ToString(Texts.Culture);
-    public int SavedMediaCount => Work?.SavedMedia ?? -1;
     public string SourceStatus => Texts.T(Summary.SourceState switch
     {
         ThreadSourceState.Archived => "archive.sourceArchived",

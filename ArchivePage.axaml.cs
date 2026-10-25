@@ -123,6 +123,7 @@ public partial class ArchivePage : UserControl
         InitializeReaderInteraction(); InitializeReaderUpdates(); InitializeReadingPositionInput(); InitializePostBookmarks();
         InitializePaginationFocus();
         InitializeArchivePresentation();
+        InitializeArchiveMediaCounts();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -160,6 +161,7 @@ public partial class ArchivePage : UserControl
         pending ??= NewListLoad(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec()), _listOffset);
         // Everything needed for membership and SQL is captured before opening the reader.
         _runningList = pending;
+        CancelArchiveMediaCounts();
         _retryList = null;
         CancelReferences(); CancelInlineReplies();
         int generation = ++_contentRequest;
@@ -219,6 +221,7 @@ public partial class ArchivePage : UserControl
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 RestoreArchiveSelection(rows, selected);
                 _listLoaded = true;
+                _archiveMediaCountDatabasePath = reader.DatabasePath;
                 pending.AfterCommit?.Invoke();
                 UpdateAppliedFilters(); UpdateArchiveEmptyState();
                 committed = true;
@@ -226,6 +229,7 @@ public partial class ArchivePage : UserControl
             finally { _updatingList = false; }
             Message(string.Empty);
             AppliedSearchChanged?.Invoke();
+            BeginArchiveMediaCounts(rows);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -847,8 +851,13 @@ public partial class ArchivePage : UserControl
         ListBox list = Control<ListBox>("ArchiveThreads");
         if (list.ItemsSource is IEnumerable<ArchiveThreadRow> rows)
         {
-            ArchiveThreadRow[] localized = rows.Select(row => new ArchiveThreadRow(row.Summary, row.Work)
-            { PreviewText = row.PreviewText, PreviewAttachment = row.PreviewAttachment }).ToArray();
+            ArchiveThreadRow[] localized = rows.Select(row =>
+            {
+                ArchiveThreadRow translated = new(row.Summary, row.Work)
+                { PreviewText = row.PreviewText, PreviewAttachment = row.PreviewAttachment };
+                translated.CopyMediaCountFrom(row);
+                return translated;
+            }).ToArray();
             ConfigureThreadFavoriteRows(localized);
             _updatingList = true;
             try
@@ -859,6 +868,7 @@ public partial class ArchivePage : UserControl
                 RestoreArchiveSelection(localized, _selectedThread);
             }
             finally { _updatingList = false; }
+            BeginArchiveMediaCounts(localized);
         }
     }
     private void Localize()
@@ -929,6 +939,7 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         _ended = true;
+        CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();
         ClearPaginationInput();
         _runningList = null; _retryList = null;
