@@ -34,9 +34,10 @@ public sealed class UboachanPluginTests
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, result, h.Source));
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)), h.Source));
         var op = result.Snapshot.Posts[0]; Assert.Equal(SourceTextFormat.Html, op.TextFormat); Assert.Equal("<p>Inert text</p>", op.Text);
-        Assert.Equal(new[] { 0, 1 }, op.Attachments!.Select(a => a.Position)); Assert.Equal(new[] { "123-0", "123-1" }, op.Attachments.Select(a => a.MediaId));
+        Assert.Equal(new[] { 0, 1 }, op.Attachments!.Select(a => a.Position)); Assert.Equal(new[] { "123-0", "123-1" }, op.Attachments!.Select(a => a.MediaId));
         Assert.Equal("https://uboachan.net/demo/src/file-0.png", op.Attachments[0].Url!.AbsoluteUri);
         Assert.Equal("2ekqYfL9A3THOfl+KA127w==", op.Attachments[0].ExpectedMd5); Assert.Equal(2187, op.Attachments[0].ExpectedSize);
+        Assert.Null(op.Attachments[0].OriginalFileName);
         Assert.Null(result.Snapshot.Posts[1].Attachments); Assert.False(result.Snapshot.Posts[1].Fields.HasFlag(SourceFieldPresence.Attachments));
         Assert.Equal(1, Assert.Single(result.Snapshot.Posts[2].Attachments!).Position);
         Assert.Equal("125-1", result.Snapshot.Posts[2].Attachments![0].MediaId);

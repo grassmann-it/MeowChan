@@ -27,7 +27,7 @@ maturity and default activation remain coordinated with NW-07.
 
 NW-00 confirmed 305 posts/69 originals in `/yn/res/513.json`, mixed MD5/SHA-1
 against two small originals, and a second thread with two attachments in one
-post. A new bounded metadata-only preflight on2026-10-25 confirms `/yn/` HTML200,
+post. A new bounded metadata-only preflight on 2026-10-25 confirms `/yn/` HTML200,
 that multi-attachment thread's JSON200 and a second `/ot/` catalog200. Clean
 receipts are in `Evidence/metadata-preflight-20261025.json`; no raw post content
 or originals are shipped as fixtures. Python observations do not establish
@@ -35,7 +35,8 @@ productive HostHttp/download/archive/offline acceptance.
 
 Synthetic tests cover slot identities, empty names, mixed digest forms,
 malformed/unknown digests, metadata budgets, conditional requests, exact404,
-unexpected endpoints, host-owned deferrals and cancellation. Tests have not yet
-been executed at this staged checkpoint. No posting, board discovery, previews,
+unexpected endpoints, host-owned deferrals and cancellation. The two SDK-only projects compile and all 46 combined Dvach/Uboachan synthetic
+cases pass under the coordinated Linux test slot, without warnings or skips.
+This proves the staged fail-closed behavior, not final SHA1 acceptance. No posting, board discovery, previews,
 archive fallback or last50 truncation is implemented. NW-07 owns actual worker,
 original/reader/gallery, restart and package delivery acceptance.

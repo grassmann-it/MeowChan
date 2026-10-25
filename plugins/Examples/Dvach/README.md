@@ -35,7 +35,9 @@ These are Python HTTP observations, not runtime/plugin-worker or download tests.
 
 Synthetic tests cover multiple attachments, null/empty files, escaping, foreign
 paths/endpoints, hash conversion, status/304/cancellation/size boundaries and
-lossless identities. Tests have not yet been executed at this staged checkpoint.
+lossless identities. The two SDK-only projects compile and all 46 combined Dvach/Uboachan synthetic
+cases pass under the coordinated Linux test slot; no warnings or skipped cases.
+This covers the staged fail-closed paths, not the pending final mappings.
 No automatic board list, preview retrieval, posting/login, archive fallback or
 Delta API is supplied. Productive original/reader/gallery/offline-restart
 acceptance and native package delivery belong to NW-07.

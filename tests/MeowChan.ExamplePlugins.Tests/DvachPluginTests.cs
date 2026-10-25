@@ -23,6 +23,8 @@ public sealed class DvachPluginTests
         Assert.Empty(SdkValidation.ValidateDescription(description));
         Assert.Equal("meowchan.source.2ch", description.PluginId); Assert.Equal("2ch", source.SourceId);
         Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
+        Assert.Equal("2ch.su", Assert.Single(source.Routes, r => r.Kind == SourceResourceKind.Thread && r.IsCanonical).Host);
+        Assert.Contains(source.Routes, r => r.Host == "2ch.hk" && r.Kind == SourceResourceKind.Thread && !r.IsCanonical);
         Assert.Contains(source.HttpHosts, h => h.Host == "2ch.hk" && h.Purpose.HasFlag(HttpHostPurpose.Metadata));
         Assert.Equal(HttpHostPurpose.OriginalMedia, Assert.Single(source.HttpHosts, h => h.Host == "2ch.su").Purpose);
         Assert.Single(typeof(DvachPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
@@ -41,7 +43,7 @@ public sealed class DvachPluginTests
         var op = result.Snapshot.Posts[0]; Assert.Equal("<p>Inert text</p>", op.Text); Assert.Equal(SourceTextFormat.Html, op.TextFormat);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1700000000), op.PostedAt);
         Assert.Equal(new[] { 0, 1 }, op.Attachments!.Select(a => a.Position));
-        Assert.Equal(new[] { "123-0", "123-1" }, op.Attachments.Select(a => a.MediaId));
+        Assert.Equal(new[] { "123-0", "123-1" }, op.Attachments!.Select(a => a.MediaId));
         Assert.Equal("original image.png", op.Attachments[0].OriginalFileName);
         Assert.Equal(Convert.ToBase64String(Convert.FromHexString("d0b04abd386c83f00df0b06b6583d073")), op.Attachments[0].ExpectedMd5);
         Assert.Equal("https://2ch.hk/demo/src/123/opaque.png", op.Attachments[0].Url!.AbsoluteUri);
