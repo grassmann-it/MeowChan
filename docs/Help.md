@@ -1,22 +1,22 @@
 # Using MeowChan
 
-MeowChan watches 4chan and 8kun boards or threads, saves selected original media,
-and optionally captures posts for local reading and search. The library and
-local archive work independently of the desktop interface. See the
-[0.9.0 release notes](releases/v0.9.0.md) for downloads and upgrade details.
+MeowChan watches imageboard boards or threads, saves selected original media,
+and optionally captures posts for local reading and search. This guide describes
+**MeowChan 1.0.0**. See the [1.0.0 release notes](releases/v1.0.0.md) for
+packages and upgrade details.
 
-Trying a **1.0 preview**? Start with the [plugin guide](plugins/README.md).
-Open **Plugins** from the app menu or footer (under **Tools** in compact views), then select a plugin to see its
-purpose, status and actions. The [short installation recipe](plugins/using-plugins.md#first-session)
-explains the supplied examples and how to add a source file. These controls are
-part of 1.0; the stable 0.9.0 instructions below do not imply they are present there.
+4chan and 8kun are built in; supplied source plugins add Lainchan, Kohlchan,
+Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Open **Plugins**
+from the app menu or footer (under **Tools** in compact views), then select a
+plugin to see its purpose, status and actions. The [plugin guide](plugins/README.md)
+and [first-session recipe](plugins/using-plugins.md#first-session) explain the
+supplied examples and how to add a trusted source file.
 
-The current 1.0 development workspace also adds [search filters and saved searches](#archive-filters-and-saved-searches),
+1.0 includes [search filters and saved searches](#archive-filters-and-saved-searches),
 [reader groups](#reader-groups), [post bookmarks and notes](#post-bookmarks-and-notes),
 [media ratings](#media-ratings), [rule templates](#rule-templates),
 [shortcut customization](#customizing-shortcuts) and
-[archive cleanup](#clean-up-small-archive-threads). These sections describe those
-controls in the current workspace; check your installed version for availability.
+[archive cleanup](#clean-up-small-archive-threads).
 
 ## Repository location and update checks
 
@@ -28,7 +28,7 @@ redirect; updating the source does not change already installed applications.
 
 ## From a package to an offline picture
 
-1. Choose the package for your OS and CPU on the [0.9.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
+1. Choose the package for your OS and CPU on the [1.0.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -39,7 +39,7 @@ a compact speed-history graph. This is separate from saved/selected media progre
 
 ### Desktop view defaults
 
-MeowChan 0.9.0 starts new profiles in **Barebones**; missing or invalid view
+MeowChan starts new profiles in **Barebones**; missing or invalid view
 preferences also fall back to Barebones. Saved **Barebones**, **Simple** and
 **Advanced** choices remain unchanged. Use the footer view selector to switch.
 
@@ -95,6 +95,25 @@ reported separately per URL. Cancel or Escape discards all dialog changes,
 including the setting for bypassing future previews, before any watch is added.
 Bypassing future previews remains a separate explicit setting. Policies/exclusions
 persist independently of Save URLs on exit.
+
+### Additional sources and image filters
+
+The eight supplied Experimental sources start disabled on first registration;
+existing profiles keep their saved activation and permission choices. Adding a
+matching URL offers activation. For Kohlchan, Wizchan, Endchan and Leftypol,
+**Activate and allow differences** also explicitly permits provider size/MD5
+mismatches for that profile and source. 2ch, Uboachan, ZZZchan and SushiChan have
+strict checks and no mismatch permission. Manual **Enable plugin** grants no
+exception. Review or revoke the permission in **Sources**; retry earlier failed
+media explicitly with **Retry missing media**. See the
+[activation and integrity guide](plugins/using-plugins.md#experimental-sources-and-media-checks).
+
+In **Rules**, choose an **Image filter**, set its parameters, grant the required
+access for that scope and Save. The five supplied filters cover dimensions,
+file-size/original-name rules, SHA-256 blocklists, animation/actual-format checks
+and PNG metadata fields. One filter applies per effective rule to locally staged
+files before archive admission; changing it does not re-filter saved originals.
+See [filter settings and grants](plugins/filters-and-settings.md).
 
 ### Selection and shortcuts
 
@@ -201,11 +220,11 @@ confirmation dialogs still apply when popups are disabled.
 
 ## Linux packages and startup
 
-For either `linux-x64` or `linux-arm64`, choose a package from the [0.9.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0):
+For either `linux-x64` or `linux-arm64`, choose a package from the [1.0.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
 
-- `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
-- `MeowChan-0.9.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
-- `MeowChan-0.9.0-<RID>.AppImage`: VLC and .NET included. For example on x64, run `chmod +x MeowChan-0.9.0-linux-x64.AppImage`, then `./MeowChan-0.9.0-linux-x64.AppImage`. If FUSE is unavailable, use `./MeowChan-0.9.0-linux-x64.AppImage --appimage-extract-and-run`. Use the `linux-arm64` filename on ARM64.
+- `MeowChan-1.0.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
+- `MeowChan-1.0.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
+- `MeowChan-1.0.0-<RID>.AppImage`: VLC and .NET included. For example on x64, run `chmod +x MeowChan-1.0.0-linux-x64.AppImage`, then `./MeowChan-1.0.0-linux-x64.AppImage`. If FUSE is unavailable, use `./MeowChan-1.0.0-linux-x64.AppImage --appimage-extract-and-run`. Use the `linux-arm64` filename on ARM64.
 
 Bundled archives and AppImages avoid a separate VLC installation. Linux still needs a compatible glibc desktop with X11/XWayland and native graphics/font dependencies. Before any session starts, the application checks the selected VLC backend. Missing, unsupported or unusable system VLC opens a dismissible installation hint; closing it exits with code **2**. Install a supported VLC 3 runtime and plugins, then start again. On Debian-derived distributions, relevant package families include `libvlc5`, `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; distribution versions must meet the minimum. Development-package symlinks are not required.
 
@@ -246,6 +265,11 @@ The gallery uses the window's remaining work area. Left/Right or its navigation 
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
 the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
+Use the gallery's optional **media focus** view to fold away tools and details
+and give the current medium more room. Navigation remains available; restore the
+controls when you want to use the gallery tools or read the saved-post context.
+This changes the gallery layout independently of F11 window fullscreen.
+
 Show context to read the associated saved post and available local references.
 A media-only item can have no captured post. In the gallery, **P** toggles saved-post
 context, **0** selects Fit, **1** selects 1:1, **F** toggles the current media favorite,
@@ -413,6 +437,10 @@ action rather than starting inside the reader. Preview generation needs a workin
 local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
+Use its compact transport strip for **Play/Pause**, seeking, mute, volume and
+repeat. Repeat applies to the current medium. At narrow widths the controls use
+two rows. Audio controls show why they are unavailable when there is no track or
+usable output; focused seek and volume sliders retain their own arrow keys.
 Linux uses either the selected private bundled VLC or the supported system VLC
 runtime, checked before startup as described above. Windows/macOS use official
 VideoLAN native assets. All desktop variants include .NET; bundled Linux archives
@@ -455,7 +483,7 @@ work state; it does not erase the archive.
 
 ## Clean up small archive threads
 
-In the current 1.0 workspace, open **Archive** → **Clean up archive…** (German:
+In 1.0, open **Archive** → **Clean up archive…** (German:
 **Archiv** → **Archiv aufräumen…**). This opens a preview of the whole archive,
 including threads outside the current results page. Nothing is selected
 automatically.
@@ -571,13 +599,15 @@ is preserved. If both profile directories exist, select the intended absolute
 path with `MEOWCHAN_PROFILE`. The older environment-variable alias is accepted;
 if both are set their resolved paths must agree.
 
-0.9.0 uses a new profile/media lease protocol. Older writers cannot coordinate
-with these locks: concurrent old/new writers on the same data are unsupported.
-No downgrade path is promised. Current archive writers migrate catalog schemas
-1–3 to schema 4; the passive archive reader can read schemas 1–4 without migration.
-V1 and V2 media manifests remain readable. New media writes use V3, which binds
-attachment revisions to saved media and records provider metadata, local integrity
-values and acceptance evidence. Older binaries may not understand these formats.
+The profile/media lease protocol introduced in 0.9.0 cannot coordinate with
+older writers. Do not run 0.9.0 and 1.0 writers against the same data concurrently.
+1.0 writes **archive schema 5 and media manifest 4** and reads older records,
+including bindings without the new optional evidence. There is no supported
+downgrade of data changed by 1.0. If you need the
+[0.9.0 fallback](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0), use
+an untouched profile or restore a pre-upgrade backup to a separate location;
+keep the 1.0 data for investigating the problem.
+
 New durable work state records retries, source end and watch intent independently
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
 and inspect the reported recovery error.
