@@ -24,6 +24,7 @@ internal static class TextSelectionChecks
         TextBox search = window.ArchivePage.FindControl<TextBox>("ArchiveSearchText")!;
         string? originalUrl = url.Text, originalSearch = search.Text;
         List<string> failures = [];
+        bool wasPaused = window.SessionHost.IsPaused;
         async Task CheckCase(TextBox input, string scene, ThemeVariant variant, string value, string replacement)
         {
             try { await CheckAsync(window, input, scene, variant, value, replacement); }
@@ -31,6 +32,7 @@ internal static class TextSelectionChecks
         }
         try
         {
+            await window.SessionHost.SetPausedAsync(true);
             Require(window.SessionHost.IsPaused, "Text selection fixture requires paused network work.");
             Texts.SetLanguage("en");
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
@@ -48,6 +50,7 @@ internal static class TextSelectionChecks
             Application.Current.RequestedThemeVariant = theme;
             Texts.SetLanguage(language);
             Click(window, "DownloadsNavigationButton");
+            if (!wasPaused) await window.SessionHost.SetPausedAsync(false);
         }
         Require(failures.Count == 0, string.Join("; ", failures));
         Console.WriteLine("SMOKE text selection: real URL/archive search, EN, Light/Dark, routed Ctrl/Command+A, selection-range/pixel checks and routed replacement passed; no OS keyboard claim.");
