@@ -45,6 +45,16 @@ internal static class ShowcaseCaptures
         await Program.WaitUntilAsync(() => gallery.GetVisualDescendants().OfType<Border>()
             .Any(border => border.Name == "GalleryContext" && border.IsVisible && border.Bounds.Width > 0));
         await CaptureAsync(window, "v0.9.0-gallery.png");
+        // Capture the same saved artwork through the real media-focus action.
+        Click(GalleryButton(gallery, "GalleryToggleContext"));
+        Click(GalleryButton(gallery, "GalleryToolsToggle"));
+        await Program.WaitUntilAsync(() => !GalleryButton(gallery, "GalleryFit").IsEffectivelyVisible
+            && !gallery.GetVisualDescendants().OfType<Border>()
+                .Any(border => border.Name is "GalleryContext" or "GalleryOverlayInfo" && border.IsVisible));
+        await CaptureAsync(window, "smoke-1.0-gallery-focus.png");
+        Click(GalleryButton(gallery, "GalleryToolsToggle"));
+        Click(GalleryButton(gallery, "GalleryToggleContext"));
+        await Program.WaitUntilAsync(() => GalleryButton(gallery, "GalleryFit").IsEffectivelyVisible);
         await CheckGalleryModeGeometryAsync(window, gallery);
         Click(GalleryButton(gallery, "GalleryClose"));
 

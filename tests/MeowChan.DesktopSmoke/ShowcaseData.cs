@@ -62,8 +62,11 @@ internal static class ShowcaseData
             }
             string title = index == 0 ? "Landscape sketchbook — mountains & reflections"
                 : $"Landscape studies {index + 1:00} — {Subjects[index % Subjects.Length]}";
+            // Current captures require exact attachment-revision receipts, including
+            // synthetic offline UI media; a stored asset alone is unassigned.
+            CapturedPost[] boundPosts = await StrictMediaFixture.BindAsync(directory, id, posts);
             await catalog.CaptureAsync(new CapturedThreadSnapshot(id, url.AbsoluteUri, title,
-                ThreadSourceState.Archived, Epoch.AddMinutes(-index), directory, posts));
+                ThreadSourceState.Archived, Epoch.AddMinutes(-index), directory, boundPosts));
         }
         Console.WriteLine($"SHOWCASE seeded {ThreadCount} synthetic archived threads; original procedural Skia artwork; no HTTP.");
     }
