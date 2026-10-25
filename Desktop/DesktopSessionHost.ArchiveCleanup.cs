@@ -37,7 +37,7 @@ internal sealed partial class DesktopSessionHost
         MediaAssetSnapshot[] frozen = manifests.ToArray();
         CapturedAttachment Attachment(int position, string? key) => new(position, work.MediaIdentifier, work.Variant,
             work.DownloadUrl, work.OriginalFileName, work.DestinationPath, work.ExpectedSize, work.ExpectedMd5)
-            { ExpectedSha256 = work.ExpectedSha256, AttachmentRevisionKey = key };
+            { ExpectedSha256 = work.ExpectedSha256, ExpectedSha1 = work.ExpectedSha1, ProviderSizeHint = work.ProviderSizeHint, AttachmentRevisionKey = key };
         bool Match(string postId, CapturedAttachment attachment, string? acquisition)
         {
             ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(frozen, resource, postId, attachment);

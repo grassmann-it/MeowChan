@@ -387,6 +387,16 @@ public sealed class SourceMediaIntegrityTests
     }
 
     [Fact]
+    public void BuiltinCaptureProjectionDoesNotDropExtendedProviderMetadata()
+    {
+        using TempDirectory directory = new(); using StubImageBoard board = new();
+        DownloadItem item = Item(board, directory, null, null, sha1: Convert.ToBase64String(SHA1.HashData(Bytes)), hint: new("24", "Кб"));
+        CapturedAttachment capture = ProviderPostCapture.Attachment(item, 2);
+        Assert.Equal(item.ExpectedSha1, capture.ExpectedSha1); Assert.Equal(item.ProviderSizeHint, capture.ProviderSizeHint);
+        Assert.Null(capture.ExpectedSize);
+    }
+
+    [Fact]
     public void MissingSha1EvidenceAndMd5ShapedSha1NeverPass()
     {
         string sha1 = Convert.ToBase64String(SHA1.HashData(Bytes));

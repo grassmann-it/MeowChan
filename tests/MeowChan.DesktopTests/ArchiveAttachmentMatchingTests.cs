@@ -57,15 +57,18 @@ public sealed class ArchiveAttachmentMatchingTests
         await Assert.ThrowsAsync<InvalidDataException>(() => ArchivePage.DecodeThumbnailAsync(row!, CancellationToken.None));
     }
 
-    [Fact]
-    public async Task CleanupAcceptsOnlyTheExactCompletedAcquisitionAndItsReferences()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CleanupAcceptsOnlyTheExactCompletedAcquisitionAndItsReferences(bool extended)
     {
-        using Fixture fixture = await Fixture.CreateAsync();
+        using Fixture fixture = await Fixture.CreateAsync(extended: extended);
         MediaWork work = new()
         {
             ResourceUrl = "https://fixture.invalid/g/thread/42", Generation = 1, MediaIdentifier = "777",
             DestinationPath = fixture.Asset.Path, DownloadUrl = fixture.Attachment.Url!,
             ExpectedSize = fixture.Attachment.ExpectedSize, ExpectedMd5 = fixture.Attachment.ExpectedMd5,
+            ExpectedSha1 = fixture.Attachment.ExpectedSha1, ProviderSizeHint = fixture.Attachment.ProviderSizeHint,
             OriginalFileName = fixture.Attachment.OriginalFileName, Status = MediaWorkStatus.Succeeded,
             AcquisitionRevisionKey = fixture.Binding!.AcquisitionRevisionKey, CommittedAssetId = fixture.Asset.AssetId,
             AttachmentReferences = [fixture.Binding.Reference]
@@ -81,7 +84,7 @@ public sealed class ArchiveAttachmentMatchingTests
     [InlineData("de", "Anbieter", "Anbieterangabe")]
     public async Task ProvenanceUsesTheConcreteBindingAndSeparatesReportedAndMeasuredValues(string language, string word, string detail)
     {
-        using Fixture fixture = await Fixture.CreateAsync();
+        using Fixture fixture = await Fixture.CreateAsync(extended: true);
         string previous = Texts.Language;
         try
         {
@@ -89,6 +92,9 @@ public sealed class ArchiveAttachmentMatchingTests
             Assert.Contains(word, MediaProvenanceText.Summary(fixture.Binding));
             Assert.Contains(detail, MediaProvenanceText.Details(fixture.Binding));
             Assert.Contains(fixture.Attachment.ExpectedMd5!, MediaProvenanceText.Details(fixture.Binding));
+            Assert.Contains(fixture.Attachment.ExpectedSha1!, MediaProvenanceText.Details(fixture.Binding));
+            Assert.Contains("2.4e1 Кб", MediaProvenanceText.Context(fixture.Binding));
+            Assert.Contains(language == "de" ? "keine exakte Bytezahl" : "not exact bytes", MediaProvenanceText.Context(fixture.Binding));
             Assert.Empty(MediaProvenanceText.Summary(null));
             Assert.Empty(MediaProvenanceText.Summary(fixture.Binding! with
                 { Acceptance = new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UtcNow) }));
@@ -101,7 +107,7 @@ public sealed class ArchiveAttachmentMatchingTests
     private sealed record Fixture(string Directory, MediaAssetSnapshot Snapshot, MediaAssetReference Asset,
         CapturedAttachment Attachment, MediaAttachmentBinding? Binding) : IDisposable
     {
-        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true)
+        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false)
         {
             string directory = Path.Combine(Path.GetTempPath(), "meowchan-consumer-" + Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(directory);
@@ -109,26 +115,28 @@ public sealed class ArchiveAttachmentMatchingTests
             await File.WriteAllBytesAsync(Path.Combine(directory, "a.png"), bytes);
             object entry = new { MediaIdentifier = "777", Variant = "original", SourceUrl = "https://fixture.invalid/a.png",
                 FileName = "a.png", Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
-                Md5 = Convert.ToBase64String(MD5.HashData(bytes)), OriginalFileName = "a.png" };
+                Md5 = Convert.ToBase64String(MD5.HashData(bytes)), Sha1 = extended ? Convert.ToBase64String(SHA1.HashData(bytes)) : null, OriginalFileName = "a.png" };
             string path = Path.Combine(directory, ".meowchan-manifest.json");
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 1, Entries = new Dictionary<string, object> { ["a.png"] = entry } }));
             MediaAssetSnapshot snapshot = await MediaAssetReader.OpenAsync(directory);
             MediaAssetReference asset = Assert.Single(snapshot.GetPage());
             MediaProviderMetadata provider = new("777", "original", "https://fixture.invalid/a.png", "a.png",
                 mismatch ? bytes.Length + 17 : bytes.Length,
-                mismatch ? Convert.ToBase64String(MD5.HashData(new byte[] { 3, 1, 4 })) : asset.Md5, null);
+                mismatch ? Convert.ToBase64String(MD5.HashData(new byte[] { 3, 1, 4 })) : asset.Md5, null)
+                { ExpectedSha1 = extended ? asset.Sha1 : null, ProviderSizeHint = extended ? new("2.4e1", "Кб") : null };
             CapturedAttachment attachment = new(0, provider.MediaId, provider.Variant, provider.Url, provider.OriginalFileName,
-                Path.Combine(directory, "wrong-planned-path.png"), provider.ExpectedSize, provider.ExpectedMd5);
+                Path.Combine(directory, "wrong-planned-path.png"), provider.ExpectedSize, provider.ExpectedMd5)
+                { ExpectedSha1 = provider.ExpectedSha1, ProviderSizeHint = provider.ProviderSizeHint };
             MediaAttachmentBinding? binding = null;
             if (bound)
             {
                 string key = MediaRevisionKeys.CreateAttachmentKey(Resource, "43", 0, provider);
                 binding = new(new(Resource, "43", 0, key), MediaRevisionKeys.CreateAcquisitionKey(Resource, provider), asset.AssetId,
-                    provider, new(asset.Length, asset.Md5, asset.Sha256), mismatch
+                    provider, new(asset.Length, asset.Md5, asset.Sha256) { Sha1 = asset.Sha1 }, mismatch
                         ? new(MediaAcceptanceKind.ExplicitProviderMismatch, true, true, DateTimeOffset.UtcNow, "profile", "owner", Resource.Source, 1)
                         : new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UtcNow));
                 attachment = attachment with { AttachmentRevisionKey = key };
-                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 3,
+                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = extended ? 4 : 3,
                     Entries = new Dictionary<string, object> { ["a.png"] = entry },
                     Assets = new Dictionary<string, object> { [asset.AssetId] = new { RequestedFileName = "a.png", Entry = entry } },
                     AttachmentBindings = new Dictionary<string, MediaAttachmentBinding> { [key] = binding } }));
