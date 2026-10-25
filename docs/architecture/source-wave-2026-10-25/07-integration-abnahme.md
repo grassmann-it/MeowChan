@@ -33,12 +33,23 @@ Dateien, damit echte Hosttests über produktive Discovery laufen können. Kein
 Shipping-/Release-PASS daraus abgeleitet. Python-Paket- und Runnerprüfungen
 15 + 23 + 12 bestanden.
 
-Noch offen: reale terminale HTTP-/Queue-/Archiv-/Prozessneustartketten, enger Liveversuch,
+Terminale Worker-/Host-/Queue-/Archivfixtures sind inzwischen ausgeführt:
+Stand `4b7adcd` zunächst 5/12 PASS; sieben Fixturefehler (Pause vor Preview
+und falsche Erwartung einer wirksamen Ausnahme bei strikt aktivierten Quellen)
+korrigiert. Gezielter Nachlauf auf `020b3e7`: 7/7 PASS, keine Skips. Die zwölf
+Fälle belegen zusammen zwei Anhänge, exakte lokale Archiv-/Galerie-/Exportbytes,
+frischen Offlinehost, SHA1/MD5-Ablehnung und Leftypol-Freigabe. Das ist kein
+echter OS-Prozessneustart und kein Live- oder Paketnachweis. Die zentralen
+OriginalMedia-Redirects prüfen jeden Hop; 2ch `.hk`→`.su` besteht, Fremdhosts
+und Metadata→Original-only-Redirects werden abgewiesen.
+
+Noch offen: echter Prozessneustart, enger Liveversuch,
 SDKfreier Compile-/Workerpfad, Paket-/Plattform- und GUIprüfung. Parserbelege
 ersetzen diese Nachweise nicht. Die Registrierung im Kandidateninventar gibt
 keine Quelle bereits produktiv frei. Enger Originalredirectbefund: 2ch `.hk`→`.su`
 benötigt einen deklarierten OriginalMedia-Pfad mit Prüfung jedes Redirecthops;
-dieser Hostfix und positive/negative Hostfixturefälle stehen aus.
+dieser Hostfix und die positiven/negativen Hostfixturefälle sind nun integriert
+und gezielt bestanden. Allgemeine native Plattformabnahme bleibt separat.
 
 ## Abhängigkeiten und gemeinsame Dateien
 
