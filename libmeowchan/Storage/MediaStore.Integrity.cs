@@ -34,8 +34,8 @@ public sealed partial class MediaStore
             .Select(asset => asset.Entry).Where(entry => EntryMatchesItem(entry, item)
                 && (item.ExpectedSize == null || item.ExpectedSize == entry.Length)
                 && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, entry.Sha256, StringComparison.OrdinalIgnoreCase))
-                && (item.ExpectedMd5 == null || string.IsNullOrEmpty(entry.Md5) || SameMd5(item.ExpectedMd5, entry.Md5))
-                && (item.ExpectedSha1 == null || entry.Sha1 == null || SameMd5(item.ExpectedSha1, entry.Sha1))
+                && (item.ExpectedMd5 == null || string.IsNullOrEmpty(entry.Md5) || SameBase64Digest(item.ExpectedMd5, entry.Md5))
+                && (item.ExpectedSha1 == null || entry.Sha1 == null || SameBase64Digest(item.ExpectedSha1, entry.Sha1))
                 && (hasExpected || entry.SourceUrl == item.DownloadUri.AbsoluteUri)).ToArray();
         // History can retain an earlier path that was subsequently damaged and repaired elsewhere.
         // Count actual verified copies, not stale manifest claims; never select latest/current.
@@ -56,7 +56,7 @@ public sealed partial class MediaStore
         return (result, false);
     }
 
-    private static bool SameMd5(string first, string second)
+    private static bool SameBase64Digest(string first, string second)
     {
         try { return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(first), Convert.FromBase64String(second)); }
         catch (FormatException) { return false; }
@@ -75,7 +75,7 @@ public sealed partial class MediaStore
                 || binding.AssetId != GetAssetId(asset.RequestedFileName, asset.Entry)
                 || asset.Entry.MediaIdentifier != binding.Provider.MediaId || asset.Entry.Variant != binding.Provider.Variant
                 || asset.Entry.Length != binding.Actual.Length || asset.Entry.Md5 != binding.Actual.Md5
-                || binding.Actual.Sha1 != null && (asset.Entry.Sha1 == null || !SameMd5(binding.Actual.Sha1, asset.Entry.Sha1))
+                || binding.Actual.Sha1 != null && (asset.Entry.Sha1 == null || !SameBase64Digest(binding.Actual.Sha1, asset.Entry.Sha1))
                 || !string.Equals(asset.Entry.Sha256, binding.Actual.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("An attachment binding disagrees with its immutable asset.");
         }
@@ -100,6 +100,16 @@ public sealed partial class MediaStore
         ProviderIntegrityAssessment assessment = ProviderIntegrityAssessment.Assess(provider, actual);
         if (assessment.Sha1Mismatch || assessment.Sha256Mismatch || !assessment.IsStrictMatch && policy == null)
             throw new InvalidDataException("A new binding needs current authorization for a provider discrepancy.");
+        // New references may reuse a v3 asset. Enrich only missing evidence after
+        // checking its immutable bytes; otherwise the new binding would name SHA-1
+        // that the old asset inventory cannot corroborate on the next read.
+        if (manifest.Assets.TryGetValue(assetId, out MediaManifestAsset? existing))
+        {
+            MediaManifestEntry entry = existing.Entry;
+            if (!MediaIntegrityValidation.MatchesMeasured(new(entry.Length, entry.Md5, entry.Sha256) { Sha1 = entry.Sha1 }, actual))
+                throw new InvalidDataException("Measured bytes disagree with the immutable asset evidence.");
+            entry.Sha1 ??= actual.Sha1;
+        }
         MediaAcceptanceRecord acceptance = new(assessment.IsStrictMatch ? MediaAcceptanceKind.Strict : MediaAcceptanceKind.ExplicitProviderMismatch,
             assessment.SizeMismatch, assessment.Md5Mismatch, DateTimeOffset.UtcNow, policy?.ProfileId, policy?.PluginOwnerId, policy?.SourceId, policy?.Revision);
         foreach (AttachmentRevisionReference reference in item.AttachmentReferences)

@@ -82,7 +82,11 @@ public static class MediaRevisionKeys
         if (position < 0) throw new ArgumentOutOfRangeException(nameof(position));
         return Hash(Extended(provider) ? "att-v2:" : "att-v1:", resource, provider, postId, position);
     }
-    private static bool Extended(MediaProviderMetadata provider) => provider.ExpectedSha1 != null || provider.ProviderSizeHint != null;
+    private static bool Extended(MediaProviderMetadata provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        return provider.ExpectedSha1 != null || provider.ProviderSizeHint != null;
+    }
     private static string Hash(string prefix, ResourceId resource, MediaProviderMetadata provider, string? post, int? position)
     {
         ArgumentNullException.ThrowIfNull(resource);

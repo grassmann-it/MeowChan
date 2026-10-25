@@ -419,7 +419,7 @@ public sealed partial class MediaStore
         return (!item.ExpectedSize.HasValue || item.ExpectedSize.Value == digest.Length)
             && (expectedMd5 == null || CryptographicOperations.FixedTimeEquals(expectedMd5, digest.Md5))
             && (item.ExpectedSha256 == null || string.Equals(item.ExpectedSha256, digest.Sha256, StringComparison.OrdinalIgnoreCase))
-            && (item.ExpectedSha1 == null || SameMd5(item.ExpectedSha1, Convert.ToBase64String(digest.Sha1)));
+            && (item.ExpectedSha1 == null || SameBase64Digest(item.ExpectedSha1, Convert.ToBase64String(digest.Sha1)));
     }
 
     private static async Task<FileDigest> CopyAndHashAsync(Stream source, Stream? destination,
