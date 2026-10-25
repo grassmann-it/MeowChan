@@ -167,7 +167,7 @@ const f = s.frame; const v = s.visibleFrame; const z = Number(s.backingScaleFact
 JSON.stringify({logical_width:f.size.width, logical_height:f.size.height,
  physical_width:Math.round(f.size.width*z), physical_height:Math.round(f.size.height*z),
  scale_x:z, scale_y:z, work_width_dip:v.size.width, work_height_dip:v.size.height,
- display_id:Number(s.deviceDescription.objectForKey('NSScreenNumber'))});'''
+ display_id:Number(ObjC.unwrap(s.deviceDescription.objectForKey('NSScreenNumber')))});'''
         completed = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", "-e", source],
                                    check=True, capture_output=True, text=True, timeout=20)
         state = json.loads(completed.stdout)
