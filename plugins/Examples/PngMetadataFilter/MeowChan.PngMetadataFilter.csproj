@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>MeowChan.PngMetadataFilter</AssemblyName><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../../MeowChan.PluginSdk/MeowChan.PluginSdk.csproj" /></ItemGroup>
+</Project>
