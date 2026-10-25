@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Storage;
@@ -77,7 +78,8 @@ internal static class ArchiveThreadMediaInventory
             return new(count, missing);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        catch (Exception error) when (error is IOException or InvalidDataException or JsonException
+            or UnauthorizedAccessException or ArgumentException or OverflowException)
         { return new(null, Error: error.Message); }
     }
 
