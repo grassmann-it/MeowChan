@@ -126,9 +126,9 @@
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
-        <Border Grid.Row="2" Classes="workspace-dialog-footer" Padding="20,12">
+        <Border Grid.Row="2" Classes="workspace-dialog-footer">
             <Grid x:Name="RulesFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6"
-                  HorizontalAlignment="Left" Width="{Binding Bounds.Width, ElementName=RulesContent}">
+                  HorizontalAlignment="Stretch" MaxWidth="1088">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
