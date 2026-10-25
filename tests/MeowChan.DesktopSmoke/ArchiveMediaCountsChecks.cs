@@ -79,7 +79,9 @@ internal static class ArchiveMediaCountsChecks
             await ManifestAsync(aMedia, 4);
             await page.ActivateAsync(); await page.ArchiveMediaCountTask;
             Require(Row(a).CompactMedia == "4", "Explicit refresh kept stale media inventory.");
-            Require(selection.SequenceEqual(table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id)), "Explicit refresh lost retained selection.");
+            var refreshedSelection = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
+            Require(selection.SequenceEqual(refreshedSelection), "Explicit refresh lost retained selection: expected "
+                + string.Join(",", selection.Select(id => id.Thread)) + "; actual " + string.Join(",", refreshedSelection.Select(id => id.Thread)) + ".");
 
             // A cancelled NAS-style inventory deliberately ignores cancellation. Its late answer
             // cannot write into the old row or the next query's new row objects.

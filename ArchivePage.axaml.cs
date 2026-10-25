@@ -217,6 +217,9 @@ public partial class ArchivePage : UserControl
                 ListBox list = Control<ListBox>("ArchiveThreads");
                 DataGrid table = Control<DataGrid>("ArchiveThreadTable");
                 list.ItemsSource = rows; table.ItemsSource = rows;
+                // Reconcile the replacement collection while selection events are suppressed,
+                // before restoring identity-owned selection (as on layout/language changes).
+                UpdateLayout();
                 list.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 table.SelectedItem = rows.FirstOrDefault(row => row.Summary.Id == selected);
                 RestoreArchiveSelection(rows, selected);
