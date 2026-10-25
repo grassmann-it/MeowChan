@@ -394,6 +394,13 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_CATEGORY_ONLY") == "1")
+            {
+                await SettingsCategoryChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LIFETIME_ONLY") == "1")
             {
                 await SettingsPageChecks.RunLateSaveFailureAsync(mainWindow);
