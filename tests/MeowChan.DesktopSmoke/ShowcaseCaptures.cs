@@ -337,7 +337,7 @@ internal static class ShowcaseCaptures
                     || !view.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap)
                     || !HasOnlyReadyTileText(view)))
             { previous = null; return false; }
-            WrapPanel panel = tiles.GetVisualDescendants().OfType<WrapPanel>().Single();
+            MediaTilePanel panel = tiles.GetVisualDescendants().OfType<MediaTilePanel>().Single();
             ScrollViewer scroll = tiles.GetVisualDescendants().OfType<ScrollViewer>().Single();
             Control[] children = panel.Children.ToArray();
             Rect[] bounds = children.Select(child => child.Bounds).ToArray();

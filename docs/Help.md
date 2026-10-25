@@ -205,10 +205,11 @@ or incompatible filter must be resolved before copying its template.
 
 ### Settings and session messages
 
-In 1.0 Settings, open **Sections** and choose a section link. In narrow windows,
-select the section and choose **Go to section** instead. Navigation keeps the
-draft; **Save** applies it and **Discard draft** reverts unapplied edits. Marked
-invalid fields must be corrected before saving.
+Settings shows one category at a time, with its navigation beside the content.
+In narrow windows, open **Sections**, select a category and choose **Go to section**.
+Switching categories keeps all drafts, including invalid text. **Save** applies
+changes across every category; **Discard draft** reverts all unapplied edits.
+Saving with an invalid field opens its category so you can correct it.
 
 Under **Notifications** (German: **Benachrichtigungen**), independently enable or
 disable **Success and information popups**, **Warning popups** and **Error popups**,
