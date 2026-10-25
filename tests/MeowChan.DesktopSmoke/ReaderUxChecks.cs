@@ -67,6 +67,7 @@ internal static class ReaderUxChecks
                 File.Copy(Path.Combine(media, ".meowchan-manifest.json"), Path.Combine(threadMedia, ".meowchan-manifest.json"));
                 await File.WriteAllTextAsync(Path.Combine(threadMedia, "unrelated.txt"), "keep me");
             }
+            posts = await StrictMediaFixture.BindAsync(threadMedia, id, posts);
             await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/" + thread,
                 "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, threadMedia, posts));
         }

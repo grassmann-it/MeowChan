@@ -145,14 +145,15 @@ internal static class PostBookmarkGalleryReturnChecks
             JsonSerializer.Serialize(new { Version = 1, Entries = entries }));
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
-        await catalog.CaptureAsync(new CapturedThreadSnapshot(thread,
-            "https://boards.4chan.org/g/thread/9100", "Bookmark gallery exact return",
-            ThreadSourceState.Archived, DateTimeOffset.UtcNow, media,
+        CapturedPost[] posts = await StrictMediaFixture.BindAsync(media, thread,
             [new CapturedPost("9100", 0, PostFieldPresence.All,
                 Html: "<p>" + string.Join(" ", Enumerable.Repeat("Long saved reader A anchor.", 500)) + "</p>",
                 Attachments: [new CapturedAttachment(0, "0", OriginalFileName: "0.png")]),
              new CapturedPost("9101", 1, PostFieldPresence.All, Html: "<p>Gallery cursor B.</p>",
-                Attachments: [new CapturedAttachment(0, "1", OriginalFileName: "1.png")])]));
+                Attachments: [new CapturedAttachment(0, "1", OriginalFileName: "1.png")])]);
+        await catalog.CaptureAsync(new CapturedThreadSnapshot(thread,
+            "https://boards.4chan.org/g/thread/9100", "Bookmark gallery exact return",
+            ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, posts));
     }
 
     private static string? SelectedPost(ListBox posts) => (posts.SelectedItem as ArchivePostRow)?.Id;

@@ -27,9 +27,13 @@ internal static class ReaderStabilityChecks
                 ? new[] { new CapturedAttachment(0, "shared", OriginalFileName: "reader.png") }
                 : Array.Empty<CapturedAttachment>())).ToArray();
         return SeedCoreAsync();
-        async Task SeedCoreAsync() => await catalog.CaptureAsync(new CapturedThreadSnapshot(Thread,
-            "https://boards.4chan.org/g/thread/9998", "Reader mixed navigation", ThreadSourceState.Archived,
-            DateTimeOffset.UtcNow, media, posts));
+        async Task SeedCoreAsync()
+        {
+            posts = await StrictMediaFixture.BindAsync(media, Thread, posts);
+            await catalog.CaptureAsync(new CapturedThreadSnapshot(Thread,
+                "https://boards.4chan.org/g/thread/9998", "Reader mixed navigation", ThreadSourceState.Archived,
+                DateTimeOffset.UtcNow, media, posts));
+        }
     }
 
     internal static async Task RunAsync(MainWindow window)
