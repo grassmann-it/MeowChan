@@ -15,9 +15,9 @@
         <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6" Grid.IsSharedSizeScope="True">
             <Grid x:Name="ArchiveListPane" RowSpacing="6">
                 <Grid.RowDefinitions>
-                    <!-- Share the real pane height after its fixed pagination;
-                         search/drafts/chips scroll before results lose their viewport. -->
-                    <RowDefinition Height="*" MaxHeight="260" />
+                    <!-- Collapsed search tools use only their content height;
+                         expanded tools scroll at the cap instead of pushing results down. -->
+                    <RowDefinition Height="Auto" MaxHeight="260" />
                     <RowDefinition Height="2*" />
                     <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
                 </Grid.RowDefinitions>
@@ -66,8 +66,8 @@
                         <Button x:Name="ArchiveRetrySearch" Click="OnRetrySearch" IsVisible="False" HorizontalAlignment="Left" />
                     </StackPanel>
                     <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4">
-                        <Button x:Name="ArchiveLayoutList" Content="List" ursa:ToolBar.OverflowMode="Never" />
-                        <Button x:Name="ArchiveLayoutTable" Content="Table" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutList" Content="List" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
@@ -79,7 +79,7 @@
                 </Grid></ScrollViewer>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
                     <Grid>
-                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="ArchiveThreads" VerticalContentAlignment="Top" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">

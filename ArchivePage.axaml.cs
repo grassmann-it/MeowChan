@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -786,7 +787,12 @@ public partial class ArchivePage : UserControl
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
     {
         string layout = sender == Control<Button>("ArchiveLayoutTable") ? "Table" : "List";
-        if (_archiveLayout == layout) return;
+        if (_archiveLayout == layout)
+        {
+            // A selected toggle remains selected when it is clicked again.
+            UpdateLayoutMode();
+            return;
+        }
         ArchiveLayoutPreference = layout;
         RestoreArchiveSelection(ArchiveVisibleRows);
         await PersistArchiveViewAsync();
@@ -834,8 +840,8 @@ public partial class ArchivePage : UserControl
         Control<ListBox>("ArchiveThreads").IsVisible = _archiveLayout == "List";
         Control<DataGrid>("ArchiveThreadTable").IsVisible = _archiveLayout == "Table";
         Control<Button>("ArchiveThreadColumnsButton").IsVisible = _archiveLayout == "Table";
-        Control<Button>("ArchiveLayoutList").IsEnabled = _archiveLayout != "List";
-        Control<Button>("ArchiveLayoutTable").IsEnabled = _archiveLayout != "Table";
+        Control<ToggleButton>("ArchiveLayoutList").IsChecked = _archiveLayout == "List";
+        Control<ToggleButton>("ArchiveLayoutTable").IsChecked = _archiveLayout == "Table";
         Control<Button>("ArchiveBackButton").IsVisible = narrow && !_largeReader;
         RefreshArchiveResultActions();
     }

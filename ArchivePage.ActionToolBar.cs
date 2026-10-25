@@ -19,8 +19,8 @@ public partial class ArchivePage
 
     private void InitializeArchiveResultActions()
     {
-        Bind("ArchiveLayoutList", OnArchiveLayoutClick, () => _archiveLayout != "List");
-        Bind("ArchiveLayoutTable", OnArchiveLayoutClick, () => _archiveLayout != "Table");
+        Bind("ArchiveLayoutList", OnArchiveLayoutClick);
+        Bind("ArchiveLayoutTable", OnArchiveLayoutClick);
         Bind("ArchiveThreadColumnsButton", OnArchiveColumnsClick);
         Bind("ArchiveResultsGallery", OnResultsGalleryClick, () => ResultActionsReady && _listTotal > 0);
         Bind("ArchiveFavoritesOverview", OnFavoritesOverviewClick, () => ResultActionsReady);
