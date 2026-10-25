@@ -103,7 +103,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     catch (TimeoutException) { }
                     process.Dispose();
                 }
-                processLease.Dispose(); TryDeleteWorkspace(workingDirectory);
+                processLease.Dispose(); await TryDeleteWorkspaceAsync(workingDirectory).ConfigureAwait(false);
             }
             throw;
         }
@@ -332,11 +332,19 @@ internal sealed class WorkerConnection : IAsyncDisposable
             _processTree.Kill();
         }
     }
-    private static void TryDeleteWorkspace(string path)
+    private static async Task TryDeleteWorkspaceAsync(string path)
     {
-        try { if (Directory.Exists(path)) Directory.Delete(path, true); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        // Windows can signal process/job exit just before the kernel releases
+        // the child's current-directory/file handles. Retry only this owned
+        // worker directory, after tree termination, within a fixed bound.
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, true); return; }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            if (!OperatingSystem.IsWindows()) return;
+            await Task.Delay(25).ConfigureAwait(false);
+        }
     }
     private void Fail(Exception exception)
     {
@@ -372,7 +380,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
         {
             // In particular, a failed native job query must still release handles and
             // admission before propagating its diagnostic to the owner.
-            _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); TryDeleteWorkspace(_workingDirectory);
+            _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); await TryDeleteWorkspaceAsync(_workingDirectory).ConfigureAwait(false);
             if (!Directory.Exists(_workingDirectory)) Interlocked.Exchange(ref _observedTemporaryBytes, 0);
         }
     }

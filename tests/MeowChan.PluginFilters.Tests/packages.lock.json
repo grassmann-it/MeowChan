@@ -71,6 +71,11 @@
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
+      "NodaTime": {
+        "type": "Transitive",
+        "resolved": "3.3.6",
+        "contentHash": "vAjAdOvqu5hqgDVgzJxFPhSVy4EM5/tmSHJn/k0lLDIn4637OReqJgvR49fzFzj+5uZfebdJEFbI6LOLazWXog=="
+      },
       "Serilog": {
         "type": "Transitive",
         "resolved": "4.0.2",
@@ -148,7 +153,8 @@
         "dependencies": {
           "Microsoft.Data.Sqlite": "[10.0.12, )",
           "Newtonsoft.Json": "[13.0.3, )",
-          "Serilog": "[4.0.2, )"
+          "Serilog": "[4.0.2, )",
+          "NodaTime": "[3.3.6, )"
         }
       },
       "meowchan.imagedimensionsfilter": {

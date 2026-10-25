@@ -44,7 +44,7 @@ public sealed class ArchiveIdentitySuggestionTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         await using (var catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease)) { }
-        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory.Path, "archive.db")}"))
+        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory.Path, "archive.db")};Pooling=False"))
         {
             connection.Open(); using var transaction = connection.BeginTransaction();
             using var insert = connection.CreateCommand(); insert.Transaction = transaction;
@@ -81,7 +81,7 @@ public sealed class ArchiveIdentitySuggestionTests
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         await using (var catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease)) { }
         // Schema 1 has the same identity columns. No suggestion migration is needed.
-        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory.Path, "archive.db")}"))
+        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory.Path, "archive.db")};Pooling=False"))
         {
             connection.Open();
             using var command = connection.CreateCommand();
@@ -90,7 +90,7 @@ public sealed class ArchiveIdentitySuggestionTests
         await using var reader = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Empty((await reader.ReadSourceIdentitiesAsync()).Items);
         Assert.False((await reader.ReadBoardIdentitiesAsync()).HasMore);
-        using var check = new SqliteConnection($"Data Source={reader.DatabasePath};Mode=ReadOnly");
+        using var check = new SqliteConnection($"Data Source={reader.DatabasePath};Mode=ReadOnly;Pooling=False");
         check.Open(); using var version = check.CreateCommand(); version.CommandText = "PRAGMA user_version";
         Assert.Equal(1L, version.ExecuteScalar());
     }

@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace MeowChan.Archive;
 
@@ -64,9 +62,9 @@ public static class ArchiveDateResolver
     public static ResolvedDateWindow? Resolve(ArchiveDateRange? range)
     {
         if (range == null || (!range.StartDate.HasValue && !range.EndDate.HasValue)) return null;
-        TimeZoneInfo zone = FindZone(range.TimeZoneId);
-        return new ResolvedDateWindow(range.StartDate.HasValue ? Boundary(range.StartDate.Value, zone) : null,
-            range.EndDate.HasValue ? Boundary(range.EndDate.Value.AddDays(1), zone) : null, range.TimeZoneId);
+        FindZone(range.TimeZoneId);
+        return new ResolvedDateWindow(range.StartDate.HasValue ? Boundary(range.StartDate.Value, range.TimeZoneId) : null,
+            range.EndDate.HasValue ? Boundary(range.EndDate.Value.AddDays(1), range.TimeZoneId) : null, range.TimeZoneId);
     }
 
     internal static TimeZoneInfo FindZone(string id)
@@ -79,51 +77,23 @@ public static class ArchiveDateResolver
         // Windows IDs are not a portable persisted definition. IANA aliases, including UTC, are.
         if (!zone.HasIanaId && !TimeZoneInfo.TryConvertIanaIdToWindowsId(id, out _))
             throw new ArgumentException("A portable IANA time zone ID is required.", nameof(id));
+        if (NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(id) == null)
+            throw new ArgumentException("The IANA time zone is unavailable.", nameof(id));
         return zone;
     }
 
-    private static DateTimeOffset Boundary(DateOnly day, TimeZoneInfo zone)
+    private static DateTimeOffset Boundary(DateOnly day, string zoneId)
     {
-        DateTime midnight = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        // Enumerating actual offsets and checking the round trip also detects whole skipped days
-        // (some TimeZoneInfo implementations do not classify these with IsInvalidTime).
-        HashSet<TimeSpan> offsets = [zone.BaseUtcOffset];
-        foreach (TimeZoneInfo.AdjustmentRule rule in zone.GetAdjustmentRules())
+        // Use one bundled IANA database on every OS. Windows registry-derived
+        // historical rules can move a gap by 1 ms or miss a whole skipped day.
+        NodaTime.DateTimeZone zone = NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(zoneId)
+            ?? throw new ArgumentException("The IANA time zone is unavailable.", nameof(zoneId));
+        NodaTime.LocalDate local = new(day.Year, day.Month, day.Day);
+        for (int skipped = 0; skipped < 3; skipped++, local = local.PlusDays(1))
         {
-            offsets.Add(zone.BaseUtcOffset + rule.BaseUtcOffsetDelta);
-            offsets.Add(zone.BaseUtcOffset + rule.BaseUtcOffsetDelta + rule.DaylightDelta);
+            try { return zone.AtStartOfDay(local).ToInstant().ToDateTimeOffset(); }
+            catch (NodaTime.SkippedTimeException) { }
         }
-        DateTimeOffset? Map(DateTime local)
-        {
-            DateTimeOffset? earliest = null;
-            foreach (TimeSpan offset in offsets)
-            {
-                long ticks = local.Ticks - offset.Ticks;
-                if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) continue;
-                DateTimeOffset utc = new(ticks, TimeSpan.Zero);
-                if (TimeZoneInfo.ConvertTime(utc, zone).DateTime != local) continue;
-                if (!earliest.HasValue || utc < earliest.Value) earliest = utc;
-            }
-            return earliest;
-        }
-        DateTimeOffset? exact = Map(midnight);
-        if (exact.HasValue) return exact.Value; // Minimum UTC mapping includes the whole repeated midnight.
-        DateTime invalid = midnight;
-        DateTime valid = midnight;
-        do
-        {
-            invalid = valid;
-            valid = valid.AddHours(1);
-            if (valid - midnight > TimeSpan.FromDays(3)) throw new ArgumentException("Cannot resolve this local calendar boundary.", nameof(day));
-        } while (!Map(valid).HasValue);
-        // Find the first valid tick, including historical transitions with second precision.
-        long low = invalid.Ticks, high = valid.Ticks;
-        while (high - low > 1)
-        {
-            long middle = low + (high - low) / 2;
-            if (Map(new DateTime(middle, DateTimeKind.Unspecified)).HasValue) high = middle;
-            else low = middle;
-        }
-        return Map(new DateTime(high, DateTimeKind.Unspecified))!.Value;
+        throw new ArgumentException("Cannot resolve this local calendar boundary.", nameof(day));
     }
 }
