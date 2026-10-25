@@ -12,6 +12,7 @@ namespace MeowChan.DesktopTests;
 
 // Production HostHttp/worker/downloader/store path with synthetic metadata and valid PNGs.
 // A fresh offline host is in the same OS test process; GallerySelection is not a rendered GUI.
+[Collection("Delivered plugin hosts")]
 public sealed class LeftypolWaveIntegrationTests
 {
     private const string Plugin = "meowchan.source.leftypol";

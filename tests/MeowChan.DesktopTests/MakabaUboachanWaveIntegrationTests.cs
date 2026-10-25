@@ -16,6 +16,7 @@ namespace MeowChan.DesktopTests;
 
 // Actual delivered worker processes, IPC, queue and archive; HTTP remains
 // synthetic/terminal. A fresh DesktopSessionHost is not an OS-process restart.
+[Collection("Delivered plugin hosts")]
 public sealed class MakabaUboachanWaveIntegrationTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);

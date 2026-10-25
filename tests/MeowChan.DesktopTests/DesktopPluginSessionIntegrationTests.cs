@@ -18,6 +18,7 @@ using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Delivered plugin hosts")]
 public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper output)
 {
     private const string FilterId = "meowchan.example.image-dimensions";

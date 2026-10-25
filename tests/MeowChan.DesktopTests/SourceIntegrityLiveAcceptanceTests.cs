@@ -14,6 +14,7 @@ using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Delivered plugin hosts")]
 public sealed class SourceIntegrityLiveAcceptanceTests(ITestOutputHelper output)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };

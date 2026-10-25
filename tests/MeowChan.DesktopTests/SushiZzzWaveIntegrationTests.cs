@@ -19,6 +19,7 @@ namespace MeowChan.DesktopTests;
 // Actual delivered parsers run in the real worker processes. Only the final HTTP transport
 // is synthetic. Offline below is a fresh DesktopSessionHost in the same test process,
 // not an independent OS-process restart, GUI exercise, package or live-site acceptance.
+[Collection("Delivered plugin hosts")]
 public sealed class SushiZzzWaveIntegrationTests(ITestOutputHelper output)
 {
     private const string FilterId = "meowchan.example.image-dimensions";

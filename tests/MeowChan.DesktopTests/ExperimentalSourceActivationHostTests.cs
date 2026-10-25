@@ -4,6 +4,7 @@ using MeowChan.PluginHost.Activation;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Delivered plugin hosts")]
 public sealed class ExperimentalSourceActivationHostTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(45);
