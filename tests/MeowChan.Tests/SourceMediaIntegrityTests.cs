@@ -390,10 +390,10 @@ public sealed class SourceMediaIntegrityTests
     public void BuiltinCaptureProjectionDoesNotDropExtendedProviderMetadata()
     {
         using TempDirectory directory = new(); using StubImageBoard board = new();
-        DownloadItem item = Item(board, directory, null, null, sha1: Convert.ToBase64String(SHA1.HashData(Bytes)), hint: new("24", "Кб"));
+        DownloadItem item = Item(board, directory, null, null, sha1: Convert.ToBase64String(SHA1.HashData(Bytes)), hint: new("24", "Кб"), variant: "preview");
         CapturedAttachment capture = ProviderPostCapture.Attachment(item, 2);
         Assert.Equal(item.ExpectedSha1, capture.ExpectedSha1); Assert.Equal(item.ProviderSizeHint, capture.ProviderSizeHint);
-        Assert.Null(capture.ExpectedSize);
+        Assert.Null(capture.ExpectedSize); Assert.Equal("preview", capture.Variant);
     }
 
     [Fact]
@@ -409,13 +409,13 @@ public sealed class SourceMediaIntegrityTests
     }
 
     private static DownloadItem Item(StubImageBoard board, TempDirectory directory, TestPolicy? policy,
-        long? size, string? md5 = null, string? sha = null, string[]? posts = null, string url = "https://stub.test/media/m.bin", string? sha1 = null, MediaProviderSizeHint? hint = null)
+        long? size, string? md5 = null, string? sha = null, string[]? posts = null, string url = "https://stub.test/media/m.bin", string? sha1 = null, MediaProviderSizeHint? hint = null, string variant = "original")
     {
-        MediaProviderMetadata provider = new("m", "original", url, "m.bin", size, md5, sha) { ExpectedSha1 = sha1, ProviderSizeHint = hint };
+        MediaProviderMetadata provider = new("m", variant, url, "m.bin", size, md5, sha) { ExpectedSha1 = sha1, ProviderSizeHint = hint };
         AttachmentRevisionReference[] references = (posts ?? ["123"]).Select(post => new AttachmentRevisionReference(Resource,
             post, 0, MediaRevisionKeys.CreateAttachmentKey(Resource, post, 0, provider))).ToArray();
         return new DownloadItem(new Uri(url), Path.Combine(directory.Path, "m.bin"), board,
-            board.GetThread(new Uri("https://stub.test/g/thread/123")), "m", size, md5, "m.bin") {
+            board.GetThread(new Uri("https://stub.test/g/thread/123")), "m", size, md5, "m.bin", null, variant) {
             ExpectedSha256 = sha, ExpectedSha1 = sha1, ProviderSizeHint = hint, AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, provider),
             AttachmentReferences = references, MediaIntegrityPolicy = policy };
     }
