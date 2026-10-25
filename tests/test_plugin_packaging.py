@@ -16,7 +16,9 @@ SPEC.loader.exec_module(PACKAGE)
 class PluginPackagingTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='meowchan-plugin-package-')
-        self.root = Path(self.temporary.name)
+        # Python 3.12 on Windows may return the 8.3 TEMP spelling. The verifier
+        # resolves its root, so register synthetic modes with that same spelling.
+        self.root = Path(self.temporary.name).resolve()
         self.unix_helpers = set()
         if os.name == 'nt':
             # NTFS does not represent Unix execute bits. Emulate them only for
@@ -93,12 +95,14 @@ class PluginPackagingTests(unittest.TestCase):
     def test_all_five_native_layouts(self):
         for runtime in PACKAGE.RUNTIMES:
             with self.subTest(runtime=runtime), tempfile.TemporaryDirectory(dir=self.root) as directory:
-                outer = self.root; self.root = Path(directory)
-                self.fixture(runtime)
-                report = PACKAGE.verify(self.root, runtime)
-                self.assertEqual(7, report['plugins'])
-                self.assertEqual(5, report['editable_sources'])
-                self.root = outer
+                outer = self.root; self.root = Path(directory).resolve()
+                try:
+                    self.fixture(runtime)
+                    report = PACKAGE.verify(self.root, runtime)
+                    self.assertEqual(7, report['plugins'])
+                    self.assertEqual(5, report['editable_sources'])
+                finally:
+                    self.root = outer
 
     def test_framework_dependent_helpers_are_only_allowed_for_developer_outputs(self):
         self.fixture(self_contained=False)

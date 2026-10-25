@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -74,8 +75,14 @@ internal static class DownloadSearchChecks
             tabs.SelectedIndex = 0;
             TextBox url = window.FindControl<TextBox>("UrlInput")!;
             url.Text = "not-a-valid-url";
-            Click(window.FindControl<Button>("AddUrlButton")!);
-            await Program.WaitUntilAsync(() => window.FindControl<Control>("AdmissionRepairPanel")!.IsVisible);
+            Button add = window.FindControl<Button>("AddUrlButton")!;
+            Click(add);
+            // A previous admission can already have left this panel visible.
+            // Wait for this submission's completed feedback, not the old panel.
+            await Program.WaitUntilAsync(() => add.IsEnabled
+                && window.FindControl<Control>("AdmissionRepairPanel")!.IsVisible
+                && AutomationProperties.GetName(window.FindControl<SelectableTextBlock>("AdmissionRepairText")!)
+                    ?.StartsWith("not-a-valid-url · ", StringComparison.Ordinal) == true);
             Require(url.Text == "not-a-valid-url", "Rejected input was lost.");
             Require(window.FindControl<SelectableTextBlock>("AdmissionRepairText")!.Text?.Contains("HTTP") == true,
                 "URL rejection did not expose the cause and repair form.");

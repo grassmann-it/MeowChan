@@ -12,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -67,7 +68,22 @@ public partial class ArchivePage : UserControl
     internal string ArchiveLayoutPreference
     {
         get => _archiveLayout;
-        set { _archiveLayout = value == "Table" ? "Table" : "List"; _threadTable = _archiveLayout == "Table"; UpdateLayoutMode(); }
+        set
+        {
+            bool updating = _updatingList;
+            _updatingList = true;
+            try
+            {
+                _archiveLayout = value == "Table" ? "Table" : "List";
+                _threadTable = _archiveLayout == "Table";
+                UpdateLayoutMode();
+                // DataGrid initializes/reconciles its selection when first shown.
+                // Finish that layout before restoring the identity-owned selection.
+                if (this.IsAttachedToVisualTree()) UpdateLayout();
+                RestoreArchiveSelection(ArchiveVisibleRows, _selectedThread);
+            }
+            finally { _updatingList = updating; }
+        }
     }
     internal double ArchiveSplitPreference
     {
@@ -839,6 +855,7 @@ public partial class ArchivePage : UserControl
             {
                 list.ItemsSource = localized;
                 Control<DataGrid>("ArchiveThreadTable").ItemsSource = localized;
+                UpdateLayout();
                 RestoreArchiveSelection(localized, _selectedThread);
             }
             finally { _updatingList = false; }

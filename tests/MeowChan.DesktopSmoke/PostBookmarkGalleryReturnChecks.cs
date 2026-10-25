@@ -28,6 +28,7 @@ internal static class PostBookmarkGalleryReturnChecks
         ResourceId thread = new("4chan", "g", "9100");
         PostBookmarkKey key = new(thread, "9100");
         string? captureFixture = null;
+        using ManualResetEventSlim initialDecode = new(false);
         try
         {
             await SeedAsync(profile, thread);
@@ -73,10 +74,22 @@ internal static class PostBookmarkGalleryReturnChecks
                 "Shell bookmark fixture did not establish A's partial reader anchor.");
 
             // Open and move through actual controls. No shell flags or return delegates are fabricated.
+            TaskCompletionSource decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            GalleryImageDecoder.DecodeStarted = _ =>
+            {
+                decoding.TrySetResult();
+                if (!initialDecode.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("The controlled initial gallery decode was not released.");
+            };
             Click(page.FindControl<Button>("ArchiveOpenGallery")!);
             ContentControl galleryHost = shell.FindControl<ContentControl>("GalleryHost")!;
             await Program.WaitUntilAsync(() => galleryHost.IsVisible && galleryHost.Content is GalleryViewer);
             GalleryViewer gallery = (GalleryViewer)galleryHost.Content!;
+            await decoding.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Require(!GalleryControl<Button>(gallery, "GalleryNext").IsEnabled,
+                "Gallery offered navigation while initial resolution would discard the click.");
+            GalleryImageDecoder.DecodeStarted = null;
+            initialDecode.Set();
             await Program.WaitUntilAsync(() => gallery.CaptureState().PostId == "9100"
                 && GalleryControl<Image>(gallery, "GalleryImage").Source is Bitmap
                 && GalleryControl<Button>(gallery, "GalleryNext").IsEnabled);
@@ -111,6 +124,8 @@ internal static class PostBookmarkGalleryReturnChecks
         }
         finally
         {
+            GalleryImageDecoder.DecodeStarted = null;
+            initialDecode.Set();
             if (shell != null)
             {
                 shell.Close();

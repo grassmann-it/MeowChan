@@ -110,7 +110,9 @@ jobs:
       - name: Run core and desktop offline tests
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
         timeout-minutes: 8
-        run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
+        # Native worker suites retain their own concurrency tests and deadlines.
+        # Do not run ten independent test assemblies against the same runner at once.
+        run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Run both complete macOS offline suites with bounded diagnostics
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
         timeout-minutes: 10

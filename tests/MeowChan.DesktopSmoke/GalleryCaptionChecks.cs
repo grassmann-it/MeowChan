@@ -31,7 +31,12 @@ internal static class GalleryCaptionChecks
                 foreach (double testedWidth in new[] { 849d, 850d, 851d })
                 {
                     window.Width = testedWidth; window.Height = 530;
-                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, testedWidth, 530));
+                    // Adjacent widths straddle the context breakpoint. A one-DIP
+                    // general resize tolerance would accept the previous width
+                    // before the native resize/layout has even happened.
+                    await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - testedWidth) < .5 / window.RenderScaling
+                        && Math.Abs(window.Bounds.Height - 530) < .5 / window.RenderScaling
+                        && Math.Abs(viewer.Bounds.Width - window.Bounds.Width) < .5 / window.RenderScaling);
                     foreach (bool open in new[] { false, true })
                     {
                         SetContext(viewer, open);
@@ -82,6 +87,9 @@ internal static class GalleryCaptionChecks
         Rect viewportBounds = Bounds(viewport, viewer);
         Border tools = Find<Border>(viewer, "GalleryOverlayControls");
         Rect toolsBounds = Bounds(tools, viewer);
+        Console.WriteLine("SMOKE gallery tools geometry: " + JsonSerializer.Serialize(new { video, theme, width, contextOpen, state,
+            viewer = viewer.Bounds.ToString(), tools = toolsBounds.ToString(), info = infoBounds.ToString(),
+            viewport = viewportBounds.ToString(), viewport.IsVisible, tools.IsEffectivelyVisible }));
         if (!tools.IsEffectivelyVisible || toolsBounds.Height <= 0 || toolsBounds.Left < 0
             || toolsBounds.Right > viewer.Bounds.Width || toolsBounds.Bottom > infoBounds.Top + 1
             || viewport.IsVisible && (toolsBounds.Top < viewportBounds.Bottom - 1 || viewportBounds.Height < 100))

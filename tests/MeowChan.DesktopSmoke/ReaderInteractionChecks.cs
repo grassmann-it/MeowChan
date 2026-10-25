@@ -172,6 +172,8 @@ internal static class ReaderInteractionChecks
 
     private static async Task CheckFavoritesOverviewAsync(MainWindow window, ArchivePage page)
     {
+        // Quote/history navigation can restart the asynchronous manifest scan.
+        await page.MediaLoadTask;
         ArchiveAssetRow row = page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().First();
         ResourceId thread = page.CurrentThread!.Summary.Id;
         GalleryEntry entry = new(new GalleryAssetKey(thread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset, null, null, false, true);

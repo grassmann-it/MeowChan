@@ -736,6 +736,9 @@ public sealed class DownloadQueueTests
             Assert.True(queue.TryEnqueue(CreateItem(board, active, directory, "pending.bin", "pending")));
             Task<bool> first = queue.EnqueueAsync(CreateItem(board, older, directory, "older.bin", "older"));
             Task<bool> second = queue.EnqueueAsync(CreateItem(board, promoted, directory, "promoted.bin", "promoted"));
+            // Promotion is tested against two existing, storage-ready waits.
+            // Otherwise a slower target preparation can miss the admission turn.
+            await TestWait.UntilAsync(() => AdmissionTargetsReady(queue, 2));
             queue.SetThreadPriority(promoted, DownloadPriority.Manual);
             handler.Release(1);
             await handler.WaitForStartsAsync(1);

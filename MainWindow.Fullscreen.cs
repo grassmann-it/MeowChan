@@ -593,8 +593,17 @@ public partial class MainWindow
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
         string activeContext = _largeReaderOpen ? "reader" : _selectedPage.ToString().ToLowerInvariant();
+        // These download commands were selected above from the actual row target.
+        // The registry supplement must not add unavailable selection actions back.
+        var downloadSelectionCommands = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "thread.read", "thread.details", "selection.copy-links", "location.open-folder", "location.open-source",
+            "rules.edit-scope", "watch.remove", "gallery.open", "export.open-html-dialog", "board.filters",
+            "watch.check", "watch.retry-media"
+        };
         ids.AddRange(CommandCatalog.All.Where(command => command.IsImplemented
             && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
+            && (activeContext != "downloads" || !downloadSelectionCommands.Contains(command.Id))
             && command.ShortcutDisplay != null).Select(command => command.Id));
         WorkspaceControl<TextBlock>("ShellHelpTitle").Text = Texts.T("shortcuts.title");
         // The command registry supplies the visible help and its scoped gestures.

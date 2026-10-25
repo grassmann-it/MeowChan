@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -231,13 +232,18 @@ public partial class ArchivePage
         if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
-        if (MatchesArchiveCommand(e, "archive.previous-page") || MatchesArchiveCommand(e, "archive.next-page"))
+        // The list owns these navigation gestures. The generic command guard
+        // deliberately leaves navigation keys to native lists, so resolve here
+        // after the list-source/editor shielding above.
+        bool previousPage = !ShortcutService.IsCapturing && ShortcutService.Current.Matches(e, "archive.previous-page");
+        bool nextPage = !ShortcutService.IsCapturing && ShortcutService.Current.Matches(e, "archive.next-page");
+        if (previousPage || nextPage)
         {
             e.Handled = true;
-            Button pageButton = Control<Button>(MatchesArchiveCommand(e, "archive.previous-page") ? "PreviousThreadsButton" : "NextThreadsButton");
+            Button pageButton = Control<Button>(previousPage ? "PreviousThreadsButton" : "NextThreadsButton");
             if (pageButton.IsEnabled)
             {
-                if (MatchesArchiveCommand(e, "archive.previous-page")) OnPreviousThreads(sender, e);
+                if (previousPage) OnPreviousThreads(sender, e);
                 else OnNextThreads(sender, e);
             }
             return;

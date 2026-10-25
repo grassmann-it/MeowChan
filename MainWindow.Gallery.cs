@@ -127,6 +127,7 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         _gallery = new GalleryViewer();
+        _gallery.SetPosition(string.Empty, false, false);
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
@@ -177,6 +178,7 @@ public partial class MainWindow
     {
         if (_gallery == null || _galleryCancellation == null || _galleryResolvingRequest == _galleryRequest) return;
         _galleryResolvingRequest = request;
+        UpdateGalleryPosition();
         CancellationToken token = _galleryCancellation.Token;
         try
         {
@@ -252,7 +254,14 @@ public partial class MainWindow
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception) { if (request == _galleryRequest) _gallery?.SetNotice(exception.Message); }
-        finally { if (_galleryResolvingRequest == request) _galleryResolvingRequest = -1; }
+        finally
+        {
+            if (_galleryResolvingRequest == request)
+            {
+                _galleryResolvingRequest = -1;
+                if (request == _galleryRequest) UpdateGalleryPosition();
+            }
+        }
     }
 
     private void UpdateGalleryScope()
@@ -290,14 +299,29 @@ public partial class MainWindow
     {
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
-        viewer.SetPosition((_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
-            ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
-            _galleryIndex > 0, _galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count);
+        UpdateGalleryPosition();
         viewer.SetAssociations(_galleryEntries);
         GalleryEntry entry = _galleryEntries[_galleryIndex];
         await viewer.ShowAsync(entry, _galleryCancellation.Token);
         if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
             RefreshGalleryFavorite();
+    }
+
+    private void UpdateGalleryPosition()
+    {
+        if (_gallery == null) return;
+        if (_galleryIndex >= _galleryEntries.Count)
+        {
+            _gallery.SetPosition(string.Empty, false, false);
+            return;
+        }
+        // MoveGalleryAsync cannot accept navigation while resolving. Do not
+        // expose enabled arrows before that guard is released after decoding.
+        bool ready = _galleryResolvingRequest != _galleryRequest;
+        _gallery.SetPosition((_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
+            ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
+            ready && _galleryIndex > 0,
+            ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
     }
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)
