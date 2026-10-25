@@ -34,7 +34,11 @@ public sealed partial class ArchiveCatalog
             throw new InvalidDataException("Invalid candidate provider SHA256.");
         MediaProviderMetadata provider = new(metadata.Key.MediaId, metadata.Key.Variant, metadata.DownloadUri.AbsoluteUri,
             metadata.OriginalFileName, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.ExpectedSha256) { ExpectedSha1 = metadata.ExpectedSha1, ProviderSizeHint = metadata.ProviderSizeHint };
-        MediaIntegrityValidation.ValidateProvider(provider);
+        // Durable first-intent metadata historically preserves raw MD5 text,
+        // including excluded candidates that never enter the download pipeline.
+        // Validate the additive fields here; SDK/capture/store keep strict hashes.
+        MediaIntegrityValidation.ValidateSha1(metadata.ExpectedSha1);
+        MediaIntegrityValidation.ValidateSizeHint(metadata.ProviderSizeHint);
         string acquisition = MediaRevisionKeys.CreateAcquisitionKey(metadata.Key.Resource, provider);
         if (metadata.AcquisitionRevisionKey != null && metadata.AcquisitionRevisionKey != acquisition)
             throw new InvalidDataException("The saved acquisition revision differs from its provider metadata.");
