@@ -4,13 +4,19 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>0.9.0</strong></p>
+<p align="center"><strong>1.0.0</strong></p>
 
 <p align="center">Save threads. Browse your archive. Keep it offline.</p>
 
-MeowChan is a cross-platform imageboard downloader and offline archive for 4chan and 8kun, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
+MeowChan is a cross-platform imageboard downloader and offline archive with eleven supplied imageboard sources, with an image gallery, local search and portable HTML export. It watches threads and boards and saves their original media and captured posts. The Avalonia desktop app uses the independently consumable `libmeowchan` library; other applications can supply providers through its contracts.
 
-Download **MeowChan 0.9.0** from the [stable release](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0). The [release notes](docs/releases/v0.9.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
+Download **MeowChan 1.0.0** from the [release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0). The [release notes](docs/releases/v1.0.0.md) and [changelog](CHANGELOG.md) describe the redesign and upgrade considerations. See [platform requirements](docs/platform-support.md) before choosing a package, or [build from source](#build-and-run).
+
+1.0 adds the Semi + Ursa UI rework, configurable shortcuts, reading groups, saved
+searches, ratings, notes, archive cleanup and more source/filter plugins. If you
+run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new)
+and try [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0)
+with an untouched profile or pre-upgrade backup.
 
 ## Choose the view that fits your work
 
@@ -37,22 +43,23 @@ The [interface gallery and capture notes](docs/screenshots/README.md) show more 
 
 Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
 
-The steps below describe the 0.9.0 interface and launchers.
+The screenshots below retain their documented 0.9.0 capture provenance; see the
+[1.0 release notes](docs/releases/v1.0.0.md) for current features.
 
-1. [Download MeowChan 0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+1. [Download MeowChan 1.0.0](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-For each of `linux-x64` and `linux-arm64`, choose a package on the [0.9.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0):
+For each of `linux-x64` and `linux-arm64`, choose a package on the [1.0.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
 
 | Filename | VLC requirement |
 | --- | --- |
-| `MeowChan-0.9.0-<RID>.AppImage` | Includes VLC; make executable and run. |
-| `MeowChan-0.9.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
-| `MeowChan-0.9.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.0.0-<RID>.AppImage` | Includes VLC; make executable and run. |
+| `MeowChan-1.0.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.0.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 
