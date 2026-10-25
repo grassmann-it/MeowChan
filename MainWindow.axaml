@@ -79,9 +79,8 @@
             </Grid>
         </ursa:Banner>
         <Grid Grid.Row="1" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
-            <Grid x:Name="WorkspaceHeading" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid x:Name="WorkspaceHeading">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
-                <TextBlock Grid.Column="1" Tag="shell.supported" Classes="localized muted" Text="4chan · 8kun" VerticalAlignment="Center" />
             </Grid>
             <ScrollViewer x:Name="WorkspaceIntakeScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
             <Border x:Name="WorkspaceIntakeCard" Classes="panel" Padding="12,10">
