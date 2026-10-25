@@ -75,6 +75,98 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Equal(values.OrderBy(pair => pair.Key), reopened.Resolve(h.Resource).ImageFilter.Parameters.OrderBy(pair => pair.Key));
     }
 
+    [Theory]
+    [InlineData("gif", true)] [InlineData("gif", false)]
+    [InlineData("webp", true)] [InlineData("webp", false)]
+    public async Task ActualGifAndWebpReachTheRealFormatWorkerDespitePngFilename(string format, bool matches)
+    {
+        byte[] bytes = WaveContainer(format);
+        await using Harness h = await Harness.StartAsync(bytes, filterAssembly: typeof(AnimationFormatFilter).Assembly.Location);
+        DownloadItem item = await h.ItemAsync(new() { ["format"] = format, ["animation"] = matches ? "animated" : "static" });
+        if (matches)
+        {
+            await h.RunAsync(item);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(item.DestinationPath));
+        }
+        else
+        {
+            MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+            Assert.True(error.IsNoMatch); Assert.Equal("animation_mismatch", error.ReasonCode);
+            Assert.False(File.Exists(item.DestinationPath));
+        }
+        Assert.Equal(1, h.Transfers); Assert.True(h.ImageReads > 0);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+        Assert.Equal(matches ? MediaSelectionOutcome.Selected : MediaSelectionOutcome.Excluded,
+            Assert.Single(await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Selection.Outcome);
+    }
+
+    [Theory]
+    [InlineData("gif")] [InlineData("webp")]
+    public async Task TruncatedAnimationIsTechnicalOmissionAfterActualWorkerRead(string format)
+    {
+        byte[] bytes = WaveContainer(format);
+        // GIF trailer is missing; WebP retains its declared length via padding but its final
+        // ANMF subchunk no longer fits. Both still have readable one-pixel canvas headers.
+        if (format == "gif") bytes = bytes[..^1];
+        else bytes[^7] = 255;
+        await using Harness h = await Harness.StartAsync(bytes, filterAssembly: typeof(AnimationFormatFilter).Assembly.Location);
+        DownloadItem item = await h.ItemAsync(new() { ["format"] = format, ["animation"] = "animated" });
+        MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.False(error.IsNoMatch); Assert.True(h.ImageReads > 0);
+        Assert.False(File.Exists(item.DestinationPath)); Assert.Equal(1, h.Transfers);
+        Assert.Equal(MediaSelectionOutcome.TechnicalOmission,
+            Assert.Single(await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Selection.Outcome);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    [Theory]
+    [InlineData("gif")] [InlineData("webp")]
+    public async Task NewContainerPixelBudgetsStillRejectBeforeWorkerAssetRead(string format)
+    {
+        byte[] bytes = WaveContainer(format);
+        if (format == "gif") { bytes[6] = 255; bytes[7] = 255; bytes[8] = 255; bytes[9] = 255; }
+        else { bytes[24] = 255; bytes[25] = 255; bytes[26] = 255; bytes[27] = 255; bytes[28] = 255; bytes[29] = 255; }
+        await using Harness h = await Harness.StartAsync(bytes, filterAssembly: typeof(AnimationFormatFilter).Assembly.Location);
+        DownloadItem item = await h.ItemAsync(new() { ["format"] = format, ["animation"] = "animated" });
+        MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.False(error.IsNoMatch); Assert.Equal("filter_image_pixel_limit", error.ReasonCode);
+        Assert.Equal(0, h.ImageReads); Assert.False(File.Exists(item.DestinationPath));
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    [Theory]
+    [InlineData("gif")] [InlineData("webp")]
+    public async Task RevisionChangeDuringNewContainerReadNeverCommits(string format)
+    {
+        await using Harness h = await Harness.StartAsync(WaveContainer(format), filterAssembly: typeof(AnimationFormatFilter).Assembly.Location);
+        DownloadItem item = await h.ItemAsync(new() { ["format"] = format, ["animation"] = "animated" });
+        h.OnRead = () => h.Current = false;
+        MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.False(error.IsNoMatch); Assert.True(h.ImageReads > 0);
+        Assert.False(File.Exists(item.DestinationPath)); Assert.Equal(1, h.Transfers);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    private static byte[] WaveContainer(string format)
+    {
+        if (format == "gif")
+        {
+            List<byte> gif = [.. Encoding.ASCII.GetBytes("GIF89a"), 1, 0, 1, 0, 128, 0, 0, 0, 0, 0, 255, 255, 255];
+            for (int i = 0; i < 2; i++) gif.AddRange(new byte[] { 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 68, 1, 0 });
+            gif.Add(59); return gif.ToArray();
+        }
+        byte[] Riff(string name, byte[] payload)
+        {
+            byte[] length = new byte[4]; BinaryPrimitives.WriteUInt32LittleEndian(length, (uint)payload.Length);
+            return Encoding.ASCII.GetBytes(name).Concat(length).Concat(payload)
+                .Concat(payload.Length % 2 == 0 ? Array.Empty<byte>() : new byte[] { 0 }).ToArray();
+        }
+        List<byte> chunks = [.. Riff("VP8X", [2, 0, 0, 0, 0, 0, 0, 0, 0, 0]), .. Riff("ANIM", new byte[6])];
+        for (int i = 0; i < 2; i++) chunks.AddRange(Riff("ANMF", new byte[16].Concat(Riff("VP8L", [47, 0, 0, 0, 0])).ToArray()));
+        byte[] size = new byte[4]; BinaryPrimitives.WriteUInt32LittleEndian(size, (uint)(chunks.Count + 4));
+        return Encoding.ASCII.GetBytes("RIFF").Concat(size).Concat(Encoding.ASCII.GetBytes("WEBP")).Concat(chunks).ToArray();
+    }
+
     [Fact]
     public async Task RealWorkerMatchCommitsOneTransferSameBytesAndRestoresOffline()
     {

@@ -44,6 +44,13 @@ class PluginPackagingTests(unittest.TestCase):
                         and any(isinstance(target, ast.Name) and target.id == 'expected_ids' for target in node.targets)]
         self.assertEqual(1, len(expected_ids))
         self.assertEqual(set(PACKAGE.PLUGINS), set(expected_ids[0]))
+        compile_probe = ast.parse((repository / 'tests/PluginDeliverySmoke/sdk_free_compile_probe.py').read_text())
+        compile_ids = [ast.literal_eval(node.value) for node in ast.walk(compile_probe)
+                       if isinstance(node, ast.Assign)
+                       and any(isinstance(target, ast.Name) and target.id == 'SOURCE_PLUGIN_IDS' for target in node.targets)]
+        self.assertEqual(1, len(compile_ids))
+        self.assertEqual(set(PACKAGE.SOURCES), set(compile_ids[0]))
+        self.assertTrue(set(compile_ids[0].values()).issubset(set(expected_ids[0].values())))
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='meowchan-plugin-package-')
