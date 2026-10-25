@@ -36,13 +36,14 @@ on:
           - macos-15
           - macos-15-intel
       scenario:
-        description: Native GUI validation scenarios (selection is a focused diagnostic run)
+        description: Native GUI scenarios (gui-only skips offline suites; candidates require all)
         type: choice
         required: false
         default: all
         options:
           - all
           - selection
+          - gui-only
 
 permissions:
   contents: read
@@ -82,7 +83,7 @@ jobs:
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
       - name: Check declared public APIs and require release review for candidates
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
           api_args=()
@@ -91,13 +92,13 @@ jobs:
           fi
           python scripts/check-public-api.py "${api_args[@]}"
       - name: Check default development restore and build
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.csproj -warnaserror:NU1900
       - name: Restore dependencies and require audit availability
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact restored Release graphs
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
           cp obj/project.assets.json artifacts/build-evidence/desktop-assets.json
@@ -105,20 +106,20 @@ jobs:
           cp tests/MeowChan.Tests/obj/project.assets.json artifacts/build-evidence/core-tests-assets.json
           cp tests/MeowChan.DesktopTests/obj/project.assets.json artifacts/build-evidence/desktop-tests-assets.json
       - name: Build all production and test projects
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
-        if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
+        if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         timeout-minutes: 8
         # Native worker suites retain their own concurrency tests and deadlines.
         # Do not run ten independent test assemblies against the same runner at once.
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Run both complete macOS offline suites with bounded diagnostics
-        if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
+        if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         timeout-minutes: 10
         run: python3 scripts/macos-test-watchdog.py --timeout 240
       - name: Check package layout fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: |
           python -m unittest discover -s tests -p test_macos_packaging.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
@@ -126,10 +127,10 @@ jobs:
           python -m unittest discover -s tests -p test_prerelease.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
       - name: Check local library package contract fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_local_package.py -v
       - name: Check GUI runner isolation and cleanup fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
       - name: Restore graphical harness with reviewed dependencies
         run: dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
@@ -159,10 +160,10 @@ jobs:
       - name: Exercise native graphical startup and fallback paths
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
       - name: Exercise tray lifecycle separately on the disposable runner
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Check native Linux tray host lifecycle on private DBus
-        if: runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario != 'selection')
+        if: runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
       - name: Capture bounded macOS native failure diagnostics
         if: failure() && runner.os == 'macOS'
@@ -207,7 +208,7 @@ jobs:
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   library-package:
-    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario != 'selection')
+    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -258,7 +259,7 @@ jobs:
           retention-days: 7
 
   package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all'))
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all'))
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -350,7 +351,7 @@ jobs:
           retention-days: 7
 
   macos-package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario != 'selection' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all')) || inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
     strategy:
       fail-fast: false
       matrix:

@@ -148,7 +148,14 @@ internal static class DownloadSearchChecks
                     foreach (double width in new[] { window.Width, 1380d })
                     {
                         window.Width = width;
-                        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, window.Height));
+                        try
+                        {
+                            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, window.Height));
+                        }
+                        finally
+                        {
+                            Console.WriteLine($"SMOKE download header resize: mode={mode}, width={width}, requested={window.Width}x{window.Height}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}, screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+                        }
                         window.UpdateLayout();
                         Button columns = window.FindControl<Button>("DownloadsColumnsButton")!;
                         Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;

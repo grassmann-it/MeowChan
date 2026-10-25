@@ -34,6 +34,7 @@ public partial class SourcesPage : UserControl
     private bool _hasUrlResult;
     private long _sourceSelectionRevision;
     private Action? _cancelSubmitFocusRestore;
+    internal bool HasPendingSubmitFocusRestore => _cancelSubmitFocusRestore != null;
     private bool _showDetails;
     private bool _narrow;
     internal Action<string>? OpenPluginSettings { get; set; }
@@ -412,7 +413,14 @@ public partial class SourcesPage : UserControl
         void OnOwnerDeactivated(object? sender, EventArgs e)
         {
             if (admissionModal != null) modalOwnerDeactivated = true;
-            else if (!awaitingAdmissionOwnerActivation) CancelFocusRestore();
+            else if (X11WindowActivation.OwnsNativeFocus(ownerWindow))
+            {
+                // X11 can deliver an old modal-return FocusOut after Closed.
+                // Exempt only a positively attributed stale report, never an
+                // arbitrary first external deactivation after the modal.
+                awaitingAdmissionOwnerActivation = true;
+            }
+            else CancelFocusRestore();
         }
         void OnOwnerClosing(object? sender, WindowClosingEventArgs e) => CancelFocusRestore();
         void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -452,7 +460,8 @@ public partial class SourcesPage : UserControl
                 admissionModal = null;
                 // No timer or blanket deactivation exemption: this one normal
                 // owned-modal return lasts only until its next owner activation.
-                awaitingAdmissionOwnerActivation = closing is { Cancel: false } && modalOwnerDeactivated;
+                awaitingAdmissionOwnerActivation = closing is { Cancel: false } && modalOwnerDeactivated
+                    && ownerWindow is { IsActive: false };
             }
             modal.Opened += OnOpened;
             modal.Closing += OnClosing;
@@ -516,7 +525,8 @@ public partial class SourcesPage : UserControl
                         || owner is Window { IsVisible: false } or Window { IsEnabled: false }) return false;
                     if (owner is Window { IsActive: false })
                     {
-                        if (!sawAdmissionModal || !awaitingAdmissionOwnerActivation) return false;
+                        if (!sawAdmissionModal || !awaitingAdmissionOwnerActivation
+                            || !X11WindowActivation.OwnsNativeFocus(ownerWindow)) return false;
                         // Recheck at Loaded: the owner may have become inactive
                         // since submit completion. Preserve only this exact return
                         // until its first activation or permanent cancellation.
