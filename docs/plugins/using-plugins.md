@@ -8,62 +8,24 @@ required for the corresponding plugin operations.
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied plugins include
-   **Lainchan**, **Kohlchan**, **Wizchan**, **Endchan** and
-   **Image dimensions (example)**. Selecting an entry shows
-   its purpose, current status and available actions. Use the category selector
-   for sources, image filters or all plugins. Sources → source details →
-   **Plugin settings and tests** is another route to that source's entry.
-2. Choose **Enable plugin** or **Disable plugin** to change availability now.
-   These actions use the already selected valid build; manual enablement grants
-   no provider-size/MD5 exception. Kohlchan, Wizchan and Endchan default disabled
-   at first registration in a profile; existing saved states are retained.
-   **Source and watches**
-   opens the related source and its watched entries when available.
-3. Use **Actions** → **Open settings** to reach available plugin/source options.
-   Review your changes and choose **Save for next start**, then restart MeowChan
-   to use them. An **Unsaved draft** has not been saved; **Saved for next start**
-   is separate from the build and settings currently in use.
-4. To try the supplied dimensions filter, open Media rules for one intended
-   source/thread, choose it under **Image filter**, set its width/height or
-   orientation criteria, and **Grant required access for this scope**. Save the
-   rule. It examines supported JPEG/PNG originals for new decisions; previously
-   saved originals remain available. See [filter settings and grants](filters-and-settings.md).
+   **Lainchan**, The separate source/filter candidate adds five Experimental sources to the three
+existing ones. All eight supplied identities start disabled when first registered
+in a profile. Existing profiles keep their saved enable/disable and permission
+choices; an upgrade does not reset them. Candidate registration is not a claim
+of live service health or packaged/native-platform acceptance.
 
-Use an isolated preview profile and media folder for experiments. Only run plugin
-code you trust: a separate process still has your user permissions. A successful
-test leaves the active production build unchanged; saved plugin/source settings
-and candidate selections take effect at the next app start.
+| Sources | Activation confirmation | Integrity behavior |
+| --- | --- | --- |
+| Kohlchan, Wizchan, Endchan, Leftypol | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
+| 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch's rounded size is retained as an annotation, never an exact byte expectation or a byte-limit substitute. |
 
-## Purpose, status and actions
+Experimental describes the current support status. It grants no exception.
+For the four strict sources, confirming enables the source only. URLs continue
+after successful activation; closing or retrying never adds a mismatch grant.
+Uboachan SHA-1 metadata is compared as SHA-1, separately from any MD5 metadata.
 
-The overview puts the plugin's purpose and status first, with its type and a
-compact version. Read any unavailable or attention message before acting.
-Descriptions labelled **Last known description** can come from an earlier saved
-build; they do not establish a successful current start. Plugin status describes
-local availability. It does not establish website reachability or successful
-downloads. The [dated live-source results](live-sources-2026-10-24.md) retain
-unresolved metadata conflicts for Kohlchan, Wizchan and Endchan.
-
-Right-click a plugin entry, or focus it and use the context-menu key (normally
-Shift+F10), for its actions. The **Actions** buttons offer the same choices.
-**Open details**, **Open settings**, **View permissions** and **Show developer
-details** take you to the relevant part of that plugin. Unavailable actions show
-their reason. Enable/disable does not save a settings draft; candidate selection
-and rollback remain choices for the next start.
-
-Expand **Developer details** for technical information, **Copy technical details**
-and source editing/testing tools. Ordinary plugin use does not require opening
-this section. To add or edit a trusted `.cs` source, follow the next sections.
-
-## Experimental sources and media checks
-
-**Kohlchan**, **Wizchan** and **Endchan** are labelled **Experimental**. Their
-provider size or MD5 metadata can differ from the delivered file. The default
-is strict checking; the label alone grants no exception.
-
-Exactly these three supplied plugin identities start disabled when first
-registered in a profile. Existing profiles keep their saved enable/disable and
-permission choices; an upgrade does not reset them.
+The following combined permission flow applies to Kohlchan, Wizchan, Endchan and
+Leftypol:
 
 When you explicitly submit a matching URL for a disabled source, a warning appears
 before that URL is fetched. Choose **Activate and allow differences**
@@ -100,7 +62,7 @@ This action is also available for eligible **Completed** (**Abgeschlossen**) wor
 queue and source limits still apply.
 
 The exception permits only provider size and MD5 differences. Any supplied
-provider SHA256, local integrity verification, complete HTTP transfer, byte/pixel
+provider SHA-1 or SHA-256, local integrity verification, complete HTTP transfer, byte/pixel
 and temporary-storage limits, cancellation and filter decisions remain strict.
 For each accepted attachment revision, the original provider metadata, measured
 local length/hashes and acceptance record remain distinct and refer to that
