@@ -438,6 +438,13 @@ internal static class Program
                 mainWindow.Close();
                 return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_TEXT_SELECTION_ONLY") == "1")
+            {
+                await TextSelectionChecks.RunAsync(mainWindow);
+                _checksPassed = true;
+                mainWindow.Close();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_THEME_ONLY") == "1")
             {
                 await GalleryViewerChecks.RunAsync(mainWindow);
