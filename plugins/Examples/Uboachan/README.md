@@ -14,29 +14,30 @@ opaque safe token, independent of original filename. Empty original names are
 allowed; filenames never determine media identity. Omitted fields do not delete
 captured history, and `locked`/`cyclical` do not end a thread.
 
-**Dependent mapping still open:** this source has proven MD5 and SHA-1 values in
-the same field in the same thread. Valid 16-byte Base64 values map to ExpectedMd5.
-Until NW-01 integrates a dedicated SHA-1 expectation across the SDK/host/store,
-a 20-byte digest explicitly fails the whole observation with
-`unsupported_integrity_contract`. Malformed or unknown digest lengths fail with
-`invalid_payload`. Nothing is mislabeled as MD5/SHA256 or silently discarded.
-This is staged parser work, not complete source/media acceptance. Experimental
-maturity and default activation remain coordinated with NW-07.
+This source has proven MD5 and SHA-1 values in the same provider field in the
+same thread. Following approved NW-01, each valid 16-byte Base64 value maps to
+`ExpectedMd5`, and each 20-byte value to the additive `ExpectedSha1`. The original
+value is retained per attachment. Malformed or unknown digest lengths fail the
+whole observation with `invalid_payload`; nothing is mislabeled or discarded.
+The central host/store validates these expectations. Experimental maturity is
+informational; default-off activation is handled by shared integration, and this
+adapter grants no mismatch exceptions.
 
 ## Evidence and limits
 
 NW-00 confirmed 305 posts/69 originals in `/yn/res/513.json`, mixed MD5/SHA-1
 against two small originals, and a second thread with two attachments in one
 post. A new bounded metadata-only preflight on 2026-10-25 confirms `/yn/` HTML200,
-that multi-attachment thread's JSON200 and a second `/ot/` catalog200. Clean
+that multi-attachment thread's JSON200 and canonical HTML200, plus a second
+`/ot/` catalog200. Clean
 receipts are in `Evidence/metadata-preflight-20261025.json`; no raw post content
 or originals are shipped as fixtures. Python observations do not establish
 productive HostHttp/download/archive/offline acceptance.
 
 Synthetic tests cover slot identities, empty names, mixed digest forms,
 malformed/unknown digests, metadata budgets, conditional requests, exact404,
-unexpected endpoints, host-owned deferrals and cancellation. The two SDK-only projects compile and all 46 combined Dvach/Uboachan synthetic
-cases pass under the coordinated Linux test slot, without warnings or skips.
-This proves the staged fail-closed behavior, not final SHA1 acceptance. No posting, board discovery, previews,
+unexpected endpoints, host-owned deferrals and cancellation. The earlier staged parsers compiled and passed 46 combined synthetic cases;
+that historical run covered temporary fail-closed contract boundaries. The new
+approved mappings require a fresh SDK-bound focused run, still pending here. No posting, board discovery, previews,
 archive fallback or last50 truncation is implemented. NW-07 owns actual worker,
 original/reader/gallery, restart and package delivery acceptance.

@@ -99,7 +99,6 @@ public sealed class UboachanPlugin : ISourcePlugin
                 return new ThreadFailure(request.Thread, InvalidPayload());
             return snapshot;
         }
-        catch (PendingIntegrityContractException error) { return new ThreadFailure(request.Thread, new FailureDetail("unsupported_integrity_contract", error.Message, 200)); }
         catch (Exception error) when (PayloadError(error)) { return new ThreadFailure(request.Thread, InvalidPayload()); }
     }
 
@@ -175,24 +174,24 @@ public sealed class UboachanPlugin : ISourcePlugin
             throw new JsonException("Invalid provider file token.");
         string extension = file.GetProperty("ext").GetString() ?? throw new JsonException("Missing extension.");
         string? originalName = Text(file, "filename");
+        (string? md5, string? sha1) = ExpectedHashes(file);
         return new SourceAttachment(position, postId + "-" + position.ToString(CultureInfo.InvariantCulture),
             Url: Endpoint(thread.BoardId, "src/" + Uri.EscapeDataString(token + extension)),
             OriginalFileName: string.IsNullOrEmpty(originalName) ? null : originalName + extension, Extension: extension,
-            ExpectedSize: Integer(file, "fsize"), ExpectedMd5: ExpectedMd5(file));
+            ExpectedSize: Integer(file, "fsize"), ExpectedMd5: md5) { ExpectedSha1 = sha1 };
     }
 
-    private static string? ExpectedMd5(JsonElement file)
+    private static (string? Md5, string? Sha1) ExpectedHashes(JsonElement file)
     {
         string? raw = Text(file, "md5");
-        if (raw is null) return null;
+        if (raw is null) return (null, null);
         byte[] digest = Convert.FromBase64String(raw);
-        if (digest.Length == 16) return Convert.ToBase64String(digest);
-        if (digest.Length == 20)
-            throw new PendingIntegrityContractException("Uboachan supplies SHA-1 for this attachment; the additive SHA-1 contract is not integrated yet.");
+        // Uboachan has proven MD5 and SHA-1 values in this same provider field.
+        // Interpret each attachment independently and retain its original value.
+        if (digest.Length == 16) return (raw, null);
+        if (digest.Length == 20) return (null, raw);
         throw new JsonException("Unsupported Uboachan provider digest length.");
     }
-
-    private sealed class PendingIntegrityContractException(string message) : Exception(message) { }
 
     private static DateTimeOffset? PostedAt(JsonElement item) => Integer(item, "time") is long seconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
 

@@ -17,12 +17,13 @@ Attachment IDs depend on post identity and slot, never names or redirect hosts.
 Hex MD5 is validated and converted to the SDK's 16-byte Base64 expectation.
 `closed`, `endless` and `is_closed` are not treated as proven archive/end signals.
 
-**Dependent mapping still open:** Makaba's numeric `size` is a provider-unit hint,
-not exact bytes. Until NW-01's raw-size-hint field is integrated, this working
-adapter explicitly fails a thread containing that field with
-`unsupported_integrity_contract`; it never drops the value or treats 24 as either
-24 bytes or exactly 24 KiB. This is staged parser work, not a shippable source or
-an acceptance PASS. Source maturity/default activation is coordinated separately.
+The approved NW-01 contract preserves numeric `size` as `ProviderSizeHint` with
+its original JSON numeric spelling, provider label `Кб` and explicitly
+`Unspecified` precision. `ExpectedSize` remains null: no exact byte length or
+acceptance range is invented. The provider MD5 is still passed to the central
+strict integrity check; this adapter grants no mismatch exception. Experimental
+maturity is informational. New-source default-off activation is handled by the
+shared delivery/activation integration, not by Describe.
 
 ## Evidence and limits
 
@@ -35,9 +36,10 @@ These are Python HTTP observations, not runtime/plugin-worker or download tests.
 
 Synthetic tests cover multiple attachments, null/empty files, escaping, foreign
 paths/endpoints, hash conversion, status/304/cancellation/size boundaries and
-lossless identities. The two SDK-only projects compile and all 46 combined Dvach/Uboachan synthetic
-cases pass under the coordinated Linux test slot; no warnings or skipped cases.
-This covers the staged fail-closed paths, not the pending final mappings.
+lossless identities. The earlier staged parsers compiled and passed 46 combined synthetic cases;
+that historical run covered temporary fail-closed contract boundaries. The new
+approved size-hint/SHA1 mappings require a fresh SDK-bound focused run; no new
+PASS is claimed before it.
 No automatic board list, preview retrieval, posting/login, archive fallback or
 Delta API is supplied. Productive original/reader/gallery/offline-restart
 acceptance and native package delivery belong to NW-07.

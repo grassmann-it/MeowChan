@@ -103,7 +103,6 @@ public sealed class DvachPlugin : ISourcePlugin
                 return new ThreadFailure(request.Thread, InvalidPayload());
             return snapshot;
         }
-        catch (PendingIntegrityContractException error) { return new ThreadFailure(request.Thread, new FailureDetail("unsupported_integrity_contract", error.Message, 200)); }
         catch (Exception error) when (PayloadError(error)) { return new ThreadFailure(request.Thread, InvalidPayload()); }
     }
 
@@ -177,12 +176,18 @@ public sealed class DvachPlugin : ISourcePlugin
             if (md5.Length != 32 || md5.Any(character => !Uri.IsHexDigit(character))) throw new JsonException("Invalid Makaba MD5.");
             md5 = Convert.ToBase64String(Convert.FromHexString(md5));
         }
-        long? sizeHint = Integer(file, "size");
-        if (sizeHint is < 0) throw new JsonException("Invalid provider size hint.");
-        if (sizeHint is not null)
-            throw new PendingIntegrityContractException("Makaba supplies rounded provider size units; the raw-size-hint contract is not integrated yet.");
+        SourceSizeHint? sizeHint = null;
+        if (file.TryGetProperty("size", out JsonElement size) && size.ValueKind != JsonValueKind.Null)
+        {
+            if (size.ValueKind != JsonValueKind.Number || !size.TryGetDecimal(out decimal value) || value < 0)
+                throw new JsonException("Invalid provider size hint.");
+            // The UI labels this raw value Кб, but API unit/rounding precision is
+            // not established. Do not derive exact bytes or an acceptance range.
+            sizeHint = new SourceSizeHint(size.GetRawText(), "Кб", SourceSizePrecision.Unspecified);
+        }
         return new SourceAttachment(position, postId + "-" + position.ToString(CultureInfo.InvariantCulture),
-            Url: original, OriginalFileName: name, Extension: extension, ExpectedMd5: md5);
+            Url: original, OriginalFileName: name, Extension: extension, ExpectedSize: null, ExpectedMd5: md5)
+            { ProviderSizeHint = sizeHint };
     }
 
     private static Uri OriginalUri(string board, string path)
@@ -214,7 +219,6 @@ public sealed class DvachPlugin : ISourcePlugin
         if (entry.TryGetProperty("board", out JsonElement value) && value.ValueKind != JsonValueKind.Null
             && value.GetString() != board) throw new JsonException("Post belongs to a different board.");
     }
-    private sealed class PendingIntegrityContractException(string message) : Exception(message) { }
 
     private static DateTimeOffset? PostedAt(JsonElement item) => Integer(item, "timestamp") is long seconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
 

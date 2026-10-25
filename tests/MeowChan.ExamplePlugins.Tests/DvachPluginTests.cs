@@ -22,6 +22,7 @@ public sealed class DvachPluginTests
         var plugin = new DvachPlugin(); var description = plugin.Describe(); var source = Assert.Single(description.Sources);
         Assert.Empty(SdkValidation.ValidateDescription(description));
         Assert.Equal("meowchan.source.2ch", description.PluginId); Assert.Equal("2ch", source.SourceId);
+        Assert.Equal(SourceMaturity.Experimental, source.Maturity);
         Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
         Assert.Equal("2ch.su", Assert.Single(source.Routes, r => r.Kind == SourceResourceKind.Thread && r.IsCanonical).Host);
         Assert.Contains(source.Routes, r => r.Host == "2ch.hk" && r.Kind == SourceResourceKind.Thread && !r.IsCanonical);
@@ -52,12 +53,27 @@ public sealed class DvachPluginTests
         Assert.Equal("https://2ch.hk/demo/res/123.json", Assert.Single(h.Http.Requests).Url.AbsoluteUri);
     }
 
-    [Fact]
-    public async Task RoundedSizeNeverBecomesAnExactExpectedByteLengthBeforeContractIntegration()
+    [Theory]
+    [InlineData("24")][InlineData("24.50")][InlineData("2.4e1")][InlineData("0")]
+    public async Task ProviderSizeIsRetainedAsRawHintWithoutInventingExactBytes(string rawSize)
     {
-        var root = JsonNode.Parse(Thread)!; root["threads"]![0]!["posts"]![0]!["files"]![0]!["size"] = 24;
-        var failure = Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread());
-        Assert.Equal("unsupported_integrity_contract", failure.Failure.Code);
+        var root = JsonNode.Parse(Thread)!; root["threads"]![0]!["posts"]![0]!["files"]![0]!["size"] = JsonNode.Parse(rawSize);
+        var h = Harness(root.ToJsonString()); var result = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        var attachment = result.Snapshot.Posts[0].Attachments![0];
+        Assert.Null(attachment.ExpectedSize);
+        Assert.Equal(new SourceSizeHint(rawSize, "Кб", SourceSizePrecision.Unspecified), attachment.ProviderSizeHint);
+        Assert.Equal(Convert.ToBase64String(Convert.FromHexString("d0b04abd386c83f00df0b06b6583d073")), attachment.ExpectedMd5);
+        var copy = Assert.IsType<ThreadSnapshot>(SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)));
+        Assert.Equal(attachment.ProviderSizeHint, copy.Snapshot.Posts[0].Attachments![0].ProviderSizeHint);
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
+    }
+
+    [Theory]
+    [InlineData("-1")][InlineData("\"24\"")][InlineData("true")][InlineData("1e1000")]
+    public async Task InvalidRawSizeHintFailsInsteadOfBeingSilentlyDropped(string rawSize)
+    {
+        var root = JsonNode.Parse(Thread)!; root["threads"]![0]!["posts"]![0]!["files"]![0]!["size"] = JsonNode.Parse(rawSize);
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread()).Failure.Code);
     }
 
     [Fact]

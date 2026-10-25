@@ -37,6 +37,17 @@
       "sha256": "a74108d6f8405bccb6330faff4fc0295d823aed51855a3888854f33063f58a58",
       "jsonType": "list",
       "entries": 465
+    },
+    {
+      "url": "https://uboachan.net/yn/res/11198.html",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/html",
+        "Last-Modified": "Tue, 07 Apr 2026 01:18:38 GMT",
+        "ETag": "W/\"69d45b6e-41ca\""
+      },
+      "bytes": 16842,
+      "sha256": "86004c05626a163dfef0e0e75bf8dd755ca34210fe8e56cfcda0744dcdf5b994"
     }
   ]
 }

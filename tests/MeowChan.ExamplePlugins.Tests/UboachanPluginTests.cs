@@ -21,6 +21,7 @@ public sealed class UboachanPluginTests
     {
         var description = new UboachanPlugin().Describe(); var source = Assert.Single(description.Sources);
         Assert.Equal("meowchan.source.uboachan", description.PluginId); Assert.Equal("uboachan", source.SourceId);
+        Assert.Equal(SourceMaturity.Experimental, source.Maturity);
         Assert.Empty(SdkValidation.ValidateDescription(description)); Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
         Assert.Equal(new HttpHostDeclaration("uboachan.net", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
         Assert.Single(typeof(UboachanPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
@@ -45,11 +46,18 @@ public sealed class UboachanPluginTests
     }
 
     [Fact]
-    public async Task MixedSha1IsNeverMislabeledOrSilentlyDiscardedBeforeContractIntegration()
+    public async Task MixedMd5AndSha1RemainAlgorithmBoundPerAttachmentAndRoundtrip()
     {
-        var root = JsonNode.Parse(Thread)!; root["posts"]![0]!["extra_files"]![0]!["md5"] = "A918lr4HttaA+bkeVBeaLkvvwVc=";
-        var failure = Assert.IsType<ThreadFailure>(await Harness(root.ToJsonString()).ReadThread());
-        Assert.Equal("unsupported_integrity_contract", failure.Failure.Code);
+        const string sha1 = "A918lr4HttaA+bkeVBeaLkvvwVc=";
+        var root = JsonNode.Parse(Thread)!; root["posts"]![0]!["extra_files"]![0]!["md5"] = sha1;
+        var h = Harness(root.ToJsonString()); var result = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        var files = result.Snapshot.Posts[0].Attachments!;
+        Assert.Equal("2ekqYfL9A3THOfl+KA127w==", files[0].ExpectedMd5); Assert.Null(files[0].ExpectedSha1);
+        Assert.Equal(sha1, files[1].ExpectedSha1); Assert.Null(files[1].ExpectedMd5); Assert.Null(files[1].ExpectedSha256);
+        var copy = Assert.IsType<ThreadSnapshot>(SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)));
+        Assert.Equal(sha1, copy.Snapshot.Posts[0].Attachments![1].ExpectedSha1);
+        Assert.Equal(files[0].ExpectedMd5, copy.Snapshot.Posts[0].Attachments![0].ExpectedMd5);
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
     }
 
     [Theory]
