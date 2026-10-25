@@ -46,7 +46,9 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.Equal(16, installed.Plugins.Count);
             // 0.9 has no plugin identities yet: first discovery uses current Host
             // defaults, then subsequent normal restarts must preserve those values.
-            string[] defaultOff = ["meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan"];
+            string[] defaultOff = ["meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan",
+                "meowchan.source.leftypol", "meowchan.source.2ch", "meowchan.source.uboachan",
+                "meowchan.source.zzzchan", "meowchan.source.sushichan"];
             Assert.All(installed.Plugins, plugin =>
             {
                 Assert.Equal(!defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
@@ -78,8 +80,8 @@ public sealed class DesktopUpgradeIntegrationTests
                 ArchivedThreadView view = (await reader.ReadThreadAsync(id))!;
                 Assert.NotNull(view);
                 IReadOnlyList<CapturedPost> migratedPosts = view.GetPosts();
-                // Preserve every original receipt field, array and value. Only the two
-                // additive nullable attachment properties are absent in the pinned 0.9 DTO.
+                // Preserve every original receipt field, array and value. The additive nullable
+                // integrity fields and the provider size hint are absent in the pinned 0.9 DTO.
                 JsonArray expectedPosts = JsonNode.Parse(old.GetProperty("Posts").GetRawText())!.AsArray();
                 foreach (JsonNode? post in expectedPosts)
                     foreach (JsonNode? node in post!["Attachments"]!.AsArray())
@@ -89,11 +91,17 @@ public sealed class DesktopUpgradeIntegrationTests
                         Assert.False(attachment.ContainsKey(nameof(CapturedAttachment.AttachmentRevisionKey)));
                         attachment.Add(nameof(CapturedAttachment.ExpectedSha256), null);
                         attachment.Add(nameof(CapturedAttachment.AttachmentRevisionKey), null);
+                        Assert.False(attachment.ContainsKey(nameof(CapturedAttachment.ExpectedSha1)));
+                        Assert.False(attachment.ContainsKey(nameof(CapturedAttachment.ProviderSizeHint)));
+                        attachment.Add(nameof(CapturedAttachment.ExpectedSha1), null);
+                        attachment.Add(nameof(CapturedAttachment.ProviderSizeHint), null);
                     }
                 Assert.All(migratedPosts.SelectMany(post => post.Attachments ?? Array.Empty<CapturedAttachment>()), attachment =>
                 {
                     Assert.Null(attachment.ExpectedSha256);
                     Assert.Null(attachment.AttachmentRevisionKey);
+                    Assert.Null(attachment.ExpectedSha1);
+                    Assert.Null(attachment.ProviderSizeHint);
                 });
                 Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedPosts), JsonSerializer.SerializeToElement(migratedPosts)),
                     "Migrated posts differ from the old captured structure plus explicit null integrity defaults.");
