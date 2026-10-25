@@ -34,6 +34,8 @@ public sealed class MakabaUboachanWaveIntegrationTests
         {
             await StartAsync(host, fixture, fresh: true);
             await ActivateStrictAsync(host, fixture, source);
+            // Catalog reads share the ordinary paused metadata queue.
+            await host.SetPausedAsync(false);
             BoardAdmissionPreview preview = await host.PreviewBoardAdmissionAsync(MakabaUboachanWaveFixtures.BoardUrl(source)).WaitAsync(Deadline);
             Assert.Equal(MakabaUboachanWaveFixtures.ThreadUrl(source), Assert.Single(preview.Threads).Url);
             Assert.Empty(host.GetView().Threads);
@@ -143,6 +145,7 @@ public sealed class MakabaUboachanWaveIntegrationTests
         {
             await StartAsync(host, fixture, fresh: true);
             await ActivateStrictAsync(host, fixture, "2ch");
+            await host.SetPausedAsync(false);
             var failure = await Assert.ThrowsAsync<PluginWorkerException>(() => host.PreviewBoardAdmissionAsync(MakabaUboachanWaveFixtures.BoardUrl("2ch")).WaitAsync(Deadline));
             Assert.Equal("http-redirect", failure.Code);
             Assert.Equal("https://2ch.hk/demo/catalog.json", Assert.Single(fixture.Requests));
