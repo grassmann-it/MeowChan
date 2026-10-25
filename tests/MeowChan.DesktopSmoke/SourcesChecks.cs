@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Http;
+using SourceMaturity = MeowChan.PluginSdk.SourceMaturity;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -43,7 +44,11 @@ internal static class SourcesChecks
             Console.WriteLine("SMOKE productive source card: source=" + selectedSource.SourceId
                 + "; labels=" + string.Join(" | ", selectedText.Take(2))
                 + "; visual-text-count=" + selectedCard.GetVisualDescendants().OfType<TextBlock>().Count() + ".");
-            Require(selectedText.Length >= 2 && selectedText[0] == "● " + selectedSource.DisplayName
+            string selectedName = selectedSource.DisplayName
+                + (window.SessionHost.GetSourceMediaIntegrityPolicies()
+                    .SingleOrDefault(policy => policy.Snapshot.SourceId == selectedSource.SourceId)?.Maturity == SourceMaturity.Experimental
+                    ? " · " + Texts.T("sources.experimental") : string.Empty);
+            Require(selectedText.Length >= 2 && selectedText[0] == "● " + selectedName
                 && selectedText[1] == selectedSource.BaseUri.AbsoluteUri,
                 "The productive Sources details disagreed with the selected source card.");
             livePage.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -313,11 +318,15 @@ internal static class SourcesChecks
         int postClosedOwnerActivations = 0, newerOwnerFocusEvents = 0;
         bool externalShown = false;
         void OnOwnerActivated(object? sender, EventArgs args)
-        { if (modalClosed) postClosedOwnerActivations++; }
+        {
+            if (modalClosed) postClosedOwnerActivations++;
+            Console.WriteLine($"SMOKE owned-modal owner activated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}.");
+        }
         void OnOwnerDeactivated(object? sender, EventArgs args)
         {
             if (!modalClosed) sawInitialOwnerDeactivation = true;
             if (externalShown && postClosedOwnerActivations > 0) sawExternalOwnerDeactivation = true;
+            Console.WriteLine($"SMOKE owned-modal owner deactivated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}.");
         }
         void OnOwnerFocus(object? sender, FocusChangedEventArgs args) => newerOwnerFocusEvents++;
         SourcesPage fixture = new(_ => false, _ => { }, () => { }, () => { }, async (_, observeModal) =>
@@ -346,6 +355,7 @@ internal static class SourcesChecks
             ownedModal!.Activate();
             await Program.WaitUntilAsync(() => ownedModal.IsActive && !window.IsActive && sawInitialOwnerDeactivation);
             ownedModal.Close();
+            Console.WriteLine($"SMOKE owned-modal closed: closed={modalClosed}, visible={ownedModal.IsVisible}, ownerActive={window.IsActive}, postClosed={postClosedOwnerActivations}.");
             await Program.WaitUntilAsync(() => modalClosed && !ownedModal.IsVisible && window.IsActive && postClosedOwnerActivations > 0);
             Require(fixture.IsBusy && !editor.IsEnabled && newerOwnerFocusEvents == 0,
                 "The controlled submit completed or gained newer owner focus before the external deactivation premise.");

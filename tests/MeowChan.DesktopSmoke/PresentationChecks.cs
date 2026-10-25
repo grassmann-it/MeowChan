@@ -429,7 +429,11 @@ internal static class PresentationChecks
     internal static async Task SwitchModeAsync(MainWindow window, string mode)
     {
         ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
-        bool changed = Mode(modes) != mode;
+        string? previousMode = Mode(modes);
+        bool changed = previousMode != mode;
+        // Only transitions to/from Barebones request fitted geometry. Simple <->
+        // Advanced preserves the live size, including deliberate wide probes.
+        bool fitsOnModeChange = previousMode == "Barebones" || mode == "Barebones";
         modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
         await Program.WaitUntilAsync(() => Config.LoadConfig().WorkspaceMode == mode && Mode(modes) == mode
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -437,10 +441,10 @@ internal static class PresentationChecks
         if (changed)
             await WaitForLayoutAsync(window, () => window.WindowState != WindowState.Normal
                 || (MatchesRequestedSize(window, window.Width, window.Height)
-                    && window.Screens.ScreenFromWindow(window) is { } screen
+                    && (!fitsOnModeChange || (window.Screens.ScreenFromWindow(window) is { } screen
                     && window.FrameSize is Size frame
                     && frame.Width * window.RenderScaling <= screen.WorkingArea.Width + 1
-                    && frame.Height * window.RenderScaling <= screen.WorkingArea.Height + 1));
+                    && frame.Height * window.RenderScaling <= screen.WorkingArea.Height + 1))));
     }
 
     private static async Task ChangeLanguageAsync(MainWindow window, string code)

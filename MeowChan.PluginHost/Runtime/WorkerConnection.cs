@@ -374,7 +374,13 @@ internal sealed class WorkerConnection : IAsyncDisposable
             _processTree.Kill();
             using CancellationTokenSource exitDeadline = new(TimeSpan.FromSeconds(5));
             try { await _processTree.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false); } catch (OperationCanceledException) when (exitDeadline.IsCancellationRequested) { }
-            try { await Task.WhenAll(new[] { _reader, _logs, _temporaryMonitor }.Concat(_serviceTasks.Values)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch (Exception) { }
+            using CancellationTokenSource drainDeadline = new(TimeSpan.FromSeconds(5));
+            // The reader registers a service only after its async handler yields.
+            // Stop/drain that producer before snapshotting the service tasks;
+            // otherwise a host callback can start during the snapshot and outlive
+            // completed disposal. Both phases share the original bounded budget.
+            try { await Task.WhenAll(_reader, _logs, _temporaryMonitor).WaitAsync(drainDeadline.Token).ConfigureAwait(false); } catch (Exception) { }
+            try { await Task.WhenAll(_serviceTasks.Values).WaitAsync(drainDeadline.Token).ConfigureAwait(false); } catch (Exception) { }
         }
         finally
         {

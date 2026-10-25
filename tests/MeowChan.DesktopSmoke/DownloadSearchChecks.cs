@@ -185,6 +185,11 @@ internal static class DownloadSearchChecks
                         Program.CaptureWindow(window, "smoke-download-header-" + mode.ToLowerInvariant() + "-" + language
                             + "-" + theme.Key.ToString()!.ToLowerInvariant() + "-" + (width == 1380 ? "wide" : "minimum") + ".png");
                     }
+                    // The wide layout probe may exceed a small hosted desktop.
+                    // Restore its bounded geometry before the next mode switch;
+                    // Simple -> Advanced intentionally preserves the live size.
+                    window.Width = mode == "Barebones" ? 640 : 760;
+                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, window.Width, window.Height));
                 }
             }
             ComboBox modes = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
