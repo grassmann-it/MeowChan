@@ -46,7 +46,7 @@ public sealed class OfflineLegalCatalog
                 .ReplaceLineEndings("\n");
             var entries = new List<Entry>();
             string ownLicense = ReadOptional(directory, "LICENSE");
-            entries.Add(new Entry("MeowChan", "application", "Artistic License 2.0", "Tomka (tfgrass)",
+            entries.Add(new Entry("MeowChan", "application", "Artistic License 2.0", "TomKa (grassmann-it)",
                 "LICENSE · https://github.com/grassmann-it/MeowChan", ownLicense));
 
             foreach (string line in notices.Split('\n'))

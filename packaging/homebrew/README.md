@@ -58,11 +58,11 @@ If that local tap already exists, skip its creation:
 
 ```sh
 brew update
-brew tap-new --no-git tfgrass/meowchan
+brew tap-new --no-git grassmann-it/meowchan
 install -m 644 packaging/homebrew/Formula/meowchan.rb \
-  "$(brew --repository tfgrass/meowchan)/Formula/meowchan.rb"
-brew install --build-from-source tfgrass/meowchan/meowchan
-brew test tfgrass/meowchan/meowchan
+  "$(brew --repository grassmann-it/meowchan)/Formula/meowchan.rb"
+brew install --build-from-source grassmann-it/meowchan/meowchan
+brew test grassmann-it/meowchan/meowchan
 ```
 
 The app is installed inside the formula's `libexec`, and `meowchan` launches its
@@ -74,7 +74,7 @@ create a link in the current user's Applications folder:
 
 ```sh
 mkdir -p ~/Applications
-ln -sfn "$(brew --prefix tfgrass/meowchan/meowchan)/libexec/MeowChan.app" \
+ln -sfn "$(brew --prefix grassmann-it/meowchan/meowchan)/libexec/MeowChan.app" \
   ~/Applications/MeowChan.app
 ```
 
@@ -116,11 +116,11 @@ On each native Mac architecture, retain the Homebrew version, OS/CPU, source/SDK
 hashes, restore/build logs and the resulting app tree. Run:
 
 ```sh
-brew style --formula tfgrass/meowchan/meowchan
-brew audit --strict --online --formula tfgrass/meowchan/meowchan
-brew fetch --build-from-source tfgrass/meowchan/meowchan
-brew install --build-from-source tfgrass/meowchan/meowchan
-brew test tfgrass/meowchan/meowchan
+brew style --formula grassmann-it/meowchan/meowchan
+brew audit --strict --online --formula grassmann-it/meowchan/meowchan
+brew fetch --build-from-source grassmann-it/meowchan/meowchan
+brew install --build-from-source grassmann-it/meowchan/meowchan
+brew test grassmann-it/meowchan/meowchan
 ```
 
 `brew test` checks the installed tree, selected native Mach-O architecture,

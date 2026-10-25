@@ -240,12 +240,12 @@ internal static class BuiltInCatalog
         ("about.title", "About MeowChan", "Über MeowChan"),
         ("about.logoDescription", "MeowChan cat logo", "MeowChan-Katzenlogo"),
         ("about.description", "MeowChan downloads and archives imageboard media and posts, with sources supplied by plugins.", "MeowChan lädt und archiviert Imageboard-Medien und Beiträge mit Quellen aus Plugins."),
-        ("about.author", "Written by Tomka (tfgrass), formerly known as themirage.", "Entwickelt von Tomka (tfgrass), früher bekannt als themirage."),
+        ("about.author", "Written by TomKa (grassmann-it), formerly known as themirage.", "Entwickelt von TomKa (grassmann-it), früher bekannt als themirage."),
         ("about.history", "Special thanks to Issung for forking YChan and keeping it alive as GChan.", "Besonderer Dank an Issung für den Fork von YChan und dessen Weiterentwicklung als GChan."),
         ("about.icons", "Interface symbols by Feather Icons.", "Bedienungssymbole von Feather Icons."),
         ("about.license", "MeowChan is licensed under the Artistic License 2.0. Dependency licenses and attributions are included in THIRD-PARTY-NOTICES.md alongside the application.", "MeowChan steht unter der Artistic License 2.0. Lizenzen und Hinweise zu Abhängigkeiten stehen in THIRD-PARTY-NOTICES.md neben der Anwendung."),
         ("about.project", "Project on GitHub", "Projekt auf GitHub"),
-        ("about.authorLink", "Tomka on GitHub", "Tomka auf GitHub"),
+        ("about.authorLink", "TomKa on GitHub", "TomKa auf GitHub"),
         ("about.linkFailed", "Could not open {0}: {1}", "{0} konnte nicht geöffnet werden: {1}"),
         ("about.unknownVersion", "unknown", "unbekannt")
     };

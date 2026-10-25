@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/tfgrass/MeowChan/blob/main/docs/native-video-macos-overlay.schema.json",
+  "$id": "https://github.com/grassmann-it/MeowChan/blob/main/docs/native-video-macos-overlay.schema.json",
   "title": "MeowChan macOS source overlay manifest",
   "type": "object",
   "additionalProperties": false,

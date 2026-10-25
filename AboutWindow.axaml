@@ -46,7 +46,7 @@
                         </Border>
                         <WrapPanel ItemSpacing="8" LineSpacing="8">
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
-                            <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/tfgrass" Click="OnLinkClick"/>
+                            <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/grassmann-it" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>
                         <StackPanel Spacing="6" Margin="0,8,0,0">
