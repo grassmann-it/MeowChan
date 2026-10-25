@@ -174,7 +174,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 string[] owners = descriptions.Where(item => item.Description.Sources.Any(value => value.SourceId == source.SourceId))
                     .Select(item => item.Activation.PluginId).Distinct(StringComparer.Ordinal).ToArray();
                 if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected) || selected != activation.PluginId)) continue;
-                HttpClient media = ProviderHttpClientFactory.CreatePolicyClient(_transport, source.SourceId, _httpPolicy, _logger);
+                HttpClient media = PluginOriginalMediaHttp.CreateClient(_transport, source, _httpPolicy, _logger);
                 _services.Add(media);
                 PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue)
                 { MediaIntegrityPolicy = _sourceMediaIntegrityPolicyFactory?.Invoke(activation.PluginId, source.SourceId) };
