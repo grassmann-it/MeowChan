@@ -61,8 +61,9 @@ internal static class LegacyIntegrityConsumerChecks
             source.GetThread(new Uri("https://demo.invalid/demo/thread/1")), provider.MediaId,
             provider.ExpectedSize, provider.ExpectedMd5, provider.OriginalFileName) {
             AcquisitionRevisionKey = acquisition, AttachmentReferences = [reference] };
-        if ((await new MediaStore().TryRestoreAsync(item, CancellationToken.None))?.AssetId != initial.AssetId
-            || !originalManifest.AsSpan().SequenceEqual(await File.ReadAllBytesAsync(path)))
+        MediaCommitResult? restored = await new MediaStore().TryRestoreAsync(item, CancellationToken.None);
+        byte[] unchangedManifest = await File.ReadAllBytesAsync(path);
+        if (restored?.AssetId != initial.AssetId || !originalManifest.AsSpan().SequenceEqual(unchangedManifest))
             throw new InvalidOperationException("Legacy restore failed or modified its read-only manifest.");
         MediaProviderMetadata modern = provider with { ExpectedSha1 = Convert.ToBase64String(SHA1.HashData(bytes)) };
         if (!ProviderIntegrityAssessment.Assess(modern, resolved!.Binding!.Actual).Sha1Mismatch
