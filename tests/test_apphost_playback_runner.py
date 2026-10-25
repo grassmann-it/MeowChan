@@ -16,8 +16,8 @@ spec.loader.exec_module(runner)
 
 def metrics():
     clean = dict(HasPlayback=False, HasEngine=False, Disposed=True, ReleasedStreams=2, CleanupFailures=0, LoopEnabled=False)
-    return dict(schemaVersion=1, completed=True, failure=None, fixtureSha256='AB', checks=list(runner.CHECKS),
-                samples=[dict(State='Playing', Time=300, DecodedFrames=3, DisplayedFrames=2, LoopEnabled=False, LoopRestarts=0),
+    return dict(schemaVersion=1, completed=True, failure=None, fixtureSha256='AB', checks=[*runner.CHECKS, 'no-audio-track-controls'],
+                samples=[dict(State='Playing', Time=300, DecodedFrames=3, DisplayedFrames=2, LoopEnabled=False, LoopRestarts=0, AudioTracks=0, AudioAvailable=False, Volume=-1),
                          dict(State='Playing', Time=600, DecodedFrames=7, DisplayedFrames=4),
                          dict(State='Playing', Time=300, LoopEnabled=True, LoopRestarts=1),
                          dict(State='Ended', Time=12000, LoopEnabled=False, LoopRestarts=1)],
@@ -49,6 +49,17 @@ class PlaybackRunnerTests(unittest.TestCase):
             bad = metrics()
             bad['samples'][index][field] = value
             with self.subTest(index=index, field=field), self.assertRaises(ValueError):
+                runner.validate_metrics(bad, 'ab')
+
+    def test_silent_fixture_cannot_claim_native_mute_proof(self):
+        bad = metrics()
+        bad['checks'].append('mute-unmute-state')
+        with self.assertRaisesRegex(ValueError, 'mute/unmute evidence'):
+            runner.validate_metrics(bad, 'ab')
+        for field, value in [('AudioTracks', 1), ('AudioAvailable', True)]:
+            bad = metrics()
+            bad['samples'][0][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'silent-track evidence'):
                 runner.validate_metrics(bad, 'ab')
 
     def test_rejects_incomplete_or_wrong_fixture(self):

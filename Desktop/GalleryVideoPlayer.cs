@@ -54,6 +54,9 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private int _loopEnabled;
     private int _loopRestarts;
     private bool _canSeek;
+    private bool _audioAvailable;
+    private int _audioTracks = -1;
+    private int _audioRefreshPending;
     private readonly bool _traceCleanup = Environment.GetEnvironmentVariable("MEOWCHAN_FULLSCREEN_TRACE") == "1";
 
     private void TraceCleanup(long generation, string phase)
@@ -120,6 +123,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
     internal Task ToggleMuteAsync() => CommandAsync(player =>
     {
+        if (!_audioAvailable || player.AudioTrackCount <= 0 || player.Volume < 0) return;
         player.Mute = !player.Mute;
         bool muted = player.Mute;
         long generation = _playback!.Generation;
@@ -139,7 +143,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal sealed record PlaybackEvidence(string State, long Time, int DecodedFrames, int DisplayedFrames,
         bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures,
         int SurfaceFrames = 0, bool SurfaceNonUniform = false, bool LoopEnabled = false, int LoopRestarts = 0,
-        bool Muted = false, int Volume = 0, long Length = 0, bool Seekable = false);
+        bool Muted = false, int Volume = 0, long Length = 0, bool Seekable = false,
+        int AudioTracks = -1, bool AudioAvailable = false);
 
     internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
     {
@@ -152,11 +157,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             var stats = playback.Media.Statistics;
             if (snapshotPath != null && !playback.Player.TakeSnapshot(0, snapshotPath, 0, 0))
                 throw new InvalidOperationException("The native video output rejected the frame snapshot.");
+            int audioTracks = playback.Player.AudioTrackCount, volume = playback.Player.Volume;
             return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
                 stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, _disposed != 0,
                 _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
-                Volatile.Read(ref _loopEnabled) != 0, _loopRestarts, playback.Player.Mute, playback.Player.Volume,
-                playback.Player.Length, playback.Player.IsSeekable);
+                Volatile.Read(ref _loopEnabled) != 0, _loopRestarts, playback.Player.Mute, volume,
+                playback.Player.Length, playback.Player.IsSeekable, audioTracks, audioTracks > 0 && volume >= 0);
         }
         finally { _operations.Release(); }
     });
@@ -207,6 +213,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 bool userChange = !_settingVolume;
                 await CommandAsync(player =>
                 {
+                    if (!_audioAvailable || player.AudioTrackCount <= 0 || player.Volume < 0) return;
                     player.Volume = volume; if (volume > 0) player.Mute = false;
                     bool muted = player.Mute;
                     long generation = _playback!.Generation;
@@ -247,15 +254,17 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         ActionName(_playPause, "video.play-pause", Texts.T(_isPlaying ? "viewer.video.pause" : "viewer.video.play"));
         _mute.Content = CommandBindings.Icon("video.mute", 18, _muted ? "muted" : "audible");
         _mute.IsChecked = _muted;
-        ActionName(_mute, "video.mute", Texts.T(_muted ? "viewer.video.unmute" : "viewer.video.mute"));
+        string audioUnavailable = Texts.T(_audioTracks == 0 ? "viewer.video.noAudioTrack" : "viewer.video.audioUnavailable");
+        ActionName(_mute, "video.mute", _audioAvailable ? Texts.T(_muted ? "viewer.video.unmute" : "viewer.video.mute") : audioUnavailable);
         _loop.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
             Children = { CommandBindings.Icon("video.loop"), new TextBlock { Text = Texts.T("viewer.video.loop"), VerticalAlignment = VerticalAlignment.Center } } };
         _loop.IsChecked = Volatile.Read(ref _loopEnabled) != 0;
         ActionName(_loop, "video.loop", Texts.T(_loop.IsChecked == true ? "viewer.video.loop.disable" : "viewer.video.loop.enable"));
         AutomationProperties.SetName(_seek, Texts.T("viewer.video.position"));
         ToolTip.SetTip(_seek, Texts.T("viewer.video.position"));
-        AutomationProperties.SetName(_volume, Texts.T("viewer.video.volume"));
-        ToolTip.SetTip(_volume, Texts.T("viewer.video.volume"));
+        string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
+        AutomationProperties.SetName(_volume, volumeLabel);
+        ToolTip.SetTip(_volume, volumeLabel);
     }
     internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
     {
@@ -263,6 +272,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         long generation = Interlocked.Increment(ref _generation);
         Interlocked.Exchange(ref _loopEnabled, 0); _loopRestarts = 0;
         _isPlaying = false; _muted = _startMuted; _canSeek = false; _position = 0;
+        _audioAvailable = false; _audioTracks = -1;
         RefreshTransportPresentation();
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         CancellationToken token = loading.Token;
@@ -293,14 +303,19 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 media = new Media(_engine, input);
                 MediaPlayer ownedPlayer = player;
                 player.Playing += (_, _) => Post(generation, () =>
-                { _isPlaying = true; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation(); });
+                { _isPlaying = true; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
+                    _ = RefreshAudioStateAsync(generation, ownedPlayer); });
                 player.Paused += (_, _) => Post(generation, () => { _isPlaying = false; RefreshTransportPresentation(); });
                 player.Stopped += (_, _) => Post(generation, () => { _isPlaying = false; UpdateTime(0); RefreshTransportPresentation(); });
                 player.SeekableChanged += (_, args) => Post(generation, () =>
                 { _canSeek = args.Seekable != 0; _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
                 player.LengthChanged += (_, args) => Post(generation, () =>
                 { _length = Math.Max(0, args.Length); UpdateTime(_position); _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
-                player.TimeChanged += (_, args) => Post(generation, () => UpdateTime(args.Time));
+                player.TimeChanged += (_, args) => Post(generation, () =>
+                { UpdateTime(args.Time); _ = RefreshAudioStateAsync(generation, ownedPlayer); });
+                player.ESAdded += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                player.ESDeleted += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                player.ESSelected += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
                 player.EndReached += (_, _) => Post(generation, () =>
                 {
                     _isPlaying = false; RefreshTransportPresentation();
@@ -395,8 +410,41 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
     private void EnableTransport(bool enabled)
     {
-        _playPause.IsEnabled = _mute.IsEnabled = _loop.IsEnabled = _volume.IsEnabled = enabled;
+        _playPause.IsEnabled = _loop.IsEnabled = enabled;
+        _mute.IsEnabled = _volume.IsEnabled = enabled && _audioAvailable;
         _seek.IsEnabled = enabled && _canSeek && _length > 0;
+    }
+
+    // A track list/output may become available only after Playing. Query on our
+    // native worker after track changes, and retry while initial audio is unknown.
+    // VLC returns -1 for volume/mute when there is no usable audio output.
+    private async Task RefreshAudioStateAsync(long generation, MediaPlayer expectedPlayer)
+    {
+        if (Interlocked.CompareExchange(ref _audioRefreshPending, 1, 0) != 0) return;
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await _operations.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    if (!IsCurrent(generation) || !ReferenceEquals(_playback?.Player, expectedPlayer)) return;
+                    int tracks = expectedPlayer.AudioTrackCount, volume = expectedPlayer.Volume;
+                    bool available = tracks > 0 && volume >= 0;
+                    bool muted = available && expectedPlayer.Mute;
+                    Post(generation, () =>
+                    {
+                        _audioTracks = tracks; _audioAvailable = available;
+                        if (available) _muted = muted;
+                        _mute.IsEnabled = _volume.IsEnabled = _playPause.IsEnabled && available;
+                        RefreshTransportPresentation();
+                    });
+                }
+                catch (Exception) { /* Playback/error lifecycle owns backend failure reporting. */ }
+                finally { _operations.Release(); }
+            }).ConfigureAwait(false);
+        }
+        finally { Interlocked.Exchange(ref _audioRefreshPending, 0); }
     }
 
     private async Task CommandAsync(Action<MediaPlayer> command)

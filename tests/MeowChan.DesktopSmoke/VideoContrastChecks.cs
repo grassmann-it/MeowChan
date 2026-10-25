@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -144,11 +145,17 @@ internal static class VideoContrastChecks
             playbackButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitNativeAsync(player, evidence => evidence.State == "Playing" && evidence.Time > 100);
             Button mute = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoMute");
-            bool originalMute = (await player.InspectPlaybackAsync()).Muted;
-            mute.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await WaitNativeAsync(player, evidence => evidence.Muted != originalMute);
-            mute.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await WaitNativeAsync(player, evidence => evidence.Muted == originalMute);
+            var audio = await player.InspectPlaybackAsync();
+            Slider volume = viewer.GetGalleryVisualDescendants().OfType<Slider>().Single(control => control.Name == "GalleryVideoVolume");
+            // This pinned fixture is intentionally silent. It proves unavailable
+            // audio controls, never a native mute/unmute transition.
+            if (audio.AudioTracks != 0 || audio.AudioAvailable)
+                throw new InvalidOperationException("The silent fixture unexpectedly reported native audio.");
+            await Program.WaitUntilAsync(() => !mute.IsEnabled && !volume.IsEnabled);
+            if (string.IsNullOrWhiteSpace(AutomationProperties.GetName(mute))
+                || string.IsNullOrWhiteSpace(ToolTip.GetTip(volume)?.ToString()))
+                throw new InvalidOperationException("Unavailable audio controls lack an accessible explanation.");
+            Console.WriteLine("SMOKE video no-audio-track evidence: " + JsonSerializer.Serialize(audio));
             Button loop = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoLoop");
             loop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             seek.Value = 980;
@@ -159,7 +166,7 @@ internal static class VideoContrastChecks
             var finalEnd = await WaitNativeAsync(player, evidence => evidence.State == "Ended");
             if (finalEnd.LoopEnabled || finalEnd.LoopRestarts != repeated.LoopRestarts)
                 throw new InvalidOperationException("Repeat continued after it was disabled.");
-            Console.WriteLine("SMOKE native video repeat/mute evidence: " + JsonSerializer.Serialize(new { theme = theme.ToString(), repeated, finalEnd }));
+            Console.WriteLine("SMOKE native video repeat evidence: " + JsonSerializer.Serialize(new { theme = theme.ToString(), repeated, finalEnd }));
             await GalleryToolbarContrastChecks.RunAsync(window, viewer, theme, failures);
             Button next = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryNext");
             next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

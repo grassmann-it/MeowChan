@@ -176,12 +176,28 @@ public partial class MainWindow
                 }
                 checks.Add("software-output-six-stop-play-cycles");
             }
-            bool initialMute = (await player.InspectPlaybackAsync()).Muted;
-            ClickMediaSmoke(viewer, "GalleryVideoMute");
-            await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted != initialMute, "mute native state");
-            ClickMediaSmoke(viewer, "GalleryVideoMute");
-            await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted == initialMute, "restore native mute state");
-            checks.Add("mute-unmute-state");
+            var audio = await player.InspectPlaybackAsync(); samples.Add(audio);
+            var muteButton = MediaSmokeControl<Button>(viewer, "GalleryVideoMute");
+            var volumeSlider = MediaSmokeControl<Slider>(viewer, "GalleryVideoVolume");
+            if (audio.AudioAvailable)
+            {
+                await WaitMediaSmokeAsync(() => Task.FromResult(muteButton.IsEnabled && volumeSlider.IsEnabled), "audio controls enabled");
+                bool initialMute = audio.Muted;
+                ClickMediaSmoke(viewer, "GalleryVideoMute");
+                await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted != initialMute, "mute native state");
+                samples.Add(await player.InspectPlaybackAsync());
+                ClickMediaSmoke(viewer, "GalleryVideoMute");
+                await WaitMediaSmokeAsync(async () => (await player.InspectPlaybackAsync()).Muted == initialMute, "restore native mute state");
+                checks.Add("mute-unmute-state");
+            }
+            else
+            {
+                await WaitMediaSmokeAsync(() => Task.FromResult(!muteButton.IsEnabled && !volumeSlider.IsEnabled), "unavailable audio controls disabled");
+                RequireMediaSmoke(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(muteButton))
+                    && !string.IsNullOrWhiteSpace(ToolTip.GetTip(volumeSlider)?.ToString()), "Unavailable audio controls lack an accessible explanation.");
+                checks.Add(audio.AudioTracks == 0 ? "no-audio-track-controls" : "audio-output-unavailable-controls");
+            }
+            checks.Add("audio-controls-availability");
             await WaitMediaSmokeAsync(async () => { var state = await player.InspectPlaybackAsync(); return state.Seekable && state.Length > 0; }, "seekable duration");
             ClickMediaSmoke(viewer, "GalleryVideoLoop");
             RequireMediaSmoke((await player.InspectPlaybackAsync()).LoopEnabled, "Repeat toggle did not activate the current video.");
