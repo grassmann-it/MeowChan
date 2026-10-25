@@ -158,7 +158,7 @@ public sealed class SushiZzzWaveIntegrationTests(ITestOutputHelper output)
         Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, result.Status);
         Assert.True(result.ActualState!.IsEnabled);
         Assert.True(result.ActualState.IsActive);
-        Assert.True(result.ActualState.IsEffective);
+        Assert.False(result.ActualState.IsEffective);
         Assert.False(result.ActualState.IsGranted);
         Assert.False(Policy(host, source).Snapshot.AllowProviderSizeMd5Mismatch);
         await Assert.ThrowsAsync<InvalidOperationException>(() => host.SetSourceMediaIntegrityPermissionAsync(
