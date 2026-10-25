@@ -41,6 +41,8 @@ internal sealed partial class DesktopSessionHost
                 async current =>
                 {
                     EnsureReady();
+                    if (!current.RequestsMismatchPermission || !ExperimentalSourceActivationPolicy.RequestsMismatchPermission(current.PluginOwnerId, current.SourceId))
+                        throw new ExperimentalSourceActivationChangedException();
                     var verified = await ObserveExperimentalSourceActivationAsync(current.Url).ConfigureAwait(false);
                     if (!verified.IsReady || verified.Target != current) throw new ExperimentalSourceActivationChangedException();
                     // Do not reacquire _commands through the public permission entry point.

@@ -216,7 +216,8 @@ public partial class SourcesPage : UserControl
         TextBlock experimental = this.FindControl<TextBlock>("SourceExperimental")!;
         experimental.IsVisible = policy?.Maturity == SourceMaturity.Experimental;
         experimental.Text = Texts.T("sources.experimental");
-        this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null;
+        this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null
+            && !ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(policy.Snapshot.PluginOwnerId, policy.Snapshot.SourceId);
         RenderSourceMediaIntegrityError(policy);
         TextBlock retryHint = this.FindControl<TextBlock>("SourceMediaIntegrityRetryHint")!;
         retryHint.IsVisible = policy is { IsActive: true, IsGranted: true };

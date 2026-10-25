@@ -32,7 +32,7 @@ public sealed class LeftypolPlugin : ISourcePlugin
         [new UrlRoute(SourceResourceKind.Board, Host, "/{board}/", IsCanonical: true),
          new UrlRoute(SourceResourceKind.Thread, Host, "/{board}/res/{thread}.html", IsCanonical: true, AllowTrailingSlash: false) { ThreadIdentifierKind = RouteIdentifierKind.Decimal }],
         [new HttpHostDeclaration(Host, HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia)],
-        EmptySchema, PostOrderKind.DecimalPostId);
+        EmptySchema, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental };
 
     public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

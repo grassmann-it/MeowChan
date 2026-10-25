@@ -27,6 +27,11 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     [InlineData("meowchan.source.kohlchan", "kohlchan", true)]
     [InlineData("meowchan.source.wizchan", "wizchan", true)]
     [InlineData("meowchan.source.endchan", "endchan", true)]
+    [InlineData("meowchan.source.leftypol", "leftypol", true)]
+    [InlineData("meowchan.source.2ch", "2ch", true)]
+    [InlineData("meowchan.source.uboachan", "uboachan", true)]
+    [InlineData("meowchan.source.zzzchan", "zzzchan", true)]
+    [InlineData("meowchan.source.sushichan", "sushichan", true)]
     [InlineData("meowchan.source.4chan", "4chan", false)]
     [InlineData("meowchan.source.8kun", "8kun", false)]
     [InlineData("meowchan.source.lainchan", "lainchan", false)]
@@ -39,6 +44,19 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Equal(eligible, ExperimentalSourceActivationPolicy.IsEligible(pluginId, sourceId));
         Assert.False(ExperimentalSourceActivationPolicy.IsEligible(pluginId, "other-source"));
         Assert.False(ExperimentalSourceActivationPolicy.IsEligible(pluginId, sourceId.ToUpperInvariant()));
+    }
+
+    [Theory]
+    [InlineData("2ch", true)] [InlineData("uboachan", true)]
+    [InlineData("zzzchan", true)] [InlineData("sushichan", true)]
+    [InlineData("leftypol", false)] [InlineData("kohlchan", false)]
+    public void ExperimentalMaturityDoesNotImplyAMismatchPermission(string source, bool strict)
+    {
+        string owner = "meowchan.source." + source;
+        Assert.Equal(strict, ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(owner, source));
+        Assert.Equal(!strict, ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source));
+        Assert.False(ExperimentalSourceActivationPolicy.IsStrictExperimentalSource("other-owner", source));
+        Assert.False(ExperimentalSourceActivationPolicy.RequestsMismatchPermission("other-owner", source));
     }
 
     [Theory]

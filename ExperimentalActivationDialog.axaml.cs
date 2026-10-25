@@ -76,10 +76,12 @@ public partial class ExperimentalActivationDialog : Window
     {
         Title = Texts.T("activation.title", _original.SourceName);
         C<TextBlock>("ActivationHeading").Text = Title;
-        C<TextBlock>("ActivationExplanation").Text = Texts.T("activation.explanation", _original.SourceName);
-        C<TextBlock>("ActivationScope").Text = Texts.T("activation.scope", _original.SourceId, _original.PluginOwnerId);
+        C<TextBlock>("ActivationExplanation").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.explanation" : "activation.strictExplanation", _original.SourceName);
+        C<TextBlock>("ActivationScope").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.scope" : "activation.strictScope", _original.SourceId, _original.PluginOwnerId);
         C<Button>("ActivationCancel").Content = Texts.T(_failure != null || _unexpectedError != null ? "activation.close" : "wizard.cancel");
-        string confirm = Texts.T(_failure == null && _unexpectedError == null ? "activation.confirm"
+        string confirm = Texts.T(!_original.RequestsMismatchPermission
+            ? _failure == null && _unexpectedError == null ? "activation.strictConfirm" : "activation.strictRetry"
+            : _failure == null && _unexpectedError == null ? "activation.confirm"
             : _failure?.ActualState is { IsEnabled: true, IsActive: true } ? "activation.retryGrant" : "activation.retryEnable");
         C<TextBlock>("ActivationConfirmLabel").Text = confirm;
         AutomationProperties.SetName(C<Button>("ActivationConfirm"), confirm);
@@ -89,7 +91,7 @@ public partial class ExperimentalActivationDialog : Window
         C<Ursa.Controls.LoadingIcon>("ActivationBusy").IsVisible = _busy;
         string? status = FailureMessage();
         C<Border>("ActivationStatusPanel").IsVisible = _busy || status != null;
-        C<TextBlock>("ActivationStatus").Text = _busy ? Texts.T("activation.saving") : status;
+        C<TextBlock>("ActivationStatus").Text = _busy ? Texts.T(_original.RequestsMismatchPermission ? "activation.saving" : "activation.strictSaving") : status;
     }
 
     internal string? AdmissionError => FailureMessage();
@@ -97,9 +99,9 @@ public partial class ExperimentalActivationDialog : Window
     private string? FailureMessage()
     {
         if (_failure == null && _unexpectedError == null) return null;
-        string message = Texts.T("activation.failed", _original.SourceName, _failure?.Error ?? _unexpectedError ?? "");
+        string message = Texts.T(_original.RequestsMismatchPermission ? "activation.failed" : "activation.strictFailed", _original.SourceName, _failure?.Error ?? _unexpectedError ?? "");
         if (_failure?.ActualState is { } state)
-            message += Environment.NewLine + Texts.T("activation.actualState", YesNo(state.IsEnabled), YesNo(state.IsActive),
+            message += Environment.NewLine + Texts.T(_original.RequestsMismatchPermission ? "activation.actualState" : "activation.strictActualState", YesNo(state.IsEnabled), YesNo(state.IsActive),
                 YesNo(state.IsGranted), YesNo(state.IsEffective));
         else message += Environment.NewLine + Texts.T("activation.stateUnknown");
         return message + Environment.NewLine + Texts.T(_next != null ? "activation.retryHint" : "activation.recheckHint");

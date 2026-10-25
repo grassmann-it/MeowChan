@@ -24,6 +24,7 @@ public sealed class ExperimentalAdmissionTargetTests
     [InlineData("execution")]
     [InlineData("fingerprint")]
     [InlineData("assembly")]
+    [InlineData("permissionIntent")]
     public void EarlierBatchDialogCannotRetargetLaterGroupToAnotherAuthorityOrBuild(string change)
     {
         var frozen = Target();
@@ -37,6 +38,7 @@ public sealed class ExperimentalAdmissionTargetTests
             "candidate" => frozen with { CandidateId = "other.plugin.json" },
             "execution" => frozen with { ExecutionRevision = "other-execution" },
             "fingerprint" => frozen with { CompilationFingerprint = "other-fingerprint" },
+            "permissionIntent" => frozen with { RequestsMismatchPermission = false },
             _ => frozen with { AssemblySha256 = new string('b', 64) }
         };
         Assert.False(MainWindow.IsSameExperimentalAdmissionTarget(frozen, current));

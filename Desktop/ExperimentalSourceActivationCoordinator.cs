@@ -11,7 +11,7 @@ internal enum ExperimentalSourceActivationStatus { Succeeded, StaleTarget, Activ
 internal sealed record ExperimentalSourceActivationTarget(Guid SessionId, string ProfileId,
     string PluginOwnerId, string SourceId, string SourceName, string Url, string CandidateId,
     string ExecutionRevision, string CompilationFingerprint, string AssemblySha256,
-    long ProfileRevision, long LifecycleRevision, long PolicyRevision, bool IsEnabled, bool IsGranted);
+    long ProfileRevision, long LifecycleRevision, long PolicyRevision, bool IsEnabled, bool IsGranted, bool RequestsMismatchPermission = true);
 internal sealed record ExperimentalSourceActivationProjection(ExperimentalSourceActivationProjectionStatus Status,
     ExperimentalSourceActivationTarget? Target = null, string? Error = null);
 internal sealed record ExperimentalSourceActivationActualState(bool IsEnabled, bool IsActive, bool IsGranted,
@@ -52,7 +52,7 @@ internal static class ExperimentalSourceActivationCoordinator
             if (!Matches(current, target)) return Stale(current);
         }
         if (current.ActualState is not { IsActive: true }) return Stale(current);
-        if (!target.IsGranted)
+        if (target.RequestsMismatchPermission && !target.IsGranted)
         {
             try { await grant(target).ConfigureAwait(false); }
             catch (Exception error)
@@ -62,7 +62,8 @@ internal static class ExperimentalSourceActivationCoordinator
             current = await observe().ConfigureAwait(false);
             target = target with { IsGranted = true, PolicyRevision = checked(target.PolicyRevision + 1) };
         }
-        if (!Matches(current, target) || current.ActualState is not { IsActive: true, IsEffective: true }) return Stale(current);
+        if (!Matches(current, target) || current.ActualState is not { IsActive: true }
+            || target.RequestsMismatchPermission && !current.ActualState.IsEffective) return Stale(current);
         return new(ExperimentalSourceActivationStatus.Succeeded, current.ActualState);
     }
 
@@ -91,5 +92,5 @@ internal static class ExperimentalSourceActivationCoordinator
         a.SessionId == b.SessionId && a.ProfileId == b.ProfileId && a.PluginOwnerId == b.PluginOwnerId
         && a.SourceId == b.SourceId && a.Url == b.Url && a.CandidateId == b.CandidateId
         && a.ExecutionRevision == b.ExecutionRevision && a.CompilationFingerprint == b.CompilationFingerprint
-        && a.AssemblySha256 == b.AssemblySha256;
+        && a.AssemblySha256 == b.AssemblySha256 && a.RequestsMismatchPermission == b.RequestsMismatchPermission;
 }

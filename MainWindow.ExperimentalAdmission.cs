@@ -130,7 +130,8 @@ public partial class MainWindow
         && current.Url == frozen.Url && current.CandidateId == frozen.CandidateId
         && current.ExecutionRevision == frozen.ExecutionRevision
         && current.CompilationFingerprint == frozen.CompilationFingerprint
-        && current.AssemblySha256 == frozen.AssemblySha256;
+        && current.AssemblySha256 == frozen.AssemblySha256
+        && current.RequestsMismatchPermission == frozen.RequestsMismatchPermission;
 
     private async Task<ExperimentalSourceActivationProjection> ReadExperimentalProjectionAsync(string url)
     {

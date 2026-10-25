@@ -9,6 +9,53 @@ namespace MeowChan.DesktopTests;
 public sealed class ExperimentalSourceActivationCoordinatorTests
 {
     [Fact]
+    public async Task StrictExperimentalActivationSavesEnableWithoutGrantOrEffectiveException()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.RequestPermission = false;
+        var target = (await f.ObserveAsync()).Target!;
+        var result = await f.ExecuteAsync(target);
+        Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, result.Status);
+        Assert.True(result.ActualState!.IsEnabled); Assert.True(result.ActualState.IsActive);
+        Assert.False(result.ActualState.IsGranted); Assert.False(result.ActualState.IsEffective);
+        Assert.Equal(target.PolicyRevision + 1, result.ActualState.PolicyRevision);
+        Assert.Equal(1, f.EnableCalls); Assert.Equal(0, f.GrantCalls);
+        Assert.Empty(Config.LoadConfig(f.Profile.Path).SourceMediaIntegrityPermissions);
+    }
+
+    [Fact]
+    public async Task StrictActivationFailureCanRetryEnableWithoutEverRequestingPermission()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.RequestPermission = false; f.FailEnable = true;
+        var failed = await f.ExecuteAsync((await f.ObserveAsync()).Target!);
+        Assert.Equal(ExperimentalSourceActivationStatus.ActivationFailed, failed.Status);
+        Assert.False(failed.RetryTarget!.RequestsMismatchPermission);
+        f.FailEnable = false;
+        Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, (await f.ExecuteAsync(failed.RetryTarget)).Status);
+        Assert.Equal(0, f.GrantCalls); Assert.Empty(Config.LoadConfig(f.Profile.Path).SourceMediaIntegrityPermissions);
+    }
+
+    [Fact]
+    public async Task StrictActivationCallbackFailureRetainsEnableAndRetryNeverAddsAGrant()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.RequestPermission = false; f.ThrowAfterLifecycle = true;
+        var failed = await f.ExecuteAsync((await f.ObserveAsync()).Target!);
+        Assert.Equal(ExperimentalSourceActivationStatus.ActivationFailed, failed.Status);
+        Assert.True(failed.ActualState!.IsEnabled); Assert.False(failed.RetryTarget!.RequestsMismatchPermission);
+        f.ThrowAfterLifecycle = false;
+        Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, (await f.ExecuteAsync(failed.RetryTarget)).Status);
+        Assert.Equal(1, f.EnableCalls); Assert.Equal(0, f.GrantCalls);
+    }
+
+    [Fact]
+    public async Task ChangingTheFrozenPermissionIntentCannotGrantOrEnable()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.RequestPermission = false;
+        var target = (await f.ObserveAsync()).Target! with { RequestsMismatchPermission = true };
+        Assert.Equal(ExperimentalSourceActivationStatus.StaleTarget, (await f.ExecuteAsync(target)).Status);
+        Assert.Equal(0, f.EnableCalls); Assert.Equal(0, f.GrantCalls);
+    }
+
+    [Fact]
     public async Task EnableUsesNewPolicyRevisionAndPersistsOnlyTheConfirmedSource()
     {
         using Fixture f = await Fixture.CreateAsync();
@@ -208,7 +255,7 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
         internal SourceMediaIntegrityPolicyService Policy { get; }
         private readonly Guid session = Guid.NewGuid();
         private readonly Config config = new();
-        internal bool FailEnable, FailGrant, ThrowAfterLifecycle, Ready = true;
+        internal bool FailEnable, FailGrant, ThrowAfterLifecycle, Ready = true, RequestPermission = true;
         internal string OverrideOwner = Owner;
         internal int EnableCalls, GrantCalls;
         internal long GrantRevision;
@@ -245,7 +292,7 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
             var target = new ExperimentalSourceActivationTarget(session, Profile.Path, OverrideOwner, Source, "Kohlchan",
                 "https://kohlchan.net/demo/res/123.html", plugin.Active!.CandidateId, plugin.Active.ExecutionRevision,
                 plugin.Active.CompilationFingerprint, plugin.Active.Artifact.AssemblySha256,
-                saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision, plugin.Enabled, view.IsGranted);
+                saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision, plugin.Enabled, view.IsGranted, RequestPermission);
             return new(target, new(plugin.Enabled, view.IsActive, view.IsGranted, view.Snapshot.AllowProviderSizeMd5Mismatch,
                 saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision), Ready);
         }

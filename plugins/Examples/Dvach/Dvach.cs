@@ -36,7 +36,7 @@ public sealed class DvachPlugin : ISourcePlugin
          new UrlRoute(SourceResourceKind.Thread, Host, "/{board}/res/{thread}.html", AllowTrailingSlash: false) { ThreadIdentifierKind = RouteIdentifierKind.Decimal }],
         [new HttpHostDeclaration(Host, HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia),
          new HttpHostDeclaration("2ch.su", HttpHostPurpose.OriginalMedia)],
-        EmptySchema, PostOrderKind.DecimalPostId);
+        EmptySchema, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental };
 
     public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context,
         CancellationToken cancellationToken = default)

@@ -93,6 +93,18 @@
           "xunit.extensibility.core": "[2.9.2]"
         }
       },
+      "meowchan.animationformatfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.plugin.dvach": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
       "meowchan.plugin.endchan": {
         "type": "Project",
         "dependencies": {
@@ -111,7 +123,31 @@
           "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
         }
       },
+      "meowchan.plugin.leftypol": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.plugin.sushichan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.plugin.uboachan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
       "meowchan.plugin.wizchan": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.plugin.zzzchan": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
@@ -119,6 +155,12 @@
       },
       "meowchan.pluginsdk": {
         "type": "Project"
+      },
+      "meowchan.pngmetadatafilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
       }
     }
   }

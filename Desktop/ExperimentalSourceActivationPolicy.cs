@@ -10,8 +10,21 @@ internal static class ExperimentalSourceActivationPolicy
     {
         ["meowchan.source.kohlchan"] = "kohlchan",
         ["meowchan.source.wizchan"] = "wizchan",
-        ["meowchan.source.endchan"] = "endchan"
+        ["meowchan.source.endchan"] = "endchan",
+        ["meowchan.source.leftypol"] = "leftypol",
+        ["meowchan.source.2ch"] = "2ch",
+        ["meowchan.source.uboachan"] = "uboachan",
+        ["meowchan.source.zzzchan"] = "zzzchan",
+        ["meowchan.source.sushichan"] = "sushichan"
     };
+
+    // Experimental describes delivery maturity; it never implies permission to bypass
+    // exact provider metadata. These four sources retain strict comparisons.
+    internal static bool IsStrictExperimentalSource(string pluginOwnerId, string sourceId) =>
+        IsEligible(pluginOwnerId, sourceId) && sourceId is "2ch" or "uboachan" or "zzzchan" or "sushichan";
+
+    internal static bool RequestsMismatchPermission(string pluginOwnerId, string sourceId) =>
+        IsEligible(pluginOwnerId, sourceId) && !IsStrictExperimentalSource(pluginOwnerId, sourceId);
 
     internal static bool IsDisabledByDefault(string pluginId) => Sources.ContainsKey(pluginId);
 

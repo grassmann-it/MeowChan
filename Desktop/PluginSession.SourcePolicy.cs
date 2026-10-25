@@ -57,7 +57,8 @@ internal sealed partial class PluginSession
             var target = new ExperimentalSourceActivationTarget(sessionId, profileId, owner, source.Name,
                 source.NiceName, canonical!.AbsoluteUri, saved.Active.CandidateId, saved.Active.ExecutionRevision,
                 saved.Active.CompilationFingerprint, saved.Active.Artifact.AssemblySha256, persisted.Revision,
-                saved.LifecycleRevision, policy.Snapshot.Revision, saved.Enabled, policy.IsGranted);
+                saved.LifecycleRevision, policy.Snapshot.Revision, saved.Enabled, policy.IsGranted,
+                ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source.Name));
             return new(target, actual, ready);
         }
     }

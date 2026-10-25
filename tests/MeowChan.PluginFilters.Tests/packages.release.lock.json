@@ -157,6 +157,24 @@
           "Serilog": "[4.0.2, )"
         }
       },
+      "meowchan.animationformatfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.filerulesfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
+      "meowchan.hashblocklistfilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
+      },
       "meowchan.imagedimensionsfilter": {
         "type": "Project",
         "dependencies": {
@@ -178,6 +196,12 @@
       },
       "meowchan.pluginsdk": {
         "type": "Project"
+      },
+      "meowchan.pngmetadatafilter": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.0-alpha.2, )"
+        }
       }
     }
   }

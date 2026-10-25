@@ -19,6 +19,8 @@ internal sealed partial class DesktopSessionHost
             if (!_sourceMediaPolicies.TryGetValue(key, out SourceMediaIntegrityPolicyService? policy))
             {
                 Config.SourceMediaIntegrityPermissions.TryGetValue(key, out SourceMediaIntegrityPermission? saved);
+                // A persisted unknown/hand-edited grant cannot relax a strict new source.
+                if (ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(pluginOwnerId, sourceId)) saved = null;
                 policy = new SourceMediaIntegrityPolicyService(_profileLease.ProfileDirectory, pluginOwnerId, sourceId, saved);
                 if (_sourceMediaPoliciesRetired) policy.Retire();
                 _sourceMediaPolicies.Add(key, policy);
@@ -49,6 +51,8 @@ internal sealed partial class DesktopSessionHost
     // Caller already holds _commands. Keep the existing authority and persistence path.
     private Task SetSourceMediaIntegrityPermissionCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
     {
+        if (allow && ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(pluginOwnerId, sourceId))
+            throw new InvalidOperationException("This experimental source retains strict provider-integrity checks.");
         SourceMediaIntegrityPolicyService policy = GetOrCreateSourceMediaIntegrityPolicy(pluginOwnerId, sourceId);
         return policy.SetPermissionAsync(allow, expectedRevision, permission =>
         {
