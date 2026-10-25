@@ -94,7 +94,7 @@ internal static class SettingsCategoryChecks
                     Point? p = layout.TranslatePoint(default, editor);
                     Require(p.HasValue && Math.Abs(p.Value.X + layout.Bounds.Width / 2 - editor.Bounds.Width / 2) <= 2,
                         "Navigation and content block is not centered.");
-                    if (page.Id == "interface") Program.CaptureWindow(window, $"settings-category-{testedLanguage}-{testedTheme}-{width}.png");
+                    if (page.Id == "interface") Program.CaptureWindow(window, $"smoke-settings-category-{testedLanguage}-{testedTheme}-{width}.png");
                 }
             }
             Require(commits == 0, "Layout/language/theme changes saved settings.");

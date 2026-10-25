@@ -65,6 +65,11 @@ internal static class TextSelectionChecks
         input.SelectionStart = input.SelectionEnd = value.Length;
         bool focusSucceeded = input.Focus(NavigationMethod.Tab);
         await Settle(window);
+        // Tab focus may select all automatically. Start the comparison with a
+        // deliberately collapsed selection after all focus handlers have run.
+        input.CaretIndex = value.Length;
+        input.SelectionStart = input.SelectionEnd = value.Length;
+        await Settle(window);
         ISolidColorBrush? brush = input.SelectionBrush as ISolidColorBrush;
         string stem = $"smoke-text-selection-{scene}-{theme}";
         Program.CaptureWindow(window, stem + "-before.png");
