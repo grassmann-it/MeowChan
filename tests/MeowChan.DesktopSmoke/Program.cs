@@ -302,6 +302,11 @@ internal static class Program
                 await Alpha2CopyChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_FILTER_WAVE_ONLY") == "1")
+            {
+                await SourceFilterWaveChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")
             {
                 await SourceIntegrityChecks.RunAsync(mainWindow);
