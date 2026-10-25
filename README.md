@@ -67,7 +67,7 @@ Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Sili
 
 For each of `linux-x64` and `linux-arm64`, choose a package on the [1.0.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
 
-| Filename | VLC requirement |
+| Filename suffix | VLC requirement |
 | --- | --- |
 | `MeowChan-1.0.0-<RID>.AppImage` | Includes VLC; make executable and run. |
 | `MeowChan-1.0.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
