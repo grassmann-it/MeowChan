@@ -14,7 +14,10 @@ required for the corresponding plugin operations.
    for sources, image filters or all plugins. Sources → source details →
    **Plugin settings and tests** is another route to that source's entry.
 2. Choose **Enable plugin** or **Disable plugin** to change availability now.
-   These actions use the already selected valid build. **Source and watches**
+   These actions use the already selected valid build; manual enablement grants
+   no provider-size/MD5 exception. Kohlchan, Wizchan and Endchan default disabled
+   at first registration in a profile; existing saved states are retained.
+   **Source and watches**
    opens the related source and its watched entries when available.
 3. Use **Actions** → **Open settings** to reach available plugin/source options.
    Review your changes and choose **Save for next start**, then restart MeowChan
@@ -58,14 +61,37 @@ this section. To add or edit a trusted `.cs` source, follow the next sections.
 provider size or MD5 metadata can differ from the delivered file. The default
 is strict checking; the label alone grants no exception.
 
-Open **Sources**, select the source and choose **Allow provider size and MD5
-mismatches** only if you want to accept those differences. Sources is the only
-place to grant or revoke this permission. It is off by default and applies to
-that profile, plugin owner and source. Updates from the same plugin owner retain
-it; another owner or profile does not inherit it. A successful save takes effect
-immediately for new media acceptance by the active source. This is separate from
-plugin/source settings saved for the next start. An inactive source's saved
-permission does not allow it to save new media.
+Exactly these three supplied plugin identities start disabled when first
+registered in a profile. Existing profiles keep their saved enable/disable and
+permission choices; an upgrade does not reset them.
+
+When you explicitly submit a matching URL for a disabled source, a warning appears
+before that URL is fetched. Choose **Activate and allow differences**
+(**Aktivieren und Abweichungen erlauben**) only if you intend to activate the
+source and allow provider size/MD5 differences in this profile. Cancel activates
+nothing and grants nothing. In a mixed batch, canceled URLs for that source are
+skipped while independent URLs can proceed; the input is kept when the batch is
+not fully accepted. Typing, passive clipboard reading and startup do not ask for
+this permission.
+
+Activation and permission are saved in two steps. Existing watches can resume
+immediately after activation; the newly submitted URLs proceed only after both
+steps succeed. If only activation succeeds, the source can remain active with
+strict checking. Review the displayed saved/running state, then use **Retry
+permission** (**Freigabe erneut speichern**) explicitly or close and manage it
+in Sources/Plugins. Closing does not undo an activation already saved. If the
+source owner changes or the saved state is unknown, follow the dialog's recheck
+instructions. There is no global pause of existing work until permission saves.
+
+Open **Sources**, select the source and use **Allow provider size and MD5
+mismatches** to review, grant or revoke permission. It is off by default and
+belongs to that profile, plugin owner and source. Updates from the same plugin
+owner retain it; another owner or profile does not inherit it. A successful save
+takes effect immediately for new media acceptance by the active source. This is
+separate from plugin/source settings saved for the next start. Manual **Enable
+plugin** grants no new exception. An already active source uses its current
+permission: another URL does not restore a revoked grant or grant it again.
+An inactive source's saved permission does not allow it to save new media.
 
 Enabling this permission does not automatically retry earlier failed downloads.
 After a successful save, open **Downloads**, select the affected thread and choose
