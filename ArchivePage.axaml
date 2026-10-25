@@ -116,9 +116,18 @@
                         <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
                                   PointerReleased="OnArchiveColumnsReleased"
                                   SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
+                            <DataGrid.Styles>
+                                <!-- Template and generated text columns share one row center. -->
+                                <Style Selector="DataGridCell">
+                                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                                </Style>
+                                <Style Selector="DataGridCell TextBlock">
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                </Style>
+                            </DataGrid.Styles>
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="Source / board" SortMemberPath="Identity" Width="150" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding Identity}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Identity}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /><desktop:ArchiveThreadFavoriteButton Grid.Column="1" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /><desktop:ArchiveThreadFavoriteButton Grid.Column="1" VerticalAlignment="Center" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Posts" Width="65" MinWidth="55" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
                                 <DataGridTemplateColumn Header="Saved versions" SortMemberPath="SavedMediaCount" Width="145" MinWidth="110"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
