@@ -1,6 +1,6 @@
 # Local media filters
 
-This page describes the local filters supplied with 1.0.0. The release
+This page describes the five local filters supplied with 1.0.0. The release
 inventory identifies the exact delivered source and validation run; this guide
 does not replace packaged or native-platform evidence. The adjacent plugin
 READMEs describe implementation limits and test scope.
@@ -13,6 +13,7 @@ Existing archived files and posts are not changed or deleted by a filter.
 
 | Filter | What it checks | Useful boundary |
 | --- | --- | --- |
+| [Image dimensions](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Width, height, orientation and aspect ratio of supported static JPEG/PNG originals | No OCR or general image decoding. |
 | [File rules](../../plugins/Examples/FileRulesFilter/README.md) | Inclusive minimum/maximum original size and an optional literal original-name condition | Uses the measured original size. Missing original name is a technical omission when a name condition is active. It does not guess the name from the URL. |
 | [SHA-256 blocklist](../../plugins/Examples/HashBlocklistFilter/README.md) | Rejects originals whose measured SHA-256 is in the rule's explicit list | Exact file identity, not visual similarity. Changing or re-encoding the image changes its hash. |
 | [File format and animation](../../plugins/Examples/AnimationFormatFilter/README.md) | JPEG, PNG/APNG, GIF and WebP containers; optionally one frame or multiple evidenced frames | Reads original bytes instead of trusting the extension/MIME. Container inspection does not prove that every pixel can be decoded. |
@@ -53,5 +54,5 @@ so presence says nothing about their textual validity.
 The existing staging, read-size, cancellation, revision and permission limits
 remain in force. Revoking a grant or changing the effective rule invalidates an
 older in-flight answer. The plugins do not request extra storage access, launch
-external decoders or download classification models. Manual tags, automatic
-tagging and filter chaining are separate proposals.
+external decoders or download classification models. These filters do not add
+manual tags, automatic tagging or filter chaining.

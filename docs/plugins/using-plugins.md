@@ -1,15 +1,16 @@
 # Install, edit and activate plugins
 
-These instructions describe the 1.0 source-tree interface. Release packaging and
-native acceptance are tracked separately in [validation](validation.md). Extract
-a complete candidate application: its worker, compiler and reference files are
-required for the corresponding plugin operations.
+These instructions describe plugin use in MeowChan 1.0. Extract the complete
+application package before starting: its worker, compiler and reference files
+are required for the corresponding plugin operations. See
+[validation](validation.md) for the scope of packaging and native-platform checks.
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied plugins include
-   **Lainchan**, **Kohlchan**, **Wizchan**, **Endchan** and
-   **Image dimensions (example)**. Selecting an entry shows
+1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied inventory contains **16 plugins**: **11 sources** and **5 image
+   filters**, with **14 editable source files**. Sources include 4chan, 8kun,
+   Lainchan and the eight experimental sources listed below; filters include
+   **Image dimensions (example)** and the four [local media filters](local-media-filters.md). Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
    for sources, image filters or all plugins. Sources → source details →
    **Plugin settings and tests** is another route to that source's entry.
@@ -24,13 +25,17 @@ required for the corresponding plugin operations.
    Review your changes and choose **Save for next start**, then restart MeowChan
    to use them. An **Unsaved draft** has not been saved; **Saved for next start**
    is separate from the build and settings currently in use.
-4. To try the supplied dimensions filter, open Media rules for one intended
+4. To start acquiring media, add a supported board or thread URL in
+   **Downloads**. If its source is disabled, review the activation dialog and the
+   checks below. A listed or enabled plugin does not guarantee that its website
+   is reachable.
+5. To try the supplied dimensions filter, open Media rules for one intended
    source/thread, choose it under **Image filter**, set its width/height or
    orientation criteria, and **Grant required access for this scope**. Save the
    rule. It examines supported JPEG/PNG originals for new decisions; previously
    saved originals remain available. See [filter settings and grants](filters-and-settings.md).
 
-Use an isolated preview profile and media folder for experiments. Only run plugin
+Use a separate profile and media folder when experimenting with edited code. Only run plugin
 code you trust: a separate process still has your user permissions. A successful
 test leaves the active production build unchanged; saved plugin/source settings
 and candidate selections take effect at the next app start.
@@ -58,11 +63,11 @@ this section. To add or edit a trusted `.cs` source, follow the next sections.
 
 ## Experimental sources and media checks
 
-The separate source/filter candidate adds five Experimental sources to the three
-existing ones. All eight supplied identities start disabled when first registered
-in a profile. Existing profiles keep their saved enable/disable and permission
-choices; an upgrade does not reset them. Candidate registration is not a claim
-of live service health or packaged/native-platform acceptance.
+The eight supplied Experimental sources are Kohlchan, Wizchan, Endchan,
+Leftypol, 2ch / Двач, Uboachan, ZZZchan and SushiChan. All eight start disabled
+when first registered in a profile. Existing profiles keep their saved enable/disable and permission
+choices; an upgrade does not reset them. Registration does not establish live service health; see the source-specific
+notes and dated validation evidence for tested behavior.
 
 | Sources | Activation confirmation | Integrity behavior |
 | --- | --- | --- |
@@ -72,7 +77,8 @@ of live service health or packaged/native-platform acceptance.
 Experimental describes the current support status. It grants no exception.
 For the four strict sources, confirming enables the source only. URLs continue
 after successful activation; closing or retrying never adds a mismatch grant.
-Uboachan SHA-1 metadata is compared as SHA-1, separately from any MD5 metadata.
+Provider SHA-1 always remains strict, including Uboachan SHA-1 metadata; it is
+compared separately from any MD5 metadata.
 
 The following combined permission flow applies to Kohlchan, Wizchan, Endchan and
 Leftypol:
