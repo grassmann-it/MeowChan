@@ -131,8 +131,8 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding HostName}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding BoardLabel}" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
+                                            <TextBlock Text="{Binding HostName}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding BoardLabel}" VerticalAlignment="Center" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -154,8 +154,8 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding ThreadId, StringFormat='#{0}'}" Classes="muted inline-thread-id" FontSize="12" />
+                                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="12" />
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -176,8 +176,8 @@
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding StatusDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <TextBlock Text="{Binding Status}" FontSize="12" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
+                                                <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontSize="12" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="12" />
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="12" />
