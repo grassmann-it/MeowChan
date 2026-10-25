@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -66,6 +68,29 @@ internal static class ShowcaseCaptures
             Click(page.FindControl<Button>("ArchiveMediaMode")!);
         await WaitForArchiveTilesAsync(window, page);
         await CaptureAsync(window, "v0.9.0-archive.png");
+
+        // Exercise native ToggleButton activation (including its checked-state
+        // transition), then leave the original List layout for later scenes.
+        ToggleButton listLayout = page.FindControl<ToggleButton>("ArchiveLayoutList")!;
+        ToggleButton tableLayout = page.FindControl<ToggleButton>("ArchiveLayoutTable")!;
+        ListBox threadList = page.FindControl<ListBox>("ArchiveThreads")!;
+        DataGrid threadTable = page.FindControl<DataGrid>("ArchiveThreadTable")!;
+        foreach (bool tableMode in new[] { true, false })
+        {
+            ToggleButton active = tableMode ? tableLayout : listLayout;
+            ToggleButton inactive = tableMode ? listLayout : tableLayout;
+            Control shown = tableMode ? threadTable : threadList;
+            Control hidden = tableMode ? threadList : threadTable;
+            for (int activation = 0; activation < 2; activation++)
+            {
+                active.Focus();
+                active.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                active.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+                await Program.WaitUntilAsync(() => active.IsChecked == true && inactive.IsChecked == false
+                    && shown.IsEffectivelyVisible && !hidden.IsEffectivelyVisible && !page.IsBusy);
+            }
+            await CaptureAsync(window, tableMode ? "smoke-1.0-archive-table.png" : "smoke-1.0-archive-list.png");
+        }
 
         await CaptureRepeatExportAsync(window, page);
         await CaptureFavoritesAsync(window, page);
