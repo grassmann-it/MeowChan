@@ -41,7 +41,11 @@ public sealed class MakabaUboachanWaveIntegrationTests
             Assert.Equal(AdmissionStatus.Added, (await host.AddAsync(MakabaUboachanWaveFixtures.ThreadUrl(source))).Status);
             await host.SetPausedAsync(false);
             await WaitAsync(() => Settled(host, source, expectedFailure: false), host);
-            Assert.All(host.Plugins!.Runtime.GetSnapshots(), worker => Assert.True(worker.ProcessId is > 0));
+            var worker = Assert.Single(host.Plugins!.Runtime.GetSnapshots());
+            Assert.True(worker.ProcessId is > 0);
+            var installed = await host.Plugins!.ProfileStore.ReadAsync();
+            Assert.Equal(installed.Plugins.Single(plugin => plugin.PluginId == "meowchan.source." + source).Active!.ExecutionRevision,
+                worker.Identity.ExecutionRevision);
             await AssertArchiveAsync(host, fixture, source);
             Assert.Equal(source == "2ch" ? 6 : 4, fixture.Requests.Count);
             Assert.All(fixture.Requests.GroupBy(uri => uri), group => Assert.Single(group));
