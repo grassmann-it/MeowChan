@@ -90,6 +90,7 @@ internal static class ArchiveMediaCountsChecks
                     + "; updating=" + Field(page, "_updatingList")
                     + "; ids=" + string.Join(",", ids.Select(id => id.Thread))
                     + "; selected-thread=" + (Field(page, "_selectedThread") as ResourceId)?.Thread
+                    + "; grid-item=" + (table.SelectedItem as ArchiveThreadRow)?.Summary.Id.Thread
                     + "; grid=" + string.Join(",", table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread))
                     + "; cards=" + string.Join(",", cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread))
                     + "; first-cell-pending=" + Field(table, "_makeFirstDisplayedCellCurrentCellPending"));
