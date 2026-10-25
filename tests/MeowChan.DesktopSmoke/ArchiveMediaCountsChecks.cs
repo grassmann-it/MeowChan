@@ -76,8 +76,31 @@ internal static class ArchiveMediaCountsChecks
             Require(Row(a).CompactMedia == "3", "A completed-work notification did not refresh durable media inventory.");
             Require(Rows().SequenceEqual(rowObjects, ReferenceEqualityComparer.Instance) && ReferenceEquals(query, page.AppliedSearchSpec), "Count refresh rebuilt rows or reapplied the query.");
             Require(selection.SequenceEqual(table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id)), "Count refresh changed selection.");
+            // Keep this diagnostic local to the explicit-refresh regression. In narrow table
+            // layouts the reader hides the list, so the grid may defer its native selection
+            // bookkeeping until it is measured again. Record that separately from our IDs.
+            void TraceSelection(string phase)
+            {
+                object? Field(object target, string name) => target.GetType().GetField(name,
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(target);
+                var ids = Field(page, "_archiveSelectionIds") as IEnumerable<ResourceId> ?? [];
+                var cards = page.FindControl<ListBox>("ArchiveThreads")!;
+                Console.WriteLine("SMOKE archive selection " + phase
+                    + "; table-visible=" + table.IsEffectivelyVisible
+                    + "; updating=" + Field(page, "_updatingList")
+                    + "; ids=" + string.Join(",", ids.Select(id => id.Thread))
+                    + "; selected-thread=" + (Field(page, "_selectedThread") as ResourceId)?.Thread
+                    + "; grid=" + string.Join(",", table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread))
+                    + "; cards=" + string.Join(",", cards.SelectedItems!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread))
+                    + "; first-cell-pending=" + Field(table, "_makeFirstDisplayedCellCurrentCellPending"));
+            }
+            table.SelectionChanged += (_, _) => TraceSelection("grid-event");
+            page.FindControl<ListBox>("ArchiveThreads")!.SelectionChanged += (_, _) => TraceSelection("cards-event");
+            page.AppliedSearchChanged += () => TraceSelection("applied-commit");
+            TraceSelection("before-refresh");
             await ManifestAsync(aMedia, 4);
             await page.ActivateAsync(); await page.ArchiveMediaCountTask;
+            TraceSelection("after-refresh");
             Require(Row(a).CompactMedia == "4", "Explicit refresh kept stale media inventory.");
             var refreshedSelection = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
             Require(selection.SequenceEqual(refreshedSelection), "Explicit refresh lost retained selection: expected "
