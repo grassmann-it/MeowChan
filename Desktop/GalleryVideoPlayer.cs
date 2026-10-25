@@ -50,6 +50,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _startMuted;
     private bool _settingVolume;
     private bool _isPlaying;
+    private bool _ended;
     private bool _muted;
     private int _loopEnabled;
     private int _loopRestarts;
@@ -117,6 +118,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal Task PauseAsync() => CommandAsync(player => player.SetPause(true));
     internal Task StopPlaybackAsync()
     {
+        _ended = false;
         Interlocked.Exchange(ref _loopEnabled, 0);
         RefreshTransportPresentation();
         return CommandAsync(player => player.Stop());
@@ -295,7 +297,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
         long generation = Interlocked.Increment(ref _generation);
         Interlocked.Exchange(ref _loopEnabled, 0); _loopRestarts = 0;
-        _isPlaying = false; _muted = _startMuted; _canSeek = false; _position = 0;
+        _isPlaying = false; _ended = false; _muted = _startMuted; _canSeek = false; _position = 0;
         _audioAvailable = false; _audioTracks = -1;
         RefreshTransportPresentation();
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -327,21 +329,25 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 media = new Media(_engine, input);
                 MediaPlayer ownedPlayer = player;
                 player.Playing += (_, _) => Post(generation, () =>
-                { _isPlaying = true; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
+                { _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
                     _ = RefreshAudioStateAsync(generation, ownedPlayer); });
                 player.Paused += (_, _) => Post(generation, () => { _isPlaying = false; RefreshTransportPresentation(); });
-                player.Stopped += (_, _) => Post(generation, () => { _isPlaying = false; UpdateTime(0); RefreshTransportPresentation(); });
+                player.Stopped += (_, _) => Post(generation, () => { _isPlaying = false; if (!_ended) UpdateTime(0); RefreshTransportPresentation(); });
                 player.SeekableChanged += (_, args) => Post(generation, () =>
                 { _canSeek = args.Seekable != 0; _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
                 player.LengthChanged += (_, args) => Post(generation, () =>
                 { _length = Math.Max(0, args.Length); UpdateTime(_position); _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0; });
                 player.TimeChanged += (_, args) => Post(generation, () =>
-                { UpdateTime(args.Time); _ = RefreshAudioStateAsync(generation, ownedPlayer); });
+                { if (!_ended) UpdateTime(args.Time); _ = RefreshAudioStateAsync(generation, ownedPlayer); });
                 player.ESAdded += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
                 player.ESDeleted += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
                 player.ESSelected += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
                 player.EndReached += (_, _) => Post(generation, () =>
                 {
+                    // VLC can report a reset time/Stopped after EndReached. Keep
+                    // the terminal clock until replay or an explicit stop begins.
+                    _ended = _length > 0;
+                    if (_ended) UpdateTime(_length);
                     _isPlaying = false; RefreshTransportPresentation();
                     if (_length <= 0) _ = FailAsync(generation);
                     else if (Volatile.Read(ref _loopEnabled) != 0) _ = RestartAfterEndAsync(generation, ownedPlayer);

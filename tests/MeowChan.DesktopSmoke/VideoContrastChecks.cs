@@ -139,6 +139,13 @@ internal static class VideoContrastChecks
             }
             Console.WriteLine("SMOKE video after end seek: " + JsonSerializer.Serialize(new
                 { theme = theme.ToString(), status.Text, playback = await player.InspectPlaybackAsync() }));
+            // Allow queued native reset notifications to arrive after EndReached.
+            await Task.Delay(100);
+            var endedPlayback = await player.InspectPlaybackAsync();
+            string endedClock = TimeSpan.FromMilliseconds(endedPlayback.Length)
+                .ToString(endedPlayback.Length >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
+            if (endedPlayback.Length <= 0 || time.Text != endedClock + " / " + endedClock)
+                throw new InvalidOperationException("Ended video did not retain its terminal clock: " + time.Text);
             Check(window, viewer, status, theme, "ended", failures);
             if ((await player.InspectPlaybackAsync()).LoopEnabled)
                 throw new InvalidOperationException("Repeat did not default off for the verified video.");
