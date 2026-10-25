@@ -310,7 +310,7 @@ internal static class ShowcaseCaptures
             if (!tiles.IsEffectivelyVisible || views.Length != 8
                 || views.Any(view => !view.IsEffectivelyVisible || view.Bounds.Width <= 0
                     || !view.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap)
-                    || view.GetVisualDescendants().OfType<TextBlock>().Any(text => !string.IsNullOrEmpty(text.Text))))
+                    || !HasOnlyReadyTileText(view)))
             { previous = null; return false; }
             WrapPanel panel = tiles.GetVisualDescendants().OfType<WrapPanel>().Single();
             ScrollViewer scroll = tiles.GetVisualDescendants().OfType<ScrollViewer>().Single();
@@ -324,6 +324,18 @@ internal static class ShowcaseCaptures
             return settled;
         });
         Console.WriteLine("SHOWCASE archive media tiles ready: all eight thumbnails decoded; multiple wrapped rows; no horizontal overflow; stable layout.");
+    }
+
+    private static bool HasOnlyReadyTileText(ArchiveMediaTileView view)
+    {
+        if (view.DataContext is not ArchiveAssetRow row) return false;
+        // Current tiles display saved-media metadata alongside their preview.
+        // Keep rejecting loading, unavailable-preview and error text rather than
+        // treating every nonempty label as an unfinished thumbnail.
+        string[] expected = [row.Name, row.TileSummary, MediaRatingText.Label + ": " + row.RatingLabel];
+        string[] actual = view.GetVisualDescendants().OfType<TextBlock>()
+            .Select(text => text.Text ?? string.Empty).Where(text => text.Length > 0).ToArray();
+        return expected.All(text => actual.Contains(text)) && actual.All(text => expected.Contains(text));
     }
 
     private static async Task CaptureRepeatExportAsync(MainWindow window, ArchivePage page)
