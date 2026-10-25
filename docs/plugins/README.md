@@ -39,12 +39,13 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
 | [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and provider differences | Official source implementations; registration is not a live-health claim |
 
-In this separate integration branch the prepared delivery contains **eleven
-plugins, six sources and nine editable files**: the existing six sources and
-five filters (dimensions plus the four [local media filters](local-media-filters.md)).
-The five new source adapters are staged outside the delivery inventory until
-their data contracts and activation/host checks are complete. This inventory
-is not a published release or packaged/native-platform acceptance result.
+In this separate integration branch the candidate delivery contains **sixteen
+plugins, eleven sources and fourteen editable files**: the existing six sources,
+five additional experimental sources and five filters (dimensions plus the four
+[local media filters](local-media-filters.md)). The new source contracts and
+adapters are wired for actual host acceptance; fixture, live, restart and packaged
+checks remain separate gates. This inventory is not a published release or
+packaged/native-platform acceptance result.
 For the historical source-only baseline, see the
 [dated local validation results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
 for the tested candidate and its limits.

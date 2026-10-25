@@ -23,14 +23,22 @@ verwenden den bewusst kombinierten Dialog. Ein gefrorenes Target hält auch die
 Freigabeabsicht fest. Strikte neue Quellen bieten keine Ausnahmecheckbox, der
 Host verweigert direkte neue Grants und übernimmt dort keine gespeicherte
 Ausnahme als Laufzeitberechtigung. 56/56 gezielte Desktop-Vertragstests bestanden;
-kein GUI-Nachweis. Datenpfad-/Source-Mappingintegration aus NW-01 noch offen.
+kein GUI-Nachweis. NW-01-Datenpfad einschließlich Legacyasset-/Cleanup-/Variant-
+Reviewkorrekturen und beide Source-Mappings inzwischen integriert; kombinierter
+Regressionsnachweis der letzten Änderungen steht aus. Makaba/Uboachan-Mapping
+gezielt 53/53 Fälle bestanden (Workerbeleg, nicht produktive Hostkette).
 
-Noch offen: Lieferinventaraufnahme der fünf Quellen nach vollständigem Mapping,
-reale terminale HTTP-/Queue-/Archiv-/Prozessneustartketten, enger Liveversuch,
+Kandidaten-Lieferinventar `32f98ad`: 16 Plugins / 11 Quellen / 14 editierbare
+Dateien, damit echte Hosttests über produktive Discovery laufen können. Kein
+Shipping-/Release-PASS daraus abgeleitet. Python-Paket- und Runnerprüfungen
+15 + 23 + 12 bestanden.
+
+Noch offen: reale terminale HTTP-/Queue-/Archiv-/Prozessneustartketten, enger Liveversuch,
 SDKfreier Compile-/Workerpfad, Paket-/Plattform- und GUIprüfung. Parserbelege
-ersetzen diese Nachweise nicht. Die momentane Filterteillieferung umfasst
-11 Plugins / 6 Quellen / 9 editierbare Dateien; keine neue Quelle ist dadurch
-bereits produktiv freigegeben.
+ersetzen diese Nachweise nicht. Die Registrierung im Kandidateninventar gibt
+keine Quelle bereits produktiv frei. Enger Originalredirectbefund: 2ch `.hk`→`.su`
+benötigt einen deklarierten OriginalMedia-Pfad mit Prüfung jedes Redirecthops;
+dieser Hostfix und positive/negative Hostfixturefälle stehen aus.
 
 ## Abhängigkeiten und gemeinsame Dateien
 

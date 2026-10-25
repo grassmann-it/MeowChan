@@ -6,8 +6,9 @@ Status: **teilweise implementiert, gemeinsame Abnahme offen**. Separater Branch
 ## Zwischenstand 2026-10-25
 
 - FE-01–04 importiert, einschließlich FE-04-Reviewfix für verspäteten Abbruch.
-- Liefergraph und Inventar um vier Filter erweitert: 11 Plugins / 6 Quellen /
-  9 editierbare Dateien. Neue Quellen weiterhin außerhalb des Lieferinventars.
+- Liefergraph zunächst um vier Filter erweitert; nach vollständigen Source-Mappings
+  Kandidateninventar `32f98ad` mit 16 Plugins / 11 Quellen / 14 editierbaren Dateien.
+  Registrierung ermöglicht echte Hosttests, sie ersetzt keine produktive Abnahme.
 - 15 Python-Pakettests sowie 23 Workflow- und 12 Aktivierungsrunnerprüfungen
   bestanden. Das prüft Verträge/synthetische Payloads, keinen nativen Paketlauf.
 - Stand `7df8dc3`: 8/8 neue echte Filterstage-/Worker-/Archivfälle und 317/317
@@ -21,9 +22,9 @@ Status: **teilweise implementiert, gemeinsame Abnahme offen**. Separater Branch
   tatsächlicher Tastatur-/Paste-/Speicher-/Neustartnachweis steht aus.
 
 **Produktiver Integrationsbefund:** Der bisherige Hostheader akzeptiert nur
-JPEG/PNG. GIF/WebP brauchen eine sichere Dimensionsprüfung bei unveränderten
-Byte-/Pixelgrenzen, bevor FE-03 produktiv vollständig erreichbar ist. Ergänzung
-und echte Stagefälle sind zu integrieren und auszuführen.
+JPEG/PNG. Headerfix `d732a12` ergänzt GIF/WebP bei unveränderten Byte-/Pixelgrenzen;
+der Worker meldet dafür 57/57 Modultests bestanden. Echte neue Stagefälle sind
+vorbereitet; ihr Nachweis steht aus.
 
 Pluginlabels und Pluginhilfe bleiben derzeit Englisch; Hostchrome folgt EN/DE.
 Das SDK bietet keinen Pluginlokalisierungsvertrag. Diese Abnahmelücke ist

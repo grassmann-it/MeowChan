@@ -752,10 +752,22 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             MediaImageFilterRule filter = new(MediaImageFilterMode.Plugin, Worker.Description.PluginId, Worker.Description.Filters.Single().Key, parameters: values);
             await Content.Rules.SaveAsync(new[] { new MediaRule(MediaRuleScope.Global) { ImageFilter = filter } });
             string path = StorageLayout.GetMediaPath(Root.Path, "stub", "g", "123", "456", ".png");
-            DownloadItem item = new(new Uri("https://stub.test/456.png"), path, _board, _thread, "456", Bytes.Length + (mismatch ? 1 : 0), Convert.ToBase64String(mismatch ? new byte[16] : MD5.HashData(Bytes)), originalName)
-                { FilterPostId = "123", ExpectedSha1 = expectedSha1, MediaIntegrityPolicy = integrityPolicy };
+            MediaProviderMetadata provider = new("456", "original", "https://stub.test/456.png", originalName,
+                Bytes.Length + (mismatch ? 1 : 0), Convert.ToBase64String(mismatch ? new byte[16] : MD5.HashData(Bytes)), null)
+                { ExpectedSha1 = expectedSha1 };
+            AttachmentRevisionReference[] references = integrityPolicy == null ? [] :
+                [new(Resource, "123", 0, MediaRevisionKeys.CreateAttachmentKey(Resource, "123", 0, provider))];
+            if (integrityPolicy != null)
+                await Content.Catalog.CaptureAsync(new(Resource, _thread.Url, "test", ThreadSourceState.Active, DateTimeOffset.UtcNow,
+                    Path.GetDirectoryName(path)!, [new CapturedPost("123", 0, PostFieldPresence.All, Html: "preserve capture",
+                        Attachments: [new CapturedAttachment(0, "456", Url: provider.Url, OriginalFileName: originalName, PlannedPath: path,
+                            ExpectedSize: provider.ExpectedSize, ExpectedMd5: provider.ExpectedMd5)
+                            { ExpectedSha1 = expectedSha1, AttachmentRevisionKey = references[0].RevisionKey }])]));
+            DownloadItem item = new(new Uri(provider.Url), path, _board, _thread, "456", provider.ExpectedSize, provider.ExpectedMd5, originalName)
+                { FilterPostId = "123", ExpectedSha1 = expectedSha1, MediaIntegrityPolicy = integrityPolicy,
+                    AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, provider), AttachmentReferences = references };
             CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, item.ExpectedSize, item.ExpectedMd5, originalName, extension: ".png")
-                { ExpectedSha1 = expectedSha1 }, Content.Rules);
+                { ExpectedSha1 = expectedSha1, AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = references }, Content.Rules);
             item.Filter = ((IOriginalMediaFilterFactory)Stage).Create(item, decision, () => Current && Content.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision,
                 async (noMatch, reason, token) => { await Content.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token); });
             return item;
