@@ -3,6 +3,9 @@
 Use the maintained [ImageDimensionsFilter](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs)
 as the filter example and the [synthetic SDK plugin](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs)
 for a small plugin-level setting. Neither example needs Core or desktop types.
+The separate source/filter integration wave adds [file rules, SHA-256 blocklist,
+format/animation and PNG text-key presence filters](local-media-filters.md).
+They do not add filter chaining or tags.
 OCR/Tesseract is deferred; it is not a shipped 1.0 filter or automatic download.
 
 ## Passive settings and information

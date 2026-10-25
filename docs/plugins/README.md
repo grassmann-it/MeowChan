@@ -13,6 +13,7 @@ candidate and the delivered compiler, with no developer SDK required.
 - [Install, edit, test and activate a plugin](using-plugins.md)
 - [Write an SDK-only source](source-plugins.md)
 - [Settings, image filters and scoped data access](filters-and-settings.md)
+- [Additional local media filters](local-media-filters.md) — integration wave, separately validated from Alpha 2
 - [Optional hosting, prebuilt bundles and resources](hosting-and-resources.md)
 - [Validate a plugin and interpret failures](validation.md)
 - [Six-source live results, 2026-10-24](live-sources-2026-10-24.md) — three full acquisition/offline passes; three original-size mismatches
@@ -38,10 +39,13 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
 | [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and provider differences | Official source implementations; registration is not a live-health claim |
 
-Wizchan and Endchan are supplied as SDK-only source plugins. The delivery
-contains **seven plugins, six sources and five editable files**: 4chan/8kun plus
-the four source plugins, and the dimensions filter. The editable files are
-Lainchan, Kohlchan, Wizchan, Endchan and the filter. See the
+In this separate integration branch the prepared delivery contains **eleven
+plugins, six sources and nine editable files**: the existing six sources and
+five filters (dimensions plus the four [local media filters](local-media-filters.md)).
+The five new source adapters are staged outside the delivery inventory until
+their data contracts and activation/host checks are complete. This inventory
+is not a published release or packaged/native-platform acceptance result.
+For the historical source-only baseline, see the
 [dated local validation results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
 for the tested candidate and its limits.
 
