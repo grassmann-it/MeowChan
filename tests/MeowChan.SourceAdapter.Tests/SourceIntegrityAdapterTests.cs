@@ -15,11 +15,12 @@ namespace MeowChan.SourceAdapter.Tests;
 public sealed class SourceIntegrityAdapterTests
 {
     [Theory]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, true)]
-    [InlineData(true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, true, true, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
     public async Task HostPolicyIsRequiredAndProviderShaAndAllAttachmentReferencesSurviveTheAdapter(
-        bool hostGrant, bool matchingSha, bool accepted)
+        bool hostGrant, bool matchingSha, bool matchingSha1, bool accepted)
     {
         using SourceAdapterTests.TemporaryProfile profile = new();
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
@@ -27,6 +28,9 @@ public sealed class SourceIntegrityAdapterTests
         await content.InitializeAsync();
         byte[] bytes = [1, 2, 3, 4];
         string expectedSha = matchingSha ? Convert.ToHexString(SHA256.HashData(bytes)) : new string('A', 64);
+        string expectedSha1 = Convert.ToBase64String(SHA1.HashData(matchingSha1 ? bytes : [99]));
+        SourceSizeHint sdkHint = new("2.4e1", "Кб");
+        MediaProviderSizeHint hint = new(sdkHint.RawValue, sdkHint.UnitLabel);
         const long expectedSize = 21;
         string expectedMd5 = Convert.ToBase64String(new byte[16]);
         PluginDescription description = new FourChanPlugin().Describe();
@@ -38,7 +42,8 @@ public sealed class SourceIntegrityAdapterTests
                 [Post("123", 0, 0), Post("124", 1, 2)]))), description);
         SourcePost Post(string postId, long ordinal, int position) => new(postId, ordinal, SourceFieldPresence.Attachments,
             Attachments: [new SourceAttachment(position, "456", Url: mediaUrl, OriginalFileName: "original.png",
-                Extension: ".png", ExpectedSize: expectedSize, ExpectedMd5: expectedMd5, ExpectedSha256: expectedSha)]);
+                Extension: ".png", ExpectedSize: expectedSize, ExpectedMd5: expectedMd5, ExpectedSha256: expectedSha)
+                { ExpectedSha1 = expectedSha1, ProviderSizeHint = sdkHint }]);
         FixturePolicy? policy = hostGrant ? new(description.PluginId) : null;
         using HttpClient media = new(new Images(bytes));
         using PluginSourceImageBoard source = new(description, "4chan", _ => Task.FromResult<IPluginWorkerClient>(worker), media)
@@ -51,7 +56,8 @@ public sealed class SourceIntegrityAdapterTests
         await SourceAdapterTests.WaitUntilAsync(() => admission.Thread!.DownloadedMediaCount == 1 || admission.Thread.MediaFailures.Count > 0);
 
         ResourceId resource = new("4chan", "g", "123");
-        MediaProviderMetadata provider = new("456", "original", mediaUrl.AbsoluteUri, "original.png", expectedSize, expectedMd5, expectedSha);
+        MediaProviderMetadata provider = new("456", "original", mediaUrl.AbsoluteUri, "original.png", expectedSize, expectedMd5, expectedSha)
+            { ExpectedSha1 = expectedSha1, ProviderSizeHint = hint };
         await using ArchiveReader reader = await content.OpenReaderAsync();
         ArchivedThreadView view = (await reader.ReadThreadAsync(resource))!;
         CapturedPost[] posts = view.GetPosts().ToArray();
@@ -62,6 +68,7 @@ public sealed class SourceIntegrityAdapterTests
             Assert.Equal(expectedSize, attachment.ExpectedSize);
             Assert.Equal(expectedMd5, attachment.ExpectedMd5);
             Assert.Equal(expectedSha, attachment.ExpectedSha256);
+            Assert.Equal(expectedSha1, attachment.ExpectedSha1); Assert.Equal(hint, attachment.ProviderSizeHint);
             Assert.Equal(MediaRevisionKeys.CreateAttachmentKey(resource, post.PostId, attachment.Position, provider), attachment.AttachmentRevisionKey);
         }
         MediaAssetSnapshot assets = await MediaAssetReader.OpenAsync(view.Summary.MediaDirectory);
@@ -85,6 +92,7 @@ public sealed class SourceIntegrityAdapterTests
                 Assert.True(binding.Acceptance.SizeMismatch);
                 Assert.True(binding.Acceptance.Md5Mismatch);
                 Assert.Equal(bytes.Length, binding.Actual.Length);
+                Assert.Equal(expectedSha1, binding.Actual.Sha1);
                 await using Stream verified = await assets.OpenVerifiedReadAsync(binding.AssetId);
                 using MemoryStream copy = new();
                 await verified.CopyToAsync(copy);

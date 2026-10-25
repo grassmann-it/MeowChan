@@ -19,6 +19,10 @@ ThreadReadResult result = await plugin.ReadThreadAsync(request, context);
 ThreadReadResult copy = SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize(result));
 SdkValidation.ThrowIfInvalid(SdkValidation.ValidateThreadResult(request, copy, source));
 if (copy is not ThreadSnapshot thread) throw new InvalidDataException("Expected a synthetic thread snapshot.");
+SourceAttachment metadata = thread.Snapshot.Posts[0].Attachments![0];
+if (metadata.ExpectedSha1 != Convert.ToBase64String(new byte[20]) || metadata.ExpectedSize != null
+    || metadata.ProviderSizeHint != new SourceSizeHint("2.4e1", "KiB"))
+    throw new InvalidDataException("Provider SHA-1 and raw non-authoritative size hint did not round-trip.");
 Console.WriteLine($"SDK {SdkContract.Version}: {thread.Snapshot.Posts.Count} captured posts, "
     + $"{thread.Snapshot.Posts.Sum(post => post.Attachments?.Count ?? 0)} attachments; no network or Core dependency.");
 

@@ -115,7 +115,9 @@ public sealed class SyntheticPlugin : ISourcePlugin, IPluginSettingsValidator
                         string mediaId = file.GetString() ?? throw new JsonException("Media ID is missing.");
                         attachments.Add(new SourceAttachment(attachments.Count, mediaId,
                             Url: new Uri("https://synthetic.example.test/media/" + Uri.EscapeDataString(mediaId) + ".png"),
-                            OriginalFileName: mediaId + ".png", Extension: ".png", MimeType: "image/png"));
+                            OriginalFileName: mediaId + ".png", Extension: ".png", MimeType: "image/png") {
+                                ExpectedSha1 = Convert.ToBase64String(new byte[20]),
+                                ProviderSizeHint = new SourceSizeHint("2.4e1", "KiB", SourceSizePrecision.Unspecified) });
                     }
                 SourceFieldPresence fields = SourceFieldPresence.None;
                 string? text = null;

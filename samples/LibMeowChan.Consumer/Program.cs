@@ -82,7 +82,7 @@ internal static class Program
                             provider.Variant, Url: provider.Url, OriginalFileName: provider.OriginalFileName,
                             ExpectedSize: provider.ExpectedSize, ExpectedMd5: provider.ExpectedMd5)
                         {
-                            ExpectedSha256 = provider.ExpectedSha256,
+                            ExpectedSha256 = provider.ExpectedSha256, ExpectedSha1 = provider.ExpectedSha1, ProviderSizeHint = provider.ProviderSizeHint,
                             AttachmentRevisionKey = DemoPayload.Reference.RevisionKey
                         } })
                 }));
@@ -135,7 +135,10 @@ internal static class Program
                 || binding.Actual.Length != DemoPayload.Bytes.Length || binding.Actual.Md5 != DemoPayload.Md5
                 || !string.Equals(binding.Actual.Sha256, DemoPayload.Sha256, StringComparison.OrdinalIgnoreCase)
                 || entry.Attachment?.AttachmentRevisionKey != DemoPayload.Reference.RevisionKey
-                || entry.Attachment?.ExpectedSha256 != DemoPayload.Sha256)
+                || entry.Attachment?.ExpectedSha256 != DemoPayload.Sha256
+                || entry.Attachment?.ExpectedSha1 != DemoPayload.Sha1
+                || entry.Attachment?.ProviderSizeHint != DemoPayload.Provider.ProviderSizeHint
+                || binding.Actual.Sha1 != DemoPayload.Sha1 || exactAsset.Sha1 != DemoPayload.Sha1)
                 throw new InvalidOperationException("The passive gallery did not retain the strict provider/actual revision binding.");
             await using Stream bytes = await entry.Manifest.OpenVerifiedReadAsync(exactAsset.AssetId);
             using MemoryStream copy = new MemoryStream();
@@ -266,6 +269,7 @@ internal static class Program
             || medium.Generation != generation || medium.ResourceUrl != intent.Url || medium.MediaIdentifier != "1"
             || medium.DestinationPath != destination || medium.DownloadUrl != "https://demo.invalid/media/1.bin"
             || medium.ExpectedMd5 != DemoPayload.Md5 || medium.ExpectedSize != DemoPayload.Bytes.Length
+            || medium.ExpectedSha1 != DemoPayload.Sha1 || medium.ProviderSizeHint != DemoPayload.Provider.ProviderSizeHint
             || medium.ExpectedSha256 != DemoPayload.Sha256 || medium.AcquisitionRevisionKey != DemoPayload.AcquisitionRevisionKey
             || medium.AttachmentReferences.Count != 1 || medium.AttachmentReferences.Single() != DemoPayload.Reference
             || string.IsNullOrEmpty(medium.CommittedAssetId)
@@ -281,12 +285,14 @@ internal static class DemoPayload
 {
     public static readonly byte[] Bytes = Encoding.UTF8.GetBytes("libmeowchan standalone consumer\n");
     public static readonly string Md5 = Convert.ToBase64String(MD5.HashData(Bytes));
+    public static readonly string Sha1 = Convert.ToBase64String(SHA1.HashData(Bytes));
     public static readonly string Sha256 = Convert.ToHexString(SHA256.HashData(Bytes));
     // Freeze the observed provider metadata and all post references before enqueueing.
     // These are data identities, not a permission to accept provider discrepancies.
     public static readonly ResourceId Resource = new ResourceId("demo", "demo", "1");
     public static readonly MediaProviderMetadata Provider = new MediaProviderMetadata("1", "original",
-        "https://demo.invalid/media/1.bin", "sample.bin", Bytes.Length, Md5, Sha256);
+        "https://demo.invalid/media/1.bin", "sample.bin", Bytes.Length, Md5, Sha256)
+        { ExpectedSha1 = Sha1, ProviderSizeHint = new MediaProviderSizeHint("2.4e1", "KiB") };
     public static readonly string AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(Resource, Provider);
     public static readonly AttachmentRevisionReference Reference = new AttachmentRevisionReference(Resource, "1", 0,
         MediaRevisionKeys.CreateAttachmentKey(Resource, "1", 0, Provider));
@@ -369,7 +375,7 @@ internal sealed class DemoThread : BaseThread
                 Board.ImageBoard, this, provider.MediaId, provider.ExpectedSize,
                 provider.ExpectedMd5, provider.OriginalFileName, legacyPath: null, variant: provider.Variant)
             {
-                ExpectedSha256 = provider.ExpectedSha256,
+                ExpectedSha256 = provider.ExpectedSha256, ExpectedSha1 = provider.ExpectedSha1, ProviderSizeHint = provider.ProviderSizeHint,
                 AcquisitionRevisionKey = DemoPayload.AcquisitionRevisionKey,
                 AttachmentReferences = new[] { DemoPayload.Reference }
             };
