@@ -16,6 +16,7 @@ public partial class ArchivePage
     private CancellationTokenSource? _archiveMediaCountCancellation;
     private int _archiveMediaCountRevision;
     private string? _archiveMediaCountDatabasePath;
+    private bool _archiveMediaCountWasVisible;
     private IReadOnlyDictionary<string, MediaCountWorkStamp> _archiveMediaCountWork = new Dictionary<string, MediaCountWorkStamp>();
     internal Task ArchiveMediaCountTask { get; private set; } = Task.CompletedTask;
     internal Func<IEnumerable<string>, CancellationToken, Task<ArchiveThreadMediaCount>> ReadArchiveMediaInventoryAsync { get; set; } =
@@ -24,12 +25,22 @@ public partial class ArchivePage
 
     private void InitializeArchiveMediaCounts()
     {
-        AttachedToVisualTree += (_, _) => NotifyArchiveMediaCountsChanged();
-        IsEffectivelyVisibleChanged += (_, _) =>
+        AttachedToVisualTree += (_, _) => ObserveArchiveMediaCountVisibility();
+        PropertyChanged += (_, change) =>
         {
-            if (IsEffectivelyVisible) NotifyArchiveMediaCountsChanged();
-            else CancelArchiveMediaCounts();
+            if (change.Property == IsVisibleProperty) ObserveArchiveMediaCountVisibility();
         };
+        // Avalonia 11 has no public effective-visibility event. Layout catches an ancestor
+        // becoming visible; the edge check avoids inventory/cache work on ordinary layouts.
+        LayoutUpdated += (_, _) => ObserveArchiveMediaCountVisibility();
+    }
+    private void ObserveArchiveMediaCountVisibility()
+    {
+        bool visible = IsEffectivelyVisible && this.IsAttachedToVisualTree();
+        if (visible == _archiveMediaCountWasVisible) return;
+        _archiveMediaCountWasVisible = visible;
+        if (visible) NotifyArchiveMediaCountsChanged();
+        else CancelArchiveMediaCounts();
     }
 
     private IReadOnlyDictionary<string, ThreadWorkSnapshot> CurrentMediaCountWork(ArchiveThreadRow[] rows)
