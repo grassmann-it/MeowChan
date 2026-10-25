@@ -281,7 +281,10 @@ public sealed class WorkStateStore : IWorkStateStore
             throw new InvalidDataException("Invalid durable media integrity metadata.");
         MediaProviderMetadata provider = new(media.MediaIdentifier, media.Variant, media.DownloadUrl, media.OriginalFileName,
             media.ExpectedSize, media.ExpectedMd5, media.ExpectedSha256) { ExpectedSha1 = media.ExpectedSha1, ProviderSizeHint = media.ProviderSizeHint };
-        MediaIntegrityValidation.ValidateProvider(provider);
+        // Older work descriptors preserve raw provider MD5 until transfer validation.
+        // New optional evidence is strict without making historical payloads unreadable.
+        MediaIntegrityValidation.ValidateSha1(media.ExpectedSha1);
+        MediaIntegrityValidation.ValidateSizeHint(media.ProviderSizeHint);
         foreach (AttachmentRevisionReference reference in media.AttachmentReferences)
             if (reference == null || reference.RevisionKey != MediaRevisionKeys.CreateAttachmentKey(reference.Resource, reference.PostId, reference.Position, provider)
                 || media.AcquisitionRevisionKey != MediaRevisionKeys.CreateAcquisitionKey(reference.Resource, provider))

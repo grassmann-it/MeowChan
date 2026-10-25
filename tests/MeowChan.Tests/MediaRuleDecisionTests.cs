@@ -69,6 +69,11 @@ public sealed class MediaRuleDecisionTests
         Assert.Equal(MediaSelectionOutcome.Excluded, restored.Selection.Outcome);
         Assert.Equal(MediaSelectionReason.TypeExcluded, restored.Selection.Reason);
         Assert.Equal(initial.DestinationPath, restored.Metadata.DestinationPath);
+        await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Catalog.GetOrCreateDecisionAsync(
+            restored.Metadata with { ExpectedSha1 = Convert.ToBase64String(new byte[16]) }, fixture.Rules));
+        await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Catalog.GetOrCreateDecisionAsync(
+            restored.Metadata with { ProviderSizeHint = new("-1", "Кб") }, fixture.Rules));
+        Assert.Equal("historical-opaque-checksum", Assert.Single(await fixture.Catalog.GetDecisionsAsync(Thread)).Metadata.ExpectedMd5);
         CandidateDecision fresh = await fixture.Catalog.GetOrCreateDecisionAsync(fixture.Metadata("new", extension: ".png"), fixture.Rules);
         Assert.Equal(MediaSelectionOutcome.Selected, fresh.Selection.Outcome);
         Assert.False(File.Exists(initial.DestinationPath));
