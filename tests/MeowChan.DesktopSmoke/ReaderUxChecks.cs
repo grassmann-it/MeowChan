@@ -110,6 +110,10 @@ internal static class ReaderUxChecks
         window.Width = 1520; window.Height = 920;
         // Exercise the hidden ArchivePage before it has ever been navigated to.
         await CheckDownloadOriginAsync(window);
+        // The export subfixture switches modes and restores its observed native
+        // geometry, which may have been fitted to a small runner desktop. Set
+        // this independent wide reader-layout scene after that fixture returns.
+        window.Width = 1520; window.Height = 920;
         await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);

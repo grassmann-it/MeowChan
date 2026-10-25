@@ -214,6 +214,7 @@ internal static class SourcesChecks
                 await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
             }
             await CheckSubmitFocusAsync(host, providers, view);
+            await CheckOwnedModalReturnDeactivationAsync(window, host, providers, view, externalDeactivation: false);
             await CheckOwnedModalReturnDeactivationAsync(window, host, providers, view);
             await CheckNavigationAsync(window, wide: targetWidth >= 1120);
             page.Refresh([], view, true);
@@ -307,7 +308,7 @@ internal static class SourcesChecks
         finally { fixture.EndLifetime(); host.Content = original; }
     }
     private static async Task CheckOwnedModalReturnDeactivationAsync(MainWindow window, ContentControl host,
-        ProviderDescriptor[] providers, DesktopSessionView view)
+        ProviderDescriptor[] providers, DesktopSessionView view, bool externalDeactivation = true)
     {
         object? original = host.Content;
         TaskCompletionSource<bool> outcome = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -325,8 +326,8 @@ internal static class SourcesChecks
         void OnOwnerDeactivated(object? sender, EventArgs args)
         {
             if (!modalClosed) sawInitialOwnerDeactivation = true;
-            if (externalShown && postClosedOwnerActivations > 0) sawExternalOwnerDeactivation = true;
-            Console.WriteLine($"SMOKE owned-modal owner deactivated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}.");
+            if (externalShown) sawExternalOwnerDeactivation = true;
+            Console.WriteLine($"SMOKE owned-modal owner deactivated: closed={modalClosed}, postClosed={postClosedOwnerActivations}, external={externalShown}, nativeOwner={X11WindowActivation.OwnsNativeFocus(window)}.");
         }
         void OnOwnerFocus(object? sender, FocusChangedEventArgs args) => newerOwnerFocusEvents++;
         SourcesPage fixture = new(_ => false, _ => { }, () => { }, () => { }, async (_, observeModal) =>
@@ -356,11 +357,25 @@ internal static class SourcesChecks
             await Program.WaitUntilAsync(() => ownedModal.IsActive && !window.IsActive && sawInitialOwnerDeactivation);
             ownedModal.Close();
             Console.WriteLine($"SMOKE owned-modal closed: closed={modalClosed}, visible={ownedModal.IsVisible}, ownerActive={window.IsActive}, postClosed={postClosedOwnerActivations}.");
-            await Program.WaitUntilAsync(() => modalClosed && !ownedModal.IsVisible && window.IsActive && postClosedOwnerActivations > 0);
-            Require(fixture.IsBusy && !editor.IsEnabled && newerOwnerFocusEvents == 0,
+            // Some native backends return activation before Closed and produce
+            // no second bounce. That already-active return is equally valid.
+            await Program.WaitUntilAsync(() => modalClosed && !ownedModal.IsVisible && window.IsActive);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(fixture.IsBusy && !editor.IsEnabled && newerOwnerFocusEvents == 0
+                && fixture.HasPendingSubmitFocusRestore,
                 "The controlled submit completed or gained newer owner focus before the external deactivation premise.");
+            if (!externalDeactivation)
+            {
+                outcome.SetResult(false);
+                await Program.WaitUntilAsync(() => !fixture.IsBusy && editor.IsEnabled && editor.IsFocused);
+                Require(editor.Text == "retained owned-modal URL", "The owned-modal focus return changed the URL draft.");
+                Console.WriteLine("SMOKE owned-modal positive return: actual close/activation retained the claim and restored the rejected editor with its draft.");
+                return;
+            }
             externalShown = true; external.Show(window); external.Activate();
             await Program.WaitUntilAsync(() => external.IsActive && !window.IsActive && sawExternalOwnerDeactivation);
+            Require(!fixture.HasPendingSubmitFocusRestore,
+                "The actual external deactivation left the rejected submit's focus claim alive.");
             Require(newerOwnerFocusEvents == 0,
                 "A newer owner focus choice masked the external deactivation guard under test.");
             int beforeExternalReturn = postClosedOwnerActivations;
@@ -380,7 +395,7 @@ internal static class SourcesChecks
             Require(window.IsActive && !editor.IsFocused && window.FocusManager.GetFocusedElement() == null
                 && editor.Text == "retained owned-modal URL",
                 "A later external deactivation after the owned-modal return revived the rejected editor's focus claim.");
-            Console.WriteLine("SMOKE owned-modal external deactivation: actual initial owner deactivation, normal Closed, first post-Closed activation, later external deactivation and native return, no newer GotFocus, retained null focus after delayed rejection passed.");
+            Console.WriteLine($"SMOKE owned-modal external deactivation: normal Closed, already-active or post-Closed owner return ({postClosedOwnerActivations} activations), later external deactivation cancels a live claim; native return without newer GotFocus retains null focus after rejection.");
         }
         finally
         {
