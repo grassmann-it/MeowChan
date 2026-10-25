@@ -466,6 +466,85 @@ public sealed class PluginProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadWaitsForWriterLeaseRatherThanObservingItsTemporaryMissingName()
+    {
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([Candidate("a")], 0);
+        string directory = Path.GetDirectoryName(store.StorePath)!;
+        string hidden = Path.Combine(directory, ".state-during-replacement.tmp");
+        Task<PluginProfileSnapshot> pending;
+        await using (FileStream writer = new(Path.Combine(directory, "state.lock"), FileMode.Open,
+            FileAccess.ReadWrite, FileShare.None))
+        {
+            File.Move(store.StorePath, hidden);
+            try
+            {
+                pending = Store().ReadAsync();
+                Assert.False(pending.IsCompleted);
+            }
+            finally { File.Move(hidden, store.StorePath); }
+        }
+        PluginProfileSnapshot observed = await pending.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(state.Revision, observed.Revision);
+        Assert.Equal("a", Assert.Single(observed.Plugins).Active!.ExecutionRevision);
+    }
+
+    [Fact]
+    public async Task ReadWaitingForWriterLeaseCanBeCancelledWithoutChangingProfile()
+    {
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([Candidate("a")], 0);
+        byte[] original = await File.ReadAllBytesAsync(store.StorePath);
+        using CancellationTokenSource cancellation = new();
+        await using (FileStream writer = new(Path.Combine(Path.GetDirectoryName(store.StorePath)!, "state.lock"),
+            FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Task<PluginProfileSnapshot> pending = Store().ReadAsync(cancellation.Token);
+            Assert.False(pending.IsCompleted);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+            Assert.Equal(original, await File.ReadAllBytesAsync(store.StorePath));
+        }
+        Assert.Equal(state.Revision, (await Store().ReadAsync()).Revision);
+        PluginProfileSnapshot updated = await store.SetEnabledAsync("test.plugin", false, state.Revision);
+        Assert.Equal(state.Revision + 1, updated.Revision);
+    }
+
+    [Fact]
+    public async Task WindowsReadOnlyCoordinationFileStillAllowsProfileReads()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        PluginProfileStore store = Store();
+        PluginProfileSnapshot state = await store.ApplyStartupAsync([Candidate("a")], 0);
+        string lockPath = Path.Combine(Path.GetDirectoryName(store.StorePath)!, "state.lock");
+        FileAttributes original = File.GetAttributes(lockPath);
+        File.SetAttributes(lockPath, original | FileAttributes.ReadOnly);
+        try
+        {
+            PluginProfileSnapshot observed = await Store().ReadAsync();
+            Assert.Equal(state.Revision, observed.Revision);
+            Assert.Equal("a", Assert.Single(observed.Plugins).Active!.ExecutionRevision);
+        }
+        finally { File.SetAttributes(lockPath, original); }
+    }
+
+    [Fact]
+    public async Task FirstReadCreatesOnlyCoordinationFilesAndKeepsTheProfileEmpty()
+    {
+        PluginProfileStore store = Store();
+        Assert.False(Directory.Exists(profile));
+        PluginProfileSnapshot state = await store.ReadAsync();
+        Assert.Equal(0, state.Revision);
+        Assert.Empty(state.Plugins);
+        Assert.Empty(state.Grants);
+        Assert.False(File.Exists(store.StorePath));
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(store.StorePath)!, "state.lock")));
+        state = await store.ApplyStartupAsync([Candidate("a")], state.Revision);
+        Assert.Equal(1, state.Revision);
+        Assert.Single(state.Plugins);
+    }
+
+    [Fact]
     public async Task ConcurrentReadersAlwaysObserveACompleteAtomicRevision()
     {
         PluginProfileStore store = Store();

@@ -6,7 +6,7 @@ using MeowChan.PluginSdk;
 namespace MeowChan.PluginHost.Configuration;
 
 /// <summary>
-/// Profile-owned atomic store. A separate stable lock file serializes writers across processes;
+/// Profile-owned atomic store. A separate stable lock file serializes readers and writers across processes;
 /// the revision is rechecked under that lock. Corrupt state is never replaced with defaults.
 /// </summary>
 public sealed class PluginProfileStore : IPluginProfileStore
@@ -38,7 +38,15 @@ public sealed class PluginProfileStore : IPluginProfileStore
     public event Action<PluginLifecycleChange>? LifecycleChanged;
     public event Action<PluginGrantChange>? GrantChanged;
 
-    public Task<PluginProfileSnapshot> ReadAsync(CancellationToken cancellationToken = default) => ReadCoreAsync(cancellationToken);
+    public async Task<PluginProfileSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(directory);
+        // ReplaceFile can briefly hide the destination name on Windows. Read under the
+        // same stable lease so a replacement cannot be mistaken for a new empty profile.
+        await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
+        return await ReadCoreAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     public Task<PluginProfileSnapshot> ObserveCandidateAsync(PluginCandidateObservation candidate, long expectedRevision,
         CancellationToken cancellationToken = default)
@@ -318,13 +326,13 @@ public sealed class PluginProfileStore : IPluginProfileStore
         { throw new PluginProfileCorruptException(path, exception); }
     }
 
-    private async Task<FileStream> AcquireLockAsync(CancellationToken cancellationToken)
+    private async Task<FileStream> AcquireLockAsync(CancellationToken cancellationToken, FileAccess access = FileAccess.ReadWrite)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(10);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            try { return new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            try { return new(lockPath, FileMode.OpenOrCreate, access, FileShare.None); }
             catch (IOException) when (DateTime.UtcNow < deadline) { await Task.Delay(20, cancellationToken).ConfigureAwait(false); }
         }
     }
