@@ -15,9 +15,11 @@ from pathlib import Path
 RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
            'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan',
-           'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter')
+           'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter',
+           'MeowChan.Plugin.Leftypol', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.Uboachan', 'MeowChan.Plugin.Zzzchan', 'MeowChan.Plugin.SushiChan')
 SOURCES = ('Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs',
-           'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs')
+           'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs',
+           'Leftypol.cs', 'Dvach.cs', 'Uboachan.cs', 'Zzzchan.cs', 'SushiChan.cs')
 OPTIONS = 'net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 

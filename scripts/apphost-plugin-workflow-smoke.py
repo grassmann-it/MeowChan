@@ -37,7 +37,8 @@ REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo
 PLUGIN_IDS = {'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.source.lainchan',
               'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
               'meowchan.example.image-dimensions',
-              'meowchan.filter.file-rules', 'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata'}
+              'meowchan.filter.file-rules', 'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata',
+              'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan', 'meowchan.source.zzzchan', 'meowchan.source.sushichan'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
 

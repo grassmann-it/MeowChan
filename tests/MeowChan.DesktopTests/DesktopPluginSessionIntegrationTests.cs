@@ -260,7 +260,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-worker", "MeowChan.PluginWorker" + suffix)));
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
-        Assert.Equal(11, manifests.Length);
+        Assert.Equal(16, manifests.Length);
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
         Stopwatch startup = Stopwatch.StartNew();
@@ -274,12 +274,12 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
         Assert.NotNull(host.Plugins);
         Assert.Empty(host.Plugins.Warnings);
-        Assert.Equal(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
+        Assert.Equal(new[] { "2ch", "4chan", "8kun", "endchan", "kohlchan", "lainchan", "leftypol", "sushichan", "uboachan", "wizchan", "zzzchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
         AssertNewSourceRouting(host);
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        Assert.Equal(11, profile.Plugins.Count);
+        Assert.Equal(16, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)
@@ -306,6 +306,11 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
                 "kohlchan" => "meowchan.source.kohlchan",
                 "wizchan" => "meowchan.source.wizchan",
                 "endchan" => "meowchan.source.endchan",
+                "leftypol" => "meowchan.source.leftypol",
+                "2ch" => "meowchan.source.2ch",
+                "uboachan" => "meowchan.source.uboachan",
+                "zzzchan" => "meowchan.source.zzzchan",
+                "sushichan" => "meowchan.source.sushichan",
                 _ => throw new InvalidOperationException("Unexpected delivered source: " + source.Name)
             };
             Assert.Equal(profile.Plugins.Single(plugin => plugin.PluginId == owner).Enabled, source.Enabled);

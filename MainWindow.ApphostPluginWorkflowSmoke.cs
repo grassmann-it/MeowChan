@@ -52,8 +52,8 @@ public partial class MainWindow
                 RequireWorkflow(File.Exists(Path.Combine(app, helper)), "Delivered helper missing: " + helper);
             string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
-            RequireWorkflow(manifests.Length == 11 && installed.Plugins.Count == 11, "Delivered plugin inventory differs.");
-            RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "4chan", "8kun", "endchan", "kohlchan", "lainchan", "wizchan" }), "Delivered source inventory differs.");
+            RequireWorkflow(manifests.Length == 16 && installed.Plugins.Count == 16, "Delivered plugin inventory differs.");
+            RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "2ch", "4chan", "8kun", "endchan", "kohlchan", "lainchan", "leftypol", "sushichan", "uboachan", "wizchan", "zzzchan" }), "Delivered source inventory differs.");
             // This worker/download fixture explicitly enables its delivered sources through
             // the Host lifecycle. It does not grant a provider-integrity exception.
             installed = await EnableApphostFixtureSourcesAsync(plugins, installed);

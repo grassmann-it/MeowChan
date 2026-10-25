@@ -48,7 +48,7 @@ def validate_startup(metrics, phase):
     if not isinstance(startup, dict) or startup.get('paused') is not True:
         raise ValueError('Source activation startup was not paused')
     rows = startup.get('plugins')
-    if (not isinstance(rows, list) or len(rows) != 11
+    if (not isinstance(rows, list) or len(rows) != 16
             or {row.get('pluginId') for row in rows} != set(metrics['revisions'])):
         raise ValueError('Source activation startup plugin inventory differs')
     expected = []

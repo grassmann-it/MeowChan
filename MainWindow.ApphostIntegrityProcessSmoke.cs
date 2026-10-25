@@ -73,8 +73,8 @@ public partial class MainWindow
                 "Fresh production authority differs from the preceding durable grant/revoke.");
             if (fixture.Phase == "acquire")
             {
-                string[] defaultOff = { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan" };
-                RequireWorkflow(installed.Plugins.Count == 11 && plugins.Sources.Count == 6
+                string[] defaultOff = { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan", "meowchan.source.leftypol", "meowchan.source.2ch", "meowchan.source.uboachan", "meowchan.source.zzzchan", "meowchan.source.sushichan" };
+                RequireWorkflow(installed.Plugins.Count == 16 && plugins.Sources.Count == 11
                     && installed.Plugins.All(plugin => plugin.Enabled == !defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal)),
                     "Fresh delivered default/inventory differs.");
                 RequireWorkflow(_session.GetSourceMediaIntegrityPolicies().All(row => !row.IsGranted), "Fresh profile not strict.");

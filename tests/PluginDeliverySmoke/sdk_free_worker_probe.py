@@ -65,7 +65,12 @@ def main():
                     'MeowChan.FileRulesFilter': 'meowchan.filter.file-rules',
                     'MeowChan.HashBlocklistFilter': 'meowchan.filter.hash-blocklist',
                     'MeowChan.AnimationFormatFilter': 'meowchan.filter.animation-format',
-                    'MeowChan.PngMetadataFilter': 'meowchan.filter.png-metadata'}
+                    'MeowChan.PngMetadataFilter': 'meowchan.filter.png-metadata',
+                    'MeowChan.Plugin.Leftypol': 'meowchan.source.leftypol',
+                    'MeowChan.Plugin.Dvach': 'meowchan.source.2ch',
+                    'MeowChan.Plugin.Uboachan': 'meowchan.source.uboachan',
+                    'MeowChan.Plugin.Zzzchan': 'meowchan.source.zzzchan',
+                    'MeowChan.Plugin.SushiChan': 'meowchan.source.sushichan'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):

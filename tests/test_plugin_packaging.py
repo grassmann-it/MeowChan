@@ -137,8 +137,8 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(11, report['plugins'])
-                    self.assertEqual(9, report['editable_sources'])
+                    self.assertEqual(16, report['plugins'])
+                    self.assertEqual(14, report['editable_sources'])
                 finally:
                     self.root = outer
 
@@ -152,13 +152,16 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Lainchan',
                           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter',
                           'MeowChan.Plugin.Wizchan', 'MeowChan.Plugin.Endchan',
-                          'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter'}, set(PACKAGE.PLUGINS))
+                          'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter',
+                          'MeowChan.Plugin.Leftypol', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.Uboachan', 'MeowChan.Plugin.Zzzchan', 'MeowChan.Plugin.SushiChan'}, set(PACKAGE.PLUGINS))
         self.assertEqual({'Lainchan.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Wizchan.cs', 'Endchan.cs',
-                          'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs'}, set(PACKAGE.SOURCES))
+                          'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs',
+                          'Leftypol.cs', 'Dvach.cs', 'Uboachan.cs', 'Zzzchan.cs', 'SushiChan.cs'}, set(PACKAGE.SOURCES))
         self.assertEqual(5, len(PACKAGE.RUNTIMES))
         self.fixture()
         for assembly_name, source in ([('MeowChan.Plugin.Wizchan', 'Wizchan'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
-                [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter')]):
+                [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter'),
+                 ('MeowChan.Plugin.Leftypol', 'Leftypol'), ('MeowChan.Plugin.Dvach', 'Dvach'), ('MeowChan.Plugin.Uboachan', 'Uboachan'), ('MeowChan.Plugin.Zzzchan', 'Zzzchan'), ('MeowChan.Plugin.SushiChan', 'SushiChan')]):
             with self.subTest(source=source):
                 manifest = self.root / ('plugins/' + assembly_name + '.plugin.json')
                 original = manifest.read_bytes()

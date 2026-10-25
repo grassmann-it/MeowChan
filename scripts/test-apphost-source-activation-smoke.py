@@ -53,11 +53,11 @@ class AuthorEvidenceTests(unittest.TestCase):
     def test_author_requests_stay_at_two_sources_despite_expanded_bundles(self):
         self.assertEqual(6, len(author.AUTHOR_REQUESTS))
         self.assertEqual(12, len(author.plugin.REQUESTS))
-        self.assertEqual(11, len(self.metrics['revisions']))
+        self.assertEqual(16, len(self.metrics['revisions']))
         self.metrics['requests'] = list(author.plugin.REQUESTS)
         with self.assertRaises(ValueError): self.validate()
 
-    def test_eleven_startup_rows_require_the_exact_bundled_plugin_ids(self):
+    def test_sixteen_startup_rows_require_the_exact_bundled_plugin_ids(self):
         self.metrics['revisions']['foreign'] = self.metrics['revisions'].pop('meowchan.source.endchan')
         with self.assertRaises(ValueError): self.validate()
 
