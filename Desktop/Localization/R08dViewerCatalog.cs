@@ -21,6 +21,8 @@ internal static class R08dViewerCatalog
         ("viewer.favorites.view", "View", "Ansehen"),
         ("viewer.context.show", "Show post context", "Beitragskontext anzeigen"),
         ("viewer.context.hide", "Hide post context", "Beitragskontext ausblenden"),
+        ("viewer.tools.show", "Show tools", "Werkzeuge anzeigen"),
+        ("viewer.tools.hide", "Hide tools", "Werkzeuge ausblenden"),
         ("viewer.fullscreen", "Full screen", "Vollbild"),
         ("viewer.help", "Shortcuts", "Tastenkürzel"),
         ("viewer.help.hint", "F1 shortcuts · F favorite · P post", "F1 Tastenkürzel · F Favorit · P Beitrag"),

@@ -134,7 +134,8 @@ public sealed class ShortcutBindingsTests
     [Theory]
     [InlineData("video.mute")]
     [InlineData("video.loop")]
-    public void VideoAudioAndRepeatCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
+    [InlineData("gallery.tools-toggle")]
+    public void OptionalGalleryCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
     {
         Assert.Equal(CommandAvailability.Contextual, CommandCatalog.Get(id).Availability);
         Assert.Empty(EffectiveShortcutBindings.Build().For(id));

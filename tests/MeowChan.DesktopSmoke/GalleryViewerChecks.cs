@@ -55,6 +55,11 @@ internal static class GalleryViewerChecks
             viewer.SetScope("Images of matching threads · 52 threads");
             viewer.SetWarnings("Manifest warning retained");
             await viewer.ShowAsync(selected, CancellationToken.None);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FOCUS_ONLY") == "1")
+            {
+                await GalleryFocusChecks.RunAsync(window, viewer, selected);
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_THEME_ONLY") == "1")
             {
                 // Same verified asset, distinct post associations: exercise the real

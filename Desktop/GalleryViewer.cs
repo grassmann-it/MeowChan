@@ -39,6 +39,10 @@ internal sealed class GalleryViewer : UserControl
         TextWrapping = TextWrapping.Wrap, Focusable = true, IsVisible = false };
     private readonly Button _readPosts;
     private readonly TextBlock _position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _compactPosition = new() { Name = "GalleryCompactPosition", VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    private readonly List<Control> _secondaryTools = new();
+    private readonly ToggleButton _toolsToggle;
+    private bool _mediaFocus;
     private readonly TextBlock _quality = new() { TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _context = new() { Spacing = 12 };
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
@@ -143,6 +147,7 @@ internal sealed class GalleryViewer : UserControl
         _ratingValue = value; _ratingError = error; _ratingAvailable = available;
         _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value) + (error == null ? string.Empty : " · " + error);
         _ratingButton.IsEnabled = available && _entry != null;
+        UpdateMediaFocusVisibility();
     }
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
@@ -180,9 +185,12 @@ internal sealed class GalleryViewer : UserControl
 
     internal void SetFavoriteError(string? error)
     {
+        if (string.IsNullOrWhiteSpace(error) && _favoriteError.IsKeyboardFocusWithin)
+            _toolsToggle.Focus(NavigationMethod.Tab);
         _favoriteError.Text = error;
         _favoriteError.IsVisible = !string.IsNullOrWhiteSpace(error);
         AutomationProperties.SetName(_favoriteError, error ?? string.Empty);
+        UpdateMediaFocusVisibility();
     }
 
     internal void SetAssociations(IReadOnlyList<GalleryEntry> entries) { _associations = entries; UpdateContext(); }
@@ -213,6 +221,7 @@ internal sealed class GalleryViewer : UserControl
         StackPanel view = ToolGroup("GalleryViewTools");
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         _previous = Command(navigation, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
+        navigation.Children.Add(_compactPosition);
         _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
         _fit = Command(zoom, "GalleryFit", Texts.T("gallery.fit"), Fit);
         _actual = Command(zoom, "GalleryActual", "1:1", ActualPixels);
@@ -229,10 +238,14 @@ internal sealed class GalleryViewer : UserControl
         _helpButton = Command(view, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
         _readPosts.IsVisible = false;
-        // Reserve tools below the picture: every action remains visible without covering media.
+        _secondaryTools.AddRange(new Control[] { zoom, media, view });
+        StackPanel focusTools = ToolGroup("GalleryFocusTools");
+        _toolsToggle = (ToggleButton)Command(focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
+        UpdateMediaFocusPresentation();
+        // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
         _chrome.Child = toolbar;
-        foreach (TextBlock text in new[] { _quality, _position, _scope, _ratingStatus })
+        foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");
         StackPanel infoContent = new() { Spacing = 2 };
         Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
@@ -358,7 +371,7 @@ internal sealed class GalleryViewer : UserControl
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
         UpdateHelpButtonTooltip();
-        UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp();
+        UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp(); UpdateMediaFocusPresentation();
     }
 
     private void OnShortcutBindingsChanged() => OnLanguageChanged(this, EventArgs.Empty);
@@ -379,6 +392,7 @@ internal sealed class GalleryViewer : UserControl
         "GalleryReadPosts" => "thread.read", "GalleryFullscreen" => "window.fullscreen",
         "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle",
         "GalleryExportOriginal" => "media.export-original",
+        "GalleryToolsToggle" => "gallery.tools-toggle",
         "GalleryReturnImage" => "gallery.context-close", "GalleryReadPost" => "gallery.show-in-thread",
         _ => null
     };
@@ -413,7 +427,7 @@ internal sealed class GalleryViewer : UserControl
     private Button Command(Panel panel, string name, string label, Action action)
     {
         string? id = CommandId(name);
-        Button button = name is "GalleryToggleContext" or "GalleryFavorite"
+        Button button = name is "GalleryToggleContext" or "GalleryFavorite" or "GalleryToolsToggle"
             ? new ToggleButton { Name = name }
             : new Button { Name = name };
         if (id == null) { button.Content = label; AutomationProperties.SetName(button, label); }
@@ -426,13 +440,45 @@ internal sealed class GalleryViewer : UserControl
         panel.Children.Add(button); return button;
     }
     internal void SetPosition(string label, bool previous, bool next)
-    { _position.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next; }
+    { _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next; }
     internal void SetScope(string message) => _scope.Text = message;
-    internal void SetWarnings(string message) => _warnings.Text = message;
+    internal void SetWarnings(string message) { _warnings.Text = message; UpdateMediaFocusVisibility(); }
     internal void SetEmpty(string message, bool canReadPosts)
     { SetNotice(message); _readPosts.IsVisible = canReadPosts; _exportOriginal.IsEnabled = false; SetPosition(string.Empty, false, false); }
     internal void SetNotice(string message) => _status.Text = message;
     private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = enabled;
+
+    private void SetMediaFocus(bool enabled)
+    {
+        if (_mediaFocus == enabled) return;
+        // A disappearing control must never retain keyboard focus. Navigation and
+        // the reveal toggle remain in the same visual tree, including native video.
+        if (enabled && (_secondaryTools.Any(control => control.IsKeyboardFocusWithin) || _infoOverlay.IsKeyboardFocusWithin))
+            _toolsToggle.Focus(NavigationMethod.Tab);
+        _mediaFocus = enabled;
+        UpdateMediaFocusPresentation();
+    }
+
+    private void UpdateMediaFocusPresentation()
+    {
+        CommandBindings.ApplyLabeled(_toolsToggle, "gallery.tools-toggle",
+            Texts.T(_mediaFocus ? "viewer.tools.show" : "viewer.tools.hide"), 14);
+        _toolsToggle.IsChecked = _mediaFocus;
+        UpdateMediaFocusVisibility();
+    }
+
+    private void UpdateMediaFocusVisibility()
+    {
+        foreach (Control control in _secondaryTools) control.IsVisible = !_mediaFocus;
+        _compactPosition.IsVisible = _mediaFocus;
+        _quality.IsVisible = _position.IsVisible = _scope.IsVisible = !_mediaFocus;
+        _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
+        _ratingStatus.IsVisible = !_mediaFocus || !string.IsNullOrWhiteSpace(_ratingError);
+        // Warnings and failed favorite/rating writes are not optional metadata.
+        _infoOverlay.IsVisible = !_mediaFocus || !string.IsNullOrWhiteSpace(_warnings.Text)
+            || _favoriteError.IsVisible || !string.IsNullOrWhiteSpace(_ratingError);
+        _chrome.Margin = new Thickness(8, 8, 8, _infoOverlay.IsVisible ? 0 : 8);
+    }
 
     private void SetContextOpen(bool open, bool notify = true)
     {
@@ -486,7 +532,7 @@ internal sealed class GalleryViewer : UserControl
         if (!_helpOpen) return;
         _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Classes = { "section-title" } });
         string[] ids = _helpExpanded
-            ? new[] { "gallery.previous", "gallery.next", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
+            ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
@@ -725,7 +771,7 @@ internal sealed class GalleryViewer : UserControl
     {
         _context.Children.Clear();
         _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
-        _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
+        _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
         if (_entry == null) return;
         GalleryEntry entry = _entry;
         Command(_context, "GalleryReturnImage", Texts.T("gallery.viewer7"), () => SetContextOpen(false));
@@ -787,6 +833,7 @@ internal sealed class GalleryViewer : UserControl
         if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control =>
             control is TextBox or ComboBox or Slider or TabControl or DataGrid or SelectableTextBlock)) return;
         if (CommandBindings.Matches(e, "favorites.toggle")) { ToggleFavorite(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
@@ -904,5 +951,6 @@ internal sealed class GalleryViewer : UserControl
         if (_video != null) await _video.DisposeAsync();
         UseNativeVideoOverlay(false);
         SetVideoFallbackLayout(false);
+        SetMediaFocus(false);
     }
 }

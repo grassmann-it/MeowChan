@@ -135,6 +135,7 @@ public static class CommandCatalog
         new("gallery.actual-size", "command.gallery.actual-size", "1:1", "1:1", "crosshair", "1", CommandScope.Gallery, new[] { "gallery-toolbar", "image-double-click" }),
         new("gallery.zoom-in", "command.gallery.zoom-in", "Zoom in", "Vergrößern", "zoom-in", "Plus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
         new("gallery.zoom-out", "command.gallery.zoom-out", "Zoom out", "Verkleinern", "zoom-out", "Minus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
+        new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Beitragskontext anzeigen", "file-text", "P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Return to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
         new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", null, CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-context-menu:planned" }),
