@@ -32,6 +32,10 @@ internal static class SettingsCategoryChecks
         try
         {
             await Wait(() => window.IsVisible);
+            // Showing an owned dialog does not guarantee activation on the smoke
+            // compositor. Drive focus only after this disposable fixture owns it.
+            window.Activate();
+            await Wait(() => window.IsActive);
             var timer = Find<NumericUpDown>(editor, "RecheckTimerInput");
             var checkbox = Find<CheckBox>(editor, "MinimizeToTrayInput");
             var shortcuts = Find<ShortcutEditor>(editor, "ShortcutsEditor");
@@ -60,6 +64,8 @@ internal static class SettingsCategoryChecks
                     "Category navigation mutated config or saved.");
             }
             await Select(editor, "interface");
+            window.Activate();
+            await Wait(() => window.IsActive);
             Click(Find<Button>(editor, "SaveSettingsButton"));
             await Wait(() => PagesVisible(editor, "downloads") && input.IsFocused);
             Require(timer.Text == "invalid category draft" && commits == 0, "Invalid save lost raw draft or committed.");
@@ -72,6 +78,8 @@ internal static class SettingsCategoryChecks
             shortcuts.Load(shortcuts.Draft.Set("navigation.archive", new[] { ShortcutGesture.Parse("Escape") }));
             Require(EffectiveShortcutBindings.Build(shortcuts.Draft).Issues.Any(i => i.BlocksSave), "Shortcut error fixture is not blocking.");
             await Select(editor, "interface");
+            window.Activate();
+            await Wait(() => window.IsActive);
             Click(Find<Button>(editor, "SaveSettingsButton"));
             await Wait(() => PagesVisible(editor, "shortcuts") && shortcuts.IsKeyboardFocusWithin);
             Require(commits == 0, "Invalid hidden shortcut draft was saved.");
