@@ -486,15 +486,15 @@ public partial class MainWindow
             // X11 can acknowledge the undecorated exit frame after Width/Height
             // already contain the intended normal client size. Reassigning those
             // unchanged properties then sends no native resize and leaves this
-            // pending maximize waiting forever. Reissue only this guarded Linux
-            // correction; the native resize/frame acknowledgement still gates
-            // ContinueFullscreenMaximizeRestore before it may maximize.
+            // pending maximize waiting forever. The inherited ClientSize setter
+            // requests the resize through Window, including its decoration inset;
+            // the native frame acknowledgement still gates the pending maximize.
             if (OperatingSystem.IsLinux() && _fullscreenMaximizeRestoreClient == expected
                 && !_fullscreenMaximizeRestoreCancelled && !_restoringFullscreen && !_isClosing
                 && WindowState == WindowState.Normal
                 && (Math.Abs(ClientSize.Width - expected.Width) > 1
                     || Math.Abs(ClientSize.Height - expected.Height) > 1))
-                PlatformImpl?.Resize(expected, WindowResizeReason.Application);
+                ClientSize = expected;
         }, DispatcherPriority.Background);
     }
 
