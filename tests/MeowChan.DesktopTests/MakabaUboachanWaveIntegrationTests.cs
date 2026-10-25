@@ -65,7 +65,7 @@ public sealed class MakabaUboachanWaveIntegrationTests
             Assert.True(Settled(restored, source, expectedFailure: false));
             await AssertArchiveAsync(restored, fixture, source);
             Assert.Empty(offline.Requests);
-            Assert.Empty(restored.Plugins.Runtime.GetSnapshots());
+            Assert.Empty(restored.Plugins!.Runtime.GetSnapshots());
             Assert.Empty(restored.Config.SourceMediaIntegrityPermissions);
         }
         finally { await StopAsync(restored); }
@@ -154,11 +154,12 @@ public sealed class MakabaUboachanWaveIntegrationTests
         await host.StartAsync().WaitAsync(Deadline);
         Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
         Assert.NotNull(host.Plugins);
-        Assert.Empty(host.Plugins.Warnings);
-        var persisted = await host.Plugins.ProfileStore.ReadAsync();
+        var plugins = host.Plugins!;
+        Assert.Empty(plugins.Warnings);
+        var persisted = await plugins.ProfileStore.ReadAsync();
         foreach (string source in NewSources)
         {
-            var adapter = Assert.Single(host.Plugins.Sources, row => row.Name == source);
+            var adapter = Assert.Single(plugins.Sources, row => row.Name == source);
             Assert.Equal(SourceMaturity.Experimental, adapter.Description.Maturity);
             var plugin = Assert.Single(persisted.Plugins, row => row.PluginId == "meowchan.source." + source);
             Assert.NotNull(plugin.Active);
@@ -167,7 +168,7 @@ public sealed class MakabaUboachanWaveIntegrationTests
         }
         Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
         Assert.Empty(fixture.Requests);
-        Assert.Empty(host.Plugins.Runtime.GetSnapshots());
+        Assert.Empty(plugins.Runtime.GetSnapshots());
     }
 
     private static async Task ActivateStrictAsync(DesktopSessionHost host, MakabaUboachanWaveFixtures fixture, string source)
@@ -179,9 +180,10 @@ public sealed class MakabaUboachanWaveIntegrationTests
         Assert.False(target.IsGranted);
         var result = await host.ActivateAndAllowExperimentalSourceAsync(target).WaitAsync(Deadline);
         Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, result.Status);
-        Assert.True(result.ActualState!.IsEnabled);
-        Assert.True(result.ActualState.IsActive);
-        Assert.False(result.ActualState.IsGranted);
+        var actual = Assert.IsType<ExperimentalSourceActivationActualState>(result.ActualState);
+        Assert.True(actual.IsEnabled);
+        Assert.True(actual.IsActive);
+        Assert.False(actual.IsGranted);
         SourceMediaIntegrityPolicyView policy = Assert.Single(host.GetSourceMediaIntegrityPolicies(), row => row.Snapshot.SourceId == source);
         await Assert.ThrowsAsync<InvalidOperationException>(() => host.SetSourceMediaIntegrityPermissionAsync(target.PluginOwnerId, source, true, policy.Snapshot.Revision));
         Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
