@@ -1,0 +1,52 @@
+[
+  {
+    "page": 0,
+    "threads": [
+      {
+        "no": 123,
+        "board": "demo",
+        "sub": "Synthetic first",
+        "com": "<p>Opening text</p>",
+        "time": 1700000000,
+        "replies": 2,
+        "images": 2,
+        "files": [
+          {
+            "id": "opaque-6",
+            "tim": "not-the-path-6",
+            "file_path": "/demo/src/original-6.png",
+            "thumb_path": "/demo/thumb/original-6.webp",
+            "filename": "same-name",
+            "ext": ".png",
+            "fsize": 3,
+            "md5": "Uonfc331cyb83SJZevsfrA==",
+            "mime": "image/png"
+          },
+          {
+            "id": "second_file",
+            "tim": "ignored",
+            "file_path": "/demo/src/second.webp",
+            "thumb_path": "/demo/thumb/second.webp",
+            "filename": "same-name",
+            "ext": ".webp",
+            "fsize": 3,
+            "md5": "tKO6kGQTcrTk6qhBpaQA7A==",
+            "mime": "image/webp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "page": 1,
+    "threads": [
+      {
+        "no": 456,
+        "board": "demo",
+        "com": "Second",
+        "replies": 0,
+        "images": 0
+      }
+    ]
+  }
+]

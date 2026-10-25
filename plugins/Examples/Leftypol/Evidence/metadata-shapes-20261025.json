@@ -1,0 +1,227 @@
+[
+  {
+    "url": "https://leftypol.org/tech/res/32796.json",
+    "startedUtc": "2026-10-25T15:21:06.805396+00:00",
+    "transport": "Python urllib; public bounded metadata GET; no cookies/retries; Accept-Encoding gzip, deflate",
+    "limit": 8388608,
+    "status": 200,
+    "finalUrl": "https://leftypol.org/tech/res/32796.json",
+    "contentEncoding": "gzip",
+    "bytes": 298869,
+    "sha256": "ecd447c105002f9d63bf6f59ee8de89ce0f9cb037d38238dcec7dc1319ea6392",
+    "rootType": "dict",
+    "postCount": 388,
+    "postKeys": [
+      "board",
+      "com",
+      "country",
+      "country_name",
+      "cyclical",
+      "email",
+      "embed",
+      "files",
+      "last_modified",
+      "locked",
+      "name",
+      "no",
+      "omitted_images",
+      "omitted_posts",
+      "resto",
+      "sticky",
+      "sub",
+      "time",
+      "unique_ips"
+    ],
+    "fileCount": 41,
+    "fileKeys": [
+      "ext",
+      "file_path",
+      "filename",
+      "fsize",
+      "h",
+      "id",
+      "md5",
+      "mime",
+      "spoiler",
+      "thumb_path",
+      "tim",
+      "w"
+    ],
+    "fileMappings": [
+      {
+        "id": "1772718125696",
+        "tim": "1772718125696",
+        "ext": ".jpg",
+        "file_path": "/tech/src/1772718125696.jpg",
+        "thumb_path": "/tech/thumb/1772718125696.webp",
+        "fsize": 243390,
+        "md5": "Ng4jEgf0qAWGncZq+1US6Q==",
+        "mime": "image/jpeg"
+      },
+      {
+        "id": "1772930600371",
+        "tim": "1772930600371",
+        "ext": ".jpg",
+        "file_path": "/tech/src/1772930600371.jpg",
+        "thumb_path": "/tech/thumb/1772930600371.webp",
+        "fsize": 107870,
+        "md5": "ys48ipJE1YswVfeHaKGJTA==",
+        "mime": "image/jpeg"
+      },
+      {
+        "id": "1772936418915",
+        "tim": "1772936418915",
+        "ext": ".png",
+        "file_path": "/tech/src/1772936418915.png",
+        "thumb_path": "/tech/thumb/1772936418915.webp",
+        "fsize": 50384,
+        "md5": "Leyf2/ChJoufzaNObQO+pQ==",
+        "mime": "image/png"
+      }
+    ],
+    "firstThreadIds": [
+      32796,
+      32797,
+      32837
+    ]
+  },
+  {
+    "url": "https://leftypol.org/siberia/catalog.json",
+    "startedUtc": "2026-10-25T15:21:07.322409+00:00",
+    "transport": "Python urllib; public bounded metadata GET; no cookies/retries; Accept-Encoding gzip, deflate",
+    "limit": 8388608,
+    "status": 200,
+    "finalUrl": "https://leftypol.org/siberia/catalog.json",
+    "contentEncoding": "gzip",
+    "bytes": 318029,
+    "sha256": "a4007b4d170fd415130639ef2b1035a5d16dc3d5cd98792387b8d43e54a2ebf1",
+    "rootType": "list",
+    "postCount": 360,
+    "postKeys": [
+      "board",
+      "com",
+      "country",
+      "country_name",
+      "cyclical",
+      "embed",
+      "files",
+      "images",
+      "last_modified",
+      "locked",
+      "name",
+      "no",
+      "omitted_images",
+      "omitted_posts",
+      "replies",
+      "resto",
+      "sticky",
+      "sub",
+      "time",
+      "trip",
+      "unique_ips",
+      "warning_msg"
+    ],
+    "fileCount": 403,
+    "fileKeys": [
+      "ext",
+      "file_path",
+      "filename",
+      "fsize",
+      "h",
+      "id",
+      "md5",
+      "mime",
+      "spoiler",
+      "thumb_path",
+      "tim",
+      "w"
+    ],
+    "fileMappings": [
+      {
+        "id": "1792430020699-1",
+        "tim": "1792430020699-1",
+        "ext": ".jpg",
+        "file_path": "/siberia/src/1792430020699-1.jpg",
+        "thumb_path": "/siberia/thumb/1792430020699-1.webp",
+        "fsize": 21949,
+        "md5": "vlcmuWsSRXYsGvRmIA2wqw==",
+        "mime": "image/jpeg"
+      },
+      {
+        "id": "1792770582985-0",
+        "tim": "1792770582985-0",
+        "ext": ".jpg",
+        "file_path": "/siberia/src/1792770582985-0.jpg",
+        "thumb_path": "/siberia/thumb/1792770582985-0.webp",
+        "fsize": 193229,
+        "md5": "4jcqvP4abRpXeAWXa3HvPQ==",
+        "mime": "application/octet-stream"
+      },
+      {
+        "id": "1791052867787-4",
+        "tim": "1791052867787-4",
+        "ext": ".jpg",
+        "file_path": "/siberia/src/1791052867787-4.jpg",
+        "thumb_path": "/siberia/thumb/1791052867787-4.webp",
+        "fsize": 596349,
+        "md5": "8GXzthJaSXYf96xjzPQxtg==",
+        "mime": "image/jpeg"
+      }
+    ],
+    "firstThreadIds": [
+      833220,
+      834158,
+      829309
+    ]
+  },
+  {
+    "url": "https://leftypol.org/siberia/res/833220.json",
+    "startedUtc": "2026-10-25T15:25:09.152042+00:00",
+    "transport": "Python urllib; public bounded GET; no cookies/retries/redirects; Accept-Encoding gzip, deflate",
+    "limit": 8388608,
+    "status": 200,
+    "finalUrl": "https://leftypol.org/siberia/res/833220.json",
+    "contentEncoding": "gzip",
+    "bytes": 5675,
+    "sha256": "6919412ac00df73753fa747820e708970f00d6f66ad69b62798c9882357fc319",
+    "postCount": 11,
+    "fileCount": 2,
+    "fileExtensions": [
+      ".jpg"
+    ],
+    "fileMappings": [
+      {
+        "id": "1792430020699-1",
+        "tim": "1792430020699-1",
+        "ext": ".jpg",
+        "file_path": "/siberia/src/1792430020699-1.jpg",
+        "thumb_path": "/siberia/thumb/1792430020699-1.webp",
+        "fsize": 21949,
+        "md5": "vlcmuWsSRXYsGvRmIA2wqw==",
+        "mime": "image/jpeg"
+      },
+      {
+        "id": "1792922762401-8",
+        "tim": "1792922762401-8",
+        "ext": ".jpg",
+        "file_path": "/siberia/src/1792922762401-8.jpg",
+        "thumb_path": "/siberia/thumb/1792922762401-8.webp",
+        "fsize": 185161,
+        "md5": "oT2mhGX1Wzwrac/RjMf6Ew==",
+        "mime": "image/jpeg"
+      }
+    ],
+    "filenamesAlreadyIncludeExtension": 0
+  },
+  {
+    "url": "https://leftypol.org/tech/res/32796.html",
+    "startedUtc": "2026-10-25T15:25:09.470763+00:00",
+    "transport": "Python urllib; public bounded GET; no cookies/retries/redirects; Accept-Encoding gzip, deflate",
+    "limit": 8388608,
+    "status": 200,
+    "finalUrl": "https://leftypol.org/tech/res/32796.html",
+    "contentEncoding": "gzip",
+    "bytes": 553019,
+    "sha256": "fb1ff2773f115962bb5941946d9e92bed685c5e06b8742cf5a08521f7369db03"
+  }
+]
