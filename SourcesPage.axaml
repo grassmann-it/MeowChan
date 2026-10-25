@@ -80,8 +80,8 @@
                     <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />
                     <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" IsVisible="False" Focusable="False" />
-                        <TextBlock x:Name="SourcesOperationStatus" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                        <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
+                        <TextBlock x:Name="SourcesOperationStatus" VerticalAlignment="Center" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                     </StackPanel>
                     <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" x:Name="SourcesActionErrorBanner" IsVisible="False">
                         <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>

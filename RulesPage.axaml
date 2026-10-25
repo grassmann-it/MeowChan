@@ -58,7 +58,7 @@
                     <StackPanel IsEnabled="{Binding RuleEnabled}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleTypesModeInput" ItemsSource="{Binding TypesModeChoices}" SelectedIndex="{Binding TypesMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <TextBlock Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
@@ -74,7 +74,7 @@
                         </StackPanel>
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleSizeModeInput" ItemsSource="{Binding SizeModeChoices}" SelectedIndex="{Binding SizeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <TextBlock Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
@@ -100,7 +100,7 @@
                     <StackPanel Spacing="0" IsVisible="{Binding HasPreview}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding TypesLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TypesLabel}" VerticalAlignment="Top" FontWeight="Medium" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveTypes" Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="RuleTypesOrigin" Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
@@ -111,7 +111,7 @@
                         </Border>
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="32">
-                                <TextBlock Text="{Binding SizeLabel}" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SizeLabel}" VerticalAlignment="Top" FontWeight="Medium" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveSize" Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="RuleSizeOrigin" Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" />
@@ -132,8 +132,8 @@
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
-                            <TextBlock Text="{Binding StatusMessage}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="Polite" />
+                            <ursa:LoadingIcon Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
+                            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
                         <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}">
                             <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />

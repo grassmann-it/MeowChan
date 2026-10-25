@@ -3,14 +3,14 @@
   <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="12">
     <StackPanel Classes="workspace-page-header">
       <WrapPanel Classes="workspace-toolbar">
-        <TextBlock x:Name="PluginsTitle" Classes="page-title" Margin="0,0,8,0" />
+        <TextBlock x:Name="PluginsTitle" Classes="page-title" Margin="0,0,8,0" VerticalAlignment="Center" />
         <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
         <Button x:Name="PluginsFolder" Click="OnFolderClick" />
       </WrapPanel>
       <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
       <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" IsVisible="False" Focusable="False" />
-                        <TextBlock x:Name="PluginTestStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></StackPanel>
+                        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
+                        <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></StackPanel>
       <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" />
       <Expander x:Name="PluginInventoryProblems" IsVisible="False" HorizontalAlignment="Stretch">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,14,0" /></ursa:Badge></Expander.Header>
@@ -44,7 +44,7 @@
           <Border x:Name="PluginPurposeCard" Classes="workspace-section">
             <StackPanel Classes="workspace-section-header">
               <WrapPanel ItemSpacing="10" LineSpacing="4">
-                <TextBlock x:Name="PluginHeading" Classes="page-title" TextWrapping="Wrap" />
+                <TextBlock x:Name="PluginHeading" VerticalAlignment="Center" Classes="page-title" TextWrapping="Wrap" />
                 <TextBlock x:Name="PluginAuthor" Classes="muted" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="False" />
               </WrapPanel>
               <TextBlock x:Name="PluginDescriptionOrigin" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
