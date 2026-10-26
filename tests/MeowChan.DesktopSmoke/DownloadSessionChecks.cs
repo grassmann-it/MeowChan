@@ -90,7 +90,12 @@ internal static class DownloadSessionChecks
             ThreadRow retained = initial.UrlList[0];
             bool wrongThread = false;
             retained.PropertyChanged += (_, _) => wrongThread |= !Dispatcher.UIThread.CheckAccess();
+            // Real row selection is admitted only after the shell has applied a complete frame.
+            await Program.WaitUntilAsync(() => !initial.SessionRowsApplying
+                && grid.CollectionView.Cast<ThreadRow>().Contains(retained));
             grid.SelectedItem = retained;
+            await Program.WaitUntilAsync(() => ReferenceEquals(grid.SelectedItem, retained)
+                && grid.SelectedItems.Contains(retained));
             Require(retained.Title == DownloadSessionTransport.Title && retained.CompletedMedia == 0,
                 "The UI did not receive the real provider title and in-flight queue state.");
             Require(!File.Exists(savedFile), "The gated media was marked saved before the transport returned its body.");
@@ -113,12 +118,17 @@ internal static class DownloadSessionChecks
             TraceLayout(initial, "before Barebones mode with selected active row");
             await PresentationChecks.SwitchModeAsync(initial, "Barebones");
             TraceLayout(initial, "after Barebones mode with selected active row");
-            await Program.WaitUntilAsync(() => initial.Bounds.Width < simpleWidth && grid.GetVisualDescendants().OfType<DataGridRow>()
+            await Program.WaitUntilAsync(() => !initial.SessionRowsApplying
+                && initial.Bounds.Width < simpleWidth && grid.GetVisualDescendants().OfType<DataGridRow>()
                 .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, retained)));
             Require(input.Text == draft && initial.UrlList.Count == 1 && ReferenceEquals(initial.UrlList[0], retained)
                 && ReferenceEquals(grid.SelectedItem, retained) && retained.Active == 1 && retained.CompletedMedia == 0
                 && app.Transport.MediaRequests == 1 && !File.Exists(savedFile),
-                "Barebones changed the pending input, selected watch or real in-flight media download.");
+                "Barebones changed the pending input, selected watch or real in-flight media download: "
+                + JsonSerializer.Serialize(new { draftRetained = input.Text == draft, rows = initial.UrlList.Count,
+                    rowRetained = initial.UrlList.Count == 1 && ReferenceEquals(initial.UrlList[0], retained),
+                    selectionRetained = ReferenceEquals(grid.SelectedItem, retained), retained.Active,
+                    retained.CompletedMedia, app.Transport.MediaRequests, savedFileExists = File.Exists(savedFile) }));
             Program.CaptureWindow(initial, "smoke-download-barebones.png");
             TraceLayout(initial, "before Advanced mode");
             await PresentationChecks.SwitchModeAsync(initial, "Advanced");
@@ -202,7 +212,12 @@ internal static class DownloadSessionChecks
                 && (restored.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Advanced",
                 "The second native window did not restore presentation preferences.");
             Program.CaptureWindow(restored, "smoke-download-restored.png");
-            restored.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = recovered;
+            DataGrid restoredGrid = restored.FindControl<DataGrid>("ThreadsDataGrid")!;
+            await Program.WaitUntilAsync(() => !restored.SessionRowsApplying
+                && restoredGrid.CollectionView.Cast<ThreadRow>().Contains(recovered));
+            restoredGrid.SelectedItem = recovered;
+            await Program.WaitUntilAsync(() => ReferenceEquals(restoredGrid.SelectedItem, recovered)
+                && restoredGrid.SelectedItems.Contains(recovered));
             Click(restored.FindControl<Button>("DetailsToggleButton")!);
             Button check = restored.FindControl<Button>("InspectorCheckButton")!;
             Console.WriteLine("SMOKE restored inspector diagnostic: selection=" + restored.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItems.Count + "; inspector=" + restored.FindControl<Border>("WorkspaceInspector")!.IsVisible + "; checkvisible=" + check.IsEffectivelyVisible + "; checkenabled=" + check.IsEnabled + "; paused=" + restored.SessionHost.IsPaused);

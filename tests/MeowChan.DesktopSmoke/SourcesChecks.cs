@@ -29,7 +29,13 @@ internal static class SourcesChecks
         if (previous is SourcesPage livePage)
         {
             Texts.SetLanguage("en");
-            window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MenuItem sourcesNavigation = window.FindControl<MenuItem>("SourcesMenuItem")!;
+            await Program.WaitUntilAsync(() => sourcesNavigation.IsEnabled && !window.SessionRowsApplying);
+            sourcesNavigation.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            // Navigation may defer the page refresh until the current row frame is complete.
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Sources
+                && !window.SessionRowsApplying
+                && !string.IsNullOrEmpty(livePage.FindControl<TextBlock>("SourceIdentity")!.Text));
             string? selectedIdentity = livePage.FindControl<TextBlock>("SourceIdentity")!.Text;
             ProviderDescriptor selectedSource = window.SessionHost.GetProviderDescriptors().SingleOrDefault(provider =>
                 selectedIdentity == Texts.T("sources.identity", provider.SourceId, provider.BaseUri.AbsoluteUri))
