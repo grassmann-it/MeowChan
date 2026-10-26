@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.1 — 2026-10-26
+
+- Keep UI queries independent of slow download commits through background state
+  projection, with bounded interactive work and coalesced preference updates.
+- Reduce repeated view work through coalesced progress, incremental download rows
+  and deferred refreshes for covered archive and reader views.
+- Replace repeated filter staging scans with conservative temporary-storage
+  accounting, preserving recovery and cancellation handling.
+- Reduce gallery context and thumbnail work while retaining full original-media
+  verification, including before cached video posters are used.
+- Coordinate video switching and shutdown with actual native cleanup completion;
+  stale operations cannot control newer playback.
+
+See the [release notes and downloads](docs/releases/v1.0.1.md). Early user feedback
+reports better responsiveness; the original Windows/external-USB hang has not
+been formally demonstrated fixed. No universal speedup is promised.
+
 ## 1.0.0
 
 MeowChan keeps its compact Barebones view and existing download, archive and

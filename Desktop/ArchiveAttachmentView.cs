@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
 
@@ -52,9 +53,33 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly TextBlock _provenance = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
     private readonly Button _button;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right };
+    /// <summary>
+    /// Inherited switch set by an owner whose content is covered (for example by the gallery overlay): attachments in
+    /// its subtree start no new thumbnail loads while it is true. Waiting work is canceled cooperatively;
+    /// an executing native decoder retains ownership until it really returns. Resuming loads visible empty slots once.
+    /// </summary>
+    public static readonly AttachedProperty<bool> LoadingSuspendedProperty =
+        AvaloniaProperty.RegisterAttached<ArchiveAttachmentView, Control, bool>("LoadingSuspended", false, inherits: true);
+    public static bool GetLoadingSuspended(Control control) => control.GetValue(LoadingSuspendedProperty);
+    public static void SetLoadingSuspended(Control control, bool value) => control.SetValue(LoadingSuspendedProperty, value);
+    internal static long LoadsSkippedWhileSuspended;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == LoadingSuspendedProperty)
+        {
+            if (change.NewValue is true) CancelPendingLoad();
+            else if (_visible) _ = LoadAsync();
+        }
+        if (change.Property == IsVisibleProperty && change.NewValue is false) SetViewportVisible(false);
+    }
+
     private CancellationTokenSource? _loading;
+    private bool _reloadAfterDrain;
     private Bitmap? _bitmap;
     private bool _visible;
+    private bool _wasEffectivelyVisible;
     private int _request;
     internal TimeSpan LoadTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -73,6 +98,14 @@ public sealed class ArchiveAttachmentView : UserControl
         EffectiveViewportChanged += (_, e) => SetViewportVisible(new Rect(Bounds.Size).Intersects(e.EffectiveViewport) && IsEffectivelyVisible);
         AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(RefreshViewport, DispatcherPriority.Loaded);
         SizeChanged += (_, _) => RefreshViewport();
+        // Ancestor visibility can change without resizing this reserved slot.
+        LayoutUpdated += (_, _) =>
+        {
+            bool visible = VisualRoot != null && IsEffectivelyVisible;
+            if (_wasEffectivelyVisible == visible) return;
+            _wasEffectivelyVisible = visible;
+            RefreshViewport();
+        };
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
     }
 
@@ -109,7 +142,8 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private void RefreshViewport()
     {
-        if (VisualRoot == null || !IsEffectivelyVisible || Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        if (VisualRoot == null || !IsEffectivelyVisible || Bounds.Width <= 0 || Bounds.Height <= 0)
+        { SetViewportVisible(false); return; }
         ScrollViewer? scroll = this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
         Point? position = scroll == null ? null : this.TranslatePoint(default, scroll);
         if (scroll != null && position != null)
@@ -126,11 +160,27 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private async Task LoadAsync()
     {
-        if (_loading != null || _bitmap != null || DataContext is not ArchiveAttachmentRow { LoadThumbnail: not null } row) return;
+        if (!_visible || !IsEffectivelyVisible || _bitmap != null || DataContext is not ArchiveAttachmentRow { LoadThumbnail: not null } row) return;
+        if (GetLoadingSuspended(this))
+        {
+            Interlocked.Increment(ref LoadsSkippedWhileSuspended);
+            PerformanceDiagnostics.Record("gallery.thumbnail", "suppressed");
+            return;
+        }
+        if (_loading != null)
+        {
+            // The old data context/viewport can have canceled a native operation that has not
+            // returned yet. Remember one demand; do not relinquish its ownership early.
+            if (_loading.IsCancellationRequested) _reloadAfterDrain = true;
+            return;
+        }
+        _reloadAfterDrain = false;
         int request = _request;
         using CancellationTokenSource loading = new();
         _loading = loading;
         Task<Bitmap?>? pending = null;
+        long loadId = PerformanceDiagnostics.NextId();
+        using var measurement = PerformanceDiagnostics.Measure("gallery.thumbnail.load", loadId);
         try
         {
             pending = row.LoadThumbnail(loading.Token);
@@ -145,18 +195,28 @@ public sealed class ArchiveAttachmentView : UserControl
             _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
                 == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");
         }
-        catch (OperationCanceledException) when (loading.IsCancellationRequested) { if (pending != null) _ = DisposeLateAsync(pending); }
+        catch (OperationCanceledException) when (loading.IsCancellationRequested)
+        {
+            PerformanceDiagnostics.Record("gallery.thumbnail", "canceled", loadId);
+            if (pending != null) await DisposeLateAsync(pending);
+        }
         catch (Exception exception)
         {
             loading.Cancel();
-            if (pending != null) _ = DisposeLateAsync(pending);
-            if (request != _request || !_visible) return;
-            UpdateLabel();
-            // A cancelled shared media scan is not a pending thumbnail anymore.
-            _status.Text = exception is OperationCanceledException or TimeoutException ? Texts.T("archive.previewLoadFailed") : exception.Message;
-            _status.IsVisible = true;
+            if (request == _request && _visible)
+            {
+                UpdateLabel();
+                // Report the timeout now; draining a noncancelable codec can take longer.
+                _status.Text = exception is OperationCanceledException or TimeoutException ? Texts.T("archive.previewLoadFailed") : exception.Message;
+                _status.IsVisible = true;
+            }
+            if (pending != null) await DisposeLateAsync(pending);
         }
-        finally { if (ReferenceEquals(_loading, loading)) _loading = null; }
+        finally
+        {
+            if (ReferenceEquals(_loading, loading)) _loading = null;
+            if (_reloadAfterDrain && _visible && !GetLoadingSuspended(this)) _ = LoadAsync();
+        }
     }
 
     private static async Task DisposeLateAsync(Task<Bitmap?> pending)
@@ -165,10 +225,18 @@ public sealed class ArchiveAttachmentView : UserControl
         catch (Exception) { } // The visible request already reports the original failure/cancellation.
     }
 
+    private void CancelPendingLoad()
+    {
+        if (_loading == null || _loading.IsCancellationRequested) return;
+        ++_request;
+        _reloadAfterDrain = true;
+        _loading.Cancel();
+    }
+
     private void Reset()
     {
         ++_request;
-        _loading?.Cancel(); _loading = null;
+        CancelPendingLoad();
         _image.Source = null; _image.IsVisible = false;
         _bitmap?.Dispose(); _bitmap = null;
         _status.IsVisible = true;

@@ -25,6 +25,7 @@ internal static class ArchivePageChecks
         await ArchiveSearchStateChecks.RunAsync();
         await CheckArchiveColumnsAsync(page);
         await CheckEmptySearchAsync(window, page);
+        await ReaderPassiveFocusChecks.RunAsync(window, page, id);
         ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
         threads.SelectedIndex = 0;
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
@@ -54,12 +55,21 @@ internal static class ArchivePageChecks
         Require(!string.IsNullOrWhiteSpace(GalleryControl<TextBlock>(inlineViewer, "GalleryScope").Text),
             "Thread gallery did not label its scope.");
         Require(inlineViewer.CaptureState().PostId != null, "Inline gallery lost the selected image's captured post association.");
+        // PF-05: while the gallery covers the archive page, the page pauses background work, and a closed
+        // context panel builds no controls until it is opened.
+        Require(page.IsObscuredByGallery, "The archive page was not told that the gallery covers it.");
+        Require(ArchiveAttachmentView.GetLoadingSuspended(page), "Thumbnail loading was not suspended while the gallery covers the page.");
+        Require(inlineViewer.ContextBuildCount == 0, "A closed gallery context was built eagerly.");
         Click(GalleryControl<Button>(inlineViewer, "GalleryToggleContext"));
         // The hidden context ScrollViewer applies its content template on the next layout pass.
         await Program.WaitUntilAsync(() => inlineViewer.GetVisualDescendants().OfType<Button>()
             .Any(button => button.Name == "GalleryReadPost"));
+        Require(inlineViewer.ContextBuildCount == 1, "Opening the gallery context did not build its content exactly once.");
+        await CheckGalleryLanguageFocusAsync(window, inlineViewer);
         Click(GalleryControl<Button>(inlineViewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => !gallery.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == id);
+        Require(!page.IsObscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(page),
+            "The archive page stayed paused after the gallery stopped covering it.");
         Require(page.FindControl<Button>("ArchiveGalleryReturn")!.IsVisible, "Reader excursion has no gallery return action.");
         Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
         Require(gallery.IsVisible && ReferenceEquals(gallery.Content, inlineViewer), "Reader return replaced the frozen gallery.");
@@ -85,6 +95,14 @@ internal static class ArchivePageChecks
 
         // A captured self-quote exercises the real quote/reader path without changing source data.
         CapturedPost quotePost = page.CurrentThread!.GetPosts().Single();
+        ArchiveAssetRow quoteAsset = media.ItemsSource.Cast<ArchiveAssetRow>().Single();
+        GalleryEntry quotedEntry = new(new GalleryAssetKey(id, quoteAsset.Manifest.Directory, quoteAsset.Asset.AssetId),
+            quoteAsset.Manifest, quoteAsset.Asset,
+            quotePost with { Html = "<a href='#p" + quotePost.PostId + "'>&gt;&gt;" + quotePost.PostId + "</a>" },
+            null, false, false) { ThreadUrl = page.CurrentThread!.Summary.Url };
+        // This independent workload changes language and therefore recreates post rows. Run it
+        // before establishing the history/inline-expansion state the quote excursion must retain.
+        await GalleryWorkloadChecks.RunAsync(window, quotedEntry);
         ArchivePostId quoteId = new(id, quotePost.PostId);
         await page.NavigateQuoteAsync(new ArchiveQuoteRow(new ArchiveQuote(quoteId, quoteId, ">>" + quotePost.PostId, null)));
         await page.MediaLoadTask;
@@ -98,17 +116,21 @@ internal static class ArchivePageChecks
         await Program.WaitUntilAsync(() => replyTarget.RepliesLoaded && !replyTarget.RepliesLoading);
         Require(replyTarget.Replies.Count == 0 && replyTarget.RepliesExpanded,
             "The inline reply expander did not show its empty local result.");
-        ArchiveAssetRow quoteAsset = media.ItemsSource.Cast<ArchiveAssetRow>().Single();
-        GalleryEntry quotedEntry = new(new GalleryAssetKey(id, quoteAsset.Manifest.Directory, quoteAsset.Asset.AssetId),
-            quoteAsset.Manifest, quoteAsset.Asset,
-            quotePost with { Html = "<a href='#p" + quotePost.PostId + "'>&gt;&gt;" + quotePost.PostId + "</a>" },
-            null, false, false) { ThreadUrl = page.CurrentThread!.Summary.Url };
+        Require(page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!.Cast<ArchivePostRow>().Single().RepliesExpanded,
+            "The quote excursion setup lost its expanded inline replies before opening the gallery.");
         await window.OpenMediaGalleryAsync(new[] { quotedEntry }, quotedEntry.EntryKey, focusOrigin);
         GalleryViewer quoteViewer = (GalleryViewer)gallery.Content!;
-        Click(GalleryControl<Button>(quoteViewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => quoteViewer.GetVisualDescendants().OfType<Button>()
-            .Any(button => button.Name == "GalleryQuote"));
-        Click(GalleryControl<Button>(quoteViewer, "GalleryQuote"));
+        // The previous gallery may have persisted an open context. A blind toggle would close
+        // it, while retained hidden quote controls still appear in GetVisualDescendants().
+        if (!quoteViewer.CaptureState().ContextOpen)
+            Click(GalleryControl<Button>(quoteViewer, "GalleryToggleContext"));
+        await Program.WaitUntilAsync(() => window.IsActive && quoteViewer.CaptureState().ContextOpen
+            && quoteViewer.GetVisualDescendants().OfType<Button>()
+                .Any(button => button.Name == "GalleryQuote" && button.IsEffectivelyVisible && button.IsEffectivelyEnabled));
+        Button quoteAction = GalleryControl<Button>(quoteViewer, "GalleryQuote");
+        Require(quoteAction.Focus() && quoteAction.IsKeyboardFocusWithin,
+            "The gallery quote action did not receive focus in the active shell.");
+        Click(quoteAction);
         await Program.WaitUntilAsync(() => !gallery.IsVisible && page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 0);
         Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
         Click(GalleryControl<Button>(quoteViewer, "GalleryClose"));
@@ -274,6 +296,37 @@ internal static class ArchivePageChecks
 
     private static void OpenArchive(MainWindow window) => window.FindControl<MenuItem>("ArchiveMenuItem")!
         .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static async Task CheckGalleryLanguageFocusAsync(MainWindow window, GalleryViewer viewer)
+    {
+        string originalLanguage = Texts.Language;
+        try
+        {
+            foreach (string language in new[] { originalLanguage == "de" ? "en" : "de", originalLanguage })
+            {
+                Button read = GalleryControl<Button>(viewer, "GalleryReadPost");
+                Require(read.Focus() && read.IsKeyboardFocusWithin,
+                    "Cannot establish context-action focus in the real shell gallery.");
+                long builds = viewer.ContextBuildCount;
+                Texts.SetLanguage(language);
+                await window.ArchivePage.ReaderLocalizationTask;
+                await FlushAsync();
+                Require(viewer.ContextBuildCount == builds + 1,
+                    $"Shell gallery localization expected one context rebuild, observed {viewer.ContextBuildCount - builds}.");
+                var focused = window.FocusManager?.GetFocusedElement();
+                Require(GalleryControl<Button>(viewer, "GalleryReadPost").IsKeyboardFocusWithin,
+                    "Shell gallery localization moved context focus to "
+                    + (focused is Control control ? control.GetType().Name + "#" + control.Name : focused?.GetType().Name ?? "none"));
+                Require(window.ArchivePage.IsObscuredByGallery,
+                    "Language refresh changed real gallery coverage of its reader origin.");
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage(originalLanguage);
+            await window.ArchivePage.ReaderLocalizationTask;
+        }
+    }
+
     private static async Task FlushAsync() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     private static bool Fits(Window window, Control control)
     {

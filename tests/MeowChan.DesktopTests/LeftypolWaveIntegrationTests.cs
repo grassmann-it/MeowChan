@@ -57,6 +57,9 @@ public sealed class LeftypolWaveIntegrationTests
             var installed = await host.Plugins!.ProfileStore.ReadAsync();
             Assert.False(Assert.Single(installed.Plugins, row => row.PluginId == Plugin).Enabled);
             installed = await host.Plugins.ProfileStore.SetEnabledAsync(Plugin, true, installed.Revision);
+            // A direct store mutation updates live authority, but bypasses the host command's capture boundary.
+            DesktopSessionProjection enabledFrame = await host.CaptureProjectionAsync().WaitAsync(Deadline);
+            Assert.False(enabledFrame.IsStale, enabledFrame.CaptureError);
             string revision = Assert.Single(installed.Plugins, row => row.PluginId == Plugin).Active!.ExecutionRevision;
             Assert.Equal(SourceMaturity.Experimental, Policy(host).Maturity);
             Assert.True(Policy(host).IsActive);

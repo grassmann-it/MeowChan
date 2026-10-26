@@ -108,8 +108,11 @@ internal static class VideoGalleryChecks
         await Program.WaitUntilAsync(() => viewer.CaptureState().PostId == "2001" && Control<Button>(viewer, "GalleryActual").IsEnabled);
         Click(Control<Button>(viewer, "GalleryPrevious"));
         await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPlayPause").IsEnabled);
-        Click(Control<Button>(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
+        // Earlier galleries persist an open context; toggling blindly can close it while its controls remain.
+        if (!viewer.CaptureState().ContextOpen) Click(Control<Button>(viewer, "GalleryToggleContext"));
+        await Program.WaitUntilAsync(() => viewer.CaptureState().ContextOpen
+            && viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"
+                && button.IsEffectivelyVisible && button.IsEffectivelyEnabled));
         Click(Control<Button>(viewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => !host.IsVisible && window.FindControl<ContentControl>("ReaderHost")!.IsVisible);
         await window.GalleryCleanupTask;

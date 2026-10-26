@@ -160,13 +160,13 @@
       "meowchan.plugin.eightkun": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.fourchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.pluginsdk": {

@@ -73,6 +73,10 @@ internal static class SettingsSectionChecks
 
     internal static async Task OpenAsync(SettingsEditor editor, string section)
     {
+        // A synthetic click can reveal the embedded editor and request navigation in
+        // one dispatcher turn. Let its responsive category presentation settle first,
+        // as it must before a user can activate the visible navigation control.
+        await Dispatcher.UIThread.InvokeAsync(editor.UpdateLayout, DispatcherPriority.Background);
         editor.OpenSectionNavigation();
         Require(editor.CanGoToSection(section), "Settings category unavailable: " + section);
         editor.GoToSection(section);
@@ -84,7 +88,19 @@ internal static class SettingsSectionChecks
             "settings.behavior" => "SettingsBehaviorHeading",
             _ => "SettingsDownloadsHeading"
         };
-        await Program.WaitUntilAsync(() => editor.FindControl<Control>(heading) is { IsEffectivelyVisible: true, IsFocused: true });
+        try
+        {
+            await Program.WaitUntilAsync(() => editor.FindControl<Control>(heading) is { IsEffectivelyVisible: true, IsFocused: true });
+        }
+        catch (TimeoutException error)
+        {
+            Control? target = editor.FindControl<Control>(heading);
+            throw new TimeoutException($"Settings section {section}: editorVisible={editor.IsEffectivelyVisible}, "
+                + $"editable={editor.IsEditable}, selected={editor.SelectedSectionId}, "
+                + $"targetVisible={target?.IsEffectivelyVisible}, targetFocused={target?.IsFocused}, "
+                + $"ownerActive={(TopLevel.GetTopLevel(editor) as Window)?.IsActive}, "
+                + $"focus={TopLevel.GetTopLevel(editor)?.FocusManager?.GetFocusedElement()}.", error);
+        }
     }
 
     private static void Require(bool ok, string message) { if (!ok) throw new InvalidOperationException(message); }

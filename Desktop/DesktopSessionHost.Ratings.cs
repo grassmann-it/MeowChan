@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,24 +17,26 @@ internal sealed partial class DesktopSessionHost
     private IReadOnlyDictionary<FavoriteAssetKey, int>? _ratingValues;
     private Exception? _ratingLoadError;
 
+    private Exception? _ratingReadError;
+
     internal IReadOnlyList<MediaRatingEntry> GetMediaRatings()
     {
-        lock (_lifecycle)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            lock (_ratingsSync) { LoadMediaRatingsIfNeeded(); return _ratingEntries!; }
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return Volatile.Read(ref _ratingEntries)
+            ?? throw new InvalidDataException("Ratings are unavailable: " + _ratingReadError?.Message, _ratingReadError);
     }
     internal int? GetMediaRating(FavoriteAssetKey key)
     {
         MediaRatingStore.ValidateKey(key);
-        lock (_lifecycle)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            lock (_ratingsSync) { LoadMediaRatingsIfNeeded(); return _ratingValues!.TryGetValue(key, out int value) ? value : null; }
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IReadOnlyDictionary<FavoriteAssetKey, int>? values = Volatile.Read(ref _ratingValues);
+        if (values == null) throw new InvalidDataException("Ratings are unavailable: " + _ratingReadError?.Message, _ratingReadError);
+        return values.TryGetValue(key, out int value) ? value : null;
     }
-    internal async Task<MediaRatingCommit> SetMediaRatingAsync(FavoriteAssetKey key, int? value, CancellationToken token = default)
+    internal Task<MediaRatingCommit> SetMediaRatingAsync(FavoriteAssetKey key, int? value, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(SetMediaRatingAsync), key.ToString(), () => SetMediaRatingAdmittedCoreAsync(key, value, token));
+
+    private async Task<MediaRatingCommit> SetMediaRatingAdmittedCoreAsync(FavoriteAssetKey key, int? value, CancellationToken token = default)
     {
         await _commands.WaitAsync(token).ConfigureAwait(false);
         try
@@ -76,7 +79,13 @@ internal sealed partial class DesktopSessionHost
             PublishMediaRatings(_ratingEntries!.Where(entry => !ids.Contains(entry.Key.Thread)).ToArray());
         }
     }
-    internal async Task RetryMediaRatingCleanupAsync(IReadOnlyCollection<ResourceId> frozenIds, CancellationToken token = default)
+    internal Task RetryMediaRatingCleanupAsync(IReadOnlyCollection<ResourceId> frozenIds, CancellationToken token = default)
+    {
+        ResourceId[] frozen = frozenIds.ToArray();
+        return RunInteractiveAsync(nameof(RetryMediaRatingCleanupAsync), "profile", () => RetryMediaRatingCleanupAdmittedCoreAsync(frozen, token));
+    }
+
+    private async Task RetryMediaRatingCleanupAdmittedCoreAsync(IReadOnlyCollection<ResourceId> frozenIds, CancellationToken token = default)
     {
         ResourceId[] ids = frozenIds.ToArray();
         await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -97,7 +106,8 @@ internal sealed partial class DesktopSessionHost
     }
     private void PublishMediaRatings(IEnumerable<MediaRatingEntry> entries)
     {
-        _ratingEntries = Array.AsReadOnly(entries.ToArray());
-        _ratingValues = _ratingEntries.ToDictionary(entry => entry.Key, entry => entry.Value);
+        var snapshot = Array.AsReadOnly(entries.ToArray());
+        Volatile.Write(ref _ratingEntries, snapshot);
+        Volatile.Write(ref _ratingValues, snapshot.ToDictionary(entry => entry.Key, entry => entry.Value));
     }
 }

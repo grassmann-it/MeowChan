@@ -395,14 +395,10 @@ internal static partial class PluginManagementChecks
                     "The unchanged draft's disabled Save has no keyboard reachable reason.");
                 DescriptionsItem activeRow = identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.active")));
                 DescriptionsItem pendingRow = identity.Items.OfType<DescriptionsItem>().Single(row => Equals(row.Label, Texts.T("plugins.detail.pending")));
-                // Complete multiline identities remain scrollable at 640×480. Capture
-                // each whole row separately, with the same strict viewport helper.
-                await RevealRangeAsync(window, activeRow, activeRow);
-                Program.CaptureWindow(window, "smoke-plugins-active-identity-barebones-" + language + ".png");
-                await RevealRangeAsync(window, pendingRow, pendingRow);
-                Program.CaptureWindow(window, "smoke-plugins-pending-identity-barebones-" + language + ".png");
+                await CaptureScrollableIdentityAsync(window, activeRow, "smoke-plugins-active-identity-barebones-" + language);
+                await CaptureScrollableIdentityAsync(window, pendingRow, "smoke-plugins-pending-identity-barebones-" + language);
                 Console.WriteLine("PLUGIN IDENTITIES CAPTURE: intentional Active/Pending split at Barebones 640x480 " + language
-                    + "; each complete identity row separately fits the viewport; persisted release/settings and production-worker assertions retained.");
+                    + "; complete identity rows covered by overlapping scroll captures; persisted release/settings and production-worker assertions retained.");
             }
             Console.WriteLine("PLUGIN SETTINGS CAPTURE: real UI save retained active " + active.ExecutionRevision
                 + " and staged pending " + pending.ExecutionRevision + "; pending label=retained draft.");
@@ -548,6 +544,42 @@ internal static partial class PluginManagementChecks
         window.UpdateLayout();
         return InScrollViewport(first) && InScrollViewport(last);
     });
+
+    private static async Task CaptureScrollableIdentityAsync(MainWindow window, DescriptionsItem row, string name)
+    {
+        window.UpdateLayout();
+        ScrollViewer scroll = row.GetVisualAncestors().OfType<ScrollViewer>().First();
+        SelectableTextBlock value = (SelectableTextBlock)row.Content!;
+        Require(value.IsEffectivelyVisible && value.TextWrapping == Avalonia.Media.TextWrapping.Wrap
+            && value.TextTrimming == Avalonia.Media.TextTrimming.None,
+            "A complete plugin identity must remain visible, wrapped and untrimmed.");
+        if (row.Bounds.Height <= scroll.Viewport.Height + 1)
+        {
+            await RevealRangeAsync(window, row, row);
+            Program.CaptureWindow(window, name + ".png");
+            return;
+        }
+        // A multiline identity can exceed the actual minimum viewport. Prove that
+        // scrolling exposes every part, with overlapping coverage and no gaps.
+        double covered = 0, height = row.Bounds.Height;
+        for (int part = 0; part < 32; part++)
+        {
+            Point top = row.TranslatePoint(default, scroll) ?? throw new InvalidOperationException("Identity detached during capture.");
+            double contentTop = scroll.Offset.Y + top.Y;
+            double wanted = Math.Max(0, covered - scroll.Viewport.Height / 4);
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(contentTop + wanted, 0,
+                Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            top = row.TranslatePoint(default, scroll) ?? throw new InvalidOperationException("Identity detached during scrolling.");
+            double from = Math.Max(0, -top.Y), to = Math.Min(height, scroll.Viewport.Height - top.Y);
+            Require(from <= covered + 1 && to > covered && row.Bounds.Height == height,
+                $"Plugin identity scroll coverage has a gap or cannot advance: covered={covered}, range={from}..{to}, height={height}, viewport={scroll.Viewport.Height}.");
+            Program.CaptureWindow(window, name + (part == 0 ? "" : "-part-" + (part + 1)) + ".png");
+            covered = to;
+            if (covered >= height - 1) return;
+        }
+        throw new InvalidOperationException("The complete plugin identity exceeded the bounded scroll capture.");
+    }
     private static bool InScrollViewport(Control control)
     {
         ScrollViewer scroll = control.GetVisualAncestors().OfType<ScrollViewer>().First();

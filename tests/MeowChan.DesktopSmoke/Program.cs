@@ -44,15 +44,16 @@ internal static class Program
     private static bool _videoContrastMode;
     private static bool _pluginsMode;
     private static bool _archiveCleanupMode;
+    private static bool _shellLoadMode;
 
     [STAThread]
     private static int Main(string[] args)
     {
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
-        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins" or "--archive-cleanup")))
+        if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins" or "--archive-cleanup" or "--shell-load")))
         {
-            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins|--archive-cleanup]");
+            Console.Error.WriteLine("Usage: MeowChan.DesktopSmoke [--locked-profile|--no-tray|--tray-failure|--download-session|--tray-lifecycle|--visual|--reader-ux|--selection|--tray-host|--about-links|--board-admission|--reading-position|--accessibility-probe|--window-geometry|--video-contrast|--plugins|--archive-cleanup|--shell-load]");
             return 2;
         }
 
@@ -75,6 +76,13 @@ internal static class Program
             throw new IOException("Showcase directory already exists; choose a clean isolated run: " + showcaseRoot);
         string profile = showcaseRoot != null ? Path.Combine(showcaseRoot, "profile")
             : Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-desktop-smoke-" + Guid.NewGuid().ToString("N"));
+        if (args.Contains("--shell-load", StringComparer.Ordinal)
+            && Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_LOAD_PRIVATE_PROFILE") is { Length: > 0 } loadProfile)
+        {
+            string owned = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "profile"));
+            if (Path.GetFullPath(loadProfile) != owned) throw new IOException("Shell-load profile must belong to its private runner working directory.");
+            profile = owned;
+        }
         if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 } readingProfile)
         {
             profile = Path.GetFullPath(readingProfile);
@@ -101,6 +109,7 @@ internal static class Program
         _noTrayMode = args.Contains("--no-tray", StringComparer.Ordinal);
         _trayFailureMode = args.Contains("--tray-failure", StringComparer.Ordinal);
         _downloadSessionMode = args.Contains("--download-session", StringComparer.Ordinal);
+        _shellLoadMode = args.Contains("--shell-load", StringComparer.Ordinal);
         _trayHostMode = args.Contains("--tray-host", StringComparer.Ordinal);
         _trayLifecycleMode = args.Contains("--tray-lifecycle", StringComparer.Ordinal);
         bool xvfbEnvironment = OperatingSystem.IsLinux()
@@ -116,7 +125,7 @@ internal static class Program
                 DownloadPath = Path.Combine(profile, "Downloads"),
                 MinimizeToTray = _galleryCloseOnly || _noTrayMode || _trayFailureMode || _trayHostMode,
                 CloseToTray = _noTrayMode || _trayFailureMode || _trayHostMode,
-                DownloadsPaused = _selectionMode,
+                DownloadsPaused = _selectionMode || (_shellLoadMode && ShellLoadFixture.Scenario == "paused"),
                 SaveUrlsOnExit = true
             };
             if (_savedSearchesOnly)
@@ -138,6 +147,7 @@ internal static class Program
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
                 MediaRatingFixture.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_shellLoadMode) ShellLoadFixture.PrepareAsync(profile).GetAwaiter().GetResult();
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
             if (_archiveCleanupMode) ArchiveCleanupChecks.SeedAsync(profile).GetAwaiter().GetResult();
@@ -152,6 +162,7 @@ internal static class Program
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
             AppBuilder appBuilder = (_downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>()
+                : _shellLoadMode ? AppBuilder.Configure<ShellLoadSmokeApp>()
                 : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
                 .UsePlatformDetect()
                 .WithInterFont();
@@ -178,7 +189,7 @@ internal static class Program
                 })
                 .AfterSetup(builder => Dispatcher.UIThread.Post(async () => await RunAsync(), DispatcherPriority.Background))
                 .StartWithClassicDesktopLifetime(Array.Empty<string>(),
-                    _downloadSessionMode ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
+                    (_downloadSessionMode || _shellLoadMode) ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
 
             // StartupErrorWindow acknowledges an initialization failure by shutting
             // down with 2. Only this scenario deliberately creates that failure;
@@ -216,6 +227,7 @@ internal static class Program
                 : _lockedProfileMode ? "locked profile: readable error, Exit closed the window"
                 : _noTrayMode ? "no tray: user close kept taskbar access, Exit closed the window"
                 : _trayFailureMode ? "tray creation failure: startup succeeded, user close kept taskbar access, Exit closed the window"
+                : _shellLoadMode ? "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"
                 : _downloadSessionMode ? "real session: URL admission, fixture media, assigned path, native close and restart restoration"
                 : _trayHostMode ? "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"
                 : _trayLifecycleMode ? "16 rapid native window/tray lifetimes, normal close and profile lease reuse"
@@ -235,6 +247,8 @@ internal static class Program
         {
             if (Application.Current is DownloadSessionSmokeApp fixtureApp)
                 fixtureApp.DisposeFixture();
+            if (Application.Current is ShellLoadSmokeApp shellLoadApp)
+                shellLoadApp.DisposeFixture();
             Log.CloseAndFlush();
             if (_archiveCleanupMode) ArchiveCleanupChecks.Cleanup(profile);
             if (!_savedSearchesOnly && (!_readingPositionMode || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE"))))
@@ -310,6 +324,7 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_MEDIA_COUNTS_ONLY") == "1")
             {
                 await ArchiveMediaCountsChecks.RunAsync(mainWindow);
+                await RunOptionalCheckAsync("ArchiveUpdateCoalescingChecks", mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_INTEGRITY_GUI_ONLY") == "1")
@@ -645,6 +660,7 @@ internal static class Program
                 bool videoFixture = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE"));
                 if (!_galleryCloseOnly)
                 {
+                    await RunOptionalCheckAsync("VideoLifecycleChecks");
                     await WindowMinimumChecks.RunAsync(mainWindow);
                     await ReaderUxChecks.RunAsync(mainWindow);
                     if (videoFixture) await VideoGalleryChecks.RunAsync(mainWindow);
@@ -678,7 +694,40 @@ internal static class Program
             }
             if (_downloadSessionMode)
             {
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_PREFERENCES_ONLY") == "1")
+                {
+                    await RunOptionalCheckAsync("ShellPreferenceCoalescingChecks", mainWindow);
+                    mainWindow.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    await WaitUntilAsync(() => !mainWindow.IsVisible);
+                    _checksPassed = true;
+                    desktop.Shutdown();
+                    return;
+                }
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_PROJECTION_ONLY") == "1")
+                {
+                    await RunOptionalCheckAsync("ShellProjectionReconciliationChecks", mainWindow);
+                    mainWindow.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    await WaitUntilAsync(() => !mainWindow.IsVisible);
+                    _checksPassed = true;
+                    desktop.Shutdown();
+                    return;
+                }
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_SHUTDOWN_ORDER_ONLY") == "1")
+                {
+                    desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                    await ShutdownOrderingChecks.RunAsync(mainWindow);
+                    _checksPassed = true;
+                    desktop.Shutdown();
+                    return;
+                }
                 await DownloadSessionChecks.RunAsync(mainWindow, desktop);
+                _checksPassed = true;
+                desktop.Shutdown();
+                return;
+            }
+            if (_shellLoadMode)
+            {
+                await ShellLoadChecks.RunAsync(mainWindow, desktop);
                 _checksPassed = true;
                 desktop.Shutdown();
                 return;
@@ -732,10 +781,9 @@ internal static class Program
 
             DesktopThreadEntry thread = SnapshotFixtures.Thread(123, "123", "Desktop smoke initial title");
             DesktopBoardEntry board = SnapshotFixtures.Board(124);
-            using ThreadRow threadRow = new ThreadRow(thread);
-            using BoardRow boardRow = new BoardRow(board);
-            mainWindow.UrlList.Add(threadRow);
-            mainWindow.BoardsList.Add(boardRow);
+            await using ISyntheticShellRows synthetic = await CreateSyntheticShellRowsAsync(mainWindow, [thread], [board]);
+            ThreadRow threadRow = synthetic.Threads[0];
+            BoardRow boardRow = synthetic.Boards[0];
             await WaitUntilAsync(() => VisibleText(window, thread.Snapshot.Title));
             Console.WriteLine("SMOKE thread title binding rendered.");
 
@@ -746,12 +794,13 @@ internal static class Program
                 for (int index = 0; index < 1000; index++)
                 {
                     DesktopThreadEntry update = thread with { Snapshot = thread.Snapshot with { Title = "Desktop smoke burst " + index } };
-                    Dispatcher.UIThread.Post(() => threadRow.UpdateSnapshot(update));
+                    Dispatcher.UIThread.Post(() => synthetic.Update(update));
                 }
                 DesktopThreadEntry final = thread with { Snapshot = thread.Snapshot with { Title = "Desktop smoke updated title" } };
-                Dispatcher.UIThread.Post(() => threadRow.UpdateSnapshot(final));
+                Dispatcher.UIThread.Post(() => synthetic.Update(final));
             });
             await WaitUntilAsync(() => VisibleText(window, "Desktop smoke updated title"));
+            await synthetic.WaitForAppliedAsync();
             if (wrongThread)
                 throw new InvalidOperationException("A passive row notified bindings outside the desktop dispatcher.");
             Console.WriteLine("SMOKE dispatcher-projected snapshot burst retained its final value.");
@@ -764,15 +813,15 @@ internal static class Program
                     RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.WaitingForAdmission, null, 0)
                 }
             };
-            threadRow.UpdateSnapshot(thread);
+            await synthetic.UpdateAsync(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading · Waiting for request slot"));
             thread = thread with { Snapshot = thread.Snapshot with { RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(30), 1) } };
-            threadRow.UpdateSnapshot(thread);
+            await synthetic.UpdateAsync(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading · Request cooldown (30 s)"));
             thread = thread with { Snapshot = thread.Snapshot with { RequestProgress = null } };
-            threadRow.UpdateSnapshot(thread);
+            await synthetic.UpdateAsync(thread);
             await WaitUntilAsync(() => VisibleText(window, "Downloading"));
-            threadRow.UpdateSnapshot(thread with
+            await synthetic.UpdateAsync(thread with
             {
                 Snapshot = thread.Snapshot with
                 {
@@ -790,7 +839,7 @@ internal static class Program
             {
                 Snapshot = thread.Snapshot with { SourceState = ThreadSourceState.Archived, Activity = ThreadActivity.Finished }
             };
-            threadRow.UpdateSnapshot(thread);
+            await synthetic.UpdateAsync(thread);
             await WaitUntilAsync(() => VisibleText(window, "Archived · Finished"));
             Console.WriteLine("SMOKE terminal source state remained visible after media status changed.");
             CaptureWindow(window, "smoke-mainwindow.png");
@@ -798,13 +847,13 @@ internal static class Program
             TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
             tabs.SelectedIndex = 1;
             await WaitUntilAsync(() => VisibleText(window, boardRow.NiceName));
-            boardRow.UpdateSnapshot(board with
+            await synthetic.UpdateAsync(board with
             {
                 Snapshot = board.Snapshot with { RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(12), 1) }
             });
             await WaitUntilAsync(() => VisibleText(window, "Request cooldown (12 s)"));
             await PresentationChecks.CheckBoardDetailsAsync(mainWindow, boardRow);
-            boardRow.UpdateSnapshot(board);
+            await synthetic.UpdateAsync(board);
             await WaitUntilAsync(() => VisibleText(window, "Monitoring"));
             Console.WriteLine("SMOKE board binding and request cooldown rendered.");
 
@@ -815,8 +864,7 @@ internal static class Program
             if (threadRow.Title != finalTitle)
                 throw new InvalidOperationException("A disposed row still accepted updates.");
 
-            mainWindow.UrlList.Remove(threadRow);
-            mainWindow.BoardsList.Remove(boardRow);
+            await synthetic.DisposeAsync();
             await GridChecks.RunAsync(mainWindow);
             await SettingsPageChecks.RunAsync(mainWindow);
             await DiagnosticsChecks.RunAsync(mainWindow);
@@ -839,7 +887,7 @@ internal static class Program
         {
             _failure = exception;
             Console.Error.WriteLine("SMOKE check failed: " + exception);
-            if ((_downloadSessionMode || _galleryCloseOnly)
+            if ((_downloadSessionMode || _shellLoadMode || _galleryCloseOnly)
                 && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime fixtureDesktop)
                 fixtureDesktop.Shutdown(1);
             else if (window is MainWindow mainWindow && mainWindow.FindControl<MenuItem>("ExitMenuItem") is MenuItem exit)
@@ -903,12 +951,41 @@ internal static class Program
         }));
     }
 
-    internal static async Task WaitUntilAsync(Func<bool> condition)
+    // Optional package smoke helpers are discovered at runtime so this exact Program.cs also compiles on
+    // the release-HEAD measurement variant, where their candidate-only product internals do not exist.
+    private static async Task RunOptionalCheckAsync(string name, params object[] parameters)
+    {
+        Type helper = typeof(Program).Assembly.GetType("MeowChan.DesktopSmoke." + name)
+            ?? throw new InvalidOperationException("The requested smoke helper is unavailable in this source variant: " + name);
+        var run = helper.GetMethod("RunAsync", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("The smoke helper has no RunAsync: " + name);
+        await (Task)run.Invoke(null, parameters)!;
+    }
+
+    // The shared harness compiles without the candidate-only fixture. Measurement modes do not enter
+    // this normal-scene path, just as they do not invoke the other optional candidate checks above.
+    private static async Task<ISyntheticShellRows> CreateSyntheticShellRowsAsync(MainWindow window,
+        DesktopThreadEntry[] threads, DesktopBoardEntry[] boards)
+    {
+        Type helper = typeof(Program).Assembly.GetType("MeowChan.DesktopSmoke.SyntheticShellRows")
+            ?? throw new InvalidOperationException("The synthetic normal-scene fixture is unavailable in this source variant.");
+        var create = helper.GetMethod("CreateAsync", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("The synthetic fixture has no CreateAsync.");
+        Task task = create.Invoke(null, new object[] { window, threads, boards }) as Task
+            ?? throw new InvalidOperationException("The synthetic fixture did not return a Task.");
+        await task;
+        return task.GetType().GetProperty("Result")?.GetValue(task) as ISyntheticShellRows
+            ?? throw new InvalidOperationException("The synthetic fixture did not implement the shared harness facade.");
+    }
+
+    internal static async Task WaitUntilAsync(Func<bool> condition,
+        [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int callerLine = 0)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(15);
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Desktop state did not become ready within fifteen seconds.");
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException($"Desktop condition timed out after fifteen seconds at {Path.GetFileName(callerFile)}:{callerLine}.");
             await Task.Delay(50);
         }
     }

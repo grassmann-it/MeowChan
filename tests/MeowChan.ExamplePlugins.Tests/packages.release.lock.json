@@ -96,61 +96,61 @@
       "meowchan.animationformatfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.dvach": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.endchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.kohlchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.lainchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.leftypol": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.sushichan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.uboachan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.wizchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.plugin.zzzchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       },
       "meowchan.pluginsdk": {
@@ -159,7 +159,7 @@
       "meowchan.pngmetadatafilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.0, )"
+          "MeowChan.PluginSdk": "[1.0.1, )"
         }
       }
     }

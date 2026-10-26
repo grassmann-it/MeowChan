@@ -3,6 +3,8 @@ using System.Diagnostics;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Filters;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.PluginHost.Runtime;
 
@@ -12,6 +14,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
     private readonly int _processId;
     private readonly OwnedProcessTree _processTree;
     private readonly Func<long>? _temporaryBytes;
+    private readonly FilterTemporaryBudget? _sharedBudget;
+    private readonly long _workspaceQuota;
     private readonly FrameCodec _codec;
     private readonly PluginWorkerOptions _options;
     private readonly IPluginHostServices _services;
@@ -44,9 +48,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
         (_failure as PluginWorkerException)?.Code ?? (_failure != null ? "worker-exit" : null), _failure?.Message, _log.Snapshot());
 
     private WorkerConnection(Process process, PluginWorkerIdentity identity, PluginWorkerOptions options,
-        IPluginHostServices services, IDisposable processLease, string workingDirectory, Func<long>? temporaryBytes)
+        IPluginHostServices services, IDisposable processLease, string workingDirectory, Func<long>? temporaryBytes, FilterTemporaryBudget? sharedBudget, long workspaceQuota)
     {
-        _workingDirectory = workingDirectory; _temporaryBytes = temporaryBytes;
+        _workingDirectory = workingDirectory; _temporaryBytes = temporaryBytes; _sharedBudget = sharedBudget; _workspaceQuota = workspaceQuota;
         _processTree = new OwnedProcessTree(process);
         _process = process; _processId = process.Id; Identity = identity; _options = options; _services = services; _processLease = processLease;
         _codec = new(process.StandardOutput.BaseStream, process.StandardInput.BaseStream);
@@ -58,15 +62,20 @@ internal sealed class WorkerConnection : IAsyncDisposable
 
     public static async Task<WorkerConnection> StartAsync(PluginWorkerLaunch launch, PluginArtifact artifact,
         PluginConfiguration configuration, IPluginHostServices services, PluginWorkerOptions options,
-        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null)
+        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null, FilterTemporaryBudget? sharedBudget = null, long workspaceQuota = 0)
     {
         Process? process = null;
         WorkerConnection? connection = null;
         string workingDirectory = Path.Combine(Path.GetFullPath(launch.WorkingDirectory), "worker-" + Guid.NewGuid().ToString("N"));
+        bool quotaAccepted = false;
+        workspaceQuota = workspaceQuota > 0 ? workspaceQuota : options.MaximumTemporaryBytes;
         try
         {
             Dictionary<string, string> resources = await ArtifactVerifier.VerifyAsync(artifact, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
+            if (sharedBudget != null && !sharedBudget.AcceptWorker(workingDirectory, workspaceQuota))
+                throw new PluginWorkerException("temporary-limit", "The worker workspace quota does not fit the shared budget.");
+            quotaAccepted = sharedBudget != null;
             Directory.CreateDirectory(workingDirectory);
             ProcessStartInfo start = new(Path.GetFullPath(launch.ExecutablePath))
             {
@@ -77,9 +86,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
             foreach (string argument in launch.Arguments) start.ArgumentList.Add(argument);
             start.Environment["DOTNET_GCHeapHardLimit"] = options.HeapLimitBytes.ToString("X");
             start.Environment["DOTNET_EnableDiagnostics"] = "0";
+            start.Environment["MEOWCHAN_WORKSPACE_BYTE_QUOTA"] = workspaceQuota.ToString(System.Globalization.CultureInfo.InvariantCulture);
             process = Process.Start(start) ?? throw new PluginWorkerException("start", "Worker process could not be started.");
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { }
-            connection = new WorkerConnection(process, new(Guid.NewGuid().ToString("N"), artifact.ExecutionRevision, configuration.Revision), options, services, processLease, workingDirectory, temporaryBytes);
+            connection = new WorkerConnection(process, new(Guid.NewGuid().ToString("N"), artifact.ExecutionRevision, configuration.Revision), options, services, processLease, workingDirectory, temporaryBytes, sharedBudget, workspaceQuota);
             HelloResponse hello = await connection.InvokeAsync<HelloRequest, HelloResponse>("hello", new(ProtocolVersion.Operations), null, options.HandshakeTimeout, token).ConfigureAwait(false);
             connection._processTree.ConfirmGroup();
             if (hello.Operations == null || hello.Operations.Length > 32 || ProtocolVersion.Operations.Any(operation => !hello.Operations.Contains(operation)))
@@ -96,14 +106,23 @@ internal sealed class WorkerConnection : IAsyncDisposable
             if (connection != null) await connection.DisposeAsync().ConfigureAwait(false);
             else
             {
+                bool stopped = process == null;
                 if (process != null)
                 {
                     Kill(process);
-                    try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
-                    catch (TimeoutException) { }
+                    using CancellationTokenSource exitDeadline = new(TimeSpan.FromSeconds(5));
+                    try
+                    {
+                        await process.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false);
+                        await WorkerWorkspaceQuota.WaitForGroupExitAsync(process.Id, exitDeadline.Token).ConfigureAwait(false);
+                        stopped = true;
+                    }
+                    catch (OperationCanceledException) when (exitDeadline.IsCancellationRequested) { }
                     process.Dispose();
                 }
                 processLease.Dispose(); await TryDeleteWorkspaceAsync(workingDirectory).ConfigureAwait(false);
+                if (quotaAccepted) sharedBudget!.CompleteWorker(workingDirectory,
+                    ScanWorkspaceBytes(workingDirectory, options.MaximumTemporaryBytes), stopped && WorkspaceIsAbsent(workingDirectory));
             }
             throw;
         }
@@ -277,36 +296,49 @@ internal sealed class WorkerConnection : IAsyncDisposable
         catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException) { }
     }
     public long GetTemporaryBytes() => Interlocked.Read(ref _observedTemporaryBytes);
-    private long ScanTemporaryBytes()
+    private long ScanTemporaryBytes() => ScanWorkspaceBytes(_workingDirectory, _options.MaximumTemporaryBytes, _lifetime.Token);
+    internal static long ScanWorkspaceBytes(string path, long maximum, CancellationToken token = default)
     {
+        try
+        {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return maximum + 1;
+        }
+        catch (DirectoryNotFoundException) { return 0; }
+        catch (FileNotFoundException) { return 0; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return maximum + 1; }
         try
         {
             long total = 0; int entries = 0;
             Stack<DirectoryInfo> directories = new();
-            directories.Push(new DirectoryInfo(_workingDirectory));
-            EnumerationOptions enumeration = new() { RecurseSubdirectories = false, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
+            directories.Push(new DirectoryInfo(path));
+            EnumerationOptions enumeration = new() { RecurseSubdirectories = false, AttributesToSkip = 0, IgnoreInaccessible = false };
             while (directories.TryPop(out DirectoryInfo? directory))
             {
-                _lifetime.Token.ThrowIfCancellationRequested();
-                IEnumerable<FileSystemInfo> children;
-                try { children = directory.EnumerateFileSystemInfos("*", enumeration); }
-                catch (DirectoryNotFoundException) { continue; }
-                foreach (FileSystemInfo child in children)
+                token.ThrowIfCancellationRequested();
+                try
                 {
-                    if (++entries > 10000) return _options.MaximumTemporaryBytes + 1;
-                    try
+                    foreach (FileSystemInfo child in directory.EnumerateFileSystemInfos("*", enumeration))
                     {
-                        if ((child.Attributes & FileAttributes.ReparsePoint) != 0) continue;
-                        if (child is DirectoryInfo folder) directories.Push(folder);
-                        else if (child is FileInfo file) total = checked(total + file.Length);
+                        if (++entries > 10000) return maximum + 1;
+                        try
+                        {
+                            if ((child.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                            if (child is DirectoryInfo folder) directories.Push(folder);
+                            else if (child is FileInfo file)
+                            {
+                                total = checked(total + file.Length);
+                                if (total > maximum) return maximum + 1;
+                            }
+                        }
+                        catch (FileNotFoundException) { }
+                        catch (DirectoryNotFoundException) { }
                     }
-                    catch (IOException) { } // Files can legitimately disappear between enumeration and stat.
                 }
+                catch (DirectoryNotFoundException) { } // Keep bytes already observed in other directories.
             }
             return total;
         }
-        catch (DirectoryNotFoundException) { return 0; }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return _options.MaximumTemporaryBytes + 1; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OverflowException) { return maximum + 1; }
     }
     private async Task MonitorTemporaryAsync()
     {
@@ -317,8 +349,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
             {
                 long ownBytes = ScanTemporaryBytes();
                 Interlocked.Exchange(ref _observedTemporaryBytes, ownBytes);
-                long totalBytes = _temporaryBytes?.Invoke() ?? ownBytes;
-                if (ownBytes > _options.MaximumTemporaryBytes || totalBytes > _options.MaximumTemporaryBytes)
+                bool fits = _sharedBudget?.ObserveWorker(_workingDirectory, ownBytes) ?? true;
+                long totalBytes = Math.Max(_sharedBudget?.Total ?? ownBytes, _temporaryBytes?.Invoke() ?? ownBytes);
+                PerformanceDiagnostics.Record("filter.worker.temporary", fits ? "observed" : "limit", asset: Identity.InstanceId, value: ownBytes);
+                if (!fits || ownBytes > _workspaceQuota || ownBytes > _options.MaximumTemporaryBytes || totalBytes > _options.MaximumTemporaryBytes)
                 {
                     Fail(new PluginWorkerException("temporary-limit", "The shared plugin temporary workspace budget was exceeded."));
                     _processTree.Kill(); return;
@@ -331,6 +365,13 @@ internal sealed class WorkerConnection : IAsyncDisposable
             Fail(new PluginWorkerException("temporary-budget", "The worker temporary workspace budget could not be monitored.", exception));
             _processTree.Kill();
         }
+    }
+    private static bool WorkspaceIsAbsent(string path)
+    {
+        try { _ = File.GetAttributes(path); return false; }
+        catch (FileNotFoundException) { return true; }
+        catch (DirectoryNotFoundException) { return true; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
     }
     private static async Task TryDeleteWorkspaceAsync(string path)
     {
@@ -366,6 +407,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         Volatile.Write(ref _disposed, 1);
+        bool stopped = false;
         try
         {
             Fail(new PluginWorkerException("stopped", "Plugin worker was stopped."));
@@ -373,7 +415,13 @@ internal sealed class WorkerConnection : IAsyncDisposable
             await _failureCancellation.ConfigureAwait(false);
             _processTree.Kill();
             using CancellationTokenSource exitDeadline = new(TimeSpan.FromSeconds(5));
-            try { await _processTree.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false); } catch (OperationCanceledException) when (exitDeadline.IsCancellationRequested) { }
+            try
+            {
+                await _processTree.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false);
+                await WorkerWorkspaceQuota.WaitForGroupExitAsync(_processId, exitDeadline.Token).ConfigureAwait(false);
+                stopped = true;
+            }
+            catch (OperationCanceledException) when (exitDeadline.IsCancellationRequested) { }
             using CancellationTokenSource drainDeadline = new(TimeSpan.FromSeconds(5));
             // The reader registers a service only after its async handler yields.
             // Stop/drain that producer before snapshotting the service tasks;
@@ -387,7 +435,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             // In particular, a failed native job query must still release handles and
             // admission before propagating its diagnostic to the owner.
             _processTree.Dispose(); _process.Dispose(); _codec.Dispose(); _lifetime.Dispose(); _processLease.Dispose(); await TryDeleteWorkspaceAsync(_workingDirectory).ConfigureAwait(false);
-            if (!Directory.Exists(_workingDirectory)) Interlocked.Exchange(ref _observedTemporaryBytes, 0);
+            long remaining = ScanWorkspaceBytes(_workingDirectory, _options.MaximumTemporaryBytes);
+            Interlocked.Exchange(ref _observedTemporaryBytes, remaining);
+            _sharedBudget?.CompleteWorker(_workingDirectory, remaining, stopped && WorkspaceIsAbsent(_workingDirectory));
         }
     }
     private sealed record Pending(WireEnvelope Envelope, PluginOperationContext? Context, CancellationToken Token, object? Request)

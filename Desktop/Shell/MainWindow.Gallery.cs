@@ -24,6 +24,7 @@ public partial class MainWindow
     private CancellationTokenSource? _galleryCancellation;
     private IReadOnlyList<ResourceId> _galleryThreads = Array.Empty<ResourceId>();
     private readonly List<GalleryEntry> _galleryEntries = new();
+    private long _galleryAssociationsRevision;
     private int _galleryThreadIndex;
     private int _galleryIndex;
     private int _galleryRequest;
@@ -37,6 +38,9 @@ public partial class MainWindow
     private bool _galleryResultsScope;
     private readonly List<string> _galleryWarnings = new();
     private bool _gallerySuspended;
+    // True while the gallery overlay actually covers the shell content (open, visible, not suspended for the reader).
+    private bool _galleryCoversWorkspace;
+    private bool _sessionDirtyWhileCovered;
     private bool _galleryVisitedReader;
     private bool _galleryReaderOrigin;
     private bool _galleryLargeReaderOrigin;
@@ -117,6 +121,7 @@ public partial class MainWindow
         _galleryThreadIndex = 0;
         _galleryIndex = 0;
         _galleryEntries.Clear();
+        ++_galleryAssociationsRevision;
         _galleryStartMissing = false;
         if (frozenEntries != null)
         {
@@ -235,6 +240,7 @@ public partial class MainWindow
                     _galleryStart = null;
                 }
                 _galleryEntries.AddRange(result.Entries);
+                ++_galleryAssociationsRevision;
                 _galleryWarnings.AddRange(result.Warnings);
                 _gallery.SetWarnings(string.Join(Environment.NewLine, _galleryWarnings.Distinct()));
             }
@@ -300,9 +306,8 @@ public partial class MainWindow
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
         UpdateGalleryPosition();
-        viewer.SetAssociations(_galleryEntries);
         GalleryEntry entry = _galleryEntries[_galleryIndex];
-        await viewer.ShowAsync(entry, _galleryCancellation.Token);
+        await viewer.ShowAsync(entry, _galleryEntries, _galleryAssociationsRevision, _galleryCancellation.Token);
         if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
             RefreshGalleryFavorite();
     }
@@ -431,6 +436,24 @@ public partial class MainWindow
         Grid.SetRow(host, immersive ? 0 : 1);
         Grid.SetRowSpan(host, immersive ? 4 : 3);
         RefreshReadingResumePresentation();
+        SetGalleryCoversWorkspace(_gallery != null && !_gallerySuspended && host.IsVisible);
+    }
+
+    /// <summary>
+    /// Tracks real coverage rather than Avalonia visibility: the covered pages stay in the tree so drafts, selection,
+    /// scroll position and focus survive. Expensive background presentation work is skipped while covered and one
+    /// refresh of the newest projection is applied when the content becomes usable again.
+    /// </summary>
+    private void SetGalleryCoversWorkspace(bool covers)
+    {
+        if (_galleryCoversWorkspace == covers) return;
+        _galleryCoversWorkspace = covers;
+        _archivePage?.SetObscuredByGallery(covers);
+        if (!covers && _sessionDirtyWhileCovered && !_isClosing)
+        {
+            _sessionDirtyWhileCovered = false;
+            _sessionRefresh.RequestImmediate();
+        }
     }
 
     private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)

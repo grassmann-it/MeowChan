@@ -31,7 +31,7 @@ public partial class DownloadQueue
         .Concat(_pendingDownloads.Select(job => job.Item))
         .Concat(_interruptedDownloads.Select(job => job.Item))
         .Concat(_scheduled.Values.Select(scheduled => scheduled.Item))
-        .Concat(_admissionWaiters.Select(waiter => waiter.Item)).Concat(_cleanupTransits);
+        .Concat(_admissionWaiters.Select(waiter => waiter.Item)).Concat(_cleanupTransits).Concat(_transitionItems.Keys);
 
     internal IReadOnlyList<ResourceId> ReadArchiveCleanupActiveThreadIds()
     {

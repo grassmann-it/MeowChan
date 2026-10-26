@@ -27,6 +27,9 @@ public sealed record PluginWorkerOptions
     public long SourceHeapLimitBytes { get; init; } = 256L * 1024 * 1024;
     public long FilterHeapLimitBytes { get; init; } = 512L * 1024 * 1024;
     public long MaximumTemporaryBytes { get; init; } = 512L * 1024 * 1024;
+    // Accepted before process creation and held until confirmed process/workspace cleanup.
+    // Null partitions the shared limit across configured workers, capped at 64 MiB each.
+    public long? WorkspaceByteQuota { get; init; }
     public Func<long>? ExternalTemporaryBytes { get; init; }
 }
 

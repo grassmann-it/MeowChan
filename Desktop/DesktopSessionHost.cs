@@ -51,12 +51,13 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     private readonly Dictionary<IBoard, WatchIdentity> _boards = new Dictionary<IBoard, WatchIdentity>(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<long, IThread> _threadHandles = new Dictionary<long, IThread>();
     private readonly Dictionary<long, IBoard> _boardHandles = new Dictionary<long, IBoard>();
-    private long _nextWatchId;
-    private DesktopSessionState _state = DesktopSessionState.Starting;
+    private static long s_nextWatchId;
+    private volatile DesktopSessionState _state = DesktopSessionState.Starting;
     private string? _startupError;
     private Task? _startTask;
     private Task? _stopTask;
-    private bool _disposed;
+    private Task? _disposeTask;
+    private volatile bool _disposed;
 
     public Config Config { get; }
     internal long ReceivedMediaBytes => _registry.ReceivedMediaBytes;
@@ -64,8 +65,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal CollectionExportHistoryStore CollectionExportHistory { get; }
     internal IReadOnlyList<ThreadWorkSnapshot> GetThreadWorkSnapshots() => _registry.GetWorkSnapshots();
     public string ProfileDirectory => _profileLease.ProfileDirectory;
-    public DesktopSessionState State { get { lock (_lifecycle) { return _state; } } }
-    public string? StartupError { get { lock (_lifecycle) { return _startupError; } } }
+    public DesktopSessionState State => _state;
+    public string? StartupError => Volatile.Read(ref _startupError);
     public event Action? StateChanged;
 
     public DesktopSessionHost() : this(global::MeowChan.Config.GetConfigDirectory()) { }
@@ -73,7 +74,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
-        Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null)
+        Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null,
+        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null)
     {
         _logger = logger ?? Log.Logger;
         _profileLease = ProfileLease.Acquire(profileDirectory);
@@ -81,6 +83,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         try
         {
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
@@ -94,7 +97,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
-            IWorkStateStore workStore = new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
+            IWorkStateStore workStore = workStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
+                ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
@@ -123,7 +127,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _startTask = completion.Task;
         }
-        _ = StartCoreAsync(completion);
+        _ = Task.Run(() => StartCoreAsync(completion));
         return completion.Task;
     }
 
@@ -139,6 +143,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
             Plugins?.AttachContent(_content);
             await _registry.RestoreAsync().ConfigureAwait(false);
+            InitializePassiveMetadata();
             lock (_lifecycle)
             {
                 if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
@@ -157,19 +162,27 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally
         {
             SignalChanged();
+            // Publish the final startup state before callers observe completion; the capture runs off the caller's thread.
+            try { await CaptureProjectionAsync().ConfigureAwait(false); }
+            catch (Exception exception) { _logger.Error(exception, "Startup projection capture failed."); }
             completion.TrySetResult();
         }
     }
 
-    public DesktopSessionView GetView()
+    /// <summary>The latest complete passive view. Forced refreshes also use the bounded capture coordinator.</summary>
+    public DesktopSessionView GetView() => Projection.View;
+
+    // Caller holds _viewCapture. The registry is read before _projection is taken, so handle-map lookups
+    // made from the UI (CanRequestCheck, command resolution) never wait for engine reads.
+    private DesktopSessionView GetViewCore()
     {
         DesktopThreadEntry[] threads;
         DesktopBoardEntry[] boards;
         IReadOnlyList<string> warnings;
+        // _viewCapture serializes captures with their handle maps so an older concurrent read cannot resurrect a stale ID.
+        RegistryView view = _registry.GetView();
         lock (_projection)
         {
-            // Serialize captures with their handle maps so an older concurrent read cannot resurrect a stale ID.
-            RegistryView view = _registry.GetView();
             foreach (IThread thread in _threads.Keys.Where(thread => !view.Threads.ContainsKey(thread)).ToArray())
             {
                 _threadHandles.Remove(_threads[thread].Id);
@@ -186,7 +199,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 if (!_threads.TryGetValue(item.Key, out WatchIdentity? identity))
                 {
-                    identity = new WatchIdentity(checked(++_nextWatchId), item.Key.Board.ImageBoard.NiceName);
+                    identity = new WatchIdentity(Interlocked.Increment(ref s_nextWatchId), item.Key.Board.ImageBoard.NiceName);
                     _threads.Add(item.Key, identity);
                     _threadHandles.Add(identity.Id, item.Key);
                 }
@@ -197,7 +210,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 if (!_boards.TryGetValue(item.Key, out WatchIdentity? identity))
                 {
-                    identity = new WatchIdentity(checked(++_nextWatchId), item.Key.ImageBoard.NiceName);
+                    identity = new WatchIdentity(Interlocked.Increment(ref s_nextWatchId), item.Key.ImageBoard.NiceName);
                     _boards.Add(item.Key, identity);
                     _boardHandles.Add(identity.Id, item.Key);
                 }
@@ -214,14 +227,17 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
     }
 
-    public async Task<DesktopAdmissionResult> AddAsync(string url)
+    public Task<DesktopAdmissionResult> AddAsync(string url)
+        => RunInteractiveAsync(nameof(AddAsync), url.Trim(), () => AddAdmittedCoreAsync(url));
+
+    private async Task<DesktopAdmissionResult> AddAdmittedCoreAsync(string url)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
             AdmissionResult result = await _registry.AddAsync(url).ConfigureAwait(false);
-            GetView();
+            await CaptureProjectionAsync().ConfigureAwait(false);
             long? watchId = null;
             lock (_projection)
             {
@@ -235,16 +251,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
 
     internal bool CanRequestCheck(DiagnosticTarget target)
     {
-        if (State != DesktopSessionState.Ready || IsPaused) return false;
-        lock (_projection)
-        {
-            return target.Kind == DiagnosticTargetKind.Thread
-                ? _threadHandles.TryGetValue(target.WatchId, out IThread? thread) && thread is ICheckRequestSource
-                : _boardHandles.TryGetValue(target.WatchId, out IBoard? board) && board is ICheckRequestSource;
-        }
+        DesktopSessionProjection frame = Projection;
+        return frame.View.State == DesktopSessionState.Ready && !frame.IsPaused
+            && !frame.IsStale && frame.CheckableTargets.Contains(target);
     }
 
-    internal async Task<CheckRequestStatus> RequestCheckAsync(DiagnosticTarget target)
+    internal Task<CheckRequestStatus> RequestCheckAsync(DiagnosticTarget target)
+        => RunInteractiveAsync(nameof(RequestCheckAsync), target.ToString(), () => RequestCheckAdmittedCoreAsync(target));
+
+    private async Task<CheckRequestStatus> RequestCheckAdmittedCoreAsync(DiagnosticTarget target)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -264,7 +279,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    internal async Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
+    internal Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
+        => RunInteractiveAsync(nameof(RetryMissingMediaAsync), watchId.ToString(), () => RetryMissingMediaAdmittedCoreAsync(watchId, mediaIdentifier));
+
+    private async Task<int> RetryMissingMediaAdmittedCoreAsync(long watchId, string? mediaIdentifier = null)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -277,14 +295,20 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    internal async Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
+    internal Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
+        => RunInteractiveAsync(nameof(RetryCompletedMediaAsync), threadUrl, () => RetryCompletedMediaAdmittedCoreAsync(threadUrl, mediaIdentifier));
+
+    private async Task<int> RetryCompletedMediaAdmittedCoreAsync(string threadUrl, string? mediaIdentifier = null)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try { EnsureReady(); return await _registry.RetryCompletedMediaAsync(threadUrl, mediaIdentifier).ConfigureAwait(false); }
         finally { _commands.Release(); }
     }
 
-    public async Task RemoveThreadAsync(long watchId)
+    public Task RemoveThreadAsync(long watchId)
+        => RunInteractiveAsync(nameof(RemoveThreadAsync), watchId.ToString(), () => RemoveThreadAdmittedCoreAsync(watchId));
+
+    private async Task RemoveThreadAdmittedCoreAsync(long watchId)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -305,7 +329,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    public async Task RemoveBoardAsync(long watchId)
+    public Task RemoveBoardAsync(long watchId)
+        => RunInteractiveAsync(nameof(RemoveBoardAsync), watchId.ToString(), () => RemoveBoardAdmittedCoreAsync(watchId));
+
+    private async Task RemoveBoardAdmittedCoreAsync(long watchId)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -326,12 +353,29 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    public async Task ApplySettingsAsync(Config settings)
+    public Task ApplySettingsAsync(Config settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        Config frozen = settings.Clone();
+        // Clone starts a new editing baseline. Admission freezes an existing draft instead:
+        // retain its original merge baseline, independently of later caller edits.
+        frozen.SettingsBaselineCompactDensity = settings.SettingsBaselineCompactDensity;
+        frozen.SettingsBaselineReadingFontSize = settings.SettingsBaselineReadingFontSize;
+        frozen.SettingsBaselineWorkspaceMode = settings.SettingsBaselineWorkspaceMode;
+        frozen.SettingsBaselineProfiles = settings.SettingsBaselineProfiles?.ToDictionary(
+            pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+        frozen.Validate();
+        Commands.ShortcutService.ValidateForCommit(frozen.ShortcutBindings);
+        return RunInteractiveAsync(nameof(ApplySettingsAsync), "settings", () => ApplySettingsAdmittedCoreAsync(frozen),
+            frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites);
+    }
+
+    private async Task ApplySettingsAdmittedCoreAsync(Config settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        await FlushPreferencesAsync().ConfigureAwait(false);
         settings.Validate();
         Commands.ShortcutService.ValidateForCommit(settings.ShortcutBindings);
-        if (!settings.RememberReadingPosition) InvalidateReadingPositionWrites();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -352,7 +396,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             };
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
-            Config.CopyFrom(candidate);
+            PublishConfig(candidate);
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
@@ -361,10 +405,16 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         SignalChanged();
     }
 
-    public bool IsPaused => _registry.IsPaused;
+    public bool IsPaused => Projection.IsPaused;
     public bool IsPauseTransitioning { get; private set; }
 
-    public async Task SetPausedAsync(bool paused)
+    /// <summary>
+    /// Runs on the thread pool from the first instruction: even when the command gate is free, the synchronous
+    /// configuration write must never execute on the dispatcher that accepted the click.
+    /// </summary>
+    public Task SetPausedAsync(bool paused) => RunControlAsync("pause", paused.ToString(), () => SetPausedCoreAsync(paused));
+
+    private async Task SetPausedCoreAsync(bool paused)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -378,24 +428,33 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             try
             {
                 await _registry.SetPausedAsync(paused).ConfigureAwait(false);
-                Config.CopyFrom(candidate);
+                PublishConfig(candidate);
             }
             finally { IsPauseTransitioning = false; SignalChanged(); }
         }
         finally { _commands.Release(); }
         SignalChanged();
+        // The caller resumes with the confirmed pause state already published.
+        await CaptureProjectionAsync().ConfigureAwait(false);
     }
 
-    internal IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => _registry.GetProviderDescriptors();
-    internal IReadOnlyList<DownloadTargetWaitState> GetTargetWaitStates() => _downloadQueue.TargetWaitStates;
-    internal Task CheckTargetsAsync(CancellationToken cancellationToken = default) => _downloadQueue.CheckTargetsAsync(cancellationToken);
+    internal IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => Projection.Providers;
+    internal IReadOnlyList<DownloadTargetWaitState> GetTargetWaitStates() => Projection.TargetWaitStates;
+    internal Task CheckTargetsAsync(CancellationToken cancellationToken = default)
+        => RunControlAsync("check-targets", "all", () => _downloadQueue.CheckTargetsAsync(cancellationToken));
 
     internal MediaRuleSet MediaRules => _content.Rules.Current;
     internal EffectiveMediaRule ResolveRules(MediaRuleScope scope) => _content.Rules.Resolve(scope);
     internal Task<ArchiveReader> OpenArchiveReaderAsync(CancellationToken cancellationToken = default) =>
-        _content.OpenReaderAsync(cancellationToken);
+        Task.Run(() => _content.OpenReaderAsync(cancellationToken), cancellationToken);
 
-    internal async Task<MediaRuleSet> SaveRulesAsync(IEnumerable<MediaRule> rules, string expectedRevision)
+    internal Task<MediaRuleSet> SaveRulesAsync(IEnumerable<MediaRule> rules, string expectedRevision)
+    {
+        MediaRuleSet frozen = new(expectedRevision, rules);
+        return RunInteractiveAsync(nameof(SaveRulesAsync), "rules", () => SaveRulesAdmittedCoreAsync(frozen.Rules, expectedRevision));
+    }
+
+    private async Task<MediaRuleSet> SaveRulesAdmittedCoreAsync(IEnumerable<MediaRule> rules, string expectedRevision)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -408,7 +467,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    internal async Task SetCaptureEnabledAsync(ResourceId id, bool enabled)
+    internal Task SetCaptureEnabledAsync(ResourceId id, bool enabled)
+        => RunInteractiveAsync(nameof(SetCaptureEnabledAsync), id.ToString(), () => SetCaptureEnabledAdmittedCoreAsync(id, enabled));
+
+    private async Task SetCaptureEnabledAdmittedCoreAsync(ResourceId id, bool enabled)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -434,56 +496,97 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
     }
 
+    private Task? _engineStopTask;
+    private Task _acceptedDrain = Task.CompletedTask;
+
+    /// <summary>
+    /// Phase one: synchronously close admission, then request engine cancellation on a worker, independently
+    /// of gallery/native cleanup and of the profile command gate. The returned task is the actual engine drain.
+    /// Final view preferences and conscious reading-position writes remain accepted until StopAsync seals them.
+    /// </summary>
+    internal Task BeginShutdown()
+    {
+        lock (_lifecycle)
+        {
+            if (_engineStopTask != null) return _engineStopTask;
+            _state = DesktopSessionState.Stopping;
+            _acceptedDrain = CloseInteractiveAdmission();
+            Task restoration = _startTask ?? Task.CompletedTask;
+            _engineStopTask = Task.Run(async () =>
+            {
+                using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.engine", epoch: _epoch);
+                // CancelAsync does not execute arbitrary cancellation callbacks on the dispatcher.
+                Task startupCanceled = _startupCancellation.CancelAsync();
+                // Queue admission/cancellation must not wait for restoration, profile writes or native cleanup.
+                Task queueStopped = _downloadQueue.StopAllAsync();
+                RetireSourceMediaIntegrityPolicies();
+                await startupCanceled.ConfigureAwait(false);
+                await restoration.ConfigureAwait(false);
+                Task registryStopped = _registry.StopAsync();
+                await Task.WhenAll(queueStopped, registryStopped).ConfigureAwait(false);
+                await Updates.DisposeAsync().ConfigureAwait(false);
+            });
+            PublishLifecycleState(notifyOnWorker: true);
+            return _engineStopTask;
+        }
+    }
+
     public Task StopAsync()
     {
-        TaskCompletionSource completion;
-        Task restoration;
         lock (_lifecycle)
         {
             if (_stopTask != null) return _stopTask;
-            _state = DesktopSessionState.Stopping;
-            completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            _stopTask = completion.Task;
-            restoration = _startTask ?? Task.CompletedTask;
+            Task engineStopped = BeginShutdown();
+            _stopTask = Task.Run(() => StopCoreAsync(engineStopped));
+            return _stopTask;
         }
-        // This also retires services registered by startup after stopping began.
-        RetireSourceMediaIntegrityPolicies();
-        SignalChanged();
-        _ = StopCoreAsync(restoration, completion);
-        return completion.Task;
     }
 
-    private async Task StopCoreAsync(Task restoration, TaskCompletionSource completion)
+    private async Task StopCoreAsync(Task engineStopped)
     {
+        using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.drain", epoch: _epoch);
+        // Seal only the final writers. Already accepted writes are drained even if the engine is still stopping.
+        Task finalWrites = SealFinalWritesAsync();
+        await Task.WhenAll(engineStopped, _acceptedDrain, finalWrites).ConfigureAwait(false);
+        await CloseProjectionAsync().ConfigureAwait(false);
+        await _lifecycleNotification.ConfigureAwait(false);
+        await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
-            _startupCancellation.Cancel();
-            await Updates.DisposeAsync().ConfigureAwait(false);
-            await restoration.ConfigureAwait(false);
-            await _commands.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                await _registry.StopAsync().ConfigureAwait(false);
-                await _registry.DisposeAsync().ConfigureAwait(false);
-                await _content.DisposeAsync().ConfigureAwait(false);
-                if (Plugins != null) await Plugins.DisposeAsync().ConfigureAwait(false);
-                _registry.StateChanged -= OnRegistryChanged;
-                lock (_lifecycle) { _state = DesktopSessionState.Stopped; }
-            }
-            finally { _commands.Release(); }
-            SignalChanged();
-            completion.TrySetResult();
+            await _registry.DisposeAsync().ConfigureAwait(false);
+            await _content.DisposeAsync().ConfigureAwait(false);
+            if (Plugins != null) await Plugins.DisposeAsync().ConfigureAwait(false);
+            _registry.StateChanged -= OnRegistryChanged;
+            lock (_lifecycle) { _state = DesktopSessionState.Stopped; }
         }
-        catch (Exception exception) { completion.TrySetException(exception); }
+        finally { _commands.Release(); }
+        PublishLifecycleState();
+        lock (_lifecycle) _projectionClosed = true;
     }
 
-    public async ValueTask DisposeAsync()
+    private void EnsureFinalWriteAllowed()
+    {
+        lock (_lifecycle)
+        {
+            if (_state != DesktopSessionState.Ready && _state != DesktopSessionState.Stopping)
+                throw new InvalidOperationException("The desktop session is not ready to save preferences.");
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycle) return new(_disposeTask ??= Task.Run(DisposeCoreAsync));
+    }
+
+    private async Task DisposeCoreAsync()
     {
         await StopAsync().ConfigureAwait(false);
         lock (_lifecycle)
         {
             if (_disposed) return;
             _disposed = true;
+            _projectionClosed = true;
+            ProjectionPublished = null;
             _startupCancellation.Dispose();
             lock (_ratingsSync)
             {
@@ -496,7 +599,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
 
     private void OnRegistryChanged() => SignalChanged();
 
-    private void SignalChanged()
+    private void SignalChanged() => RequestProjection();
+
+    // Invalidations now follow complete publication, so background/test observers also read the passive GetView.
+    private void NotifyStateObservers()
     {
         Action? observers = StateChanged;
         if (observers == null) return;

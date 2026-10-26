@@ -34,9 +34,16 @@ public partial class MainWindow
         var entries = new List<string>();
         await AddInput.SubmitAsync(input, ReadClipboardAsync, url => { entries.Add(url); return Task.CompletedTask; });
         IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, observeExperimentalModal);
-        var boards = entries.Where((_, index) => !skipped.ContainsKey(index)).Select(url => _session.ClassifyAdmission(url))
-            .Where(target => target is { IsBoard: true, AlreadyWatching: false })
-            .Select(target => target!.Url).Distinct(StringComparer.Ordinal).ToArray();
+        var boardUrls = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < entries.Count; index++)
+        {
+            if (_isClosing) throw new OperationCanceledException();
+            if (skipped.ContainsKey(index)) continue;
+            // Sequential reads keep a large paste within the finite host admission budget.
+            if (await _session.ClassifyAdmissionAsync(entries[index]) is { IsBoard: true, AlreadyWatching: false } target)
+                boardUrls.Add(target.Url);
+        }
+        string[] boards = boardUrls.ToArray();
         BoardAdmissionSelection? selection = await SelectBoardAdmissionsAsync(boards);
         if (selection == null || _isClosing)
         {
@@ -62,7 +69,7 @@ public partial class MainWindow
                 continue;
             }
             DesktopAdmissionResult? result;
-            BoardAdmissionTarget? target = _session.ClassifyAdmission(url);
+            BoardAdmissionTarget? target = await _session.ClassifyAdmissionAsync(url);
             if (target is { IsBoard: true, AlreadyWatching: false } && selection.Policies.TryGetValue(target.Url, out BoardAdmissionPolicy? policy))
             {
                 try

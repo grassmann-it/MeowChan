@@ -31,6 +31,7 @@ public partial class MainWindow
         List<string> checks = new();
         List<object> exports = new();
         object? externalDispatch = null;
+        object? galleryLoad = null;
         bool completed = false;
         string? failure = null;
         string saved = StorageLayout.GetMediaPath(fixture.DownloadRoot, "4chan", "g", "123", "777", ".png");
@@ -58,7 +59,7 @@ public partial class MainWindow
             transport = new { network = "blocked-by-terminal-fixture-handler", fixture.Http.MediaRequests,
                 fixture.Http.CancelledRequests, fixture.Http.UnexpectedRequests },
             savedMediaSha256 = File.Exists(saved) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(saved))) : null,
-            exports, externalDispatch,
+            exports, externalDispatch, galleryLoad,
             scope = "actual extracted production app; injected offline HTTP responses; real native clipboard; native fallback state; intercepted export-folder target, no file-manager/browser/portal acceptance claim"
         }, new JsonSerializerOptions { WriteIndented = true }));
         try
@@ -86,6 +87,10 @@ public partial class MainWindow
                 }
                 else
                 {
+                    galleryLoad = await CheckWorkflowGalleryUnderLoadAsync(fixture);
+                    checks.Add("gallery-navigation-active-download");
+                    await WaitWorkflowAsync(() => !RowCommandBusy && UrlList.Count == 1,
+                        "complete uncovered-thread frame before watch selection");
                     ThreadRow row = UrlList[0];
                     this.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = row;
                     ClickWorkflow(this.FindControl<Button>("PauseButton")!);
@@ -107,6 +112,10 @@ public partial class MainWindow
                     IClipboard clipboard = Clipboard ?? throw new InvalidOperationException("The packaged native clipboard is unavailable.");
                     await clipboard.SetTextAsync("meowchan-workflow-owned-sentinel");
                     DataGrid selectedThreads = this.FindControl<DataGrid>("ThreadsDataGrid")!;
+                    // Clipboard access yields; wait for the same complete-frame command
+                    // boundary as a user before preparing the selected-row context menu.
+                    await WaitWorkflowAsync(() => !_sessionRowsApplying && selectedThreads.SelectedItems.Contains(row),
+                        "complete selected-thread frame before native Copy command");
                     // Exercise the native keyboard path, including its pre-open menu preparation.
                     selectedThreads.RaiseEvent(new Avalonia.Input.ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
                     MenuItem copyLinks = selectedThreads.ContextMenu!.Items.OfType<MenuItem>()
@@ -199,6 +208,8 @@ public partial class MainWindow
                 RequireWorkflow(ArchivePage.FindControl<RadioButton>("ArchiveExportUpdate")!.IsEnabled,
                     "Fresh process did not recover the preceding export history.");
                 ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
+                await WaitWorkflowAsync(() => !RowCommandBusy && !_selectionCommandRunning && UrlList.Count == 1,
+                    "complete restored-thread frame before Remove command");
                 this.FindControl<DataGrid>("ThreadsDataGrid")!.SelectedItem = UrlList.Single();
                 await RemoveDownloadSelectionAsync(false);
                 await WaitWorkflowAsync(() => UrlList.Count == 0, "remove selected watch");

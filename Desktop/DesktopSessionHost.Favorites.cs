@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -21,31 +22,31 @@ internal sealed partial class DesktopSessionHost
     private IReadOnlyList<FavoriteEntry>? _favoriteEntries;
     private HashSet<FavoriteAssetKey>? _favoriteKeys;
 
+    private Exception? _favoriteReadError;
+    private sealed record PassiveFavoriteIndex(IReadOnlyList<FavoriteEntry> Entries, FrozenSet<FavoriteAssetKey> Keys);
+    private PassiveFavoriteIndex? _passiveFavorites;
+    private void PublishFavoriteIndex()
+    {
+        IReadOnlyList<FavoriteEntry> entries = _favoriteEntries!;
+        Volatile.Write(ref _passiveFavorites, new(entries, entries.Select(entry => entry.Key).ToFrozenSet()));
+    }
+
+    /// <summary>Passive immutable index. Loading and writes belong to the background owner.</summary>
     internal IReadOnlyList<FavoriteEntry> GetFavorites()
     {
-        lock (_lifecycle)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            lock (_favoritesSync)
-            {
-                LoadFavoritesIfNeeded();
-                return _favoriteEntries!;
-            }
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IReadOnlyList<FavoriteEntry>? entries = Volatile.Read(ref _passiveFavorites)?.Entries;
+        return entries ?? throw new InvalidDataException("Favorites are unavailable: " + _favoriteReadError?.Message, _favoriteReadError);
     }
 
     internal bool IsFavorite(GalleryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        lock (_lifecycle)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            lock (_favoritesSync)
-            {
-                LoadFavoritesIfNeeded();
-                return _favoriteKeys!.Contains(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
-            }
-        }
+        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        PassiveFavoriteIndex? index = Volatile.Read(ref _passiveFavorites);
+        if (index == null) { GetFavorites(); return false; }
+        return index.Keys.Contains(key);
     }
 
     internal Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
@@ -56,7 +57,11 @@ internal sealed partial class DesktopSessionHost
     }
 
     // Removing a missing original must not require resolving or touching its file.
-    internal async Task<bool> SetFavoriteAsync(FavoriteEntry candidate, bool favorite,
+    internal Task<bool> SetFavoriteAsync(FavoriteEntry candidate, bool favorite,
+        CancellationToken token = default)
+        => RunInteractiveAsync(nameof(SetFavoriteAsync), candidate.Key.ToString(), () => SetFavoriteAdmittedCoreAsync(candidate, favorite, token));
+
+    private async Task<bool> SetFavoriteAdmittedCoreAsync(FavoriteEntry candidate, bool favorite,
         CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(candidate);
@@ -77,6 +82,7 @@ internal sealed partial class DesktopSessionHost
                     _favoriteEntries = Array.AsReadOnly(next);
                     if (favorite) _favoriteKeys!.Add(candidate.Key);
                     else _favoriteKeys!.Remove(candidate.Key);
+                    PublishFavoriteIndex();
                 }
             }
             if (changed) SignalChanged();
@@ -91,7 +97,14 @@ internal sealed partial class DesktopSessionHost
     /// missing and corrupt files remain favorites but are reported unavailable. No provider or
     /// download operation is invoked.
     /// </summary>
-    internal async Task<FavoriteResolutionSnapshot> ResolveFavoriteAssetsAsync(
+    internal Task<FavoriteResolutionSnapshot> ResolveFavoriteAssetsAsync(
+        IReadOnlyList<FavoriteEntry>? scope = null, CancellationToken token = default)
+    {
+        FavoriteEntry[]? frozen = scope?.ToArray();
+        return RunInteractiveAsync(nameof(ResolveFavoriteAssetsAsync), "profile", () => ResolveFavoriteAssetsAdmittedCoreAsync(frozen, token), captureAfter: false);
+    }
+
+    private async Task<FavoriteResolutionSnapshot> ResolveFavoriteAssetsAdmittedCoreAsync(
         IReadOnlyList<FavoriteEntry>? scope = null, CancellationToken token = default)
     {
         FavoriteEntry[] frozen = (scope ?? GetFavorites()).DistinctBy(entry => entry.Key).ToArray();
@@ -175,5 +188,6 @@ internal sealed partial class DesktopSessionHost
         _favoritesStore = store;
         _favoriteEntries = Array.AsReadOnly(entries);
         _favoriteKeys = entries.Select(item => item.Key).ToHashSet();
+        PublishFavoriteIndex();
     }
 }

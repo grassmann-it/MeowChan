@@ -16,6 +16,20 @@ public partial class MainWindow
     public ObservableCollection<BoardRow> VisibleBoards { get; } = new();
     private bool _refreshingDownloadSearch;
     private bool _downloadSearchOpen;
+    private long _downloadSearchQueryRevision;
+    private long _appliedDownloadSearchRevision = -1;
+    private long _applyingDownloadSearchRevision;
+    private DownloadSearch.Query? _applyingDownloadQuery;
+    private DownloadSearchReconciliation<ThreadRow>? _threadSearchReconciliation;
+    private DownloadSearchReconciliation<BoardRow>? _boardSearchReconciliation;
+    private DownloadSearchReconciliation<ThreadRow>? _appliedThreadSearchReconciliation;
+    private DownloadSearchReconciliation<BoardRow>? _appliedBoardSearchReconciliation;
+    private HashSet<ThreadRow> _retainedThreadSet = new();
+    private HashSet<BoardRow> _retainedBoardSet = new();
+    private ThreadRow[] _retainedThreadSelection = Array.Empty<ThreadRow>();
+    private BoardRow[] _retainedBoardSelection = Array.Empty<BoardRow>();
+    private IEnumerator<Action>? _restoreDownloadSelection;
+    private bool DownloadSearchNeedsReconciliation => _appliedDownloadSearchRevision != _downloadSearchQueryRevision;
     private long _downloadFilterRevision;
     private readonly Dictionary<long, long> _threadFilterExclusions = new();
     private readonly Dictionary<long, long> _boardFilterExclusions = new();
@@ -51,55 +65,89 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         _downloadFilterRevision++;
-        RefreshWorkspace();
+        _downloadSearchQueryRevision++;
+        _sessionRefresh.RequestImmediate();
     }
 
-    private void RefreshDownloadSearch()
+    private void CaptureDownloadSearchInput()
     {
-        if (_refreshingDownloadSearch) return;
+        _applyingDownloadSearchRevision = _downloadSearchQueryRevision;
+        _applyingDownloadQuery = new DownloadSearch.Query(DownloadSearchText);
+        _retainedThreadSelection = DownloadList(false).SelectedItems.OfType<ThreadRow>().ToArray();
+        _retainedBoardSelection = DownloadList(true).SelectedItems.OfType<BoardRow>().ToArray();
+        _retainedThreadSet = new(_retainedThreadSelection);
+        _retainedBoardSet = new(_retainedBoardSelection);
+        _threadSearchReconciliation = null; _boardSearchReconciliation = null;
+        _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
         _refreshingDownloadSearch = true;
-        try
-        {
-            string query = DownloadSearchText;
-            ReconcileDownloadResult(VisibleThreads, UrlList.Where(row => DownloadSearch.Matches(row, query)).ToArray(), DownloadList(false));
-            ReconcileDownloadResult(VisibleBoards, BoardsList.Where(row => DownloadSearch.Matches(row, query)).ToArray(), DownloadList(true));
-            HashSet<long> activeThreads = new(UrlList.Select(row => row.WatchId));
-            HashSet<long> activeBoards = new(BoardsList.Select(row => row.WatchId));
-            foreach (long id in _threadFilterExclusions.Keys.Where(id => !activeThreads.Contains(id)).ToArray()) _threadFilterExclusions.Remove(id);
-            foreach (long id in _boardFilterExclusions.Keys.Where(id => !activeBoards.Contains(id)).ToArray()) _boardFilterExclusions.Remove(id);
-            if (!SelectedThreads().Any(row => row.WatchId == _threadLeadId)) _threadLeadId = SelectedThreads().FirstOrDefault()?.WatchId;
-            if (!SelectedBoards().Any(row => row.WatchId == _boardLeadId)) _boardLeadId = SelectedBoards().FirstOrDefault()?.WatchId;
-            RefreshDownloadSearchPresentation();
-        }
-        finally { _refreshingDownloadSearch = false; }
     }
 
-    private void ReconcileDownloadResult<T>(ObservableCollection<T> visible, T[] result, DataGrid grid) where T : class
+    private void BeginDownloadSearch(DesktopSessionProjection projection)
     {
-        if (visible.SequenceEqual(result)) return;
-        HashSet<T> included = new(result);
-        T[] retainedSelection = grid.SelectedItems.OfType<T>().Where(included.Contains).ToArray();
-        // The result is independent of virtualization and scrolling. Remove only actual non-results.
-        foreach (T item in grid.SelectedItems.OfType<T>().Where(item => !included.Contains(item)).ToArray())
-            grid.SelectedItems.Remove(item);
-        foreach (T item in visible.Where(item => !included.Contains(item)).ToArray())
+        if (_threadSearchReconciliation != null) return;
+        DownloadSearch.Query literal = _applyingDownloadQuery!.Value;
+        _threadSearchReconciliation = new(UrlList, VisibleThreads, row => literal.Matches(row), row =>
         {
-            visible.Remove(item);
-            long revision = ++_downloadFilterRevision;
-            if (item is ThreadRow thread) _threadFilterExclusions[thread.WatchId] = revision;
-            if (item is BoardRow board) _boardFilterExclusions[board.WatchId] = revision;
-        }
-        for (int index = 0; index < result.Length; index++)
+            DownloadList(false).SelectedItems.Remove(row);
+            if (_threadRows.ContainsKey(row.WatchId)) _threadFilterExclusions[row.WatchId] = ++_downloadFilterRevision;
+            else _threadFilterExclusions.Remove(row.WatchId);
+        }, projection.Epoch, _applyingDownloadSearchRevision);
+        _boardSearchReconciliation = new(BoardsList, VisibleBoards, row => literal.Matches(row), row =>
         {
-            T item = result[index];
-            int currentIndex = visible.IndexOf(item);
-            if (currentIndex < 0) visible.Insert(index, item);
-            else if (currentIndex != index) visible.Move(currentIndex, index);
+            DownloadList(true).SelectedItems.Remove(row);
+            if (_boardRows.ContainsKey(row.WatchId)) _boardFilterExclusions[row.WatchId] = ++_downloadFilterRevision;
+            else _boardFilterExclusions.Remove(row.WatchId);
+        }, projection.Epoch, _applyingDownloadSearchRevision);
+    }
+
+    // Source rows stay frozen until filtering, reorder and selection repair all complete. Each dispatcher
+    // callback advances only one plan. The current literal query never changes under an in-flight plan.
+    private bool StepDownloadSearch(DesktopSessionProjection projection)
+    {
+        BeginDownloadSearch(projection);
+        if (!_threadSearchReconciliation!.IsCompleted)
+        {
+            _threadSearchReconciliation.Step(64, TimeSpan.FromMilliseconds(4)); return false;
         }
-        // DataGrid may move currency when a result disappears; currency must not create a new selection.
-        HashSet<T> retained = new(retainedSelection);
-        foreach (T item in grid.SelectedItems.OfType<T>().Where(item => !retained.Contains(item)).ToArray()) grid.SelectedItems.Remove(item);
-        foreach (T item in retainedSelection) if (!grid.SelectedItems.Contains(item)) grid.SelectedItems.Add(item);
+        if (!_boardSearchReconciliation!.IsCompleted)
+        {
+            _boardSearchReconciliation.Step(64, TimeSpan.FromMilliseconds(4)); return false;
+        }
+        _restoreDownloadSelection ??= RestoreDownloadSelection().GetEnumerator();
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        for (int count = 0; count < 64; count++)
+        {
+            if (!_restoreDownloadSelection.MoveNext())
+            {
+                _restoreDownloadSelection.Dispose(); _restoreDownloadSelection = null;
+                _appliedDownloadSearchRevision = _applyingDownloadSearchRevision;
+                _refreshingDownloadSearch = false;
+                _retainedThreadSelection = Array.Empty<ThreadRow>(); _retainedBoardSelection = Array.Empty<BoardRow>();
+                _applyingDownloadQuery = null;
+                _appliedThreadSearchReconciliation = _threadSearchReconciliation;
+                _appliedBoardSearchReconciliation = _boardSearchReconciliation;
+                _threadSearchReconciliation = null; _boardSearchReconciliation = null;
+                RefreshDownloadSearchPresentation();
+                return true;
+            }
+            _restoreDownloadSelection.Current();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(4)) break;
+        }
+        return false;
+    }
+
+    private IEnumerable<Action> RestoreDownloadSelection()
+    {
+        DataGrid threads = DownloadList(false), boards = DownloadList(true);
+        // Visit even no-op selections through the slice budget. The helpers already own O(1) inclusion sets.
+        foreach (ThreadRow row in threads.SelectedItems.OfType<ThreadRow>().ToArray())
+            yield return () => { if (!_retainedThreadSet.Contains(row) || !_threadSearchReconciliation!.Includes(row)) threads.SelectedItems.Remove(row); };
+        foreach (BoardRow row in boards.SelectedItems.OfType<BoardRow>().ToArray())
+            yield return () => { if (!_retainedBoardSet.Contains(row) || !_boardSearchReconciliation!.Includes(row)) boards.SelectedItems.Remove(row); };
+        foreach (ThreadRow row in _retainedThreadSelection)
+            yield return () => { if (_threadSearchReconciliation!.Includes(row) && !threads.SelectedItems.Contains(row)) threads.SelectedItems.Add(row); };
+        foreach (BoardRow row in _retainedBoardSelection)
+            yield return () => { if (_boardSearchReconciliation!.Includes(row) && !boards.SelectedItems.Contains(row)) boards.SelectedItems.Add(row); };
     }
 
     private void RefreshDownloadSearchPresentation()

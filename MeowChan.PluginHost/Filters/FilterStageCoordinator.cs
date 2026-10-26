@@ -3,9 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MeowChan.Archive;
+using MeowChan.Diagnostics;
 using MeowChan.Downloader;
 using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginSdk;
 using MeowChan.Storage;
 
@@ -24,7 +26,10 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     private readonly object _state = new();
     private Func<FilterBindingRequest, CancellationToken, Task<FilterPluginBinding?>>? _resolve;
     private int _active, _waiting, _recovered;
-    private long _bytes;
+    private readonly FilterTemporaryBudget _budget;
+    private readonly FilterStageLedger _ledger;
+    private readonly bool _sharedWorkerBudget;
+    private readonly object _sampledWorker = new();
     private event Action? CapacityChanged;
 
     public FilterStageCoordinator(string profileDirectory, ProfileLease profileLease, FilterStageOptions? options = null)
@@ -39,10 +44,28 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         Directory.CreateDirectory(_directory);
         if ((File.GetAttributes(_directory) & FileAttributes.ReparsePoint) != 0) throw new IOException("Filter stage directory must not be a link.");
         _slots = new SemaphoreSlim(_options.MaximumConcurrentChecks);
+        // Existing session wiring supplies Manager.GetTemporaryBytes as a method group.
+        // Join that manager's budget, so observations and promises use one atomic owner.
+        PluginWorkerManager? manager = _options.WorkerTemporaryBytes.Target as PluginWorkerManager;
+        _sharedWorkerBudget = manager != null;
+        _budget = manager?.TemporaryBudget ?? new FilterTemporaryBudget(_options.MaximumTemporaryBytes);
+        _budget.Limit(_options.MaximumTemporaryBytes);
+        _ledger = new(_directory, _budget, _options.MaximumTemporaryBytes);
         RecoverOrphans();
+        _ledger.Reconcile();
     }
 
-    public FilterStageSnapshot Snapshot { get { lock (_state) return new(_active, _waiting, Math.Max(_bytes, DirectoryBytes()), _options.WorkerTemporaryBytes(), _recovered); } }
+    public FilterStageSnapshot Snapshot
+    {
+        get
+        {
+            int active, waiting;
+            lock (_state) { active = _active; waiting = _waiting; }
+            lock (_budget.Sync) return new(active, waiting, _ledger.Bytes, _budget.WorkerBytes, _recovered);
+        }
+    }
+    internal bool BudgetIsCurrent => _ledger.IsCurrent;
+    internal Action? FileCreatedForTest { get; set; }
     public void Attach(ThreadContentRuntime content, Func<FilterBindingRequest, CancellationToken, Task<FilterPluginBinding?>> resolve)
     {
         ArgumentNullException.ThrowIfNull(content); ArgumentNullException.ThrowIfNull(resolve);
@@ -92,10 +115,29 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 if (record?.Owner != Owner || !Guid.TryParseExact(record.Id, "N", out _)
                     || Path.GetFileName(canonical) != "stage-" + record.Id + ".json") continue;
                 string image = Path.Combine(_directory, "stage-" + record.Id + ".bytes");
-                if (File.Exists(image) && (File.GetAttributes(image) & FileAttributes.ReparsePoint) != 0) continue;
-                if (record.TargetTemporary != null && (record.Destination == null
-                    || !MediaStore.TryRecoverFilterTemporary(record.Destination, record.TargetTemporary))) continue;
-                File.Delete(image); File.Delete(canonical + ".next"); File.Delete(canonical); _recovered++;
+                try
+                {
+                    if (File.Exists(image) && (File.GetAttributes(image) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        if (record.TargetTemporary != null) _ledger.Retain(canonical, _options.MaximumTemporaryBytes + 1);
+                        continue;
+                    }
+                    if (record.TargetTemporary != null && (record.Destination == null
+                        || !MediaStore.TryRecoverFilterTemporary(record.Destination, record.TargetTemporary)))
+                    {
+                        // Do not stat an untrusted journal path. Charge an upper bound
+                        // and preserve its journal for the next recovery attempt.
+                        _ledger.Retain(canonical, _options.MaximumTemporaryBytes + 1);
+                        continue;
+                    }
+                    File.Delete(image); File.Delete(canonical + ".next"); File.Delete(canonical); _recovered++;
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    // The inventory below adopts every undeleted stage file. If the
+                    // external target could not be inspected, retain an upper bound.
+                    if (record.TargetTemporary != null) _ledger.Retain(canonical, _options.MaximumTemporaryBytes + 1);
+                }
             }
             return true;
         });
@@ -103,27 +145,19 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
 
     private bool CanStart { get { lock (_state) return !_shutdown.IsCancellationRequested && _active < _options.MaximumConcurrentChecks
         ; } }
-    private void CheckBudget(long add = 0)
+    private void CheckBudget()
     {
-        lock (_state)
+        if (!_sharedWorkerBudget)
         {
-            if (Math.Max(_bytes, DirectoryBytes()) + add + _options.WorkerTemporaryBytes() > _options.MaximumTemporaryBytes)
-                throw new MediaFilterOmissionException(false, "filter_temp_limit", "Filter temporary data limit exceeded.");
-            _bytes += add;
+            // Compatibility for callers without a manager. Never call user code under
+            // the shared lock (it may itself read Snapshot).
+            _budget.ObserveWorker(_sampledWorker, Math.Max(0, _options.WorkerTemporaryBytes()));
         }
+        _ledger.Check();
     }
 
-    private long DirectoryBytes()
-    {
-        long bytes = 0; int files = 0;
-        foreach (string path in Directory.EnumerateFiles(_directory))
-        {
-            if (++files > 1024) return _options.MaximumTemporaryBytes + 1;
-            try { if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0) bytes = checked(bytes + new FileInfo(path).Length); }
-            catch (FileNotFoundException) { }
-        }
-        return bytes;
-    }
+    /// <summary>Bounded lifecycle inventories; never proportional to the number of chunks.</summary>
+    internal long DirectoryScanCount => _ledger.ScanCount;
 
     public async ValueTask DisposeAsync()
     {
@@ -152,6 +186,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 if (effective.Types.Mode == MeowChan.Rules.MediaTypeSelectionMode.Selected && !effective.Types.Extensions.Contains(decision.Metadata.Extension)
                     || effective.SizeLimit.Mode == MeowChan.Rules.MediaSizeLimitMode.Limited && item.ExpectedSize > effective.SizeLimit.Bytes)
                     throw new MediaFilterOmissionException(true, "filter_metadata_excluded");
+                owner._ledger.Reconcile();
                 owner.CheckBudget();
                 if (item.FilterPostId == null) throw new MediaFilterOmissionException(false, "filter_candidate_post_missing");
                 if (item.ExpectedSize > owner._options.MaximumImageBytes) throw new MediaFilterOmissionException(false, "filter_image_byte_limit");
@@ -188,7 +223,8 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         private readonly CancellationTokenSource _lifetime;
         private readonly string _id = Guid.NewGuid().ToString("N");
         private readonly string _token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        private long _size;
+        private readonly long _request = PerformanceDiagnostics.NextId();
+        private long _size, _reads;
         private string? _targetTemporary;
         private bool _disposed;
         private ISourceMediaIntegrityPolicy? _sourcePolicy;
@@ -207,16 +243,24 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         }
         internal void EnsureCurrent()
         {
+            EnsureAuthorized();
+            _owner.CheckBudget();
+        }
+
+        /// <summary>Cancellation, disposal, rule/watch/binding and source-permission checks without a budget scan.</summary>
+        private void EnsureAuthorized()
+        {
             _lifetime.Token.ThrowIfCancellationRequested();
             if (_disposed || !_current() || !Binding.IsCurrent()) throw new MediaFilterOmissionException(false, "filter_binding_changed");
             if (_sourcePermission != null && _sourcePolicy?.GetSnapshot() != _sourcePermission)
                 throw new MediaFilterOmissionException(false, "filter_source_permission_changed");
-            _owner.CheckBudget();
         }
 
         public async Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source, MediaStore store,
             Func<int, CancellationToken, Task> throttle, CancellationToken token)
         {
+            using var measurement = PerformanceDiagnostics.Measure("filter.stage", _request,
+                watch: _decision.Metadata.Key.Resource.ToString(), asset: _id, epoch: Binding.Operation.Generation);
             bool committingToStore = false;
             try
             {
@@ -226,8 +270,10 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
                 using IncrementalHash sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+                _owner._ledger.Reserve(ImagePath, 0);
                 await using (FileStream file = new(ImagePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 {
+                    _owner.FileCreatedForTest?.Invoke();
                     byte[] buffer = new byte[65536]; int read;
                     while ((read = await source.ReadAsync(buffer, _lifetime.Token).ConfigureAwait(false)) > 0)
                     {
@@ -237,7 +283,8 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                                 && _size + read > _decision.Selection.EffectiveRule.SizeLimit.Bytes)
                             throw new MediaFilterOmissionException(true, "filter_actual_rule_byte_limit");
                         if (_size + read > _owner._options.MaximumImageBytes) throw new MediaFilterOmissionException(false, "filter_image_byte_limit");
-                        EnsureCurrent(); _owner.CheckBudget(read); _size += read;
+                        EnsureAuthorized(); _owner.CheckBudget();
+                        _owner._ledger.Grow(ImagePath, read); _size += read; _reads++;
                         sha.AppendData(buffer, 0, read); md5.AppendData(buffer, 0, read); sha1.AppendData(buffer, 0, read);
                         await file.WriteAsync(buffer.AsMemory(0, read), _lifetime.Token).ConfigureAwait(false);
                     }
@@ -271,25 +318,39 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                         item.MediaIdentifier, _decision.Metadata.Key.Variant), item.FilterPostId!, item.FilterPosition, item.DownloadUri, item.OriginalFileName),
                     revision, revision, _token, _size, digest, _decision.Selection.EffectiveRule.Revision, Binding.RuleSettings,
                     Binding.ExecutionRevision, Binding.ConfigurationRevision, Binding.GrantRevision);
+                PerformanceDiagnostics.Record("filter.stage.bytes", "verified", _request, asset: _id, value: _size);
+                PerformanceDiagnostics.Record("filter.stage.reads", "accepted", _request, asset: _id, value: _reads);
                 ImageFilterResult result;
+                using var evaluation = PerformanceDiagnostics.Measure("filter.evaluate", _request, asset: _id);
                 try { result = await Binding.EvaluateAsync(request, Binding.Operation, _lifetime.Token).ConfigureAwait(false); }
                 catch (PluginWorkerException exception) { throw new MediaFilterOmissionException(false, exception.Code, exception.Message); }
                 catch (TimeoutException exception) { throw new MediaFilterOmissionException(false, "filter_timeout", exception.Message); }
                 catch (Exception exception) when (exception is not OperationCanceledException) { throw new MediaFilterOmissionException(false, "filter_worker_error", exception.Message); }
-                finally { Readable = false; _owner._assets.TryRemove(_token, out _); }
+                finally { evaluation.Dispose(); Readable = false; _owner._assets.TryRemove(_token, out _); }
                 EnsureCurrent();
                 if (result.Outcome != ImageFilterOutcome.Match)
                     throw new MediaFilterOmissionException(result.Outcome == ImageFilterOutcome.NoMatch, result.ReasonCode, result.Message);
                 Image.Position = 0;
                 // MediaStore copies into the target filesystem before atomic publication. Reserve that own temporary copy too.
-                _owner.CheckBudget(_size);
+                _owner._ledger.Reconcile();
+                EnsureCurrent();
                 MediaCommitResult committed;
                 try { committingToStore = true; committed = await store.CommitVerifiedAsync(item, Image, digest, EnsureCurrent, _lifetime.Token, async (path, cancellation) => {
+                    _owner._ledger.Reserve(path, _size);
+                    PerformanceDiagnostics.Record("filter.target.bytes", "reserved", _request, asset: _id, value: _size);
                     _targetTemporary = path;
                     try { await SaveJournalAsync(digest, _size, cancellation).ConfigureAwait(false); }
                     catch (IOException exception) { throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message); }
                 }).ConfigureAwait(false); }
-                finally { lock (_owner._state) _owner._bytes -= _size; }
+                finally
+                {
+                    // MediaStore has either published, removed its .part, or left it
+                    // for recovery. Retain the promise until absence is confirmed.
+                    if (_targetTemporary != null && TryConfirmAbsent(_targetTemporary))
+                    {
+                        _owner._ledger.Deleted(_targetTemporary); _targetTemporary = null;
+                    }
+                }
                 await _record(null, result.ReasonCode, CancellationToken.None).ConfigureAwait(false);
                 return committed;
             }
@@ -310,30 +371,68 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                 Binding.PluginId, Binding.ExecutionRevision, Binding.ConfigurationRevision, Binding.GrantRevision,
                 Binding.Operation.Generation, _decision.Selection.EffectiveRule.Revision, hash, size, _decision.Metadata.DestinationPath, _targetTemporary);
             string temporary = JournalPath + ".next";
-            await using (FileStream file = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(journal);
+            if (bytes.Length > 64 * 1024) throw new IOException("Filter recovery journal exceeds its bounded size.");
+            _owner.CheckBudget(); _owner._ledger.Reserve(temporary, bytes.Length);
+            await using (FileStream file = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
-                await JsonSerializer.SerializeAsync(file, journal, cancellationToken: token).ConfigureAwait(false);
+                _owner.FileCreatedForTest?.Invoke();
+                await file.WriteAsync(bytes, token).ConfigureAwait(false);
                 await file.FlushAsync(token).ConfigureAwait(false); file.Flush(true);
             }
             File.Move(temporary, JournalPath, true);
+            _owner._ledger.Renamed(temporary, JournalPath);
+        }
+        private static bool TryConfirmAbsent(string path)
+        {
+            try { _ = File.GetAttributes(path); return false; }
+            catch (FileNotFoundException) { return true; }
+            catch (DirectoryNotFoundException) { return true; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
+        }
+        private bool Delete(string path, ref Exception? failure)
+        {
+            try { File.Delete(path); _owner._ledger.Deleted(path); return true; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { failure ??= error; return false; }
         }
         public async ValueTask DisposeAsync()
         {
             if (_disposed) return; _disposed = true; Readable = false; _owner._assets.TryRemove(_token, out _);
+            Exception? failure = null;
             try
             {
                 try { await _lifetime.CancelAsync().ConfigureAwait(false); }
                 finally
                 {
-                    if (Image != null) await Image.DisposeAsync().ConfigureAwait(false);
-                    File.Delete(ImagePath); File.Delete(JournalPath + ".next"); File.Delete(JournalPath);
+                    bool imageClosed = true;
+                    if (Image != null)
+                    {
+                        try { await Image.DisposeAsync().ConfigureAwait(false); }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { failure ??= error; imageClosed = false; }
+                    }
+                    bool targetGone = _targetTemporary == null;
+                    if (!targetGone && MediaStore.TryRecoverFilterTemporary(_decision.Metadata.DestinationPath!, _targetTemporary!))
+                    {
+                        _owner._ledger.Deleted(_targetTemporary!); targetGone = true;
+                    }
+                    bool imageGone = imageClosed && Delete(ImagePath, ref failure);
+                    // Keep the last complete journal when bytes remain. It is the
+                    // authority for recovery, especially for a target on another disk.
+                    if (targetGone && imageGone)
+                    {
+                        bool pendingGone = Delete(JournalPath + ".next", ref failure);
+                        if (pendingGone) Delete(JournalPath, ref failure);
+                    }
+                    if (!targetGone) failure ??= new IOException("Filter target temporary could not be removed.");
                 }
+                PerformanceDiagnostics.Record("filter.cleanup", failure == null ? "removed" : "retained", _request, asset: _id);
+                if (failure != null) throw new MediaFilterOmissionException(false, "filter_stage_cleanup_io", failure.Message);
             }
-            catch (IOException exception) { throw new MediaFilterOmissionException(false, "filter_stage_cleanup_io", exception.Message); }
             finally
             {
+                _owner._ledger.Reconcile();
                 _lifetime.Dispose();
-                lock (_owner._state) { _owner._bytes -= _size; _owner._active--; }
+                lock (_owner._state) _owner._active--;
                 _owner._slots.Release(); _owner.CapacityChanged?.Invoke();
             }
         }

@@ -438,6 +438,232 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    public async Task StagingDirectoryScansAreIndependentOfAcceptedReadCount(int bytesPerRead)
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        h.ContentFactory = bytes => new StreamContent(new TrickleStream(bytes, bytesPerRead));
+        DownloadItem item = await h.ItemAsync(new());
+        long before = h.Stage.DirectoryScanCount;
+        await h.RunAsync(item);
+        long scans = h.Stage.DirectoryScanCount - before;
+        int reads = (h.Bytes.Length + bytesPerRead - 1) / bytesPerRead;
+        Assert.True(File.Exists(item.DestinationPath));
+        // Admission, pre-publication and cleanup are the only inventories, regardless
+        // of source reads and worker asset reads. Snapshot also stays entirely in memory.
+        Assert.Equal(3, scans);
+        for (int i = 0; i < reads; i++) Assert.Equal(0, h.Stage.Snapshot.StagedBytes);
+        Assert.Equal(before + scans, h.Stage.DirectoryScanCount);
+    }
+
+    [Fact]
+    public async Task TrickledReadsStillEnforceTheTemporaryBudget()
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4), new FilterStageOptions { MaximumImageBytes = 1024, MaximumTemporaryBytes = 1024 });
+        h.ContentFactory = bytes => new StreamContent(new TrickleStream(bytes, 3));
+        DownloadItem item = await h.ItemAsync(new());
+        // Pre-fill the stage directory so the very next accepted read exceeds the shared limit.
+        await File.WriteAllBytesAsync(Path.Combine(h.Root.Path, "filter-stages", "unrelated.bin"), new byte[1024]);
+        MediaFilterOmissionException error = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.False(error.IsNoMatch); Assert.Equal("filter_temp_limit", error.ReasonCode);
+        Assert.False(File.Exists(item.DestinationPath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShortReadAuthorizationAndSourceFailureCannotLeaveUnchargedPayload(bool failSource)
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        h.ContentFactory = bytes => new StreamContent(new TrickleStream(bytes, 1, position => {
+            if (position != 4) return;
+            if (failSource) throw new IOException("deterministic source read failure");
+            h.Current = false;
+        }));
+        DownloadItem item = await h.ItemAsync(new());
+        MediaFilterOmissionException failure = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.Equal(failSource ? "filter_stage_io" : "filter_binding_changed", failure.ReasonCode);
+        Assert.Equal(0, h.Evaluations); Assert.False(File.Exists(item.DestinationPath));
+        Assert.Equal(0, h.Stage.Snapshot.StagedBytes);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    [Fact]
+    public async Task SuccessfulFilterStillCannotPublishWithoutCapacityForItsTargetCopy()
+    {
+        byte[] bytes = Png(8, 4).Concat(new byte[8192]).ToArray();
+        await using Harness h = await Harness.StartAsync(bytes,
+            new FilterStageOptions { MaximumImageBytes = 12000, MaximumTemporaryBytes = 16000 });
+        DownloadItem item = await h.ItemAsync(new());
+        MediaFilterOmissionException failure = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.Equal("filter_temp_limit", failure.ReasonCode); Assert.Equal(1, h.Evaluations);
+        Assert.False(File.Exists(item.DestinationPath)); Assert.Equal(0, h.Stage.Snapshot.StagedBytes);
+        Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
+    }
+
+    [Fact]
+    public async Task JournalsAndTheirReplacementCountBeforeTargetCopyIsCreated()
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        DownloadItem item = await h.ItemAsync(new());
+        long beforeCopy = 0;
+        h.OnResult = () => {
+            string directory = Path.Combine(h.Root.Path, "filter-stages");
+            long actual = Directory.GetFiles(directory).Sum(path => new FileInfo(path).Length);
+            beforeCopy = h.Stage.Snapshot.StagedBytes;
+            Assert.Equal(actual, beforeCopy); Assert.True(beforeCopy > h.Bytes.Length);
+        };
+        await h.RunAsync(item);
+        Assert.True(beforeCopy > 0); Assert.Equal(0, h.Stage.Snapshot.StagedBytes);
+    }
+
+    [Fact]
+    public async Task FailedPendingJournalDeletionKeepsRecoveryJournalAndBlocksAdmission()
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        DownloadItem item = await h.ItemAsync(new());
+        string? pending = null;
+        h.OnResult = () => {
+            string journal = Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages"), "*.json").Single();
+            pending = journal + ".next";
+            Directory.CreateDirectory(pending); File.WriteAllText(Path.Combine(pending, "keep"), "x");
+        };
+        MediaFilterOmissionException failure = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.Equal("filter_stage_cleanup_io", failure.ReasonCode);
+        Assert.False(File.Exists(item.DestinationPath)); Assert.NotNull(pending);
+        Assert.True(File.Exists(pending![..^5])); Assert.False(h.Stage.BudgetIsCurrent);
+        Assert.True(h.Stage.Snapshot.StagedBytes > 0);
+        h.OnResult = null;
+        MediaFilterOmissionException admission = await Assert.ThrowsAsync<MediaFilterOmissionException>(async () => {
+            await using IOriginalMediaFilterLease lease = await item.Filter!.AcquireAsync(item, CancellationToken.None);
+        });
+        Assert.Equal("filter_temp_limit", admission.ReasonCode);
+    }
+
+    [Fact]
+    public async Task RecoveryPreservesAndChargesAJournalWhoseTargetCannotBeRecovered()
+    {
+        using TempDirectory root = new(); using ProfileLease profile = ProfileLease.Acquire(root.Path);
+        string directory = Path.Combine(root.Path, "filter-stages"); Directory.CreateDirectory(directory);
+        string id = Guid.NewGuid().ToString("N"), journal = Path.Combine(directory, "stage-" + id + ".json");
+        string foreign = Path.Combine(root.Path, "foreign.bin"); await File.WriteAllBytesAsync(foreign, new byte[100]);
+        await File.WriteAllTextAsync(journal, JsonSerializer.Serialize(new {
+            Owner = "MeowChan original filter stage v1", Id = id, Resource = "x", MediaId = "x", PluginId = "x", ExecutionRevision = "1",
+            ConfigurationRevision = "1", GrantRevision = "1", Generation = 1, RuleRevision = "1", Sha256 = "ignored", Size = 100,
+            Destination = Path.Combine(root.Path, "destination.png"), TargetTemporary = foreign
+        }));
+        await using FilterStageCoordinator coordinator = new(root.Path, profile);
+        Assert.Equal(0, coordinator.Snapshot.RecoveredStages);
+        Assert.True(coordinator.Snapshot.StagedBytes > new FilterStageOptions().MaximumTemporaryBytes);
+        Assert.True(File.Exists(journal)); Assert.Equal(100, new FileInfo(foreign).Length);
+    }
+
+    [Theory]
+    [InlineData(1022)]
+    [InlineData(1023)]
+    public async Task EveryOwnCreateRespectsThe1024FileCapIncludingPendingJournal(int existing)
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        DownloadItem item = await h.ItemAsync(new());
+        string directory = Path.Combine(h.Root.Path, "filter-stages");
+        for (int i = 0; i < existing; i++) await File.WriteAllBytesAsync(Path.Combine(directory, "foreign-" + i), []);
+        List<int> counts = [];
+        h.Stage.FileCreatedForTest = () => {
+            int count = Directory.GetFiles(directory).Length;
+            counts.Add(count); Assert.InRange(count, 0, 1024);
+        };
+        var failure = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item));
+        Assert.Equal("filter_temp_limit", failure.ReasonCode); Assert.NotEmpty(counts);
+        Assert.Contains(1024, counts); Assert.Equal(existing, Directory.GetFiles(directory).Length);
+        Assert.Equal(0, h.Evaluations); Assert.False(File.Exists(item.DestinationPath));
+    }
+
+    [Fact]
+    public async Task HeldTargetCopyCannotHideRetainedBytesFromASecondActiveStage()
+    {
+        byte[] bytes = Png(8, 4).Concat(new byte[32768]).ToArray();
+        await using Harness h = await Harness.StartAsync(bytes,
+            new FilterStageOptions { MaximumImageBytes = 65536, MaximumTemporaryBytes = 131072 },
+            workerOptions: new PluginWorkerOptions { MaximumTemporaryBytes = 131072, WorkspaceByteQuota = 4096 });
+        DownloadItem item = await h.ItemAsync(new());
+        string foreign = Path.Combine(h.Root.Path, "filter-stages", "retained.bin");
+        await File.WriteAllBytesAsync(foreign, new byte[8192]);
+        await using IOriginalMediaFilterLease first = await item.Filter!.AcquireAsync(item, CancellationToken.None);
+        await using IOriginalMediaFilterLease second = await item.Filter.AcquireAsync(item, CancellationToken.None);
+        TaskCompletionSource sourceHeld = new(TaskCreationOptions.RunContinuationsAsynchronously), sourceResume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource copyHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim copyResume = new();
+        using HeldPayloadStream source = new(bytes, sourceHeld, sourceResume);
+        MediaStore store = new((from, to, overwrite) => {
+            if (!overwrite && from.EndsWith(".part", StringComparison.Ordinal))
+            {
+                copyHeld.TrySetResult();
+                if (!copyResume.Wait(TimeSpan.FromSeconds(10))) throw new IOException("Held target copy was not released.");
+            }
+            File.Move(from, to, overwrite);
+        });
+        Task<MediaCommitResult> secondRun = second.CommitAsync(item, source, new MediaStore(), (_, _) => Task.CompletedTask, CancellationToken.None);
+        Task<MediaCommitResult>? firstRun = null;
+        try
+        {
+            await sourceHeld.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            firstRun = Task.Run(() => first.CommitAsync(item, new MemoryStream(bytes), store, (_, _) => Task.CompletedTask, CancellationToken.None));
+            await copyHeld.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            long charge = h.Manager.TemporaryBudget.Total;
+            long files = Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")).Sum(path => new FileInfo(path).Length);
+            // Includes both stages, both journals, the retained file, the full target
+            // copy outside filter-stages, and the accepted worker workspace quota.
+            Assert.True(h.Stage.Snapshot.StagedBytes >= files + bytes.Length);
+            Assert.Equal(h.Stage.Snapshot.StagedBytes + 4096, charge);
+            h.Manager.TemporaryBudget.Limit(charge);
+            sourceResume.TrySetResult();
+            MediaFilterOmissionException denied = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => secondRun);
+            Assert.Equal("filter_temp_limit", denied.ReasonCode);
+            Assert.Equal(charge, h.Manager.TemporaryBudget.Total);
+            Assert.False(File.Exists(item.DestinationPath));
+            copyResume.Set(); await firstRun.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(item.DestinationPath));
+            Assert.Equal(8192, new FileInfo(foreign).Length);
+        }
+        finally
+        {
+            sourceResume.TrySetResult(); copyResume.Set();
+            if (firstRun != null) { try { await firstRun.WaitAsync(TimeSpan.FromSeconds(10)); } catch (Exception) { } }
+            try { await secondRun.WaitAsync(TimeSpan.FromSeconds(10)); } catch (Exception) { }
+        }
+    }
+
+    private sealed class HeldPayloadStream(byte[] bytes, TaskCompletionSource held, TaskCompletionSource resume) : MemoryStream(bytes)
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken token = default)
+        {
+            if (Position >= 1024) { held.TrySetResult(); await resume.Task.WaitAsync(token); }
+            return await base.ReadAsync(buffer[..Math.Min(1024, buffer.Length)], token);
+        }
+    }
+
+    private sealed class TrickleStream(byte[] bytes, int maximum, Action<int>? beforeRead = null) : Stream
+    {
+        private int _position;
+        public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;
+        public override long Length => bytes.Length;
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+        public override int Read(Span<byte> buffer)
+        {
+            beforeRead?.Invoke(_position);
+            int count = Math.Min(Math.Min(buffer.Length, maximum), bytes.Length - _position);
+            bytes.AsSpan(_position, count).CopyTo(buffer); _position += count; return count;
+        }
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => ValueTask.FromResult(Read(buffer.Span));
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task TwoCheckSlotsHaveCancellableAdmissionAndDoNotStopNormalOriginals()
     {
@@ -659,6 +885,76 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         Assert.Empty(Directory.GetFiles(Path.Combine(h.Root.Path, "filter-stages")));
     }
 
+    [Fact]
+    public async Task TargetReplacementDirectoryRetainsJournalPromiseAndBlocksAdmission()
+    {
+        await using Harness h = await Harness.StartAsync(Png(8, 4));
+        DownloadItem item = await h.ItemAsync(new());
+        string? target = null;
+        MediaStore store = new((from, to, overwrite) => {
+            if (!overwrite && from.EndsWith(".part", StringComparison.Ordinal))
+            {
+                // The store has closed/flushed its real copy. Replace that exact,
+                // valid owned name with a directory; File.Exists now returns false.
+                Assert.Equal(h.Bytes, File.ReadAllBytes(from));
+                target = from;
+                File.Delete(from); Directory.CreateDirectory(from);
+                File.WriteAllBytes(Path.Combine(from, "keep.bin"), h.Bytes);
+                throw new IOException("deterministic target replacement before publication");
+            }
+            File.Move(from, to, overwrite);
+        });
+        MediaFilterOmissionException failure = await Assert.ThrowsAsync<MediaFilterOmissionException>(() => h.RunAsync(item, store));
+        Assert.Equal("filter_stage_cleanup_io", failure.ReasonCode);
+        Assert.NotNull(target); Assert.True(Directory.Exists(target));
+        Assert.Equal(h.Bytes, await File.ReadAllBytesAsync(Path.Combine(target!, "keep.bin")));
+        Assert.False(File.Exists(item.DestinationPath)); Assert.False(item.Thread.IsMediaDownloaded(item.MediaIdentifier));
+        string stages = Path.Combine(h.Root.Path, "filter-stages");
+        string journal = Assert.Single(Directory.GetFiles(stages, "*.json"));
+        using JsonDocument record = JsonDocument.Parse(await File.ReadAllBytesAsync(journal));
+        Assert.Equal(target, record.RootElement.GetProperty("TargetTemporary").GetString());
+        Assert.Equal(item.DestinationPath, record.RootElement.GetProperty("Destination").GetString());
+        Assert.Equal(h.Bytes.Length, record.RootElement.GetProperty("Size").GetInt64());
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(h.Bytes)).ToLowerInvariant(), record.RootElement.GetProperty("Sha256").GetString());
+        Assert.True(h.Stage.Snapshot.StagedBytes >= h.Bytes.Length + new FileInfo(journal).Length);
+        Assert.False(h.Stage.BudgetIsCurrent); Assert.Equal(0, h.Stage.Snapshot.ActiveChecks);
+        MediaFilterOmissionException admission = await Assert.ThrowsAsync<MediaFilterOmissionException>(async () => {
+            await using IOriginalMediaFilterLease lease = await item.Filter!.AcquireAsync(item, CancellationToken.None);
+        });
+        Assert.Equal("filter_temp_limit", admission.ReasonCode);
+        Assert.True(File.Exists(journal)); Assert.True(Directory.Exists(target));
+        Assert.Equal(h.Bytes, await File.ReadAllBytesAsync(Path.Combine(target!, "keep.bin")));
+    }
+
+    [Fact]
+    public async Task StartupRecoveryPreservesValidJournalAndOwnedTargetDirectory()
+    {
+        using TempDirectory root = new(); using ProfileLease profile = ProfileLease.Acquire(root.Path);
+        string stages = Path.Combine(root.Path, "filter-stages"); Directory.CreateDirectory(stages);
+        string destination = Path.Combine(root.Path, "media", "destination.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        string target = Path.Combine(Path.GetDirectoryName(destination)!, ".meowchan-media-" + Guid.NewGuid().ToString("N") + ".part");
+        Directory.CreateDirectory(target);
+        byte[] bytes = Png(8, 4); await File.WriteAllBytesAsync(Path.Combine(target, "keep.bin"), bytes);
+        string id = Guid.NewGuid().ToString("N"), journal = Path.Combine(stages, "stage-" + id + ".json");
+        string image = Path.Combine(stages, "stage-" + id + ".bytes");
+        await File.WriteAllBytesAsync(image, bytes);
+        byte[] journalBytes = JsonSerializer.SerializeToUtf8Bytes(new {
+            Owner = "MeowChan original filter stage v1", Id = id, Resource = "x", MediaId = "x", PluginId = "x", ExecutionRevision = "1",
+            ConfigurationRevision = "1", GrantRevision = "1", Generation = 1, RuleRevision = "1",
+            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), Size = bytes.Length,
+            Destination = destination, TargetTemporary = target
+        });
+        await File.WriteAllBytesAsync(journal, journalBytes);
+        await using FilterStageCoordinator coordinator = new(root.Path, profile);
+        Assert.Equal(0, coordinator.Snapshot.RecoveredStages);
+        Assert.Equal(journalBytes, await File.ReadAllBytesAsync(journal));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(image));
+        Assert.True(Directory.Exists(target)); Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(target, "keep.bin")));
+        Assert.True(coordinator.Snapshot.StagedBytes > new FilterStageOptions().MaximumTemporaryBytes);
+        Assert.False(File.Exists(destination));
+    }
+
     private static bool Alive(int pid)
     {
         try { using Process process = Process.GetProcessById(pid); return !process.HasExited; }
@@ -696,6 +992,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         public Action? OnRead, OnResult;
         public Func<Task>? BeforeResult;
         public bool CheckReadAuthorization;
+        public Func<byte[], HttpContent>? ContentFactory;
         public string? LastToken;
         public PluginOperationContext? Operation;
         public ResourceId Resource { get; } = new("stub", "g", "123");
@@ -707,7 +1004,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             Bytes = bytes; _resourceFilter = resourceFilter; Profile = ProfileLease.Acquire(Root.Path); Content = new(Root.Path, Profile);
             Manager = new((workerOptions ?? new()) with { ExternalTemporaryBytes = () => Stage?.Snapshot.StagedBytes ?? 0 });
             Stage = new(Root.Path, Profile, (options ?? new()) with { WorkerTemporaryBytes = Manager.GetTemporaryBytes });
-            _board = new(new DelegateHandler((_, _) => { Transfers++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Bytes) }); }));
+            _board = new(new DelegateHandler((_, _) => { Transfers++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = ContentFactory?.Invoke(Bytes) ?? new ByteArrayContent(Bytes) }); }));
             _thread = new(_board.Board, new Uri("https://stub.test/g/thread/123"));
         }
         public static async Task<Harness> StartAsync(byte[] bytes, FilterStageOptions? options = null, bool resourceFilter = false, PluginWorkerOptions? workerOptions = null, string? filterAssembly = null)

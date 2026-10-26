@@ -27,7 +27,8 @@ public sealed record FilterStageOptions
     public long MaximumImageBytes { get; init; } = SdkLimits.MaximumImageBytes;
     public long MaximumTemporaryBytes { get; init; } = 512L * 1024 * 1024;
     public long MaximumDecodedPixels { get; init; } = SdkLimits.MaximumDecodedPixels;
-    // Session supplies the sum of its filter-worker private working-directory bytes.
+    // Supply the session manager's GetTemporaryBytes method group directly to share
+    // its atomic budget owner. Other callbacks retain sampled compatibility behavior.
     public Func<long> WorkerTemporaryBytes { get; init; } = () => 0;
 }
 

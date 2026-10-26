@@ -37,8 +37,8 @@ public sealed partial class Registry
             if (_workStore != null)
             {
                 _workResources.TryGetValue(key, out WorkResource? previous);
-                previous ??= _workStore.LoadResources().FirstOrDefault(item => item.Url == url);
-                WorkResource suppressed = _workStore.CommitIntent(new WorkResource
+                previous ??= WorkStateAccess.For(_workStore).FindResource(url);
+                WorkResource suppressed = CommitWorkIntent(new WorkResource
                 {
                     Url = url,
                     OutputRoot = previous?.OutputRoot ?? _outputDirectory,

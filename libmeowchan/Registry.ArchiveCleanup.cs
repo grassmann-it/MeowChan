@@ -19,7 +19,7 @@ public sealed partial class Registry
         if (_archiveCleanupReservations.TryGetValue(resource.Key, out TaskCompletionSource? existing)) return existing.Task;
         if (resource.Thread == null || !_queue.HasArchiveCleanupReservations) return null;
         _workResources.TryGetValue(resource.Key, out WorkResource? previous);
-        previous ??= _workStore?.LoadResources().SingleOrDefault(item => item.Url == resource.Url);
+        previous ??= (_workStore == null ? null : WorkStateAccess.For(_workStore).FindResource(resource.Url));
         string[] historicalPaths = previous == null || _workStore == null ? Array.Empty<string>()
             : _workStore.LoadMedia(previous.Url, previous.Generation).SelectMany(media => media.LegacyPath == null
                 ? new[] { media.DestinationPath } : new[] { media.DestinationPath, media.LegacyPath }).ToArray();

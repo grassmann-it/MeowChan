@@ -40,7 +40,8 @@ playback = load_helper('workflow_playback_runner', 'apphost-playback-smoke.py')
 PHASES = ('download', 'restore', 'removed', 'shutdown')
 CHECKS = {
     'download': {'download-paused', 'download-resumed', 'download-verified', 'native-clipboard-roundtrip',
-                 'compact-window', 'tray-fallback', 'exports-created-updated-new', 'external-handoff'},
+                 'compact-window', 'tray-fallback', 'exports-created-updated-new', 'external-handoff',
+                 'gallery-navigation-active-download'},
     'restore': {'restored-media-no-redownload', 'remove-keeps-local-media'},
     'removed': {'removed-watch-not-restored'},
     'shutdown': {'active-transfer-shutdown-disposed'},
@@ -489,6 +490,24 @@ def validate_metrics(metrics, phase, scale, *, isolated=True, working=None, prof
         dispatch = metrics.get('externalDispatch')
         if not isinstance(dispatch, dict) or dispatch.get('kind') != 'intercepted-export-command' or not isinstance(dispatch.get('target'), str) or not dispatch['target']:
             raise ValueError('External handoff interception evidence missing')
+        load = metrics.get('galleryLoad')
+        if not isinstance(load, dict) or load.get('activeDownloadThroughout') is not True:
+            raise ValueError('Gallery load did not retain an active download')
+        durations = load.get('navigationMilliseconds')
+        if (not isinstance(durations, list) or len(durations) != 8
+                or any(type(value) not in (int, float) or not math.isfinite(value) or value < 0 for value in durations)
+                or load.get('presentedPosts') != ['9901', '9900'] * 4):
+            raise ValueError('Gallery load omitted distinct decoded targets or valid timings')
+        heartbeat = load.get('heartbeat')
+        if (not isinstance(heartbeat, dict) or type(heartbeat.get('Samples')) is not int
+                or heartbeat['Samples'] < 8 or heartbeat.get('HardStalls') != 0
+                or type(heartbeat.get('MaxGapMilliseconds')) not in (int, float)
+                or not math.isfinite(heartbeat['MaxGapMilliseconds'])
+                or not 0 <= heartbeat['MaxGapMilliseconds'] < 1000
+                or type(heartbeat.get('OngoingSilenceMilliseconds')) not in (int, float)
+                or not math.isfinite(heartbeat['OngoingSilenceMilliseconds'])
+                or not 0 <= heartbeat['OngoingSilenceMilliseconds'] < 1000):
+            raise ValueError('Gallery load heartbeat did not remain responsive')
 
 
 def retain_evidence(profile, root, destination, owner_token=None):

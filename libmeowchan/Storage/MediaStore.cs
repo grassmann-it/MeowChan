@@ -107,12 +107,26 @@ public sealed partial class MediaStore
             if (manifestRead.Corrupt && item.AttachmentReferences.Count > 0)
                 throw new InvalidDataException("Cannot bind media from a corrupt manifest.");
             MediaCommitResult? bound = await TryRestoreBoundAsync(manifestRead.Manifest, item, directory, cancellationToken).ConfigureAwait(false);
-            if (bound != null) return bound;
+            if (bound != null)
+            {
+                using IDisposable? publication = item.AcquirePublicationFence == null ? null
+                    : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                item.AuthorizePublication?.Invoke();
+                return bound;
+            }
             // New observed references require their own acquisition, never legacy size/mediaId inference.
             if (item.AttachmentReferences.Count > 0) return null;
             (MediaCommitResult? strict, bool ambiguous) = await TryRestoreStrictAsync(manifestRead.Manifest, item,
                 destination, directory, expectedMd5, cancellationToken).ConfigureAwait(false);
-            if (strict != null) return strict;
+            if (strict != null)
+            {
+                using IDisposable? publication = item.AcquirePublicationFence == null ? null
+                    : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                item.AuthorizePublication?.Invoke();
+                return strict;
+            }
             if (ambiguous) return null;
             ForgetVerifiedFile(destination);
 
@@ -121,6 +135,9 @@ public sealed partial class MediaStore
                 FileDigest? digest = await TryHashFileAsync(destination, cancellationToken, item.ExpectedSize.Value).ConfigureAwait(false);
                 if (digest != null && MatchesExpected(item, expectedMd5, digest))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    using IDisposable? publication = item.AcquirePublicationFence == null ? null
+                        : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
                     cancellationToken.ThrowIfCancellationRequested();
                     item.AuthorizePublication?.Invoke();
                     AddManifestEntry(manifestRead.Manifest, item, destination, digest);
@@ -141,6 +158,9 @@ public sealed partial class MediaStore
                         continue;
                     }
 
+                    cancellationToken.ThrowIfCancellationRequested();
+                    using IDisposable? publication = item.AcquirePublicationFence == null ? null
+                        : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
                     cancellationToken.ThrowIfCancellationRequested();
                     item.AuthorizePublication?.Invoke();
                     AddManifestEntry(manifestRead.Manifest, item, candidatePath, candidateDigest);
@@ -312,6 +332,9 @@ public sealed partial class MediaStore
                     : await item.MediaIntegrityPolicy!.AcquireAcceptanceLeaseAsync(policy.Revision, cancellationToken).ConfigureAwait(false);
                 if (acceptanceLease != null && (acceptanceLease.Snapshot != policy || !acceptanceLease.Snapshot.AllowProviderSizeMd5Mismatch))
                     throw new InvalidDataException("Source permission changed before publication.");
+                cancellationToken.ThrowIfCancellationRequested();
+                using IDisposable? publication = item.AcquirePublicationFence == null ? null
+                    : await item.AcquirePublicationFence(cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 item.AuthorizePublication?.Invoke();
                 authorizeCommit?.Invoke();
@@ -988,13 +1011,20 @@ public sealed partial class MediaStore
         const string prefix = ".meowchan-media-";
         if (!name.StartsWith(prefix, StringComparison.Ordinal) || !name.EndsWith(".part", StringComparison.Ordinal)
             || !Guid.TryParseExact(name.Substring(prefix.Length, name.Length - prefix.Length - 5), "N", out _)) return false;
-        if (!File.Exists(temporaryPath)) return true;
         try
         {
             using FileStream lease = new(Path.Combine(directory, DirectoryLeaseFileName), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            if ((File.GetAttributes(temporaryPath) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) return false;
+            FileAttributes attributes;
+            try { attributes = File.GetAttributes(temporaryPath); }
+            catch (FileNotFoundException) { return true; }
+            catch (DirectoryNotFoundException) { return true; }
+            if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) return false;
             File.Delete(temporaryPath);
-            return true;
+            // File.Exists also reports false for directories and inspection failures. Only
+            // a positively missing path permits releasing its journal and temporary budget.
+            try { _ = File.GetAttributes(temporaryPath); return false; }
+            catch (FileNotFoundException) { return true; }
+            catch (DirectoryNotFoundException) { return true; }
         }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }

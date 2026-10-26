@@ -156,7 +156,8 @@ internal static class ShowcaseCaptures
             ("Night skies and distant horizons", 56, 56, ThreadActivity.Finished, 0, 0),
             ("Weekend drawing studies", 0, 12, ThreadActivity.Pending, 12, 0)
         ];
-        List<ThreadRow> rows = new();
+        List<DesktopThreadEntry> entries = new();
+        SyntheticShellRows? synthetic = null;
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         try
         {
@@ -188,8 +189,10 @@ internal static class ShowcaseCaptures
                         ThreadSourceStateValue.Active, null, false, media);
                     entry = entry with { Snapshot = entry.Snapshot with { Work = work } };
                 }
-                ThreadRow row = new(entry); rows.Add(row); window.UrlList.Add(row);
+                entries.Add(entry);
             }
+            synthetic = await SyntheticShellRows.CreateAsync(window, entries);
+            ThreadRow[] rows = synthetic.Threads;
             grid.SelectedItem = null;
             // Simple's normal list view is retained; no controls or labels are synthesized.
             await Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<TextBlock>()
@@ -234,7 +237,7 @@ internal static class ShowcaseCaptures
         finally
         {
             grid.SelectedItem = null;
-            foreach (ThreadRow row in rows) { window.UrlList.Remove(row); row.Dispose(); }
+            if (synthetic != null) await synthetic.DisposeAsync();
         }
     }
 

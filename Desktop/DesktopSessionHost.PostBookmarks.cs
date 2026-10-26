@@ -11,7 +11,10 @@ internal sealed partial class DesktopSessionHost
     private PostBookmarkStore? _postBookmarks;
     private PostBookmarkStore PostBookmarks => _postBookmarks ??= new(_profileLease.ProfileDirectory, _profileLease);
 
-    internal Task<PostBookmarkSnapshot> ReadPostBookmarksAsync(CancellationToken token = default) => Task.Run(async () =>
+    internal Task<PostBookmarkSnapshot> ReadPostBookmarksAsync(CancellationToken token = default)
+        => RunInteractiveAsync(nameof(ReadPostBookmarksAsync), "profile", () => ReadPostBookmarksAdmittedCoreAsync(token), captureAfter: false);
+
+    private Task<PostBookmarkSnapshot> ReadPostBookmarksAdmittedCoreAsync(CancellationToken token = default) => Task.Run(async () =>
     {
         await _commands.WaitAsync(token).ConfigureAwait(false);
         try { EnsureReady(); return PostBookmarks.Read(); }
@@ -19,6 +22,10 @@ internal sealed partial class DesktopSessionHost
     }, token);
 
     internal Task<PostBookmarkSnapshot> SavePostBookmarkAsync(PostBookmarkKey key, string note,
+        long expectedRevision, bool expectedExists, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(SavePostBookmarkAsync), key.ToString(), () => SavePostBookmarkAdmittedCoreAsync(key, note, expectedRevision, expectedExists, token));
+
+    private Task<PostBookmarkSnapshot> SavePostBookmarkAdmittedCoreAsync(PostBookmarkKey key, string note,
         long expectedRevision, bool expectedExists, CancellationToken token = default)
     {
         // Immutable inputs captured before entering the owner queue. No UI file writer.
@@ -39,6 +46,10 @@ internal sealed partial class DesktopSessionHost
     }
 
     internal Task<PostBookmarkSnapshot> RemovePostBookmarkAsync(PostBookmarkKey key,
+        long expectedRevision, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(RemovePostBookmarkAsync), key.ToString(), () => RemovePostBookmarkAdmittedCoreAsync(key, expectedRevision, token));
+
+    private Task<PostBookmarkSnapshot> RemovePostBookmarkAdmittedCoreAsync(PostBookmarkKey key,
         long expectedRevision, CancellationToken token = default) => Task.Run(async () =>
     {
         await _commands.WaitAsync(token).ConfigureAwait(false);

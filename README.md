@@ -4,13 +4,18 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.0.0</strong></p>
+<p align="center"><strong>1.0.1</strong></p>
 
 <p align="center">More chans. Better reading. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-[**Get MeowChan 1.0.0 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.0.0.md) · [Platform requirements](docs/platform-support.md)
+[**Get MeowChan 1.0.1 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.1) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.0.1.md) · [Platform requirements](docs/platform-support.md)
+
+**1.0.1 improves responsiveness while downloads run**, reduces repeated UI,
+filter staging and gallery work, and coordinates video switching and cleanup.
+Original-media verification remains enforced. See the
+[1.0.1 performance notes](docs/releases/v1.0.1.md) for details and limits.
 
 ## What's new in 1.0 🐾
 
@@ -58,20 +63,28 @@ Explore the eight-page [Settings workspace](docs/screenshots/v1.0.0/settings.png
 
 Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
 
-1. [Download MeowChan 1.0.0](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+| Platform | Download 1.0.1 |
+| --- | --- |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.1/01-MeowChan-1.0.1-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.1/02-MeowChan-1.0.1-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.1/03-MeowChan-1.0.1-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.1/04-MeowChan-1.0.1-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.1/05-MeowChan-1.0.1-linux-arm64.AppImage) |
+
+1. [Download MeowChan 1.0.1](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.1) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-For each of `linux-x64` and `linux-arm64`, choose a package on the [1.0.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
+For each of `linux-x64` and `linux-arm64`, choose a package on the [1.0.1 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.1):
 
 | Filename suffix | VLC requirement |
 | --- | --- |
-| `MeowChan-1.0.0-<RID>.AppImage` | Includes VLC; make executable and run. |
-| `MeowChan-1.0.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.0.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.0.1-<RID>.AppImage` | Includes VLC; make executable and run. |
+| `MeowChan-1.0.1-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.0.1-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 

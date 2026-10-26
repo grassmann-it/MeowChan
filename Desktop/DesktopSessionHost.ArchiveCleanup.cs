@@ -19,7 +19,14 @@ internal sealed partial class DesktopSessionHost
     // Internal measurement only; it cannot replace or bypass the mandatory directory verification.
     internal Action<string, long>? ArchiveCleanupMediaVerified { get; set; }
 
-    internal async Task<ArchiveCleanupPreview> PrepareArchiveCleanupAsync(
+    internal Task<ArchiveCleanupPreview> PrepareArchiveCleanupAsync(
+        IReadOnlyCollection<ResourceId>? openThreadIds = null, CancellationToken token = default)
+    {
+        ResourceId[] frozen = (openThreadIds ?? Array.Empty<ResourceId>()).ToArray();
+        return RunInteractiveAsync(nameof(PrepareArchiveCleanupAsync), "profile", () => PrepareArchiveCleanupAdmittedCoreAsync(frozen, token));
+    }
+
+    private async Task<ArchiveCleanupPreview> PrepareArchiveCleanupAdmittedCoreAsync(
         IReadOnlyCollection<ResourceId>? openThreadIds = null, CancellationToken token = default)
     {
         ResourceId[] frozen = OrderedCleanupIds(openThreadIds ?? Array.Empty<ResourceId>());

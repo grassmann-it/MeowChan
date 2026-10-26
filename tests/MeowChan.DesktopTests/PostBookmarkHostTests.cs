@@ -47,20 +47,24 @@ public sealed class PostBookmarkHostTests
     }
 
     [Fact]
-    public async Task QueuedEditorsCannotOverwriteAndStoppedOwnerCannotCommit()
+    public async Task BoundedEditorsCannotOverwriteAndStoppedOwnerCannotCommit()
     {
         using TempDirectory temp = new(); new Config { DownloadsPaused = true }.SaveConfig(temp.Path);
         await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
         await host.StartAsync().WaitAsync(Timeout);
-        var first = host.SavePostBookmarkAsync(Key, "first", 0, false);
-        var second = host.SavePostBookmarkAsync(Key, "second", 0, false);
-        int successes = 0, conflicts = 0;
-        foreach (var pending in new[] { first, second })
+        SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(host)!;
+        await commands.WaitAsync().WaitAsync(Timeout);
+        Task<PostBookmarkSnapshot> first;
+        try
         {
-            try { await pending.WaitAsync(Timeout); successes++; }
-            catch (PostBookmarkConflictException) { conflicts++; }
+            first = host.SavePostBookmarkAsync(Key, "first", 0, false);
+            await Assert.ThrowsAsync<DesktopSessionBusyException>(() => host.SavePostBookmarkAsync(Key, "second", 0, false));
         }
-        Assert.Equal(1, successes); Assert.Equal(1, conflicts);
+        finally { commands.Release(); }
+        await first.WaitAsync(Timeout);
+        // After admission reopens, optimistic concurrency still rejects an editor's stale draft.
+        await Assert.ThrowsAsync<PostBookmarkConflictException>(() => host.SavePostBookmarkAsync(Key, "second", 0, false));
         var snapshot = await host.ReadPostBookmarksAsync();
         Assert.Single(snapshot.Bookmarks); Assert.Equal(1, snapshot.Revision);
         await host.StopAsync().WaitAsync(Timeout);

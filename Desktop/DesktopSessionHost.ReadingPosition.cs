@@ -16,34 +16,45 @@ internal sealed partial class DesktopSessionHost
     // A capture already waiting for IO can therefore never resurrect a forgotten anchor.
     private void InvalidateReadingPositionWrites() => Interlocked.Increment(ref _readingPositionGeneration);
 
-    internal Task RememberReadingPositionAsync(LocalReadingPosition position, long generation) => Task.Run(async () =>
+    internal Task RememberReadingPositionAsync(LocalReadingPosition position, long generation)
     {
         position.Validate();
-        await _commands.WaitAsync().ConfigureAwait(false);
+        if (generation != ReadingPositionGeneration) return Task.CompletedTask;
+        lock (_finalWrites)
+        {
+            // Recheck after taking the staging lock: an older caller cannot replace a newer
+            // pending anchor if forget/disable advanced the generation while this caller waited.
+            if (generation != ReadingPositionGeneration) return Task.CompletedTask;
+            if (_finalWritesSealed) return Task.FromException(new InvalidOperationException("Final reading-position writes are closed."));
+            FinalWriteBatch batch = PendingFinalWrite("reading");
+            batch.Position = position; batch.Generation = generation;
+            StartFinalWriteLoop("reading");
+            return batch.Completion.Task;
+        }
+    }
+
+    // The final-writer loop owns _commands. Generation protects forget/disable against every older batch.
+    private Task WriteReadingPositionCoreAsync(LocalReadingPosition position, long generation)
+    {
+        if (generation != ReadingPositionGeneration || !Config.RememberReadingPosition) return Task.CompletedTask;
+        string destination = ReadingPositionPath;
+        string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
         try
         {
-            if (generation != ReadingPositionGeneration || !Config.RememberReadingPosition) return;
-            EnsureReady();
-            string destination = ReadingPositionPath;
-            string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
-            try
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(position, ReadingPositionJsonContext.Default.LocalReadingPosition);
+            using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(position, ReadingPositionJsonContext.Default.LocalReadingPosition);
-                using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    file.Write(bytes);
-                    file.Flush(flushToDisk: true);
-                }
-                // There is deliberately no backup/history of this privacy-sensitive single entry.
-                if (generation == ReadingPositionGeneration && Config.RememberReadingPosition)
-                    File.Move(pending, destination, overwrite: true);
+                file.Write(bytes);
+                file.Flush(flushToDisk: true);
             }
-            finally { File.Delete(pending); }
+            if (generation == ReadingPositionGeneration && Config.RememberReadingPosition)
+                File.Move(pending, destination, overwrite: true);
         }
-        finally { _commands.Release(); }
-    });
+        finally { File.Delete(pending); }
+        return Task.CompletedTask;
+    }
 
-    internal Task<LocalReadingPosition?> ReadReadingPositionAsync() => Task.Run(async () =>
+    internal Task<LocalReadingPosition?> ReadReadingPositionAsync() => RunInteractiveAsync<LocalReadingPosition?>(nameof(ReadReadingPositionAsync), "reading", async () =>
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -69,13 +80,12 @@ internal sealed partial class DesktopSessionHost
 
     internal Task ForgetReadingPositionAsync()
     {
-        InvalidateReadingPositionWrites();
-        return Task.Run(async () =>
+        return RunInteractiveAsync(nameof(ForgetReadingPositionAsync), "reading", async () =>
         {
             await _commands.WaitAsync().ConfigureAwait(false);
             try { EnsureReady(); DeleteReadingPositionFile(); }
             finally { _commands.Release(); }
-        });
+        }, InvalidateReadingPositionWrites);
     }
 
     private void DeleteReadingPositionFile() => File.Delete(ReadingPositionPath);

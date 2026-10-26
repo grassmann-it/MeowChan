@@ -14,7 +14,7 @@
     <!-- Desktop archives contain runtime files and notices; API docs/symbols stay in developer builds. -->
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
     <PublishDocumentationFiles>false</PublishDocumentationFiles>
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;samples/**;libmeowchan/**;MeowChan.PluginSdk/**;MeowChan.PluginHost/**;MeowChan.PluginWorker/**;MeowChan.PluginCompiler/**;plugins/**;Shared/**;artifacts/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;samples/**;libmeowchan/**;MeowChan.PluginSdk/**;MeowChan.PluginHost/**;MeowChan.PluginWorker/**;MeowChan.PluginCompiler/**;plugins/**;Shared/**;artifacts/**;docs/**</DefaultItemExcludes>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
@@ -58,6 +58,7 @@
 
   <ItemGroup>
     <Compile Remove="scripts/**/*.cs" />
+    <Compile Include="Shared/UiResponsivenessProbe.cs" Link="Diagnostics/UiResponsivenessProbe.cs" />
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <ProjectReference Include="MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
   </ItemGroup>

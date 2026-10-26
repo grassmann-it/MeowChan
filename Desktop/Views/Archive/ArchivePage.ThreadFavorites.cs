@@ -61,7 +61,7 @@ public partial class ArchivePage
 
     internal void AttachThreadFavorites(DesktopSessionHost host)
     {
-        _loadThreadFavorites = host.GetThreadFavoriteSnapshot;
+        _loadThreadFavorites = host.GetPublishedThreadFavoriteSnapshot;
         _setThreadFavorite = host.SetThreadFavoriteAsync;
     }
 

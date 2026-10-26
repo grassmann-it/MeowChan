@@ -13,14 +13,12 @@ internal static class GridChecks
 {
     public static async Task RunAsync(MainWindow window)
     {
-        using ThreadRow two = CreateRow("2", 2);
-        using ThreadRow ten = CreateRow("10", 10);
-        using BoardRow first = new BoardRow(SnapshotFixtures.Board(102));
-        using BoardRow second = new BoardRow(SnapshotFixtures.Board(103, "po"));
-        window.UrlList.Add(ten);
-        window.UrlList.Add(two);
-        window.BoardsList.Add(first);
-        window.BoardsList.Add(second);
+        await using SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(window,
+            [CreateEntry("10", 10), CreateEntry("2", 2)],
+            [SnapshotFixtures.Board(102), SnapshotFixtures.Board(103, "po")]);
+        ThreadRow two = synthetic.Threads.Single(row => row.WatchId == 2);
+        ThreadRow ten = synthetic.Threads.Single(row => row.WatchId == 10);
+        BoardRow first = synthetic.Boards[0], second = synthetic.Boards[1];
         TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
         DataGrid threadGrid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         DataGrid boardGrid = window.FindControl<DataGrid>("BoardsDataGrid")!;
@@ -62,19 +60,16 @@ internal static class GridChecks
             threadGrid.ContextMenu?.Close();
             boardGrid.ContextMenu?.Close();
             threadGrid.CollectionView.SortDescriptions.Clear();
-            window.UrlList.Remove(two);
-            window.UrlList.Remove(ten);
-            window.BoardsList.Remove(first);
-            window.BoardsList.Remove(second);
+            await synthetic.DisposeAsync();
             tabs.SelectedIndex = 0;
         }
         await DownloadSearchChecks.RunAsync(window);
     }
 
-    private static ThreadRow CreateRow(string id, int value)
+    private static DesktopThreadEntry CreateEntry(string id, int value)
     {
-        return new ThreadRow(SnapshotFixtures.Thread(value, id, "Grid fixture " + id,
-            completed: value, queued: value, active: value, board: value == 2 ? "g" : "wg"));
+        return SnapshotFixtures.Thread(value, id, "Grid fixture " + id,
+            completed: value, queued: value, active: value, board: value == 2 ? "g" : "wg");
     }
 
     private static Task WaitForRowsAsync(DataGrid grid, object first, object second) => Program.WaitUntilAsync(() =>

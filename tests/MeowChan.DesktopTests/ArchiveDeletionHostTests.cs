@@ -41,6 +41,7 @@ public sealed class ArchiveDeletionHostTests
             await first.StartAsync().WaitAsync(Timeout);
             await first.AddAsync("https://boards.4chan.org/g/").WaitAsync(Timeout);
             await first.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Timeout);
+            Assert.False(first.Projection.IsStale, first.Projection.CaptureError);
             Assert.Single(first.GetView().Threads);
             ArchivePermanentDeletionPlan plan = await first.PrepareArchiveDeletionAsync([id]);
             Assert.Equal(selectedHash, Assert.Single(plan.Files.Directories.SelectMany(directory => directory.AssetSha256)));
@@ -64,7 +65,10 @@ public sealed class ArchiveDeletionHostTests
         Assert.Empty(restored.GetView().Threads);
         await restored.SetPausedAsync(false).WaitAsync(Timeout);
         await UntilAsync(() => restoredProvider.Board.FinishedPolls > 0);
-        Assert.Empty(restored.GetView().Threads);
+        // Check suppression against a capture after discovery settled, not the pre-poll passive view.
+        DesktopSessionProjection restoredFrame = await restored.CaptureProjectionAsync().WaitAsync(Timeout);
+        Assert.False(restoredFrame.IsStale, restoredFrame.CaptureError);
+        Assert.Empty(restoredFrame.View.Threads);
         Assert.Equal(0, restoredTransport.ThreadRequests);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
         Assert.Null(await reader.ReadThreadAsync(id));

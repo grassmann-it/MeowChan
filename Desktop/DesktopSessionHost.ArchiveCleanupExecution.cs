@@ -39,7 +39,16 @@ internal sealed record ArchiveCleanupExecutionResult(IReadOnlyList<ResourceId> D
 
 internal sealed partial class DesktopSessionHost
 {
-    internal async Task<ArchiveCleanupExecutionPlan> PrepareArchiveCleanupExecutionAsync(ArchiveCleanupPreview preview,
+    internal Task<ArchiveCleanupExecutionPlan> PrepareArchiveCleanupExecutionAsync(ArchiveCleanupPreview preview,
+        IReadOnlyCollection<ResourceId> selectedIds, CancellationToken token = default,
+        IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
+    {
+        ResourceId[] frozen = selectedIds.ToArray();
+        ResourceId[] frozenOpen = (currentOpenThreadIds ?? Array.Empty<ResourceId>()).ToArray();
+        return RunInteractiveAsync(nameof(PrepareArchiveCleanupExecutionAsync), "profile", () => PrepareArchiveCleanupExecutionAdmittedCoreAsync(preview, frozen, token, frozenOpen));
+    }
+
+    private async Task<ArchiveCleanupExecutionPlan> PrepareArchiveCleanupExecutionAdmittedCoreAsync(ArchiveCleanupPreview preview,
         IReadOnlyCollection<ResourceId> selectedIds, CancellationToken token = default,
         IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
     {
@@ -86,7 +95,14 @@ internal sealed partial class DesktopSessionHost
             Array.AsReadOnly(errors.ToArray()));
     }
 
-    internal async Task<ArchiveCleanupExecutionResult> ExecuteArchiveCleanupAsync(ArchiveCleanupExecutionPlan plan,
+    internal Task<ArchiveCleanupExecutionResult> ExecuteArchiveCleanupAsync(ArchiveCleanupExecutionPlan plan,
+        CancellationToken token = default, IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
+    {
+        ResourceId[] frozen = (currentOpenThreadIds ?? Array.Empty<ResourceId>()).ToArray();
+        return RunInteractiveAsync(nameof(ExecuteArchiveCleanupAsync), "profile", () => ExecuteArchiveCleanupAdmittedCoreAsync(plan, token, frozen));
+    }
+
+    private async Task<ArchiveCleanupExecutionResult> ExecuteArchiveCleanupAdmittedCoreAsync(ArchiveCleanupExecutionPlan plan,
         CancellationToken token = default, IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
     {
         ArgumentNullException.ThrowIfNull(plan);

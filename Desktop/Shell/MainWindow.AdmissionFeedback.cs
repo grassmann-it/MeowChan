@@ -25,23 +25,11 @@ public partial class MainWindow
         bool sessionExample = example != null;
         if (example == null)
         {
-            // Only display a candidate accepted by a currently registered source's local URL parser.
-            // Classification performs no catalog/media request and admits no watch.
-            foreach (ProviderDescriptor provider in providers.OrderByDescending(provider => rejected != null && provider.SupportedHosts.Contains(rejected.Host, StringComparer.OrdinalIgnoreCase)))
-            {
-                foreach (string host in provider.SupportedHosts.Prepend(provider.BaseUri.Host).Distinct(StringComparer.OrdinalIgnoreCase))
-                {
-                    foreach (string path in new[] { "/b/thread/123456", "/b/res/123456.html", "/b/" })
-                    {
-                        string candidate = new UriBuilder(provider.BaseUri.Scheme, host) { Path = path }.Uri.AbsoluteUri;
-                        if (_session.ClassifyAdmission(candidate) is not { } accepted) continue;
-                        example = accepted.Url;
-                        break;
-                    }
-                    if (example != null) break;
-                }
-                if (example != null) break;
-            }
+            // These examples were validated by the source parsers on the single capture worker.
+            example = _session.Projection.AdmissionExamples
+                .OrderByDescending(url => rejected != null && Uri.TryCreate(url, UriKind.Absolute, out Uri? known)
+                    && string.Equals(known.Host, rejected.Host, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
         }
         // Keep the cause and repair example visible together in compact windows.
         // The rejected URLs and complete source list belong to the scrollable report.

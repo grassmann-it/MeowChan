@@ -5,6 +5,9 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using MeowChan.Storage;
+using MeowChan.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using MeowChan.Interfaces;
 
 public class DownloadItem
@@ -28,6 +31,25 @@ public class DownloadItem
         init => _attachmentReferences = MediaAttachmentReferences.CopyOf(value);
     }
     public ISourceMediaIntegrityPolicy? MediaIntegrityPolicy { get; init; }
+    // Frozen on the queue's private copy, never read from a later rebind of the same thread.
+    internal long WorkOperationId { get; private set; }
+    internal string? WorkResourceUrl { get; private set; }
+    internal long? WorkGeneration { get; private set; }
+    internal DownloadItem WithWorkAuthority(string url, long generation)
+    {
+        DownloadItem copy = (DownloadItem)MemberwiseClone();
+        copy.WorkOperationId = PerformanceDiagnostics.NextId();
+        copy.WorkResourceUrl = url;
+        copy.WorkGeneration = generation;
+        return copy;
+    }
+    internal Func<CancellationToken, ValueTask<IDisposable>>? AcquirePublicationFence { get; private set; }
+    internal DownloadItem WithPublicationFence(Func<CancellationToken, ValueTask<IDisposable>>? acquire)
+    {
+        DownloadItem copy = (DownloadItem)MemberwiseClone();
+        copy.AcquirePublicationFence = acquire;
+        return copy;
+    }
     internal Action? AuthorizePublication { get; private set; }
     internal DownloadItem WithPublicationAuthorization(Action? authorize)
     {

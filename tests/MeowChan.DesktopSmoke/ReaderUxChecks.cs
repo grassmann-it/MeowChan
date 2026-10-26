@@ -312,8 +312,11 @@ internal static class ReaderUxChecks
         TraceResultsGallery("after actual click");
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap));
         viewer = (GalleryViewer)gallery.Content!;
-        Click(GalleryButton(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
+        // Earlier galleries persist an open context; toggling blindly can close it while its controls remain.
+        if (!viewer.CaptureState().ContextOpen) Click(GalleryButton(viewer, "GalleryToggleContext"));
+        await Program.WaitUntilAsync(() => viewer.CaptureState().ContextOpen
+            && viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"
+                && button.IsEffectivelyVisible && button.IsEffectivelyEnabled));
         Click(GalleryButton(viewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => reader.IsVisible && !gallery.IsVisible && !page.IsBusy);
         Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
@@ -462,6 +465,12 @@ internal static class ReaderUxChecks
                 Require(star.Command?.CanExecute(null) == true, layout + " thread-favorite menu is unexpectedly disabled.");
                 star.Command!.Execute(null);
                 await Program.WaitUntilAsync(() => window.SessionHost.GetThreadFavorites().Contains(rows[0].Summary.Id));
+                // The store is visible before the command's capture and UI continuation finish.
+                // Wait for the active surface to display the mark and leave its pending state.
+                await Program.WaitUntilAsync(() => surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
+                    button.IsEffectivelyVisible && button.IsEnabled
+                    && button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
+                    && button.Content is TextBlock { Text: "★" }));
                 Require(!window.SessionHost.GetThreadFavorites().Contains(rows[1].Summary.Id),
                     layout + " thread-favorite menu targeted the changed selection instead of its frozen lead.");
                 Require(surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
@@ -725,11 +734,12 @@ internal static class ReaderUxChecks
     {
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
-        ThreadRow[] rows = Enumerable.Range(1000, 3).Select(id => new ThreadRow(
-            SnapshotFixtures.Thread(990000 + id, id.ToString(), "Reader scope " + id))).ToArray();
+        await using SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(window,
+            Enumerable.Range(1000, 3).Select(id =>
+                SnapshotFixtures.Thread(990000 + id, id.ToString(), "Reader scope " + id)));
+        ThreadRow[] rows = synthetic.Threads;
         try
         {
-            foreach (ThreadRow row in rows) window.UrlList.Add(row);
             await Program.WaitUntilAsync(() => rows.All(row => window.VisibleThreads.Contains(row)
                 && grid.CollectionView.Cast<ThreadRow>().Contains(row)));
             grid.CollectionView.SortDescriptions.Clear();
@@ -763,7 +773,7 @@ internal static class ReaderUxChecks
         finally
         {
             grid.CollectionView.SortDescriptions.Clear();
-            foreach (ThreadRow row in rows) { window.UrlList.Remove(row); row.Dispose(); }
+            await synthetic.DisposeAsync();
         }
     }
 

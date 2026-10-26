@@ -13,14 +13,26 @@ internal sealed partial class DesktopSessionHost
 {
     private ReaderGroupStore ReaderGroups => _readerGroupStore ??= new(ProfileDirectory, _profileLease);
     private ReaderGroupStore? _readerGroupStore; // Access only while holding _commands; shares existing owner.
-    internal Task<ReaderGroupsLoadResult> LoadReaderGroupsAsync(CancellationToken token = default) =>
+    internal Task<ReaderGroupsLoadResult> LoadReaderGroupsAsync(CancellationToken token = default)
+        => RunInteractiveAsync(nameof(LoadReaderGroupsAsync), "profile", () => LoadReaderGroupsAdmittedCoreAsync(token), captureAfter: false);
+
+    private Task<ReaderGroupsLoadResult> LoadReaderGroupsAdmittedCoreAsync(CancellationToken token = default) =>
         ReaderGroupsCommandAsync(ct => ReaderGroups.LoadAsync(ct), token);
     internal Task<ReaderGroupsSnapshot> SaveReaderGroupsAsync(ReaderGroupsSnapshot draft, long expectedRevision, CancellationToken token = default)
     {
         ReaderGroupsSnapshot frozen = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
+        return RunInteractiveAsync(nameof(SaveReaderGroupsAsync), "profile", () => SaveReaderGroupsAdmittedCoreAsync(frozen, expectedRevision, token));
+    }
+
+    private Task<ReaderGroupsSnapshot> SaveReaderGroupsAdmittedCoreAsync(ReaderGroupsSnapshot draft, long expectedRevision, CancellationToken token = default)
+    {
+        ReaderGroupsSnapshot frozen = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
         return ReaderGroupsCommandAsync(ct => ReaderGroups.SaveAsync(frozen, expectedRevision, ct), token);
     }
-    internal Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAsync(string recoveryToken, CancellationToken token = default) =>
+    internal Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAsync(string recoveryToken, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(RestoreReaderGroupsBackupAsync), "profile", () => RestoreReaderGroupsBackupAdmittedCoreAsync(recoveryToken, token));
+
+    private Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAdmittedCoreAsync(string recoveryToken, CancellationToken token = default) =>
         ReaderGroupsCommandAsync(ct => ReaderGroups.RestoreBackupAsync(recoveryToken, ct), token);
 
     private async Task<T> ReaderGroupsCommandAsync<T>(Func<CancellationToken, Task<T>> command, CancellationToken token)
@@ -31,7 +43,10 @@ internal sealed partial class DesktopSessionHost
         finally { _commands.Release(); }
     }
 
-    internal Task<ReaderGroupCandidatePage> FindReaderGroupCandidatesAsync(string text, int limit = 50, CancellationToken cancellationToken = default) =>
+    internal Task<ReaderGroupCandidatePage> FindReaderGroupCandidatesAsync(string text, int limit = 50, CancellationToken cancellationToken = default)
+        => RunInteractiveAsync(nameof(FindReaderGroupCandidatesAsync), "profile", () => FindReaderGroupCandidatesAdmittedCoreAsync(text, limit, cancellationToken), captureAfter: false);
+
+    private Task<ReaderGroupCandidatePage> FindReaderGroupCandidatesAdmittedCoreAsync(string text, int limit = 50, CancellationToken cancellationToken = default) =>
         ReaderGroupsCommandAsync(async token =>
         {
             if (text.Length > 512 || text.Contains('\0')) throw new ArgumentException("Search is limited to 512 characters.", nameof(text));
@@ -69,6 +84,12 @@ internal sealed partial class DesktopSessionHost
         }, cancellationToken);
 
     internal Task<IReadOnlyList<ReaderGroupCandidate>> ResolveReaderGroupMembersAsync(IReadOnlyList<ResourceId> ids, CancellationToken cancellationToken = default)
+    {
+        ResourceId[] frozen = ids.ToArray();
+        return RunInteractiveAsync(nameof(ResolveReaderGroupMembersAsync), "profile", () => ResolveReaderGroupMembersAdmittedCoreAsync(frozen, cancellationToken), captureAfter: false);
+    }
+
+    private Task<IReadOnlyList<ReaderGroupCandidate>> ResolveReaderGroupMembersAdmittedCoreAsync(IReadOnlyList<ResourceId> ids, CancellationToken cancellationToken = default)
     {
         ResourceId[] frozen = ids.ToArray();
         return ReaderGroupsCommandAsync<IReadOnlyList<ReaderGroupCandidate>>(async token =>

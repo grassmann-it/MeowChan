@@ -29,14 +29,19 @@ internal sealed partial class DesktopSessionHost
         }
     }
 
-    internal IReadOnlyList<SourceMediaIntegrityPolicyView> GetSourceMediaIntegrityPolicies()
+    internal IReadOnlyList<SourceMediaIntegrityPolicyView> GetSourceMediaIntegrityPolicies() => Projection.SourcePolicies;
+
+    private IReadOnlyList<SourceMediaIntegrityPolicyView> CaptureSourceMediaIntegrityPolicies()
     {
         PluginSourcePolicyAuthority[] authorities = Plugins?.GetSourceMediaIntegrityAuthorities().ToArray() ?? [];
         return Array.AsReadOnly(authorities.Select(authority =>
             GetOrCreateSourceMediaIntegrityPolicy(authority.PluginOwnerId, authority.SourceId).GetView(authority.Maturity)).ToArray());
     }
 
-    internal async Task SetSourceMediaIntegrityPermissionAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
+    internal Task SetSourceMediaIntegrityPermissionAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
+        => RunInteractiveAsync(nameof(SetSourceMediaIntegrityPermissionAsync), pluginOwnerId + "/" + sourceId, () => SetSourceMediaIntegrityPermissionAdmittedCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision));
+
+    private async Task SetSourceMediaIntegrityPermissionAdmittedCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -60,7 +65,7 @@ internal sealed partial class DesktopSessionHost
             candidate.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(pluginOwnerId, sourceId)] = permission;
             candidate.Validate();
             candidate.SaveConfig(_profileLease.ProfileDirectory);
-            Config.CopyFrom(candidate);
+            PublishConfig(candidate);
         });
     }
 

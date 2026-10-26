@@ -96,6 +96,7 @@ public sealed class MediaAssetSnapshot
     public async Task<Stream> OpenVerifiedReadAsync(string assetId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        using var verification = Diagnostics.PerformanceDiagnostics.Measure("media.original.verify", asset: assetId);
         MediaAssetReference asset = FindById(assetId)
             ?? throw new ArgumentException("The asset does not belong to this manifest snapshot.", nameof(assetId));
         if ((File.GetAttributes(asset.Path) & FileAttributes.ReparsePoint) != 0)
@@ -111,6 +112,7 @@ public sealed class MediaAssetSnapshot
                 throw new InvalidDataException("The recorded media asset no longer matches its committed checksum.");
             cancellationToken.ThrowIfCancellationRequested();
             stream.Position = 0;
+            Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "verified", asset: assetId, value: asset.Length);
             return stream;
         }
         catch

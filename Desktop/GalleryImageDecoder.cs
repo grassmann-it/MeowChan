@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using MeowChan.Gallery;
+using MeowChan.Diagnostics;
 using SkiaSharp;
 
 namespace MeowChan.Desktop;
@@ -81,20 +82,27 @@ internal static class GalleryImageDecoder
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry,
         GalleryDecodeRequest request, CancellationToken cancellationToken) => Task.Run(async () =>
     {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using (PerformanceDiagnostics.Measure("gallery.decoder.gate-wait", asset: entry.Asset.AssetId))
+            await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             DecodeStarted?.Invoke(request);
             if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(GalleryViewerText.Get(
                 "Image exceeds the 64 MiB file limit.", "Das Bild überschreitet die Dateigrenze von 64 MiB."));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
-            GalleryImageInfo info = Inspect(stream);
+            GalleryImageInfo info;
+            using (PerformanceDiagnostics.Measure("gallery.decoder.inspect", asset: entry.Asset.AssetId))
+                info = Inspect(stream);
             cancellationToken.ThrowIfCancellationRequested();
             stream.Position = 0;
             PixelSize target = request is GalleryDecodeRequest.Fit fit
                 ? GalleryFitTarget.Calculate(info, fit) : new PixelSize(info.Width, info.Height);
-            Bitmap bitmap = request is GalleryDecodeRequest.Original ? new Bitmap(stream)
-                : DecodeFit(stream, target);
+            Bitmap bitmap;
+            using (PerformanceDiagnostics.Measure(request is GalleryDecodeRequest.Original
+                ? "gallery.decoder.original" : "gallery.decoder.fit", asset: entry.Asset.AssetId))
+                bitmap = request is GalleryDecodeRequest.Original ? new Bitmap(stream) : DecodeFit(stream, target);
+            PerformanceDiagnostics.Record("gallery.decoder.pixels", "decoded", asset: entry.Asset.AssetId,
+                value: (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height);
             if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
             return (bitmap, info);
         }

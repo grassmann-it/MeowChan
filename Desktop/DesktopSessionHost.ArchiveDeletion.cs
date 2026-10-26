@@ -17,7 +17,14 @@ internal sealed record ArchivePermanentDeletionResult(IReadOnlyList<ResourceId> 
 
 internal sealed partial class DesktopSessionHost
 {
-    internal async Task<ArchivePermanentDeletionPlan> PrepareArchiveDeletionAsync(
+    internal Task<ArchivePermanentDeletionPlan> PrepareArchiveDeletionAsync(
+        IReadOnlyCollection<ResourceId> ids, CancellationToken token = default)
+    {
+        ResourceId[] frozen = ids.ToArray();
+        return RunInteractiveAsync(nameof(PrepareArchiveDeletionAsync), "profile", () => PrepareArchiveDeletionAdmittedCoreAsync(frozen, token));
+    }
+
+    private async Task<ArchivePermanentDeletionPlan> PrepareArchiveDeletionAdmittedCoreAsync(
         IReadOnlyCollection<ResourceId> ids, CancellationToken token = default)
     {
         await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -34,7 +41,11 @@ internal sealed partial class DesktopSessionHost
         finally { _commands.Release(); }
     }
 
-    internal async Task<ArchivePermanentDeletionResult> DeleteArchivePermanentlyAsync(
+    internal Task<ArchivePermanentDeletionResult> DeleteArchivePermanentlyAsync(
+        ArchivePermanentDeletionPlan plan, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(DeleteArchivePermanentlyAsync), "profile", () => DeleteArchivePermanentlyAdmittedCoreAsync(plan, token));
+
+    private async Task<ArchivePermanentDeletionResult> DeleteArchivePermanentlyAdmittedCoreAsync(
         ArchivePermanentDeletionPlan plan, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -183,6 +194,7 @@ internal sealed partial class DesktopSessionHost
                                 !deleted.Contains(entry.Key.Thread)).ToArray();
                             _favoriteEntries = Array.AsReadOnly(retained);
                             _favoriteKeys = retained.Select(entry => entry.Key).ToHashSet();
+                            PublishFavoriteIndex();
                         }
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)

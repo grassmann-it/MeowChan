@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -95,8 +96,15 @@ internal static class SettingsPageChecks
             Directory.CreateDirectory(file);
             try
             {
+                SessionFeedbackStore feedback = (SessionFeedbackStore)typeof(MainWindow).GetField("_feedback",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+                int failuresBefore = feedback.Entries.Where(entry => entry.Operation == "preferences.appearance").Sum(entry => entry.Count);
                 Click(window.FindControl<Button>("ThemeToggleButton")!);
-                await Program.WaitUntilAsync(() => editor.IsAvailable && window.FindControl<Button>("ThemeToggleButton")!.IsEnabled);
+                // Preference admission leaves navigation usable. Keep the failing filesystem fixture
+                // until the actual write failed and its UI observer published the visible error.
+                await Program.WaitUntilAsync(() => window.SessionHost.PreferenceWriteCounts.Failed > 0
+                    && feedback.Entries.Where(entry => entry.Operation == "preferences.appearance").Sum(entry => entry.Count) > failuresBefore
+                    && editor.IsAvailable && window.FindControl<Button>("ThemeToggleButton")!.IsEnabled);
                 Require(Application.Current?.RequestedThemeVariant == (nextTheme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark)
                     && editor.SelectedTheme?.Value == nextTheme && editor.DownloadPath == draftPath && timer.Text == raw,
                     "A failed footer commit changed appearance or the draft.");

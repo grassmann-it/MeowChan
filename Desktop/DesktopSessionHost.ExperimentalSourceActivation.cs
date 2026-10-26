@@ -7,7 +7,10 @@ internal sealed partial class DesktopSessionHost
 {
     private readonly Guid _experimentalActivationSessionId = Guid.NewGuid();
 
-    internal async Task<ExperimentalSourceActivationProjection> ProjectExperimentalSourceActivationAsync(string url)
+    internal Task<ExperimentalSourceActivationProjection> ProjectExperimentalSourceActivationAsync(string url)
+        => RunInteractiveAsync(nameof(ProjectExperimentalSourceActivationAsync), url, () => ProjectExperimentalSourceActivationAdmittedCoreAsync(url));
+
+    private async Task<ExperimentalSourceActivationProjection> ProjectExperimentalSourceActivationAdmittedCoreAsync(string url)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -23,7 +26,10 @@ internal sealed partial class DesktopSessionHost
         finally { _commands.Release(); }
     }
 
-    internal async Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAsync(ExperimentalSourceActivationTarget target)
+    internal Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAsync(ExperimentalSourceActivationTarget target)
+        => RunInteractiveAsync(nameof(ActivateAndAllowExperimentalSourceAsync), target.PluginOwnerId + "/" + target.SourceId, () => ActivateAndAllowExperimentalSourceAdmittedCoreAsync(target));
+
+    private async Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAdmittedCoreAsync(ExperimentalSourceActivationTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
         await _commands.WaitAsync().ConfigureAwait(false);

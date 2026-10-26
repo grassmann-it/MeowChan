@@ -20,14 +20,14 @@ internal static class MediaRetryChecks
                 DestinationPath = Path.Combine(entry.Snapshot.DownloadDirectory, "fixture.jpg"),
                 DownloadUrl = "https://fixture.invalid/media.jpg", OriginalFileName = "fixture.jpg",
                 Status = MediaWorkStatus.Waiting, HttpStatus = 404, Attempts = 1, DueAt = due } });
-        using ThreadRow row = new(entry with { Snapshot = entry.Snapshot with { Work = work } });
+        await using SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(window,
+            [entry with { Snapshot = entry.Snapshot with { Work = work } }]);
+        ThreadRow row = synthetic.Threads[0];
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
-        object? previous = grid.SelectedItem;
         string language = Texts.Language;
-        window.UrlList.Add(row);
         try
         {
-            // Passive fixture additions reach the filtered ItemsSource on the coalesced UI update.
+            // The fixture published through the real immutable source/search transaction.
             await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(row)
                 && grid.CollectionView.Cast<ThreadRow>().Contains(row));
             grid.SelectedItem = row;
@@ -36,7 +36,7 @@ internal static class MediaRetryChecks
             {
                 Texts.SetLanguage(selectedLanguage);
                 // The fixture is intentionally not a provider watch: the host must return stale safely.
-                row.UpdateSnapshot(entry with { Snapshot = entry.Snapshot with { Work = work } });
+                await synthetic.WaitForAppliedAsync();
                 Button retry = window.FindControl<Button>("InspectorMediaRetryButton")!;
                 await Program.WaitUntilAsync(() => retry.IsEnabled);
                 if (window.FindControl<Button>("InspectorCheckButton")!.IsEnabled)
@@ -50,9 +50,8 @@ internal static class MediaRetryChecks
         }
         finally
         {
-            window.UrlList.Remove(row);
-            grid.SelectedItem = previous;
             Texts.SetLanguage(language);
+            await synthetic.DisposeAsync();
         }
         Console.WriteLine("SMOKE media retry: EN/DE durable pause projection, separate command and stale-watch protection passed.");
     }

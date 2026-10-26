@@ -327,8 +327,22 @@ public partial class MainWindow
     private void RefreshWorkspace()
     {
         if (!_workspaceInitialized) return;
-        RefreshDownloadSearch();
-        foreach (ThreadRow row in UrlList) row.SetPaused(_session.IsPaused);
+        if (_galleryCoversWorkspace || _sessionRowsApplying)
+        {
+            // Covered by the gallery: only the small always-visible shell state stays current. Filtering,
+            // collection reconciliation, counts and the inspector are marked dirty and run once on return.
+            _sessionDirtyWhileCovered = true;
+            WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
+            WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
+            RefreshWorkspaceStatusText();
+            return;
+        }
+        if (DownloadSearchNeedsReconciliation)
+        {
+            _sessionRefresh.RequestImmediate();
+            return;
+        }
+        RefreshDownloadSearchPresentation();
         RefreshMediaRetryControls();
         string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
             UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
@@ -346,17 +360,22 @@ public partial class MainWindow
         ToolTip.SetTip(sessionUrls, Texts.T("downloads.copySessionUrlsHint"));
         AutomationProperties.SetHelpText(sessionUrls, Texts.T("downloads.copySessionUrlsHint"));
         RefreshDetailsToggleIcon();
-        string stateKey = _isClosing ? "shell.stopping" : _session.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.State switch
+        RefreshWorkspaceStatusText();
+        RefreshWorkspaceInspector();
+        UpdateDownloadsHeaderLayout();
+    }
+
+    private void RefreshWorkspaceStatusText()
+    {
+        string stateKey = _isClosing ? "shell.stopping" : _session.Projection.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.Projection.View.State switch
         {
-            DesktopSessionState.Ready => _session.IsPaused ? "shell.paused" : "shell.ready",
+            DesktopSessionState.Ready => _session.Projection.IsPaused ? "shell.paused" : "shell.ready",
             DesktopSessionState.RecoveryFailed => "shell.recoveryFailed",
             DesktopSessionState.Stopping or DesktopSessionState.Stopped => "shell.stopping",
             _ => "shell.starting"
         };
         WorkspaceControl<TextBlock>("WorkspaceStatus").Text = Texts.T(stateKey);
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceStatus"), _session.StartupError);
-        RefreshWorkspaceInspector();
-        UpdateDownloadsHeaderLayout();
     }
 
     private void RefreshDetailsToggleIcon()
@@ -369,6 +388,7 @@ public partial class MainWindow
 
     private object? GetWorkspaceSelection()
     {
+        if (_sessionRowsApplying) return null;
         if (WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1)
         {
             BoardRow? board = LeadBoard;
@@ -387,6 +407,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceInspector()
     {
+        if (_sessionRowsApplying) return;
         RefreshInspectorLocalActions();
         object? selected = GetWorkspaceSelection();
         bool hasSelection = selected != null;
@@ -557,7 +578,11 @@ public partial class MainWindow
     }
 
     private void OnOpenWorkspaceDetailsClick(object? sender, RoutedEventArgs e) => OpenWorkspaceDetails();
-    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
+    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_refreshingDownloadSearch) return;
+        RefreshWorkspace();
+    }
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e)
     {

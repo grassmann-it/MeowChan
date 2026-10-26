@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using Serilog;
 
 namespace MeowChan;
@@ -19,6 +21,7 @@ public partial class MainWindow
     private bool _applyingColumnProfile;
     private readonly Dictionary<string, DataGridLength> _defaultColumnWidths = new(StringComparer.Ordinal);
     private Task _windowPreferenceSave = Task.CompletedTask;
+    private Task _windowPreferenceWrite = Task.CompletedTask;
 
     private void InitializeWindowPreferences()
     {
@@ -106,15 +109,14 @@ public partial class MainWindow
         if (!_windowPreferencesReady || _isClosing || _fullscreenOrigin != null || _restoringFullscreen
             || WindowState == WindowState.FullScreen) return;
         _windowPreferenceTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
-            async (_, _) => await FlushWindowPreferencesAsync());
+            (_, _) => { _ = FlushWindowPreferencesAsync(); });
         _windowPreferenceTimer.Stop(); _windowPreferenceTimer.Start();
     }
 
-    private async Task FlushWindowPreferencesAsync()
+    private Task FlushWindowPreferencesAsync()
     {
         _windowPreferenceTimer?.Stop();
-        Task previous = _windowPreferenceSave;
-        if (!_windowPreferencesReady) { await previous; return; }
+        if (!_windowPreferencesReady) return _windowPreferenceSave;
         Size client = _fullscreenOrigin?.Client ?? _lastNormalClient;
         PixelPoint position = _fullscreenOrigin?.Position ?? _lastNormalPosition;
         bool maximized = (_fullscreenOrigin?.State ?? WindowState) == WindowState.Maximized;
@@ -124,26 +126,61 @@ public partial class MainWindow
             pair => new Dictionary<string, int>(pair.Value, StringComparer.Ordinal), StringComparer.Ordinal);
         _pendingColumnWidths.Clear();
         _pendingColumnOrder.Clear();
-        async Task SaveAsync()
+        Task write;
+        try
         {
-            try
+            // Submit immediately: the host synchronously freezes/merges every independent delta.
+            // Never await the previous shell save before entering its bounded writer.
+            write = _session.SaveViewPreferencesAsync(current =>
             {
-                await previous;
-                await _session.SaveViewPreferencesAsync(current =>
-                {
-                    current.WindowWidth = client.Width; current.WindowHeight = client.Height;
-                    current.WindowPositionX = position.X; current.WindowPositionY = position.Y;
-                    current.WindowMaximized = maximized;
-                    foreach (var mode in columns)
-                        foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnWidths[pair.Key] = pair.Value;
-                    foreach (var mode in order)
-                        foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnOrder[pair.Key] = pair.Value;
-                });
-            }
-            catch (Exception error) { Log.Warning(error, "Could not save window preferences."); }
+                current.WindowWidth = client.Width; current.WindowHeight = client.Height;
+                current.WindowPositionX = position.X; current.WindowPositionY = position.Y;
+                current.WindowMaximized = maximized;
+                foreach (var mode in columns)
+                    foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnWidths[pair.Key] = pair.Value;
+                foreach (var mode in order)
+                    foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnOrder[pair.Key] = pair.Value;
+            });
         }
-        _windowPreferenceSave = SaveAsync();
-        await _windowPreferenceSave;
+        catch (Exception error)
+        {
+            // A synchronous rejection never entered the host's retained draft. Keep these deltas
+            // locally as well, so a later corrected preference can retry every independent field.
+            foreach (var mode in columns)
+            {
+                if (!_pendingColumnWidths.TryGetValue(mode.Key, out var pending))
+                    _pendingColumnWidths[mode.Key] = pending = new(StringComparer.Ordinal);
+                foreach (var pair in mode.Value) pending.TryAdd(pair.Key, pair.Value);
+            }
+            foreach (var mode in order)
+            {
+                if (!_pendingColumnOrder.TryGetValue(mode.Key, out var pending))
+                    _pendingColumnOrder[mode.Key] = pending = new(StringComparer.Ordinal);
+                foreach (var pair in mode.Value) pending.TryAdd(pair.Key, pair.Value);
+            }
+            write = Task.FromException(error);
+        }
+        // Pending host callers share a completion. One observer per completion also bounds shell
+        // continuations; timer ticks themselves must not add an async waiter for every flush.
+        if (!ReferenceEquals(write, _windowPreferenceWrite))
+        {
+            _windowPreferenceWrite = write;
+            _windowPreferenceSave = ObserveWindowPreferenceWriteAsync(write);
+        }
+        return _windowPreferenceSave;
+    }
+
+    private async Task ObserveWindowPreferenceWriteAsync(Task write)
+    {
+        try { await write; }
+        catch (Exception error)
+        {
+            // Host retains the draft. Shutdown's final host flush retries it and propagates a
+            // persistent failure; automatic observations report it without unobserved timer faults.
+            Log.Warning(error, "Could not save window preferences; retaining the draft for retry.");
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"),
+                Texts.T("preferences.failed", error.Message), NotificationType.Error, context: "window", operation: "preferences.window");
+        }
     }
 
     private void DisposeWindowPreferences()

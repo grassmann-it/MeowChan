@@ -106,6 +106,8 @@ internal sealed class ApphostWorkflowSmoke : IDisposable
         if (!SamePath(config.DownloadPath, DownloadRoot) || config.MinimizeToTray || config.CloseToTray)
             throw new IOException("Restored fixture settings refer outside the workflow or alter close behavior.");
         config.SaveConfig(Profile);
+        if (PreviousProfile == null)
+            ApphostWorkflowGalleryFixture.SeedAsync(Root, Profile).GetAwaiter().GetResult();
         if (PreviousProfile != null) Http.AllowMedia();
         _client = new HttpClient(Http);
         return new DesktopSessionHost(Profile, new IImageBoard[] { new FourChanImageBoard(_client) });

@@ -19,14 +19,14 @@ public partial class MainWindow
             await CheckDownloadSelectionAsync(false, retry: true);
             return;
         }
-        if (!_restoreCompleted || WorkspaceCommandBusy || GetWorkspaceSelection() is not ThreadRow row
+        if (!_restoreCompleted || RowCommandBusy || GetWorkspaceSelection() is not ThreadRow row
             || !row.CanRetryMedia || !_mediaRetryCommands.Add(row.WatchId)) return;
         RefreshMediaRetryControls();
         try
         {
             int accepted = await _session.RetryMissingMediaAsync(row.WatchId);
             ShowNotification(Texts.T("notification.session"), Texts.T(accepted == 0 ? "work.retryNone"
-                : _session.IsPaused ? "work.retryPaused" : "work.retryAccepted", accepted),
+                : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", accepted),
                 NotificationType.Information, context: row.WatchId.ToString(), operation: "media.retry");
         }
         catch (Exception exception)
@@ -42,7 +42,7 @@ public partial class MainWindow
 
     private void RefreshMediaRetryControls()
     {
-        bool enabled = _restoreCompleted && !WorkspaceCommandBusy && GetWorkspaceSelection() is ThreadRow row
+        bool enabled = _restoreCompleted && !RowCommandBusy && GetWorkspaceSelection() is ThreadRow row
             && row.CanRetryMedia && !_mediaRetryCommands.Contains(row.WatchId);
         if (this.FindControl<Button>("InspectorMediaRetryButton") is Button button) button.IsEnabled = enabled;
 

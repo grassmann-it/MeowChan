@@ -25,7 +25,10 @@ public sealed class DisabledWatchRestoreTests
             await first.StartAsync().WaitAsync(Timeout);
             await first.AddAsync(BoardUrl).WaitAsync(Timeout);
             await UntilAsync(() => firstProvider.Board.FinishedPolls == 1);
-            DesktopThreadEntry discovered = Assert.Single(first.GetView().Threads);
+            // Poll completion settles discovery; it does not await the passive host projection.
+            DesktopSessionProjection discoveredFrame = await first.CaptureProjectionAsync().WaitAsync(Timeout);
+            Assert.False(discoveredFrame.IsStale, discoveredFrame.CaptureError);
+            DesktopThreadEntry discovered = Assert.Single(discoveredFrame.View.Threads);
             Assert.Equal("123", discovered.Snapshot.Id.Thread);
             await first.RemoveThreadAsync(discovered.WatchId).WaitAsync(Timeout);
             await first.AddAsync("https://boards.4chan.org/g/thread/456").WaitAsync(Timeout);
@@ -41,7 +44,9 @@ public sealed class DisabledWatchRestoreTests
         Assert.Equal(0, restoredTransport.Requests);
         await restored.AddAsync(BoardUrl).WaitAsync(Timeout);
         await UntilAsync(() => restoredProvider.Board.FinishedPolls == 1);
-        Assert.Empty(restored.GetView().Threads);
+        DesktopSessionProjection restoredFrame = await restored.CaptureProjectionAsync().WaitAsync(Timeout);
+        Assert.False(restoredFrame.IsStale, restoredFrame.CaptureError);
+        Assert.Empty(restoredFrame.View.Threads);
         Assert.Equal(0, restoredTransport.Thread123Requests);
         DesktopAdmissionResult explicitAdd = await restored.AddAsync(ThreadUrl).WaitAsync(Timeout);
         Assert.Equal(AdmissionStatus.Added, explicitAdd.Status);

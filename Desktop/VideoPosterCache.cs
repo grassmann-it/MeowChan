@@ -9,6 +9,7 @@ using MeowChan.Gallery;
 using MeowChan.Storage;
 using SkiaSharp;
 using Serilog;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
 
@@ -31,6 +32,7 @@ internal static class VideoPosterCache
         if (png == null) return null;
         return await Task.Run(() =>
         {
+            using var measurement = PerformanceDiagnostics.Measure("gallery.poster.bitmap-decode", asset: asset.AssetId);
             token.ThrowIfCancellationRequested();
             using MemoryStream stream = new(png, writable: false);
             using SKCodec? codec = SKCodec.Create(stream);
@@ -58,26 +60,39 @@ internal static class VideoPosterCache
         lock (FailuresLock)
             if (Failures.TryGetValue(path, out DateTime retryAt) && retryAt > DateTime.UtcNow) return null;
         if (Interlocked.Increment(ref _pending) > 8) { Interlocked.Decrement(ref _pending); return null; }
+        long request = PerformanceDiagnostics.NextId();
+        PerformanceDiagnostics.Record("gallery.poster", "accepted", request, asset: asset.AssetId);
         Task<byte[]?> operation = Task.Run(async () =>
         {
             try
             {
                 using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
                 bounded.CancelAfter(TimeSpan.FromSeconds(12));
-                await Gate.WaitAsync(bounded.Token).ConfigureAwait(false);
+                using (PerformanceDiagnostics.Measure("gallery.poster.queue-wait", request, asset: asset.AssetId))
+                    await Gate.WaitAsync(bounded.Token).ConfigureAwait(false);
                 try
                 {
                     bounded.Token.ThrowIfCancellationRequested();
                     // Even a cache hit requires the recorded original to be present and fully verified.
-                    Stream? video = await manifest.OpenVerifiedReadAsync(asset.AssetId, bounded.Token).ConfigureAwait(false);
+                    Stream? video;
+                    using (PerformanceDiagnostics.Measure("gallery.poster.verify", request, asset: asset.AssetId))
+                        video = await manifest.OpenVerifiedReadAsync(asset.AssetId, bounded.Token).ConfigureAwait(false);
+                    PerformanceDiagnostics.Record("gallery.poster.verified-bytes", request: request, asset: asset.AssetId, value: asset.Length);
                     byte[] png;
                     try
                     {
-                        byte[]? cached = await ReadAsync(path, bounded.Token).ConfigureAwait(false);
-                        if (cached != null) return cached;
+                        byte[]? cached;
+                        using (PerformanceDiagnostics.Measure("gallery.poster.cache-read", request, asset: asset.AssetId))
+                            cached = await ReadAsync(path, bounded.Token).ConfigureAwait(false);
+                        if (cached != null)
+                        {
+                            PerformanceDiagnostics.Record("gallery.poster", "verified-hit", request, asset: asset.AssetId);
+                            return cached;
+                        }
                         Stream ownedVideo = video;
                         video = null; // Decoder owns the verified handle through native release, including failures.
-                        png = await VideoPosterDecoder.DecodeAsync(ownedVideo, bounded.Token).ConfigureAwait(false);
+                        using (PerformanceDiagnostics.Measure("gallery.poster.decode", request, asset: asset.AssetId))
+                            png = await VideoPosterDecoder.DecodeAsync(ownedVideo, bounded.Token).ConfigureAwait(false);
                     }
                     finally { if (video != null) await video.DisposeAsync().ConfigureAwait(false); }
                     if (!Valid(png)) throw new InvalidDataException("The video poster exceeds its safe limits.");
@@ -96,9 +111,14 @@ internal static class VideoPosterCache
                 }
                 finally { Gate.Release(); }
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                PerformanceDiagnostics.Record("gallery.poster", "canceled", request, asset: asset.AssetId);
+                throw;
+            }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
+                PerformanceDiagnostics.Record("gallery.poster", "failed", request, asset: asset.AssetId);
                 Log.Warning(exception, "Could not generate the local video poster; the video remains available without a poster.");
                 // A terminal placeholder stays stable during this view. A later request can retry;
                 // cancellation never records a negative result and failed generations publish no PNG.
@@ -114,7 +134,7 @@ internal static class VideoPosterCache
         // If a native plugin takes too long to stop, only its single worker remains occupied.
         // The caller leaves promptly; callbacks/buffers/verified stream remain owned until native release finishes.
         try { return await operation.WaitAsync(TimeSpan.FromSeconds(14), token).ConfigureAwait(false); }
-        catch (TimeoutException) { _ = operation.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted); return null; }
+        catch (TimeoutException) { PerformanceDiagnostics.Record("gallery.poster", "caller-timeout", request, asset: asset.AssetId); _ = operation.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted); return null; }
         catch (OperationCanceledException) { _ = operation.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted); throw; }
     }
 

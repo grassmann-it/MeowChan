@@ -1,5 +1,6 @@
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Filters;
 
 namespace MeowChan.PluginHost.Runtime;
 
@@ -7,6 +8,9 @@ namespace MeowChan.PluginHost.Runtime;
 public sealed class PluginWorkerManager : IAsyncDisposable
 {
     private readonly PluginWorkerOptions _options;
+    internal FilterTemporaryBudget TemporaryBudget { get; }
+    private readonly SemaphoreSlim _temporaryInventoryGate = new(1, 1);
+    private readonly HashSet<string> _inventoriedRoots = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly AsyncAdmission _production;
     private readonly AsyncAdmission _tests;
     private readonly AsyncAdmission _starts;
@@ -23,6 +27,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
     {
         _options = options ?? new();
         ValidateOptions(_options);
+        TemporaryBudget = new(_options.MaximumTemporaryBytes);
         _production = new(_options.MaximumProductionWorkers, _options.MaximumQueuedCalls);
         _tests = new(_options.MaximumTestWorkers, _options.MaximumQueuedCalls);
         _starts = new(_options.MaximumConcurrentStarts, _options.MaximumQueuedCalls);
@@ -55,16 +60,38 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         using IDisposable process = await _tests.EnterAsync(lifetime.Token).ConfigureAwait(false);
         using IDisposable starting = await _starts.EnterAsync(lifetime.Token).ConfigureAwait(false);
         PluginConfiguration configuration = new("describe", new("1", []), new Dictionary<string, SettingsSnapshot>());
+        await InventoryTemporaryRootAsync(launch.WorkingDirectory, lifetime.Token).ConfigureAwait(false);
         await using WorkerConnection connection = await WorkerConnection.StartAsync(launch, artifact, configuration,
-            NoHostServices.Instance, _options, process, lifetime.Token, describeOnly: true).ConfigureAwait(false);
+            NoHostServices.Instance, _options, process, lifetime.Token, describeOnly: true, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota).ConfigureAwait(false);
         return connection.Description;
     }
 
-    public long GetTemporaryBytes()
+    public long GetTemporaryBytes() => TemporaryBudget.ObservedWorkerBytes;
+    private long TemporaryBytesWithExternal()
     {
-        PluginWorkerClient[] clients;
-        lock (_sync) clients = _clients.ToArray();
-        return clients.Sum(client => client.GetTemporaryBytes());
+        long workers = GetTemporaryBytes(), external = Math.Max(0, _options.ExternalTemporaryBytes?.Invoke() ?? 0);
+        return external > long.MaxValue - workers ? long.MaxValue : workers + external;
+    }
+    private long WorkspaceQuota => _options.WorkspaceByteQuota ?? Math.Max(1,
+        Math.Min(64L * 1024 * 1024, TemporaryBudget.LimitBytes / (_options.MaximumProductionWorkers + _options.MaximumTestWorkers)));
+
+    internal async Task InventoryTemporaryRootAsync(string directory, CancellationToken token)
+    {
+        string root = Path.GetFullPath(directory);
+        await _temporaryInventoryGate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (!_inventoriedRoots.Contains(root))
+            {
+                // Pre-existing workspaces have no live client to report them. Preserve
+                // them and charge the bounded initial inventory for this manager's life.
+                long bytes = WorkerConnection.ScanWorkspaceBytes(root, _options.MaximumTemporaryBytes, token);
+                TemporaryBudget.ObserveWorker(root, bytes);
+                _inventoriedRoots.Add(root);
+            }
+            if (!TemporaryBudget.Fits()) throw new PluginWorkerException("temporary-limit", "Existing worker temporary data exceeds the shared budget.");
+        }
+        finally { _temporaryInventoryGate.Release(); }
     }
     public IReadOnlyList<PluginWorkerSnapshot> GetSnapshots()
     {
@@ -90,7 +117,8 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         try
         {
             using IDisposable starting = await _starts.EnterAsync(token).ConfigureAwait(false);
-            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token, temporaryBytes: () => GetTemporaryBytes() + Math.Max(0, _options.ExternalTemporaryBytes?.Invoke() ?? 0)).ConfigureAwait(false);
+            await InventoryTemporaryRootAsync(launch.WorkingDirectory, token).ConfigureAwait(false);
+            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token, temporaryBytes: TemporaryBytesWithExternal, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota).ConfigureAwait(false);
         }
         catch { process.Dispose(); throw; }
     }
@@ -137,6 +165,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
             || options.HeapLimitBytes < 64L * 1024 * 1024 || options.HeapLimitBytes > 2L * 1024 * 1024 * 1024
             || options.SourceHeapLimitBytes < 128L * 1024 * 1024 || options.SourceHeapLimitBytes > 1024L * 1024 * 1024
             || options.FilterHeapLimitBytes < 256L * 1024 * 1024 || options.FilterHeapLimitBytes > 2048L * 1024 * 1024
+            || options.WorkspaceByteQuota is < 1 or > 2L * 1024 * 1024 * 1024
             || options.MaximumTemporaryBytes < 1 || options.MaximumTemporaryBytes > 2L * 1024 * 1024 * 1024
             || options.HandshakeTimeout <= TimeSpan.Zero || options.OperationTimeout <= TimeSpan.Zero
             || options.CancellationGrace <= TimeSpan.Zero || options.IdleTimeout <= TimeSpan.Zero)

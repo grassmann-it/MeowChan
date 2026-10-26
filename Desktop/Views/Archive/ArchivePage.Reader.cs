@@ -46,6 +46,121 @@ public partial class ArchivePage
     private int _readerInteractionRevision;
     private IDisposable? _readerTabScope;
     internal Task ReaderNavigationTask { get; private set; } = Task.CompletedTask;
+    internal Task ReaderLocalizationTask { get; private set; } = Task.CompletedTask;
+    // A controlled boundary for the smoke fixture; normal operations have no extra wait.
+    internal Func<Task>? BeforePassiveReaderFocusAsync { get; set; }
+
+    // Permission belongs to one passive operation, not to the reader pane. In particular,
+    // removing our original post container may clear focus; any newer target revokes it.
+    private sealed class ReaderFocusIntent : IDisposable
+    {
+        private readonly ArchivePage _page;
+        private readonly Control _pane;
+        private readonly Visual[] _visibilityOwners;
+        private readonly Window? _owner;
+        private readonly ResourceId? _thread;
+        private readonly long _coverage;
+        private readonly int _interaction;
+        private readonly bool _requireRefreshAllowed;
+        private int _content;
+        private int _focus;
+        private Control? _ownedFocus;
+        private Control? _destination;
+        private bool _invalid;
+
+        internal ReaderFocusIntent(ArchivePage page, bool requireRefreshAllowed = false)
+        {
+            _page = page;
+            _pane = page.Control<Grid>("ArchiveReaderPane");
+            _visibilityOwners = _pane.GetSelfAndVisualAncestors().ToArray();
+            _owner = TopLevel.GetTopLevel(_pane) as Window;
+            _thread = page._thread?.Summary.Id;
+            _coverage = page._readerCoverageRevision;
+            _interaction = page._readerInteractionRevision;
+            _content = page._contentRequest;
+            _focus = page._readerFocusRequest;
+            _requireRefreshAllowed = requireRefreshAllowed;
+            _ownedFocus = _owner?.FocusManager?.GetFocusedElement() as Control;
+            ListBox posts = page.Control<ListBox>("ArchivePosts");
+            // Headers and other surviving reader controls never need replacement focus.
+            _invalid = _ownedFocus == null || !_ownedFocus.GetSelfAndVisualAncestors()
+                .OfType<ListBoxItem>().Any(item => item.DataContext is ArchivePostRow
+                    && item.GetVisualAncestors().Contains(posts));
+            if (_owner != null)
+            {
+                _owner.AddHandler(GotFocusEvent, OnNewFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+                _owner.Deactivated += OnDeactivated;
+            }
+            _page.PropertyChanged += OnCoverageChanged;
+            _pane.DetachedFromVisualTree += OnDetached;
+            foreach (Visual visual in _visibilityOwners) visual.PropertyChanged += OnVisibilityChanged;
+            if (!MayRestore) _invalid = true;
+        }
+
+        private bool MayRestore => !_invalid && !_page._ended && _page.ReaderShowsPosts
+            && _page._thread?.Summary.Id == _thread && _coverage == _page._readerCoverageRevision
+            && _interaction == _page._readerInteractionRevision && _content == _page._contentRequest
+            && _focus == _page._readerFocusRequest
+            && !_page._obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(_page)
+            && !_page.IsReaderDialogOpen && (!_requireRefreshAllowed || (_page.ReaderRefreshAllowed?.Invoke() ?? true))
+            && _pane.IsEffectivelyVisible && _pane.IsEffectivelyEnabled
+            && _owner is { IsActive: true, IsVisible: true }
+            && !_owner.OwnedWindows.Any(window => window.IsVisible)
+            && ReferenceEquals(TopLevel.GetTopLevel(_pane), _owner)
+            && (_owner.FocusManager?.GetFocusedElement() is not { } current || ReferenceEquals(current, _ownedFocus));
+
+        private void OnNewFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (!ReferenceEquals(e.Source, _destination)) _invalid = true;
+        }
+        private void OnDeactivated(object? sender, EventArgs e) => _invalid = true;
+        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => _invalid = true;
+        private void OnVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if ((e.Property == Visual.IsVisibleProperty || e.Property == InputElement.IsEnabledProperty)
+                && e.NewValue is false) _invalid = true;
+        }
+        private void OnCoverageChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == ArchiveAttachmentView.LoadingSuspendedProperty) _invalid = true;
+        }
+
+        internal void BeginContent(int request)
+        {
+            if (request != _content + 1) _invalid = true;
+            _content = request;
+        }
+        internal void BeginFocus(int request)
+        {
+            if (request != _focus + 1) _invalid = true;
+            _focus = request;
+        }
+
+        internal void Restore(Control target)
+        {
+            if (!MayRestore) return;
+            _destination = target;
+            try
+            {
+                if (target.Focus() && ReferenceEquals(_owner!.FocusManager?.GetFocusedElement(), target))
+                    _ownedFocus = target;
+            }
+            finally { _destination = null; }
+        }
+
+        public void Dispose()
+        {
+            _invalid = true;
+            if (_owner != null)
+            {
+                _owner.RemoveHandler(GotFocusEvent, OnNewFocus);
+                _owner.Deactivated -= OnDeactivated;
+            }
+            _page.PropertyChanged -= OnCoverageChanged;
+            _pane.DetachedFromVisualTree -= OnDetached;
+            foreach (Visual visual in _visibilityOwners) visual.PropertyChanged -= OnVisibilityChanged;
+        }
+    }
     private void InitializeReaderInteraction()
     {
         foreach (Control media in new Control[] { Control<ListBox>("ArchiveMediaTiles"), Control<DataGrid>("ArchiveMediaGrid") })
@@ -124,13 +239,15 @@ public partial class ArchivePage
     }
 
     internal Task FocusPostAsync(string postId) => FocusPostAsync(postId, null);
-    private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true)
+    private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true,
+        ReaderFocusIntent? focusIntent = null)
     {
         // A live continuation can already be stale before its first dispatcher
         // yield. Validate before ShowPost changes the page or selection.
         if (_ended || _thread?.FindPostIndex(postId) is not >= 0
             || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         int focusRequest = ++_readerFocusRequest;
+        focusIntent?.BeginFocus(focusRequest);
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
@@ -140,6 +257,7 @@ public partial class ArchivePage
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
             && _thread?.Summary.Id == threadId
             && (!interactionRevision.HasValue || interactionRevision == _readerInteractionRevision);
+        if (focusIntent != null && BeforePassiveReaderFocusAsync is { } beforeFocus) await beforeFocus();
         // ScrollIntoView realizes a virtualized target. Its measured height can
         // replace an estimate on the next layout; retry only while the request
         // remains current, and correct offsets only after layout has settled.
@@ -165,7 +283,11 @@ public partial class ArchivePage
                 continue;
             }
             // Focus must not cause a second competing BringIntoView request.
-            if (restoreFocus) container.Focus();
+            if (restoreFocus)
+            {
+                if (focusIntent != null) focusIntent.Restore(container);
+                else container.Focus();
+            }
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
             return;
         }
@@ -374,14 +496,15 @@ public partial class ArchivePage
         return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0, selected);
     }
 
-    private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true)
+    private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true,
+        ReaderFocusIntent? focusIntent = null)
     {
         if (_ended || _thread?.Summary.Id != anchor.Thread) return;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
             string? fallback = _thread.GetPosts(Math.Min(_postOffset, Math.Max(0, _thread.PostCount - 1)), 1).FirstOrDefault()?.PostId;
             Message(Texts.T(fallback == null ? "archive.noPosts" : "reader.anchorUnavailable"));
-            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus);
+            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent);
             return;
         }
         int request = _contentRequest;
@@ -397,7 +520,7 @@ public partial class ArchivePage
         list.UpdateLayout();
         if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest + 1
             || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
-        await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus);
+        await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus, focusIntent);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest

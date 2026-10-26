@@ -21,6 +21,7 @@ public sealed class DownloadWorker
     private readonly ILogger _logger;
     private readonly bool _notifyThread;
     internal Action? AuthorizePublication { get; init; }
+    internal Func<CancellationToken, ValueTask<IDisposable>>? AcquirePublicationFence { get; init; }
     internal Action<int>? BytesReceived { get; init; }
     internal MediaCommitResult? CompletedResult { get; private set; }
 
@@ -40,7 +41,7 @@ public sealed class DownloadWorker
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        DownloadItem acquiringItem = _item.WithPublicationAuthorization(AuthorizePublication);
+        DownloadItem acquiringItem = _item.WithPublicationAuthorization(AuthorizePublication).WithPublicationFence(AcquirePublicationFence);
         MediaCommitResult? restored = await _store.TryRestoreAsync(acquiringItem, cancellationToken).ConfigureAwait(false);
         if (restored != null)
         {

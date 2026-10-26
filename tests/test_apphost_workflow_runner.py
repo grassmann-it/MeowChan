@@ -27,7 +27,11 @@ def metrics(phase='download', scale=1):
     return dict(schemaVersion=1, completed=True, failure=None, phase=phase, checks=sorted(runner.CHECKS[phase]),
                 renderScaling=scale, processId=123, workingDirectory=str(Path('/owned/cwd')), profile=str(Path('/owned/profile')),
                 assemblyInformationalVersion='0.9.0+0123456789abcdef',
-                externalDispatch=dict(kind='intercepted-export-command', target='/owned/exports/result'))
+                externalDispatch=dict(kind='intercepted-export-command', target='/owned/exports/result'),
+                galleryLoad=dict(activeDownloadThroughout=True, navigationMilliseconds=[20] * 8,
+                                 presentedPosts=['9901', '9900'] * 4,
+                                 heartbeat=dict(Samples=20, HardStalls=0, MaxGapMilliseconds=25,
+                                                OngoingSilenceMilliseconds=10)))
 
 
 def png_bytes():
@@ -73,7 +77,11 @@ profile.mkdir()
 m = dict(schemaVersion=1, completed=True, failure=None, phase=d['phase'], checks=sorted(checks[d['phase']]),
          renderScaling=d['expectedScale'], processId=os.getpid(), workingDirectory=str(Path.cwd()), profile=str(profile),
          assemblyInformationalVersion='fake-runner-fixture',
-         externalDispatch=dict(kind='intercepted-export-command', target=str(root / 'exports' / 'result')))
+         externalDispatch=dict(kind='intercepted-export-command', target=str(root / 'exports' / 'result')),
+         galleryLoad=dict(activeDownloadThroughout=True, navigationMilliseconds=[20] * 8,
+                          presentedPosts=['9901', '9900'] * 4,
+                          heartbeat=dict(Samples=20, HardStalls=0, MaxGapMilliseconds=25,
+                                         OngoingSilenceMilliseconds=10)))
 if behavior == 'wrong-phase':
     m['phase'] = 'other'
 (profile / 'apphost-workflow.json').write_text(json.dumps(m))
@@ -95,6 +103,18 @@ elif behavior != 'no-marker':
 
 
 class WorkflowMetricsTests(unittest.TestCase):
+    def test_gallery_load_cannot_claim_success_without_active_download_and_distinct_targets(self):
+        for field, value in [('activeDownloadThroughout', False), ('navigationMilliseconds', [1] * 7),
+                             ('navigationMilliseconds', [float('nan')] * 8), ('presentedPosts', ['9900'] * 8),
+                             ('heartbeat', dict(Samples=20, HardStalls=1, MaxGapMilliseconds=25)),
+                             ('heartbeat', dict(Samples=20, HardStalls=0, MaxGapMilliseconds=25,
+                                                OngoingSilenceMilliseconds=2000)),
+                             ('heartbeat', dict(Samples=0, HardStalls=0, MaxGapMilliseconds=25))]:
+            bad = metrics()
+            bad['galleryLoad'][field] = value
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, 'Gallery load'):
+                runner.validate_metrics(bad, 'download', 1)
+
     def test_requires_every_phase_check_and_explicit_completion(self):
         for phase in runner.PHASES:
             good = metrics(phase)

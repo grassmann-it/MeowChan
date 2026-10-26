@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using MeowChan.Diagnostics;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using MeowChan.Storage;
@@ -73,9 +75,13 @@ public sealed record MediaWork
 }
 
 /// <summary>SQLite work journal under the same exclusive lease as the session and archive.</summary>
-public sealed class WorkStateStore : IWorkStateStore
+public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 {
     private readonly ProfileLease _lease;
+    internal object CoordinationIdentity => _lease;
+    private long _resourcePointReads, _mediaPointReads, _resourceBatchReads, _mediaBatchReads, _materializedRows;
+    internal WorkStoreQueryCounts QueryCounts => new(Interlocked.Read(ref _resourcePointReads), Interlocked.Read(ref _mediaPointReads),
+        Interlocked.Read(ref _resourceBatchReads), Interlocked.Read(ref _mediaBatchReads), Interlocked.Read(ref _materializedRows));
     private readonly string _databasePath;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -90,6 +96,7 @@ public sealed class WorkStateStore : IWorkStateStore
 
     public IReadOnlyList<WorkResource> LoadResources() => _lease.RunExclusive(() =>
     {
+        Interlocked.Increment(ref _resourceBatchReads);
         using SqliteConnection db = Open();
         using SqliteCommand command = db.CreateCommand();
         command.CommandText = "SELECT url,payload FROM work_resources ORDER BY url";
@@ -99,13 +106,16 @@ public sealed class WorkStateStore : IWorkStateStore
         {
             WorkResource resource = Read<WorkResource>(reader.GetString(1));
             if (resource.Url != reader.GetString(0)) throw new InvalidDataException("Work resource key differs from its payload.");
+            Interlocked.Increment(ref _materializedRows);
             result.Add(resource);
         }
+        PerformanceDiagnostics.Record("work.sql", "resource-batch", value: result.Count);
         return (IReadOnlyList<WorkResource>)result;
     });
 
     public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _lease.RunExclusive(() =>
     {
+        Interlocked.Increment(ref _mediaBatchReads);
         using SqliteConnection db = Open();
         using SqliteCommand command = db.CreateCommand();
         command.CommandText = "SELECT media_id,variant,target,payload FROM work_media WHERE resource_url=$url AND generation=$generation ORDER BY media_id,variant,target";
@@ -118,12 +128,80 @@ public sealed class WorkStateStore : IWorkStateStore
             MediaWork media = Read<MediaWork>(reader.GetString(3));
             if (media.ResourceUrl != url || media.Generation != generation || media.MediaIdentifier != reader.GetString(0)
                 || media.Variant != reader.GetString(1) || media.DestinationPath != reader.GetString(2)) throw new InvalidDataException("Media work key differs from its payload.");
+            Interlocked.Increment(ref _materializedRows);
             result.Add(media);
         }
+        PerformanceDiagnostics.Record("work.sql", "media-batch", watch: url, epoch: generation, value: result.Count);
         return (IReadOnlyList<MediaWork>)result;
     });
 
-    public WorkResource CommitIntent(WorkResource resource) => _lease.RunExclusive(() =>
+    WorkResource? IConditionalWorkStateStore.FindResource(string url) => _lease.RunExclusive(() =>
+    {
+        using SqliteConnection db = Open();
+        using SqliteTransaction transaction = db.BeginTransaction();
+        return FindResource(db, transaction, url);
+    });
+
+    MediaWork? IConditionalWorkStateStore.FindMedia(MediaWorkKey key) => _lease.RunExclusive(() =>
+    {
+        using SqliteConnection db = Open();
+        using SqliteTransaction transaction = db.BeginTransaction();
+        return FindMedia(db, transaction, key);
+    });
+
+    bool IConditionalWorkStateStore.TryCommitMedia(MediaWork next, MediaWork? expected) => _lease.RunExclusive(() =>
+    {
+        Validate(next);
+        using SqliteConnection db = Open();
+        using SqliteTransaction transaction = db.BeginTransaction();
+        WorkResource? owner = FindResource(db, transaction, next.ResourceUrl);
+        if (owner == null || owner.Generation != next.Generation || owner.Intent == WorkIntent.Suppressed
+            || !WorkStateComparison.Equal(FindMedia(db, transaction, MediaWorkKey.Of(next)), expected)) return false;
+        WriteMedia(db, transaction, next);
+        transaction.Commit();
+        return true;
+    });
+
+    public WorkResource CommitIntent(WorkResource resource)
+    {
+        using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
+        WorkResource result = CommitIntentCore(resource);
+        WorkStateAccess.For(this).MarkDirty(resource.Url);
+        return result;
+    }
+    WorkResource IConditionalWorkStateStore.CommitIntentUnderFence(WorkResource resource) => CommitIntentCore(resource);
+
+    public WorkResource? CommitState(WorkResource resource)
+    {
+        using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
+        WorkResource? result = CommitStateCore(resource);
+        if (result != null) WorkStateAccess.For(this).MarkDirty(resource.Url);
+        return result;
+    }
+    WorkResource? IConditionalWorkStateStore.CommitStateUnderFence(WorkResource resource) => CommitStateCore(resource);
+
+    public WorkResource? CommitEnd(string url, long generation, ThreadSourceStateValue source,
+        DateTimeOffset observedAt, string? finalSnapshotJson = null)
+    {
+        using IDisposable fence = WorkStateAccess.For(this).Enter(url);
+        WorkResource? result = CommitEndCore(url, generation, source, observedAt, finalSnapshotJson);
+        if (result != null) WorkStateAccess.For(this).MarkDirty(url);
+        return result;
+    }
+
+    WorkResource? IConditionalWorkStateStore.CommitEndUnderFence(string url, long generation,
+        ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson)
+        => CommitEndCore(url, generation, source, observedAt, finalSnapshotJson);
+
+    public bool CommitMedia(MediaWork media)
+    {
+        using IDisposable fence = WorkStateAccess.For(this).Enter(media.ResourceUrl);
+        bool result = CommitMediaCore(media);
+        if (result) WorkStateAccess.For(this).MarkDirty(media.ResourceUrl);
+        return result;
+    }
+
+    private WorkResource CommitIntentCore(WorkResource resource) => _lease.RunExclusive(() =>
     {
         Validate(resource);
         using SqliteConnection db = Open();
@@ -136,7 +214,7 @@ public sealed class WorkStateStore : IWorkStateStore
         return resource;
     });
 
-    public WorkResource? CommitEnd(string url, long generation, ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson = null)
+    private WorkResource? CommitEndCore(string url, long generation, ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson = null)
         => _lease.RunExclusive(() =>
     {
         if (!Enum.IsDefined(source) || source == ThreadSourceStateValue.Active) throw new ArgumentOutOfRangeException(nameof(source));
@@ -156,7 +234,7 @@ public sealed class WorkStateStore : IWorkStateStore
         return next;
     });
 
-    public WorkResource? CommitState(WorkResource resource) => _lease.RunExclusive(() =>
+    private WorkResource? CommitStateCore(WorkResource resource) => _lease.RunExclusive(() =>
     {
         Validate(resource);
         using SqliteConnection db = Open();
@@ -171,13 +249,39 @@ public sealed class WorkStateStore : IWorkStateStore
         return resource;
     });
 
-    public bool CommitMedia(MediaWork media) => _lease.RunExclusive(() =>
+    private bool CommitMediaCore(MediaWork media) => _lease.RunExclusive(() =>
     {
         Validate(media);
         using SqliteConnection db = Open();
         using SqliteTransaction transaction = db.BeginTransaction();
         WorkResource? owner = FindResource(db, transaction, media.ResourceUrl);
         if (owner == null || owner.Generation != media.Generation || owner.Intent == WorkIntent.Suppressed) return false;
+        WriteMedia(db, transaction, media);
+        transaction.Commit();
+        return true;
+    });
+
+    private MediaWork? FindMedia(SqliteConnection db, SqliteTransaction transaction, MediaWorkKey key)
+    {
+        Interlocked.Increment(ref _mediaPointReads);
+        using SqliteCommand command = db.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT payload FROM work_media WHERE resource_url=$url AND generation=$generation AND media_id=$id AND variant=$variant AND target=$target";
+        command.Parameters.AddWithValue("$url", key.Url);
+        command.Parameters.AddWithValue("$generation", key.Generation);
+        command.Parameters.AddWithValue("$id", key.MediaId);
+        command.Parameters.AddWithValue("$variant", key.Variant);
+        command.Parameters.AddWithValue("$target", key.Target);
+        object? payload = command.ExecuteScalar();
+        if (payload == null) return null;
+        Interlocked.Increment(ref _materializedRows);
+        MediaWork media = Read<MediaWork>((string)payload);
+        if (MediaWorkKey.Of(media) != key) throw new InvalidDataException("Media work key differs from its payload.");
+        return media;
+    }
+
+    private static void WriteMedia(SqliteConnection db, SqliteTransaction transaction, MediaWork media)
+    {
         using SqliteCommand command = db.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "INSERT INTO work_media(resource_url,generation,media_id,variant,target,payload) VALUES($url,$generation,$id,$variant,$target,$payload) ON CONFLICT(resource_url,generation,media_id,variant,target) DO UPDATE SET payload=excluded.payload";
@@ -188,9 +292,7 @@ public sealed class WorkStateStore : IWorkStateStore
         command.Parameters.AddWithValue("$target", media.DestinationPath);
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(media, Json));
         command.ExecuteNonQuery();
-        transaction.Commit();
-        return true;
-    });
+    }
 
     private SqliteConnection Open()
     {
@@ -230,14 +332,16 @@ public sealed class WorkStateStore : IWorkStateStore
         transaction.Commit();
     }
 
-    private static WorkResource? FindResource(SqliteConnection db, SqliteTransaction transaction, string url)
+    private WorkResource? FindResource(SqliteConnection db, SqliteTransaction transaction, string url)
     {
+        Interlocked.Increment(ref _resourcePointReads);
         using SqliteCommand command = db.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "SELECT payload FROM work_resources WHERE url=$url";
         command.Parameters.AddWithValue("$url", url);
         object? payload = command.ExecuteScalar();
         if (payload == null) return null;
+        Interlocked.Increment(ref _materializedRows);
         WorkResource resource = Read<WorkResource>((string)payload);
         if (resource.Url != url) throw new InvalidDataException("Work resource key differs from its payload.");
         return resource;
@@ -291,3 +395,6 @@ public sealed class WorkStateStore : IWorkStateStore
                 throw new InvalidDataException("Invalid durable attachment reference.");
     }
 }
+
+internal readonly record struct WorkStoreQueryCounts(long ResourcePointReads, long MediaPointReads,
+    long ResourceBatchReads, long MediaBatchReads, long MaterializedRows);

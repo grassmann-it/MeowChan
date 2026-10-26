@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Interfaces;
+using MeowChan.Diagnostics;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -15,6 +16,11 @@ public partial class ArchivePage
 {
     private DispatcherTimer? _readerUpdateTimer;
     private bool _checkingReaderUpdate;
+    private bool _readerUpdateCatchUp;
+    private long _readerCoverageRevision;
+    internal long ReaderSummaryChecks { get; private set; }
+    internal long ReaderSummaryCoveredSkips { get; private set; }
+    internal long ReaderSummaryStaleResults { get; private set; }
     private bool _followReader;
     private ResourceId? _liveReaderId;
     private ArchiveThreadSummary? _pendingReaderUpdate;
@@ -70,34 +76,82 @@ public partial class ArchivePage
             : added > 0 ? Texts.T("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
     }
 
-    // Only a single small local summary query per visible reader. Never starts a source check.
+    // The coverage epoch also rejects a read that returns after cover -> uncover. Keep one
+    // catch-up flag while that read still owns the slot; its completion starts the latest query.
+    private void ReaderCoverageChanged()
+    {
+        ++_readerCoverageRevision;
+        _readerUpdateCatchUp = true;
+        if (!_obscuredByGallery && !_checkingReaderUpdate) _ = CheckReaderUpdatesAsync();
+    }
+
+    private bool CanCheckReaderUpdate => !_ended && _available && !_busy && !_obscuredByGallery
+        && _thread != null && _openReader != null && (_largeReader || IsEffectivelyVisible) && _showReader;
+
+    // One summary query at a time. Ordinary timer ticks do not pile up follow-up queries.
     internal async Task CheckReaderUpdatesAsync()
     {
-        if (_checkingReaderUpdate || _ended || !_available || _busy || _thread == null || _openReader == null
-            || !(_largeReader || IsEffectivelyVisible) || !_showReader) return;
+        if (_obscuredByGallery)
+        {
+            _readerUpdateCatchUp = true;
+            ReaderSummaryCoveredSkips++;
+            PerformanceDiagnostics.Record("archive.reader.summary", "covered-skip", revision: _readerCoverageRevision);
+        }
+        if (_checkingReaderUpdate || !CanCheckReaderUpdate) return;
         _checkingReaderUpdate = true;
-        ResourceId id = _thread.Summary.Id;
-        int request = _contentRequest;
         try
         {
-            await using ArchiveReader reader = await _openReader(_lifetime.Token);
-            ArchiveThreadSummary? summary = await reader.ReadThreadSummaryAsync(id, _lifetime.Token);
-            if (_ended || request != _contentRequest || _thread?.Summary.Id != id) return;
-            _latestReaderSummary = summary;
-            if (summary == null) { _pendingReaderUpdate = null; _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
-            else if (summary.Revision > _thread.Summary.Revision && summary.PostCount > _thread.PostCount)
-                _pendingReaderUpdate = summary;
-            if (!MayFollow(summary)) { _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
-            UpdateReaderUpdateControls();
-            if (_followReader && _pendingReaderUpdate != null && MayRefreshReaderNow)
-                await ShowReaderUpdatesAsync(deliberate: false);
+            do
+            {
+                _readerUpdateCatchUp = false;
+                ResourceId id = _thread!.Summary.Id;
+                int request = _contentRequest;
+                int interaction = _readerInteractionRevision;
+                long coverage = _readerCoverageRevision;
+                long diagnostic = PerformanceDiagnostics.NextId();
+                bool Current() => !_ended && !_obscuredByGallery && coverage == _readerCoverageRevision
+                    && request == _contentRequest && _thread?.Summary.Id == id;
+                using var measurement = PerformanceDiagnostics.Measure("archive.reader.summary", diagnostic,
+                    revision: coverage);
+                try
+                {
+                    ReaderSummaryChecks++;
+                    await using ArchiveReader reader = await _openReader!(_lifetime.Token);
+                    ArchiveThreadSummary? summary = await reader.ReadThreadSummaryAsync(id, _lifetime.Token);
+                    if (!Current())
+                    {
+                        ReaderSummaryStaleResults++;
+                        PerformanceDiagnostics.Record("archive.reader.summary", "stale", diagnostic, revision: coverage);
+                    }
+                    else
+                    {
+                        _latestReaderSummary = summary;
+                        if (summary == null)
+                        {
+                            _pendingReaderUpdate = null; _followReader = false;
+                            Control<CheckBox>("ReaderFollowLive").IsChecked = false;
+                        }
+                        else if (summary.Revision > _thread!.Summary.Revision && summary.PostCount > _thread.PostCount)
+                            _pendingReaderUpdate = summary;
+                        if (!MayFollow(summary)) { _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
+                        UpdateReaderUpdateControls();
+                        if (_followReader && _pendingReaderUpdate != null && interaction == _readerInteractionRevision && MayRefreshReaderNow)
+                            await ShowReaderUpdatesAsync(deliberate: false);
+                    }
+                }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+                catch (Exception error)
+                {
+                    if (Current()) Message(Texts.T("reader.updateFailed", error.Message), true);
+                    PerformanceDiagnostics.Record("archive.reader.summary", "failed", diagnostic, revision: coverage);
+                }
+            } while (_readerUpdateCatchUp && CanCheckReaderUpdate);
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_ended && request == _contentRequest) Message(Texts.T("reader.updateFailed", error.Message), true); }
         finally { _checkingReaderUpdate = false; }
     }
 
-    private bool MayRefreshReaderNow => ReaderShowsPosts && !IsReaderDialogOpen && (ReaderRefreshAllowed?.Invoke() ?? true);
+    private bool MayRefreshReaderNow => !_ended && !_obscuredByGallery && ReaderShowsPosts
+        && !IsReaderDialogOpen && (ReaderRefreshAllowed?.Invoke() ?? true);
 
     private async void OnReaderFollowLiveChanged(object? sender, RoutedEventArgs e)
     {
@@ -115,11 +169,15 @@ public partial class ArchivePage
         int previousCount = _thread.PostCount;
         int interactionRevision = _readerInteractionRevision;
         bool follow = _followReader;
-        await LoadThreadAsync(id, resetPage: false);
+        // Guard the inner anchor restoration as well as the final follow target. Capturing
+        // permission after LoadThreadAsync returns would already be too late for its focus write.
+        using ReaderFocusIntent? focusIntent = deliberate ? null : new(this, requireRefreshAllowed: true);
+        await LoadThreadAsync(id, resetPage: false, preparedThread: null, focusIntent: focusIntent);
         if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0
             || (!deliberate && (interactionRevision != _readerInteractionRevision || !MayRefreshReaderNow))) return;
         // Manual refresh reveals the first appended post; live following stays at the newest.
         int index = follow ? _thread.PostCount - 1 : Math.Min(previousCount, _thread.PostCount - 1);
-        await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId, deliberate ? null : interactionRevision);
+        await FocusPostAsync(_thread.GetPosts(index, 1).Single().PostId,
+            deliberate ? null : interactionRevision, focusIntent: focusIntent);
     }
 }

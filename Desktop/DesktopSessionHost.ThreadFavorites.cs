@@ -18,22 +18,28 @@ internal sealed partial class DesktopSessionHost
     private ThreadFavoriteStore? _threadFavoritesStore;
     private ThreadFavoriteSnapshot? _threadFavorites;
 
+    private ThreadFavoriteLoadSnapshot _publishedThreadFavorites = new(ThreadFavoriteLoadState.Unavailable, null, "Thread favorites are loading.");
+    internal ThreadFavoriteLoadSnapshot GetPublishedThreadFavoriteSnapshot() => Volatile.Read(ref _publishedThreadFavorites);
+
     /// <summary>Revalidates the complete on-disk protection set, independent of filters, pages and media.</summary>
     internal ThreadFavoriteLoadSnapshot GetThreadFavoriteSnapshot()
     {
-        lock (_lifecycle)
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        lock (_threadFavoritesSync)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            lock (_threadFavoritesSync)
+            try
             {
-                try
-                {
-                    _threadFavoritesStore ??= new(_profileLease.ProfileDirectory, _profileLease);
-                    _threadFavorites = _threadFavoritesStore.ReadSnapshot();
-                    return new(ThreadFavoriteLoadState.Ready, _threadFavorites, null);
-                }
-                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
-                { return new(ThreadFavoriteLoadState.Unavailable, null, error.Message); }
+                _threadFavoritesStore ??= new(_profileLease.ProfileDirectory, _profileLease);
+                _threadFavorites = _threadFavoritesStore.ReadSnapshot();
+                var published = new ThreadFavoriteLoadSnapshot(ThreadFavoriteLoadState.Ready, _threadFavorites, null);
+                Volatile.Write(ref _publishedThreadFavorites, published);
+                return published;
+            }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            {
+                var unavailable = new ThreadFavoriteLoadSnapshot(ThreadFavoriteLoadState.Unavailable, null, error.Message);
+                Volatile.Write(ref _publishedThreadFavorites, unavailable);
+                return unavailable;
             }
         }
     }
@@ -44,7 +50,11 @@ internal sealed partial class DesktopSessionHost
         return loaded.Snapshot?.Threads ?? throw new InvalidDataException(loaded.Error);
     }
 
-    internal async Task<ThreadFavoriteCommit> SetThreadFavoriteAsync(ResourceId thread, bool favorite,
+    internal Task<ThreadFavoriteCommit> SetThreadFavoriteAsync(ResourceId thread, bool favorite,
+        CancellationToken token = default)
+        => RunInteractiveAsync(nameof(SetThreadFavoriteAsync), thread.ToString(), () => SetThreadFavoriteAdmittedCoreAsync(thread, favorite, token));
+
+    private async Task<ThreadFavoriteCommit> SetThreadFavoriteAdmittedCoreAsync(ResourceId thread, bool favorite,
         CancellationToken token = default)
     {
         ThreadFavoriteStore.Validate(thread);
@@ -58,6 +68,7 @@ internal sealed partial class DesktopSessionHost
                 _threadFavoritesStore ??= new(_profileLease.ProfileDirectory, _profileLease);
                 commit = _threadFavoritesStore.Set(thread, favorite, token);
                 _threadFavorites = commit.Snapshot;
+                Volatile.Write(ref _publishedThreadFavorites, new(ThreadFavoriteLoadState.Ready, commit.Snapshot, null));
             }
             if (commit.Changed) SignalChanged();
             return commit;

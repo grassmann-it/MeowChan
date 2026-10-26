@@ -15,6 +15,10 @@ public partial class MainWindow
 {
     private MenuItem? _resumeReadingMenu;
     private Task _readingPositionSave = Task.CompletedTask;
+    private Task _readingPositionWrite = Task.CompletedTask;
+    private LocalReadingPosition? _submittedReadingPosition;
+    private long _submittedReadingGeneration;
+    private int _submittedReadingRevision;
     private bool _readingPositionForgetPending;
     private int _readingResumeNavigationRevision;
     private enum ReadingResumeState { Unknown, Loading, Absent, Present, Error }
@@ -135,33 +139,46 @@ public partial class MainWindow
         int revision = ++_readingResumeStateRevision;
         _readingResumeState = ReadingResumeState.Loading;
         RefreshReadingResumePresentation();
-        Task previous = _readingPositionSave;
-        async Task SaveAsync()
+        _submittedReadingPosition = position;
+        _submittedReadingGeneration = generation;
+        _submittedReadingRevision = revision;
+        Task write;
+        try { write = _session.RememberReadingPositionAsync(position, generation); }
+        catch (Exception error) { write = Task.FromException(error); }
+        if (!ReferenceEquals(write, _readingPositionWrite))
         {
-            try
+            _readingPositionWrite = write;
+            _readingPositionSave = ObserveReadingPositionWriteAsync(write, position);
+        }
+    }
+
+    private async Task ObserveReadingPositionWriteAsync(Task write, LocalReadingPosition firstPosition)
+    {
+        try
+        {
+            await write;
+            // A shared pending completion represents its latest anchor, not its first caller's revision.
+            if (ReferenceEquals(write, _readingPositionWrite) && !_isClosing
+                && _submittedReadingRevision == _readingResumeStateRevision && _config.RememberReadingPosition
+                && _submittedReadingGeneration == _session.ReadingPositionGeneration)
             {
-                await previous;
-                await _session.RememberReadingPositionAsync(position, generation);
-                if (!_isClosing && revision == _readingResumeStateRevision && _config.RememberReadingPosition
-                    && generation == _session.ReadingPositionGeneration)
-                {
-                    _readingResumeState = ReadingResumeState.Present;
-                    RefreshReadingResumePresentation();
-                }
-            }
-            catch (Exception error)
-            {
-                if (!_isClosing && revision == _readingResumeStateRevision)
-                {
-                    _readingResumeState = ReadingResumeState.Error;
-                    RefreshReadingResumePresentation();
-                }
-                if (!_isClosing && ArchivePage.CurrentThread?.Summary.Id == position.ThreadId)
-                    ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", error.Message), true);
-                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", error.Message), NotificationType.Error, context: position.ThreadId.ToString(), operation: "preferences.reading-position");
+                _readingResumeState = ReadingResumeState.Present;
+                RefreshReadingResumePresentation();
             }
         }
-        _readingPositionSave = SaveAsync();
+        catch (Exception error)
+        {
+            bool current = ReferenceEquals(write, _readingPositionWrite);
+            LocalReadingPosition position = current ? _submittedReadingPosition! : firstPosition;
+            if (!_isClosing && current && _submittedReadingRevision == _readingResumeStateRevision)
+            {
+                _readingResumeState = ReadingResumeState.Error;
+                RefreshReadingResumePresentation();
+            }
+            if (!_isClosing && ArchivePage.CurrentThread?.Summary.Id == position.ThreadId)
+                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", error.Message), true);
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", error.Message), NotificationType.Error, context: position.ThreadId.ToString(), operation: "preferences.reading-position");
+        }
     }
 
     private async Task ForgetReadingPositionAsync()

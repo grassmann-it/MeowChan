@@ -31,7 +31,10 @@ public partial class MainWindow
     internal RulesPage RulesPage => _rulesPage ?? throw new InvalidOperationException("The rules page is not initialized.");
 
     internal ArchivePage ArchivePage => _archivePage ?? throw new InvalidOperationException("The archive page is not initialized.");
-    private bool WorkspaceCommandBusy => _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false) || (_rulesPage?.IsBusy ?? false) || (_sourcesPage?.IsBusy ?? false);
+    private bool WorkspaceEditorBusy => _isClosing || _applyingPreferences || (_settingsEditor?.IsBusy ?? false) || (_rulesPage?.IsBusy ?? false) || (_sourcesPage?.IsBusy ?? false);
+
+    private bool WorkspaceCommandBusy => WorkspaceEditorBusy;
+    private bool RowCommandBusy => WorkspaceEditorBusy || _sessionRowsApplying;
 
     private void InitializeWorkspacePages()
     {
@@ -64,7 +67,7 @@ public partial class MainWindow
         _archivePage.CollectionExportHistory = _session.CollectionExportHistory;
         _archivePage.OpenExportFolder = ExternalLauncher.OpenAsync;
         _archivePage.GetWorkSnapshots = _session.GetThreadWorkSnapshots;
-        _archivePage.CanFollowLive = id => _threadRows.Values.Any(row => row.Snapshot.Id == id);
+        _archivePage.CanFollowLive = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
         _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
@@ -188,7 +191,7 @@ public partial class MainWindow
 
     private bool NavigateWorkspace(WorkspacePage page, bool activateArchive = true)
     {
-        if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.State == DesktopSessionState.RecoveryFailed))
+        if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.Projection.View.State == DesktopSessionState.RecoveryFailed))
             || WorkspaceCommandBusy) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         ++_readingResumeNavigationRevision;
@@ -356,13 +359,14 @@ public partial class MainWindow
         // Navigation refreshes the page after selecting it, so hidden pages need
         // neither a snapshot nor a rebuilt presentation for background progress.
         if (_selectedPage != WorkspacePage.Diagnostics) return;
-        _diagnosticsPage?.Refresh(view ?? _session.GetView(), !WorkspaceCommandBusy);
+        if (_galleryCoversWorkspace || _sessionRowsApplying) { _sessionDirtyWhileCovered = true; return; }
+        _diagnosticsPage?.Refresh(view ?? _session.Projection.View, !WorkspaceCommandBusy);
     }
 
     private System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardIdentity> GetRuleSuggestionContexts()
     {
         // Enumerate passive session snapshots without keeping another watch-object cache.
-        var view = _session.GetView();
+        var view = _session.Projection.View;
         foreach (var item in view.Threads) yield return new(item.Snapshot.Id.Source, item.Snapshot.Id.Board);
         foreach (var item in view.Boards) yield return new(item.Snapshot.Id.Source, item.Snapshot.Id.Board);
         foreach (var item in _session.GetProviderDescriptors()) yield return new(item.SourceId, "");
@@ -371,7 +375,8 @@ public partial class MainWindow
     private void RefreshSourcesPage(DesktopSessionView? view = null)
     {
         if (_selectedPage != WorkspacePage.Sources) return;
-        _sourcesPage?.Refresh(_session.GetProviderDescriptors(), view ?? _session.GetView(),
+        if (_galleryCoversWorkspace || _sessionRowsApplying) { _sessionDirtyWhileCovered = true; return; }
+        _sourcesPage?.Refresh(_session.GetProviderDescriptors(), view ?? _session.Projection.View,
             _restoreCompleted && !WorkspaceCommandBusy && !_importing);
     }
 
@@ -383,7 +388,7 @@ public partial class MainWindow
 
     private bool OpenDiagnosticWatch(DiagnosticTarget target)
     {
-        if (!DiagnosticsSnapshot.ContainsTarget(_session.GetView(), target)) return false;
+        if (_sessionRowsApplying || !DiagnosticsSnapshot.ContainsTarget(_session.Projection.View, target)) return false;
         if (target.Kind == DiagnosticTargetKind.Thread)
         {
             if (!_threadRows.TryGetValue(target.WatchId, out ThreadRow? row)) return false;

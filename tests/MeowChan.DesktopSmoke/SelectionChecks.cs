@@ -21,7 +21,8 @@ internal static class SelectionChecks
         Require(window.SessionHost.IsPaused, "Selection fixture must never start network work.");
         window.Width = 1280; window.Height = 900;
         for (int i = 1000; i < 1005; i++) await window.SessionHost.AddAsync("https://boards.4chan.org/g/thread/" + i);
-        await Program.WaitUntilAsync(() => window.UrlList.Count == 5);
+        await Program.WaitUntilAsync(() => window.UrlList.Count == 5 && window.VisibleThreads.Count == 5
+            && !window.SessionRowsApplying);
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         ThreadRow[] rows = window.UrlList.OrderBy(row => row.ThreadId).ToArray();
         await WaitRow(grid, rows[4]);
@@ -49,6 +50,7 @@ internal static class SelectionChecks
         await CheckReadHelpAsync(window, grid, expected: true);
         await Task.Delay(80);
         Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 24), window)!.Value;
+        await Program.WaitUntilAsync(() => !window.SessionRowsApplying);
         PressAt(window, blank, KeyModifiers.None, right: true);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Require(grid.SelectedItems.Count == 0, "Blank-space right-click retained stale watch targets.");
@@ -252,7 +254,8 @@ internal static class SelectionChecks
         {
             await Program.WaitUntilAsync(() =>
             {
-                if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return false;
+                // Native selection is intentionally fenced while a source/search frame is partial.
+                if (window.SessionRowsApplying || target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return false;
                 Point? translated = target.TranslatePoint(target is ListBoxItem card ? CardSelectionPoint(card)
                     : new Point(Math.Min(20, target.Bounds.Width / 2), target.Bounds.Height / 2), window);
                 if (!translated.HasValue) return false;
@@ -289,12 +292,13 @@ internal static class SelectionChecks
     { control.Focus(); control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers }); }
     private static async Task CheckReadHelpAsync(MainWindow window, DataGrid grid, bool expected)
     {
+        await Program.WaitUntilAsync(() => !window.SessionRowsApplying);
         PressKey(grid, Key.F1);
         Border help = window.FindControl<Border>("ShellHelpOverlay")!;
         await Program.WaitUntilAsync(() => help.IsEffectivelyVisible);
         string text = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
         Require(text.Contains(CommandCatalog.Label("thread.read"), StringComparison.Ordinal) == expected,
-            "Shortcut help advertised Read posts for an unavailable selection or hid it for one thread.");
+            $"Shortcut help advertised Read posts for an unavailable selection or hid it for one thread: expected={expected}, selected={grid.SelectedItems.Count}, applying={window.SessionRowsApplying}, text={text}.");
         Click(window.FindControl<Button>("ShellHelpClose")!);
         await Program.WaitUntilAsync(() => !help.IsVisible);
     }

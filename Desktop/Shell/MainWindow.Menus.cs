@@ -45,7 +45,7 @@ public partial class MainWindow
         DownloadMenuTarget? frozen = CaptureDownloadMenu(ReferenceEquals(grid, DownloadList(true)));
         menu.Items.Clear();
         if (frozen == null) { menu.Close(); return; }
-        bool ready = _restoreCompleted && !WorkspaceCommandBusy && !_selectionCommandRunning;
+        bool ready = _restoreCompleted && !RowCommandBusy && !_selectionCommandRunning;
         string unavailable = Texts.Language == "de" ? "Für diese Auswahl derzeit nicht verfügbar." : "Currently unavailable for this selection.";
         MenuItem Add(string id, Action action, bool available = true, int? count = null)
         {
@@ -55,7 +55,7 @@ public partial class MainWindow
                 if (current == null) return;
                 frozen = current;
                 action();
-            }, () => ready && available && !WorkspaceCommandBusy && !_selectionCommandRunning,
+            }, () => ready && available && !RowCommandBusy && !_selectionCommandRunning,
                 () => ready && available ? null : unavailable,
                 () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
             item.Tag = id;
@@ -102,6 +102,7 @@ public partial class MainWindow
 
     private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)
     {
+        if (RowCommandBusy) return null;
         long[] selected = frozen.Boards ? SelectedBoards().Select(row => row.WatchId).ToArray()
             : SelectedThreads().Select(row => row.WatchId).ToArray();
         if (!selected.Contains(frozen.LeadWatch)) return null;
@@ -141,7 +142,7 @@ public partial class MainWindow
 
     private async Task ExportFrozenThreadsAsync(ResourceId[] ids, Control? origin)
     {
-        if (ids.Length == 0 || WorkspaceCommandBusy) return;
+        if (ids.Length == 0 || RowCommandBusy) return;
         Action restore = CaptureDownloadSelectionOrigin(origin);
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         await ArchivePage.OpenExportForThreadsAsync(ids, origin, restore);

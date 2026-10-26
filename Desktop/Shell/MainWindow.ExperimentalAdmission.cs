@@ -154,7 +154,7 @@ public partial class MainWindow
         for (int index = 0; index < entries.Count; index++)
         {
             if (_isClosing) throw new OperationCanceledException();
-            if (_session.ClassifyAdmission(entries[index]) is { AlreadyWatching: true }) continue;
+            if (await _session.ClassifyAdmissionAsync(entries[index]) is { AlreadyWatching: true }) continue;
             ExperimentalSourceActivationProjection projection = await ReadExperimentalProjectionAsync(entries[index]);
             if (projection.Status == ExperimentalSourceActivationProjectionStatus.NotRequired) continue;
             if (projection.Status != ExperimentalSourceActivationProjectionStatus.ConfirmationRequired || projection.Target == null)

@@ -6,7 +6,10 @@ namespace MeowChan.Desktop;
 internal sealed partial class DesktopSessionHost
 {
     private RuleTemplateStore? _ruleTemplates;
-    internal async Task<RuleTemplateLoadResult> LoadRuleTemplatesAsync()
+    internal Task<RuleTemplateLoadResult> LoadRuleTemplatesAsync()
+        => RunInteractiveAsync(nameof(LoadRuleTemplatesAsync), "profile", () => LoadRuleTemplatesAdmittedCoreAsync(), captureAfter: false);
+
+    private async Task<RuleTemplateLoadResult> LoadRuleTemplatesAdmittedCoreAsync()
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -16,7 +19,13 @@ internal sealed partial class DesktopSessionHost
         }
         finally { _commands.Release(); }
     }
-    internal async Task<RuleTemplateSet> SaveRuleTemplatesAsync(IEnumerable<RuleTemplate> templates, string expectedRevision)
+    internal Task<RuleTemplateSet> SaveRuleTemplatesAsync(IEnumerable<RuleTemplate> templates, string expectedRevision)
+    {
+        RuleTemplateSet frozen = new(expectedRevision, templates);
+        return RunInteractiveAsync(nameof(SaveRuleTemplatesAsync), "profile", () => SaveRuleTemplatesAdmittedCoreAsync(frozen.Templates, expectedRevision));
+    }
+
+    private async Task<RuleTemplateSet> SaveRuleTemplatesAdmittedCoreAsync(IEnumerable<RuleTemplate> templates, string expectedRevision)
     {
         RuleTemplateSet captured = new(expectedRevision, templates);
         await _commands.WaitAsync().ConfigureAwait(false);

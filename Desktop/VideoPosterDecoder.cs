@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LibVLCSharp.Shared;
 using SkiaSharp;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
 
@@ -17,7 +18,9 @@ internal static class VideoPosterDecoder
     internal sealed record Frame(byte[] Pixels, int Width, int Height, int Pitch);
     internal static async Task<byte[]> DecodeAsync(Stream verifiedVideo, CancellationToken token)
     {
-        using var decoder = new DecodeSession(verifiedVideo);
+        await using var decoder = new DecodeSession(verifiedVideo);
+        using var measurement = PerformanceDiagnostics.Measure("video.poster.decode", decoder.Id);
+        decoder.Initialize();
         Frame frame = await decoder.ReadAsync(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         using SKBitmap bitmap = new(new SKImageInfo(frame.Width, frame.Height, SKColorType.Bgra8888, SKAlphaType.Opaque));
@@ -31,9 +34,13 @@ internal static class VideoPosterDecoder
 
     // The delegates and native buffers remain strongly rooted until MediaPlayer.Dispose has
     // returned. Callbacks never throw across the ABI; native stop/disposal never runs in a callback.
-    private sealed class DecodeSession : IDisposable
+    private sealed class DecodeSession : IAsyncDisposable
     {
+        internal readonly long Id = PerformanceDiagnostics.NextId();
         private readonly Stream _verifiedVideo;
+        private readonly object _disposeLock = new();
+        private Task? _dispose;
+        private readonly VideoCleanupWatch _cleanupWatch = new("video.poster.cleanup");
         private LibVLC? _engine;
         private StreamMediaInput? _input;
         private Media? _media;
@@ -58,24 +65,23 @@ internal static class VideoPosterDecoder
             _lock = Lock;
             _unlock = (_, _, _) => Capture();
             _display = (_, _) => { };
-            try
-            {
-                if (Volatile.Read(ref _nativeReleaseFailed) != 0)
-                    throw new InvalidOperationException("Video poster decoding is unavailable after a native cleanup failure.");
-                NativeVideoRuntime.EnsureInitialized();
-                _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
-                _input = new StreamMediaInput(stream);
-                _media = new Media(_engine, _input);
-                _media.AddOption(":no-audio");
-                _player = new MediaPlayer(_engine);
-                // A root independent of this async call remains until native release joins callbacks.
-                _root = GCHandle.Alloc(this);
-                _player.SetVideoFormatCallbacks(_format, _cleanup);
-                _player.SetVideoCallbacks(_lock, _unlock, _display);
-                _player.EncounteredError += OnError;
-                _player.EndReached += OnEnd;
-            }
-            catch { Dispose(); throw; }
+        }
+        internal void Initialize()
+        {
+            if (Volatile.Read(ref _nativeReleaseFailed) != 0)
+                throw new InvalidOperationException("Video poster decoding is unavailable after a native cleanup failure.");
+            NativeVideoRuntime.EnsureInitialized();
+            _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
+            _input = new StreamMediaInput(_verifiedVideo);
+            _media = new Media(_engine, _input);
+            _media.AddOption(":no-audio");
+            _player = new MediaPlayer(_engine);
+            // A root independent of this async call remains until native release joins callbacks.
+            _root = GCHandle.Alloc(this);
+            _player.SetVideoFormatCallbacks(_format, _cleanup);
+            _player.SetVideoCallbacks(_lock, _unlock, _display);
+            _player.EncounteredError += OnError;
+            _player.EndReached += OnEnd;
         }
         internal async Task<Frame> ReadAsync(CancellationToken token)
         {
@@ -139,40 +145,51 @@ internal static class VideoPosterDecoder
             if (frame != null) _frame.TrySetResult(frame);
             else _frame.TrySetException(new InvalidDataException("The local video has no decodable video frame."));
         }
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
-            MediaPlayer? player = _player;
-            if (player != null)
+            lock (_disposeLock) return new ValueTask(_dispose ??= Task.Run(DisposeCore));
+        }
+        private void DisposeCore()
+        {
+            _cleanupWatch.Begin(Id);
+            _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, engine");
+            try
             {
-                try { player.Stop(); }
-                catch (Exception) { /* Always attempt native release even if Stop failed. */ }
-                try { player.Dispose(); _player = null; }
-                catch (Exception exception)
+                MediaPlayer? player = _player;
+                if (player != null)
                 {
-                    // Do not free memory/delegates/stream still reachable by native callbacks.
-                    // Retaining this single failed session is safer than use-after-free; stop admitting
-                    // new decoder sessions so an exceptional native failure cannot accumulate engines.
-                    Interlocked.Exchange(ref _nativeReleaseFailed, 1);
-                    if (!_root.IsAllocated) _root = GCHandle.Alloc(this);
-                    throw new InvalidOperationException("The video poster decoder could not release its native session.", exception);
+                    _cleanupWatch.Phase("native-stop");
+                    try { player.Stop(); }
+                    catch (Exception) { /* A successful Dispose can still join all callbacks. */ }
+                    _cleanupWatch.Phase("player-dispose");
+                    player.Dispose(); _player = null;
                 }
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, media/input, verified stream, engine");
+                _cleanupWatch.Phase("media-dispose");
+                _media?.Dispose(); _media = null;
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, input, verified stream, engine");
+                _cleanupWatch.Phase("input-dispose");
+                _input?.Dispose(); _input = null;
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, verified stream, engine");
+                _cleanupWatch.Phase("engine-dispose");
+                _engine?.Dispose(); _engine = null;
+                _cleanupWatch.Owns("callback buffers/delegates, verified stream");
+                _cleanupWatch.Phase("stream-dispose");
+                _verifiedVideo.Dispose();
+                // Only actual successful native release permits freeing callback-reachable memory.
+                foreach (IntPtr allocation in _allocations) Marshal.FreeHGlobal(allocation);
+                _allocations.Clear(); _pixels = IntPtr.Zero;
+                if (_root.IsAllocated) _root.Free();
+                GC.KeepAlive(_format); GC.KeepAlive(_cleanup); GC.KeepAlive(_lock); GC.KeepAlive(_unlock); GC.KeepAlive(_display);
+                _cleanupWatch.Complete();
             }
-            Exception? cleanupFailure = null;
-            void Release(IDisposable? resource)
+            catch (Exception exception)
             {
-                try { resource?.Dispose(); }
-                catch (Exception exception) { cleanupFailure ??= exception; }
+                Interlocked.Exchange(ref _nativeReleaseFailed, 1);
+                if (!_root.IsAllocated) _root = GCHandle.Alloc(this);
+                _cleanupWatch.Fail();
+                throw new InvalidOperationException("The video poster decoder could not release its native session; ownership is retained.", exception);
             }
-            Release(_media); _media = null;
-            Release(_input); _input = null;
-            Release(_engine); _engine = null;
-            Release(_verifiedVideo);
-            // Player release completed before freeing any callback-reachable memory.
-            foreach (IntPtr allocation in _allocations) Marshal.FreeHGlobal(allocation);
-            _allocations.Clear(); _pixels = IntPtr.Zero;
-            if (_root.IsAllocated) _root.Free();
-            GC.KeepAlive(_format); GC.KeepAlive(_cleanup); GC.KeepAlive(_lock); GC.KeepAlive(_unlock); GC.KeepAlive(_display);
-            if (cleanupFailure != null) throw new InvalidOperationException("Video poster cleanup failed.", cleanupFailure);
         }
     }
 }

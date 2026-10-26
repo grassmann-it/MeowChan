@@ -30,7 +30,14 @@ internal static class DownloadSearchChecks
             new[] { Saved(1), Saved(2) with { Status = MediaWorkStatus.Waiting, HttpStatus = 404, DueAt = DateTimeOffset.UtcNow.AddMinutes(15) } });
         waiting.UpdateSnapshot(new DesktopThreadEntry(waiting.WatchId, waiting.Snapshot with { KnownMedia = 2, CompletedMedia = 1,
             Work = waitingWork }, waiting.HostName, waiting.BoardName));
-        using BoardRow board = new(SnapshotFixtures.Board(2900, "local"));
+        using BoardRow boardTemplate = new(SnapshotFixtures.Board(2900, "local"));
+        ThreadRow[] templates = rows;
+        SyntheticShellRows synthetic;
+        try { synthetic = await SyntheticShellRows.FromRowsAsync(window, templates, [boardTemplate]); }
+        finally { foreach (ThreadRow template in templates) template.Dispose(); }
+        await using SyntheticShellRows fixtureLifetime = synthetic;
+        rows = synthetic.Threads; complete = rows[0]; waiting = rows[1];
+        BoardRow board = synthetic.Boards[0];
         TextBox input = window.FindControl<TextBox>("DownloadSearchInput")!;
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
@@ -40,30 +47,33 @@ internal static class DownloadSearchChecks
                 "The 10 known / 5 excluded / 5 saved fixture did not present 5/5 at 100 percent.");
             Require(!complete.HasExceptionHint && waiting.HasExceptionHint && waiting.MediaErrorCount == 0,
                 "Normal success or waiting media were projected as an error.");
-            foreach (ThreadRow row in rows) window.UrlList.Add(row);
-            window.BoardsList.Add(board);
             tabs.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(rows[^1]));
             grid.SelectedItems.Clear();
             grid.SelectedItems.Add(rows[0]); grid.SelectedItems.Add(rows[1]);
             window.FocusDownloadSearch();
             input.Text = "aLPHa local";
+            await synthetic.WaitForAppliedAsync();
             await Program.WaitUntilAsync(() => window.VisibleThreads.Count == 150);
             Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItems[0], rows[0]), "Filtering did not remove only the excluded selection.");
             grid.ScrollIntoView(rows[^2], null);
             await Task.Delay(40);
             Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItems[0], rows[0]), "Scrolling changed the filtered selection.");
             input.Text = "";
+            await synthetic.WaitForAppliedAsync();
             await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(rows[^1]));
             Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItems[0], rows[0]), "Clearing the filter restored an excluded selection.");
             Require(window.VisibleThreads.Where(rows.Contains).SequenceEqual(rows), "Clearing the filter changed the original unsorted row order.");
             input.Text = "Beta local";
+            await synthetic.WaitForAppliedAsync();
             await Program.WaitUntilAsync(() => window.VisibleThreads.Count == 150);
             Require(grid.SelectedItems.Count == 0, "Removing the selected row automatically selected a remaining result.");
             input.Text = "no-local-result";
+            await synthetic.WaitForAppliedAsync();
             await Program.WaitUntilAsync(() => window.VisibleThreads.Count == 0);
             Require(grid.SelectedItems.Count == 0 && window.VisibleResultCount == 0, "Zero results retained hidden batch targets.");
             input.Text = "local";
+            await synthetic.WaitForAppliedAsync();
             tabs.SelectedIndex = 1;
             await Program.WaitUntilAsync(() => window.VisibleBoards.Contains(board));
             Require(window.VisibleResultCount == window.VisibleBoards.Count, "Board count did not follow the active list.");
@@ -218,12 +228,12 @@ internal static class DownloadSearchChecks
         finally
         {
             input.Text = "";
-            foreach (ThreadRow row in rows) { window.UrlList.Remove(row); row.Dispose(); }
-            window.BoardsList.Remove(board);
+            await synthetic.WaitForAppliedAsync();
             Texts.SetLanguage("en");
             tabs.SelectedIndex = 0;
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             window.Width = 1380; window.Height = 850;
+            await synthetic.DisposeAsync();
         }
     }
 

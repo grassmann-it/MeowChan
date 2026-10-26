@@ -10,12 +10,14 @@ public sealed class MediaVariantQueueTests
 {
     private const string Url = "https://stub.test/g/thread/1";
 
-    [Fact]
-    public async Task VariantsHaveSeparateQueueAndJournalIdentityEvenWithSameRawIdAndRequestedTarget()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VariantsHaveSeparateQueueAndJournalIdentityEvenWithSameRawIdAndRequestedTarget(bool memory)
     {
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
-        WorkStateStore store = new(directory.Path, lease);
+        IWorkStateStore store = memory ? new MemoryWorkStateStore() : new WorkStateStore(directory.Path, lease);
         using StubImageBoard board = new();
         BaseThread thread = (BaseThread)board.GetThread(new Uri(Url));
         WorkResource owner = Owner(directory, store);
@@ -117,7 +119,7 @@ public sealed class MediaVariantQueueTests
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
     }
 
-    private static WorkResource Owner(TempDirectory directory, WorkStateStore store) => store.CommitIntent(new WorkResource
+    private static WorkResource Owner(TempDirectory directory, IWorkStateStore store) => store.CommitIntent(new WorkResource
         { Url = Url, Generation = 1, OutputRoot = directory.Path, IsThread = true, Intent = WorkIntent.Watching });
     private static DownloadItem Item(StubImageBoard board, BaseThread thread, TempDirectory directory, string id, string variant, string path)
         => new(new Uri($"https://stub.test/{variant}.bin"), Path.Combine(directory.Path, path), board, thread, id, null, null, null, null, variant);

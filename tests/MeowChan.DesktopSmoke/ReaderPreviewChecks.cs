@@ -158,14 +158,43 @@ internal static class ReaderPreviewChecks
         await Program.WaitUntilAsync(() => view.PreviewStatus == Texts.T("archive.previewLoadFailed"));
         double height = view.Bounds.Height;
         TaskCompletionSource<Bitmap?> old = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        bool started = false;
-        view.DataContext = Row(_ => { started = true; return old.Task; });
-        await Program.WaitUntilAsync(() => started);
-        Bitmap current = NewBitmap();
-        view.DataContext = Row(_ => Task.FromResult<Bitmap?>(current));
-        await Program.WaitUntilAsync(() => ReferenceEquals(view.Thumbnail.Source, current));
-        old.SetResult(NewBitmap()); await FlushAsync();
-        Require(ReferenceEquals(view.Thumbnail.Source, current), "An obsolete cancelled preview replaced current pixels.");
+        CancellationToken oldCancellation = default;
+        int oldLoads = 0, currentLoads = 0;
+        view.DataContext = Row(token => { oldCancellation = token; oldLoads++; return old.Task; });
+        await Program.WaitUntilAsync(() => oldLoads == 1);
+        Bitmap? current = null;
+        view.DataContext = Row(_ =>
+        {
+            currentLoads++;
+            current = NewBitmap();
+            return Task.FromResult<Bitmap?>(current);
+        });
+        Bitmap obsolete = NewBitmap();
+        bool publishedObsolete = false;
+        void OnPixelsChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == Image.SourceProperty && ReferenceEquals(e.NewValue, obsolete)) publishedObsolete = true;
+        }
+        view.Thumbnail.PropertyChanged += OnPixelsChanged;
+        try
+        {
+            await FlushAsync();
+            Require(oldCancellation.IsCancellationRequested && oldLoads == 1 && currentLoads == 0
+                && current == null && view.Thumbnail.Source == null,
+                "Replacing a preview did not cancel the old request or started a replacement before its native owner returned.");
+            // The cancelled decoder ignores its token. It must actually return before the
+            // replacement may enter; waiting for replacement pixels first deadlocks this fixture.
+            old.SetResult(obsolete);
+            await Program.WaitUntilAsync(() => current != null && ReferenceEquals(view.Thumbnail.Source, current));
+            await FlushAsync();
+            Require(currentLoads == 1 && !publishedObsolete && ReferenceEquals(view.Thumbnail.Source, current),
+                "An obsolete cancelled preview published pixels or the latest replacement did not run exactly once.");
+        }
+        finally
+        {
+            old.TrySetResult(obsolete);
+            view.Thumbnail.PropertyChanged -= OnPixelsChanged;
+        }
         TaskCompletionSource<Bitmap?> slow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         view.LoadTimeout = TimeSpan.FromMilliseconds(100);
         view.DataContext = Row(_ => slow.Task);

@@ -73,6 +73,9 @@ public sealed partial class Registry : IAsyncDisposable
     private int _completionScanVersion;
     private Task? _shutdown;
 
+    // Deterministic completion/admission interleaving seam; invoked before taking Registry locks.
+    internal Func<Task>? BeforeCompletionScan { get; set; }
+
     /// <summary>Asynchronous coalesced invalidation. Subscribe first, then read GetSnapshot; intermediate transitions may coalesce.</summary>
     public event Action? StateChanged
     {
@@ -125,18 +128,6 @@ public sealed partial class Registry : IAsyncDisposable
         return Array.AsReadOnly(Volatile.Read(ref _workCache));
     }
 
-    private void RefreshWorkCache()
-    {
-        if (_workStore == null) return;
-        ThreadWorkSnapshot[] current = _workStore.LoadResources().Where(resource => resource.IsThread)
-            .Select(resource => new ThreadWorkSnapshot(resource.Url, resource.Intent, resource.Source,
-                resource.EndObservedAt, resource.CapturePending,
-                Array.AsReadOnly(_workStore.LoadMedia(resource.Url, resource.Generation).ToArray()))).ToArray();
-        IReadOnlyDictionary<string, ThreadWorkSnapshot> indexed = new ReadOnlyDictionary<string, ThreadWorkSnapshot>(
-            current.ToDictionary(item => item.Url, StringComparer.Ordinal));
-        Volatile.Write(ref _workCacheByUrl, indexed);
-        Volatile.Write(ref _workCache, current);
-    }
 
     /// <summary>Passive registry descriptions; does not resolve URLs, make requests or create watches.</summary>
     public IReadOnlyList<ProviderDescriptor> GetProviderDescriptors() => Array.AsReadOnly(_providerDescriptors
@@ -187,6 +178,7 @@ public sealed partial class Registry : IAsyncDisposable
         _durableWork = workStore != null;
         _workStore = workStore ?? new MemoryWorkStateStore();
         _queue.ConfigureWorkState(_workStore);
+        WorkStateAccess.For(_workStore).InvalidateAll(); // A new Registry always builds its own initial view.
         _persistSession = persistSession;
         _restoreRequired = sessionStore != null && persistSession;
     }
@@ -288,7 +280,7 @@ public sealed partial class Registry : IAsyncDisposable
                 else
                 {
                     string root = _workResources.TryGetValue(resource.Key, out WorkResource? previousWork)
-                        ? previousWork.OutputRoot : _workStore?.LoadResources().FirstOrDefault(item => item.Url == resource.Url)?.OutputRoot
+                        ? previousWork.OutputRoot : (_workStore == null ? null : WorkStateAccess.For(_workStore).FindResource(resource.Url)?.OutputRoot)
                             ?? _outputDirectory;
                     oldLifetime = ArchiveCleanupWait(resource, root);
                     if (oldLifetime == null)
@@ -396,7 +388,7 @@ public sealed partial class Registry : IAsyncDisposable
                 if (_workStore == null) break;
                 if (!byUrl.TryGetValue(resource.Url, out WorkResource? saved))
                 {
-                    saved = _workStore.CommitIntent(new WorkResource { Url = resource.Url,
+                    saved = CommitWorkIntent(new WorkResource { Url = resource.Url,
                         OutputRoot = roots[resource.Url], Generation = 1, Intent = WorkIntent.Watching,
                         IsThread = resource.Thread != null,
                         Discovered = loaded.Snapshot.DiscoveredThreadUrls.Contains(resource.Url, StringComparer.Ordinal) });
@@ -491,11 +483,38 @@ public sealed partial class Registry : IAsyncDisposable
         finally { _gate.Release(); }
     }
 
-    // Caller holds the gate. Durable intent precedes activation and public success.
+    // Caller holds the gate. Reserve the exclusive owner before changing durable or watch state.
     private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist, bool discovered = false)
     {
         if (ArchiveCleanupWait(resource, outputRoot) != null)
             throw new InvalidOperationException("The archived resource is reserved for cleanup.");
+        Watch watch = new Watch { Thread = resource.Thread, Board = resource.Board, OutputRoot = outputRoot };
+        IDisposable ownerRegistration = resource.Thread != null
+            ? resource.Thread.RegisterRemovalSink(removed =>
+            {
+                if (Interlocked.Exchange(ref watch.RemovalRequested, 1) == 0)
+                    Track(async () =>
+                    {
+                        try { await RemoveThreadAsync(removed).ConfigureAwait(false); }
+                        finally { Volatile.Write(ref watch.RemovalRequested, 0); }
+                    });
+            })
+            : resource.Board!.RegisterDiscoverySink((thread, token) =>
+                new ValueTask(AdmitDiscoveryAsync(watch, thread, token)));
+        watch.OwnerRegistration = ownerRegistration;
+        try { return await AdmitOwnedAsync(resource, watch, persist, discovered).ConfigureAwait(false); }
+        catch
+        {
+            // A pre-activation commit failure releases the reservation without cancelling the resource.
+            ownerRegistration.Dispose();
+            throw;
+        }
+    }
+
+    // Ownership is reserved; durable intent still precedes activation and public success.
+    private async Task<AdmissionResult> AdmitOwnedAsync(Resource resource, Watch watch, bool persist, bool discovered)
+    {
+        string outputRoot = watch.OutputRoot;
         SessionSnapshot previous = _session;
         bool previouslySuppressed = _suppressed.Contains(resource.Key);
         WorkResource? durable = null;
@@ -507,8 +526,8 @@ public sealed partial class Registry : IAsyncDisposable
             if (_workStore != null)
             {
                 _workResources.TryGetValue(resource.Key, out WorkResource? old);
-                old ??= _workStore.LoadResources().FirstOrDefault(item => item.Url == resource.Url);
-                durable = _workStore.CommitIntent(new WorkResource { Url = resource.Url, OutputRoot = outputRoot,
+                old ??= WorkStateAccess.For(_workStore).FindResource(resource.Url);
+                durable = CommitWorkIntent(new WorkResource { Url = resource.Url, OutputRoot = outputRoot,
                     Generation = (old?.Generation ?? 0) + 1, Intent = WorkIntent.Watching,
                     IsThread = resource.Thread != null, Discovered = discovered });
                 _workResources[resource.Key] = durable;
@@ -522,7 +541,6 @@ public sealed partial class Registry : IAsyncDisposable
             _hasMutations = true;
             if (resource.Thread != null) _suppressed.Remove(resource.Key);
         }
-        Watch watch = new Watch { Thread = resource.Thread, Board = resource.Board, OutputRoot = outputRoot };
         lock (_state) { _watches.Add(resource.Key, watch); }
         try
         {
@@ -543,15 +561,6 @@ public sealed partial class Registry : IAsyncDisposable
                     await _contentRuntime.BindAsync(contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
                 // Bind captured decisions before restoring media work; resumed transfers use the same rule path.
                 if (durable != null) _queue.BindWork(resource.Thread, durable);
-                watch.OwnerRegistration = resource.Thread.RegisterRemovalSink(removed =>
-                {
-                    if (Interlocked.Exchange(ref watch.RemovalRequested, 1) == 0)
-                        Track(async () =>
-                        {
-                            try { await RemoveThreadAsync(removed).ConfigureAwait(false); }
-                            finally { Volatile.Write(ref watch.RemovalRequested, 0); }
-                        });
-                });
                 watch.StateHandler = (_, _) => SignalChanged();
                 resource.Thread.PropertyChanged += watch.StateHandler;
                 _queue.SetThreadPriority(resource.Thread, discovered ? DownloadPriority.BoardDiscovery : DownloadPriority.Manual);
@@ -559,10 +568,8 @@ public sealed partial class Registry : IAsyncDisposable
             }
             else
             {
-                watch.OwnerRegistration = resource.Board!.RegisterDiscoverySink((thread, token) =>
-                    new ValueTask(AdmitDiscoveryAsync(watch, thread, token)));
                 watch.StateHandler = (_, _) => SignalChanged();
-                resource.Board.PropertyChanged += watch.StateHandler;
+                resource.Board!.PropertyChanged += watch.StateHandler;
                 if (resource.Board is BaseBoard baseBoard)
                 {
                     baseBoard.AttachSessionQueue(_queue);
@@ -580,13 +587,11 @@ public sealed partial class Registry : IAsyncDisposable
             DetachObservers(watch);
             try
             {
-                // A rejected second owner must not stop the first session's resource.
-                if (watch.OwnerRegistration != null) await StopWatchAsync(watch).ConfigureAwait(false);
+                await StopWatchAsync(watch).ConfigureAwait(false);
             }
             catch (Exception cleanupFailure) { failures.Add(cleanupFailure); }
             finally
             {
-                watch.OwnerRegistration?.Dispose();
                 lock (_state) { _watches.Remove(resource.Key); }
                 watch.Stopped.TrySetResult();
             }
@@ -646,7 +651,7 @@ public sealed partial class Registry : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
                 || !_workResources.TryGetValue(key, out WorkResource? current)) return;
-            WorkResource? committed = _workStore.CommitEnd(current.Url, current.Generation,
+            WorkResource? committed = CommitWorkEnd(current.Url, current.Generation,
                 state == ThreadSourceState.Archived ? ThreadSourceStateValue.Archived : ThreadSourceStateValue.NotFound,
                 observed, finalSnapshot == null ? null : JsonSerializer.Serialize(finalSnapshot));
             if (committed == null) return;
@@ -665,7 +670,7 @@ public sealed partial class Registry : IAsyncDisposable
         {
             if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
                 || !_workResources.TryGetValue(key, out WorkResource? current) || !current.CapturePending) return;
-            WorkResource? committed = _workStore.CommitState(current with { CapturePending = false });
+            WorkResource? committed = CommitWorkState(current with { CapturePending = false });
             if (committed != null) { _workResources[key] = committed; _queue.UpdateWorkOwner(thread, committed); }
         }
         finally { _gate.Release(); }
@@ -702,12 +707,12 @@ public sealed partial class Registry : IAsyncDisposable
             if (_archiveCleanupReservations.ContainsKey(resource.Key)) return 0;
             if (!_workResources.TryGetValue(resource.Key, out WorkResource? state))
             {
-                state = _workStore.LoadResources().FirstOrDefault(item => item.Url == resource.Url);
+                state = WorkStateAccess.For(_workStore).FindResource(resource.Url);
                 if (state == null) return 0;
                 _workResources[resource.Key] = state;
             }
             if (state.Intent != WorkIntent.Completed || ArchiveCleanupWait(resource, state.OutputRoot) != null) return 0;
-            WorkResource? repairing = _workStore.CommitState(state with { Intent = WorkIntent.Repairing });
+            WorkResource? repairing = CommitWorkState(state with { Intent = WorkIntent.Repairing });
             if (repairing == null) return 0;
             _workResources[resource.Key] = repairing;
             await AdmitAsync(resource, repairing.OutputRoot, persist: false).ConfigureAwait(false);
@@ -769,9 +774,19 @@ public sealed partial class Registry : IAsyncDisposable
                     if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
                     if (_workStore != null && _workResources.TryGetValue(key, out WorkResource? previous))
                     {
-                        WorkResource suppressed = _workStore.CommitIntent(previous with
-                        { Generation = previous.Generation + 1, Intent = WorkIntent.Suppressed });
-                        _workResources[key] = suppressed;
+                        if (thread != null) _queue.RetireWorkOwner(thread);
+                        try
+                        {
+                            WorkResource suppressed = CommitWorkIntent(previous with
+                            { Generation = previous.Generation + 1, Intent = WorkIntent.Suppressed });
+                            _workResources[key] = suppressed;
+                        }
+                        catch
+                        {
+                            // A failed removal has not committed new authority and keeps its watch.
+                            if (thread != null) _queue.RestoreWorkOwner(thread);
+                            throw;
+                        }
                     }
                     if (_durableWork)
                     {
@@ -985,6 +1000,7 @@ public sealed partial class Registry : IAsyncDisposable
 
     private async Task TryCompleteAsync()
     {
+        if (BeforeCompletionScan is { } beforeScan) await beforeScan().ConfigureAwait(false);
         List<(ResourceKey Key, Watch Watch)> completed = new();
         bool refreshed = false;
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -1000,23 +1016,31 @@ public sealed partial class Registry : IAsyncDisposable
                 if (!_watches.TryGetValue(entry.Key, out Watch? watch) || watch.Thread == null || watch.Stopping) continue;
                 DownloadCounts counts = _queue.GetThreadCounts(new[] { watch.Thread })[watch.Thread];
                 if (counts.Active != 0 || counts.Queued != 0) continue;
-                IReadOnlyList<MediaWork> media = _workStore.LoadMedia(state.Url, state.Generation);
-                DateTimeOffset now = _queue.UtcNow;
-                if (state.Intent == WorkIntent.Repairing)
                 {
-                    if (media.Any(item => item.ManualAttempt)) continue;
+                    using IDisposable resourceFence = WorkStateAccess.For(_workStore).Enter(state.Url);
+                    if (WorkStateAccess.For(_workStore).IsDirty(state.Url)
+                        || !_workCacheEntries.TryGetValue(state.Url, out WorkCacheEntry? cached)
+                        || cached.Resource.Generation != state.Generation) continue;
+                    IReadOnlyList<MediaWork> media = cached.Snapshot.Media;
+                    DateTimeOffset now = _queue.UtcNow;
+                    if (state.Intent == WorkIntent.Repairing)
+                    {
+                        if (media.Any(item => item.ManualAttempt)) continue;
+                    }
+                    else
+                    {
+                        if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
+                            item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) && item.HttpStatus != 404)) continue;
+                        if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded or MediaWorkStatus.Expired))) continue;
+                        if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
+                            (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
+                    }
+                    WorkResource? committed = WorkStateAccess.For(_workStore).CommitStateUnderFence(state with { Intent = WorkIntent.Completed });
+                    if (committed == null) continue;
+                    _workResources[entry.Key] = committed;
+                    _workCacheEntries[state.Url] = CreateWorkCacheEntry(committed, media);
+                    WorkStateAccess.For(_workStore).ClearDirty(state.Url);
                 }
-                else
-                {
-                    if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
-                        item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) && item.HttpStatus != 404)) continue;
-                    if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded or MediaWorkStatus.Expired))) continue;
-                    if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
-                        (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
-                }
-                WorkResource? committed = _workStore.CommitState(state with { Intent = WorkIntent.Completed });
-                if (committed == null) continue;
-                _workResources[entry.Key] = committed;
                 SessionSnapshot next = RemovalSnapshot(state.Url, true);
                 next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != state.Url).ToArray();
                 try { await SaveSessionAsync(next).ConfigureAwait(false); }
@@ -1024,7 +1048,7 @@ public sealed partial class Registry : IAsyncDisposable
                 _session = next;
                 completed.Add((entry.Key, watch));
             }
-            if (completed.Count > 0) RefreshWorkCache();
+            if (completed.Count > 0) PublishWorkCache();
         }
         finally
         {

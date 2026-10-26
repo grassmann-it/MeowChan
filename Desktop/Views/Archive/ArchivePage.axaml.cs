@@ -22,6 +22,7 @@ using MeowChan.Interfaces;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using SkiaSharp;
+using MeowChan.Diagnostics;
 
 namespace MeowChan;
 
@@ -266,13 +267,18 @@ public partial class ArchivePage : UserControl
     private void OnThreadSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
 
     // URSA-12: a preflighted local snapshot keeps failed group navigation from clearing the current reader.
-    internal async Task LoadThreadAsync(ResourceId id, bool resetPage = true, ArchivedThreadView? preparedThread = null)
+    internal Task LoadThreadAsync(ResourceId id, bool resetPage = true, ArchivedThreadView? preparedThread = null) =>
+        LoadThreadAsync(id, resetPage, preparedThread, null);
+
+    private async Task LoadThreadAsync(ResourceId id, bool resetPage, ArchivedThreadView? preparedThread,
+        ReaderFocusIntent? focusIntent)
     {
         if (_ended || !_available || _openReader == null) return;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
         CancelInlineReplies();
         int request = ++_contentRequest;
+        focusIntent?.BeginContent(request);
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _contentCancellation = loading;
@@ -322,10 +328,15 @@ public partial class ArchivePage : UserControl
             if (thread != null)
             {
                 MediaLoadTask = LoadMediaAsync(thread);
-                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor);
+                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
                 else if (_largeReader && thread.PostCount > 0)
-                    await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId, resetPage ? null : _readerInteractionRevision);
-                else if (_largeReader) Control<Button>("ArchiveCloseReader").Focus();
+                    await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId,
+                        resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent);
+                else if (_largeReader)
+                {
+                    if (focusIntent != null) focusIntent.Restore(Control<Button>("ArchiveCloseReader"));
+                    else Control<Button>("ArchiveCloseReader").Focus();
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -590,6 +601,7 @@ public partial class ArchivePage : UserControl
                     await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
                     try
                     {
+                        loading.Token.ThrowIfCancellationRequested(); // Coverage can change while queued for a slot.
                         if (SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video)
                             return await VideoPosterCache.LoadAsync(match.Manifest, match.Asset,
                                 Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
@@ -645,7 +657,11 @@ public partial class ArchivePage : UserControl
         if (resolved == null || SavedMediaTypes.Classify(resolved.Asset.OriginalFileName ?? resolved.Asset.Path) != SavedMediaKind.Image)
             return null;
         await _thumbnailGate.WaitAsync(loading.Token);
-        try { return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120); }
+        try
+        {
+            loading.Token.ThrowIfCancellationRequested();
+            return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120);
+        }
         finally { _thumbnailGate.Release(); }
     }, cancellationToken);
 
@@ -661,7 +677,13 @@ public partial class ArchivePage : UserControl
         string extension = System.IO.Path.GetExtension(row.Asset.Path).ToLowerInvariant();
         if (extension is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")) return null;
         if (row.Asset.Length > 64L * 1024 * 1024) throw new InvalidDataException(Texts.T("archive.tooLarge"));
-        await using Stream stream = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+        long request = PerformanceDiagnostics.NextId();
+        Stream verified;
+        using (PerformanceDiagnostics.Measure("gallery.thumbnail.verify", request, asset: row.Asset.AssetId))
+            verified = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+        PerformanceDiagnostics.Record("gallery.thumbnail.verified-bytes", request: request, asset: row.Asset.AssetId, value: row.Asset.Length);
+        await using Stream stream = verified;
+        using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);
         using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         if (codec.Info.Width <= 0 || codec.Info.Height <= 0 || (long)codec.Info.Width * codec.Info.Height > 40_000_000
@@ -849,6 +871,12 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
+        ReaderLocalizationTask = LocalizeArchiveAsync();
+    }
+
+    private async Task LocalizeArchiveAsync()
+    {
+        using ReaderFocusIntent focusIntent = new(this);
         // Refresh computed labels without losing the chosen manifest version or thread.
         // Restoring a post anchor selects the Posts tab; preserve other active reader views.
         ReaderAnchor? anchor = ReaderShowsPosts ? CaptureReaderAnchor() : null;
@@ -856,7 +884,6 @@ public partial class ArchivePage : UserControl
         Localize();
         LocalizeReaderUpdates();
         RenderThread();
-        if (anchor != null) _ = RestoreReaderAnchorAsync(anchor);
         ListBox list = Control<ListBox>("ArchiveThreads");
         if (list.ItemsSource is IEnumerable<ArchiveThreadRow> rows)
         {
@@ -879,6 +906,7 @@ public partial class ArchivePage : UserControl
             finally { _updatingList = false; }
             BeginArchiveMediaCounts(localized);
         }
+        if (anchor != null) await RestoreReaderAnchorAsync(anchor, focusIntent: focusIntent);
     }
     private void Localize()
     {

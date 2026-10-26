@@ -61,11 +61,12 @@ public partial class MainWindow
         }
         ArchivePage.RemoveSelectedWatches = RemoveArchiveWatchesAsync;
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
-        ArchivePage.CanRemoveWatch = id => _threadRows.Values.Any(row => row.Snapshot.Id == id);
+        ArchivePage.CanRemoveWatch = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         ArchivePage.CheckSelectedWatches = CheckArchiveWatchesAsync;
         ArchivePage.CopySelectedUrls = urls => CopyUrlsAsync(urls, ArchivePage.CaptureActionErrorReporter());
         ArchivePage.SelectionLeadAction = (id, action) =>
         {
+            if (_sessionRowsApplying) return;
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
             if (action == "browser") { OpenTarget(row?.Url ?? ArchivePage.ArchiveUrlFor(id), ArchivePage.CaptureActionErrorReporter()); return; }
             if (action == "folder") { string? directory = row?.DownloadDirectory ?? ArchivePage.ArchiveDirectoryFor(id); if (directory != null) OpenDirectory(directory, ArchivePage.CaptureActionErrorReporter()); return; }
@@ -74,6 +75,7 @@ public partial class MainWindow
         };
         ArchivePage.SelectionDetailsRequested = id =>
         {
+            if (_sessionRowsApplying) return;
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
             if (row != null) OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
@@ -89,17 +91,20 @@ public partial class MainWindow
     }
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
-    private ThreadRow[] SelectedThreads() => DownloadList(false).SelectedItems.Cast<object>().OfType<ThreadRow>()
-        .Where(row => UrlList.Contains(row) && VisibleThreads.Contains(row)).ToArray();
-    private BoardRow[] SelectedBoards() => DownloadList(true).SelectedItems.Cast<object>().OfType<BoardRow>()
-        .Where(row => BoardsList.Contains(row) && VisibleBoards.Contains(row)).ToArray();
-    private ThreadRow? LeadThread => SelectedThreads().Length == 0 ? null
+    private ThreadRow[] SelectedThreads() => _sessionRowsApplying ? Array.Empty<ThreadRow>() : DownloadList(false).SelectedItems.Cast<object>().OfType<ThreadRow>()
+        .Where(row => _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
+            && (_appliedThreadSearchReconciliation?.Includes(row) ?? false)).ToArray();
+    private BoardRow[] SelectedBoards() => _sessionRowsApplying ? Array.Empty<BoardRow>() : DownloadList(true).SelectedItems.Cast<object>().OfType<BoardRow>()
+        .Where(row => _boardRows.TryGetValue(row.WatchId, out BoardRow? current) && ReferenceEquals(row, current)
+            && (_appliedBoardSearchReconciliation?.Includes(row) ?? false)).ToArray();
+    private ThreadRow? LeadThread => _sessionRowsApplying || SelectedThreads().Length == 0 ? null
         : SelectedThreads().FirstOrDefault(row => row.WatchId == _threadLeadId) ?? SelectedThreads().FirstOrDefault();
-    private BoardRow? LeadBoard => SelectedBoards().Length == 0 ? null
+    private BoardRow? LeadBoard => _sessionRowsApplying || SelectedBoards().Length == 0 ? null
         : SelectedBoards().FirstOrDefault(row => row.WatchId == _boardLeadId) ?? SelectedBoards().FirstOrDefault();
 
     private void SelectDownloadContextRow(object? sender, PointerPressedEventArgs e)
     {
+        if (_sessionRowsApplying) { e.Handled = true; return; }
         if (sender is not DataGrid grid) return;
         _downloadPointerContextHandled.Remove(grid);
         DataGridRow? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
@@ -143,9 +148,13 @@ public partial class MainWindow
 
     private async void OnDownloadListKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_sessionRowsApplying && sender is DataGrid sliceGrid && IsListCommandSource(e.Source, sliceGrid)
+            && (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown
+                || CommandBindings.Matches(e, "selection.select-all")))
+        { e.Handled = true; return; }
         if (sender is not DataGrid grid || e.Handled || !IsListCommandSource(e.Source, grid)
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
-            || _selectedPage != WorkspacePage.Downloads || WorkspaceCommandBusy || _selectionCommandRunning) return;
+            || _selectedPage != WorkspacePage.Downloads || RowCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
         if (CommandBindings.Matches(e, "menu.context-open"))
         {
@@ -207,13 +216,15 @@ public partial class MainWindow
 
     private async Task RunSelectionCommandAsync<T>(IReadOnlyList<T> frozen, Func<T, Task> command)
     {
-        if (_selectionCommandRunning || !_restoreCompleted || WorkspaceCommandBusy || frozen.Count == 0) return;
+        if (_selectionCommandRunning || !_restoreCompleted || RowCommandBusy || frozen.Count == 0) return;
         _selectionCommandRunning = true;
         var failures = new List<string>();
         try
         {
             foreach (T id in frozen)
             {
+                await AwaitSessionRowsAsync();
+                if (_isClosing) return;
                 try { await command(id); }
                 catch (Exception error) { failures.Add(error.Message); }
             }
@@ -231,6 +242,7 @@ public partial class MainWindow
 
     private Task RemoveVisibleDownloadWatchAsync(long id, bool boards)
     {
+        if (_sessionRowsApplying) return Task.CompletedTask;
         if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return Task.CompletedTask;
         return boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id);
     }
@@ -274,7 +286,7 @@ public partial class MainWindow
             ShowNotification(Texts.T("notification.session"), text, NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.check");
         }
         if (retried) ShowNotification(Texts.T("notification.session"), Texts.T(acceptedMedia == 0 ? "work.retryNone"
-            : _session.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
+            : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
             NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }
 
@@ -293,6 +305,7 @@ public partial class MainWindow
 
     private async Task OpenDownloadReaderAsync(ResourceId id, Control? origin)
     {
+        if (_sessionRowsApplying) return;
         ResourceId[] scope = DownloadList(false).CollectionView.Cast<ThreadRow>().Select(row => row.Snapshot.Id).ToArray();
         OpenLargeReader(origin, scope);
         await ArchivePage.LoadThreadAsync(id);
@@ -301,7 +314,7 @@ public partial class MainWindow
     private async Task ExportDownloadSelectionAsync(Control? origin)
     {
         ResourceId[] ids = SelectedThreads().Select(row => row.Snapshot.Id).Distinct().ToArray();
-        if (ids.Length == 0 || WorkspaceCommandBusy) return;
+        if (ids.Length == 0 || RowCommandBusy) return;
         Action restore = CaptureDownloadSelectionOrigin(origin);
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         await ArchivePage.OpenExportForThreadsAsync(ids, origin, restore);

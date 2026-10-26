@@ -7,6 +7,7 @@ DISPLAY when the virtual-display tools are missing.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -34,7 +35,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", "plugins", "archive-cleanup", STRESS_MODE),
+    parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", "plugins", "archive-cleanup", "shell-load", STRESS_MODE),
                         help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
                         help="Use a dedicated Linux desktop for one explicitly selected scenario.")
@@ -142,6 +143,7 @@ def sample_timeout(process: subprocess.Popen, destination: Path) -> None:
 
 def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
              isolated: bool, timeout: float) -> dict[str, object]:
+    destination = destination.resolve()
     destination.mkdir()
     command = ["dotnet", str(assembly)]
     if mode != "normal":
@@ -154,6 +156,33 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     exit_code = 1
     with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
+        if mode == "shell-load":
+            # Bind current source bytes and all sibling managed/native dependencies, even for a standalone cell.
+            spec = importlib.util.spec_from_file_location("shell_matrix_binding", Path(__file__).with_name("run-shell-load-matrix.py"))
+            binding_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(binding_module)
+            source_root = Path(environment.get("MEOWCHAN_SHELL_LOAD_SOURCE_ROOT", Path(__file__).resolve().parents[1])).resolve()
+            source_binding = binding_module.source_inventory(source_root)
+            expected = environment.get("MEOWCHAN_SHELL_LOAD_SOURCE_HASH")
+            if expected and expected != source_binding["sha256"]:
+                raise ValueError("Source changed since A/B inventory")
+            binaries = binding_module.binary_inventory(assembly)
+            assembly_hash = binding_module.digest(assembly)
+            expected_binary = environment.get("MEOWCHAN_SHELL_LOAD_ASSEMBLY_HASH")
+            if expected_binary and expected_binary != assembly_hash:
+                raise ValueError("Assembly changed since A/B inventory")
+            (destination / "binding.json").write_text(json.dumps({"source_root": str(source_root), "source": source_binding,
+                "assembly_sha256": assembly_hash, "binary_files": binaries,
+                "limit": "Inventory binding; build owner verifies compiler provenance"}, indent=2) + "\n", encoding="utf-8")
+            child_environment["MEOWCHAN_SHELL_LOAD_SOURCE_HASH"] = source_binding["sha256"]
+            child_environment["MEOWCHAN_SHELL_LOAD_ASSEMBLY_HASH"] = assembly_hash
+            child_environment["MEOWCHAN_SHELL_LOAD_PRIVATE_PROFILE"] = str((Path(working_directory) / "profile").resolve())
+            child_environment["MEOWCHAN_SHELL_LOAD_REPORT"] = str(destination / "measurement.json")
+            child_environment["MEOWCHAN_SHELL_LOAD_HEARTBEAT"] = str(destination / "heartbeat.json")
+            watchdog = Path(__file__).with_name("shell-load-watchdog.py").resolve()
+            command = [sys.executable, str(watchdog), "--heartbeat", str(destination / "heartbeat.json"),
+                       "--report", str(destination / "watchdog.json"), "--timeout", str(max(0.1, timeout - 12)),
+                       "--", *command]
         if isolated:
             if mode == "tray-host":
                 host = Path(__file__).with_name("with-fake-tray-host.py").resolve()
@@ -206,6 +235,18 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
             expected_scale = math.nan
         if not math.isfinite(expected_scale) or scales != [expected_scale]:
             error = error or f"Requested scale {requested_scale}; observed {scales}"
+    watchdog_result = None
+    if mode == "shell-load":
+        try:
+            watchdog_result = json.loads((destination / "watchdog.json").read_text(encoding="utf-8"))
+            if exit_code == 0 and (watchdog_result.get("reason") != "exited" or watchdog_result.get("exit_code") != 0):
+                error = error or "External watchdog did not confirm normal child exit"
+            if exit_code == 0:
+                measurement = json.loads((destination / "measurement.json").read_text(encoding="utf-8"))
+                if measurement.get("failure") is not None:
+                    error = error or "Measurement reported a failure"
+        except (OSError, ValueError) as exception:
+            error = error or f"Missing/invalid shell-load evidence: {exception}"
     passed = exit_code == 0 and "SMOKE PASS:" in log_text and error is None
     print(f"Desktop harness {mode}: {'passed' if passed else 'FAILED'} (exit {exit_code}); {destination / 'output.log'}", flush=True)
     if not passed:
@@ -214,6 +255,7 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
         print("\n".join(log_text.splitlines()[-20:]), flush=True)
     return {"mode": mode, "status": "passed" if passed else "failed", "exit_code": exit_code,
             "timed_out": timed_out, "interrupted": interrupted, "error": error, "passed": passed,
+            "watchdog": watchdog_result,
             "actual_render_scaling": scales[0] if len(scales) == 1 else None, "observed_render_scalings": scales}
 
 

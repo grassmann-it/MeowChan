@@ -98,12 +98,14 @@ public sealed class MediaVariantWorkStateTests
         }
     }
 
-    [Fact]
-    public void RawMediaIdAndVariantAreSeparateDurableKeyPartsIncludingFormerFlatteningCollision()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RawMediaIdAndVariantAreSeparateDurableKeyPartsIncludingFormerFlatteningCollision(bool memory)
     {
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
-        WorkStateStore store = new(directory.Path, lease);
+        IWorkStateStore store = memory ? new MemoryWorkStateStore() : new WorkStateStore(directory.Path, lease);
         store.CommitIntent(new WorkResource { Url = Url, Generation = 1, OutputRoot = directory.Path,
             Intent = WorkIntent.Watching, IsThread = true });
         MediaWork first = new() { ResourceUrl = Url, Generation = 1, MediaIdentifier = "x--preview", Variant = "original",
@@ -111,7 +113,7 @@ public sealed class MediaVariantWorkStateTests
         MediaWork second = first with { MediaIdentifier = "x", Variant = "preview", DownloadUrl = "https://stub.test/two.bin" };
         MediaWork third = first with { Variant = "preview", DownloadUrl = "https://stub.test/three.bin" };
         Assert.True(store.CommitMedia(first)); Assert.True(store.CommitMedia(second)); Assert.True(store.CommitMedia(third));
-        IReadOnlyList<MediaWork> restored = new WorkStateStore(directory.Path, lease).LoadMedia(Url, 1);
+        IReadOnlyList<MediaWork> restored = (memory ? store : new WorkStateStore(directory.Path, lease)).LoadMedia(Url, 1);
         Assert.Equal(3, restored.Count);
         Assert.Contains(first, restored); Assert.Contains(second, restored); Assert.Contains(third, restored);
         Assert.True(store.CommitMedia(second with { Status = MediaWorkStatus.Succeeded }));

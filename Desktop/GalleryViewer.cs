@@ -20,11 +20,29 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Archive;
 using MeowChan.Desktop.Commands;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
 
 internal sealed record GalleryViewerState(GalleryAssetKey? Key, string? PostId, int? AttachmentPosition,
     bool ManualZoom, double PhysicalZoom, double PanX, double PanY, bool ContextOpen, bool ActualZoom);
+
+// A frozen mapping revision owns only data, never controls. Navigation uses an O(1) asset lookup;
+// the existing post/attachment-position identity and first-occurrence order remain unchanged.
+internal sealed class GalleryAssociationIndex
+{
+    private readonly Dictionary<GalleryAssetKey, GalleryEntry[]> _entries;
+    internal long Revision { get; }
+    internal GalleryAssociationIndex(IReadOnlyList<GalleryEntry> entries, long revision)
+    {
+        Revision = revision;
+        _entries = entries.Where(entry => entry.Post != null).GroupBy(entry => entry.Key)
+            .ToDictionary(group => group.Key, group => group
+                .DistinctBy(entry => (entry.Post!.PostId, entry.Attachment?.Position)).ToArray());
+    }
+    internal IReadOnlyList<GalleryEntry> For(GalleryAssetKey key) =>
+        _entries.TryGetValue(key, out GalleryEntry[]? entries) ? Array.AsReadOnly(entries) : Array.Empty<GalleryEntry>();
+}
 
 internal sealed class GalleryViewer : UserControl
 {
@@ -104,8 +122,13 @@ internal sealed class GalleryViewer : UserControl
     private bool _dragging;
     private Point _dragPoint;
     private int _request;
+    private readonly long _diagnosticEpoch = PerformanceDiagnostics.NextId();
+    private long _navigationId;
     private GalleryViewerState? _restore;
-    private IReadOnlyList<GalleryEntry> _associations = Array.Empty<GalleryEntry>();
+    private GalleryAssociationIndex? _associationIndex;
+    private long _associationIndexBuilds;
+    internal long AssociationIndexBuildCount => _associationIndexBuilds;
+    internal long AssociationRevision => _associationIndex?.Revision ?? 0;
 
     internal event Action? CloseRequested;
     internal event Action? ReadPostsRequested;
@@ -193,7 +216,32 @@ internal sealed class GalleryViewer : UserControl
         UpdateMediaFocusVisibility();
     }
 
-    internal void SetAssociations(IReadOnlyList<GalleryEntry> entries) { _associations = entries; UpdateContext(); }
+    // Compatible fallback for callers that do not track revisions: each call supplies a new snapshot.
+    internal void SetAssociations(IReadOnlyList<GalleryEntry> entries)
+    {
+        SetAssociationIndex(entries, AssociationRevision + 1);
+        if (_entry is { } current)
+            _entry = _associationIndex!.For(current.Key).FirstOrDefault(value => value.EntryKey == current.EntryKey) ?? current;
+        UpdateContext();
+    }
+
+    private void SetAssociationIndex(IReadOnlyList<GalleryEntry> entries, long revision)
+    {
+        if (_associationIndex?.Revision == revision) return;
+        using var measurement = PerformanceDiagnostics.Measure("gallery.association-index", epoch: _diagnosticEpoch, revision: revision);
+        _associationIndex = new GalleryAssociationIndex(entries, revision);
+        ++_associationIndexBuilds;
+    }
+
+    // Entry and mapping become current in the same synchronous admission. In particular an open
+    // context is never rebuilt for the previous entry against the next entry's mapping.
+    internal Task ShowAsync(GalleryEntry entry, IReadOnlyList<GalleryEntry> associations,
+        long revision, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        SetAssociationIndex(associations, revision);
+        return ShowAsync(entry, cancellationToken);
+    }
 
     internal GalleryViewer()
     {
@@ -484,6 +532,7 @@ internal sealed class GalleryViewer : UserControl
     {
         if (_contextOpen == open) return;
         _contextOpen = open;
+        EnsureContextCurrent();
         LayoutContext();
         UpdateContextButton();
         if (!open) Focus();
@@ -628,7 +677,7 @@ internal sealed class GalleryViewer : UserControl
     {
         if (_restore is not { } state || _entry == null || state.Key != _entry.Key || state.PostId != _entry.Post?.PostId
             || state.AttachmentPosition != _entry.Attachment?.Position) return;
-        _restore = null; _contextOpen = state.ContextOpen; LayoutContext(); UpdateContextButton();
+        _restore = null; _contextOpen = state.ContextOpen; EnsureContextCurrent(); LayoutContext(); UpdateContextButton();
         UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
         _manualZoom = state.ManualZoom; _actualZoom = state.ActualZoom;
         _zoom = _actualZoom && state.PhysicalZoom < CurrentFit
@@ -640,10 +689,20 @@ internal sealed class GalleryViewer : UserControl
 
     internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         CancelLoads(); int request = ++_request;
+        _navigationId = PerformanceDiagnostics.NextId();
+        PerformanceDiagnostics.Record("gallery.navigation", "accepted", _navigationId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: AssociationRevision);
         // Invalidate old image input before an asynchronous video stop can yield.
         _info = null; SetImageCommands(false); ClearBitmaps();
         _sessionCancellation = cancellationToken; _videoSuspended = false;
+        if (_entry?.Key != entry.Key) SetFavoriteError(null);
+        _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        _exportOriginal.IsEnabled = true;
+        SetFavorite(false);
+        _ratingValue = null; _ratingError = null; _ratingAvailable = false;
+        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
+        _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         if (_video != null)
         {
             await _video.StopAsync();
@@ -657,13 +716,6 @@ internal sealed class GalleryViewer : UserControl
         }
         _image.IsVisible = _status.IsVisible = true;
         _readPosts.IsVisible = false;
-        if (_entry?.Key != entry.Key) SetFavoriteError(null);
-        _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
-        _exportOriginal.IsEnabled = true;
-        SetFavorite(false);
-        _ratingValue = null; _ratingError = null; _ratingAvailable = false;
-        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
-        _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         if (entry.Kind == SavedMediaKind.Video)
         {
             if (_video == null)
@@ -732,20 +784,42 @@ internal sealed class GalleryViewer : UserControl
         int session = _request, generation = ++_decodeGeneration;
         _pendingOriginalGeneration = decode is GalleryDecodeRequest.Original ? generation : null;
         CancellationToken sessionToken = _sessionCancellation;
-        return _decodeQueue.Replace(async token =>
+        long mappingRevision = AssociationRevision;
+        long navigation = _navigationId;
+        long decodeId = PerformanceDiagnostics.NextId();
+        PerformanceDiagnostics.Record("gallery.image.request", "accepted", decodeId, asset: entry.Asset.AssetId,
+            epoch: _diagnosticEpoch, revision: mappingRevision, value: navigation);
+        var queueWait = PerformanceDiagnostics.Measure("gallery.image.queue-wait", decodeId,
+            asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: mappingRevision);
+        async Task CompleteAsync(Task pending)
         {
+            try { await pending; }
+            finally { queueWait.Dispose(); } // Also close the wait span for a replaced, never-executed request.
+        }
+        return CompleteAsync(_decodeQueue.Replace(async token =>
+        {
+            queueWait.Dispose();
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, sessionToken);
             try
             {
-                (Bitmap bitmap, GalleryImageInfo info) = await DecodeImageAsync(entry, decode, linked.Token);
+                Bitmap bitmap;
+                GalleryImageInfo info;
+                using (PerformanceDiagnostics.Measure("gallery.image.load", decodeId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: mappingRevision))
+                    (bitmap, info) = await DecodeImageAsync(entry, decode, linked.Token);
                 if (session != _request || generation != _decodeGeneration || linked.IsCancellationRequested)
-                { bitmap.Dispose(); return; }
+                {
+                    PerformanceDiagnostics.Record("gallery.image.request", "discarded", decodeId, asset: entry.Asset.AssetId,
+                        epoch: _diagnosticEpoch, revision: mappingRevision);
+                    DisposeBitmap(bitmap, entry.Key, decodeId, mappingRevision);
+                    return;
+                }
+                using var adoption = PerformanceDiagnostics.Measure("gallery.bitmap.adopt", decodeId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: mappingRevision);
                 Bitmap? previous = decode is GalleryDecodeRequest.Original ? _highBitmap : _fitBitmap;
                 if (decode is GalleryDecodeRequest.Original) _highBitmap = bitmap;
                 else _fitBitmap = bitmap;
                 _info = info;
                 _image.Source = _highBitmap ?? bitmap;
-                previous?.Dispose(); // Source is switched before its old backing bitmap is released.
+                DisposeBitmap(previous, entry.Key, decodeId, mappingRevision); // Switch Source before releasing its old backing pixels.
                 _status.Text = string.Empty;
                 SetImageCommands(true);
                 FitIfAutomatic();
@@ -762,51 +836,101 @@ internal sealed class GalleryViewer : UserControl
             {
                 if (_pendingOriginalGeneration == generation) _pendingOriginalGeneration = null;
             }
-        }, debounce);
+        }, debounce));
     }
 
     private void OnScaleOwnerChanged(object? sender, EventArgs change) => FitIfAutomatic();
 
+    // The context panel's controls (post text, quote parsing, association selector) are only observable while the
+    // panel is open. A closed panel records that its content is stale; opening it, restoring an open state or a
+    // language change while open materializes the newest entry/association state exactly once.
+    private bool _contextDirty;
+    private int _contextGeneration;
+    private long _contextBuilds;
+    /// <summary>Number of times the context panel's controls were actually built (diagnostics and tests).</summary>
+    internal long ContextBuildCount => Interlocked.Read(ref _contextBuilds);
+
     private void UpdateContext()
     {
-        _context.Children.Clear();
+        ++_contextGeneration; // Invalidate callbacks retained by controls from an older entry/revision/language.
         _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
+        if (_entry == null) { _context.Children.Clear(); _contextDirty = false; return; }
+        if (!_contextOpen) { _contextDirty = true; return; }
+        BuildContext();
+    }
+
+    private void EnsureContextCurrent()
+    {
+        if (_contextDirty && _contextOpen) BuildContext();
+    }
+
+    private void BuildContext()
+    {
+        using var measurement = PerformanceDiagnostics.Measure("gallery.context.build", _navigationId, asset: _entry?.Asset.AssetId, epoch: _diagnosticEpoch, revision: AssociationRevision);
+        Control? focused = _context.IsKeyboardFocusWithin
+            ? TopLevel.GetTopLevel(_context)?.FocusManager?.GetFocusedElement() as Control : null;
+        Control[] prior = _context.GetVisualDescendants().OfType<Control>().ToArray();
+        int focusPosition = focused == null ? -1 : Array.IndexOf(prior.Where(value =>
+            value.GetType() == focused.GetType() && value.Name == focused.Name && Equals(value.Tag, focused.Tag)).ToArray(), focused);
+        _contextDirty = false;
+        int generation = _contextGeneration;
+        Interlocked.Increment(ref _contextBuilds);
+        _context.Children.Clear();
         if (_entry == null) return;
         GalleryEntry entry = _entry;
-        Command(_context, "GalleryReturnImage", Texts.T("gallery.viewer7"), () => SetContextOpen(false));
-        AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread);
-        AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName);
-        AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length));
-        string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
-        if (provenance.Length > 0) AddContext(provenance);
-        if (entry.Historical) AddContext(Texts.T("gallery.viewer8"));
-        GalleryEntry[] associations = _associations.Where(value => value.Key == entry.Key && value.Post != null)
-            .DistinctBy(value => (value.Post!.PostId, value.Attachment?.Position)).ToArray();
-        if (associations.Length > 1)
+        Button ContextCommand(string name, string label, Action action) => Command(_context, name, label, () =>
         {
-            ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
-                ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
-                SelectedIndex = Array.FindIndex(associations, value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
-            AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
-            selector.SelectionChanged += (_, _) =>
+            if (generation == _contextGeneration && _contextOpen) action();
+        });
+        ContextCommand("GalleryReturnImage", Texts.T("gallery.viewer7"), () => SetContextOpen(false));
+        try
+        {
+            AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread);
+            AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName);
+            AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length));
+            string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
+            if (provenance.Length > 0) AddContext(provenance);
+            if (entry.Historical) AddContext(Texts.T("gallery.viewer8"));
+            IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
+            if (associations.Count > 1)
             {
-                if (selector.SelectedIndex < 0) return;
-                _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
-            };
-            _context.Children.Add(selector);
-        }
-        if (entry.Post is not { } post) { AddContext(Texts.T("gallery.noPost")); return; }
-        AddContext("#" + post.PostId + " · " + ArchivePresentation.PlainText(post.Author) + " · " + post.PostedAt?.ToString("g", Texts.Culture));
-        AddContext(ArchivePresentation.PlainText(post.Subject));
-        AddContext(ArchivePresentation.PlainText(post.Html));
-        if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
-            foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
-            {
-                if (quote.Target == null || quote.IsExternal) continue;
-                Command(_context, "GalleryQuote", quote.Label, () => QuoteRequested?.Invoke(quote));
+                ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
+                    ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
+                    SelectedIndex = associations.ToList().FindIndex(value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
+                AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
+                selector.SelectionChanged += (_, _) =>
+                {
+                    if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
+                    _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
+                };
+                _context.Children.Add(selector);
             }
-        Command(_context, "GalleryReadPost", Texts.T("gallery.viewer10"), () => ReadPostRequested?.Invoke(entry));
+            if (entry.Post is not { } post) { AddContext(Texts.T("gallery.noPost")); return; }
+            AddContext("#" + post.PostId + " · " + ArchivePresentation.PlainText(post.Author) + " · " + post.PostedAt?.ToString("g", Texts.Culture));
+            AddContext(ArchivePresentation.PlainText(post.Subject));
+            AddContext(ArchivePresentation.PlainText(post.Html));
+            if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
+                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
+                {
+                    if (quote.Target == null || quote.IsExternal) continue;
+                    ContextCommand("GalleryQuote", quote.Label, () => QuoteRequested?.Invoke(quote)).Tag = quote.Target;
+                }
+            ContextCommand("GalleryReadPost", Texts.T("gallery.viewer10"), () => ReadPostRequested?.Invoke(entry));
+        }
+        finally
+        {
+            if (focused != null)
+            {
+                // Restore only focus that belonged to this panel, by command/quote identity. Never
+                // steal focus from navigation or a reader when a background mapping is replaced.
+                UpdateLayout();
+                Control? replacement = _context.GetVisualDescendants().OfType<Control>().Where(value =>
+                    value.GetType() == focused.GetType() && value.Name == focused.Name && Equals(value.Tag, focused.Tag))
+                    .Skip(Math.Max(0, focusPosition)).FirstOrDefault();
+                (replacement ?? _context.Children.OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
+            }
+        }
     }
     private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
     private void LayoutContext()
@@ -930,7 +1054,18 @@ internal sealed class GalleryViewer : UserControl
             (_info.StillFrame ? Texts.T("gallery.viewer12") : string.Empty);
     }
     private void CancelLoads() { ++_decodeGeneration; _decodeQueue.Cancel(); _desiredDecode = null; _pendingOriginalGeneration = null; }
-    private void ClearBitmaps() { _image.Source = null; _highBitmap?.Dispose(); _highBitmap = null; _fitBitmap?.Dispose(); _fitBitmap = null; }
+    private void DisposeBitmap(Bitmap? bitmap, GalleryAssetKey? key, long request, long revision)
+    {
+        if (bitmap == null) return;
+        using var measurement = PerformanceDiagnostics.Measure("gallery.bitmap.dispose", request, asset: key?.AssetId, epoch: _diagnosticEpoch, revision: revision);
+        bitmap.Dispose();
+    }
+    private void ClearBitmaps()
+    {
+        _image.Source = null;
+        DisposeBitmap(_highBitmap, _entry?.Key, _navigationId, AssociationRevision); _highBitmap = null;
+        DisposeBitmap(_fitBitmap, _entry?.Key, _navigationId, AssociationRevision); _fitBitmap = null;
+    }
     internal Task SuspendMediaAsync()
     {
         _videoSuspended = _entry?.Kind == SavedMediaKind.Video;
@@ -947,7 +1082,8 @@ internal sealed class GalleryViewer : UserControl
         ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false;
-        _associations = Array.Empty<GalleryEntry>(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
+        _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
+        _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
         UseNativeVideoOverlay(false);
         SetVideoFallbackLayout(false);

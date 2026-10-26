@@ -83,8 +83,10 @@ public partial class MainWindow : Window
             {
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
             }
-            _sessionRefresh = new CoalescedUiUpdate(RefreshSession);
-            _session.StateChanged += OnSessionChanged;
+            // Progress-only changes are spaced (first comparison variant of PF-03: 100 ms, background priority);
+            // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
+            _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
+            _session.ProjectionPublished += OnSessionChanged;
             DataContext = this;
 
             // The Add button is wired once in XAML. Enter uses that same action.
@@ -124,7 +126,7 @@ public partial class MainWindow : Window
         catch
         {
             Texts.Changed -= OnLanguageChanged;
-            _session.StateChanged -= OnSessionChanged;
+            _session.ProjectionPublished -= OnSessionChanged;
             DisposeWorkspace();
             DisposeWorkspacePages();
             _sessionRefresh?.Dispose();
@@ -159,13 +161,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnSessionChanged() => _sessionRefresh.Request();
+    internal static TimeSpan SessionProgressIntervalForTests { get; set; } = TimeSpan.FromMilliseconds(100);
+    private DesktopSessionProjection? _lastNotifiedProjection;
+
+    private void OnSessionChanged()
+    {
+        DesktopSessionProjection current = _session.Projection;
+        DesktopSessionProjection? previous = System.Threading.Interlocked.Exchange(ref _lastNotifiedProjection, current);
+        if (previous == null || DesktopSessionProjection.RequiresPrompt(previous, current)) _sessionRefresh.RequestImmediate();
+        else _sessionRefresh.Request();
+    }
 
     private void UpdateInteractionState()
     {
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
         bool navigationReady = ready && !WorkspaceCommandBusy;
-        UpdatePauseControls(navigationReady);
+        UpdatePauseControls(ready && !WorkspaceEditorBusy);
         if (_postBookmarksMenu != null) _postBookmarksMenu.IsEnabled = navigationReady;
 
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
@@ -186,7 +197,7 @@ public partial class MainWindow : Window
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
         this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
-            && (_restoreCompleted || _session.State == DesktopSessionState.RecoveryFailed);
+            && (_restoreCompleted || _session.Projection.View.State == DesktopSessionState.RecoveryFailed);
         this.FindControl<Button>("DiagnosticsNavigationButton")!.IsEnabled = diagnosticsReady;
         this.FindControl<Button>("ToolsNavigationButton")!.IsEnabled = diagnosticsReady;
         this.FindControl<MenuItem>("DiagnosticsMenuItem")!.IsEnabled = diagnosticsReady;
@@ -201,56 +212,128 @@ public partial class MainWindow : Window
         RefreshWorkspace();
     }
 
+    private bool _sessionRowsApplying;
+    private bool _rowSlicePosted;
+    private DesktopSessionProjection? _applyingSessionProjection;
+    private DesktopSessionProjection? _pendingSessionProjection;
+    private DesktopSessionProjection? _appliedSessionProjection;
+    private IncrementalRowReconciliation<long, DesktopThreadEntry, ThreadRow>? _threadReconciliation;
+    private IncrementalRowReconciliation<long, DesktopBoardEntry, BoardRow>? _boardReconciliation;
+    private TaskCompletionSource? _sessionRowsApplied;
+    private IReadOnlyList<LanguageInfo>? _appliedRowLanguages;
+    private IReadOnlyList<LanguageInfo>? _applyingRowLanguages;
+    internal bool SessionRowsApplying => _sessionRowsApplying;
+
+    private Task AwaitSessionRowsAsync() => _sessionRowsApplied?.Task ?? Task.CompletedTask;
+
     private void RefreshSession()
     {
-        if (_isClosing)
+        if (_isClosing) return;
+        DesktopSessionProjection projection = _session.Projection;
+        if (MeowChan.Diagnostics.PerformanceDiagnostics.Enabled)
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("ui.session.age-us", "observed",
+                epoch: projection.Epoch, revision: projection.Version,
+                value: (long)System.Diagnostics.Stopwatch.GetElapsedTime(projection.CapturedAtTimestamp).TotalMicroseconds);
+        UpdatePauseControls(_restoreCompleted && !WorkspaceEditorBusy);
+        NotifyNewWarnings(projection.View);
+        RefreshWorkspaceStatusText();
+        if (_galleryCoversWorkspace)
         {
+            _sessionDirtyWhileCovered = true;
+            _pendingSessionProjection = projection;
             return;
         }
+        if (_sessionRowsApplying)
+        {
+            if (_applyingSessionProjection!.Version != projection.Version || _applyingSessionProjection.Epoch != projection.Epoch
+                || _applyingDownloadSearchRevision != _downloadSearchQueryRevision || !ReferenceEquals(_applyingRowLanguages, Texts.Languages))
+                _pendingSessionProjection = projection;
+            PostSessionRowSlice();
+            return;
+        }
+        // Pure presentation invalidations (language, navigation and uncovering) still refresh a complete frame.
+        if (_appliedSessionProjection?.Epoch == projection.Epoch && _appliedSessionProjection.Version == projection.Version
+            && !DownloadSearchNeedsReconciliation && ReferenceEquals(_appliedRowLanguages, Texts.Languages))
+        {
+            RefreshWorkspace(); RefreshDiagnosticPage(projection.View); RefreshSourcesPage(projection.View);
+            return;
+        }
+        _pendingSessionProjection = null;
+        BeginSessionRows(projection);
+        ContinueSessionRows();
+    }
 
-        DesktopSessionView view = _session.GetView();
-        HashSet<long> activeThreads = new HashSet<long>(view.Threads.Select(entry => entry.WatchId));
-        HashSet<long> activeBoards = new HashSet<long>(view.Boards.Select(entry => entry.WatchId));
-        foreach (long id in _threadRows.Keys.Where(id => !activeThreads.Contains(id)).ToArray())
+    private void BeginSessionRows(DesktopSessionProjection projection)
+    {
+        _sessionRowsApplying = true;
+        _sessionRowsApplied = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _applyingSessionProjection = projection;
+        _applyingRowLanguages = Texts.Languages;
+        CaptureDownloadSearchInput();
+        _threadReconciliation = new(projection.View.Threads, _threadRows, UrlList,
+            entry => entry.WatchId, row => row.WatchId,
+            entry => { ThreadRow row = new(entry); row.SetPaused(projection.IsPaused); return row; },
+            (row, entry) => { row.UpdateSnapshot(entry); row.SetPaused(projection.IsPaused); },
+            row => { _threadFilterExclusions.Remove(row.WatchId); row.Dispose(); },
+            projection.Epoch, projection.Version);
+        _boardReconciliation = new(projection.View.Boards, _boardRows, BoardsList,
+            entry => entry.WatchId, row => row.WatchId, entry => new BoardRow(entry),
+            (row, entry) => row.UpdateSnapshot(entry),
+            row => { _boardFilterExclusions.Remove(row.WatchId); row.Dispose(); }, projection.Epoch, projection.Version);
+        // Existing selection and focus stay owned by the grids; commands/filter/inspector cannot consume a partial frame.
+        RefreshMediaRetryControls();
+    }
+
+    private void PostSessionRowSlice()
+    {
+        if (_rowSlicePosted || _isClosing || _galleryCoversWorkspace) return;
+        _rowSlicePosted = true;
+        Dispatcher.UIThread.Post(() =>
         {
-            ThreadRow row = _threadRows[id];
-            _threadRows.Remove(id);
-            UrlList.Remove(row);
-            row.Dispose();
-        }
-        foreach (long id in _boardRows.Keys.Where(id => !activeBoards.Contains(id)).ToArray())
+            _rowSlicePosted = false;
+            ContinueSessionRows();
+        }, DispatcherPriority.Background);
+    }
+
+    private void ContinueSessionRows()
+    {
+        if (_isClosing || !_sessionRowsApplying) return;
+        if (_galleryCoversWorkspace) { _sessionDirtyWhileCovered = true; return; }
+        // Exactly one bounded plan step per callback, including filtering/reorder after both source plans.
+        if (!_threadReconciliation!.IsCompleted)
         {
-            BoardRow row = _boardRows[id];
-            _boardRows.Remove(id);
-            BoardsList.Remove(row);
-            row.Dispose();
+            _threadReconciliation.Step(64, TimeSpan.FromMilliseconds(4)); PostSessionRowSlice(); return;
         }
-        foreach (DesktopThreadEntry entry in view.Threads)
+        if (!_boardReconciliation!.IsCompleted)
         {
-            if (!_threadRows.TryGetValue(entry.WatchId, out ThreadRow? row))
-            {
-                row = new ThreadRow(entry);
-                _threadRows.Add(entry.WatchId, row);
-                UrlList.Add(row);
-            }
-            row.UpdateSnapshot(entry);
+            _boardReconciliation.Step(64, TimeSpan.FromMilliseconds(4)); PostSessionRowSlice(); return;
         }
-        foreach (DesktopBoardEntry entry in view.Boards)
-        {
-            if (!_boardRows.TryGetValue(entry.WatchId, out BoardRow? row))
-            {
-                row = new BoardRow(entry);
-                _boardRows.Add(entry.WatchId, row);
-                BoardsList.Add(row);
-            }
-            row.UpdateSnapshot(entry);
-        }
+        if (!StepDownloadSearch(_applyingSessionProjection!)) { PostSessionRowSlice(); return; }
+
+        DesktopSessionProjection complete = _applyingSessionProjection!;
+        _appliedSessionProjection = complete;
+        _appliedRowLanguages = _applyingRowLanguages;
+        _applyingSessionProjection = null;
+        _threadReconciliation = null; _boardReconciliation = null;
+        _sessionRowsApplying = false;
+        if (!SelectedThreads().Any(row => row.WatchId == _threadLeadId)) _threadLeadId = SelectedThreads().FirstOrDefault()?.WatchId;
+        if (!SelectedBoards().Any(row => row.WatchId == _boardLeadId)) _boardLeadId = SelectedBoards().FirstOrDefault()?.WatchId;
+        _sessionRowsApplied?.TrySetResult();
+        _sessionRowsApplied = null;
         RefreshWorkspace();
-
-        UpdatePauseControls(_restoreCompleted && !WorkspaceCommandBusy);
         _archivePage?.NotifyArchiveMediaCountsChanged();
-        RefreshDiagnosticPage(view);
-        RefreshSourcesPage(view);
+        RefreshDiagnosticPage(complete.View); RefreshSourcesPage(complete.View);
+        // Keep only the newest pending frame. Yield at a completed frame before beginning it, so inputs can
+        // consume complete rows even when progress continues faster than a large reconciliation can finish.
+        if (_pendingSessionProjection != null || DownloadSearchNeedsReconciliation || !ReferenceEquals(_appliedRowLanguages, Texts.Languages))
+        {
+            _pendingSessionProjection = null;
+            _sessionRefresh.RequestImmediate();
+        }
+    }
+
+    private void NotifyNewWarnings(DesktopSessionView view)
+    {
         HashSet<string> currentWarnings = new HashSet<string>(StringComparer.Ordinal);
         foreach (string warning in view.Warnings)
         {
@@ -271,7 +354,7 @@ public partial class MainWindow : Window
         {
             if (_isClosing) return;
             RefreshSession();
-            _restoreCompleted = _session.State == DesktopSessionState.Ready;
+            _restoreCompleted = _session.Projection.View.State == DesktopSessionState.Ready;
             if (!_restoreCompleted)
             {
                 ShowNotification(Texts.T("restore.title"),
@@ -352,6 +435,12 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException) when (_isClosing)
         {
+            return false;
+        }
+        catch (DesktopSessionBusyException exception)
+        {
+            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error,
+                context: input, operation: "admission.busy");
             return false;
         }
         catch (Exception exception)
@@ -721,6 +810,11 @@ public partial class MainWindow : Window
         if (_postBookmarksDialog != null && !await _postBookmarksDialog.PrepareToCloseAsync()) return;
         _archivePage?.FlushReadingPositionInput();
         _isClosing = true;
+        _pendingSessionProjection = null;
+        _sessionRowsApplying = false;
+        _sessionRowsApplied?.TrySetResult(); _sessionRowsApplied = null;
+        _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
+        _refreshingDownloadSearch = false;
         _postBookmarksDialog?.CloseForProfileEnd();
         _postBookmarkEditor?.CloseForProfileEnd();
         _shutdownRunning = true;
@@ -731,17 +825,21 @@ public partial class MainWindow : Window
         Log.Information("Application shutdown started.");
         try
         {
-            Log.Debug("Shutdown: waiting for session restoration.");
-            await _restoreTask;
+            // Cancellation/admission must precede a potentially unbounded native gallery cleanup.
+            // BeginShutdown retains the profile and permits these last writes until StopAsync seals them.
+            Task engineDrain = _session.BeginShutdown();
             CloseGallery(restoreOrigin: false);
-            await _galleryCleanupTask;
-            await FlushWindowPreferencesAsync();
-            await _readingPositionSave;
-            Log.Debug("Shutdown: gallery media released; stopping the session.");
+            Task windowPreferences = FlushWindowPreferencesAsync();
+            Task galleryPreferences = FlushGalleryPreferencesAsync();
+            Task readingPosition = _readingPositionSave;
+            Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition);
+            Log.Debug("Shutdown: engine cancellation requested; waiting independently for final writes and gallery cleanup.");
+            await Task.WhenAll(engineDrain, finalPreferences, _galleryCleanupTask, _restoreTask);
+            Log.Debug("Shutdown: gallery media and final writes released; draining the session.");
             await _session.StopAsync();
             Log.Debug("Shutdown: session stopped; disposing the session.");
             Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
-            _session.StateChanged -= OnSessionChanged;
+            _session.ProjectionPublished -= OnSessionChanged;
             Texts.Changed -= OnLanguageChanged;
             DisposeWorkspace();
             _sessionRefresh.Dispose();
@@ -791,17 +889,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task FlushFinalPreferencesAsync(params Task[] shellWrites)
+    {
+        await Task.WhenAll(shellWrites);
+        await _session.FlushPreferencesAsync();
+    }
+
     private ThreadRow? SelectedThread => LeadThread;
     private BoardRow? SelectedBoard => LeadBoard;
 
     private void OnOpenThreadInBrowserClick(object? sender, RoutedEventArgs e)
     {
-        if (!_isClosing && SelectedThread is ThreadRow row) OpenTarget(row.Url);
+        if (!_isClosing && !_sessionRowsApplying && SelectedThread is ThreadRow row) OpenTarget(row.Url);
     }
 
     private void OnOpenBoardInBrowserClick(object? sender, RoutedEventArgs e)
     {
-        if (!_isClosing && SelectedBoard is BoardRow row) OpenTarget(row.Url);
+        if (!_isClosing && !_sessionRowsApplying && SelectedBoard is BoardRow row) OpenTarget(row.Url);
     }
 
     private void OpenTarget(string target) => OpenTarget(target, null);
@@ -833,12 +937,12 @@ public partial class MainWindow : Window
 
     private void OnOpenThreadDirectoryClick(object? sender, RoutedEventArgs e)
     {
-        if (!_isClosing && SelectedThread is ThreadRow row) OpenDirectory(row.DownloadDirectory);
+        if (!_isClosing && !_sessionRowsApplying && SelectedThread is ThreadRow row) OpenDirectory(row.DownloadDirectory);
     }
 
     private void OnOpenBoardDirectoryClick(object? sender, RoutedEventArgs e)
     {
-        if (!_isClosing && SelectedBoard is BoardRow row) OpenDirectory(row.DownloadDirectory);
+        if (!_isClosing && !_sessionRowsApplying && SelectedBoard is BoardRow row) OpenDirectory(row.DownloadDirectory);
     }
 
     private async void OnRemoveThreadMenuItemClick(object? sender, RoutedEventArgs e) => await RemoveDownloadSelectionAsync(false);
@@ -848,6 +952,7 @@ public partial class MainWindow : Window
     private void OnBoardPointerPressed(object? sender, PointerPressedEventArgs e) => SelectDownloadContextRow(sender, e);
     private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
     {
+        if (_sessionRowsApplying) return;
         if (e.Source is Visual tapped && (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
         if (target?.DataContext is not ThreadRow row || SelectedThreads().Length != 1) return;
@@ -975,20 +1080,20 @@ public partial class MainWindow : Window
 
     private void UpdatePauseControls(bool enabled)
     {
-        bool paused = _session.IsPaused;
+        bool paused = _session.Projection.IsPaused;
         MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
-        menu.IsEnabled = enabled && !_session.IsPauseTransitioning;
+        menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         CommandBindings.Apply(menu, "session.pause");
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
         menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
         Button button = this.FindControl<Button>("PauseButton")!;
-        button.IsEnabled = enabled && !_session.IsPauseTransitioning;
+        button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         if (_lastPauseIcon != paused)
         {
             _lastPauseIcon = paused;
             button.Content = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
         }
-        string label = Texts.T(_session.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resume" : "action.pause");
+        string label = Texts.T(_session.Projection.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resume" : "action.pause");
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         button.Classes.Set("selected", paused);
         string tip = label + " · " + CommandCatalog.ShortcutDisplay("session.pause") + " · " + CommandCatalog.ScopeHint("session.pause");
@@ -998,10 +1103,10 @@ public partial class MainWindow : Window
 
     private async void OnPauseClick(object? sender, RoutedEventArgs e)
     {
-        if (!_restoreCompleted || WorkspaceCommandBusy || _session.IsPauseTransitioning) return;
+        if (!_restoreCompleted || WorkspaceEditorBusy || _session.Projection.IsPauseTransitioning) return;
         _applyingPreferences = true;
         UpdateInteractionState();
-        try { await _session.SetPausedAsync(!_session.IsPaused); }
+        try { await _session.SetPausedAsync(!_session.Projection.IsPaused); }
         catch (Exception exception)
         {
             ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.pause");

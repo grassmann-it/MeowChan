@@ -344,9 +344,11 @@ public sealed class ConsumerContractTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task OwnerLeaseRemainsExclusiveUntilCancelledResourceCleanupHasFinished(bool boardWatch)
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task OwnerLeaseRemainsExclusiveUntilCancelledResourceCleanupHasFinished(bool boardWatch, bool memory)
     {
         using TempDirectory directory = new TempDirectory();
         using StubImageBoard provider = new StubImageBoard();
@@ -375,8 +377,17 @@ public sealed class ConsumerContractTests
             return [];
         };
         await using Registry first = CreateRegistry(provider, new DownloadQueue(1, UnthrottledBandwidth), Path.Combine(directory.Path, "first"));
-        await using Registry second = CreateRegistry(provider, new DownloadQueue(1, UnthrottledBandwidth), Path.Combine(directory.Path, "second"));
         string url = boardWatch ? provider.Board.BoardUri.AbsoluteUri : sharedThread.Url;
+        string secondRoot = Path.Combine(directory.Path, "second");
+        using ProfileLease lease = ProfileLease.Acquire(Path.Combine(directory.Path, "profile"));
+        IWorkStateStore secondStore = memory ? new MemoryWorkStateStore() : new WorkStateStore(lease.ProfileDirectory, lease);
+        WorkResource previous = secondStore.CommitIntent(new WorkResource
+        {
+            Url = url, OutputRoot = secondRoot, Generation = 7, Intent = WorkIntent.Suppressed, IsThread = !boardWatch
+        });
+        DownloadQueue secondQueue = new DownloadQueue(1, UnthrottledBandwidth);
+        await using Registry second = new Registry([provider], secondQueue, secondRoot, TimeSpan.FromMinutes(1), 60,
+            workStore: secondStore);
 
         try
         {
@@ -385,16 +396,36 @@ public sealed class ConsumerContractTests
             Task removal = boardWatch ? first.RemoveBoardAsync(provider.Board) : first.RemoveThreadAsync(sharedThread);
             await cancellationObserved.Task.WaitAsync(TestWait.Timeout);
             Assert.False(removal.IsCompleted);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => second.AddAsync(url).WaitAsync(TestWait.Timeout));
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() => second.AddAsync(url).WaitAsync(TestWait.Timeout));
+                Assert.Equal(previous, Assert.Single(secondStore.LoadResources()));
+                Assert.Empty(second.GetSnapshot().Threads);
+                Assert.Empty(second.GetSnapshot().Boards);
+                Assert.Equal(1L, boardWatch ? provider.Board.WatchGeneration : sharedThread.WatchGeneration);
+            }
             Assert.False(removal.IsCompleted);
             releaseCleanup.TrySetResult();
             await removal.WaitAsync(TestWait.Timeout);
 
             AdmissionResult replacement = await second.AddAsync(url).WaitAsync(TestWait.Timeout);
             Assert.Equal(AdmissionStatus.Added, replacement.Status);
+            WorkResource accepted = Assert.Single(secondStore.LoadResources());
+            Assert.Equal(8L, accepted.Generation);
+            Assert.Equal(WorkIntent.Watching, accepted.Intent);
             await TestWait.UntilAsync(() => Volatile.Read(ref checks) == 2);
             if (boardWatch) Assert.Same(provider.Board, replacement.Board);
-            else Assert.Same(sharedThread, replacement.Thread);
+            else
+            {
+                Assert.Same(sharedThread, replacement.Thread);
+                DownloadItem item = new DownloadItem(new Uri("https://stub.test/media/replacement.bin"),
+                    Path.Combine(secondRoot, "replacement.bin"), provider, sharedThread, "replacement");
+                Assert.True(secondQueue.TryEnqueue(item));
+                await secondQueue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+                MediaWork completed = Assert.Single(secondStore.LoadMedia(url, accepted.Generation));
+                Assert.Equal(MediaWorkStatus.Succeeded, completed.Status);
+                Assert.True(File.Exists(item.DestinationPath));
+            }
             Assert.Empty(first.GetSnapshot().Threads);
             Assert.Empty(first.GetSnapshot().Boards);
         }
@@ -404,6 +435,43 @@ public sealed class ConsumerContractTests
             await first.StopAsync().WaitAsync(TestWait.Timeout);
             await second.StopAsync().WaitAsync(TestWait.Timeout);
         }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FailedAdmissionCommitReleasesOwnerWithoutCancellingTheUnstartedResource(bool boardWatch)
+    {
+        using TempDirectory directory = new TempDirectory();
+        using StubImageBoard provider = new StubImageBoard();
+        ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/1"));
+        provider.ThreadFactory = _ => thread;
+        DownloadQueue queue = new DownloadQueue(1, UnthrottledBandwidth);
+        await using Registry registry = new Registry([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
+            sessionStore: new FailOnceSessionStore());
+        await registry.RestoreAsync().WaitAsync(TestWait.Timeout);
+        string url = boardWatch ? provider.Board.BoardUri.AbsoluteUri : thread.Url;
+
+        await Assert.ThrowsAsync<IOException>(() => registry.AddAsync(url).WaitAsync(TestWait.Timeout));
+        Assert.Empty(registry.GetSnapshot().Threads);
+        Assert.Empty(registry.GetSnapshot().Boards);
+        Assert.Equal(0, boardWatch ? provider.Board.Checks : thread.Checks);
+        // Prove the failed durable barrier released the reservation before retrying the exact instance.
+        using (boardWatch ? provider.Board.RegisterDiscoverySink((_, _) => ValueTask.CompletedTask)
+            : thread.RegisterRemovalSink(_ => { })) { }
+
+        AdmissionResult admitted = await registry.AddAsync(url).WaitAsync(TestWait.Timeout);
+        Assert.Equal(AdmissionStatus.Added, admitted.Status);
+        if (boardWatch) Assert.Same(provider.Board, admitted.Board);
+        else
+        {
+            Assert.Same(thread, admitted.Thread);
+            DownloadItem item = CreateItem(provider, thread, directory, 1);
+            Assert.True(queue.TryEnqueue(item));
+            await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
+            Assert.True(thread.IsMediaDownloaded(item.MediaIdentifier));
+        }
+        await TestWait.UntilAsync(() => (boardWatch ? provider.Board.Checks : thread.Checks) == 1);
     }
 
     private static Registry CreateRegistry(StubImageBoard provider, DownloadQueue queue, string directory)
@@ -432,6 +500,23 @@ public sealed class ConsumerContractTests
 
         public Task SaveAsync(SessionSnapshot value, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("This test session must not save state.");
+    }
+
+    private sealed class FailOnceSessionStore : ISessionStore
+    {
+        private bool _failNextSave = true;
+        public Task<SessionLoadResult> LoadAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new SessionLoadResult(new SessionSnapshot(), null, false));
+
+        public Task SaveAsync(SessionSnapshot value, CancellationToken cancellationToken = default)
+        {
+            if (_failNextSave)
+            {
+                _failNextSave = false;
+                throw new IOException("Synthetic admission commit failure");
+            }
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class HeldMediaHandler : HttpMessageHandler

@@ -34,7 +34,9 @@ internal static class ComparisonCaptures
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         Border inspector = window.FindControl<Border>("WorkspaceInspector")!;
         bool inspectorInitiallyVisible = inspector.IsVisible;
-        ThreadRow[] rows = CreateEntries().Select(entry => new ThreadRow(entry)).ToArray();
+        DesktopThreadEntry[] entries = CreateEntries();
+        ThreadRow[] rows = [];
+        SyntheticShellRows? synthetic = null;
         try
         {
             if (visualReview) await ResizeAsync(window, 1440, 920);
@@ -45,7 +47,8 @@ internal static class ComparisonCaptures
             await CaptureEmptyAsync(window, "smoke-comparison-empty-light.png");
             await SetThemeAsync(window, "Dark");
             await PresentationChecks.SwitchModeAsync(window, "Simple");
-            foreach (ThreadRow row in rows) window.UrlList.Add(row);
+            synthetic = await SyntheticShellRows.CreateAsync(window, entries);
+            rows = synthetic.Threads;
             window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
             // Downloads reconcile their filtered ItemsSource in a coalesced UI update.
             // Select only after these passive snapshots are actually present in the grid.
@@ -98,11 +101,7 @@ internal static class ComparisonCaptures
             await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
             await SetInspectorAsync(window, inspectorInitiallyVisible);
             grid.SelectedItem = null;
-            foreach (ThreadRow row in rows)
-            {
-                window.UrlList.Remove(row);
-                row.Dispose();
-            }
+            if (synthetic != null) await synthetic.DisposeAsync();
         }
     }
 

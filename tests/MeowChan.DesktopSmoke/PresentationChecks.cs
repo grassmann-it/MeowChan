@@ -35,10 +35,10 @@ internal static class PresentationChecks
         input.Text = draft;
         string englishAdd = Texts.T("action.add");
         RequireIconLabel(add, englishAdd);
-        using ThreadRow retained = new ThreadRow(SnapshotFixtures.Thread(301, "301", "Presentation selection fixture", completed: 2));
-        using BoardRow board = new BoardRow(SnapshotFixtures.Board(302));
-        window.UrlList.Add(retained);
-        window.BoardsList.Add(board);
+        await using SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(window,
+            [SnapshotFixtures.Thread(301, "301", "Presentation selection fixture", completed: 2)],
+            [SnapshotFixtures.Board(302)]);
+        ThreadRow retained = synthetic.Threads[0];
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(retained)
             && grid.CollectionView.Cast<ThreadRow>().Contains(retained));
@@ -91,8 +91,7 @@ internal static class PresentationChecks
         await CheckCompactAdmissionMatrixAsync(window, retained);
         await SwitchModeAsync(window, "Advanced");
         input.Text = string.Empty;
-        window.UrlList.Remove(retained);
-        window.BoardsList.Remove(board);
+        await synthetic.DisposeAsync();
         await R08dPresentationChecks.RunAsync(window);
         Console.WriteLine("SMOKE presentation: Barebones default; Simple/Advanced/Barebones persisted; compact controls reachable; Light/Dark and EN/DE roundtrip retained pending input and selected passive row.");
     }
@@ -436,6 +435,9 @@ internal static class PresentationChecks
         bool fitsOnModeChange = previousMode == "Barebones" || mode == "Barebones";
         modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
         await Program.WaitUntilAsync(() => Config.LoadConfig().WorkspaceMode == mode && Mode(modes) == mode
+            && window.Classes.Contains("workspace-advanced") == (mode == "Advanced")
+            && (string?)typeof(MainWindow).GetField("_appliedWorkspaceMode",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window) == mode
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
         window.UpdateLayout();
         if (changed)
