@@ -124,7 +124,9 @@ jobs:
       - name: Run both complete macOS offline suites with bounded diagnostics
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         timeout-minutes: 12
-        run: python3 scripts/macos-test-watchdog.py --timeout 300
+        # Native plugin integration cases can keep progressing beyond five minutes
+        # on Intel runners. Keep the core budget and bounded cleanup unchanged.
+        run: python3 scripts/macos-test-watchdog.py --timeout 300 --desktop-timeout 600
       - name: Check package layout fixtures
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: |

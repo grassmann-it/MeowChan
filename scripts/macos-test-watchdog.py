@@ -138,10 +138,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('artifacts/macos-test-diagnosis'))
     parser.add_argument('--timeout', type=int, default=300)
+    parser.add_argument('--desktop-timeout', type=int,
+                        help='Separate 1..600s budget for the larger desktop suite')
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
     if not 1 <= args.timeout <= 300:
         parser.error('--timeout must be 1..300 seconds')
+    if args.desktop_timeout is not None and not 1 <= args.desktop_timeout <= 600:
+        parser.error('--desktop-timeout must be 1..600 seconds')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     results = []
@@ -163,9 +167,10 @@ def main():
                 'console;verbosity=normal', '--diag', str(target / 'vstest-diag.log'),
                 '--results-directory', str(target / 'results')]))
     for name, command in commands:
-        print(f'Running {name}, watchdog {args.timeout}s', flush=True)
+        budget = args.desktop_timeout if name == 'desktop' and args.desktop_timeout is not None else args.timeout
+        print(f'Running {name}, watchdog {budget}s', flush=True)
         try:
-            results.append(run_one(name, command, output / name, args.timeout))
+            results.append(run_one(name, command, output / name, budget))
         except Exception as exc:
             results.append(dict(name=name, error=repr(exc)))
         print(json.dumps(results[-1]), flush=True)

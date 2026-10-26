@@ -118,6 +118,26 @@ class WatchdogTests(unittest.TestCase):
         with mock.patch.object(watchdog, 'processes', return_value=[zombie, live]):
             self.assertEqual([live], watchdog.live_processes(10))
 
+    def test_desktop_budget_does_not_extend_core_or_accept_a_timeout_as_success(self):
+        calls = []
+
+        def run(name, command, output, timeout):
+            calls.append((name, timeout))
+            return dict(name=name, exit_code=0, timeout=name == 'desktop', cleanup=dict(complete=True))
+
+        with mock.patch.object(sys, 'argv', [str(SCRIPT), '--output', str(self.root), '--desktop-timeout', '600']), \
+                mock.patch.object(watchdog, 'run_one', side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(1, watchdog.main())
+        self.assertEqual([('core', 300), ('desktop', 600)], calls)
+
+    def test_desktop_budget_cannot_be_disabled_or_unbounded(self):
+        for value in ('0', '601'):
+            with self.subTest(value=value), \
+                    mock.patch.object(sys, 'argv', [str(SCRIPT), '--desktop-timeout', value]), \
+                    contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                watchdog.main()
+            self.assertEqual(2, error.exception.code)
+
     def test_watchdog_and_system_groups_are_never_signalled(self):
         with mock.patch.object(watchdog.os, 'getpgrp', return_value=321), \
                 mock.patch.object(watchdog.os, 'killpg') as kill:
