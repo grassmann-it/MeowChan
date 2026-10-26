@@ -1,0 +1,152 @@
+{
+  "release": "1.0.1",
+  "source_commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+  "captured_at_utc": "2026-10-26T17:16:05.371465+00:00",
+  "build_command": "dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release --artifacts-path artifacts/readme-1.0.1-build -v minimal",
+  "capture_command": "env PATH=\"$PWD/artifacts/gui-test-tools/usr/bin:$PATH\" LD_LIBRARY_PATH=\"$PWD/artifacts/gui-test-tools/usr/lib\" XDG_DATA_DIRS=\"$PWD/artifacts/gui-test-tools/usr/share:/usr/share\" python3 scripts/run-desktop-smoke.py --assembly artifacts/readme-1.0.1-build/bin/MeowChan.DesktopSmoke/release/MeowChan.DesktopSmoke.dll --mode visual --scale 1 --output artifacts/readme-1.0.1-capture --timeout 180",
+  "evidence": {
+    "results.json": {
+      "path": "artifacts/readme-1.0.1-capture/results.json",
+      "sha256": "a27c3a0ced6902eb5b06bf1c93f45d652e4a295257c64deb34e5f7e1110fbe75"
+    },
+    "visual/output.log": {
+      "path": "artifacts/readme-1.0.1-capture/visual/output.log",
+      "sha256": "6c99f26de5ff2932746a2e69b7dc92f511966a669b960d6c703a207f02c65085"
+    }
+  },
+  "binaries": {
+    "MeowChan.DesktopSmoke.dll": "baef69e5ad097e3472675f7977e5dd04a565e37a4beaa26418d8de436fab4341",
+    "MeowChan.dll": "c6fc369641b875e4681709762716dde4a0f43b58a33c235189fb589a500161f5",
+    "libmeowchan.dll": "9a69e05bba18b1f4401216dfc137d22fdacd05aff5138d0bf8453f9044eab6ed"
+  },
+  "images": [
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/v0.9.0-downloads.png",
+      "filename": "downloads.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Downloads with thread status and details",
+      "source_name": "v0.9.0-downloads.png",
+      "sha256": "f77f11058d5edbe1711f384d370b65f7735073c124ccfeed390b8ad4d3552593",
+      "width": 1440,
+      "height": 920,
+      "bytes": 170529
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/v0.9.0-archive.png",
+      "filename": "archive.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Archive saved-media browser",
+      "source_name": "v0.9.0-archive.png",
+      "sha256": "5f392a1a57b4e626f5c70b20ae03d9a7f58b25b5e4649fffe99e24c2002afce3",
+      "width": 1440,
+      "height": 920,
+      "bytes": 246634
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/smoke-1.0-archive-table.png",
+      "filename": "archive-table.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Archive table with aligned columns",
+      "source_name": "smoke-1.0-archive-table.png",
+      "sha256": "62508c6cdc7c7f3a29b6357c73eb2d70da254a77d0cc13e72c123314ef5ea5fe",
+      "width": 1440,
+      "height": 920,
+      "bytes": 150785
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/v0.9.0-reader.png",
+      "filename": "reader.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Offline post reader",
+      "source_name": "v0.9.0-reader.png",
+      "sha256": "2cbda3b46549742ca851b0fa2907eff8b8af1fc6dfb1feb68eb0f5a83ee83364",
+      "width": 1440,
+      "height": 960,
+      "bytes": 144481
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/v0.9.0-gallery.png",
+      "filename": "gallery.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Gallery with post details and tools",
+      "source_name": "v0.9.0-gallery.png",
+      "sha256": "38aaed5a07412cedb0484511963d2e4fa835ecba10b8f4e84a1068be64bdad4b",
+      "width": 1440,
+      "height": 920,
+      "bytes": 148863
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/smoke-1.0-gallery-focus.png",
+      "filename": "gallery-focus.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Gallery media focus with compact navigation",
+      "source_name": "smoke-1.0-gallery-focus.png",
+      "sha256": "f65f9f069041c5bbdb652d0130197edc665f2d7b78005076d50b3dff582f61ce",
+      "width": 1440,
+      "height": 920,
+      "bytes": 94177
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/smoke-1.0-settings-interface.png",
+      "filename": "settings.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Interface settings",
+      "source_name": "smoke-1.0-settings-interface.png",
+      "sha256": "7409e57eeb4ef64d76c359489306ec537dd15cc75404176288a8e9502957bc13",
+      "width": 1200,
+      "height": 700,
+      "bytes": 83679
+    },
+    {
+      "source": "artifacts/readme-1.0.1-capture/visual/v0.9.0-rules.png",
+      "filename": "rules.png",
+      "commit": "2518feb60928977f3ebf16cb656dbdf6b2060bfe",
+      "locale": "en",
+      "theme": "dark",
+      "platform": "linux",
+      "fixture": "Clean offline showcase demo; original landscape artwork and demo archive data",
+      "capture_method": "Source-built Avalonia desktop-smoke visual harness; isolated Xvfb/Openbox/software rendering; scale 1.0",
+      "description": "Scoped media rule editor",
+      "source_name": "v0.9.0-rules.png",
+      "sha256": "5b1d4b51c8d54769b8885f1dc88e2d2d2e963a337fd627fcec8c55447a81f140",
+      "width": 1200,
+      "height": 700,
+      "bytes": 86457
+    }
+  ]
+}

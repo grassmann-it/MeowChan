@@ -17,7 +17,16 @@ filter staging and gallery work, and coordinates video switching and cleanup.
 Original-media verification remains enforced. See the
 [1.0.1 performance notes](docs/releases/v1.0.1.md) for details and limits.
 
-## What's new in 1.0 🐾
+## What's improved in 1.0.1 🐾
+
+- **A more responsive workspace.** Slow download saves no longer hold up UI queries; progress updates and download rows do less repeated work.
+- **Lighter archive and gallery navigation.** Covered views defer unnecessary refreshes and thumbnails, while indexed media lookups reduce repeated gallery work.
+- **Less filter overhead.** Temporary-file accounting avoids scanning the staging directory for every data block.
+- **Smoother video and reader transitions.** Video switching waits for cleanup, late reply updates preserve your reading position, and macOS fullscreen restoration respects your latest window choice.
+
+See the [1.0.1 release notes](docs/releases/v1.0.1.md) for details and performance feedback. Improvements depend on storage and workload; original-media verification remains enforced.
+
+### Features introduced in 1.0.0
 
 - **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts. Settings are organized into eight focused pages.
 - **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
@@ -27,37 +36,37 @@ Original-media verification remains enforced. See the
 - **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
 - **Enjoy the originals.** Give images and video more room with the gallery’s optional **media focus** view; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
 
-The [1.0 release notes](docs/releases/v1.0.0.md) cover the changes and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
+The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature release and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
 
-## Take a look around · 1.0
+## Take a look around · 1.0.1
 
-These are current, source-built UI captures using offline demonstration data. The [1.0 capture notes](docs/screenshots/v1.0.0/README.md) record the source checkpoint and capture conditions; the images do not establish native package acceptance or live source availability.
+These are fresh, source-built UI captures from the 1.0.1 release source using offline demonstration data. The [1.0.1 capture notes](docs/screenshots/v1.0.1/README.md) record the source checkpoint and capture conditions; the images do not establish native package acceptance or live source availability.
 
 ### Watch threads without losing the overview
 
 Paste thread or board URLs, track saved media and inspect watch details. Choose Barebones, Simple or Advanced to suit your workspace.
 
-[![MeowChan 1.0 Downloads with offline demonstration watches](docs/screenshots/v1.0.0/downloads.png)](docs/screenshots/v1.0.0/downloads.png)
+[![MeowChan 1.0.1 Downloads with offline demonstration watches](docs/screenshots/v1.0.1/downloads.png)](docs/screenshots/v1.0.1/downloads.png)
 
 ### Make your archive easy to come back to
 
-Find captured threads and local media, save useful searches, and keep favorites and ratings close at hand. Prefer rows? There is also an [Archive table view](docs/screenshots/v1.0.0/archive-table.png).
+Find captured threads and local media, save useful searches, and keep favorites and ratings close at hand. Prefer rows? There is also an [Archive table view](docs/screenshots/v1.0.1/archive-table.png).
 
-[![MeowChan 1.0 Archive with saved offline demonstration content](docs/screenshots/v1.0.0/archive.png)](docs/screenshots/v1.0.0/archive.png)
+[![MeowChan 1.0.1 Archive with saved offline demonstration content](docs/screenshots/v1.0.1/archive.png)](docs/screenshots/v1.0.1/archive.png)
 
 ### Give the media some room
 
-**Media focus** folds away gallery tools and details. Return to the [regular gallery](docs/screenshots/v1.0.0/gallery.png) when you want more controls and captured post context; video keeps its compact playback strip.
+**Media focus** folds away gallery tools and details. Return to the [regular gallery](docs/screenshots/v1.0.1/gallery.png) when you want more controls and captured post context; video keeps its compact playback strip.
 
-[![MeowChan 1.0 gallery in media focus view](docs/screenshots/v1.0.0/gallery-focus.png)](docs/screenshots/v1.0.0/gallery-focus.png)
+[![MeowChan 1.0.1 gallery in media focus view](docs/screenshots/v1.0.1/gallery-focus.png)](docs/screenshots/v1.0.1/gallery-focus.png)
 
 ### Settle in and read offline
 
 Read captured posts with local media, follow replies, and return to saved reading positions. Reader groups, post bookmarks and notes help you keep your place.
 
-[![MeowChan 1.0 offline reader with captured demonstration posts](docs/screenshots/v1.0.0/reader.png)](docs/screenshots/v1.0.0/reader.png)
+[![MeowChan 1.0.1 offline reader with captured demonstration posts](docs/screenshots/v1.0.1/reader.png)](docs/screenshots/v1.0.1/reader.png)
 
-Explore the eight-page [Settings workspace](docs/screenshots/v1.0.0/settings.png) and [media rules](docs/screenshots/v1.0.0/rules.png). Historical 0.9.0 screenshots and their original source checkpoints remain in the [earlier interface gallery and capture notes](docs/screenshots/README.md).
+Explore the eight-page [Settings workspace](docs/screenshots/v1.0.1/settings.png) and [media rules](docs/screenshots/v1.0.1/rules.png). Earlier captures remain available with their original source checkpoints: [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
 
 ## Quick start
 
