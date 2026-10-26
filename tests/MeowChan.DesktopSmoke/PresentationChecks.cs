@@ -62,7 +62,7 @@ internal static class PresentationChecks
 
         await SwitchModeAsync(window, "Simple");
         Click(window.FindControl<Button>("ThemeToggleButton")!);
-        await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == "Light"
+        await Program.WaitUntilAsync(() => PersistedConfigMatches(config => config.Theme == "Light")
             && Application.Current?.RequestedThemeVariant == ThemeVariant.Light && add.IsEnabled);
         Require(Avalonia.Automation.AutomationProperties.GetName(window.FindControl<Button>("ThemeToggleButton")!) == "Switch to dark theme",
             "The light view's theme action did not display a translated Dark label.");
@@ -83,7 +83,7 @@ internal static class PresentationChecks
         await Program.WaitUntilAsync(() => HasIconLabel(add, englishAdd));
 
         Click(window.FindControl<Button>("ThemeToggleButton")!);
-        await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == "Dark"
+        await Program.WaitUntilAsync(() => PersistedConfigMatches(config => config.Theme == "Dark")
             && Application.Current?.RequestedThemeVariant == ThemeVariant.Dark && add.IsEnabled);
         await SwitchModeAsync(window, "Advanced");
         Require(input.Text == draft && ReferenceEquals(grid.SelectedItem, retained),
@@ -104,7 +104,7 @@ internal static class PresentationChecks
             if (Config.LoadConfig().Theme != theme)
             {
                 Click(window.FindControl<Button>("ThemeToggleButton")!);
-                await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == theme);
+                await Program.WaitUntilAsync(() => PersistedConfigMatches(config => config.Theme == theme));
             }
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             {
@@ -122,7 +122,7 @@ internal static class PresentationChecks
         if (Config.LoadConfig().Theme != original.Theme)
         {
             Click(window.FindControl<Button>("ThemeToggleButton")!);
-            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == original.Theme);
+            await Program.WaitUntilAsync(() => PersistedConfigMatches(config => config.Theme == original.Theme));
         }
         Console.WriteLine("SMOKE compact admission matrix: six rejected URLs, cause/example and whole row visible, complete scrollable results, details and preserved input in Dark/Light × EN/DE × B/S/A minima.");
     }
@@ -152,7 +152,7 @@ internal static class PresentationChecks
             "Download columns menu did not expose checked native items.");
         completionItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => !completion.IsVisible &&
-            Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.TryGetValue("ThreadsDataGrid.Completion", out bool visible) && !visible);
+            PersistedConfigMatches(config => config.GetLayoutProfile("Barebones").ColumnVisibility.TryGetValue("ThreadsDataGrid.Completion", out bool visible) && !visible));
         menu.Close();
         if (toolbar.More != null) toolbar.More.IsChecked = false;
 
@@ -166,7 +166,7 @@ internal static class PresentationChecks
         MenuItem reset = columnsButton.ContextMenu!.Items.OfType<MenuItem>().Last();
         reset.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => completion.IsVisible &&
-            !Config.LoadConfig().GetLayoutProfile("Barebones").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"));
+            PersistedConfigMatches(config => !config.GetLayoutProfile("Barebones").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion")));
         columnsButton.ContextMenu?.Close();
         if (toolbar.More != null) toolbar.More.IsChecked = false;
         Config restarted = Config.LoadConfig();
@@ -434,7 +434,7 @@ internal static class PresentationChecks
         // Advanced preserves the live size, including deliberate wide probes.
         bool fitsOnModeChange = previousMode == "Barebones" || mode == "Barebones";
         modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
-        await Program.WaitUntilAsync(() => Config.LoadConfig().WorkspaceMode == mode && Mode(modes) == mode
+        await Program.WaitUntilAsync(() => PersistedConfigMatches(config => config.WorkspaceMode == mode) && Mode(modes) == mode
             && window.Classes.Contains("workspace-advanced") == (mode == "Advanced")
             && (string?)typeof(MainWindow).GetField("_appliedWorkspaceMode",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window) == mode
@@ -447,6 +447,21 @@ internal static class PresentationChecks
                     && window.FrameSize is Size frame
                     && frame.Width * window.RenderScaling <= screen.WorkingArea.Width + 1
                     && frame.Height * window.RenderScaling <= screen.WorkingArea.Height + 1))));
+    }
+
+    private static bool PersistedConfigMatches(Func<Config, bool> matches)
+    {
+        try
+        {
+            return matches(Config.LoadConfig());
+        }
+        catch (IOException error) when (OperatingSystem.IsWindows() && (error.HResult & 0xffff) is 32 or 33)
+        {
+            // A background preference publication can briefly hold the Windows
+            // document lock. Keep polling within the existing deadline; other IO
+            // errors still fail, and the persisted value must still match.
+            return false;
+        }
     }
 
     private static async Task ChangeLanguageAsync(MainWindow window, string code)
