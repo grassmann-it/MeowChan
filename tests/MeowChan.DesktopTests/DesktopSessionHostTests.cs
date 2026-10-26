@@ -178,6 +178,8 @@ public sealed class DesktopSessionHostTests
             };
             Task pause = host.SetPausedAsync(true);
             await transport.Cancelled.Task.WaitAsync(Timeout);
+            // Cancellation confirms the runtime transition; the UI observes its asynchronous projection.
+            await host.CaptureProjectionAsync().WaitAsync(Timeout);
             Assert.True(host.IsPaused);
             Assert.True(host.IsPauseTransitioning);
             Assert.False(pause.IsCompleted);

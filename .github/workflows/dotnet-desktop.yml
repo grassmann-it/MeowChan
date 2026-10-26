@@ -606,6 +606,24 @@ jobs:
       - name: Install native packaging inputs
         shell: bash
         run: |
+          # The hosted x64 Azure mirror can stall native package setup.
+          # Keep Ubuntu signature verification and ARM's ports mirror unchanged.
+          if [[ "$RUNNER_ARCH" == X64 ]]; then
+            sudo python3 - <<'PY'
+          from pathlib import Path
+          paths = [Path('/etc/apt/sources.list')]
+          paths += list(Path('/etc/apt/sources.list.d').glob('*.list'))
+          paths += list(Path('/etc/apt/sources.list.d').glob('*.sources'))
+          paths += list(Path('/etc/apt').glob('apt-mirrors*.txt'))
+          for path in paths:
+              if path.is_file():
+                  before = path.read_text()
+                  after = before.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  after = after.replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  if after != before:
+                      path.write_text(after)
+          PY
+          fi
           sudo apt-get update
           sudo apt-get install --yes libvlc5 libvlccore9 vlc-plugin-base vlc-plugin-video-output vlc-data patchelf binutils gcc dpkg-dev squashfs-tools
           dpkg-query -W > artifacts/linux-evidence/host-packages.txt
