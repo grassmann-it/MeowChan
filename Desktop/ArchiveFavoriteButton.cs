@@ -41,11 +41,21 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
     { _available = available; _marked = marked; _toggle = toggle; _errorSource = error; Refresh(); }
 
+    // Availability also owns the callbacks' lifetime: a queued layout or toggle completion
+    // may refresh a control after its page has ended and released the session.
+    internal static (bool Available, bool Marked, string? Error) ReadState(
+        Func<bool>? available, Func<bool>? marked, Func<string?>? error)
+    {
+        if (available?.Invoke() != true) return (false, false, null);
+        return (true, marked?.Invoke() == true, error?.Invoke());
+    }
+
     internal void Refresh()
     {
-        bool marked = _marked?.Invoke() == true;
-        if (_errorSource != null) _error = _errorSource();
-        IsEnabled = !_running && _available?.Invoke() == true;
+        var state = ReadState(_available, _marked, _errorSource);
+        bool marked = state.Marked;
+        if (!state.Available || _errorSource != null) _error = state.Error;
+        IsEnabled = !_running && state.Available;
         IsChecked = marked;
         Control icon = CommandBindings.Icon("favorites.toggle", state: marked ? "marked" : "unmarked");
         Content = _error == null ? icon : new StackPanel

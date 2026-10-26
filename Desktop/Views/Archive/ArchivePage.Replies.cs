@@ -17,6 +17,7 @@ public partial class ArchivePage
     private CancellationTokenSource? _inlineRepliesCancellation;
     private int _inlineRepliesRequest;
     private ArchivePostRow[] _inlineReplyRows = Array.Empty<ArchivePostRow>();
+    internal Func<CancellationToken, Task>? BeforeInlineReplyCountsPublicationAsync { get; set; }
 
     private void RefreshInlineReplies(ArchivePostRow[] rows)
     {
@@ -48,7 +49,14 @@ public partial class ArchivePage
             IReadOnlyDictionary<string, int> counts = await reader.GetBacklinkCountsAsync(thread,
                 rows.Select(row => row.Id).ToArray(), token);
             if (!InlineReplyPageCurrent(rows, thread, request)) return;
+            if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication)
+            {
+                await beforePublication(token);
+                if (!InlineReplyPageCurrent(rows, thread, request)) return;
+            }
+            Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
+            if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

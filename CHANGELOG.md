@@ -12,6 +12,9 @@
   verification, including before cached video posters are used.
 - Coordinate video switching and shutdown with actual native cleanup completion;
   stale operations cannot control newer playback.
+- Preserve the visible reader post after delayed reply counts, guard archive
+  favorites during shutdown, and honor later macOS Normal-window requests during
+  fullscreen restoration.
 
 See the [release notes and downloads](docs/releases/v1.0.1.md). Early user feedback
 reports better responsiveness; the original Windows/external-USB hang has not

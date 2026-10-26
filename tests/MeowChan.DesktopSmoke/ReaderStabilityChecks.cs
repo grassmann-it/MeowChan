@@ -69,6 +69,8 @@ internal static class ReaderStabilityChecks
         await page.MediaLoadTask;
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
 
+        await CheckDelayedReplyCountsAsync(window, page, posts);
+
         TracePagination("before-focus-1000", window, page, posts);
         await page.FocusPostAsync("1000");
         TracePagination("after-focus-1000", window, page, posts);
@@ -202,6 +204,55 @@ internal static class ReaderStabilityChecks
             await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
             await Flush(window);
             Visible(posts, expected, key + " settled");
+        }
+    }
+
+    private static async Task CheckDelayedReplyCountsAsync(MainWindow window, ArchivePage page, ListBox posts)
+    {
+        await Resize(900);
+        await page.FocusPostAsync("1048");
+        await Resize(1915);
+        await page.FocusPostAsync("1050");
+        await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
+        await Flush(window);
+        Func<CancellationToken, Task>? previous = page.BeforeInlineReplyCountsPublicationAsync;
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        page.BeforeInlineReplyCountsPublicationAsync = async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+        try
+        {
+            Task navigation = page.FocusPostAsync("1049");
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Navigation remains usable while the current page's counts are pending.
+            await navigation.WaitAsync(TimeSpan.FromSeconds(5));
+            await Flush(window);
+            Require(posts.ItemsSource!.Cast<ArchivePostRow>().All(row => !row.BacklinkCount.HasValue),
+                "Delayed-count fixture did not hold current-page count publication.");
+            Require((posts.SelectedItem as ArchivePostRow)?.Id == "1049", "Delayed counts changed the selected target.");
+            Visible(posts, "1049", "reply counts held");
+            Console.WriteLine("SMOKE delayed reply counts: initial target visible; releasing counts.");
+            release.TrySetResult();
+            await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
+            await Flush(window);
+            Require((posts.SelectedItem as ArchivePostRow)?.Id == "1049", "Count publication changed the selected target.");
+            Visible(posts, "1049", "reply counts settled");
+            Console.WriteLine("SMOKE delayed reply counts: settled target visible.");
+        }
+        finally
+        {
+            release.TrySetResult();
+            page.BeforeInlineReplyCountsPublicationAsync = previous;
+        }
+        async Task Resize(double width)
+        {
+            double height = window.Bounds.Height;
+            window.Width = width;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            await Flush(window);
         }
     }
 

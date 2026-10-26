@@ -36,7 +36,7 @@ public partial class ArchivePage
         foreach (ArchiveAssetRow row in _assets)
         {
             GalleryEntry entry = Entry(row);
-            row.FavoriteAvailable = () => ToggleArchiveFavoriteAsync != null;
+            row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null;
             row.IsFavorite = () => IsArchiveFavorite?.Invoke(entry) == true;
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
             row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
@@ -47,7 +47,7 @@ public partial class ArchivePage
                 {
                     ArchiveAssetRow? match = FindMatchingAsset(threadId, post.Id, row.Attachment, _assets);
                     GalleryEntry? entry = match == null ? null : Entry(match);
-                    row.FavoriteAvailable = () => entry != null && ToggleArchiveFavoriteAsync != null;
+                    row.FavoriteAvailable = () => _available && !_ended && entry != null && ToggleArchiveFavoriteAsync != null;
                     row.IsFavorite = () => entry != null && IsArchiveFavorite?.Invoke(entry) == true;
                     row.ToggleFavoriteAsync = () => entry == null ? Task.CompletedTask : ToggleArchiveMediaFavoriteAsync(entry);
                     row.FavoriteError = () => entry == null ? null : _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));

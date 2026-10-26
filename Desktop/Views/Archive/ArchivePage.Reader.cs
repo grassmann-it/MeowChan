@@ -44,6 +44,7 @@ public partial class ArchivePage
     private string? _readerPostId;
     private int _readerFocusRequest;
     private int _readerInteractionRevision;
+    private int _readerLayoutRevision;
     private IDisposable? _readerTabScope;
     internal Task ReaderNavigationTask { get; private set; } = Task.CompletedTask;
     internal Task ReaderLocalizationTask { get; private set; } = Task.CompletedTask;
@@ -267,6 +268,7 @@ public partial class ArchivePage
             if (!IsCurrent()) return;
             ArchivePostRow? row = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(post => post.Id == postId);
             if (row == null) return;
+            ++_readerLayoutRevision;
             posts.SelectedItem = row;
             posts.UpdateLayout();
             if (pass == 0 || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
@@ -481,6 +483,50 @@ public partial class ArchivePage
     }
 
     private sealed record ReaderAnchor(ResourceId Thread, string PostId, double Top, string? SelectedPostId);
+
+    private Func<Task>? CaptureReaderCountLayoutCorrection()
+    {
+        Grid pane = Control<Grid>("ArchiveReaderPane");
+        bool Presented() => pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
+            && TopLevel.GetTopLevel(pane) is Window { IsVisible: true };
+        if (!MayRefreshReaderNow || !Presented() || _thread == null) return null;
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        if (posts.SelectedItem is not ArchivePostRow row || posts.ContainerFromItem(row) is not Control container)
+            return null;
+        ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+        if (viewport == null || container.TranslatePoint(default, viewport) is not Point anchor
+            || anchor.Y >= viewport.Bounds.Height || anchor.Y + container.Bounds.Height <= 0) return null;
+        ResourceId thread = _thread.Summary.Id;
+        int content = _contentRequest, focus = _readerFocusRequest, interaction = _readerInteractionRevision;
+        int layout = _readerLayoutRevision;
+        long coverage = _readerCoverageRevision;
+        bool Current() => MayRefreshReaderNow && Presented() && _thread?.Summary.Id == thread && content == _contentRequest
+            && focus == _readerFocusRequest && interaction == _readerInteractionRevision
+            && layout == _readerLayoutRevision && coverage == _readerCoverageRevision
+            && ReferenceEquals(posts.SelectedItem, row);
+        return async () =>
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                // Publishing counts swaps unknown reply controls for their final labels.
+                // The virtualizer can then revise estimated heights after navigation has
+                // completed. Preserve the visible target without changing selection/focus.
+                for (int pass = 0; pass < 4 && Current(); pass++)
+                {
+                    posts.UpdateLayout();
+                    if (!Current() || posts.ContainerFromItem(row) is not Control target
+                        || target.TranslatePoint(default, viewport) is not Point position) return;
+                    double offset = Math.Clamp(scroll!.Offset.Y + position.Y - anchor.Y, 0,
+                        Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
+                    if (Math.Abs(offset - scroll.Offset.Y) <= 1) return;
+                    scroll.Offset = new Vector(scroll.Offset.X, offset);
+                }
+                if (Current()) posts.UpdateLayout();
+            }, DispatcherPriority.Background);
+        };
+    }
+
     private ReaderAnchor? CaptureReaderAnchor()
     {
         if (_thread == null) return null;
@@ -516,6 +562,7 @@ public partial class ArchivePage
         // the predecessor's offset can otherwise leave negative item positions
         // at offset zero, where the final anchor delta cannot be applied.
         ScrollViewer? initialScroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        ++_readerLayoutRevision;
         if (initialScroll != null) initialScroll.Offset = new Vector(initialScroll.Offset.X, 0);
         list.UpdateLayout();
         if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest + 1
@@ -525,6 +572,7 @@ public partial class ArchivePage
         {
             if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest
                 || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
+            ++_readerLayoutRevision;
             if (anchor.SelectedPostId != null && list.ItemsSource is IEnumerable<ArchivePostRow> rows)
             {
                 ArchivePostRow? selected = rows.FirstOrDefault(row => row.Id == anchor.SelectedPostId);

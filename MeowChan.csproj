@@ -10,6 +10,8 @@
     <RepositoryUrl>https://github.com/grassmann-it/MeowChan</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- The pinned Avalonia 12.1.4 native state callback distinguishes fullscreen feedback from explicit restore requests. -->
+    <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
     <PublishTrimmed>false</PublishTrimmed>
     <!-- Desktop archives contain runtime files and notices; API docs/symbols stay in developer builds. -->
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>

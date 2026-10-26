@@ -16,7 +16,37 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    private sealed record FullscreenOrigin(WindowState State, Size Client, PixelPoint Position, PixelRect? Monitor, Size Decoration);
+    // Avalonia.Native reports state through this callback as well as through
+    // managed WindowState assignments. Only the latter express a new request.
+    internal sealed class FullscreenWindowStateFeedback(Action<WindowState>? originalCallback)
+    {
+        internal Action<WindowState>? OriginalCallback { get; } = originalCallback;
+        private int _nativeCallbackDepth;
+
+        internal void OnNativeStateChanged(WindowState state)
+        {
+            ++_nativeCallbackDepth;
+            try { OriginalCallback?.Invoke(state); }
+            finally { --_nativeCallbackDepth; }
+        }
+
+        internal bool IsExplicitNormalRestore(WindowState previous, WindowState current, bool restoringFullscreen) =>
+            _nativeCallbackDepth == 0 && !restoringFullscreen
+            && previous == WindowState.Maximized && current == WindowState.Normal;
+    }
+
+    private FullscreenWindowStateFeedback? _fullscreenWindowStateFeedback;
+    internal sealed record FullscreenOrigin(WindowState State, Size Client, PixelPoint Position, PixelRect? Monitor, Size Decoration)
+    {
+        // The destination can become Normal without changing which native exit
+        // frames are eligible for repair. Record copies retain this provenance.
+        internal bool RestoredFromMaximized { get; } = State == WindowState.Maximized;
+
+        internal FullscreenOrigin WithNormalRequest() => this with { State = WindowState.Normal };
+
+        internal bool ShouldRepairExitFrame(Size client, IReadOnlyCollection<Size> staleClients, bool maximizePending) =>
+            !RestoredFromMaximized || !maximizePending && ShouldRepairKnownMaximizedExitFrame(client, Client, staleClients);
+    }
     private FullscreenOrigin? _fullscreenOrigin;
     private Size _lastNormalClient = new(1380, 850);
     private PixelPoint _lastNormalPosition;
@@ -65,6 +95,11 @@ public partial class MainWindow
 
     private void InitializeShellPresentation()
     {
+        if (OperatingSystem.IsMacOS() && PlatformImpl is { } platform)
+        {
+            _fullscreenWindowStateFeedback = new(platform.WindowStateChanged);
+            platform.WindowStateChanged = _fullscreenWindowStateFeedback.OnNativeStateChanged;
+        }
         InitializeShortcutRouting();
         AddHandler(KeyDownEvent, OnShellKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         PositionChanged += OnShellPositionChanged;
@@ -79,6 +114,10 @@ public partial class MainWindow
 
     private void DisposeShellPresentation()
     {
+        if (_fullscreenWindowStateFeedback is { } feedback && PlatformImpl is { } platform
+            && platform.WindowStateChanged == feedback.OnNativeStateChanged)
+            platform.WindowStateChanged = feedback.OriginalCallback;
+        _fullscreenWindowStateFeedback = null;
         DisposeShortcutRouting();
         RemoveHandler(KeyDownEvent, OnShellKeyDown);
         PositionChanged -= OnShellPositionChanged;
@@ -298,6 +337,23 @@ public partial class MainWindow
             TraceFullscreen($"size property changed {e.Property.Name} old={e.OldValue} new={e.NewValue}");
         if (e.Property == WindowStateProperty)
         {
+            if (e.OldValue is WindowState previous
+                && _fullscreenWindowStateFeedback?.IsExplicitNormalRestore(
+                    previous, WindowState, _restoringFullscreen) == true
+                && _fullscreenExitIntent is { State: WindowState.Maximized } intent
+                && _fullscreenOrigin == null && !_applyingFullscreenRestoreGeometry
+                && _config.WorkspaceMode == _fullscreenExitMode)
+            {
+                // A later unmaximize supersedes the saved exit destination, but
+                // keep its normal geometry and late-entry repair generation.
+                // Cocoa's intermediate Normal reports must not do this.
+                _fullscreenExitIntent = intent.WithNormalRequest();
+                _fullscreenMaximizeRestoreCancelled = true;
+                _fullscreenMaximizeRestoreClient = null;
+                _fullscreenMaximizeRestoreQueued = false;
+                _fullscreenMaximizeSizeCorrectionQueued = false;
+                TraceFullscreen("maximized exit superseded by explicit normal request");
+            }
             UpdateGalleryFullscreenPresentation();
             ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
@@ -321,18 +377,25 @@ public partial class MainWindow
     {
         if (!_applyingStartupWindowSize) CancelStartupWindowFit();
         TraceFullscreen($"normal size requested={requested}");
-        if (OperatingSystem.IsMacOS() && (_restoringFullscreen || _fullscreenMaximizeRestoreClient != null))
+        bool pendingFullscreenExit = OperatingSystem.IsMacOS() && _fullscreenExitIntent != null
+            && _fullscreenOrigin == null;
+        if (OperatingSystem.IsMacOS() && (_restoringFullscreen || _fullscreenMaximizeRestoreClient != null
+            || pendingFullscreenExit && (WindowState == WindowState.Normal || WindowState == WindowState.FullScreen)))
         {
+            // Persist the cancellation in the destination: a late FullScreen
+            // acknowledgement starts another restore and resets transient flags.
+            if (pendingFullscreenExit && _fullscreenExitIntent is { } intent
+                && _config.WorkspaceMode == _fullscreenExitMode)
+                _fullscreenExitIntent = intent.WithNormalRequest();
             _fullscreenMaximizeRestoreCancelled = true;
             _fullscreenMaximizeRestoreClient = null;
+            _fullscreenMaximizeRestoreQueued = false;
             _fullscreenMaximizeSizeCorrectionQueued = false;
             TraceFullscreen("pending maximize cancelled by normal size request");
         }
         // Cocoa can report its earlier fullscreen entry after an exit request.
         // Keep an explicit normal resize in that pending exit even if the native
         // report has temporarily changed the managed state back to FullScreen.
-        bool pendingFullscreenExit = OperatingSystem.IsMacOS() && _fullscreenExitIntent != null
-            && _fullscreenOrigin == null;
         if (WindowState == WindowState.Normal || (pendingFullscreenExit && WindowState == WindowState.FullScreen))
         {
             if (_fullscreenExitIntent is { State: WindowState.Normal } prior && prior.Client != requested)
@@ -391,9 +454,7 @@ public partial class MainWindow
         // sizes can be later, deliberate normal-window resizes.
         if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { } intent
             || _fullscreenOrigin != null || _restoringFullscreen || _applyingFullscreenRestoreGeometry
-            || intent.State == WindowState.Maximized
-                && (_fullscreenMaximizeRestoreClient != null
-                    || !ShouldRepairKnownMaximizedExitFrame(ClientSize, intent.Client, _fullscreenExitStaleNativeClients))
+            || !intent.ShouldRepairExitFrame(ClientSize, _fullscreenExitStaleNativeClients, _fullscreenMaximizeRestoreClient != null)
             || WindowState != WindowState.Normal || _isClosing
             || Math.Abs(ClientSize.Width - intent.Client.Width) <= 1
                 && Math.Abs(ClientSize.Height - intent.Client.Height) <= 1
@@ -411,9 +472,7 @@ public partial class MainWindow
             _fullscreenExitSizeCorrectionQueued = false;
             if (_fullscreenExitIntent is not { } target
                 || _fullscreenOrigin != null || _restoringFullscreen || WindowState != WindowState.Normal || _isClosing
-                || target.State == WindowState.Maximized
-                    && (_fullscreenMaximizeRestoreClient != null
-                        || !ShouldRepairKnownMaximizedExitFrame(ClientSize, target.Client, _fullscreenExitStaleNativeClients))
+                || !target.ShouldRepairExitFrame(ClientSize, _fullscreenExitStaleNativeClients, _fullscreenMaximizeRestoreClient != null)
                 || Math.Abs(ClientSize.Width - target.Client.Width) <= 1
                     && Math.Abs(ClientSize.Height - target.Client.Height) <= 1) return;
             TraceFullscreen($"normal size correction applied={target.Client}");
@@ -507,8 +566,9 @@ public partial class MainWindow
         Dispatcher.UIThread.Post(() =>
         {
             TraceFullscreen($"late fullscreen exit repair callback generation={generation}");
+            if (generation != _fullscreenExitGeneration) return;
             _fullscreenExitRepairQueued = false;
-            if (_isClosing || generation != _fullscreenExitGeneration || _fullscreenExitIntent == null
+            if (_isClosing || _fullscreenExitRepairConsumed || _fullscreenExitIntent == null
                 || WindowState != WindowState.FullScreen) return;
             if (_config.WorkspaceMode != _fullscreenExitMode)
             {
