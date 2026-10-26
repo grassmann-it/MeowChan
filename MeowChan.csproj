@@ -51,8 +51,8 @@
     <AvaloniaResource Include="Assets/**" />
     <None Update="Assets/meowchan.png" CopyToPublishDirectory="PreserveNewest" />
     <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/native-video-licenses.txt;docs/native-video-linux-sources.md;docs/native-video-sources.md;docs/native-video-source-manifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/native-video-macos-sources.md;docs/native-video-macos-source-manifest.json;docs/native-video-macos-COPYING" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="docs/native-video-licenses.txt;docs/native-video-linux-sources.md;docs/native-video-sources.md;docs/native-video-source-manifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="docs/native-video-macos-sources.md;docs/native-video-macos-source-manifest.json;docs/native-video-macos-COPYING" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
