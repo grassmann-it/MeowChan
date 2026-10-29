@@ -41,7 +41,25 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private readonly Dictionary<string, string> _mediaFailures = new Dictionary<string, string>(StringComparer.Ordinal);
     private ThreadSourceState _sourceState = ThreadSourceState.Active;
     private RequestPolicyProgress? _requestProgress;
-    private string _title = "Unknown";
+    // Raw source metadata and display-only OP excerpt have separate provenance.
+    private string _title = string.Empty;
+    private string _openingTitle = string.Empty;
+    private string? _providerTitleSnapshot;
+    private string DisplayTitleLocked => !string.IsNullOrWhiteSpace(_title) ? _title
+        : _openingTitle.Length > 0 ? _openingTitle : $"{Board.ImageBoard.Name} /{Board.BoardCode}/ {ThreadId}";
+    // Preserve the public virtual Title extension point without mistaking the base
+    // getter's display fallback for provider metadata. Title is synchronous: this
+    // thread-local, instance-specific scope cannot change another thread's UI read.
+    [ThreadStatic] private static BaseThread? s_sourceTitleRead;
+    internal string SourceTitle
+    {
+        get
+        {
+            BaseThread? previous = s_sourceTitleRead;
+            try { s_sourceTitleRead = this; return Title ?? string.Empty; }
+            finally { s_sourceTitleRead = previous; }
+        }
+    }
     private ThreadActivity _activity = ThreadActivity.Pending;
     private FailureInfo? _lastCheckFailure;
     private readonly CoalescedEvent<PropertyChangedEventHandler> _propertyChanges;
@@ -137,7 +155,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             foreach (KeyValuePair<string, Dictionary<string, FailureInfo>> entry in _destinationFailures)
                 failures.Add(entry.Key, entry.Value.Values.Last());
             return new ThreadSnapshot(new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId),
-                Url, _title, DownloadDirectory, _activity, _sourceState, _requestProgress,
+                Url, _providerTitleSnapshot ?? DisplayTitleLocked, DownloadDirectory, _activity, _sourceState, _requestProgress,
                 _totalMediaCount, CompletedCountLocked,
                 new ReadOnlyDictionary<string, FailureInfo>(failures), _lastCheckFailure, downloads) { Content = _content?.Snapshot };
         }
@@ -192,17 +210,53 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     public virtual string Title
     {
-        get { lock (_stateLock) { return _title; } }
+        get { lock (_stateLock) { return ReferenceEquals(s_sourceTitleRead, this) ? _title : DisplayTitleLocked; } }
         set
         {
+            // Missing metadata never invalidates a known real title. In particular,
+            // "Unknown" and "Thread 123" are not magic placeholder strings.
+            if (string.IsNullOrWhiteSpace(value)) return;
             lock (_stateLock)
             {
                 if (_title == value) return;
                 _title = value;
+                _providerTitleSnapshot = null;
             }
             OnPropertyChanged();
             OnPropertyChanged(nameof(NiceName));
         }
+    }
+
+    internal void SetOpeningTitle(string? plainText, bool restoreOnly = false)
+    {
+        string display = ThreadTitleText.FromPlainText(plainText);
+        lock (_stateLock)
+        {
+            if (restoreOnly && _openingTitle.Length > 0 || _openingTitle == display) return;
+            _openingTitle = display;
+        }
+        OnPropertyChanged();
+    }
+
+    internal void RestoreTitleMetadata(string sourceTitle, string openingTitle)
+    {
+        string current = SourceTitle;
+        if (string.IsNullOrWhiteSpace(current) && !string.IsNullOrWhiteSpace(sourceTitle))
+        {
+            Title = sourceTitle;
+            current = SourceTitle;
+        }
+        RememberProviderTitle(current);
+        SetOpeningTitle(openingTitle, restoreOnly: true);
+        OnPropertyChanged();
+    }
+
+    private void RememberProviderTitle(string title)
+    {
+        // Mirror a provider-owned virtual title during awaited bind/observation,
+        // not from GetSnapshot: passive snapshots must not execute external getters.
+        if (string.IsNullOrWhiteSpace(title)) return;
+        lock (_stateLock) _providerTitleSnapshot = title;
     }
 
     public string Status
@@ -529,6 +583,22 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     {
         bool restoredObservation = observed == null;
         observed ??= _restoredFinalSnapshot;
+        if (observed != null)
+        {
+            ResourceId id = new(Board.ImageBoard.Name, Board.BoardCode, ThreadId);
+            if (observed.Id != id) throw new ArgumentException("Title observation belongs to another thread.", nameof(observed));
+            cancellationToken.ThrowIfCancellationRequested();
+            CapturedPost? opening = ThreadTitleText.OpeningPost(id, observed.Posts);
+            if (restoredObservation) RestoreTitleMetadata(observed.Title, ArchiveText.PlainText(opening?.Html));
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(observed.Title)) Title = observed.Title;
+                RememberProviderTitle(SourceTitle);
+                // Absent OP/field is a partial observation. An explicitly empty OP
+                // can clear its display excerpt, but never a known provider title.
+                if (opening != null) SetOpeningTitle(ArchiveText.PlainText(opening.Html));
+            }
+        }
         if (_content != null) await _content.CaptureAsync(observed, cancellationToken, restoredObservation: restoredObservation).ConfigureAwait(false);
         OnPropertyChanged();
     }

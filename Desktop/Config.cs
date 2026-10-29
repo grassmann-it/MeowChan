@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using MeowChan.Models;
+using MeowChan.Desktop;
 using MeowChan.Persistence;
 using Serilog;
 
@@ -61,6 +62,8 @@ namespace MeowChan
         private string _language = "en";
         private string _workspaceMode = "Barebones";
         private int _videoVolume = 70;
+        private string _galleryPlaybackMode = "Manual";
+        private int _gallerySlideshowSeconds = 5;
         private double _windowWidth = 1380;
         private double _windowHeight = 850;
         private double? _windowPositionX;
@@ -148,6 +151,8 @@ namespace MeowChan
 
         void IJsonOnDeserialized.OnDeserialized()
         {
+            // Couple only after all legacy keys have been read, independent of JSON order.
+            NormalizeGalleryControls();
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
             if (_deserializedLayoutProfiles == null) return;
@@ -192,6 +197,10 @@ namespace MeowChan
         internal string? SettingsBaselineWorkspaceMode { get; set; }
         [JsonIgnore]
         internal Dictionary<string, PresentationProfile>? SettingsBaselineProfiles { get; set; }
+        [JsonIgnore]
+        internal int? SettingsBaselineVideoVolume { get; set; }
+        [JsonIgnore]
+        internal GalleryPlaybackPreferences? SettingsBaselineGalleryPlayback { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -217,6 +226,26 @@ namespace MeowChan
         public bool VideoStartMuted { get; set; }
         [JsonConverter(typeof(DesktopPreferenceVolumeConverter))]
         public int VideoVolume { get => _videoVolume; set => _videoVolume = Math.Clamp(value, 0, 100); }
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryPlaybackMode
+        {
+            get => _galleryPlaybackMode;
+            set => _galleryPlaybackMode = string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase) ? "Repeat"
+                : string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+        }
+        [JsonConverter(typeof(DesktopPreferenceSlideshowSecondsConverter))]
+        public int GallerySlideshowSeconds { get => _gallerySlideshowSeconds; set => _gallerySlideshowSeconds = Math.Clamp(value, 1, 300); }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryMediaFocus { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryOverlayControls { get; set; }
+        // Keep both serialized keys for older profiles; explicit actions use
+        // GalleryPlaybackPreferences.WithControlsOverlay rather than coupled setters.
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryAutoHideControls { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryOverlayPostContext { get; set; }
+
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowShortcutHelp { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -384,8 +413,15 @@ namespace MeowChan
             return defaults;
         }
 
+        private void NormalizeGalleryControls()
+        {
+            GalleryAutoHideControls = GalleryOverlayControls;
+            SettingsBaselineGalleryPlayback = SettingsBaselineGalleryPlayback?.Normalize();
+        }
+
         public void Validate()
         {
+            NormalizeGalleryControls();
             if (SourceMediaIntegrityPermissions == null || SourceMediaIntegrityPermissions.Count > 1024)
                 throw new InvalidDataException("Saved source media permissions are invalid.");
             foreach ((string key, SourceMediaIntegrityPermission permission) in SourceMediaIntegrityPermissions)
@@ -479,6 +515,10 @@ namespace MeowChan
                 SettingsBaselineCompactDensity = CompactDensity,
                 SettingsBaselineReadingFontSize = ReadingFontSize,
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
+                SettingsBaselineVideoVolume = VideoVolume,
+                // A fresh draft captures the current normalized state. Session admission
+                // restores the editor's original baseline after freezing via Clone().
+                SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
                 SettingsBaselineProfiles = new[] { "Barebones", "Simple", "Advanced" }
                     .ToDictionary(mode => mode, mode => GetLayoutProfile(mode).Clone(), StringComparer.Ordinal),
                 ArchiveMediaTiles = ArchiveMediaTiles,
@@ -487,6 +527,12 @@ namespace MeowChan
                 VideoAutoplay = VideoAutoplay,
                 VideoStartMuted = VideoStartMuted,
                 VideoVolume = VideoVolume,
+                GalleryPlaybackMode = GalleryPlaybackMode,
+                GallerySlideshowSeconds = GallerySlideshowSeconds,
+                GalleryMediaFocus = GalleryMediaFocus,
+                GalleryOverlayControls = GalleryOverlayControls,
+                GalleryAutoHideControls = GalleryOverlayControls,
+                GalleryOverlayPostContext = GalleryOverlayPostContext,
                 ShowShortcutHelp = ShowShortcutHelp,
                 GalleryContextOpen = GalleryContextOpen,
                 ArchiveSplitWidth = ArchiveSplitWidth,
@@ -548,6 +594,7 @@ namespace MeowChan
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
             VideoVolume = source.VideoVolume;
+            GalleryPlaybackPreferences.FromConfig(source).ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
             GalleryContextOpen = source.GalleryContextOpen;
             ArchiveSplitWidth = source.ArchiveSplitWidth;
@@ -607,7 +654,15 @@ namespace MeowChan
             WorkspaceMode = source.WorkspaceMode;
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
-            VideoVolume = source.VideoVolume;
+            // Gallery volume is also a direct preference. An unchanged settings
+            // draft must not roll back a newer gallery adjustment.
+            if (!source.SettingsBaselineVideoVolume.HasValue || source.VideoVolume != source.SettingsBaselineVideoVolume.Value)
+                VideoVolume = source.VideoVolume;
+            GalleryPlaybackPreferences galleryDraft = GalleryPlaybackPreferences.FromConfig(source);
+            if (source.SettingsBaselineGalleryPlayback is { } galleryBaseline)
+                galleryDraft.ApplyChangesTo(this, galleryBaseline);
+            else
+                galleryDraft.ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
         }
 
@@ -823,6 +878,19 @@ namespace MeowChan
                 return Math.Clamp(value, 0, 100);
             reader.Skip();
             return 70;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowSecondsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, 1, 300);
+            reader.Skip();
+            return 5;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

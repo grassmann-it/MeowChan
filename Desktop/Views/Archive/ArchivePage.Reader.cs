@@ -39,6 +39,8 @@ public partial class ArchivePage
         set { _readingFontSizePreference = value; Control<ListBox>("ArchivePosts").FontSize = value; }
     }
     private bool _largeReader;
+    private readonly ReaderPostTailSpace _readerPostTailSpace = new();
+    private double _readerPostTailInset;
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
     private string? _readerPostId;
@@ -171,6 +173,10 @@ public partial class ArchivePage
         }
         Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
         ListBox posts = Control<ListBox>("ArchivePosts");
+        posts.ContainerPrepared += (_, e) => UpdateReaderPostTailSpace();
+        posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
+        posts.ContainerClearing += (_, e) => _readerPostTailSpace.Release(e.Container);
+        posts.DetachedFromVisualTree += (_, _) => _readerPostTailSpace.Update(null, 0);
         posts.SelectionChanged += (_, _) =>
         {
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
@@ -357,20 +363,15 @@ public partial class ArchivePage
         Control<WrapPanel>("ReaderStatusLine").IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = Control<Grid>("ReaderContentSurface");
         ListBox posts = Control<ListBox>("ArchivePosts");
-        const double navigationSize = 108; // Three 32-DIP buttons, two 2-DIP gaps, 4-DIP padding.
-        const double sideReserve = navigationSize + 24 + 12;
-        const double bottomReserve = navigationSize + 2;
-        // Keep the whole cross outside the scrolling area. Short windows use
-        // a side lane too, preserving a usable reading height instead of
-        // spending it on three rows of navigation buttons.
-        bool shortReadingArea = posts.Parent is Control postArea && postArea.Bounds.Height < bottomReserve + 120;
-        bool sideSpace = _largeReader && (surface.Bounds.Width >= posts.MaxWidth + sideReserve || shortReadingArea);
-        posts.Margin = !_largeReader ? default : sideSpace ? new Thickness(0, 0, sideReserve, 0) : new Thickness(0, 0, 0, bottomReserve);
+        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, posts.MaxWidth);
+        posts.Margin = layout.PostMargin;
+        _readerPostTailInset = layout.TailInset;
+        UpdateReaderPostTailSpace();
         // Secondary tabs keep full-width filters and footers. Reserve only
         // their scrolling surface, so the cross cannot consume their height
         // or force another line of media filters in a narrow window.
         tabs.Margin = default;
-        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, sideReserve, 0) : default;
+        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, ReaderNavigationLayout.SideReserve, 0) : default;
         Control<Grid>("ArchiveMediaSurface").Margin = secondaryLane;
         Control<ListBox>("ArchiveReferences").Margin = secondaryLane;
         if (!_largeReader) return;
@@ -383,7 +384,20 @@ public partial class ArchivePage
         double bottom = 16;
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
-        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, 24, bottom);
+        double right = 24;
+        // MaxWidth can center the post list even just below the free-side-lane
+        // threshold. Anchor inside its right edge, leaving the scrollbar clear.
+        if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
+            && posts.TranslatePoint(default, surface) is Point postPosition)
+            right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
+        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, right, bottom);
+    }
+
+    private void UpdateReaderPostTailSpace()
+    {
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        Control? tail = posts.ItemCount > 0 ? posts.ContainerFromIndex(posts.ItemCount - 1) : null;
+        _readerPostTailSpace.Update(tail, _readerPostTailInset);
     }
 
     private async void OnReaderNavigationClick(object? sender, RoutedEventArgs e)

@@ -48,9 +48,11 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
         ResourceId id = new ResourceId(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
         string directory = StorageLayout.GetThreadDirectory(outputRoot, thread);
         ArchiveThreadSummary summary = await Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(id, thread.Url,
-            thread.Title, directory, !restored), cancellationToken).ConfigureAwait(false);
+            thread.SourceTitle, directory, !restored), cancellationToken).ConfigureAwait(false);
         ThreadContentContext context = new ThreadContentContext(this, summary);
         await context.InitializeFiltersAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        thread.RestoreTitleMetadata(summary.Title, context.OpeningTitle);
         thread.AttachContent(context);
     }
 
@@ -80,6 +82,10 @@ internal sealed class ThreadContentContext
     private bool _enabled;
     private DateTimeOffset? _capturedAt;
     private FailureInfo? _captureFailure;
+    private FailureInfo? _titleFailure;
+    private string? _pendingTitle;
+    private string _savedTitle;
+    internal string OpeningTitle { get; private set; } = string.Empty;
     private FailureInfo? _selectionFailure;
     private FailureInfo? _sourceFailure;
     private ThreadSourceState? _sourceStateToSave;
@@ -95,13 +101,14 @@ internal sealed class ThreadContentContext
         _directory = summary.MediaDirectory;
         _enabled = summary.CaptureEnabled;
         _capturedAt = summary.LastCapturedAt;
+        _savedTitle = summary.Title;
     }
 
     internal ThreadContentStatus Snapshot
     {
-        get { lock (_state) return new ThreadContentStatus(_enabled, _capturedAt, _captureFailure ?? _sourceFailure, _selectionFailure ?? _filterFailure, _excluded); }
+        get { lock (_state) return new ThreadContentStatus(_enabled, _capturedAt, _captureFailure ?? _titleFailure ?? _sourceFailure, _selectionFailure ?? _filterFailure, _excluded); }
     }
-    internal bool NeedsRetry { get { lock (_state) return _captureFailure != null || _sourceFailure != null || _selectionFailure != null; } }
+    internal bool NeedsRetry { get { lock (_state) return _captureFailure != null || _titleFailure != null || _sourceFailure != null || _selectionFailure != null; } }
 
     internal async Task RecordSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
     {
@@ -145,17 +152,36 @@ internal sealed class ThreadContentContext
         lock (_state) enabled = _enabled;
         if (observed != null)
         {
+            if (observed.Id != _id) throw new ArgumentException("Observation belongs to another thread.", nameof(observed));
             if (!restoredObservation) observed = ArchiveCatalog.StampObservedAttachments(observed);
+            // A replay is not a new source observation and must not replace newer
+            // metadata already bound from the catalog.
+            if ((!restoredObservation || string.IsNullOrWhiteSpace(_savedTitle)) && !string.IsNullOrWhiteSpace(observed.Title))
+            {
+                _pendingTitle = observed.Title == _savedTitle ? null : observed.Title;
+                if (_pendingTitle == null) lock (_state) _titleFailure = null;
+            }
             _latest = observed; _lastObservedSourceState = observed.SourceState; RememberPostIds(observed.Posts);
         }
         observed ??= enabled && (forceLatest || _capturedAt == null) ? _latest : null;
         if (enabled && observed != null)
             _pending = _pending == null ? observed : ArchiveCaptureMerge.Merge(_pending, observed);
-        if (_pending == null) { await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false); return; }
+        if (_pending == null)
+        {
+            await SaveTitleAsync(cancellationToken).ConfigureAwait(false);
+            await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
         try
         {
-            await _runtime.Catalog.CapturePreservingRevisionsAsync(_pending with { SourceState = _lastObservedSourceState ?? _pending.SourceState }, cancellationToken).ConfigureAwait(false);
-            lock (_state) { _capturedAt = _pending.CapturedAt; _captureFailure = null; }
+            // Pending post captures can predate later metadata-only observations.
+            string title = _pendingTitle ?? _savedTitle;
+            await _runtime.Catalog.CapturePreservingRevisionsAsync(_pending with {
+                Title = title, SourceState = _lastObservedSourceState ?? _pending.SourceState
+            }, cancellationToken).ConfigureAwait(false);
+            _savedTitle = title;
+            _pendingTitle = null;
+            lock (_state) { _capturedAt = _pending.CapturedAt; _captureFailure = null; _titleFailure = null; }
             _pending = null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -163,9 +189,24 @@ internal sealed class ThreadContentContext
         {
             lock (_state) _captureFailure = new FailureInfo(FailureKind.Storage, exception.Message);
         }
+        await SaveTitleAsync(cancellationToken).ConfigureAwait(false);
         await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false);
         }
         finally { _captureGate.Release(); }
+    }
+
+    private async Task SaveTitleAsync(CancellationToken cancellationToken)
+    {
+        if (_pendingTitle == null) return;
+        try
+        {
+            await _runtime.Catalog.UpdateObservedTitleAsync(_id, _pendingTitle, cancellationToken).ConfigureAwait(false);
+            _savedTitle = _pendingTitle;
+            _pendingTitle = null;
+            lock (_state) _titleFailure = null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception) { lock (_state) _titleFailure = new FailureInfo(FailureKind.Storage, exception.Message); }
     }
 
     internal async Task<IReadOnlyList<DownloadItem>> RestoreCandidatesAsync(BaseThread owner, CancellationToken cancellationToken)
@@ -284,6 +325,8 @@ internal sealed class ThreadContentContext
         }
         await using ArchiveReader reader = await _runtime.OpenReaderAsync(token).ConfigureAwait(false);
         ArchivedThreadView? view = await reader.ReadThreadAsync(_id, token).ConfigureAwait(false);
+        if (view != null)
+            OpeningTitle = ArchiveText.PlainText(ThreadTitleText.OpeningHtml(_id, view.Posts));
         if (view != null) for (int offset = 0; offset < view.PostCount; offset += 500) RememberPostIds(view.GetPosts(offset, 500));
     }
 

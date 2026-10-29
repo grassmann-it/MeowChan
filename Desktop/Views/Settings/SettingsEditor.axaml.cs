@@ -53,6 +53,13 @@ namespace MeowChan
         private bool _initialCompactDensity;
         private string _initialReadingFontSize = "Normal";
         private string _initialWorkspaceMode = "Barebones";
+        private int _initialVideoVolume;
+        private GalleryPlaybackPreferences _initialGalleryPlayback = new();
+        private SettingsChoice? _selectedGalleryPlaybackMode;
+        private decimal? _gallerySlideshowSeconds = 5;
+        private bool _galleryMediaFocus;
+        private bool _galleryOverlayControls;
+        private bool _galleryOverlayPostContext;
         private SettingsChoice? _selectedReadingFontSize;
         private bool _videoAutoplay;
         private bool _videoStartMuted;
@@ -91,6 +98,7 @@ namespace MeowChan
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> GalleryPlaybackModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<LanguageInfo> LanguageChoices { get; private set; } = Array.Empty<LanguageInfo>();
 
@@ -141,6 +149,7 @@ namespace MeowChan
             _initialCompactDensity = config.CompactDensity;
             _initialReadingFontSize = config.ReadingFontSize;
             _initialWorkspaceMode = config.WorkspaceMode;
+            _initialVideoVolume = config.VideoVolume;
             _applySettings = applySettings;
             _forgetReadingPosition = forgetReadingPosition ?? (applySettings == null
                 ? () => Task.Run(config.ForgetReadingPositionFile) : null);
@@ -157,6 +166,7 @@ namespace MeowChan
             VideoAutoplay = config.VideoAutoplay;
             VideoStartMuted = config.VideoStartMuted;
             VideoVolume = config.VideoVolume;
+            ResetGalleryPlaybackDraft();
             ShowShortcutHelp = config.ShowShortcutHelp;
             RememberReadingPosition = config.RememberReadingPosition;
             AutomaticUpdateChecks = config.AutomaticUpdateChecks;
@@ -182,6 +192,7 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             Texts.Changed += OnLanguageChanged;
         }
@@ -226,6 +237,18 @@ namespace MeowChan
         public string VideoAutoplayLabel => Texts.T("r08d.settings.videoAutoplay");
         public string VideoStartMutedLabel => Texts.T("r08d.settings.videoStartMuted");
         public string VideoVolumeLabel => Texts.T("r08d.settings.videoVolume");
+        public string GalleryPlaybackTitle => GalleryPlaybackCatalog.Title;
+        public string GalleryPlaybackModeLabel => GalleryPlaybackCatalog.Mode;
+        public string GallerySlideshowSecondsLabel => GalleryPlaybackCatalog.ImageSeconds;
+        public string GallerySlideshowSecondsHelp => GallerySlideshowSecondsInputError.IsVisible
+            ? GallerySlideshowSecondsInputError.Text ?? GalleryPlaybackCatalog.ImageSecondsHelp : GalleryPlaybackCatalog.ImageSecondsHelp;
+        public string GalleryPlaybackModeHelp => GalleryPlaybackCatalog.ModeHelp;
+        public string GalleryMediaFocusLabel => GalleryPlaybackCatalog.MediaFocus;
+        public string GalleryOverlayControlsLabel => GalleryPlaybackCatalog.OverlayControls;
+        public string GalleryAutoHideControlsLabel => GalleryPlaybackCatalog.AutoHideControls;
+        public string GalleryOverlayPostContextLabel => GalleryPlaybackCatalog.OverlayPostContext;
+        public string GalleryOverlayHelp => GalleryPlaybackCatalog.OverlayHelp;
+        public string GalleryPlaybackProfileHelp => GalleryPlaybackCatalog.ProfileHelp;
         public string ShowShortcutHelpLabel => Texts.T("r08d.settings.shortcutHelp");
         public string AboutLabel => Texts.T("r08d.settings.about");
         public string BehaviorTitle => Texts.T("settings.behavior");
@@ -275,6 +298,51 @@ namespace MeowChan
         public bool VideoAutoplay { get => _videoAutoplay; set => SetField(ref _videoAutoplay, value, nameof(VideoAutoplay)); }
         public bool VideoStartMuted { get => _videoStartMuted; set => SetField(ref _videoStartMuted, value, nameof(VideoStartMuted)); }
         public int VideoVolume { get => _videoVolume; set => SetField(ref _videoVolume, value, nameof(VideoVolume)); }
+        public SettingsChoice? SelectedGalleryPlaybackMode
+        {
+            get => _selectedGalleryPlaybackMode;
+            set
+            {
+                SetField(ref _selectedGalleryPlaybackMode, value, nameof(SelectedGalleryPlaybackMode));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+            }
+        }
+        public bool IsGallerySlideshow => SelectedGalleryPlaybackMode?.Value == "Slideshow";
+        public decimal? GallerySlideshowSeconds { get => _gallerySlideshowSeconds; set => SetField(ref _gallerySlideshowSeconds, value, nameof(GallerySlideshowSeconds)); }
+        public bool GalleryMediaFocus
+        {
+            get => _galleryMediaFocus;
+            set => SetField(ref _galleryMediaFocus, value, nameof(GalleryMediaFocus));
+        }
+        public bool GalleryOverlayControls
+        {
+            get => _galleryOverlayControls;
+            set
+            {
+                if (_galleryOverlayControls == value) return;
+                // One backing value keeps both aliases coherent even during notifications.
+                SetField(ref _galleryOverlayControls, value, nameof(GalleryOverlayControls));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GalleryAutoHideControls)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowGalleryOverlayOptions)));
+            }
+        }
+        public bool ShowGalleryOverlayOptions => GalleryOverlayControls;
+        public bool GalleryAutoHideControls { get => GalleryOverlayControls; set => GalleryOverlayControls = value; }
+        public bool GalleryOverlayPostContext { get => _galleryOverlayPostContext; set => SetField(ref _galleryOverlayPostContext, value, nameof(GalleryOverlayPostContext)); }
+
+        private void ResetGalleryPlaybackDraft()
+        {
+            // Capture at editor creation, explicit discard and successful save only.
+            // A later runtime gallery change must not become this draft's baseline.
+            _initialGalleryPlayback = GalleryPlaybackPreferences.FromConfig(_config);
+            string mode = _initialGalleryPlayback.Mode.ToString();
+            SelectedGalleryPlaybackMode = GalleryPlaybackModeChoices.FirstOrDefault(item => item.Value == mode) ?? new(mode, mode);
+            GallerySlideshowSeconds = _initialGalleryPlayback.ImageSeconds;
+            GalleryMediaFocus = _initialGalleryPlayback.MediaFocus;
+            GalleryOverlayControls = _initialGalleryPlayback.OverlayControls;
+            GalleryOverlayPostContext = _initialGalleryPlayback.OverlayPostContext;
+        }
+
         public bool ShowShortcutHelp { get => _showShortcutHelp; set => SetField(ref _showShortcutHelp, value, nameof(ShowShortcutHelp)); }
 
         public SettingsChoice? SelectedWorkspaceMode
@@ -367,7 +435,11 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
-                if (value == null) ClearFieldErrors();
+                if (value == null)
+                {
+                    ClearFieldErrors();
+                    ClearGalleryPlaybackError();
+                }
                 else if (!_refreshingLanguageLabels) { _suppressPassiveErrorReveal = false; _sectionNavigation?.CancelPendingNavigation(); }
                 SetField(ref _errorMessage, value, nameof(ErrorMessage));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasError)));
@@ -442,7 +514,9 @@ namespace MeowChan
             CompactDensity = _config.CompactDensity;
             VideoAutoplay = _config.VideoAutoplay;
             VideoStartMuted = _config.VideoStartMuted;
+            _initialVideoVolume = _config.VideoVolume;
             VideoVolume = _config.VideoVolume;
+            ResetGalleryPlaybackDraft();
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
@@ -465,6 +539,7 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
             ErrorMessage = null;
             StatusMessage = null;
@@ -551,6 +626,9 @@ namespace MeowChan
                     nameof(FilterHeapMiBLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
+                    nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
+                    nameof(GalleryPlaybackModeHelp), nameof(GalleryMediaFocusLabel), nameof(GalleryOverlayControlsLabel),
+                    nameof(GalleryAutoHideControlsLabel), nameof(GalleryOverlayPostContextLabel), nameof(GalleryOverlayHelp), nameof(GalleryPlaybackProfileHelp),
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
                     nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(RestoreSessionLabel),
                     nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel),
@@ -569,6 +647,7 @@ namespace MeowChan
                     try
                     {
                     ClearFieldErrors();
+                    ClearGalleryPlaybackError();
                     if (pathError)
                     {
                         DownloadPathInputError.Text = Texts.T("settings.pathInvalid");
@@ -577,7 +656,11 @@ namespace MeowChan
                         _firstInvalidInput = DownloadPathInput;
                         FinishFieldValidation(focusError: false);
                     }
-                    else ValidateNumericDraft(focusError: false);
+                    else
+                    {
+                        ValidateNumericDraft(focusError: false);
+                        ValidateGalleryPlaybackDraft(focusError: false);
+                    }
                     }
                     finally { _refreshingLanguageLabels = false; }
                 }
@@ -613,6 +696,15 @@ namespace MeowChan
                 new SettingsChoice("Normal", Texts.T("r08d.settings.fontNormal")),
                 new SettingsChoice("Large", Texts.T("r08d.settings.fontLarge"))
             };
+            string galleryMode = SelectedGalleryPlaybackMode?.Value ?? _initialGalleryPlayback.Mode.ToString();
+            GalleryPlaybackModeChoices = new SettingsChoice[]
+            {
+                new("Manual", GalleryPlaybackCatalog.Manual),
+                new("Repeat", GalleryPlaybackCatalog.Repeat),
+                new("Slideshow", GalleryPlaybackCatalog.Slideshow)
+            };
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GalleryPlaybackModeChoices)));
+            SelectedGalleryPlaybackMode = GalleryPlaybackModeChoices.FirstOrDefault(item => item.Value == galleryMode) ?? GalleryPlaybackModeChoices[0];
             WorkspaceChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Barebones", Texts.T("mode.barebones")),
@@ -704,7 +796,7 @@ namespace MeowChan
             StatusMessage = null;
             try
             {
-                if (!ValidateNumericDraft())
+                if (!ValidateNumericDraft() || !ValidateGalleryPlaybackDraft())
                     return;
 
                 // Reveal before shortcut validation captures focus for its guarded
@@ -735,6 +827,9 @@ namespace MeowChan
                 candidate.VideoAutoplay = VideoAutoplay;
                 candidate.VideoStartMuted = VideoStartMuted;
                 candidate.VideoVolume = VideoVolume;
+                candidate.SettingsBaselineVideoVolume = _initialVideoVolume;
+                CaptureGalleryPlaybackDraft().ApplyTo(candidate);
+                candidate.SettingsBaselineGalleryPlayback = _initialGalleryPlayback;
                 candidate.ShowShortcutHelp = ShowShortcutHelp;
                 candidate.RememberReadingPosition = RememberReadingPosition;
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
@@ -811,7 +906,9 @@ namespace MeowChan
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
             VideoAutoplay = _config.VideoAutoplay;
             VideoStartMuted = _config.VideoStartMuted;
+            _initialVideoVolume = _config.VideoVolume;
             VideoVolume = _config.VideoVolume;
+            ResetGalleryPlaybackDraft();
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
@@ -834,7 +931,50 @@ namespace MeowChan
             ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
+            ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
+        }
+
+        private void ClearGalleryPlaybackError()
+        {
+            GallerySlideshowSecondsInputError.IsVisible = false;
+            GallerySlideshowSecondsInputError.Text = null;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
+        }
+
+        internal static bool TryParseGalleryImageSeconds(string? text, NumberStyles style, IFormatProvider? format, out int seconds)
+        {
+            seconds = 0;
+            if (!decimal.TryParse(text, style, format, out decimal number) || number < 1 || number > 300 || decimal.Truncate(number) != number)
+                return false;
+            seconds = decimal.ToInt32(number);
+            return true;
+        }
+
+        private bool ValidateGalleryPlaybackDraft(bool focusError = true)
+        {
+            if (!IsGallerySlideshow) return true;
+            if (TryParseGalleryImageSeconds(GallerySlideshowSecondsInput.Text, GallerySlideshowSecondsInput.ParsingNumberStyle,
+                GallerySlideshowSecondsInput.NumberFormat, out _) && !DataValidationErrors.GetHasErrors(GallerySlideshowSecondsInput)) return true;
+            GallerySlideshowSecondsInputError.Text = Texts.T("settings.fieldInteger", GallerySlideshowSecondsLabel, 1, 300);
+            GallerySlideshowSecondsInputError.IsVisible = true;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
+            _firstInvalidInput ??= GallerySlideshowSecondsInput;
+            return FinishFieldValidation(focusError);
+        }
+
+        private GalleryPlaybackPreferences CaptureGalleryPlaybackDraft()
+        {
+            // Inactive slideshow controls cannot block an unrelated save with rejected hidden text.
+            int seconds = TryParseGalleryImageSeconds(GallerySlideshowSecondsInput.Text, GallerySlideshowSecondsInput.ParsingNumberStyle,
+                GallerySlideshowSecondsInput.NumberFormat, out int parsed) ? parsed : _initialGalleryPlayback.ImageSeconds;
+            GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value switch
+            {
+                "Repeat" => GalleryPlaybackMode.Repeat,
+                "Slideshow" => GalleryPlaybackMode.Slideshow,
+                _ => GalleryPlaybackMode.Manual
+            };
+            return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext);
         }
 
         private static int GetInteger(decimal? value, string label, int minimum, int maximum)

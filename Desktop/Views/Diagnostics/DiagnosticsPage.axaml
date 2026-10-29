@@ -19,12 +19,19 @@
                 <Border Classes="workspace-section" Padding="12,8">
                     <TextBlock x:Name="DiagnosticsSummary" TextWrapping="Wrap" />
                 </Border>
+                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
+                    <TextBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
+                    <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
+                    <Button x:Name="DiagnosticClearFilters" Click="OnClearDiagnosticFilters" />
+                </WrapPanel>
+                <TextBlock x:Name="DiagnosticFilterSummary" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Tag="diagnostics.current" Classes="section-title localized" TextWrapping="Wrap" />
                 <Grid x:Name="DiagnosticSplit" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="12">
                     <Border x:Name="DiagnosticListPane" Classes="panel">
                         <Grid>
                             <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" Height="200"
-                                      GridLinesVisibility="None" SelectionMode="Single" RowHeight="44"
+                                      GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn MinWidth="150" Width="150" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
@@ -71,6 +78,8 @@
             </ScrollViewer>
             <WrapPanel Classes="workspace-toolbar">
                 <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" />
+                <Button x:Name="RetryDiagnosticSelectionButton" Click="OnRetryDiagnosticSelection" />
+                <Button x:Name="RetryDiagnosticFilteredButton" Click="OnRetryDiagnosticFiltered" />
                 <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
                 <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
                 <Button x:Name="ManageMediaRatingsButton" Click="OnManageMediaRatingsClick" />

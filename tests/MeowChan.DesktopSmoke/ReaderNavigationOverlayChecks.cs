@@ -42,7 +42,9 @@ internal static class ReaderNavigationOverlayChecks
                 && (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id == "1003");
             foreach (var size in new[] { (Mode: "Simple", Width: 1440d, Height: 920d),
                 (Mode: "Simple", Width: 760d, Height: 500d), (Mode: "Advanced", Width: 760d, Height: 500d),
-                (Mode: "Barebones", Width: 640d, Height: 480d) })
+                (Mode: "Barebones", Width: 640d, Height: 480d),
+                (Mode: "Simple", Width: 760d, Height: 800d),
+                (Mode: "Barebones", Width: 640d, Height: 800d) })
             {
                 await PresentationChecks.SwitchModeAsync(window, size.Mode);
                 window.Width = size.Width; window.Height = size.Height;
@@ -64,7 +66,8 @@ internal static class ReaderNavigationOverlayChecks
                                 .Any(item => item.DataContext is ArchivePostRow post && post.Id == "1003")));
                     window.UpdateLayout();
                     CheckGeometry(window, page);
-                    string name = $"smoke-reader-navigation-{size.Mode.ToLowerInvariant()}-{size.Width}-{code}-{variant.ToString().ToLowerInvariant()}.png";
+                    await CheckOverlayTailReadabilityAsync(window, page);
+                    string name = $"smoke-reader-navigation-{size.Mode.ToLowerInvariant()}-{size.Width}x{size.Height}-{code}-{variant.ToString().ToLowerInvariant()}.png";
                     Program.CaptureWindow(window, name);
                 }
             }
@@ -80,8 +83,8 @@ internal static class ReaderNavigationOverlayChecks
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 CheckGeometry(window, page);
                 Thickness reserved = page.FindControl<ListBox>("ArchivePosts")!.Margin;
-                Require(transitionWidth < 1308 ? reserved.Bottom > 0 && reserved.Right == 0 : reserved.Right > 0 && reserved.Bottom == 0,
-                    "Reader navigation failed to adapt on both sides of its available-width threshold.");
+                Require(reserved.Bottom == 0 && (transitionWidth < 1308 ? reserved.Right == 0 : reserved.Right > 0),
+                    "Reader navigation reserved a bottom row or lost the genuinely free wide-screen side lane.");
             }
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
             window.Width = 640; window.Height = 480;
@@ -148,7 +151,7 @@ internal static class ReaderNavigationOverlayChecks
             await page.FocusPostAsync("1000");
             window.UpdateLayout();
         }
-        Console.WriteLine("SMOKE reader navigation overlay: 16 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; scrolled text, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, centered arrow cross and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
+        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-height overlaid narrow viewport, scrollable last-post clearance, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, centered arrow cross and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
     }
 
     private static bool HasRenderedPost(ArchivePage page) => page.FindControl<ListBox>("ArchivePosts")!
@@ -190,12 +193,20 @@ internal static class ReaderNavigationOverlayChecks
         ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
         Require(scroll.Viewport.Height >= 100, "Navigation reduced the small-window reader viewport below 100 DIP.");
         Rect postBounds = Bounds(posts, window);
-        Require(postBounds.Right <= pad.Left - 4 || postBounds.Bottom <= pad.Top - 4,
-            "Scrolled post content can pass beneath the reader navigation.");
+        Rect postArea = Bounds((Control)posts.Parent!, window);
+        Require(posts.Margin.Bottom == 0 && Math.Abs(postBounds.Bottom - postArea.Bottom) <= 1,
+            "Reader navigation still subtracts a full-width bottom lane from the thread viewport.");
+        Require(posts.ItemsPanelRoot is VirtualizingStackPanel,
+            "Overlay navigation disabled post virtualization.");
+        if (posts.Margin.Right == 0)
+            Require(postBounds.Intersect(pad).Height > 0 && postBounds.Intersect(pad).Width > 0,
+                "Narrow navigation is not an overlay inside the full-height thread viewport.");
+        else Require(postBounds.Right <= pad.Left - 4,
+            "Wide-screen navigation lost its free side lane.");
         Console.WriteLine($"SMOKE reader navigation geometry: mode={Config.LoadConfig().WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
         foreach (ScrollBar bar in posts.GetVisualDescendants().OfType<ScrollBar>()
             .Where(bar => bar.IsEffectivelyVisible && bar.Orientation == Orientation.Vertical && bar.Bounds.Width > 0))
-            Require(Bounds(bar, window).Right <= pad.Left - 4 || Bounds(bar, window).Bottom <= pad.Top - 4,
+            Require(Separated(Bounds(bar, window), pad, 4),
                 "Reader navigation crowds or covers the vertical scrollbar.");
         foreach (var command in new[] { (Name: "ReaderPreviousThread", Id: "reader.previous-thread"),
             (Name: "ReaderNextThread", Id: "reader.next-thread"), (Name: "ReaderPreviousPost", Id: "reader.previous-post"),
@@ -208,6 +219,32 @@ internal static class ReaderNavigationOverlayChecks
                 && ToolTip.GetTip(button) as string == CommandBindings.Tooltip(command.Id),
                 command.Name + " lost its stable visible button or localized command semantics.");
         }
+    }
+
+    private static async Task CheckOverlayTailReadabilityAsync(MainWindow window, ArchivePage page)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        if (posts.Margin.Right > 0 || posts.ItemCount == 0) return;
+        object last = posts.Items[posts.ItemCount - 1]!;
+        posts.ScrollIntoView(last);
+        ScrollViewer scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
+        for (int pass = 0; pass < 6; pass++)
+        {
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Loaded);
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        }
+        Control? tail = posts.ContainerFromIndex(posts.ItemCount - 1);
+        Rect pad = Bounds(page.FindControl<WrapPanel>("ReaderNavigation")!, window);
+        Require(tail != null && tail.Margin.Bottom >= ReaderNavigationLayout.OverlayTailInset,
+            "Narrow reader has no scrollable tail clearance for its final post.");
+        Rect content = Bounds(tail!, window);
+        Console.WriteLine("SMOKE reader overlay tail: " + System.Text.Json.JsonSerializer.Serialize(new {
+            width = window.ClientSize.Width, scale = window.RenderScaling, viewport = scroll.Viewport.ToString(),
+            extent = scroll.Extent.ToString(), offset = scroll.Offset.ToString(), tail = content.ToString(),
+            tailMargin = tail!.Margin.ToString(), pad = pad.ToString() }));
+        Require(content.Bottom <= pad.Top - 4,
+            "The final post cannot be scrolled clear of the overlaid navigation cross.");
     }
 
     private static void CheckSecondaryNavigation(MainWindow window, ArchivePage page)

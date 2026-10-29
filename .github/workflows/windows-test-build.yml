@@ -1,0 +1,78 @@
+name: Windows current-state test build
+on:
+  push:
+    branches: ['test/windows-wip-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-test-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
+jobs:
+  windows-test:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Record test snapshot
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence, packages | Out-Null
+          git rev-parse HEAD | Set-Content evidence/source-commit.txt
+          dotnet --info | Set-Content evidence/dotnet.txt
+          "This is a Windows WIP test build, not a release/prerelease. Product version is unchanged. Package checks do not prove runtime/UI correctness." | Set-Content evidence/BOUNDARY.txt
+      - name: Restore locked Windows package graph
+        run: dotnet restore MeowChan.csproj -p:RuntimeIdentifier=win-x64 -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900 --disable-parallel
+      - name: Publish self-contained Windows app
+        run: dotnet publish MeowChan.csproj -c Release -r win-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:UseSharedCompilation=false -m:2 --output publish-output/win-x64
+      - name: Check packaged runtime and plugins
+        run: |
+          python scripts/check-desktop-package.py publish-output/win-x64 win-x64
+          python scripts/package-plugins.py --verify publish-output/win-x64 --runtime win-x64
+          python scripts/check-video-native.py publish-output/win-x64 win-x64
+      - name: Make test ZIP and checksum
+        shell: pwsh
+        run: |
+          $short = (git rev-parse --short=8 HEAD).Trim()
+          @'
+          MeowChan Windows current-state WIP test build
+          Not a release/prerelease, not a validated 1.0.2 candidate.
+          Product version remains 1.0.1; source commit is in SOURCE-COMMIT.txt.
+          Contains current implemented media/reader work and partial diagnostics changes.
+          Latest PLANNED keyboard/gallery-error/setup fixes are not implemented.
+          Back up your existing profile before using this test build.
+          Prefer a separate profile: in PowerShell before launching:
+            $env:MEOWCHAN_PROFILE = Join-Path $env:LOCALAPPDATA 'MeowChan-WIP-Test'
+            .\MeowChan.exe
+          This does not move or modify the normal profile. Do not copy an active profile.
+          Unsigned test binary; package presence checks are not native playback/UI acceptance.
+          '@ | Set-Content publish-output/win-x64/TEST-BUILD.txt -Encoding utf8
+          git rev-parse HEAD | Set-Content publish-output/win-x64/SOURCE-COMMIT.txt
+          $archive = "packages/MeowChan-test-$short-win-x64.zip"
+          Compress-Archive -Path publish-output/win-x64/* -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $archive)" | Set-Content "$archive.sha256" -Encoding utf8
+          "Source: $env:GITHUB_SHA. Download the Windows-test artifact below. No release, tag or prerelease was created. Artifact retention: 14 days." >> $env:GITHUB_STEP_SUMMARY
+      - name: Upload Windows test download
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: MeowChan-Windows-test-${{ github.sha }}
+          path: packages/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Show direct artifact link
+        shell: pwsh
+        run: '"Download: ${{ steps.upload.outputs.artifact-url }}" >> $env:GITHUB_STEP_SUMMARY'
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-test-build-evidence-${{ github.sha }}
+          path: evidence/**
+          retention-days: 14

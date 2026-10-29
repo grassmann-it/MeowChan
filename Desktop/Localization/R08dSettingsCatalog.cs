@@ -11,6 +11,7 @@ internal static class R08dSettingsCatalog
         ("feedback.hint", "Warnings and errors remain visible in Diagnostics and at the affected action.", "Warnungen und Fehler bleiben unter Diagnose und am betroffenen Vorgang sichtbar."),
         ("feedback.title", "Messages this session", "Meldungen dieser Sitzung"),
         ("feedback.empty", "No warnings or errors this session.", "Keine Warnungen oder Fehler in dieser Sitzung."),
+        ("feedback.dismiss", "Dismiss message", "Meldung ausblenden"),
         ("feedback.clear", "Clear session messages", "Sitzungsmeldungen leeren"),
         ("feedback.copy", "Copy message", "Meldung kopieren"),
         ("feedback.time", "Time", "Zeit"),

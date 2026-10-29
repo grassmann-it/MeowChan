@@ -99,7 +99,7 @@ public class FourChanBoard : BaseBoard
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 FourChanThread thread = new FourChanThread(this, FourChanParser.ThreadUri(BoardCode, entry.Id));
-                thread.Title = string.IsNullOrWhiteSpace(entry.Title) ? $"Thread {entry.Id}" : entry.Title;
+                thread.Title = entry.Title ?? string.Empty;
                 thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Text);
                 threads.Add(thread);
             }

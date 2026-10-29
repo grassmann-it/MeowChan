@@ -190,6 +190,18 @@ jobs:
         # The normal mode renders over 200 screenshots. Native macOS runners can
         # exceed three minutes while still making progress; per-check waits stay bounded.
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout ${{ runner.os == 'macOS' && '300' || '180' }} ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
+      - name: Exercise changed gallery features on the actual platform
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        shell: bash
+        env:
+          MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'
+        run: |
+          export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/gallery-features
+      - name: Exercise real OS media input (not synthetic routed keys)
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        shell: bash
+        run: python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 240 --output artifacts/media-native-input
       - name: Exercise tray lifecycle separately on the disposable runner
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
@@ -231,6 +243,8 @@ jobs:
           path: |
             test-results/**
             artifacts/desktop-smoke/**
+            artifacts/gallery-features/**
+            artifacts/media-native-input/**
             artifacts/desktop-tray-host/**
             artifacts/desktop-tray-stress/**
             artifacts/build-evidence/**

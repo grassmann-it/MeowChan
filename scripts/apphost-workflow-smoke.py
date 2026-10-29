@@ -40,9 +40,9 @@ playback = load_helper('workflow_playback_runner', 'apphost-playback-smoke.py')
 PHASES = ('download', 'restore', 'removed', 'shutdown')
 CHECKS = {
     'download': {'download-paused', 'download-resumed', 'download-verified', 'native-clipboard-roundtrip',
-                 'compact-window', 'tray-fallback', 'exports-created-updated-new', 'external-handoff',
+                 'compact-window', 'tray-fallback', 'exports-created-updated-new', 'gallery-preferences-persisted', 'external-handoff',
                  'gallery-navigation-active-download'},
-    'restore': {'restored-media-no-redownload', 'remove-keeps-local-media'},
+    'restore': {'restored-media-no-redownload', 'remove-keeps-local-media', 'gallery-preferences-restored-no-autorun'},
     'removed': {'removed-watch-not-restored'},
     'shutdown': {'active-transfer-shutdown-disposed'},
 }

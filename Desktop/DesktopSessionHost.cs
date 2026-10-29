@@ -279,6 +279,14 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
+    internal bool CanRetryMissingMedia(long watchId)
+    {
+        DesktopSessionProjection frame = Projection;
+        return frame.View.State == DesktopSessionState.Ready && !frame.IsStale
+            && frame.View.Threads.FirstOrDefault(entry => entry.WatchId == watchId)?.Snapshot.Work
+                is ThreadWorkSnapshot work && WorkStatusFormatter.Format(work).CanRetry;
+    }
+
     internal Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
         => RunInteractiveAsync(nameof(RetryMissingMediaAsync), watchId.ToString(), () => RetryMissingMediaAdmittedCoreAsync(watchId, mediaIdentifier));
 
@@ -362,6 +370,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.SettingsBaselineCompactDensity = settings.SettingsBaselineCompactDensity;
         frozen.SettingsBaselineReadingFontSize = settings.SettingsBaselineReadingFontSize;
         frozen.SettingsBaselineWorkspaceMode = settings.SettingsBaselineWorkspaceMode;
+        frozen.SettingsBaselineVideoVolume = settings.SettingsBaselineVideoVolume;
+        frozen.SettingsBaselineGalleryPlayback = settings.SettingsBaselineGalleryPlayback;
         frozen.SettingsBaselineProfiles = settings.SettingsBaselineProfiles?.ToDictionary(
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         frozen.Validate();

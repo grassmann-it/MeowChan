@@ -102,6 +102,7 @@ internal static class DiagnosticsFeedbackChecks
         }
         finally { page.EndLifetime(); host.Content = previous; }
         await CheckFeedbackSelectionAndMenusAsync(window, view);
+        await FeedbackChecks.CheckDismissalAsync(window);
         Console.WriteLine("SMOKE diagnostics feedback transitions: redraw retention, foreign-selection isolation, captured copy identity, newer-action ownership, target-retry isolation and ended ratings/listener guards passed.");
     }
     private static async Task CheckFeedbackSelectionAndMenusAsync(MainWindow window, DesktopSessionView view)

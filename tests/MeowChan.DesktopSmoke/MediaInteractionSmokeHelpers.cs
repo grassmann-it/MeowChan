@@ -1,0 +1,57 @@
+using System.Diagnostics;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.VisualTree;
+using Avalonia.Media;
+using MeowChan.Desktop;
+
+namespace MeowChan.DesktopSmoke;
+
+/// <summary>Geometry and decoder observations only; never fabricates input or playback state.</summary>
+internal static class MediaInteractionSmokeHelpers
+{
+    internal static bool EdgeHintVisible(Button target) => target.GetVisualDescendants().OfType<TextBlock>()
+        .Any(text => text.IsEffectivelyVisible && text.Opacity > .01);
+
+    internal static void RequireBorderlessEdgeTarget(Button target)
+    {
+        target.ApplyTemplate();
+        if (target.BorderThickness != new Thickness(0)
+            || target.Background is not ISolidColorBrush background || background.Color.A != 0
+            || target.GetVisualDescendants().OfType<Border>().Any(border => border.BorderThickness != new Thickness(0)
+                || border.Background is ISolidColorBrush fill && fill.Color.A != 0))
+            throw new InvalidOperationException("Edge hint has a persistent box/fill/border: " + target.Name);
+    }
+
+    internal static Point TrackPoint(Slider slider, double fraction)
+    {
+        if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));
+        Track track = slider.GetVisualDescendants().OfType<Track>().Single();
+        double thumb = track.Thumb?.Bounds.Width ?? 12;
+        return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
+            ?? throw new InvalidOperationException("Native slider track has no transform.");
+    }
+
+    internal static bool HasDecodedFrames(GalleryVideoPlayer.PlaybackEvidence evidence) =>
+        OperatingSystem.IsWindows() ? evidence.DisplayedFrames >= 3 : evidence.SurfaceFrames >= 3 && evidence.SurfaceNonUniform;
+
+    internal static async Task HoldStateAsync(GalleryVideoPlayer player, string expected, string interaction,
+        int milliseconds = 650)
+    {
+        GalleryVideoPlayer.PlaybackEvidence first = await player.InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
+        GalleryVideoPlayer.PlaybackEvidence last = first;
+        Stopwatch clock = Stopwatch.StartNew();
+        do
+        {
+            last = await player.InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
+            if (!last.HasPlayback || last.State != expected)
+                throw new InvalidOperationException($"{interaction} changed native {expected} intent to {last.State}.");
+            await Task.Delay(65);
+        } while (clock.ElapsedMilliseconds < milliseconds);
+        if (expected == "Playing" && last.Time <= first.Time + 150)
+            throw new InvalidOperationException(interaction + " left a Playing label but froze the actual decoder clock.");
+        if (expected == "Paused" && Math.Abs(last.Time - first.Time) > 120)
+            throw new InvalidOperationException(interaction + " advanced the paused decoder clock.");
+    }
+}

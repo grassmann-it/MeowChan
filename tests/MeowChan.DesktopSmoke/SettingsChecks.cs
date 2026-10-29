@@ -27,6 +27,9 @@ internal static class SettingsChecks
             await CheckFieldErrorsAsync(owner, Path.Combine(profile, "field-errors"));
             await CheckNumericBlurDraftAsync(owner, Path.Combine(profile, "blur-drafts"));
             await CheckCancelPreferencesAsync(owner, Path.Combine(profile, "cancel-preferences"));
+            await CheckGalleryVolumeMergeAsync(owner, Path.Combine(profile, "gallery-volume"));
+            CheckGalleryPairMigration(Path.Combine(profile, "gallery-pair-migration"));
+            await CheckGalleryPlaybackDraftAsync(owner, Path.Combine(profile, "gallery-playback"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
         finally
@@ -34,6 +37,148 @@ internal static class SettingsChecks
             if (Directory.Exists(profile))
                 Directory.Delete(profile, recursive: true);
         }
+    }
+
+    private static async Task CheckGalleryPlaybackDraftAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        Require(!config.GalleryOverlayControls && !config.GalleryAutoHideControls,
+            "A fresh profile must retain the coherent docked/auto-hide-OFF default.");
+        config.VideoVolume = 70;
+        config.SaveConfig(profile);
+        int commits = 0;
+        SettingsWindow window = new(config, candidate =>
+        {
+            config.CopySettingsFieldsFrom(candidate);
+            config.SaveConfig(profile);
+            commits++;
+            return Task.CompletedTask;
+        });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.reading-media");
+            window.Editor.SelectedGalleryPlaybackMode = window.Editor.GalleryPlaybackModeChoices.Single(choice => choice.Value == "Slideshow");
+            NumericUpDown seconds = window.Editor.FindControl<NumericUpDown>("GallerySlideshowSecondsInput")!;
+            seconds.Text = "invalid duration";
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
+            Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => window.Editor.FindControl<TextBlock>("GallerySlideshowSecondsInputError")!.IsEffectivelyVisible);
+            Require(commits == 0 && window.IsVisible, "Invalid slideshow duration was saved or discarded.");
+            seconds.Text = "9";
+            window.Editor.GalleryMediaFocus = false;
+            window.Editor.GalleryOverlayControls = true;
+            Require(window.Editor.GalleryOverlayControls && window.Editor.GalleryAutoHideControls,
+                "Overlay ON did not immediately pair auto-hide ON in the settings draft.");
+            window.Editor.GalleryAutoHideControls = false; // Legacy property remains an explicit paired alias.
+            Require(!window.Editor.GalleryOverlayControls && !window.Editor.GalleryAutoHideControls,
+                "Legacy auto-hide OFF left an inconsistent overlay draft.");
+            window.Editor.GalleryAutoHideControls = true;
+            Require(window.Editor.GalleryOverlayControls && window.Editor.GalleryAutoHideControls,
+                "Legacy auto-hide ON failed to enable the same pair.");
+            window.Editor.GalleryOverlayPostContext = true;
+            window.UpdateLayout();
+            CheckBox[] controlsChoices = window.Editor.GetVisualDescendants().OfType<CheckBox>()
+                .Where(c => c.Name is "GalleryOverlayControlsInput" or "GalleryAutoHideControlsInput")
+                .Where(c => c.IsEffectivelyVisible).ToArray();
+            Require(controlsChoices.Length == 1 && controlsChoices[0].IsEffectivelyEnabled
+                && controlsChoices[0].IsChecked == true,
+                "Settings must expose exactly one paired controls/auto-hide choice, independent of MediaFocus.");
+            config.VideoVolume = 29; // An independent live adjustment while the editor is open.
+            config.SaveConfig(profile);
+            Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => !window.IsVisible);
+            await dialog;
+            Config loaded = Config.LoadConfig(profile);
+            Require(commits == 1 && loaded.GalleryPlaybackMode == "Slideshow" && loaded.GallerySlideshowSeconds == 9
+                && !loaded.GalleryMediaFocus && loaded.GalleryOverlayControls && loaded.GalleryAutoHideControls
+                && loaded.GalleryOverlayPostContext && loaded.VideoVolume == 29,
+                "The gallery settings commit lost a chosen field or overwrote a newer volume.");
+            string committed = File.ReadAllText(Path.Combine(profile, "settings.json"));
+            SettingsWindow cancel = new(loaded);
+            Task cancelled = cancel.ShowDialog(owner);
+            try
+            {
+                await WaitUntilAsync(() => cancel.IsVisible);
+                cancel.Editor.SelectedGalleryPlaybackMode = cancel.Editor.GalleryPlaybackModeChoices.Single(choice => choice.Value == "Manual");
+                cancel.Editor.GalleryMediaFocus = true;
+                cancel.Editor.GalleryOverlayControls = false;
+                Require(!cancel.Editor.GalleryAutoHideControls, "Cancelled draft was not paired OFF.");
+                Click(cancel.Editor.FindControl<Button>("CancelSettingsButton")!);
+                await cancelled;
+                Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == committed,
+                    "Cancelling gallery playback preferences wrote the draft.");
+            }
+            finally { if (cancel.IsVisible) cancel.Close(); await cancelled; }
+        }
+        finally { if (window.IsVisible) window.Close(); await dialog; }
+        Console.WriteLine("SMOKE gallery settings: duration validation, single paired overlay/auto-hide, legacy migration, profile commit, concurrent volume and discard passed.");
+    }
+
+    private static void CheckGalleryPairMigration(string profile)
+    {
+        // Raw legacy JSON is intentional: SaveConfig would normalize before the load under test.
+        foreach (var (overlay, autoHide) in new[] { (false, false), (false, true), (true, false), (true, true) })
+        {
+            string path = Path.Combine(profile, $"{overlay}-{autoHide}");
+            Directory.CreateDirectory(path);
+            File.WriteAllText(Path.Combine(path, "settings.json"), System.Text.Json.JsonSerializer.Serialize(new
+            { GalleryOverlayControls = overlay, GalleryAutoHideControls = autoHide, VideoStartMuted = false }));
+            Config loaded = Config.LoadConfig(path);
+            Require(loaded.GalleryOverlayControls == overlay && loaded.GalleryAutoHideControls == overlay,
+                "Legacy overlay choice was not authoritative when migrating the controls pair.");
+            Require(!loaded.VideoStartMuted, "Pair migration changed the explicit audio start policy.");
+            loaded.SaveConfig(path);
+            Config reopened = Config.LoadConfig(path);
+            Require(reopened.GalleryOverlayControls == overlay && reopened.GalleryAutoHideControls == overlay,
+                "Saving/reopening the migrated controls pair changed its effective choice.");
+        }
+        Config defaults = Config.LoadConfig(Path.Combine(profile, "defaults"));
+        Require(!defaults.GalleryOverlayControls && !defaults.GalleryAutoHideControls,
+            "A fresh profile no longer defaults to paired OFF/docked controls.");
+    }
+
+    private static async Task CheckGalleryVolumeMergeAsync(MainWindow owner, string profile)
+    {
+        foreach (bool editVolume in new[] { false, true })
+        {
+            string currentProfile = Path.Combine(profile, editVolume ? "edited" : "unchanged");
+            Config config = Config.LoadConfig(currentProfile);
+            config.VideoVolume = 70;
+            config.SaveConfig(currentProfile);
+            int commits = 0;
+            SettingsWindow window = new(config, candidate =>
+            {
+                config.CopySettingsFieldsFrom(candidate);
+                config.SaveConfig(currentProfile);
+                commits++;
+                return Task.CompletedTask;
+            });
+            Task dialog = window.ShowDialog(owner);
+            try
+            {
+                await WaitUntilAsync(() => window.IsVisible && window.Editor.Bounds.Width > 0);
+                // The open editor retains its original draft while the gallery
+                // publishes a newer direct volume preference on the shared config.
+                config.VideoVolume = 29;
+                config.SaveConfig(currentProfile);
+                if (editVolume) window.Editor.VideoVolume = 0;
+                Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+                await WaitUntilAsync(() => !window.IsVisible);
+                await dialog;
+                int expected = editVolume ? 0 : 29;
+                Require(commits == 1 && config.VideoVolume == expected
+                    && Config.LoadConfig(currentProfile).VideoVolume == expected,
+                    "An open settings draft lost the newer gallery volume or ignored an explicit volume edit.");
+            }
+            finally
+            {
+                if (window.IsVisible) window.Close();
+                await dialog;
+            }
+        }
+        Console.WriteLine("SMOKE gallery volume: unchanged settings draft preserves direct preference; explicit mute-volume edit persists.");
     }
 
     private static async Task CheckNumericBlurDraftAsync(MainWindow owner, string profile)

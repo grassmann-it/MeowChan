@@ -86,6 +86,19 @@ def workflow_report():
 
 
 class ManifestTests(unittest.TestCase):
+    def test_playback_requires_each_distinct_pinned_fixture_not_five_copies(self):
+        records = runner.read_json(ROOT / 'tests/Fixtures/gallery-playback-manifest.json')['files']
+        records += runner.read_json(ROOT / 'tests/Fixtures/release102/manifest.json')['files']
+        good = dict(passed=True, isolatedDesktop=True, apphostSha256='b' * 64,
+                    fixtures=[dict(passed=True, fixtureSha256=r['sha256']) for r in records])
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'playback.json'; runner.write_json(path, good)
+            runner.validate_positive_report(path, 'playback', 'linux-x64', SOURCE, 'b' * 64, '1.0.2')
+            bad = copy.deepcopy(good); bad['fixtures'][-1] = bad['fixtures'][0]
+            runner.write_json(path, bad)
+            with self.assertRaisesRegex(ValueError, 'exact pinned'):
+                runner.validate_positive_report(path, 'playback', 'linux-x64', SOURCE, 'b' * 64, '1.0.2')
+
     def test_binds_source_runtime_three_flavors_and_every_artifact_hash(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

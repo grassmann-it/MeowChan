@@ -4,6 +4,23 @@ namespace MeowChan.DesktopTests;
 
 public sealed class ConfigTests
 {
+    [Fact]
+    public void UnchangedVideoVolumeDraftPreservesDirectPreferenceButExplicitEditWins()
+    {
+        Config live = new() { VideoVolume = 70 };
+        Config draft = live.Clone();
+        live.VideoVolume = 29;
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(29, live.VideoVolume);
+
+        draft.VideoVolume = 0;
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(0, live.VideoVolume);
+        live.CopySettingsFieldsFrom(new Config { VideoVolume = 43 });
+        Assert.Equal(43, live.VideoVolume);
+        Assert.DoesNotContain(nameof(Config.SettingsBaselineVideoVolume), JsonSerializer.Serialize(draft));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

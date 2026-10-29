@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop.Commands;
@@ -62,14 +63,24 @@ public sealed class CommandRouter : IDisposable
         if (top is Window window && (!window.IsActive || !window.IsEnabled)) return false;
         // Owned dialogs and native video windows have their own router. Ownership
         // alone never authorizes a background page to execute their input.
-        return source is not Visual visual || ReferenceEquals(TopLevel.GetTopLevel(visual), top);
+        return source is Visual visual && ReferenceEquals(TopLevel.GetTopLevel(visual), top)
+            && !HasOpenPopup(top);
     }
+    internal static bool HasOpenPopup(Control root) => root.GetLogicalDescendants().OfType<Control>().Prepend(root)
+        .Any(control => control.ContextMenu?.IsOpen == true || control is Button { Flyout.IsOpen: true }
+            || control is MenuItem { IsSubMenuOpen: true } || control is ComboBox { IsDropDownOpen: true });
+
     public static bool IsNativeInput(object? source, Key key)
     {
         if (source is not Visual visual) return false;
         foreach (var v in visual.GetSelfAndVisualAncestors())
         {
-            if (v is TextBox or ComboBox or NumericUpDown or Slider or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox) return true;
+            if (v is TextBox or ComboBox or NumericUpDown or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox) return true;
+            // Slider owns seek/navigation, not every possible effective gallery gesture.
+            // Reserve arrows even with modifiers: this key-only policy is also used by
+            // shell fallbacks and must never reinterpret a local seek as navigation.
+            if (v is Slider && (key is Key.Left or Key.Right or Key.Up or Key.Down
+                or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Enter or Key.Escape)) return true;
             if (v is SelectableTextBlock text && text.SelectionStart != text.SelectionEnd) return true;
             if ((key is Key.Enter or Key.Space) && (v is Button or Ursa.Controls.ClosableTag or Ursa.Controls.Rating or Expander)) return true;
             if ((key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown) && (v is SelectingItemsControl or DataGrid)) return true;

@@ -44,6 +44,8 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public long? ThreadNumber { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string Status { get; private set; } = string.Empty;
+    // Row-only projection: never use this in the authoritative detail/status column.
+    public string CompactStatus { get; private set; } = string.Empty;
     public string Progress { get; private set; } = string.Empty;
     public string SavedProgress => Texts.T("work.saved", CompletedMedia, SelectedMedia);
     public string IssueDetails { get; private set; } = string.Empty;
@@ -154,6 +156,15 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             Completion = presentation.Completion;
             ErrorDetails = string.Join(Environment.NewLine, new[] { presentation.Details, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
         }
+        // Only the generic intervention label is redundant with a quantified hint.
+        // Other lifecycle states (and pause) must survive even alongside exceptions.
+        bool genericIntervention = Snapshot.Work is { Intent: MeowChan.Persistence.WorkIntent.Watching } currentWork
+            && (currentWork.CapturePending || currentWork.Media.Any(item => item.Status == MeowChan.Persistence.MediaWorkStatus.NeedsIntervention));
+        CompactStatus = HasExceptionHint
+            ? genericIntervention
+                ? ExceptionHint + (_isPaused ? " · " + Texts.T("work.paused") : string.Empty)
+                : Status + " · " + ExceptionHint
+            : Status;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 

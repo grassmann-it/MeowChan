@@ -29,25 +29,37 @@ public partial class DiagnosticsPage
         grid.AddHandler(ContextRequestedEvent, OnDiagnosticContextRequested, RoutingStrategies.Tunnel);
     }
 
+    private bool _diagnosticPointerContextHandled;
     private void OnDiagnosticContextPointer(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
         DataGridRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
-        grid.SelectedItem = row?.DataContext is DiagnosticEntry entry ? entry : null;
-        if (row == null) grid.ContextMenu?.Close();
+        _diagnosticPointerContextHandled = true;
+        if (row?.DataContext is DiagnosticEntry entry)
+        {
+            if (!grid.SelectedItems.Contains(entry)) grid.SelectedItem = entry;
+            grid.Focus();
+            BuildDiagnosticContextMenu(grid, entry);
+            if (grid.ContextMenu?.ItemCount > 0) grid.ContextMenu.Open(grid);
+        }
+        else { grid.SelectedItems.Clear(); grid.ContextMenu?.Close(); }
+        e.Handled = true;
     }
 
     private void OnDiagnosticContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is DataGrid grid && grid.SelectedItem is not DiagnosticEntry)
-            e.Handled = true;
+        if (sender is not DataGrid grid) return;
+        if (grid.SelectedItem is not DiagnosticEntry) { e.Handled = true; return; }
+        if (e.TryGetPosition(grid, out _) && _diagnosticPointerContextHandled)
+        { _diagnosticPointerContextHandled = false; e.Handled = true; }
     }
 
-    private void BuildDiagnosticContextMenu(DataGrid grid)
+    private void BuildDiagnosticContextMenu(DataGrid grid, DiagnosticEntry? lead = null)
     {
         ContextMenu menu = grid.ContextMenu!;
         menu.Items.Clear();
-        if (grid.SelectedItem is not DiagnosticEntry frozen || _ended) { menu.Close(); return; }
+        DiagnosticEntry? frozen = lead ?? grid.SelectedItem as DiagnosticEntry;
+        if (frozen == null || _ended) { menu.Close(); return; }
         string unavailable = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase)
             ? "Für dieses Ziel derzeit nicht verfügbar." : "Currently unavailable for this target.";
         void Add(string id, Action execute, bool available)
@@ -64,6 +76,18 @@ public partial class DiagnosticsPage
                 menu.Items.Add(info);
             }
         }
+        DiagnosticRetryTarget[] selection = DiagnosticRetryScope.Capture(SelectedDiagnostics());
+        DiagnosticRetryTarget[] filtered = DiagnosticRetryScope.Capture(_visibleDiagnostics);
+        void AddBatch(string id, DiagnosticRetryTarget[] scope)
+        {
+            MenuItem item = CommandBindings.CreateMenuItem(id, () => _ = RetryFrozenScopeAsync(scope),
+                () => CanRetryScope(scope), () => Texts.T("diagnostics.retryScope"),
+                () => CommandCatalog.Label(id) + " (" + scope.Length + ")");
+            item.Tag = id;
+            menu.Items.Add(item);
+        }
+        AddBatch("diagnostics.retry-selection", selection);
+        AddBatch("diagnostics.retry-filtered", filtered);
         Add("diagnostics.copy", () => _ = CopyFrozenDiagnosticAsync(frozen), _copy != null);
         if (frozen.Target is DiagnosticTarget target)
         {

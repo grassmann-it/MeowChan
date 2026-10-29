@@ -20,6 +20,11 @@ internal static class DiagnosticsChecks
     {
         await FeedbackChecks.RunAsync(window);
         await DiagnosticsFeedbackChecks.RunAsync(window);
+        // Dismissal checks deliberately acknowledge their own failures. The layout
+        // matrix owns a new unacknowledged error instead of relying on test leakage.
+        typeof(MainWindow).GetMethod("ShowNotification", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(window, new object?[] { "Diagnostic layout fixture", "Retained error for the minimum-size diagnostic matrix",
+                NotificationType.Error, "diagnostic-layout", "fixture.diagnostic-layout" });
         foreach (NotificationCard notification in window.GetVisualDescendants().OfType<NotificationCard>().ToArray())
             notification.Close();
         await Program.WaitUntilAsync(() => !window.GetVisualDescendants().OfType<NotificationCard>()

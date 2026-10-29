@@ -141,6 +141,11 @@ internal static class ReaderUxChecks
         await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_NAVIGATION_ONLY") == "1")
+        {
+            Console.WriteLine("SMOKE scoped reader navigation overlay: completed real reader setup and responsive overlay/last-post matrix; remaining reader-ux groups not run.");
+            return;
+        }
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);

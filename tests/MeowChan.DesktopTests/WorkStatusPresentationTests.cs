@@ -132,6 +132,59 @@ public sealed class WorkStatusPresentationTests
         Assert.Empty(row.ContextDetails);
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void CompactInterventionTransitionsKeepOneHintAndCompleteDetails(string language)
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            ThreadWorkSnapshot work = Work(WorkIntent.Watching, MediaWorkStatus.NeedsIntervention);
+            ThreadSnapshot snapshot = RowSnapshot(work);
+            using ThreadRow row = new(new DesktopThreadEntry(1, snapshot, "Fixture", "b"));
+            Assert.Equal(row.ExceptionHint, row.CompactStatus);
+            Assert.Equal(Texts.T("work.intervention"), row.Status);
+            Assert.Contains("404", row.CompactStatus);
+            Assert.Equal(Texts.T("work.saved", 1, 2), row.SavedProgress);
+            Assert.Contains(row.Status, row.StatusDetails);
+            row.SetPaused(true);
+            Assert.Equal(row.ExceptionHint + " · " + Texts.T("work.paused"), row.CompactStatus);
+            row.SetPaused(false);
+            Assert.Equal(row.ExceptionHint, row.CompactStatus);
+            foreach (WorkIntent intent in new[] { WorkIntent.Completed, WorkIntent.Suppressed, WorkIntent.Repairing })
+            {
+                row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = work with { Intent = intent } }, "Fixture", "b"));
+                Assert.Equal(row.Status + " · " + row.ExceptionHint, row.CompactStatus);
+            }
+            work = Work(WorkIntent.Watching, MediaWorkStatus.Waiting);
+            row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = work }, "Fixture", "b"));
+            Assert.Equal(row.Status + " · " + row.ExceptionHint, row.CompactStatus);
+            Assert.Contains(Texts.T("work.waitingCount", 1, "404"), row.CompactStatus);
+            work = Work(WorkIntent.Watching, MediaWorkStatus.Succeeded);
+            row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = work }, "Fixture", "b"));
+            Assert.Empty(row.ExceptionHint);
+            Assert.Equal(row.Status, row.CompactStatus);
+            work = work with { CapturePending = true };
+            row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = work }, "Fixture", "b"));
+            Assert.Empty(row.ExceptionHint);
+            Assert.Equal(Texts.T("work.intervention"), row.CompactStatus);
+            Assert.Contains(Texts.T("work.capturePending"), row.StatusDetails);
+            row.SetPaused(true);
+            Assert.Contains(Texts.T("work.paused"), row.CompactStatus);
+            Texts.SetLanguage(language == "en" ? "de" : "en");
+            row.UpdateSnapshot(new DesktopThreadEntry(1, snapshot with { Work = work }, "Fixture", "b"));
+            Assert.Equal(WorkStatusFormatter.Format(work, true).Status, row.CompactStatus);
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    private static ThreadSnapshot RowSnapshot(ThreadWorkSnapshot work) => new(
+        new ResourceId("fixture", "b", "1"), work.Url, "Fixture", "/fixture",
+        MeowChan.Interfaces.ThreadActivity.Finished, MeowChan.Interfaces.ThreadSourceState.Active,
+        null, 2, 2, new Dictionary<string, FailureInfo>(), null, new MeowChan.Downloader.DownloadCounts(0, 0)) { Work = work };
+
     private static ThreadWorkSnapshot Work(WorkIntent intent, MediaWorkStatus missingStatus) => new(
         "https://fixture.test/b/thread/1", intent, ThreadSourceStateValue.NotFound, End, false,
         new[] { Media("saved", MediaWorkStatus.Succeeded), Media("missing", missingStatus) });

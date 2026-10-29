@@ -88,6 +88,8 @@ public partial class MainWindow : Window
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
             _session.ProjectionPublished += OnSessionChanged;
             DataContext = this;
+            Activated += OnGalleryActivationChanged;
+            Deactivated += OnGalleryActivationChanged;
 
             // The Add button is wired once in XAML. Enter uses that same action.
             this.FindControl<TextBox>("UrlInput")!.AddHandler(KeyDownEvent,
@@ -971,6 +973,7 @@ public partial class MainWindow : Window
         UpdateInteractionState();
         try
         {
+            await FlushGalleryPreferencesAsync();
             await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
             InvalidateReadingResumeState();

@@ -137,8 +137,13 @@ public partial class MainWindow
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
         _gallery.ShellKeyRequested += OnShellKeyDown;
-        _gallery.ContextOpenChanged += open => QueueGalleryPreference(open, null);
-        _gallery.VideoVolumeChanged += volume => QueueGalleryPreference(null, volume);
+        GalleryViewer preferenceOwner = _gallery;
+        _gallery.ContextOpenChanged += open =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(open, null); };
+        _gallery.VideoVolumeChanged += volume =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
+        _gallery.PlaybackPreferencesChanged += preferences =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
         _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
@@ -154,11 +159,12 @@ public partial class MainWindow
         host.IsVisible = true;
         UpdateGalleryFullscreenPresentation();
         _gallery.Focus();
+        UpdateGalleryInteractionAvailability();
         UpdateGalleryScope();
         if (selectThreads != null)
         {
             CancellationToken token = _galleryCancellation.Token;
-            _gallery.SetNotice(Texts.T("gallery.loading"));
+            _gallery.SetLoadingNotice(Texts.T("gallery.loading"));
             try
             {
                 IReadOnlyList<ResourceId> selected = await Task.Run(() => selectThreads(token), token);
@@ -191,7 +197,7 @@ public partial class MainWindow
             {
                 token.ThrowIfCancellationRequested();
                 ResourceId id = _galleryThreads[_galleryThreadIndex++];
-                _gallery?.SetNotice(Texts.T("gallery.more"));
+                _gallery?.SetLoadingNotice(Texts.T("gallery.more"));
                 bool allVersions = _galleryAllVersions;
                 GalleryThreadResult? result = await Task.Run(async () =>
                 {
@@ -360,6 +366,7 @@ public partial class MainWindow
     {
         if (_gallery == null) return;
         _galleryReturnState = _gallery.CaptureState();
+        _gallery.SetInteractionAvailable(false);
         TrackGalleryCleanup(_gallery.SuspendMediaAsync());
         _gallerySuspended = true;
         _galleryVisitedReader = true;
@@ -379,6 +386,7 @@ public partial class MainWindow
         UpdateGalleryFullscreenPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
         TrackGalleryCleanup(_gallery.ResumeMediaAsync());
+        UpdateGalleryInteractionAvailability();
         RefreshGalleryFavorite();
         _gallery.Focus();
     }

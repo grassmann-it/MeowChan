@@ -1,6 +1,7 @@
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Installation;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Configuration.Tests;
@@ -604,6 +605,104 @@ public sealed class PluginProfileStoreTests : IDisposable
         Assert.Equal(4, Number(Active(state)));
         state = await Store().ApplyStartupAsync([broken], state.Revision);
         Assert.Equal(4, Number(Active(state)));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task InPlaceInstallUpdateRetainsExplicitIdentitySettingsEnablePinAndGrants(bool enabled, bool pinned)
+    {
+        // Version labels are synthetic package fixtures, not executions of the historical releases.
+        string install = Path.Combine(profile, "application", "plugins");
+        Directory.CreateDirectory(install);
+        string path = Path.Combine(install, "source.cs");
+        await File.WriteAllTextAsync(path, "// fixture package 1.0.0");
+        PluginInstallationInventory inventory = new();
+        var original = Assert.Single((await inventory.ScanAsync(install)).Candidates);
+        PluginCandidateObservation v100 = Candidate("v100", NumberSchema("1", 1)) with
+        { CandidateId = original.CandidateId, CandidatePath = original.Path };
+        PluginProfileStore store = Store();
+        var state = await store.ApplyStartupAsync([v100], 0);
+        state = pinned
+            ? await store.SelectRollbackAsync("test.plugin", state.Revision)
+            : await store.SelectCandidateAsync("test.plugin", original.CandidateId, state.Revision);
+        // Save on the explicitly chosen release. Rollback deliberately restores its own
+        // retained settings rather than borrowing those from a different active snapshot.
+        var configured = state.Plugins[0].Pending!.Configuration with { PluginSettings = Values("1", 7) };
+        state = await store.SaveConfigurationAsync("test.plugin", original.CandidateId, configured, state.Revision);
+        state = await store.ApplyStartupAsync([v100], state.Revision);
+        state = await store.SetEnabledAsync("test.plugin", enabled, state.Revision);
+        state = await store.SetGrantAsync("test.plugin", "dimensions", new("source", "board"), FilterDataAccess.OriginalImage, state.Revision);
+        var grant = Assert.Single(state.Grants);
+
+        await File.WriteAllTextAsync(path, "// fixture package 1.0.1");
+        var updated = Assert.Single((await inventory.ScanAsync(install)).Candidates);
+        Assert.Equal(original.CandidateId, updated.CandidateId);
+        PluginCandidateObservation v101 = Candidate("v101", NumberSchema("1", 99)) with
+        { CandidateId = updated.CandidateId, CandidatePath = updated.Path };
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await Store().ApplyStartupAsync([v101], state.Revision);
+            var plugin = Assert.Single(state.Plugins);
+            Assert.Equal(enabled, plugin.Enabled);
+            Assert.Equal(original.CandidateId, plugin.SelectedCandidateId);
+            Assert.Equal(pinned ? "v100" : "v101", plugin.Active!.ExecutionRevision);
+            Assert.Equal(pinned ? "v100" : null, plugin.Pinned?.ExecutionRevision);
+            Assert.Equal(7, Number(plugin.Active));
+            Assert.Equal(grant, Assert.Single(state.Grants));
+            Assert.Equal(path, Assert.Single(plugin.Candidates).CandidatePath);
+            Assert.Null(plugin.Problem);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChangedInstallPathDoesNotSilentlyReplaceSelectedCandidateOrExplicitPin(bool pinned)
+    {
+        PluginInstallationInventory inventory = new();
+        async Task<PluginCandidateObservation> Package(string version)
+        {
+            string directory = Path.Combine(profile, version, "plugins");
+            Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(Path.Combine(directory, "source.cs"), "// synthetic " + version);
+            var entry = Assert.Single((await inventory.ScanAsync(directory)).Candidates);
+            return Candidate(version, NumberSchema("1", 2)) with { CandidateId = entry.CandidateId, CandidatePath = entry.Path };
+        }
+        var original = await Package("1.0.0");
+        var moved = await Package("1.0.1");
+        Assert.NotEqual(original.CandidateId, moved.CandidateId);
+        var store = Store();
+        var state = await store.ApplyStartupAsync([original], 0);
+        state = await store.SetEnabledAsync("test.plugin", false, state.Revision);
+        state = await store.SetGrantAsync("test.plugin", "dimensions", new("source", "board"), FilterDataAccess.CandidateMetadata, state.Revision);
+        if (pinned) state = await store.SelectRollbackAsync("test.plugin", state.Revision);
+        var grant = Assert.Single(state.Grants);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await Store().ApplyStartupAsync([moved], state.Revision);
+            var plugin = Assert.Single(state.Plugins);
+            Assert.False(plugin.Enabled);
+            Assert.Equal(original.CandidateId, plugin.SelectedCandidateId);
+            Assert.Equal(original.CandidatePath, plugin.Candidates.Single(item => item.CandidateId == original.CandidateId).CandidatePath);
+            Assert.False(plugin.Candidates.Single(item => item.CandidateId == original.CandidateId).IsPresent);
+            Assert.True(plugin.Candidates.Single(item => item.CandidateId == moved.CandidateId).IsPresent);
+            Assert.Equal("1.0.0", plugin.LastGood!.ExecutionRevision);
+            Assert.Equal(grant, Assert.Single(state.Grants));
+            if (pinned)
+            {
+                Assert.Equal("1.0.0", plugin.Active!.ExecutionRevision);
+                Assert.Equal("1.0.0", plugin.Pinned!.ExecutionRevision);
+            }
+            else
+            {
+                Assert.Null(plugin.Active);
+                Assert.Null(plugin.Pinned);
+                Assert.Contains("missing", plugin.Problem);
+            }
+        }
     }
 
     private static PluginReleaseSnapshot Active(PluginProfileSnapshot state) => Assert.IsType<PluginReleaseSnapshot>(state.Plugins[0].Active);

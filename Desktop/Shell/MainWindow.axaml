@@ -73,9 +73,21 @@
         </Border>
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,*">
         <ursa:Banner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="20,8,20,0">
-            <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
-                <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
-                <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left"><TextBlock Tag="feedback.open" Classes="localized" /></Button>
+            <Grid ColumnDefinitions="*,Auto">
+                <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
+                    <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
+                    <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left"><TextBlock Tag="feedback.open" Classes="localized" /></Button>
+                </Grid>
+                <Button x:Name="ShellFeedbackDismissButton" Grid.Column="1" Classes="subtle"
+                        Margin="8,0,0,0" Padding="8,2" MinWidth="32" MinHeight="32" VerticalAlignment="Top"
+                        AutomationProperties.Name="{Binding #ShellFeedbackDismissLabel.Text}"
+                        ToolTip.Tip="{Binding #ShellFeedbackDismissLabel.Text}">
+                    <Grid>
+                        <TextBlock Text="×" FontSize="20" HorizontalAlignment="Center" />
+                        <!-- The normal workspace localizer also refreshes this accessible-only label. -->
+                        <TextBlock x:Name="ShellFeedbackDismissLabel" Tag="feedback.dismiss" Classes="localized" IsVisible="False" />
+                    </Grid>
+                </Button>
             </Grid>
         </ursa:Banner>
         <Grid Grid.Row="1" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
@@ -173,16 +185,15 @@
                             <DataGridTemplateColumn Header="Media / transfer" Width="300" SortMemberPath="Completion">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding StatusDetails}">
+                                        <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding StatusDetails}" AutomationProperties.Name="{Binding StatusDetails}">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontSize="12" Classes="muted media-state" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding CompactStatus}" VerticalAlignment="Center" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="12" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="12" />
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="12" />
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="{Binding ExceptionHint}" IsVisible="{Binding HasExceptionHint}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding ExceptionHint}" />
                                             <ProgressBar AutomationProperties.Name="{Binding Progress}" Value="{Binding Completion}" Minimum="0" Maximum="100" Height="3" MinHeight="0" MaxHeight="3" />
                                         </StackPanel>
                                     </DataTemplate>

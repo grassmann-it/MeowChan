@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
+using SkiaSharp;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -18,15 +19,19 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class VideoGalleryChecks
 {
-    private static readonly ResourceId Id = new("4chan", "g", "2000");
-    internal static async Task SeedAsync(string profile, string fixture)
+    internal static readonly ResourceId Id = new("4chan", "g", "2000");
+    internal static string? FixtureImageSha256 { get; private set; }
+    internal static async Task SeedAsync(string profile, string fixture, bool includeSecondVideo = false)
     {
         string media = Path.Combine(profile, "Video media");
         Directory.CreateDirectory(media);
         byte[] video = await File.ReadAllBytesAsync(fixture);
-        byte[] image = await File.ReadAllBytesAsync(Path.Combine(profile, "Reader media", "reader.png"));
+        byte[] image = includeSecondVideo ? InteractionImage()
+            : await File.ReadAllBytesAsync(Path.Combine(profile, "Reader media", "reader.png"));
+        FixtureImageSha256 = Convert.ToHexString(SHA256.HashData(image)).ToLowerInvariant();
         await File.WriteAllBytesAsync(Path.Combine(media, "clip.webm"), video);
         await File.WriteAllBytesAsync(Path.Combine(media, "image.png"), image);
+        if (includeSecondVideo) await File.WriteAllBytesAsync(Path.Combine(media, "clip-b.webm"), video);
         // Fresh archive captures receive host revision keys. Seed exact current bindings
         // so the gallery keeps post order instead of sorting unassigned image before video.
         Dictionary<string, object> entries = new();
@@ -55,24 +60,41 @@ internal static class VideoGalleryChecks
         }
         CapturedAttachment videoAttachment = Entry("2000", "video", "clip.webm", video);
         CapturedAttachment imageAttachment = Entry("2001", "image", "image.png", image);
+        CapturedAttachment? secondVideo = includeSecondVideo ? Entry("2002", "video-b", "clip-b.webm", video) : null;
         await File.WriteAllTextAsync(Path.Combine(media, ".meowchan-manifest.json"), JsonSerializer.Serialize(new {
             Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        List<CapturedPost> posts = new() {
+            new CapturedPost("2000", 0, PostFieldPresence.All, Html: "Saved WebM", Attachments: new[] { videoAttachment }),
+            new CapturedPost("2001", 1, PostFieldPresence.All, Html: "Saved image", Attachments: new[] { imageAttachment }) };
+        if (secondVideo != null) posts.Add(new CapturedPost("2002", 2, PostFieldPresence.All, Html: "Saved WebM B", Attachments: new[] { secondVideo }));
         await catalog.CaptureAsync(new CapturedThreadSnapshot(Id, "https://boards.4chan.org/g/thread/2000", "Video UX",
-            ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, new[] {
-                new CapturedPost("2000", 0, PostFieldPresence.All, Html: "Saved WebM", Attachments: new[] { videoAttachment }),
-                new CapturedPost("2001", 1, PostFieldPresence.All, Html: "Saved image", Attachments: new[] { imageAttachment }) }));
+            ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, posts));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
         ArchivedThreadView thread = await reader.ReadThreadAsync(Id)
             ?? throw new InvalidOperationException("The video fixture archive was not captured.");
         MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(media);
         GalleryThreadResult selected = GallerySelection.Build(thread, new[] { manifest }, includeOtherMedia: true);
-        Require(selected.Entries.Count == 2 && selected.Entries[0].Kind == SavedMediaKind.Video
+        Require(selected.Entries.Count == (includeSecondVideo ? 3 : 2) && selected.Entries[0].Kind == SavedMediaKind.Video
             && selected.Entries[0].Post?.PostId == "2000" && selected.Entries[1].Post?.PostId == "2001"
+            && (!includeSecondVideo || selected.Entries[2].Kind == SavedMediaKind.Video && selected.Entries[2].Post?.PostId == "2002")
             && selected.Entries.All(entry => !entry.Unassigned && entry.AttachmentResolution?.Binding?.Acceptance.Kind == MediaAcceptanceKind.Strict),
             "The seeded video/image fixture must resolve exact strict bindings in captured post order.");
-        Console.WriteLine("SMOKE video fixture: two exact strict bindings; video post 2000 precedes image post 2001.");
+        Console.WriteLine($"SMOKE video fixture: {selected.Entries.Count} exact strict bindings in video/image{(includeSecondVideo ? "/video" : "")} post order.");
+    }
+
+    private static byte[] InteractionImage()
+    {
+        // Tiny synthetic PNG for the bounded normal-runner path; no 52-thread reader seed.
+        using SKBitmap bitmap = new(256, 144);
+        using SKCanvas canvas = new(bitmap);
+        canvas.Clear(SKColors.DarkSlateBlue);
+        using SKPaint paint = new() { Color = SKColors.Gold };
+        canvas.DrawRect(32, 24, 120, 80, paint);
+        using SKImage image = SKImage.FromBitmap(bitmap);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
     internal static async Task RunAsync(MainWindow window)
@@ -89,6 +111,8 @@ internal static class VideoGalleryChecks
         double paused = seek.Value;
         await Task.Delay(300);
         Require(Math.Abs(seek.Value - paused) < 20, "Video Pause did not stop its playback clock.");
+        // Legacy programmatic mechanism check only. Native pointer/focus/key proof lives in
+        // MediaInteractionChecks, opt-in through the existing normal runner.
         seek.Focus();
         seek.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
         Require(viewer.CaptureState().PostId == "2000", "Gallery arrow stole the video slider's key.");
@@ -119,7 +143,7 @@ internal static class VideoGalleryChecks
         Click(window.ArchivePage.FindControl<Button>("ArchiveGalleryReturn")!);
         await Program.WaitUntilAsync(() => Control<Button>(viewer, "GalleryVideoPlayPause").IsEnabled);
         // Shutdown with a playing native video must await the verified stream and engine cleanup.
-        Console.WriteLine("SMOKE production video: verified WebM clock, pause/play/seek, native frame capture, slider arrows, image switch and reader suspend/resume passed; leaving playback active for awaited shutdown.");
+        Console.WriteLine("SMOKE production video (programmatic controls, NOT native-input acceptance): verified WebM clock, pause/play/seek, native frame capture, synthetic slider arrows, image switch and reader suspend/resume passed; leaving playback active for awaited shutdown.");
     }
 
     private static async Task CheckSoftwareSurfaceAsync(Window owner)
