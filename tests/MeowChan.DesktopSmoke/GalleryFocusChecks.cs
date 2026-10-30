@@ -53,23 +53,55 @@ internal static class GalleryFocusChecks
             }
             finally { viewer.MoveRequested -= Move; }
 
-            viewer.SetFavoriteError("Favorite could not be saved");
-            Require(info.IsVisible && Find<SelectableTextBlock>(viewer, "GalleryFavoriteError").IsEffectivelyVisible,
-                "Focus mode hid a failed favorite write.");
-            Require(Find<SelectableTextBlock>(viewer, "GalleryFavoriteError").Focus(NavigationMethod.Tab), "Could not focus the favorite error.");
-            viewer.SetFavoriteError(null);
-            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), toggle), "Clearing the last visible error stranded focus.");
-            viewer.SetRating(null, "Rating could not be saved");
-            Require(info.IsVisible && Find<TextBlock>(viewer, "GalleryRatingStatus").IsEffectivelyVisible,
-                "Focus mode hid a failed rating write.");
-            viewer.SetRating(null, null);
-            viewer.SetWarnings("Manifest warning retained");
-            Require(info.IsVisible && Find<TextBlock>(viewer, "GalleryWarnings").IsEffectivelyVisible,
-                "Focus mode hid a manifest warning.");
-            viewer.SetWarnings(string.Empty);
-            viewer.SetNotice("Media cannot be decoded");
-            Require(Find<TextBlock>(viewer, "GalleryStatus").IsEffectivelyVisible, "Focus mode hid a media error.");
-            viewer.SetNotice(string.Empty);
+            Require(toggle.Focus(NavigationMethod.Tab), "Could not focus reveal control before diagnostics.");
+            object? diagnosticFocus = window.FocusManager?.GetFocusedElement();
+            var diagnosticSelection = viewer.CaptureState();
+            long diagnosticRevision = viewer.AssociationRevision;
+            var reports = new List<GalleryDiagnosticNotice>();
+            void CheckDiagnosticState()
+            {
+                Require(ReferenceEquals(diagnosticFocus, window.FocusManager?.GetFocusedElement())
+                    && viewer.CaptureState() == diagnosticSelection && toggle.IsChecked == true && !info.IsVisible,
+                    "Technical diagnostics changed focus, selection/context/zoom or expanded collapsed metadata.");
+                Require(!Find<Control>(viewer, "GalleryFavoriteError").IsEffectivelyVisible
+                    && string.IsNullOrEmpty(Find<SelectableTextBlock>(viewer, "GalleryFavoriteError").Text)
+                    && string.IsNullOrEmpty(Find<TextBlock>(viewer, "GalleryWarnings").Text)
+                    && !(Find<TextBlock>(viewer, "GalleryRatingStatus").Text ?? "").Contains("Rating could not be saved")
+                    && !(Find<TextBlock>(viewer, "GalleryStatus").Text ?? "").Contains("Media cannot be decoded"),
+                    "Technical diagnostic text leaked into the gallery.");
+            }
+            void CheckReport(string operation, string message, Action publish)
+            {
+                int before = reports.Count;
+                publish();
+                Require(reports.Count == before + 1, "Diagnostic must publish exactly once: " + operation);
+                GalleryDiagnosticNotice report = reports[^1];
+                Require(report.Operation == operation && report.Message == message
+                    && report.Entry?.EntryKey == entry.EntryKey && report.Revision == diagnosticRevision && !report.MediaUnavailable,
+                    "Technical diagnostic lost exact operation/message/association identity: " + operation);
+                CheckDiagnosticState();
+            }
+            viewer.DiagnosticNotice += reports.Add;
+            try
+            {
+                CheckReport("favorite", "Favorite could not be saved", () => viewer.SetFavoriteError("Favorite could not be saved"));
+                viewer.SetFavoriteError(null);
+                Require(reports.Count == 1, "Clearing favorite error emitted another report.");
+                CheckDiagnosticState();
+                CheckReport("rating", "Rating could not be saved", () => viewer.SetRating(null, "Rating could not be saved"));
+                viewer.SetRating(null, null);
+                Require(reports.Count == 2, "Clearing rating error emitted another report.");
+                CheckDiagnosticState();
+                CheckReport("source-warning", "Manifest warning retained", () => viewer.SetWarnings("Manifest warning retained"));
+                viewer.SetWarnings(string.Empty);
+                Require(reports.Count == 3, "Clearing source warning emitted another report.");
+                CheckDiagnosticState();
+                CheckReport("notice", "Media cannot be decoded", () => viewer.SetNotice("Media cannot be decoded"));
+                viewer.SetNotice(string.Empty);
+                Require(reports.Count == 4, "Clearing notice emitted another report.");
+                CheckDiagnosticState();
+            }
+            finally { viewer.DiagnosticNotice -= reports.Add; }
 
             window.MinWidth = 640;
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })

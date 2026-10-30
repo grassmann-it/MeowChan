@@ -53,8 +53,26 @@ internal static class GalleryViewerChecks
             viewer.SetPosition("Gallery smoke", false, true);
             await Program.WaitUntilAsync(() => viewer.Bounds.Width > 100 && GalleryControl<Grid>(viewer, "GalleryViewport").Bounds.Height > 100);
             viewer.SetScope("Images of matching threads · 52 threads");
-            viewer.SetWarnings("Manifest warning retained");
+            var reports = new List<GalleryDiagnosticNotice>();
+            viewer.DiagnosticNotice += reports.Add;
             await viewer.ShowAsync(selected, CancellationToken.None);
+            Require(GalleryControl<Button>(viewer, "GalleryClose").Focus(), "Could not focus gallery before warning.");
+            object? warningFocus = window.FocusManager?.GetFocusedElement();
+            GalleryViewerState warningSelection = viewer.CaptureState();
+            long warningRevision = viewer.AssociationRevision;
+            viewer.SetWarnings("Manifest warning retained");
+            GalleryDiagnosticNotice warning = reports.Single();
+            Require(warning.Operation == "source-warning" && warning.Entry?.EntryKey == selected.EntryKey
+                && warning.Revision == warningRevision && warning.Message == "Manifest warning retained" && !warning.MediaUnavailable,
+                "Manifest warning lost its exact central diagnostic identity.");
+            Require(ReferenceEquals(warningFocus, window.FocusManager?.GetFocusedElement()) && viewer.CaptureState() == warningSelection,
+                "Manifest warning changed focus or gallery selection/context/zoom.");
+            void RequireCentralWarning()
+            {
+                Require(reports.Count(report => report.Operation == "source-warning") == 1 && reports.Contains(warning)
+                    && string.IsNullOrEmpty(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text),
+                    "Manifest warning was lost/reported again or leaked into inline technical text.");
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FOCUS_ONLY") == "1")
             {
                 await GalleryFocusChecks.RunAsync(window, viewer, selected);
@@ -73,7 +91,7 @@ internal static class GalleryViewerChecks
                 Console.WriteLine("SMOKE gallery theme-only: verified image, live Light/Dark/Light, context/help/chrome/info/status colors, selector contrast and popup association passed.");
                 return;
             }
-            Require(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text == "Manifest warning retained", "Loading an image discarded manifest warnings.");
+            RequireCentralWarning();
             Require(GalleryControl<TextBlock>(viewer, "GalleryScope").Text!.Contains("52"), "Loading an image discarded the frozen scope.");
             Image displayed = GalleryControl<Image>(viewer, "GalleryImage");
             Require(displayed.Source is Bitmap fit && fit.PixelSize.Width < 2401, "Fit did not use a bounded display-sized decode.");
@@ -196,7 +214,7 @@ internal static class GalleryViewerChecks
             Require(GalleryControl<Button>(viewer, "GalleryReadPosts").IsVisible, "Empty gallery lost Read posts action.");
             Click(GalleryControl<Button>(viewer, "GalleryReadPosts"));
             Require(readRequests == 1, "Empty gallery Read posts did not request the reader exactly once.");
-            Require(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text == "Manifest warning retained", "Empty state discarded manifest warnings.");
+            RequireCentralWarning();
             Console.WriteLine("SMOKE gallery: verified offline fit/original, >1200px pixel detail, physical 1:1, context, restore and 100 superseded loads passed.");
         }
         finally { await viewer.StopAsync(); window.Content = content; Directory.Delete(directory, true); }
