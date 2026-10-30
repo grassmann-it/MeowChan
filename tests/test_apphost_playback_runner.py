@@ -31,6 +31,19 @@ class PlaybackRunnerTests(unittest.TestCase):
     def test_pinned_fixture_manifest(self):
         self.assertEqual(len(runner.default_fixtures()), 5)
 
+    def test_default_report_gate_requires_all_five_exact_pinned_fixtures(self):
+        rows = [dict(fixtureSha256=runner.sha256(path), passed=True, exitCode=0, timedOut=False)
+                for path in runner.default_fixtures()]
+        runner.require_default_fixture_reports(dict(fixtures=rows))
+        # Neither the legacy two-video subset nor a missing/duplicate/unknown fixture can pass.
+        for subset in (rows[:2], rows[:-1], [*rows[:-1], rows[0]],
+                       [*rows[:-1], dict(rows[-1], fixtureSha256='00' * 32)]):
+            with self.subTest(subset=subset), self.assertRaises(ValueError):
+                runner.require_default_fixture_reports(dict(fixtures=subset))
+        for invalid in (dict(passed=False), dict(exitCode=1), dict(timedOut=True)):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                runner.require_default_fixture_reports(dict(fixtures=[*rows[:-1], dict(rows[-1], **invalid)]))
+
     def test_requires_real_progress_and_cleanup(self):
         runner.validate_metrics(metrics(), 'ab')
         for field, value in [('Time', 350), ('DecodedFrames', 3), ('DisplayedFrames', 2), ('State', 'Paused')]:

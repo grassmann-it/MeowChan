@@ -52,6 +52,20 @@ def default_fixtures():
     return paths
 
 
+def require_default_fixture_reports(playback):
+    """Require every pinned default fixture; custom single-fixture runs are separate."""
+    expected = {sha256(path) for path in default_fixtures()}
+    if len(expected) != 5:
+        raise ValueError('Expected five unique pinned default playback fixtures')
+    reports = playback.get('fixtures')
+    if not isinstance(reports, list) or len(reports) != len(expected) or any(not isinstance(row, dict) for row in reports):
+        raise ValueError('Native playback report must contain all five default fixtures')
+    if {row.get('fixtureSha256') for row in reports} != expected:
+        raise ValueError('Native playback fixture hashes differ from the complete pinned corpus')
+    if not all(row.get('passed') is True and row.get('exitCode') == 0 and row.get('timedOut') is False for row in reports):
+        raise ValueError('Every required native playback fixture must pass without timeout')
+
+
 def validate_png(path):
     data = path.read_bytes()
     if data[:8] != b'\x89PNG\r\n\x1a\n':

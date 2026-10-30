@@ -808,6 +808,9 @@ jobs:
           spec = importlib.util.spec_from_file_location('workflow_runner', 'scripts/apphost-workflow-smoke.py')
           workflow_runner = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(workflow_runner)
+          playback_spec = importlib.util.spec_from_file_location('playback_runner', 'scripts/apphost-playback-smoke.py')
+          playback_runner = importlib.util.module_from_spec(playback_spec)
+          playback_spec.loader.exec_module(playback_runner)
           root = pathlib.Path('artifacts/macos-inputs')
           output = pathlib.Path('artifacts/macos-candidate')
           output.mkdir(parents=True)
@@ -863,10 +866,7 @@ jobs:
                       for row in bindings:
                           assert row['archivePath'].startswith('MeowChan.app/Contents/Resources/application/')
                           assert closure_files[row['archivePath']]['sha256'] == row['sha256'], 'Loaded managed assembly differs from final ZIP'
-              fixtures = json.loads(pathlib.Path('tests/Fixtures/gallery-playback-manifest.json').read_text())['files']
-              assert len(playback['fixtures']) == 2
-              assert {row['fixtureSha256'] for row in playback['fixtures']} == {row['sha256'] for row in fixtures}
-              assert all(row['passed'] is True and row['exitCode'] == 0 and row['timedOut'] is False for row in playback['fixtures'])
+              playback_runner.require_default_fixture_reports(playback)
               with zipfile.ZipFile(archive) as package:
                   for name, expected_hash in signatures['files'].items():
                       assert hashlib.sha256(package.read('MeowChan.app/' + name)).hexdigest() == expected_hash, 'ZIP/signature evidence mismatch'
