@@ -136,10 +136,15 @@ internal static class GalleryViewerChecks
                 }
             Click(GalleryControl<Button>(viewer, "GalleryFit"));
             Require(!viewer.CaptureState().ManualZoom, "Fit did not reset manual zoom.");
+            // Keep the small fixture below the available narrow-window viewport even with
+            // docked controls: the below-Fit zoom test requires room for a full 10% step.
+            // The 224x255 image did not establish Fit > 1.1 in narrow-window runs;
+            // when Fit is below 1.1, the real 1.1x command correctly exceeds it.
+            const int smallWidth = 112, smallHeight = 127;
             // Small originals must fill one viewport axis in Fit while 1:1 stays physical-pixel sized.
             string smallDirectory = Path.Combine(directory, "small");
             Directory.CreateDirectory(smallDirectory);
-            using (SKBitmap smallSource = new(224, 255))
+            using (SKBitmap smallSource = new(smallWidth, smallHeight))
             using (SKImage smallImage = SKImage.FromBitmap(smallSource))
             using (SKData smallData = smallImage.Encode(SKEncodedImageFormat.Png, 100))
             {
@@ -164,19 +169,23 @@ internal static class GalleryViewerChecks
                 && displayed.Width <= viewport.Bounds.Width + 1 && displayed.Height <= viewport.Bounds.Height + 1,
                 "Small image Fit did not fill a viewport axis without cropping.");
             Click(GalleryControl<Button>(viewer, "GalleryActual"));
-            Require(Math.Abs(displayed.Width * smallScale - 224) < 0.01 && Math.Abs(displayed.Height * smallScale - 255) < 0.01,
+            Require(Math.Abs(displayed.Width * smallScale - smallWidth) < 0.01 && Math.Abs(displayed.Height * smallScale - smallHeight) < 0.01,
                 "Small image 1:1 did not map source pixels to physical pixels.");
+            double smallFit = GalleryGeometry.Fit(smallWidth, smallHeight,
+                viewport.Bounds.Width, viewport.Bounds.Height, smallScale);
+            Require(smallFit > 1.1, $"Small-image zoom fixture lacks a below-Fit step: fit={smallFit}, viewport={viewport.Bounds}.");
             Click(GalleryControl<Button>(viewer, "GalleryPlus"));
-            Require(viewer.CaptureState().PhysicalZoom > 1 && viewer.CaptureState().PhysicalZoom <
-                GalleryGeometry.Fit(224, 255, viewport.Bounds.Width, viewport.Bounds.Height, smallScale),
-                "Zoom-in from small-image 1:1 jumped directly to Fit.");
+            Console.WriteLine($"SMOKE small-image zoom: source={smallWidth}x{smallHeight}, viewport={viewport.Bounds}, scale={smallScale}, fit={smallFit}, actual={viewer.CaptureState().PhysicalZoom}");
+            Require(Math.Abs(viewer.CaptureState().PhysicalZoom - 1.1) < 0.001
+                && viewer.CaptureState().PhysicalZoom < smallFit,
+                "Zoom-in from small-image 1:1 did not retain the actual 10% step below Fit.");
             GalleryViewerState smallState = viewer.CaptureState();
             double fullViewportWidth = viewport.Bounds.Width;
             Click(GalleryControl<Button>(viewer, "GalleryToggleContext"));
             Border context = GalleryControl<Border>(viewer, "GalleryContext");
             await Program.WaitUntilAsync(() => context.IsVisible &&
                 (viewer.Bounds.Width < 850 || viewport.Bounds.Width < fullViewportWidth - 20));
-            Require(Math.Abs(displayed.Width * smallScale - 224 * smallState.PhysicalZoom) < 0.01,
+            Require(Math.Abs(displayed.Width * smallScale - smallWidth * smallState.PhysicalZoom) < 0.01,
                 "Opening context reset below-Fit manual zoom.");
             await viewer.ShowAsync(smallEntry, CancellationToken.None); viewer.RestoreState(smallState);
             Require(Math.Abs(viewer.CaptureState().PhysicalZoom - smallState.PhysicalZoom) < 0.001,
