@@ -64,10 +64,12 @@ jobs:
       matrix:
         os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '["ubuntu-24.04","ubuntu-24.04-arm","windows-2022","macos-15","macos-15-intel"]' || format('["{0}"]', inputs.platform)) }}
     runs-on: ${{ matrix.os }}
-    # Existing matrix budget plus six scoped GUI invocations (up to 5 min each).
-    timeout-minutes: 60
+    # Existing checks, scoped native regressions and two genuine old-release replays.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Genuine 1.0.0/1.0.1 replay uses the exact historical tags.
       - name: Require the complete current-source candidate matrix
         if: (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         shell: bash
@@ -197,6 +199,24 @@ jobs:
       # disposable Windows/macOS runners opt into native desktop access.
       # Native media/volume failures remain failures: these are not physical-audio
       # acceptance or a reason to silently skip unavailable hosted audio devices.
+      - name: Exercise explicit bundled new-selection confirmation on the actual platform
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        shell: bash
+        env:
+          MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
+        run: |
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
+      - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for version in 1.0.0 1.0.1; do
+            fixture="$GITHUB_WORKSPACE/artifacts/upgrade-$version"
+            python tests/fixtures/upgrade-v1x/prepare.py "$fixture" --version "$version"
+            MEOWCHAN_UPGRADE_1X_FIXTURE="$fixture" dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts' --logger "trx;LogFileName=upgrade-$version.trx" --results-directory artifacts/upgrade-results
+          done
+          python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
       - name: Exercise FirstRunSetup on the actual platform
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
@@ -297,6 +317,12 @@ jobs:
             test-results/**
             artifacts/desktop-smoke/**
             artifacts/gallery-features/**
+            artifacts/closure-plugin-reselection/**
+            artifacts/upgrade-results/**
+            artifacts/upgrade-1.0.*/receipt.json
+            artifacts/upgrade-1.0.*/source-binding.json
+            artifacts/upgrade-1.0.*/generator.log
+            artifacts/upgrade-1.0.*/current-result.json
             artifacts/closure-first-run-setup/**
             artifacts/closure-preference-startup/**
             artifacts/closure-scoped-diagnostics/**
