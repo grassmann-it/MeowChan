@@ -428,7 +428,9 @@ internal static class MediaInteractionChecks
                     "Disabled-volume branch lacks native unavailable-output evidence or disabled controls.");
                 string? post = viewer!.CaptureState().PostId;
                 Require(post == "2000", "Disabled-volume check started on unexpected media.");
-                await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native!.MoveAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native.ButtonAsync(true);
+                await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Disabled volume pointer click");
                 var after = await SampleAsync("disabled-volume-after-click");
                 Require(ProvesNativeUnavailable(after) && after.Volume == before.Volume
