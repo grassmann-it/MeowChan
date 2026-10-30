@@ -543,6 +543,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         Slider volume = Find<Slider>(viewer, "GalleryVideoVolume");
         var volumeEvidence = await player.InspectPlaybackAsync();
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO") == "1")
+            Require(volumeEvidence.AudioAvailable && volumeEvidence.AudioTracks > 0 && volumeEvidence.PlayedAudioBuffers > 0,
+                "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 requires actual available audio, an audio track and played audio buffers before edge volume branch selection.");
         if (!volumeEvidence.AudioAvailable)
         {
             bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence sample) =>
@@ -583,6 +586,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Bottom-edge volume interaction");
         Require(Running(viewer) && !Visible(post) && !viewer.CaptureState().ContextOpen,
             "Bottom volume interaction opened right post or stopped automatic advancement.");
+        if (volumeEvidence.AudioAvailable)
+            Console.WriteLine("SMOKE functional-audio-positive edge volume: " + JsonSerializer.Serialize(new
+            { before = volumeEvidence, after = await player.InspectPlaybackAsync() }));
         await native.MoveAsync(controls);
         await HoldAsync(TimeSpan.FromMilliseconds(800), () => Require(Visible(controls), "Controls collapsed while pointer was inside them."));
         Button pause = Find<Button>(viewer, "GallerySlideshowToggle");

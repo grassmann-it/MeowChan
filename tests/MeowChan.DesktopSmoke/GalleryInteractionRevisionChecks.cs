@@ -279,6 +279,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         int contextWrites = 0;
         viewer.ContextOpenChanged += _ => contextWrites++;
         Slider volume = Find<Slider>(viewer, "GalleryVideoVolume");
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO") == "1")
+            Require(evidence.AudioAvailable && evidence.AudioTracks > 0 && evidence.PlayedAudioBuffers > 0,
+                "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 requires actual available audio, an audio track and played audio buffers before transport volume branch selection.");
         bool nativeUnavailable = !evidence.AudioAvailable;
         bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence sample) =>
             sample.HasPlayback && !sample.AudioAvailable && sample.AudioTracks > 0
@@ -324,6 +327,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         await ObservePlayingAsync(player, "volume click");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Volume click opened right post or stopped advancement.");
+        if (!nativeUnavailable)
+            Console.WriteLine("SMOKE functional-audio-positive transport volume: " + System.Text.Json.JsonSerializer.Serialize(new
+            { before = evidence, after = await player.InspectPlaybackAsync() }));
         Border transport = Find<Border>(viewer, "GalleryVideoTransport");
         // Reproduce the actual overlapping right-strip/bottom-panel geometry, not only
         // the center of a slider which may sit outside the right-edge hotspot.

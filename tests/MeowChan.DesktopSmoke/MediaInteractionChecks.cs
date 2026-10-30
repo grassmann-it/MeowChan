@@ -415,6 +415,9 @@ internal static class MediaInteractionChecks
             if (expected == "Playing") await SeekClickAsync(.05); // Keep short supported fixtures away from a natural end.
             Slider volume = Named<Slider>("GalleryVideoVolume");
             var volumeEvidence = await SampleAsync("volume-availability-before");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO") == "1")
+                Require(volumeEvidence.AudioAvailable && volumeEvidence.AudioTracks > 0 && volumeEvidence.PlayedAudioBuffers > 0,
+                    "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 requires actual available audio, an audio track and played audio buffers before volume branch selection.");
             bool nativeUnavailable = !volumeEvidence.AudioAvailable;
             bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence evidence) =>
                 evidence.HasPlayback && !evidence.AudioAvailable && evidence.AudioTracks > 0
@@ -466,6 +469,8 @@ internal static class MediaInteractionChecks
                 await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
                 Require(viewer!.CaptureState().PostId == "2000", "Volume Up/Down navigated media.");
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume Up/Down");
+                Console.WriteLine("SMOKE functional-audio-positive media volume: " + JsonSerializer.Serialize(new
+                { expected, before = volumeEvidence, after = await SampleAsync("functional-audio-positive-volume") }));
             }
             foreach (string panel in new[] { "GalleryToggleContext", "GalleryHelp" })
             {
