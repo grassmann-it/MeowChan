@@ -189,7 +189,7 @@ jobs:
           PY
           fi
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core
+          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils
       - name: Exercise native graphical startup and fallback paths
         # The normal mode renders over 200 screenshots. Native macOS runners can
         # exceed three minutes while still making progress; per-check waits stay bounded.
@@ -271,11 +271,25 @@ jobs:
           MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'
         run: |
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
-          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/gallery-features
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            # Real, hardware-free output keeps functional volume acceptance mandatory.
+            # Forward scene inputs explicitly; the audio wrapper discards inherited sessions.
+            python scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-features.json -- \
+              env MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 MEOWCHAN_VIDEO_FIXTURE="$MEOWCHAN_VIDEO_FIXTURE" \
+              python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode normal --timeout 300 --output artifacts/gallery-features
+          else
+            python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/gallery-features
+          fi
       - name: Exercise real OS media input (not synthetic routed keys)
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
-        run: python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 240 --output artifacts/media-native-input
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            python scripts/with-private-null-audio.py --report artifacts/private-audio/media-native-input.json -- \
+              python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 240 --require-audio-output --output artifacts/media-native-input
+          else
+            python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 240 --output artifacts/media-native-input
+          fi
       - name: Exercise tray lifecycle separately on the disposable runner
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
@@ -331,6 +345,7 @@ jobs:
             artifacts/closure-gallery-errors/**
             artifacts/closure-reader-media-input/**
             artifacts/media-native-input/**
+            artifacts/private-audio/**
             artifacts/desktop-tray-host/**
             artifacts/desktop-tray-stress/**
             artifacts/build-evidence/**

@@ -73,6 +73,8 @@ def parse_args(argv=None):
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--scale", choices=("1", "1.5", "2"), default="1")
     parser.add_argument("--allow-native-desktop", action="store_true")
+    parser.add_argument("--require-audio-output", action="store_true",
+                        help="Require rendered native audio and functional volume coverage in both transport stages")
     args = parser.parse_args(argv)
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be finite and positive")
@@ -103,6 +105,16 @@ def validate_trace(trace: dict, binding: dict) -> list[str]:
         if stage in {"paused-drag-key", "custom-routing-loop", "retired-gesture-transition"} and not any(
                 e.get("kind") == "key-tunnel" for e in events):
             errors.append("Missing real key delivery: " + stage)
+    if binding.get("requireAudioOutput"):
+        for stage in ("focused-pointer-away", "paused-drag-key"):
+            samples = [event.get("data", {}).get("evidence", {}) for event in trace.get("events", [])
+                       if event.get("stage") == stage and event.get("kind") == "sample"
+                       and event.get("data", {}).get("label") == "volume-availability-before"]
+            if not any(sample.get("AudioAvailable") is True and sample.get("AudioTracks", 0) > 0
+                       and sample.get("PlayedAudioBuffers", 0) > 0 for sample in samples):
+                errors.append("Missing required functional audio/volume evidence: " + stage)
+        if any(event.get("kind") == "coverage-limit" for event in trace.get("events", [])):
+            errors.append("A required functional-audio run used unavailable-output coverage")
     return errors
 
 
@@ -130,12 +142,14 @@ def main(argv=None) -> int:
                     and (p.suffix in {".dll", ".dylib"} or ".so" in p.name or p.name.endswith(".deps.json"))]
         binding = {"sourceDigest": source["sha256"], "assemblySha256": sha256(assembly), "fixtureSha256": sha256(fixture),
                    "source": source, "binaries": binaries, "fixture": {"name": fixture.name, "bytes": fixture.stat().st_size},
-                   "platform": sys.platform, "scale": args.scale}
+                   "platform": sys.platform, "scale": args.scale, "requireAudioOutput": args.require_audio_output}
         (output / "binding.json").write_text(json.dumps(binding, indent=2) + "\n")
         environment = {key: value for key, value in clean_git_environment().items() if not key.startswith(("MEOWCHAN_", "OCHAN_"))}
         environment.update(MEOWCHAN_MEDIA_INTERACTION_ONLY="1", MEOWCHAN_VIDEO_FIXTURE=str(fixture),
                            MEOWCHAN_MEDIA_INTERACTION_REPORT=str(output / "interaction.json"),
                            MEOWCHAN_MEDIA_SOURCE_DIGEST=binding["sourceDigest"])
+        if args.require_audio_output:
+            environment["MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO"] = "1"
         command = [sys.executable, str(ROOT / "scripts/run-desktop-smoke.py"), "--assembly", str(assembly),
                    "--output", str(output / "desktop"), "--mode", "normal", "--timeout", str(args.timeout), "--scale", args.scale]
         if args.allow_native_desktop:

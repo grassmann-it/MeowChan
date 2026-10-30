@@ -34,6 +34,24 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual("a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8",
                          MEDIA.sha256(args.fixture))
 
+    def test_required_functional_audio_cannot_accept_no_output_or_missing_samples(self):
+        binding, trace = evidence()
+        binding["requireAudioOutput"] = True
+        self.assertTrue(MEDIA.validate_trace(trace, binding))
+        for stage in ("focused-pointer-away", "paused-drag-key"):
+            trace["events"].append({"stage": stage, "kind": "sample", "data": {
+                "label": "volume-availability-before", "evidence": {
+                    "AudioAvailable": True, "AudioTracks": 2, "PlayedAudioBuffers": 10}}})
+        self.assertEqual([], MEDIA.validate_trace(trace, binding))
+        for patch in ({"AudioAvailable": False}, {"PlayedAudioBuffers": 0}, {"AudioTracks": 0}):
+            broken = copy.deepcopy(trace)
+            broken["events"][-1]["data"]["evidence"].update(patch)
+            self.assertTrue(MEDIA.validate_trace(broken, binding))
+        limited = copy.deepcopy(trace)
+        limited["events"].append({"kind": "coverage-limit"})
+        self.assertTrue(MEDIA.validate_trace(limited, binding))
+        self.assertTrue(MEDIA.parse_args(["--assembly", "fake.dll", "--output", "fake-output", "--require-audio-output"]).require_audio_output)
+
     def test_complete_native_trace(self):
         binding, trace = evidence()
         self.assertEqual([], MEDIA.validate_trace(trace, binding))
