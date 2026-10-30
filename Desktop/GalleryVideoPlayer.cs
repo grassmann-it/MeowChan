@@ -536,8 +536,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 {
                     NativeVideoRuntime.EnsureInitialized();
                     _engine ??= UsesSoftwareVideo
-                        ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none")
-                        : new LibVLC("--no-video-title-show", "--no-media-library");
+                        ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none", "--stats")
+                        : new LibVLC("--no-video-title-show", "--no-media-library", "--stats");
                     player = new MediaPlayer(_engine);
                     VideoVolumeRequest initialVolume = _volumeIntent.Current;
                     player.Volume = initialVolume.Volume; player.Mute = _startMuted;

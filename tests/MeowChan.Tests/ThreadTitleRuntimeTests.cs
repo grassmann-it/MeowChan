@@ -186,7 +186,12 @@ public sealed class ThreadTitleRuntimeTests
         TitleThread thread = new(source.Board);
         await runtime.BindAsync(thread, profile.Path, restored: true);
         await thread.ObserveAsync(Observation(profile.Path, "Saved title"));
-        using SqliteConnection connection = new($"Data Source={runtime.Catalog.DatabasePath}");
+        // This fixture owns a disposable database. A pooled test-only connection would
+        // keep its native handle alive after Dispose and prevent cleanup on Windows.
+        using SqliteConnection connection = new(new SqliteConnectionStringBuilder
+        {
+            DataSource = runtime.Catalog.DatabasePath, Pooling = false
+        }.ToString());
         connection.Open();
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "CREATE TRIGGER fail_title BEFORE UPDATE OF title ON archive_threads BEGIN SELECT RAISE(ABORT,'title failure'); END";
