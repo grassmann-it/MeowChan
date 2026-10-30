@@ -1,3 +1,21 @@
+# Neue Nutzerfreigabe: Legacy-Neuauswahl umsetzen, Version1.0.2 — 30.10.2026
+
+Nutzer hat die zuvor angebotene sichere **Neuauswahl** aktueller gebündelter
+Plugins ausdrücklich angenommen („hätte gemacht wie du sagst“). Kein zusätzlicher
+Herkunftsnachweis vom Nutzer erforderlich: Vorschau+explizite Bestätigung,
+unveränderliches Originalbackup und tatsächlicher v2-Zustand vor Neuauswahl,
+exakte schema-gültige bestätigte Einstellungen; keine automatische Altzuordnung,
+keine Pin-/Grant-/Ownerübernahme. Konflikt-/Rechte-/Pin-Fälle weiter blockieren.
+Backend, passende sichtbare UI und echte Altprofilprüfungen sind in Umsetzung.
+
+Nutzer bestätigt **1.0.2**, Folgefixes ggf**1.0.3**. Der manuelle Windows-Praxistest
+soll **nach** regulärer Veröffentlichung erfolgen; das revidiert die bisherige
+vorgeschaltete manuelle Testfahrt aus C102-08, nicht notwendige technische
+Build-/nativePaket-/Upgrade-/Integritätsprüfungen. Veröffentlichung ist beauftragt,
+kein erneutes pauschales Freigabegespräch nach grünen technischen Gates nötig.
+NeueQuellen bleiben aus. Vorheriger Code-/Prüfstand unten ist historische Basis,
+nicht Abnahme der jetzt laufenden Neuauswahländerung.
+
 # Aktueller Stand: gemeinsame Integration grün, Release noch gegatet — 30.10.2026
 
 **Geprüfte Produktquelle: `400bd6174089d2d6018ab9ff8b6820d87c00d354` auf
