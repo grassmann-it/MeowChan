@@ -156,7 +156,7 @@ class PrivateAudioTests(unittest.TestCase):
             self.assertTrue(bus_env['DBUS_SYSTEM_BUS_ADDRESS'].startswith('unix:path=/tmp/ci-audio-'))
             pulse_args = spawn.call_args_list[1].args[0]
             self.assertEqual(pulse_args[:2], ['pulseaudio', '-n'])
-            for flag in ('--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1'):
+            for flag in ('--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1', '--disallow-module-loading=yes'):
                 self.assertIn(flag, pulse_args)
             self.assertTrue(any(a.startswith('--file=/') for a in pulse_args))
             data = json.loads(report.read_text())

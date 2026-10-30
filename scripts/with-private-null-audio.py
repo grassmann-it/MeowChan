@@ -187,7 +187,7 @@ def execute(command, report_path):
                 spawn('pulseaudio', ['pulseaudio', '-n',
                     '--file='+str(base/'config/pulse/private.pa'),
                     '--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1',
-                    '--system=no', '--fail=yes'], env)
+                    '--system=no', '--fail=yes', '--disallow-module-loading=yes'], env)
                 while True:
                     alive()
                     result = run(env, ['pactl', '--format=json', 'list', 'sinks'])
