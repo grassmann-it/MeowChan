@@ -197,7 +197,10 @@ internal static class ReaderUxChecks
         GalleryViewerState zoom = viewer.CaptureState();
         Click(GalleryButton(viewer, "GalleryToggleContext"));
         await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"));
-        ComboBox association = viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Single();
+        // Playback settings also contain ComboBoxes; this key-ownership check targets
+        // the post association selector, not the playback-mode choice.
+        ComboBox association = viewer.GetGalleryVisualDescendants().OfType<ComboBox>()
+            .Single(control => control.Name == "GalleryPostAssociation");
         PressKey(association, Key.Right);
         Require(viewer.CaptureState().PostId == "1003", "Gallery shortcut captured the association selector's key.");
         Click(GalleryButton(viewer, "GalleryReadPost"));

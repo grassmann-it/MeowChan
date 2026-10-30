@@ -217,12 +217,25 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             if child is not None and self.process_is_live(child):
                 os.kill(child, signal.SIGKILL)
 
+    @mock.patch.object(sys, "platform", "linux")
+    def test_process_liveness_handles_reaping_but_not_permission_errors(self):
+        for absent in (FileNotFoundError(2, "gone"), ProcessLookupError(3, "reaped")):
+            with self.subTest(error=type(absent).__name__), mock.patch.object(Path, "read_text", side_effect=absent):
+                self.assertFalse(self.process_is_live(123))
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError(13, "denied")):
+            with self.assertRaises(PermissionError):
+                self.process_is_live(123)
+        for state, live in (("S", True), ("R", True), ("Z", False)):
+            with self.subTest(state=state), mock.patch.object(Path, "read_text", return_value=f"123 (fixture child) {state}"):
+                self.assertEqual(live, self.process_is_live(123))
+
     @staticmethod
     def process_is_live(pid):
         if sys.platform.startswith("linux"):
             try:
                 return Path(f"/proc/{pid}/stat").read_text().split(") ", 1)[1][0] != "Z"
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
+                # /proc can disappear after open but before read when the child is reaped.
                 return False
         probe = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True)
         return probe.returncode == 0 and bool(probe.stdout.strip()) and not probe.stdout.strip().startswith("Z")
