@@ -214,16 +214,23 @@ internal static class GalleryViewerChecks
             Require(displayed.Source == null && !string.IsNullOrWhiteSpace(GalleryControl<TextBlock>(viewer, "GalleryStatus").Text),
                 "Changed manifest bytes produced a stale or unverified image.");
             await File.WriteAllBytesAsync(path, bytes);
-            Task closingLoad = viewer.ShowAsync(selected, CancellationToken.None);
-            await viewer.StopAsync(); await closingLoad;
-            Require(displayed.Source == null, "A canceled decode published pixels after closing.");
+            // Empty-state actions belong to a live viewer. StopAsync permanently closes
+            // this instance; late notices/empty-state results must not revive it.
             int readRequests = 0;
             viewer.ReadPostsRequested += () => readRequests++;
-            viewer.SetEmpty("No saved images", true);
+            await viewer.SetEmpty("No saved images", true);
             Require(GalleryControl<Button>(viewer, "GalleryReadPosts").IsVisible, "Empty gallery lost Read posts action.");
             Click(GalleryControl<Button>(viewer, "GalleryReadPosts"));
             Require(readRequests == 1, "Empty gallery Read posts did not request the reader exactly once.");
             RequireCentralWarning();
+            Task closingLoad = viewer.ShowAsync(selected, CancellationToken.None);
+            await viewer.StopAsync(); await closingLoad;
+            Require(displayed.Source == null, "A canceled decode published pixels after closing.");
+            int closedRequest = viewer.MediaRequestGeneration, closedReports = reports.Count;
+            await viewer.SetEmpty("Late empty result after close", true);
+            Require(viewer.MediaRequestGeneration == closedRequest && reports.Count == closedReports
+                && displayed.Source == null && readRequests == 1,
+                "A late empty-state result revived a stopped viewer or emitted a diagnostic/action.");
             Console.WriteLine("SMOKE gallery: verified offline fit/original, >1200px pixel detail, physical 1:1, context, restore and 100 superseded loads passed.");
         }
         finally { await viewer.StopAsync(); window.Content = content; Directory.Delete(directory, true); }
