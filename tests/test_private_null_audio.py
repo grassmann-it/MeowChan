@@ -41,17 +41,21 @@ class PrivateAudioTests(unittest.TestCase):
             self.assertEqual(Path(env['PIPEWIRE_RUNTIME_DIR']), Path(tmp)/'runtime')
             self.assertEqual((Path(tmp)/'config/pulse/client.conf').read_text(), 'autospawn = no\n')
 
-    def check_proof(self, sinks=None, modules=None, sources=None, cards=None, default=None):
+    def check_proof(self, sinks=None, modules=None, sources=None, cards=None, default=None, short_modules=None):
         values = [sinks if sinks is not None else [
                       {'name': audio.SINK, 'mute': True, 'owner_module': 1,
                        'driver': 'module-null-sink.c'}],
                   sources if sources is not None else [
                       {'name': audio.SINK+'.monitor', 'owner_module': 1}],
                   modules if modules is not None else [
-                      {'name': 'module-null-sink', 'index': 1},
-                      {'name': 'module-native-protocol-unix', 'index': 0}],
+                      {'name': 'module-null-sink', 'argument': 'sink_name='+audio.SINK,
+                       'usage_counter': 0, 'properties': {}},
+                      {'name': 'module-native-protocol-unix', 'argument': '',
+                       'usage_counter': 0, 'properties': {}}],
                   cards if cards is not None else []]
-        with patch.object(audio, 'checked', side_effect=[json.dumps(v) for v in values]+[
+        with patch.object(audio, 'checked', side_effect=[json.dumps(v) for v in values[:3]]+[
+                '0\tmodule-native-protocol-unix\targs\n1\tmodule-null-sink\targs\n'
+                if short_modules is None else short_modules, json.dumps(values[3]),
                 audio.SINK if default is None else default]):
             return audio.proof({})
 
@@ -74,6 +78,23 @@ class PrivateAudioTests(unittest.TestCase):
                                     'owner_module': 1, 'driver': 'module-alsa-sink.c'}])
         with self.assertRaises(RuntimeError):
             self.check_proof(sources=[{'name': audio.SINK+'.monitor', 'owner_module': 5}])
+
+    def test_reject_short_module_names_ids_and_owner(self):
+        for listing in (
+            '0\tmodule-native-protocol-unix\n1\tmodule-alsa-sink\n',
+            '0\tmodule-native-protocol-unix\n0\tmodule-null-sink\n',
+            '0\tmodule-native-protocol-unix\nno-id\tmodule-null-sink\n',
+            '0\tmodule-native-protocol-unix\n1\tmodule-null-sink\n2\tmodule-null-sink\n',
+            '0\tmodule-native-protocol-unix\n',
+            '0 module-native-protocol-unix\n1 module-null-sink\n',
+        ):
+            with self.subTest(listing=listing), self.assertRaises(RuntimeError):
+                self.check_proof(short_modules=listing)
+        with self.assertRaises(RuntimeError):
+            self.check_proof(short_modules='0\tmodule-native-protocol-unix\n7\tmodule-null-sink\n')
+        with self.assertRaises(RuntimeError):
+            self.check_proof(modules=[{'name': 'module-null-sink', 'index': 7},
+                                      {'name': 'module-native-protocol-unix', 'index': 0}])
 
     def test_reject_sink_and_source(self):
         for sinks in ([], [{'name': audio.SINK, 'mute': False}],

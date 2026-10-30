@@ -85,6 +85,7 @@ def proof(env):
     sinks = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sinks']))
     sources = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sources']))
     modules = json.loads(checked(env, ['pactl', '--format=json', 'list', 'modules']))
+    short_modules = checked(env, ['pactl', 'list', 'short', 'modules'])
     cards = json.loads(checked(env, ['pactl', '--format=json', 'list', 'cards']))
     default = checked(env, ['pactl', 'get-default-sink']).strip()
     if len(sinks) != 1 or sinks[0]['name'] != SINK or sinks[0]['mute'] is not True:
@@ -97,8 +98,24 @@ def proof(env):
         raise RuntimeError('hardware card found')
     if len(modules) != 2 or {m['name'] for m in modules} != MODULES:
         raise RuntimeError('unexpected module (only private protocol and null sink allowed)')
-    null_module = next(m for m in modules if m['name'] == 'module-null-sink')
-    if any(str(obj.get('owner_module')) != str(null_module['index'])
+    # PulseAudio 16 JSON omits module IDs. Short output supplies stable IDs;
+    # cross-check both independent listings rather than weakening ownership.
+    module_ids = {}
+    for line in short_modules.splitlines():
+        columns = line.split('\t')
+        if len(columns) < 2 or not columns[0].isascii() or not columns[0].isdigit():
+            raise RuntimeError('invalid short module ID/columns')
+        module_id, name = int(columns[0]), columns[1]
+        if name in module_ids or module_id in module_ids.values():
+            raise RuntimeError('duplicate short module name/ID')
+        module_ids[name] = module_id
+    if set(module_ids) != {m['name'] for m in modules}:
+        raise RuntimeError('JSON/short module listing mismatch')
+    for module in modules:
+        if 'index' in module and str(module['index']) != str(module_ids[module['name']]):
+            raise RuntimeError('JSON/short module ID mismatch')
+    null_module_id = module_ids['module-null-sink']
+    if any(str(obj.get('owner_module')) != str(null_module_id)
            for obj in sinks+sources):
         raise RuntimeError('sink/source not owned by null module')
     if sinks[0].get('driver') != 'module-null-sink.c':
