@@ -264,8 +264,12 @@ public sealed class RuntimeProcessTests
     public async Task SharedTemporaryBudgetIsEnforcedEvenWithAnEmptyWorkerWorkspace()
     {
         using Workspace workspace = new();
-        await using PluginWorkerManager manager = new(new() { MaximumTemporaryBytes = 1024, ExternalTemporaryBytes = () => 1025 });
+        long externalTemporaryBytes = 0;
+        await using PluginWorkerManager manager = new(new() { MaximumTemporaryBytes = 1024, ExternalTemporaryBytes = () => Interlocked.Read(ref externalTemporaryBytes) });
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        Assert.Equal(0, manager.GetTemporaryBytes());
+        // Introduce the shared overflow only after startup; the monitor also runs during the handshake.
+        Interlocked.Exchange(ref externalTemporaryBytes, 1025);
         PluginWorkerException failure = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("cancel"), Operation));
         Assert.Equal("temporary-limit", failure.Code);
     }
