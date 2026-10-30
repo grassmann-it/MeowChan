@@ -1,3 +1,29 @@
+# Fortsetzung / Integration-02 — 30.10.2026
+
+Branch `release/1.0.2`, zusätzlicher Commit `43091d9`: verifizierter MP4-Stream
+nutzt bei ISO-BMFF avformat; Reader-eigene Paginationadorners fangen keine
+Galerieklicks mehr ab. Linuxavformat-Allowlist erweitert. Unabhängiger statischer
+Review ohne konkrete P1/P2-Befunde, kein nativer Gesamt-/Releasepass.
+
+Aktueller integrierter Solutionbuild: **0 Fehler / 15 Warnungen**, normale
+Analyzer. **11 gezielte Desktoptests PASS** einschließlich zwei neuer Hosttests:
+Mehrfachpriorität bei Pause ohne Netzwerk, entfernte/neuangelegte Watchidentität,
+Nicht-Ready-Ablehnung und unverändert gespeicherte Parallelität1000 bei effektiv32.
+Worker: Queue-/Prioritysuite50PASS, Konfigurationssuite114PASS; noch getrennte
+Forkbelege. Noch NICHT als eingefrorene Gesamtquelle oder Kandidat abgenommen.
+
+A2-Coreprüfung fand realen Unterschied zwischen nie gesendeter Admission und
+nach echtem503/Timeout/Redirect deferiertem Check unzureichend abgebildet.
+Enger Fix läuft in isoliertem Solfork, SourceAdapterregressionen dort aktuell
+noch nicht vollständig grün. Kein Fehler wird als fertige Closure verschwiegen.
+Altprofilbackup vor erster Startupmutation geliefert, Integrationprüfung folgt.
+Legacy-Neuauswahl bleibt ausdrückliche offene Policyentscheidung, keine
+Herkunft erfunden oder Pins/Rechte übernommen. Version weiterhin1.0.1;
+keine Veröffentlichung. Neue Quellen weiter ausgeschlossen.
+
+Belege: `artifacts/release-1.0.2-close-2026-10-30/integration-02/` und
+`integration-review-media-reader-priority.md` im Runverzeichnis.
+
 # Aktiver Abschlusslauf auf release/1.0.2 — 30.10.2026
 
 Nutzer hat Umsetzung mit mehrerenWorkern und Zwischencommits ausdrücklich
