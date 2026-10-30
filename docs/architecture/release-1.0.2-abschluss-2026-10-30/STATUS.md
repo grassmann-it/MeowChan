@@ -1,3 +1,44 @@
+# Aktuell: weitere echte Gatefehler geklärt, nächster Gesamtpass offen — 30.10.2026
+
+**Noch kein Tag/Release; reguläres 1.0.2 bleibt Ziel.** Neuere Fortsetzung bis
+Produkt-/Prüfcode `76d0a59` auf `release/1.0.2`; die folgenden Abschnitte bleiben
+historische Zwischenstände, nicht die aktuelle Abnahme.
+
+- `caab70e`-Kandidat Run41119303069: Macpaket fand `GalleryVideoPlayPause` in der
+  ersten Readinessbeobachtung noch nicht; `Single` brach vor Wiederholung ab.
+  Jetzt eindeutiges `SingleOrDefault` während Readiness, Präsenz/Enabled bleiben
+  Pflicht, Duplikate scheitern weiter, 10s-/Frame-/Decodergrenzen unverändert.
+- Kleinstbildprüfung verlangte einen 10%-Schritt UNTER Fit, stellte zuvor aber
+  nur Fit>1 sicher. Fixture112×127 plus explizites Fit>1.1 und exakter1.1-Schritt;
+  nativ bei760×500 tatsächlich Fit2.133858…/Zoom1.1 PASS. Originalpixel-/1:1-/
+  Resize-/Kontext-/Integritäts-/Cancelprüfungen unverändert erhalten.
+- Der folgende native Fehler war ein `SetEmpty` NACH permanentem `StopAsync`.
+  Dass geschlossene Viewer späte Updates ignorieren, ist gewollt. Live-Emptyaktion
+  wird nun VOR Stop geprüft, danach zusätzlich explizite No-op-/keinCallback-
+  und KeinPixel-Nachweise. Derselbe Fehler ist in Run41122518068/macOS bestätigt;
+  dieser Lauf (`48d423d`) ist deshalb NICHT releasegrün.
+- Lokaler vollständiger Solutionlauf: 0Buildfehler/19Warnungen,13Testprojekte,
+  **3424PASS/2FAIL/8SKIP**. Kein Gesamtpass! Beide Fehler in PluginRuntime:
+  a) externer Tempüberlauf war bereits vor der StartHandshakeabsicherung aktiv,
+  b) erster normaler Read nach Retry überschritt den testinternen200ms-Takt.
+  Tempfixture schaltet jetzt erst nach Startup0→1025Bytes bei1024Limit; Produkt-
+  schutz bleibt unverändert.32RuntimeProcessfälle danach PASS, einschließlich
+  unverändertem200ms-Retrytest. Exakte Timingursache des ersten Fehlers nicht
+  behauptet; Kandidaten-Gesamttests bleiben erforderlich.
+- Separater Pythonclone aufcaab70e: **357PASS/1SKIP**, Root-/Fork-/Git-/Quellguards
+  unverändert. Kein Native-/Paketpass daraus. Ergänzender privater Linux-GUIlauf
+  mit Live-/Closed-Viewerrevision läuft noch; nach Fehlern gestoppte Reader- oder
+  Selectionmodi sind NICHT als bestanden gezählt.
+
+Alle Änderungen eng auf tatsächliche Produkt-/Prüfdefekte beschränkt, keine neue
+Quelle, kein Queuewachstum oder gelockertes Herkunfts-/Rechte-/Audiogate. Neues
+vollständiges stable-candidate/all/all auf dem gesamten neuesten Commit nötig;
+Erst dessen13Jobs/18same-runAssets freigeben, dann regulär veröffentlichen und
+anonyme Downloads/Hashes prüfen. Manuelle Windows-Praxisabnahme danach.
+Live Fortschritts-/Belegpfade: `artifacts/release-1.0.2-ci-fix-verification/RUNSTATE.json`.
+
+---
+
 # Fortsetzung: Kandidatenfehler konkret eingegrenzt — 30.10.2026, abends
 
 **Reguläres 1.0.2 bleibt beauftragt, noch NICHT veröffentlicht.** Die folgenden
