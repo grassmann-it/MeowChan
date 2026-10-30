@@ -242,7 +242,7 @@ internal static class MediaInteractionChecks
             if (dropped != 0) failures.Add("trace overflow: incomplete input evidence");
             Require(failures.Count == 0, "Media native regression failures: " + string.Join(" | ", failures));
             outcome = "passed";
-            Console.WriteLine("SMOKE media native input: click/hover/focus, playing/paused seek-volume-panels, first-key hidden navigation with default+custom bindings, Loop video-image-video, retired gesture passed on the recorded native backend.");
+            Console.WriteLine("SMOKE media native input: click/hover/focus, playing/paused seek-panels (volume editing/focus only with available native output; otherwise disabled-pointer invariance and seek-focus navigation), first-key hidden navigation with default+custom bindings, Loop video-image-video, retired gesture passed on the recorded native backend.");
         }
         catch (Exception e)
         {
@@ -414,22 +414,57 @@ internal static class MediaInteractionChecks
         {
             if (expected == "Playing") await SeekClickAsync(.05); // Keep short supported fixtures away from a natural end.
             Slider volume = Named<Slider>("GalleryVideoVolume");
-            await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
-            Require(volume.IsKeyboardFocusWithin, "Native volume click did not focus the actual slider.");
-            await native.KeyAsync(MediaNativeInput.Home);
-            Require(volume.Value == volume.Minimum && viewer!.CaptureState().PostId == "2000",
-                "Native volume Home did not stay local to the slider.");
-            await native.KeyAsync(MediaNativeInput.End);
-            await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-            Require(volume.Value == volume.Maximum && viewer!.CaptureState().PostId == "2000",
-                "Native volume End escaped or failed to adjust volume.");
-            await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click/Home/End");
-            await native.KeyAsync(MediaNativeInput.Down);
-            await WaitPlaybackAsync(p => p.Volume == 99 && p.State == expected);
-            await native.KeyAsync(MediaNativeInput.Up);
-            await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-            Require(viewer!.CaptureState().PostId == "2000", "Volume Up/Down navigated media.");
-            await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume Up/Down");
+            var volumeEvidence = await SampleAsync("volume-availability-before");
+            bool nativeUnavailable = !volumeEvidence.AudioAvailable;
+            bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence evidence) =>
+                evidence.HasPlayback && !evidence.AudioAvailable && evidence.AudioTracks > 0
+                && (evidence.Volume < 0 || (evidence.DecodedAudio > 0 && evidence.PlayedAudioBuffers == 0));
+            async Task CheckDisabledVolumeClickAsync()
+            {
+                var before = await SampleAsync("disabled-volume-before-click");
+                ToggleButton mute = Named<ToggleButton>("GalleryVideoMute");
+                Require(ProvesNativeUnavailable(before) && before.State == expected
+                    && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !Player().CanAdjustVolume,
+                    "Disabled-volume branch lacks native unavailable-output evidence or disabled controls.");
+                string? post = viewer!.CaptureState().PostId;
+                Require(post == "2000", "Disabled-volume check started on unexpected media.");
+                await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Disabled volume pointer click");
+                var after = await SampleAsync("disabled-volume-after-click");
+                Require(ProvesNativeUnavailable(after) && after.Volume == before.Volume
+                    && after.Muted == before.Muted && after.State == before.State
+                    && viewer.CaptureState().PostId == post && !volume.IsEffectivelyEnabled
+                    && !mute.IsEffectivelyEnabled && !Player().CanAdjustVolume,
+                    "Disabled volume pointer click changed native volume/mute/state/selection or availability.");
+            }
+            if (nativeUnavailable)
+            {
+                Require(ProvesNativeUnavailable(volumeEvidence),
+                    "Unavailable audio alone is insufficient: expected an audio track and native unavailable-output evidence.");
+                await CheckDisabledVolumeClickAsync();
+                Record("coverage-limit", new { expected, volumeEvidence,
+                    reason = "Native output unavailable: native volume editing, Home/End and volume-slider focus not exercised; no disabled-slider focus coverage claimed." });
+                Console.WriteLine($"SMOKE media {expected}: native output unavailable; native volume editing/HomeEnd/slider focus NOT exercised. Disabled pointer invariance checked; navigation uses actual focused seek transport.");
+            }
+            else
+            {
+                await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                Require(volume.IsKeyboardFocusWithin, "Native volume click did not focus the actual slider.");
+                await native.KeyAsync(MediaNativeInput.Home);
+                Require(volume.Value == volume.Minimum && viewer!.CaptureState().PostId == "2000",
+                    "Native volume Home did not stay local to the slider.");
+                await native.KeyAsync(MediaNativeInput.End);
+                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
+                Require(volume.Value == volume.Maximum && viewer!.CaptureState().PostId == "2000",
+                    "Native volume End escaped or failed to adjust volume.");
+                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click/Home/End");
+                await native.KeyAsync(MediaNativeInput.Down);
+                await WaitPlaybackAsync(p => p.Volume == 99 && p.State == expected);
+                await native.KeyAsync(MediaNativeInput.Up);
+                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
+                Require(viewer!.CaptureState().PostId == "2000", "Volume Up/Down navigated media.");
+                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume Up/Down");
+            }
             foreach (string panel in new[] { "GalleryToggleContext", "GalleryHelp" })
             {
                 if (expected == "Playing") await SeekClickAsync(.05);
@@ -452,8 +487,21 @@ internal static class MediaInteractionChecks
             Require(!Named<ComboBox>("GalleryPlaybackModeSelector").IsDropDownOpen && viewer!.CaptureState().PostId == "2000",
                 "Menu Escape escaped into gallery close/navigation.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Playback menu dismissed");
-            // Actual volume pointer focus must yield media navigation on exactly one key.
-            await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+            // Keep real-input navigation coverage even when the disabled volume cannot take focus.
+            if (nativeUnavailable)
+            {
+                await CheckDisabledVolumeClickAsync();
+                await SeekClickAsync(.05);
+                Require(Seek().IsEffectivelyEnabled && Seek().IsKeyboardFocusWithin,
+                    "Unavailable-output navigation fallback did not focus the actual eligible seek transport.");
+                Record("navigation-focus", new { expected, source = "seek-transport-native-unavailable",
+                    focus = Target(window.FocusManager?.GetFocusedElement()) });
+            }
+            else
+            {
+                // Actual volume pointer focus must yield media navigation on exactly one key.
+                await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+            }
             await native.KeyAsync(MediaNativeInput.Right);
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2001");
             await native.KeyAsync(MediaNativeInput.Left);
