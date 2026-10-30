@@ -1,1 +1,3 @@
 #nullable enable
+const MeowChan.Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling = 32 -> int
+MeowChan.Downloader.DownloadQueue.GetConcurrencySnapshot() -> (int Configured, int Effective, int Active, int DeferredSlots)

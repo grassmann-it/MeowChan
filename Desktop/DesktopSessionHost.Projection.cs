@@ -17,6 +17,8 @@ internal sealed record DesktopSessionProjection(long Epoch, long Version, Deskto
 {
     /// <summary>True when the last capture failed and View still holds the last complete data.</summary>
     public bool IsStale => CaptureError != null;
+    public (int Configured, int Effective, int Active, int DeferredSlots) MediaConcurrency { get; init; }
+    public IReadOnlyList<long> HighPriorityWatches { get; init; } = System.Array.Empty<long>();
     public IReadOnlyList<string> AdmissionExamples { get; init; } = Array.AsReadOnly(Array.Empty<string>());
     public IReadOnlyList<DiagnosticTarget> CheckableTargets { get; init; } = Array.AsReadOnly(Array.Empty<DiagnosticTarget>());
     public IReadOnlyList<ProviderDescriptor> Providers { get; init; } = Array.AsReadOnly(Array.Empty<ProviderDescriptor>());
@@ -36,6 +38,9 @@ internal sealed record DesktopSessionProjection(long Epoch, long Version, Deskto
             || previous.IsPauseTransitioning != current.IsPauseTransitioning || previous.CaptureError != current.CaptureError
             || previous.View.State != current.View.State || previous.View.StartupError != current.View.StartupError
             || !previous.View.Warnings.SequenceEqual(current.View.Warnings, StringComparer.Ordinal)
+            || previous.MediaConcurrency.Configured != current.MediaConcurrency.Configured
+            || previous.MediaConcurrency.Effective != current.MediaConcurrency.Effective
+            || !previous.HighPriorityWatches.SequenceEqual(current.HighPriorityWatches)
             || previous.View.Threads.Count != current.View.Threads.Count || previous.View.Boards.Count != current.View.Boards.Count)
             return true;
         for (int index = 0; index < current.View.Threads.Count; index++)
@@ -166,11 +171,17 @@ internal sealed partial class DesktopSessionHost
                         .Select(pair => new DiagnosticTarget(DiagnosticTargetKind.Thread, pair.Key))
                         .Concat(_boardHandles.Where(pair => pair.Value is MeowChan.Interfaces.ICheckRequestSource)
                             .Select(pair => new DiagnosticTarget(DiagnosticTargetKind.Board, pair.Key))).ToArray();
+                KeyValuePair<long, MeowChan.Interfaces.IThread>[] handles;
+                lock (_projection) handles = _threadHandles.ToArray();
+                long[] highPriority = handles.Where(pair => _downloadQueue.GetUserPriority(pair.Value) == MeowChan.Downloader.UserDownloadPriority.High)
+                    .Select(pair => pair.Key).OrderBy(id => id).ToArray();
                 ProviderDescriptor[] providers = _registry.GetProviderDescriptors().Select(provider => provider with
                 { SupportedHosts = Array.AsReadOnly(provider.SupportedHosts.ToArray()) }).ToArray();
                 result = new DesktopSessionProjection(_epoch, 0, view, _registry.IsPaused,
                     IsPauseTransitioning, Stopwatch.GetTimestamp(), null)
                 {
+                    MediaConcurrency = _downloadQueue.GetConcurrencySnapshot(),
+                    HighPriorityWatches = Array.AsReadOnly(highPriority),
                     CheckableTargets = Array.AsReadOnly(checkable),
                     Providers = Array.AsReadOnly(providers),
                     AdmissionExamples = CaptureAdmissionExamples(providers, previous),

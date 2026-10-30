@@ -12,7 +12,7 @@ public static class PluginOriginalMediaHttp
     /// <summary>
     /// The returned client owns its policy/redirect wrappers, never the borrowed transport.
     /// Transport must disable automatic redirects/retries and must not carry authentication headers.
-    /// All redirect headers share one 60-second deadline; body deadlines remain with DownloadWorker.
+    /// All redirect headers share one 60-second network/cooldown deadline (excluding healthy initial admission); body deadlines remain with DownloadWorker.
     /// </summary>
     public static HttpClient CreateClient(HttpClient transport, SourceDescription source, RequestPolicyState policy, ILogger? logger = null)
     {
@@ -31,6 +31,7 @@ public static class PluginOriginalMediaHttp
         private readonly HttpClient _client;
         private readonly HashSet<string> _hosts;
         private readonly TimeProvider _clock;
+        private readonly ILogger _logger;
 
         internal RedirectHandler(HttpClient transport, SourceDescription source, RequestPolicyState policy, ILogger? logger)
         {
@@ -42,6 +43,7 @@ public static class PluginOriginalMediaHttp
             _hosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.OriginalMedia))
                 .Select(host => host.Host).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _clock = policy.TimeProvider;
+            _logger = logger ?? Serilog.Core.Logger.None;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -54,8 +56,20 @@ public static class PluginOriginalMediaHttp
                 throw new HttpRequestException("Original media request headers must not carry credentials or unsupported headers.");
             Uri uri = request.RequestUri ?? throw new HttpRequestException("An absolute original-media URI is required.");
             Validate(uri);
-            using CancellationTokenSource deadline = new(RequestPolicyHandler.OverallTimeout, _clock);
+            using CancellationTokenSource deadline = new();
+            using ITimer deadlineTimer = _clock.CreateTimer(_ =>
+            {
+                try { deadline.Cancel(); }
+                catch (ObjectDisposedException) { }
+                catch (Exception exception) { _logger.Warning(exception, "Original-media deadline cancellation observer failed"); }
+            }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+            int budgetStarted = 0;
+            void StartBudget()
+            {
+                if (Interlocked.Exchange(ref budgetStarted, 1) == 0)
+                    deadlineTimer.Change(RequestPolicyHandler.OverallTimeout, Timeout.InfiniteTimeSpan);
+            }
             try
             {
                 for (int redirect = 0; redirect <= MaximumRedirects; redirect++)
@@ -66,6 +80,7 @@ public static class PluginOriginalMediaHttp
                     { Version = request.Version, VersionPolicy = request.VersionPolicy };
                     foreach (var header in request.Headers) hop.Headers.TryAddWithoutValidation(header.Key, header.Value);
                     foreach (var option in request.Options) hop.Options.Set(new HttpRequestOptionsKey<object?>(option.Key), option.Value);
+                    hop.Options.Set(RequestPolicyHandler.BudgetStartedKey, (Action)StartBudget);
                     HttpResponseMessage response = await _client.SendAsync(hop, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
                     try
                     {

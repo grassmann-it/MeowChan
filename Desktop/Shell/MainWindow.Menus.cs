@@ -94,6 +94,7 @@ public partial class MainWindow
         Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false, IsCurrentDownloadTarget), frozen.Checkable.Length > 0, frozen.Checkable.Length);
         if (!frozen.Boards)
             Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true, IsCurrentDownloadTarget), frozen.Retriable.Length > 0, frozen.Retriable.Length);
+        if (!frozen.Boards) AddUserPriorityMenus(menu, ready);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
         menu.Items.Add(new Separator());
         Add("watch.remove", async () => await RunSelectionCommandAsync(frozen.WatchIds,

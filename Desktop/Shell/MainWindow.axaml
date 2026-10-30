@@ -166,7 +166,10 @@
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="12" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding PriorityBadge}" IsVisible="{Binding IsHighPriority}" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}" />
+                                                <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="12" />
+                                            </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

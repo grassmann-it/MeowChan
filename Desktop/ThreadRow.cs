@@ -46,6 +46,22 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Status { get; private set; } = string.Empty;
     // Row-only projection: never use this in the authoritative detail/status column.
     public string CompactStatus { get; private set; } = string.Empty;
+    public bool IsHighPriority { get; private set; }
+    public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
+    public string PriorityDescription => IsHighPriority
+        ? (Texts.Language == "de" ? "Hohe Priorität · nächste ausführbare Dateien; laufende Downloads bleiben unverändert."
+            : "High priority · next runnable files; active downloads are unchanged.") : string.Empty;
+
+    // Authoritative host projection only; do not optimistically change on click.
+    internal void ApplyUserPriority(bool high)
+    {
+        if (IsHighPriority == high) return;
+        IsHighPriority = high;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsHighPriority)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityBadge)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityDescription)));
+    }
+
     public string CompactDetails => string.Join(Environment.NewLine,
         new[] { CompactStatus, SavedProgress, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
     public string Progress { get; private set; } = string.Empty;

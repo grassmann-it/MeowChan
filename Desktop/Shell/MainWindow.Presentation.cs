@@ -344,10 +344,20 @@ public partial class MainWindow
         }
         RefreshDownloadSearchPresentation();
         RefreshMediaRetryControls();
+        DesktopSessionProjection priorityFrame = _appliedSessionProjection ?? _session.Projection;
+        foreach (ThreadRow row in UrlList) row.ApplyUserPriority(priorityFrame.HighPriorityWatches.Contains(row.WatchId));
         string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
             UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
+        var concurrency = priorityFrame.MediaConcurrency;
+        string fullSummary = summary;
+        if (concurrency.DeferredSlots > 0)
+        {
+            summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
+            fullSummary += " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
+        }
         WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;
-        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), summary);
+        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
+        AutomationProperties.SetName(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
         WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", VisibleThreads.Count);
         WorkspaceControl<TabItem>("BoardsTab").Header = Texts.T("downloads.boardsCount", VisibleBoards.Count);
         WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = VisibleThreads.Count == 0;

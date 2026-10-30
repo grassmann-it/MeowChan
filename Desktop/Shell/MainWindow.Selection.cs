@@ -20,6 +20,35 @@ public partial class MainWindow
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
         .Any(node => node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem);
 
+    // R0 implements admission in a new partial: exact watch identity + current
+    // generation must be checked by host, not inferred from ResourceId/URL.
+    partial void ApplyFrozenUserPriority(long[] watchIds, bool high);
+    partial void QueryUserPriorityAvailable(ref bool available);
+
+    private void AddUserPriorityMenus(ContextMenu menu, bool ready)
+    {
+        ThreadRow[] frozen = SelectedThreads().DistinctBy(row => row.WatchId).ToArray();
+        bool available = false;
+        QueryUserPriorityAvailable(ref available);
+        foreach (bool high in new[] { true, false })
+        {
+            string label = Texts.Language == "de" ? (high ? "Hohe Priorität" : "Normale Priorität")
+                : (high ? "High priority" : "Normal priority");
+            var item = new MenuItem { Header = label + " (" + frozen.Length + ")",
+                IsEnabled = ready && available && frozen.Length > 0 };
+            item.Click += (_, _) =>
+            {
+                if (RowCommandBusy || _selectionCommandRunning || _sessionRowsApplying || !_restoreCompleted) return;
+                // Use captured rows, never expand to a later selection. Remove/
+                // re-add with an identical resource is deliberately not inherited.
+                long[] ids = frozen.Where(row => _threadRows.TryGetValue(row.WatchId, out ThreadRow? current)
+                    && ReferenceEquals(row, current)).Select(row => row.WatchId).ToArray();
+                if (ids.Length > 0) ApplyFrozenUserPriority(ids, high);
+            };
+            menu.Items.Add(item);
+        }
+    }
+
     private long? _threadLeadId;
     private long? _boardLeadId;
     private bool _selectionCommandRunning;

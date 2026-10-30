@@ -7,7 +7,7 @@ using MeowChan.Storage;
 
 namespace MeowChan.Tests;
 
-public sealed class DownloadQueueTests
+public sealed partial class DownloadQueueTests
 {
     private const long UnthrottledBandwidth = 1L << 30;
     private static readonly byte[] Payload = [1, 3, 5, 7, 9];

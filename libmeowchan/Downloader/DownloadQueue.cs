@@ -864,6 +864,7 @@ public partial class DownloadQueue
                         if (_pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads)
                         { full = true; return false; }
                         _reservedSuccessors++;
+                        if (expectedWaiter != null) RecordUserReservationLocked(expectedWaiter.Thread, admission: true);
                     }
                     else if (!needsSuccessor && existing.Replacement != null)
                     { _reservedSuccessors--; PulseCapacityLocked(); }
@@ -876,8 +877,8 @@ public partial class DownloadQueue
             {
 
                 if ((!fromWaiter && (_admissionWaiters.Count > 0))
-                    || _jobs.Count + _reservedSuccessors >= _maxPendingDownloads + _maxParallelDownloads
-                    || ((_paused || _activeDownloads >= _maxParallelDownloads) && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
+                    || _jobs.Count + _reservedSuccessors >= (long)_maxPendingDownloads + EffectiveParallelDownloadsLocked
+                    || ((_paused || _activeDownloads >= EffectiveParallelDownloadsLocked) && _pendingDownloads.Count + _reservedSuccessors >= _maxPendingDownloads))
                 { full = true; return false; }
 
                 if (_threads.TryGetValue(threadIdentity, out ThreadState? threadState))
@@ -904,6 +905,7 @@ public partial class DownloadQueue
                 _jobs.Add(jobIdentity, job);
                 AttachFilter(job);
                 _pendingDownloads.AddLast(job);
+                if (expectedWaiter != null) RecordUserReservationLocked(expectedWaiter.Thread, admission: true);
                 threadState.OutstandingJobs++;
                 ready = ReserveWorkersLocked();
             }
@@ -1075,10 +1077,16 @@ public partial class DownloadQueue
     private AdmissionWaiter? NextWaiterLocked()
     {
         DownloadPriority preferred = _preferManualAdmission ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
+        AdmissionWaiter[] eligible = _admissionWaiters.Where(waiter => waiter.TargetReady
+            && !_targets.IsBlocked(TargetPath(waiter.Item))).ToArray();
+        UserDownloadPriority? group = PreferredUserGroupLocked(
+            eligible.Any(waiter => GetUserPriorityLocked(waiter.Thread) == UserDownloadPriority.High),
+            eligible.Any(waiter => GetUserPriorityLocked(waiter.Thread) == UserDownloadPriority.Normal), admission: true);
+        if (group == null) return null;
         AdmissionWaiter? fallback = null;
-        foreach (AdmissionWaiter waiter in _admissionWaiters)
+        foreach (AdmissionWaiter waiter in eligible)
         {
-            if (!waiter.TargetReady || _targets.IsBlocked(TargetPath(waiter.Item))) continue;
+            if (GetUserPriorityLocked(waiter.Thread) != group) continue;
             fallback ??= waiter;
             if (GetPriorityLocked(waiter.Thread) == preferred) return waiter;
         }
@@ -1095,24 +1103,42 @@ public partial class DownloadQueue
     private List<QueuedDownload> ReserveWorkersLocked()
     {
         List<QueuedDownload> ready = new List<QueuedDownload>();
-        while (!_stopping && !_paused && _activeDownloads < _maxParallelDownloads && (_pendingDownloads.Count > 0 || _interruptedDownloads.Count > 0))
+        while (!_stopping && !_paused && _activeDownloads < EffectiveParallelDownloadsLocked && (_pendingDownloads.Count > 0 || _interruptedDownloads.Count > 0))
         {
             DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
-            LinkedListNode<QueuedDownload>? chosen = null;
+            var eligible = new List<LinkedListNode<QueuedDownload>>();
+            bool high = false, normal = false;
             foreach (LinkedList<QueuedDownload> list in new[] { _interruptedDownloads, _pendingDownloads })
             for (LinkedListNode<QueuedDownload>? node = list.First; node != null; node = node.Next)
             {
-                if (CleanupWaitLocked(node.Value.Item) != null || _targets.IsBlocked(TargetPath(node.Value.Item))) continue;
-                if (node.Value.Item.Filter != null && (_activeFilteredDownloads >= Math.Max(1, Math.Min(2, _maxParallelDownloads - 1)) || !node.Value.Item.Filter.CanStart)) continue;
+                QueuedDownload candidate = node.Value;
+                if (CleanupWaitLocked(candidate.Item) != null || _targets.IsBlocked(TargetPath(candidate.Item))) continue;
+                if (candidate.Item.Filter != null && (_activeFilteredDownloads >= Math.Max(1, Math.Min(2, EffectiveParallelDownloadsLocked - 1))
+                    || !candidate.Item.Filter.CanStart)) continue;
+                eligible.Add(node);
+                if (GetUserPriorityLocked(candidate.Item.Thread) == UserDownloadPriority.High) high = true;
+                else normal = true;
+            }
+            UserDownloadPriority? group = PreferredUserGroupLocked(high, normal, admission: false);
+            LinkedListNode<QueuedDownload>? chosen = null;
+            foreach (LinkedListNode<QueuedDownload> node in eligible)
+            {
+                if (GetUserPriorityLocked(node.Value.Item.Thread) != group) continue;
                 bool matches = GetPriorityLocked(node.Value.Item.Thread) == preferred;
                 bool chosenMatches = chosen != null && GetPriorityLocked(chosen.Value.Item.Thread) == preferred;
-                if (chosen == null || (matches && !chosenMatches)
-                    || (matches == chosenMatches && node.Value.ThreadState.LastDispatch < chosen.Value.ThreadState.LastDispatch))
-                    chosen = node;
+                // Preserve the existing acquisition-origin alternation for Normal work.
+                // High watches share their boosted group by least-recent dispatch.
+                bool better = chosen == null || (group == UserDownloadPriority.High
+                    ? UserPriorityPolicy.Better(node.Value.ThreadState.LastDispatch, matches,
+                        chosen!.Value.ThreadState.LastDispatch, chosenMatches)
+                    : matches != chosenMatches ? matches
+                        : node.Value.ThreadState.LastDispatch < chosen!.Value.ThreadState.LastDispatch);
+                if (better) chosen = node;
             }
             if (chosen == null) break;
             QueuedDownload job = chosen.Value;
             chosen.List!.Remove(chosen);
+            RecordUserReservationLocked(job.Item.Thread, admission: false);
             if (job.Item.Filter != null) _activeFilteredDownloads++;
             _preferManualDispatch = GetPriorityLocked(job.Item.Thread) != DownloadPriority.Manual;
             job.ThreadState.LastDispatch = ++_dispatchSequence;

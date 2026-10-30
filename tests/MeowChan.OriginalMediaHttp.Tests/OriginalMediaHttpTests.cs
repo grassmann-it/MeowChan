@@ -161,6 +161,103 @@ public sealed class OriginalMediaHttpTests
     }
 
     [Fact]
+    public async Task HealthyInitialAdmissionBeyondSixtySecondsDoesNotConsumeRedirectBudget()
+    {
+        ManualTime clock = new();
+        int sent = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        { Interlocked.Increment(ref sent); return Task.FromResult(Response(request)); }));
+        SourceDescription source = Source with
+        {
+            HttpHosts = [new("a.4cdn.org", HttpHostPurpose.OriginalMedia)]
+        };
+        using HttpClient client = PluginOriginalMediaHttp.CreateClient(transport, source, new RequestPolicyState(clock));
+        Task<HttpResponseMessage>[] requests = Enumerable.Range(0, 8)
+            .Select(_ => client.GetAsync("https://a.4cdn.org/g/thread/123.json", HttpCompletionOption.ResponseHeadersRead)).ToArray();
+        using (await requests[0].WaitAsync(TimeSpan.FromSeconds(5))) { }
+        for (int index = 1; index < requests.Length; index++)
+        {
+            await clock.WaitForDelayAsync(TimeSpan.FromSeconds(10));
+            clock.Advance(TimeSpan.FromSeconds(10));
+            using (await requests[index].WaitAsync(TimeSpan.FromSeconds(5))) { }
+        }
+        Assert.Equal(8, sent);
+        Assert.Equal(TimeSpan.FromSeconds(70).Ticks, clock.GetTimestamp());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InitialCooldownIsBoundedAndParentCancellationWins(bool parentCancel)
+    {
+        ManualTime clock = new();
+        RequestPolicyState policy = new(clock, () => 0);
+        int sent = 0;
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            sent++;
+            HttpResponseMessage response = Response(request, 429);
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromHours(2));
+            return Task.FromResult(response);
+        }));
+        using (HttpClient prime = ProviderHttpClientFactory.CreatePolicyClient(transport, Source.SourceId, policy))
+        using (HttpRequestMessage request = new(HttpMethod.Get, Initial))
+        {
+            request.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
+            await Assert.ThrowsAsync<RequestPolicyDeferredException>(() => prime.SendAsync(request));
+        }
+        using CancellationTokenSource parent = new();
+        using HttpClient client = PluginOriginalMediaHttp.CreateClient(transport, Source, policy);
+        Task<HttpResponseMessage> pending = client.GetAsync(Initial, HttpCompletionOption.ResponseHeadersRead, parent.Token);
+        Assert.False(pending.IsCompleted);
+        if (parentCancel)
+        {
+            parent.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        else
+        {
+            clock.Advance(TimeSpan.FromSeconds(60));
+            await Assert.ThrowsAsync<TimeoutException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        Assert.Equal(1, sent);
+    }
+
+    [Fact]
+    public async Task HungHeadersStillUseTenSecondAttemptDeadlinesAfterAdmissionFix()
+    {
+        ManualTime clock = new();
+        var starts = System.Threading.Channels.Channel.CreateUnbounded<bool>();
+        var cooldowns = System.Threading.Channels.Channel.CreateUnbounded<bool>();
+        using HttpClient transport = new(new Handler(async (_, token) =>
+        {
+            starts.Writer.TryWrite(true);
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("A cancelled hang cannot produce headers.");
+        }));
+        using HttpClient client = PluginOriginalMediaHttp.CreateClient(transport, Source, new RequestPolicyState(clock, () => 0));
+        using HttpRequestMessage request = new(HttpMethod.Get, Initial);
+        request.Options.Set(RequestPolicyHandler.ObserverKey, progress =>
+        {
+            if (progress.Phase == RequestPolicyPhase.Cooldown) cooldowns.Writer.TryWrite(true);
+        });
+        Task<HttpResponseMessage> pending = client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        for (int attempt = 0; attempt < RequestPolicyHandler.MaximumAttempts; attempt++)
+        {
+            await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            clock.Advance(RequestPolicyHandler.HeaderTimeout);
+            if (attempt + 1 < RequestPolicyHandler.MaximumAttempts)
+            {
+                await cooldowns.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                await clock.WaitForDelayAsync(TimeSpan.FromSeconds(2));
+                clock.Advance(TimeSpan.FromSeconds(2));
+            }
+        }
+        TimeoutException failure = await Assert.ThrowsAsync<TimeoutException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Contains("attempt deadline", failure.Message);
+    }
+
+    [Fact]
     public async Task AllHopsAndPolicyRetriesShareOneOverallHeaderDeadline()
     {
         ManualTime clock = new(); List<TrackingContent> contents = []; int sent = 0;
@@ -219,6 +316,16 @@ public sealed class OriginalMediaHttpTests
         public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch + TimeSpan.FromTicks(GetTimestamp());
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         { lock (_sync) { Timer timer = new(this, callback, state); _timers.Add(timer); timer.Change(dueTime, period); return timer; } }
+        internal async Task WaitForDelayAsync(TimeSpan maximumDelay)
+        {
+            using CancellationTokenSource watchdog = new(TimeSpan.FromSeconds(5));
+            while (true)
+            {
+                lock (_sync)
+                    if (_timers.Any(timer => !timer.Disposed && timer.Due > _ticks && timer.Due <= _ticks + maximumDelay.Ticks)) return;
+                await Task.Delay(1, watchdog.Token);
+            }
+        }
         internal void Advance(TimeSpan duration)
         {
             List<Timer> due;

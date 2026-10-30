@@ -252,6 +252,9 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
     public static readonly HttpRequestOptionsKey<bool> DeferWhenWaitingKey = new("MeowChan.RequestPolicyDeferWhenWaiting");
     public static readonly HttpRequestOptionsKey<Action<RequestPolicyProgress>> ObserverKey = new HttpRequestOptionsKey<Action<RequestPolicyProgress>>("MeowChan.RequestPolicyObserver");
 
+    /// <summary>Trusted, short nonblocking wrapper hook under host dispatch lock: called once at network/cooldown budget start, never for healthy initial admission.</summary>
+    internal static readonly HttpRequestOptionsKey<Action> BudgetStartedKey = new("MeowChan.RequestPolicyBudgetStarted");
+
     private readonly HttpClient _transport;
     private readonly string _source;
     private readonly RequestPolicyState _policy;
@@ -281,6 +284,14 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
         // begins at the first send or when this FIFO head encounters server cooldown;
         // all subsequent admission, cooldown and header time uses that same budget.
         using RequestBudget budget = new RequestBudget(_policy.TimeProvider, cancellationToken, _logger);
+        bool budgetStarted = false;
+        void StartBudget()
+        {
+            if (budgetStarted) return;
+            budgetStarted = true;
+            budget.Start();
+            if (request.Options.TryGetValue(BudgetStartedKey, out Action? started)) started();
+        }
         try
         {
             for (int attempt = 1; attempt <= attempts; attempt++)
@@ -290,7 +301,7 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
                 Exception? failure = null;
                 try
                 {
-                    response = await SendAttemptAsync(request, host, budget, observer, attempt).ConfigureAwait(false);
+                    response = await SendAttemptAsync(request, host, budget, observer, attempt, StartBudget).ConfigureAwait(false);
                 }
                 catch (HttpRequestException exception) { failure = exception; }
                 catch (TimeoutException exception) { failure = exception; }
@@ -319,7 +330,7 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
 
     private async Task<HttpResponseMessage> SendAttemptAsync(HttpRequestMessage original,
         RequestPolicyState.HostState host, RequestBudget budget,
-        Action<RequestPolicyProgress>? observer, int attemptNumber)
+        Action<RequestPolicyProgress>? observer, int attemptNumber, Action startBudget)
     {
         using HttpRequestMessage request = CloneRequest(original);
         CancellationTokenSource? headers = null;
@@ -335,7 +346,7 @@ public sealed class RequestPolicyHandler : HttpMessageHandler
                         headers = new CancellationTokenSource(HeaderTimeout, _policy.TimeProvider);
                         attempt = CancellationTokenSource.CreateLinkedTokenSource(budget.Token, headers.Token);
                         return _transport.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attempt.Token);
-                    }, budget.Start,
+                    }, startBudget,
                     (phase, delay) => Notify(observer, new RequestPolicyProgress(phase, delay, attemptNumber)),
                     budget.Token, original.Options.TryGetValue(DeferWhenWaitingKey, out bool defer) && defer).ConfigureAwait(false);
                 Notify(observer, new RequestPolicyProgress(RequestPolicyPhase.Sending, null, attemptNumber));
