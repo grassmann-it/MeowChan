@@ -1,3 +1,50 @@
+# Aktuell: vier rote Kandidatengates gezielt korrigiert, neue Gesamtabnahme offen — 30.10.2026
+
+**Run41126700379/f4a6251 ist NICHT grün; kein Tag und kein Release.** Vier konkrete
+rote Pflichtjobs wurden anhand echter Logs auf drei Fehlergruppen eingegrenzt:
+
+1. Windowsreader: `ReaderNavigationOverlayChecks.CheckGeometry` lud für eine reine
+   Modus-Diagnose live `settings.json` und traf eine SharingViolation. Kein
+   behaupteter Timeout oder pauschal behobener Produktkonfigurationsfehler.
+   Reine UI-/Capturemodusleser nutzen nun den eigenen lebenden SessionHost;
+   echte Persistenz-/Neustartprüfungen bleiben echte Diskprüfungen. Produkt-
+   Config.TryRead propagiert Locks/Permissions weiter, keine Defaultübernahme.
+2. Linux x64+ARM64: echte funktionale Lautstärkeprüfung hatte keinen nutzbaren
+   Audioausgang. Neue private PulseAudio-Nullsinkfixture mit Ubuntu24.04-Standard-
+   paketen, eigenem DBus inkl Receive/Systemisolation, privatem Cookie/Socket,
+   genau2erlaubten Modulen, stummem Nullsink/Monitor und0Hardwarekarten; kein
+   zusätzlicher Modulimport nach Startup. Pulse16-ModulIDs werden mit der Short-
+   liste abgeglichen statt ein nicht existierendes JSONindexfeld anzunehmen.
+   LinuxCI verlangt zusätzlich explizit positive gerenderte Audiobuffer und
+   funktionale Lautstärkebedienung; der No-output-Zweig darf dort NICHT abnehmen.
+3. Macsources: alter Gate verlangte2 statt aktueller5Fixtures. Gemeinsamer
+   Prüfer verlangt alle5einzigartigen gepinnten Hashes, PASS/exit0/keinTimeout;
+   fehlende, doppelte, unbekannte oder fehlgeschlagene Fälle werden verworfen.
+
+Lokale echte Nachweise (keine unveränderliche Releasepaketabnahme):
+- Private Ubuntu24.04-Container, Netzwerk aus/keine Audiogeräte: Pulsebackend
+  tatsächlich decoded141/played70, nativeVolume61, nativeMute1→0, Playing;
+  Nullsink vor/nach stumm,0Hardware, beide Dienste+Kind vollständig beendet.
+- Derselbe Ubuntuaufbau mit portablem offiziellen.NET10, echten Xvfb/XTest-
+  GUItests und EXPLIZIT erforderlichem funktionalem Audio: komplette geänderte
+  Galeriefeatures sowie alle nativen Medieneingabestufen PASS, inkl tatsächlicher
+  Lautstärke64 bei weiterlaufendem Video. Beide Befunde+AudioCleanup0 stehen in
+  `artifacts/release-1.0.2-ci-fix-verification/pulse-container-proof/evidence/gui-02/`.
+- Getrennter tatsächlicher No-output-Lauf: Audiotracks2/decoded>0/played0,
+  deaktivierte Regler; komplette native Medieneingabe PASS nach physischem Klick
+  auf deaktivierte Ziele. Kein vorgetäuschter Home/End-/Volume-Fokusnachweis.
+- Neue Corpus-/Audio-/Evidenzverträge gezielt grün; vor finalem Kandidaten noch
+  aktueller separater Python-Gesamtlauf und dieselbe vollständige13Job-Matrix.
+
+Frühere Hilfsversuche (fehlende private DBusReceiveregel, Pulse16JSONindex,
+  unportabler ManjaroCoreCLR im Ubuntucontainer) sind als FAIL erhalten und
+  KEINE Produkt-/Paketabnahme. Kein lokaler Systemaudiodienst wurde verändert;
+  nur eigene private Prozesse/Container. Fremde.gitignore/alte Vorbereitungsdatei
+  bytegleich uncommitted. Neue Quellen bleiben aus; manueller Windowsfeldtest
+  weiterhin NACH regulärer Veröffentlichung, technische Gates weiterhin davor.
+
+---
+
 # Aktuell: weitere echte Gatefehler geklärt, nächster Gesamtpass offen — 30.10.2026
 
 **Noch kein Tag/Release; reguläres 1.0.2 bleibt Ziel.** Neuere Fortsetzung bis
