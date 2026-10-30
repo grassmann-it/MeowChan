@@ -518,7 +518,7 @@ internal static partial class PluginManagementChecks
     }
     private static async Task AtBarebonesMinimumAsync(MainWindow window, Func<Task> capture)
     {
-        string mode = Config.LoadConfig().WorkspaceMode;
+        string mode = window.SessionHost.Config.WorkspaceMode;
         string language = Texts.Language;
         double width = window.Width, height = window.Height;
         try

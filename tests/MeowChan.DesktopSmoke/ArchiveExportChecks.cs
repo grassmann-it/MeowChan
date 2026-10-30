@@ -207,7 +207,7 @@ internal static class ArchiveExportChecks
     }
     private static async Task CheckCompactLayoutsAsync(MainWindow window, ArchivePage page)
     {
-        string modeBefore = Config.LoadConfig().WorkspaceMode;
+        string modeBefore = window.SessionHost.Config.WorkspaceMode;
         string languageBefore = Texts.Language;
         ThemeVariant? themeBefore = Application.Current?.RequestedThemeVariant;
         double widthBefore = window.Width, heightBefore = window.Height;

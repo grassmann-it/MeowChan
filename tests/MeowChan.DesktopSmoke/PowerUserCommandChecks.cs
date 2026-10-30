@@ -11,7 +11,7 @@ internal static class PowerUserCommandChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        string originalMode = Config.LoadConfig().WorkspaceMode;
+        string originalMode = window.SessionHost.Config.WorkspaceMode;
         string originalLanguage = Texts.Language;
         string path = window.SettingsEditor.DownloadPath;
         TextBox url = window.FindControl<TextBox>("UrlInput")!;

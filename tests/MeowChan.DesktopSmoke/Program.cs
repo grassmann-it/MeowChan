@@ -1015,11 +1015,24 @@ internal static class Program
         Console.WriteLine("SMOKE window render: " + screenshotPath);
         Console.WriteLine("SMOKE capture metadata: " + System.Text.Json.JsonSerializer.Serialize(new
         {
-            fileName, mode = Config.LoadConfig().WorkspaceMode, theme = window.ActualThemeVariant.ToString(),
+            fileName, mode = OwningMainWindow(window)?.SessionHost.Config.WorkspaceMode, theme = window.ActualThemeVariant.ToString(),
             language = MeowChan.Desktop.Localization.Texts.Language, renderScaling = scale,
             clientDip = window.ClientSize.ToString(), boundsDip = window.Bounds.ToString(),
             imagePixels = screenshot.PixelSize.ToString(), window = window.GetType().Name
         }));
+    }
+
+    // Dialogs can belong to an isolated host rather than the application's primary shell.
+    // Never infer their mode from the default profile (or an unrelated lifetime MainWindow).
+    // Ownerless fixture windows have no authoritative shell mode: report null, not a default.
+    internal static MainWindow? OwningMainWindow(Window window)
+    {
+        for (Window? owner = window; owner != null; owner = owner.Owner)
+        {
+            if (owner is MainWindow main)
+                return main;
+        }
+        return null;
     }
 
     // Optional package smoke helpers are discovered at runtime so this exact Program.cs also compiles on

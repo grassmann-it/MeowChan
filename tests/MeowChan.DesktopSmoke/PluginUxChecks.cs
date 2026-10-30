@@ -37,7 +37,7 @@ internal static class PluginUxChecks
         PluginsPage page = new(); page.Attach(fixture.Services);
         ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
         object? retained = host.Content;
-        string language = Texts.Language, mode = Config.LoadConfig().WorkspaceMode;
+        string language = Texts.Language, mode = window.SessionHost.Config.WorkspaceMode;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         double width = window.Width, height = window.Height;
         host.Content = page;
@@ -425,7 +425,7 @@ internal static class PluginUxChecks
     {
         Control? focus = TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement() as Control;
         Console.WriteLine("PLUGIN_UX " + JsonSerializer.Serialize(new { task, language = Texts.Language,
-            mode = Config.LoadConfig().WorkspaceMode, theme = window.ActualThemeVariant.Key?.ToString(), window.RenderScaling,
+            mode = window.SessionHost.Config.WorkspaceMode, theme = window.ActualThemeVariant.Key?.ToString(), window.RenderScaling,
             client = window.ClientSize.ToString(), frame = window.FrameSize?.ToString(), pageBounds = page.Bounds.ToString(),
             viewport = C<ScrollViewer>(page, "PluginDetailsPane").Viewport.ToString(), offset = C<ScrollViewer>(page, "PluginDetailsPane").Offset.ToString(),
             key = page.Selected?.Key, focus = focus?.Name ?? focus?.GetType().Name, focusVisible = focus?.IsEffectivelyVisible,

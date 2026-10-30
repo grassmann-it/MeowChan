@@ -9,7 +9,7 @@ internal static class WindowMinimumChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        string originalMode = Config.LoadConfig().WorkspaceMode;
+        string originalMode = window.SessionHost.Config.WorkspaceMode;
         WindowState originalState = window.WindowState;
         Size originalSize = window.Bounds.Size;
         try

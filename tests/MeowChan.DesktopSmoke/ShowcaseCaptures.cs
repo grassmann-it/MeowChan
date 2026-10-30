@@ -497,7 +497,7 @@ internal static class ShowcaseCaptures
         await Dispatcher.UIThread.InvokeAsync(() => window.UpdateLayout(), DispatcherPriority.Background);
         if (window is MainWindow main)
         {
-            if (Config.LoadConfig().WorkspaceMode != "Simple" || Texts.Language != "en"
+            if (main.SessionHost.Config.WorkspaceMode != "Simple" || Texts.Language != "en"
                 || Application.Current!.RequestedThemeVariant != ThemeVariant.Dark)
                 throw new InvalidOperationException("Release showcase captures require Simple/Dark/English.");
             await WindowChromeChecks.CheckReachableAsync(main);

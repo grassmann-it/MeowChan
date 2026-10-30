@@ -9,7 +9,7 @@ internal static class ExportReaderSizingChecks
 {
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
-        string previousMode = Config.LoadConfig().WorkspaceMode;
+        string previousMode = window.SessionHost.Config.WorkspaceMode;
         double previousWidth = window.Width, previousHeight = window.Height;
         try
         {

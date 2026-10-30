@@ -209,7 +209,7 @@ internal static class BoardAdmissionContractChecks
 
     internal static async Task CheckPresentationMatrixAsync(MainWindow owner)
     {
-        string originalMode = Config.LoadConfig().WorkspaceMode;
+        string originalMode = owner.SessionHost.Config.WorkspaceMode;
         string originalLanguage = Texts.Language;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         Size originalSize = owner.Bounds.Size;

@@ -20,7 +20,7 @@ internal static partial class SectionComparisonChecks
     // Optional presentation coverage only; never repeats the ten semantic A/B/C tasks.
     private static async Task PresentationMatrix(MainWindow owner, string root)
     {
-        string initialMode = Config.LoadConfig().WorkspaceMode;
+        string initialMode = owner.SessionHost.Config.WorkspaceMode;
         try
         {
             foreach (string language in new[] { "en", "de" })
@@ -119,8 +119,11 @@ internal static partial class SectionComparisonChecks
             await Program.WaitUntilAsync(() => Texts.Language == _presentation!.Language
                 && Window.ActualThemeVariant.Key?.ToString() == _presentation.Theme
                 && PresentationChecks.MatchesRequestedSize(Window, _presentation.Width, _presentation.Height));
-            Require(Config.LoadConfig().WorkspaceMode == _presentation!.Mode, "Actual workspace mode differs from the presentation cell.");
-            Detail("presentation-observation", new { scene, requested = _presentation, actualMode = Config.LoadConfig().WorkspaceMode,
+            MainWindow owner = Program.OwningMainWindow(Window)
+                ?? throw new InvalidOperationException("Presentation window has no owning shell.");
+            string actualMode = owner.SessionHost.Config.WorkspaceMode;
+            Require(actualMode == _presentation!.Mode, "Actual workspace mode differs from the presentation cell.");
+            Detail("presentation-observation", new { scene, requested = _presentation, actualMode,
                 actualLanguage = Texts.Language, actualTheme = Window.ActualThemeVariant.Key?.ToString(), actualScale = Window.RenderScaling,
                 client = Window.ClientSize.ToString(), frame = Window.FrameSize?.ToString(), minimum = new { Window.MinWidth, Window.MinHeight },
                 navigationBounds = Navigation.Bounds.ToString(), maxNavigationWidth = double.IsFinite(Navigation.MaxWidth) ? Navigation.MaxWidth : (double?)null,
