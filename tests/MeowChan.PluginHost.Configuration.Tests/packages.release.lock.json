@@ -160,8 +160,8 @@
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.1, )",
-          "libmeowchan": "[1.0.1, )"
+          "MeowChan.PluginSdk": "[1.0.2, )",
+          "libmeowchan": "[1.0.2, )"
         }
       },
       "meowchan.pluginsdk": {

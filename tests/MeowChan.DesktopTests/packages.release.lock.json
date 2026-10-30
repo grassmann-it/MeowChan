@@ -503,7 +503,7 @@
           "Irihi.Ursa": "[2.2.0, )",
           "Irihi.Ursa.Themes.Semi": "[2.2.0, )",
           "LibVLCSharp.Avalonia": "[3.10.2, )",
-          "MeowChan.PluginHost": "[1.0.1, )",
+          "MeowChan.PluginHost": "[1.0.2, )",
           "Semi.Avalonia": "[12.1.0.1, )",
           "Semi.Avalonia.DataGrid": "[12.1.0.1, )",
           "Serilog": "[4.0.2, )",
@@ -513,14 +513,14 @@
           "Tmds.DBus.Protocol": "[0.94.1, )",
           "VideoLAN.LibVLC.Mac": "[3.1.3.2, )",
           "VideoLAN.LibVLC.Windows": "[3.0.24, )",
-          "libmeowchan": "[1.0.1, )"
+          "libmeowchan": "[1.0.2, )"
         }
       },
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.1, )",
-          "libmeowchan": "[1.0.1, )"
+          "MeowChan.PluginSdk": "[1.0.2, )",
+          "libmeowchan": "[1.0.2, )"
         }
       },
       "meowchan.pluginsdk": {

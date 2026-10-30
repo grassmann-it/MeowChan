@@ -1920,3 +1920,5 @@ MeowChan.Storage.MediaSizePrecision
 MeowChan.Storage.MediaSizePrecision.Unspecified = 0 -> MeowChan.Storage.MediaSizePrecision
 MeowChan.Storage.MediaSizePrecision.Rounded = 1 -> MeowChan.Storage.MediaSizePrecision
 MeowChan.Storage.MediaSizePrecision.Truncated = 2 -> MeowChan.Storage.MediaSizePrecision
+const MeowChan.Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling = 32 -> int
+MeowChan.Downloader.DownloadQueue.GetConcurrencySnapshot() -> (int Configured, int Effective, int Active, int DeferredSlots)

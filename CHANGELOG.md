@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased — gallery playback and session feedback
+## 1.0.2 — stability, media controls and startup recovery
 
 - Automatically continue restored watches after proven initial source admission waits,
   retaining real failure diagnostics and check intervals after attempted requests.
   Correlate metadata history through host-owned worker contexts and retire it safely.
+- Offer explicitly reviewed NEW selections of currently delivered bundled plugins
+  for unproven missing legacy candidates, with exact settings and immutable actual-
+  state backup. Preserve enabled choices; never silently transfer pins, permissions
+  or source ownership. Conflicting and incompatible entries remain blocked.
 - Preserve the first validated v1 plugin-state envelope and its digest before startup
   mutations; do not fabricate historical backups for profiles already written as v2.
 

@@ -96,13 +96,13 @@
       "meowchan.filerulesfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.1, )"
+          "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
       "meowchan.hashblocklistfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.1, )"
+          "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
       "meowchan.pluginsdk": {

@@ -2,7 +2,7 @@
 
 MeowChan watches imageboard boards or threads, saves selected original media,
 and optionally captures posts for local reading and search. This guide describes
-**MeowChan 1.0.0**. See the [1.0.0 release notes](releases/v1.0.0.md) for
+**MeowChan 1.0.2**. See the [1.0.2 release notes](releases/v1.0.2.md) for
 packages and upgrade details.
 
 The supplied source plugins support 4chan, 8kun, Lainchan, Kohlchan,
@@ -28,7 +28,7 @@ redirect; updating the source does not change already installed applications.
 
 ## From a package to an offline picture
 
-1. Choose the package for your OS and CPU on the [1.0.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
+1. Choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -203,7 +203,7 @@ saved rule. Editing or deleting a template does not update rules that already
 received a copy. Plugin grants and runtime settings are excluded; an unavailable
 or incompatible filter must be resolved before copying its template.
 
-### Download scheduling (unreleased 1.0.2 source)
+### Download scheduling
 
 The default remains **1 MiB/s** and **5 parallel downloads**. The bandwidth setting
 is in bytes per second after the displayed MiB/s conversion; it is not a promise
@@ -702,7 +702,7 @@ downgrade of data changed by 1.0. If you need the
 an untouched profile or restore a pre-upgrade backup to a separate location;
 keep the 1.0 data for investigating the problem.
 
-**Unreleased 1.0.2 plugin-state transition:** the current source can write a v2
+**1.0.2 plugin-state transition:** the current source can write a v2
 plugin-state envelope that 1.0.0/1.0.1 do not read. Before replacing an existing
 validated v1 state—even during startup observation—it retains the original bytes
 as `plugin-state/state.pre-v2.json` plus a `.sha256` digest. This is an immutable
@@ -716,6 +716,23 @@ into an unrelated or actively running profile.
 New durable work state records retries, source end and watch intent independently
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
 and inspect the reported recovery error.
+
+### Missing legacy plugin candidates
+
+If an older profile reports **Candidate is missing from the startup inventory**,
+open **Plugins → Review bundled updates**. For supported, unambiguous entries,
+**NEW selection** offers a currently delivered bundled build. Inspect its exact
+identity and the complete settings, explicitly check the acknowledgement, confirm,
+and restart the application. Enabled/disabled choices are preserved. This does
+not establish where the old candidate came from and does not transfer pins,
+permission grants or source ownership. Pinned, rights-bearing, conflicting or
+schema-incompatible entries remain blocked rather than silently reset.
+
+Before the first confirmed new selection, the actual current plugin state is
+retained in `plugin-state/state.pre-reselection.json` with its digest and a binding
+in the profile. Later rows do not refresh that first backup. This also works for
+already-v2 profiles; it does not manufacture a missing historical pre-v2 backup.
+Neither plugin-state backup replaces a full-profile/media backup for downgrade.
 
 Library users must migrate to the `libmeowchan` package/assembly and `MeowChan.*`
 namespaces; there is no binary redirect. See the [session API](Registry.md) and
