@@ -2,6 +2,22 @@
 
 ## Unreleased — gallery playback and session feedback
 
+- Automatically continue restored watches after proven initial source admission waits,
+  retaining real failure diagnostics and check intervals after attempted requests.
+  Correlate metadata history through host-owned worker contexts and retire it safely.
+- Preserve the first validated v1 plugin-state envelope and its digest before startup
+  mutations; do not fabricate historical backups for profiles already written as v2.
+
+- Schedule multiple user-prioritized thread watches without preempting active files
+  or starving runnable Normal work. Keep the original manual/board origin policy
+  for Normal downloads and the existing bandwidth/default settings.
+- Bound effective transfer concurrency at 32 while retaining larger saved settings;
+  distinguish configured and effective values in the Downloads summary. Healthy
+  initial media admission no longer consumes the shared network-header deadline.
+- Keep callback-backed silent MP4 playback progressing through the verified handle;
+  include the required avformat demuxer in Linux bundles. Hide only covered Reader
+  pagination adorners so they cannot intercept gallery-close input.
+
 - Animate GIFs through bounded verified frame decoding, preserving encoded loops,
   transparency/disposal, pause/resume, zoom and safe retirement on media changes.
   Reader posters open the actual associated gallery animation; no audio is invented.

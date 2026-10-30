@@ -203,6 +203,28 @@ saved rule. Editing or deleting a template does not update rules that already
 received a copy. Plugin grants and runtime settings are excluded; an unavailable
 or incompatible filter must be resolved before copying its template.
 
+### Download scheduling (unreleased 1.0.2 source)
+
+The default remains **1 MiB/s** and **5 parallel downloads**. The bandwidth setting
+is in bytes per second after the displayed MiB/s conversion; it is not a promise
+that a remote source can supply that speed. More concurrent requests do not bypass
+source admission, server cooldowns, disk work or media verification.
+
+For resource protection, at most **32 transfers** are started at once, even if the
+saved parallel-download setting is higher. The Downloads summary reports this
+safety limit; its tooltip distinguishes configured and effective values. The saved
+setting is not rewritten. Reducing the limit lets existing transfers drain rather
+than restarting them. The pending queue remains bounded; it is not a count of all
+media still available in watched threads.
+
+Select one or more thread watches and use **High priority** in the context menu to
+favor their next runnable files. Multiple High watches share turns; ready Normal
+work still gets a turn after at most three contended High reservations. This is
+whole-file scheduling, not a guaranteed byte-rate split. Running files are not
+preempted, paused work stays paused, and source limits still apply. **Normal
+priority** removes the boost. Priority is session-local and belongs to the exact
+watch, not to any later watch with the same URL.
+
 ### Settings and session messages
 
 Settings shows one category at a time, with its navigation beside the content.
@@ -679,6 +701,17 @@ downgrade of data changed by 1.0. If you need the
 [0.9.0 fallback](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0), use
 an untouched profile or restore a pre-upgrade backup to a separate location;
 keep the 1.0 data for investigating the problem.
+
+**Unreleased 1.0.2 plugin-state transition:** the current source can write a v2
+plugin-state envelope that 1.0.0/1.0.1 do not read. Before replacing an existing
+validated v1 state—even during startup observation—it retains the original bytes
+as `plugin-state/state.pre-v2.json` plus a `.sha256` digest. This is an immutable
+plugin-state file, **not a full-profile backup or automatic recovery mechanism**.
+Do not delete conflicting backup files merely to make an upgrade continue.
+A profile already written as v2 without an earlier backup cannot reconstruct its
+old v1 contents. For downgrade, close the application and restore a matching full
+pre-upgrade profile backup to a separate location; never substitute plugin state
+into an unrelated or actively running profile.
 
 New durable work state records retries, source end and watch intent independently
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
