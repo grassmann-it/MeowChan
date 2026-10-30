@@ -1,3 +1,77 @@
+# Aktueller Stand: gemeinsame Integration grün, Release noch gegatet — 30.10.2026
+
+**Geprüfte Produktquelle: `400bd6174089d2d6018ab9ff8b6820d87c00d354` auf
+`release/1.0.2`. Kein Push, Tag, neuer Windowskandidat oder Release.**
+Nachfolgende reine Statusdokumentation ändert diese Produktquelle nicht.
+
+## Implementiert und gemeinsam geprüft
+
+- Wiederaufnahme nach bewiesener initialer No-send-Admission. Reale HTTP-/Body-/
+  Transportfehler bleiben dagegen sichtbar, normale Poll-/Mindestabstände erhalten.
+  Host-eigene korrelierte Operationen tragen die Historie über IPC; wertgleiche
+  fremde oder bereits beendete Kontexte können sie nicht neu aufnehmen.
+- Medien-Headerbudget beginnt nicht in gesunder initialer Admission. Effektive
+  Transfers auf32 begrenzt; gespeicherte positive Werte bis1000/int.MaxValue
+  unverändert. Defaults1MiB/s/5 und Pending256 bleiben bestehen. Kein behaupteter
+  Internetdurchsatzgewinn und keine unbelegte Queuevergrößerung.
+- Mehrere High-Watches teilen faire nächste Dateiplätze; Normal erhält bei
+  Konkurrenz spätestens nach drei High-Reservierungen einen Platz. Keine
+  Präemption, kein Resume durch Priorität, kein Vererben an Ersatzwatches.
+  Autoritative Badges und konfigurierte/effektive Parallelität in der Oberfläche.
+- Verifizierter Callback-MP4-Stream nutzt avformat; Linuxbundles verlangen diesen
+  Demuxer. Reader-eigene Paginationadorners überdecken Galerieklicks nicht mehr.
+- Originales gültiges v1-Pluginstate vor erster Mutation einschließlich Startup
+  unveränderlich samt Hash gesichert. Konflikte blockieren Veröffentlichung;
+  bestehendes v2 wird nicht als erfundene v1-Vorgeschichte ausgegeben.
+- Sechs vorhandene Setup-/Preference-/Diagnose-/GIF-/Galeriefehler-/Reader-
+  Eingabepfade in Kandidaten-CI aufgenommen; Jobbudget auf60min erweitert.
+
+## Gebundene Prüfergebnisse
+
+- Solution Releasebuild: **0Fehler/19Warnungen**, normale Analyzer.
+- Alle13.NET-Testprojekte: **3402PASS/0FAIL/8SKIP**,3410Fälle. Opt-in-SKIPs
+  sind keine Upgrade-/Live-/Nativeabnahme.
+- Python offline/Packaging-/Runnerverträge in separatem Gitclone:
+  **350PASS/0FAIL/1SKIP**,351Fälle. Root-/Fixture-Head,Index,Config,Refs und
+  Quellhashguards unverändert; keine GIT_*-Overrides an Fixtures vererbt.
+- Native Reader→Galerie→Reader1×/2× auf derselben Quelle PASS.
+- Echter Source-Apphost: fünf VP8/VP9/H264-/Audio-/Silentfixtures PASS,
+  stummerH264 zusätzlich mit gemessener2×Skalierung PASS. Private Xvfb-/DBus-
+  Session und ausschließlichstummer privaterNullsink; eigene Audiodienste beendet.
+- Unabhängiger statischer Review: ursprünglicher Core-P1 korrigiert; zwei P2
+  (geborgterUserAgent, Hostfehlerhistorie) korrigiert, Lebenszyklusrereview ohne
+  neue konkrete P1/P2. Zwischenfehler bleiben als solche in Rohbelegen erhalten.
+
+Belege: `artifacts/release-1.0.2-close-2026-10-30/integration-03-400bd61/SUMMARY.json`,
+13TRXdateien, native Ergebnisse und separatePythonreceipt. Alle beim Run erfassten
+Quellen waren bis zum Abschluss unverändert. Das ist integrierte lokale QA,
+**keine Prüfung eines ausgelieferten Pakets auf Windows/macOS**.
+
+## Vor Release noch erforderlich
+
+1. **DECISION_REQUIRED: Legacy-Neuauswahl.** Historische1.0.0/1.0.1-Profile ohne
+   Herkunftsnachweis können weiterhin nicht als bewiesene alte Bundles repariert
+   werden. Explizite Vorschau+Bestätigung einer NEUauswahl aktueller gebündelter
+   Plugins ist noch nicht freigegeben oder implementiert. Keine automatische
+   Namens-/Pfadzuordnung und keine Pin-/Rechte-/Ownerübernahme. Nach Entscheidung
+   enger Codepfad und echte Altprofile mit zwei Neustarts abnehmen. Backup allein
+   löst die15unverfügbaren Kandidaten nicht.
+2. Danach1.0.2Version-/PublicAPI-/22Lockfilefreeze. Derzeit weiterVersion1.0.1;
+   zweiQueue-APIs stehen bewusst noch inUnshipped, Release-APIgate nichtgrün.
+3. Aktueller vollständiger nativer/paketierter Plattformkandidat, Upgrade-/Live-
+   Gates und Windows/Linux-Testfahrt; bisherigerd7d1e06e-Testbuild ist kein Ersatz.
+4. Erst danach reguläresv1.0.2 und anonym verifizierte Assets/Prüfsummen.
+
+Neue Quellen bleiben ausgeschlossen. Alle neuen Solworker sind beendet. Fremde
+`.gitignore` und `docs/releases/v1.0.1-preparation.md` bytegleich und uncommitted.
+
+## Commits dieser Fortsetzung
+
+`43091d9` Media/Reader · `322af66` CI · `f24aeea` HTTP/Parallelität/Priorität ·
+`23b7ca4` Originalbackup · `bc13ec1` Startup/Fehlerhistorie · `400bd61` Hilfetexte.
+
+---
+
 # Fortsetzung / Integration-02 — 30.10.2026
 
 Branch `release/1.0.2`, zusätzlicher Commit `43091d9`: verifizierter MP4-Stream
