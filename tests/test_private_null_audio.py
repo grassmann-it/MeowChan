@@ -23,9 +23,11 @@ class PrivateAudioTests(unittest.TestCase):
     def test_isolation_absolute_pulse(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(audio.os.environ, {
             'HOME': '/user', 'DISPLAY': ':0', 'DBUS_SESSION_BUS_ADDRESS': 'user',
-            'PULSE_SERVER': 'user', 'ALSA_CARD': '0', 'LD_PRELOAD': 'bad'}):
+            'PULSE_SERVER': 'user', 'ALSA_CARD': '0', 'LD_PRELOAD': 'bad',
+            'DBUS_SYSTEM_BUS_ADDRESS': 'unix:path=/host/system_bus_socket'}):
             env = audio.environment(Path(tmp))
-            for key in ('DISPLAY', 'DBUS_SESSION_BUS_ADDRESS', 'ALSA_CARD', 'LD_PRELOAD'):
+            for key in ('DISPLAY', 'DBUS_SESSION_BUS_ADDRESS', 'DBUS_SYSTEM_BUS_ADDRESS',
+                        'ALSA_CARD', 'LD_PRELOAD'):
                 self.assertNotIn(key, env)
             self.assertTrue(env['PULSE_SERVER'].startswith('unix:/'))
             self.assertEqual(env['PULSE_SOCKET'], str(Path(tmp)/'runtime/pulse/native'))
@@ -126,13 +128,32 @@ class PrivateAudioTests(unittest.TestCase):
                 service.poll.return_value = None
             child = Mock(pid=105, returncode=child_code)
             child.poll.return_value = child_code
-            with patch.object(audio.subprocess, 'Popen', side_effect=services+[child]) as spawn, \
+            bus_configs = []
+            def fake_spawn(args, **kwargs):
+                if args[0] == 'dbus-daemon':
+                    config_path = args[2].split('=', 1)[1]
+                    bus_configs.append(Path(config_path).read_text())
+                return next(processes)
+            processes = iter(services+[child])
+            with patch.object(audio.subprocess, 'Popen', side_effect=fake_spawn) as spawn, \
                  patch.object(audio.Path, 'exists', return_value=True), \
                  patch.object(audio, 'run', return_value=subprocess.CompletedProcess([], 0, '[{}]', '')), \
                  patch.object(audio, 'checked', return_value=''), \
                  patch.object(audio, 'proof', return_value={'muted': True}), \
                  patch.object(audio, 'cleanup', return_value=clean) as cleanup:
                 self.assertEqual(audio.execute(['child'], report), expected)
+            import xml.etree.ElementTree as ET
+            bus = ET.fromstring(bus_configs[0])
+            rules = [node.attrib for node in bus.findall('policy/allow')]
+            self.assertIn({'receive_sender': '*'}, rules)
+            self.assertIn({'send_destination': '*'}, rules)
+            self.assertIn({'own': '*'}, rules)
+            self.assertTrue(bus.find('listen').text.startswith('unix:path=/tmp/ci-audio-'))
+            self.assertEqual(bus.find('auth').text, 'EXTERNAL')
+            bus_env = spawn.call_args_list[0].kwargs['env']
+            self.assertEqual(bus_env['DBUS_SESSION_BUS_ADDRESS'],
+                             bus_env['DBUS_SYSTEM_BUS_ADDRESS'])
+            self.assertTrue(bus_env['DBUS_SYSTEM_BUS_ADDRESS'].startswith('unix:path=/tmp/ci-audio-'))
             pulse_args = spawn.call_args_list[1].args[0]
             self.assertEqual(pulse_args[:2], ['pulseaudio', '-n'])
             for flag in ('--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1'):

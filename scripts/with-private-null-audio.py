@@ -171,9 +171,12 @@ def execute(command, report_path):
                 conf = base/'bus.conf'
                 conf.write_text('<busconfig><type>session</type><listen>unix:path='+str(bus_path)+
                                 '</listen><auth>EXTERNAL</auth><policy context="default">'
-                                '<allow send_destination="*"/><allow own="*"/>'
+                                '<allow send_destination="*"/><allow receive_sender="*"/>'
+                                '<allow own="*"/>'
                                 '</policy></busconfig>')
                 env['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path='+str(bus_path)
+                # Never let rtkit/system-bus discovery reach the host bus.
+                env['DBUS_SYSTEM_BUS_ADDRESS'] = env['DBUS_SESSION_BUS_ADDRESS']
                 spawn('dbus', ['dbus-daemon', '--nofork', '--config-file='+str(conf)], env)
                 deadline = time.monotonic()+25
                 while not bus_path.exists():
