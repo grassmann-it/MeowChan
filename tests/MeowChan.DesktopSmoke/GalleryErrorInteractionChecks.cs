@@ -214,8 +214,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             await shell.OpenMediaGalleryAsync([clip], clip.EntryKey).WaitAsync(Deadline);
             GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
             GalleryVideoPlayer player = Player(viewer);
-            await UntilAsync(async () => shell.IsActive && HasRealFrames(await player.InspectPlaybackAsync())
-                && (await player.InspectPlaybackAsync()).AudioAvailable, "Shell fixture has no decoded video/available synthetic audio.");
+            await UntilAsync(async () =>
+            {
+                var state = await player.InspectPlaybackAsync();
+                return shell.IsActive && HasRealFrames(state) && state.Time >= 500
+                    && (state.AudioAvailable || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0);
+            }, "Shell fixture has neither working audio nor explicit decoded-without-output evidence.");
             if (paused)
             {
                 Click(Find<Button>(viewer, "GalleryVideoPlayPause"));
@@ -253,8 +257,21 @@ internal static partial class GalleryPlaybackFeatureChecks
         File.Move(settings, settings + ".before-failure");
         Directory.CreateDirectory(settings); // Real atomic publication fails: destination is our own directory.
         Slider volume = Find<Slider>(viewer, "GalleryVideoVolume");
-        Require(volume.IsEnabled, "Real shell volume edit has no available audio target.");
-        volume.Value = 61; // Actual player ValueChanged -> shell QueueGalleryPreference -> host writer.
+        var audioBefore = await player.InspectPlaybackAsync();
+        bool availableAudio = audioBefore.AudioAvailable;
+        if (availableAudio)
+        {
+            Require(volume.IsEnabled, "Working audio output has no enabled volume target.");
+            volume.Value = 61; // Actual player ValueChanged -> shell QueueGalleryPreference -> host writer.
+        }
+        else
+        {
+            Require(!volume.IsEnabled && !Find<Button>(viewer, "GalleryVideoMute").IsEnabled
+                && audioBefore.AudioTracks > 0 && audioBefore.DecodedAudio > 0 && audioBefore.PlayedAudioBuffers == 0,
+                "Absent audio renderer must disable controls with explicit native evidence.");
+            Console.WriteLine("SMOKE gallery-shell volume unavailable: decoded audio but zero rendered buffers; disabled-control contract checked, native volume edit NOT claimed.");
+        }
+        int expectedSavedVolume = availableAudio ? 61 : 25;
         Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex = (int)GalleryPlaybackMode.Repeat;
         Click(Find<Button>(viewer, "GalleryToggleContext"));
         Click(Find<Button>(viewer, "GalleryOverlayToggle"));
@@ -269,7 +286,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(ioFailed && raw.IsFaulted && host.PreferenceWriteCounts.Failed > 0,
             "The actual settings.json IO failure was hidden or its retry draft was dropped.");
         var failed = ShellErrorField<System.Collections.IDictionary>(host, "_failedFinalWrites");
-        Require(failed.Contains("view") && ShellErrorField<int?>(shell, "_desiredGalleryVolume") == 61
+        Require(failed.Contains("view") && ShellErrorField<int?>(shell, "_desiredGalleryVolume") == (availableAudio ? 61 : null)
             && ShellErrorField<bool?>(shell, "_desiredGalleryContext") == true,
             "Failed host draft/live desired volume or context was cleared by error observation.");
         GalleryPlaybackPreferences? desired = ShellErrorField<GalleryPlaybackPreferences?>(shell, "_desiredGalleryPlayback");
@@ -277,11 +294,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             "Save failure rolled back desired mode/layout to the old durable snapshot.");
         Require(host.Config.VideoVolume == 25 && host.Config.GalleryPlaybackMode == "Manual",
             "A failed raw write was incorrectly published as durable success.");
-        await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume == 61,
-            "Native volume was rolled back by the real shell save-failure observer.");
+        if (availableAudio)
+            await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume == 61,
+                "Native volume was rolled back by the real shell save-failure observer.");
         GalleryVideoPlayer.PlaybackEvidence intent = await player.InspectPlaybackAsync();
-        Require(intent.State == expected && intent.LoopEnabled && !intent.Muted,
-            "Real save failure altered Playing/Paused/repeat/mute intent (positive volume should unmute).");
+        Require(intent.State == expected && intent.LoopEnabled
+            && (availableAudio ? !intent.Muted : intent.Muted == audioBefore.Muted && intent.Volume == audioBefore.Volume),
+            "Real save failure altered Playing/Paused/repeat or available/unavailable audio intent.");
         SessionFeedbackStore store = ShellErrorField<SessionFeedbackStore>(shell, "_feedback");
         Require(store.Entries.Any(entry => entry.Operation == "preferences.gallery" && entry.Category == FeedbackCategory.Error),
             "Actual shell preference failure was not retained centrally.");
@@ -300,7 +319,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await retriedRaw.WaitAsync(Deadline);
         await UntilAsync(() => host.PreferenceWriteCounts.Failed == 0, "Explicit shell retry did not clear the failed host draft.");
         Config saved = Config.LoadConfig(Path.GetDirectoryName(settings)!);
-        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == 61 && saved.GalleryPlaybackMode == "Repeat"
+        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == expectedSavedVolume && saved.GalleryPlaybackMode == "Repeat"
             && saved.GalleryContextOpen && saved.GalleryOverlayControls && saved.GalleryAutoHideControls,
             "Explicit retry failed to commit the retained volume/mode/context/layout draft.");
         Require(viewer.CaptureState() == intendedSelection, "Successful retry changed gallery selection/context.");

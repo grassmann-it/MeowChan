@@ -225,7 +225,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal Task ToggleMuteAsync() => CommandAsync(playback =>
     {
         MediaPlayer player = playback.Player;
-        if (!_audioAvailable || player.AudioTrackCount <= 0 || player.Volume < 0) return;
+        if (!_audioAvailable || !HasUsableAudio(playback)) return;
         player.Mute = !player.Mute;
         bool muted = player.Mute;
         long generation = playback.Generation;
@@ -245,7 +245,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures,
         int SurfaceFrames = 0, bool SurfaceNonUniform = false, bool LoopEnabled = false, int LoopRestarts = 0,
         bool Muted = false, int Volume = 0, long Length = 0, bool Seekable = false,
-        int AudioTracks = -1, bool AudioAvailable = false);
+        int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1);
 
     internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
     {
@@ -266,7 +266,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
                 _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
                 _intent.LoopEnabled, _loopRestarts, playback.Player.Mute, volume,
-                playback.Player.Length, playback.Player.IsSeekable, audioTracks, audioTracks > 0 && volume >= 0);
+                playback.Player.Length, playback.Player.IsSeekable, audioTracks,
+                VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers);
         }
         finally { _operations.Release(); }
     });
@@ -846,7 +847,9 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     // A track list/output may become available only after Playing. Query on our
     // native worker after track changes, and retry while initial audio is unknown.
-    // VLC returns -1 for volume/mute when there is no usable audio output.
+    // A nonnegative cached volume does NOT prove an output exists (Windows can
+    // return 0/100 while mmdevice reports no default endpoint). Require actual
+    // played audio buffers; muted-but-functional outputs still render buffers.
     private async Task RefreshAudioStateAsync(long generation, MediaPlayer expectedPlayer)
     {
         if (Interlocked.CompareExchange(ref _audioRefreshPending, 1, 0) != 0) return;
@@ -859,7 +862,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 {
                     if (!IsCurrent(generation) || !ReferenceEquals(_playback?.Player, expectedPlayer)) return;
                     int tracks = expectedPlayer.AudioTrackCount, volume = expectedPlayer.Volume;
-                    bool available = tracks > 0 && volume >= 0;
+                    bool available = VideoAudioAvailability.IsAvailable(tracks, volume, _playback!.Media.Statistics.PlayedAudioBuffers);
                     // A volume edit can arrive during backend construction, before the audio
                     // output is ready. Apply it on readiness instead of losing the latest value.
                     VideoVolumeRequest requestedVolume = _volumeIntent.Current;
@@ -907,7 +910,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         {
             if (!_volumeIntent.IsCurrent(request) || playback.Generation != request.Generation) return;
             MediaPlayer player = playback.Player;
-            if (player.AudioTrackCount <= 0 || player.Volume < 0) return;
+            if (!HasUsableAudio(playback)) return;
             ApplyVolume(player, request);
             bool muted = player.Mute;
             Post(request.Generation, () =>
@@ -918,6 +921,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             });
         });
     }
+
+    // Called only while the native operation lock owns this exact playback.
+    private static bool HasUsableAudio(Playback playback) => VideoAudioAvailability.IsAvailable(
+        playback.Player.AudioTrackCount, playback.Player.Volume, playback.Media.Statistics.PlayedAudioBuffers);
 
     // Caller holds _operations. No play/pause operation and no preference persistence here.
     private void ApplyVolume(MediaPlayer player, VideoVolumeRequest request)
@@ -1453,4 +1460,11 @@ internal static class VideoStreamDemux
         }
         finally { stream.Position = position; }
     }
+}
+
+/// <summary>Track metadata and cached volume alone do not establish a working audio renderer.</summary>
+internal static class VideoAudioAvailability
+{
+    internal static bool IsAvailable(int tracks, int volume, int playedAudioBuffers)
+        => tracks > 0 && volume >= 0 && playedAudioBuffers > 0;
 }

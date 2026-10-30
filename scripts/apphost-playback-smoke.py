@@ -110,7 +110,8 @@ def validate_metrics(metrics, fixture_hash):
     audio_samples = [sample for sample in samples if sample.get('HasPlayback', True) and 'AudioTracks' in sample]
     if 'mute-unmute-state' in checks:
         usable = [sample for sample in audio_samples if sample.get('AudioAvailable') is True
-                  and sample.get('AudioTracks', 0) > 0 and sample.get('Volume', -1) >= 0]
+                  and sample.get('AudioTracks', 0) > 0 and sample.get('Volume', -1) >= 0
+                  and sample.get('PlayedAudioBuffers', 1) > 0]
         if not any(sample.get('Muted') is True for sample in usable) or not any(sample.get('Muted') is False for sample in usable):
             raise ValueError('Missing native audio mute/unmute evidence')
     elif 'no-audio-track-controls' in checks:
@@ -118,7 +119,9 @@ def validate_metrics(metrics, fixture_hash):
             raise ValueError('Missing actual silent-track evidence')
     elif 'audio-output-unavailable-controls' in checks:
         if not any(sample.get('AudioTracks', 0) > 0 and sample.get('AudioAvailable') is False
-                   and sample.get('Volume', 0) < 0 for sample in audio_samples):
+                   and (sample.get('Volume', 0) < 0
+                        or sample.get('DecodedAudio', 0) > 0 and sample.get('PlayedAudioBuffers', -1) == 0)
+                   for sample in audio_samples):
             raise ValueError('Missing unavailable native audio output evidence')
     else:
         raise ValueError('Missing actual audio availability outcome')

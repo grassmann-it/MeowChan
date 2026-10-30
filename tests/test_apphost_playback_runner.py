@@ -70,6 +70,22 @@ class PlaybackRunnerTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'silent-track evidence'):
                 runner.validate_metrics(bad, 'ab')
 
+    def test_output_unavailable_requires_real_native_evidence_even_with_cached_volume(self):
+        evidence = metrics()
+        evidence['checks'].remove('no-audio-track-controls')
+        evidence['checks'].append('audio-output-unavailable-controls')
+        evidence['samples'][0].update(AudioTracks=2, AudioAvailable=False, Volume=100,
+                                      DecodedAudio=83, PlayedAudioBuffers=0)
+        runner.validate_metrics(evidence, 'ab')
+        for field, value in [('DecodedAudio', 0), ('PlayedAudioBuffers', 1), ('AudioAvailable', True)]:
+            bad = metrics()
+            bad['checks'].remove('no-audio-track-controls')
+            bad['checks'].append('audio-output-unavailable-controls')
+            bad['samples'][0].update(evidence['samples'][0])
+            bad['samples'][0][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'unavailable native audio output evidence'):
+                runner.validate_metrics(bad, 'ab')
+
     def test_rejects_incomplete_or_wrong_fixture(self):
         for key, value in [('completed', False), ('failure', 'failed'), ('fixtureSha256', 'wrong'), ('checks', [])]:
             bad = metrics()
