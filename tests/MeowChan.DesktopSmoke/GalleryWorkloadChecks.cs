@@ -84,11 +84,40 @@ internal static class GalleryWorkloadChecks
             ComboBox selector = Control<ComboBox>(viewer, "GalleryPostAssociation");
             selector.SelectedIndex = 1;
             Require(viewer.CaptureState().PostId == revised.Post!.PostId, "The indexed association selector lost post identity.");
-            // Media focus must keep a failed write reachable even though normal metadata is hidden.
-            viewer.SetFavoriteError("PF05 visible failure");
-            Click(Control<Button>(viewer, "GalleryToolsToggle"));
-            Require(Control<SelectableTextBlock>(viewer, "GalleryFavoriteError").IsEffectivelyVisible,
-                "Media focus hid an actionable write failure.");
+            // Technical write failures go to the owning shell's central diagnostics, never
+            // gallery chrome. This standalone viewer observes the same bridge payload as
+            // MainWindow; shell feedback/transport/auto-hide and real media failures are
+            // exercised separately by GalleryErrorInteractionChecks.
+            var reports = new List<GalleryDiagnosticNotice>();
+            viewer.DiagnosticNotice += reports.Add;
+            try
+            {
+                foreach (bool mediaFocus in new[] { false, true })
+                {
+                    if (mediaFocus) Click(Control<Button>(viewer, "GalleryToolsToggle"));
+                    GalleryViewerState selection = viewer.CaptureState();
+                    int request = viewer.MediaRequestGeneration;
+                    object? focused = host.FocusManager?.GetFocusedElement();
+                    string message = "PF05 favorite write failure; media focus=" + mediaFocus;
+                    int count = reports.Count;
+                    viewer.SetFavoriteError(message);
+                    await SettleAsync();
+                    Require(reports.Count == count + 1
+                        && reports[^1] is { Operation: "favorite", Revision: 2, MediaUnavailable: false } notice
+                        && ReferenceEquals(notice.Entry, revised) && notice.Message == message,
+                        "Favorite write failure lost its central diagnostic operation/entry/revision/message or became a media failure.");
+                    SelectableTextBlock error = Control<SelectableTextBlock>(viewer, "GalleryFavoriteError");
+                    Require(!error.IsEffectivelyVisible && string.IsNullOrEmpty(error.Text),
+                        "Technical favorite failure survived as inline gallery error chrome.");
+                    Require(viewer.CaptureState() == selection && viewer.MediaRequestGeneration == request
+                        && ReferenceEquals(focused, host.FocusManager?.GetFocusedElement()),
+                        "Favorite failure presentation changed selection/context/zoom, media request, or focus.");
+                    viewer.SetFavoriteError(null);
+                    Require(reports.Count == count + 1,
+                        "Clearing a favorite error emitted a spurious central diagnostic.");
+                }
+            }
+            finally { viewer.DiagnosticNotice -= reports.Add; }
 
             // Supersede an executing decoder, then supersede its waiting replacement. Only the latest
             // request may decode/publish; the canceled native request still owns its task until release.
