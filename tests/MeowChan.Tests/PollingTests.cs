@@ -1,3 +1,4 @@
+using MeowChan.Boards.Base;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 
@@ -5,6 +6,115 @@ namespace MeowChan.Tests;
 
 public sealed class PollingTests
 {
+    [Fact]
+    public async Task DeferredCheckUsesDueInsteadOfNormalIntervalAndRetainsRealFailureUntilSuccess()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1048576);
+        ProbeThread thread = new(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        thread.OnCheck = () => throw new InvalidOperationException("real failure");
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+            var failure = thread.LastCheckFailure;
+            Assert.NotNull(failure);
+            thread.OnCheck = () => throw new SourceCheckDeferredException(DateTimeOffset.UtcNow.AddSeconds(1), "admission", initialNoSend: true);
+            thread.Clock.Advance();
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 2);
+            Assert.Same(failure, thread.LastCheckFailure);
+            Assert.Equal(ThreadActivity.Error, thread.Activity);
+            Assert.InRange(thread.RequestedIntervals.Last(), TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(1));
+            thread.OnCheck = null;
+            thread.Clock.Advance();
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 3);
+            Assert.Null(thread.LastCheckFailure);
+            Assert.Equal(TimeSpan.FromSeconds(60), thread.RequestedIntervals.Last());
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    [Fact]
+    public async Task HealthyBoardDeferralUsesDueAndStopCancelsPendingRetry()
+    {
+        using StubImageBoard provider = new();
+        var board = provider.Board;
+        board.OnCheck = () => throw new SourceCheckDeferredException(DateTimeOffset.UtcNow.AddSeconds(1), "admission", initialNoSend: true);
+        try
+        {
+            board.StartMonitoring(60);
+            await TestWait.UntilAsync(() => board.Clock.Waits == 1);
+            Assert.Null(board.LastCheckFailure);
+            Assert.InRange(board.RequestedIntervals.Single(), TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(1));
+            await board.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            board.Clock.Advance();
+            Assert.Equal(1, board.Checks);
+        }
+        finally { await board.StopMonitoringAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public async Task HealthyThreadDeferralDoesNotFailAndPausePreventsItsAutomaticRetry()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1048576);
+        ProbeThread thread = new(provider.Board, new Uri("https://stub.test/g/thread/123"));
+        thread.OnCheck = () => throw new SourceCheckDeferredException(DateTimeOffset.UtcNow.AddSeconds(1), "admission", initialNoSend: true);
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+            Assert.Null(thread.LastCheckFailure);
+            Assert.NotEqual(ThreadActivity.Error, thread.Activity);
+            queue.SetPaused(true);
+            thread.Clock.Advance();
+            Assert.Equal(CheckRequestStatus.Paused, thread.RequestCheck());
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            Assert.Equal(1, thread.Checks);
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitWakeDuringDeferralDoesNotAddSuccessfulRequestMinimumInterval()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1048576);
+        ProbeThread thread = new DeferredMinimumThread(provider.Board);
+        thread.OnCheck = () => throw new SourceCheckDeferredException(DateTimeOffset.UtcNow.AddSeconds(1), "admission", initialNoSend: true);
+        try
+        {
+            thread.StartMonitoring(queue, directory.Path, TimeSpan.FromSeconds(60));
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
+            Assert.Equal(CheckRequestStatus.Scheduled, thread.RequestCheck());
+            await TestWait.UntilAsync(() => thread.Clock.Waits == 2);
+            Assert.Equal(2, thread.Checks);
+            Assert.Null(thread.LastCheckFailure);
+            Assert.All(thread.RequestedIntervals, interval => Assert.True(interval <= TimeSpan.FromSeconds(1)));
+        }
+        finally
+        {
+            await thread.StopMonitoringAsync().WaitAsync(TestWait.Timeout);
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+        }
+    }
+
+    private sealed class DeferredMinimumThread(IBoard board) : ProbeThread(board, new Uri("https://stub.test/g/thread/123"))
+    {
+        protected override TimeSpan MinimumRecheckInterval => TimeSpan.FromHours(1);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -10,13 +10,15 @@ namespace MeowChan.PluginHost.Http;
 public sealed class PluginHostHttp : IHostHttp, IDisposable
 {
     private readonly HttpClient _transport;
+    private readonly HttpClient _borrowedTransport;
     private readonly RequestPolicyState _policy;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly Dictionary<string, HttpClient> _clients = new(StringComparer.Ordinal);
     private readonly object _sync = new();
     public PluginHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources)
     {
-        _transport = transport; _policy = policy;
+        _borrowedTransport = transport;
+        _transport = new HttpClient(new HistoryTransport(transport)) { Timeout = Timeout.InfiniteTimeSpan }; _policy = policy;
         _sources = sources.ToDictionary(source => source.SourceId, StringComparer.Ordinal);
     }
     public async Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
@@ -31,7 +33,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             if (!_clients.TryGetValue(request.SourceId, out client!))
             {
                 client = new HttpClient(new RequestPolicyHandler(_transport, request.SourceId, _policy)) { Timeout = Timeout.InfiniteTimeSpan };
-                if (_transport.DefaultRequestHeaders.UserAgent.Count == 0)
+                if (_borrowedTransport.DefaultRequestHeaders.UserAgent.Count == 0)
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("MeowChan");
                 _clients.Add(request.SourceId, client);
             }
@@ -91,7 +93,11 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             }
             return Failure("http-redirect", "Redirect limit exceeded.");
         }
-        catch (RequestPolicyDeferredException deferred) { return new HostHttpDeferred(deferred.RetryAt, deferred.ReasonCode); }
+        catch (RequestPolicyDeferredException deferred)
+        {
+            MetadataHistory.Current?.AdmittedWait();
+            return new HostHttpDeferred(deferred.RetryAt, deferred.ReasonCode);
+        }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (OperationCanceledException) { return Failure("http-timeout", "Metadata body deadline exceeded."); }
         catch (TimeoutException exception) { return Failure("http-timeout", exception.Message); }
@@ -99,6 +105,63 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         catch (InvalidDataException exception) { return Failure("http-encoding", exception.Message); }
         catch (IOException exception) { return Failure("http-network", exception.Message); }
     }
+    // Observe the actual transport, not advisory policy reasons (which also occur after retries).
+    private sealed class HistoryTransport(HttpClient transport) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            MetadataHistory? history = MetadataHistory.Current;
+            history?.Sent();
+            try
+            {
+                using HttpRequestMessage forwarded = new(request.Method, request.RequestUri);
+                foreach (var header in request.Headers) forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                HttpResponseMessage response = await transport.SendAsync(forwarded, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+                if ((int)response.StatusCode >= 400) history?.Failed($"http-{(int)response.StatusCode}", $"Metadata HTTP returned {(int)response.StatusCode}.");
+                return response;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or TimeoutException)
+            {
+                history?.Failed(exception is HttpRequestException ? "http-network" : "http-timeout", exception.Message);
+                throw;
+            }
+        }
+    }
+
+    internal sealed class MetadataHistory : IDisposable
+    {
+        private static readonly AsyncLocal<MetadataHistory?> Slot = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Contracts.PluginOperationContext, MetadataHistory> Operations = new();
+        internal void Bind(Contracts.PluginOperationContext operation) => Operations.Add(operation, this);
+        internal static IDisposable Resume(Contracts.PluginOperationContext operation)
+        {
+            MetadataHistory? previous = Slot.Value;
+            Slot.Value = Operations.TryGetValue(operation, out MetadataHistory? history)
+                && Volatile.Read(ref history._disposed) == 0 ? history : null;
+            return new Restore(previous);
+        }
+        private sealed class Restore(MetadataHistory? previous) : IDisposable
+        {
+            public void Dispose() => Slot.Value = previous;
+        }
+        private readonly MetadataHistory? _previous = Slot.Value;
+        private int _sends, _waits, _disposed;
+        internal static MetadataHistory? Current => Slot.Value is MetadataHistory history
+            && Volatile.Read(ref history._disposed) == 0 ? history : null;
+        internal MetadataHistory() { Slot.Value = this; }
+        internal bool InitialNoSend => _sends == 0 && _waits > 0 && Failure == null;
+        internal Exception? Failure { get; private set; }
+        internal void Sent() => Interlocked.Increment(ref _sends);
+        internal void AdmittedWait() => Interlocked.Increment(ref _waits);
+        internal void Failed(string code, string message) => Failure = new Contracts.PluginWorkerException(code, message);
+        public void Dispose()
+        {
+            // Correlated service tasks may arrive after the parent operation
+            // retires. A retained context must never resurrect its history.
+            if (Interlocked.Exchange(ref _disposed, 1) == 0) Slot.Value = _previous;
+        }
+    }
+
     private static async Task<Stream> ReadDecodedBodyAsync(HttpContent content, CancellationToken token)
     {
         Stream body = await content.ReadAsStreamAsync(token).ConfigureAwait(false);
@@ -118,8 +181,13 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         }
         catch { await body.DisposeAsync().ConfigureAwait(false); throw; }
     }
-    private static HostHttpFailure Failure(string code, string message) => new(new(code, message[..Math.Min(message.Length, 2048)]));
-    public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); } }
+    private static HostHttpFailure Failure(string code, string message)
+    {
+        string bounded = message[..Math.Min(message.Length, 2048)];
+        MetadataHistory.Current?.Failed(code, bounded);
+        return new(new(code, bounded));
+    }
+    public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); _transport.Dispose(); } }
 
     /// <summary>Creates a transport with explicit decompression and no invisible redirects/retries.</summary>
     public static HttpClient CreateTransport() => new(new HttpClientHandler

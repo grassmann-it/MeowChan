@@ -421,11 +421,21 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             while (!cancellationToken.IsCancellationRequested)
             {
                 _checkTrigger.Consume();
+                SourceCheckDeferredException? deferredCheck = null;
+                ThreadActivity previousActivity = Activity;
                 try
                 {
                     await queue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
                     await checkThreadAsync(queue, cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
+                }
+                catch (SourceCheckDeferredException deferred)
+                {
+                    // Only proven initial no-send admission may bypass the normal check floor.
+                    deferredCheck = deferred;
+                    if (deferred.Failure != null) SetCheckFailure(FailureInfo.FromException(deferred.Failure, media: false));
+                    if (LastCheckFailure != null) Activity = ThreadActivity.Error;
+                    else if (Activity == ThreadActivity.Checking) Activity = previousActivity;
                 }
                 catch (QueueStoppingException)
                 {
@@ -454,9 +464,14 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                 lock (_monitoringLock) { interval = _monitoringInterval; }
                 TimeSpan minimumInterval = MinimumRecheckInterval;
                 if (interval < minimumInterval) interval = minimumInterval;
+                if (deferredCheck != null)
+                {
+                    TimeSpan due = deferredCheck.Remaining(queue.UtcNow);
+                    interval = deferredCheck.InitialNoSend ? due : (due > interval ? due : interval);
+                }
                 bool requested = await _checkTrigger.WaitOrDelayAsync(
                     token => WaitForNextCheckAsync(interval, token), cancellationToken).ConfigureAwait(false);
-                if (requested)
+                if (requested && deferredCheck?.InitialNoSend != true)
                 {
                     TimeSpan remaining = minimumInterval - System.Diagnostics.Stopwatch.GetElapsedTime(finished);
                     if (remaining > TimeSpan.Zero) await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);

@@ -255,7 +255,10 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     SourceDescription source = Description.Sources.SingleOrDefault(item => item.SourceId == http.SourceId)
                         ?? throw new InvalidDataException("The worker requested HTTP for an undeclared source.");
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpRequest(http, source));
-                    HostHttpResult result = await _services.SendHttpAsync(http, parent.Context, parent.Token).ConfigureAwait(false);
+                    // Restore only the host-owned correlated operation, never worker-supplied identity.
+                    HostHttpResult result;
+                    using (Http.PluginHostHttp.MetadataHistory.Resume(parent.Context))
+                        result = await _services.SendHttpAsync(http, parent.Context, parent.Token).ConfigureAwait(false);
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpResult(http, result, source));
                     await ServiceReplyAsync<HostHttpResult>(request, result, parent.Token).ConfigureAwait(false);
                     break;

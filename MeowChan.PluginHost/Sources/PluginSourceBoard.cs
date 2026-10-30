@@ -14,6 +14,9 @@ internal sealed class PluginSourceBoard : BaseBoard
     private SourceValidators? _validators;
     private IReadOnlyList<IThread>? _lastCatalog;
     private DateTimeOffset? _retryAt;
+    private SourceCheckDeferredException? _deferredHistory;
+    private Exception? _retryFailure;
+    private TimeProvider Clock => SessionQueue?.Clock ?? TimeProvider.System;
     internal PluginSourceBoard(PluginSourceImageBoard source, string board, Uri canonical)
     { _source = source; BoardCode = board; BoardUri = canonical; Name = board; }
     public override IImageBoard ImageBoard => _source;
@@ -29,10 +32,13 @@ internal sealed class PluginSourceBoard : BaseBoard
         {
             using CancellationTokenSource lifetime = _source.LinkLifetime(cancellationToken);
             cancellationToken = lifetime.Token;
-            if (_retryAt is DateTimeOffset due && due > DateTimeOffset.UtcNow)
-                throw new PluginWorkerException("source_deferred", $"Source is waiting until {due:O}.");
+            if (_retryAt is DateTimeOffset due && due > Clock.GetUtcNow())
+                throw _deferredHistory ?? new SourceCheckDeferredException(due, "source_failure_retry", false, _retryFailure);
+            using var history = new Http.PluginHostHttp.MetadataHistory();
+            var operation = new PluginOperationContext(BoardUri.AbsoluteUri, WatchGeneration);
+            history.Bind(operation);
             CatalogReadRequest request = new(new SourceBoardId(_source.Name, BoardCode), Validators: _validators, HasSnapshot: _lastCatalog != null);
-            CatalogReadResult result = await ReadPagesAsync(request, cancellationToken).ConfigureAwait(false);
+            CatalogReadResult result = await ReadPagesAsync(request, operation, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             switch (result)
             {
@@ -52,24 +58,32 @@ internal sealed class PluginSourceBoard : BaseBoard
                     }
                     _validators = snapshot.Snapshot.Validators;
                     _retryAt = null;
+                    _deferredHistory = null;
+                    _retryFailure = null;
                     _lastCatalog = threads.AsReadOnly();
                     return _lastCatalog;
                 case CatalogUnchanged unchanged:
+                    _retryAt = null;
+                    _deferredHistory = null;
+                    _retryFailure = null;
                     _validators = unchanged.Validators;
                     return _lastCatalog!;
                 case CatalogDeferred deferred:
-                    _retryAt = deferred.RetryAt;
-                    throw new PluginWorkerException(deferred.ReasonCode, $"Source is waiting until {deferred.RetryAt:O}.");
+                    _retryAt = history.InitialNoSend || deferred.RetryAt > Clock.GetUtcNow().AddSeconds(10)
+                        ? deferred.RetryAt : Clock.GetUtcNow().AddSeconds(10);
+                    throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend, history.Failure);
                 case CatalogFailure failure:
-                    _retryAt = failure.Failure.RetryAt;
-                    throw new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
+                    _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > Clock.GetUtcNow().AddSeconds(10)
+                        ? retry : Clock.GetUtcNow().AddSeconds(10);
+                        _deferredHistory = null;
+                    throw _retryFailure = new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
                 default: throw new PluginWorkerException("invalid_source_result", "Unsupported catalog result.");
             }
         }
         finally { _readGate.Release(); }
     }
 
-    private async Task<CatalogReadResult> ReadPagesAsync(CatalogReadRequest request, CancellationToken token)
+    private async Task<CatalogReadResult> ReadPagesAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken token)
     {
         List<SourceThreadReference> threads = new();
         HashSet<SourceThreadId> identities = new();
@@ -84,7 +98,7 @@ internal sealed class PluginSourceBoard : BaseBoard
             using (IDisposable? admission = queue == null ? null : await queue.AcquireMetadataAsync(_source.Name,
                 DownloadPriority.BoardDiscovery, token).ConfigureAwait(false))
                 result = await _source.InvokeAsync((worker, cancellation) => worker.ReadCatalogAsync(request,
-                    new PluginOperationContext(BoardUri.AbsoluteUri, WatchGeneration), cancellation), token).ConfigureAwait(false);
+                    operation, cancellation), token).ConfigureAwait(false);
             PluginSourceImageBoard.Validate(SdkValidation.ValidateCatalogResult(request, result, _source.Description));
             token.ThrowIfCancellationRequested();
             if (result is not CatalogSnapshot observed) return result;
@@ -108,7 +122,7 @@ internal sealed class PluginSourceBoard : BaseBoard
 
     protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
     {
-        if (_retryAt is DateTimeOffset due && due - DateTimeOffset.UtcNow > interval) interval = due - DateTimeOffset.UtcNow;
-        return Task.Delay(interval, cancellationToken);
+        if (_retryAt is DateTimeOffset due && due - Clock.GetUtcNow() > interval) interval = due - Clock.GetUtcNow();
+        return Task.Delay(interval, Clock, cancellationToken);
     }
 }

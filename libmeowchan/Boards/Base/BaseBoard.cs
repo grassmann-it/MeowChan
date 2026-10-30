@@ -158,11 +158,18 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
             while (!cancellationToken.IsCancellationRequested)
             {
                 _checkTrigger.Consume();
+                SourceCheckDeferredException? deferredCheck = null;
                 try
                 {
                     if (_sessionQueue != null) await _sessionQueue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
                     await CheckForNewThreadsAsync(cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
+                }
+                catch (SourceCheckDeferredException deferred)
+                {
+                    // Only proven initial no-send admission may bypass the normal check floor.
+                    deferredCheck = deferred;
+                    if (deferred.Failure != null) SetCheckFailure(FailureInfo.FromException(deferred.Failure, media: false));
                 }
                 catch (QueueStoppingException)
                 {
@@ -181,6 +188,11 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
                 cancellationToken.ThrowIfCancellationRequested();
                 TimeSpan interval;
                 lock (_monitoringLock) { interval = _monitoringInterval; }
+                if (deferredCheck != null)
+                {
+                    TimeSpan due = deferredCheck.Remaining(_sessionQueue?.UtcNow ?? DateTimeOffset.UtcNow);
+                    interval = deferredCheck.InitialNoSend ? due : (due > interval ? due : interval);
+                }
                 await _checkTrigger.WaitOrDelayAsync(token => WaitForNextCheckAsync(interval, token), cancellationToken).ConfigureAwait(false);
             }
         }

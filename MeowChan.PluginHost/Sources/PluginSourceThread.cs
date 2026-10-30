@@ -16,6 +16,9 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     private SourceValidators? _validators;
     private bool _hasSnapshot;
     private DateTimeOffset? _retryAt;
+    private SourceCheckDeferredException? _deferredHistory;
+    private Exception? _retryFailure;
+    private TimeProvider _clock = TimeProvider.System;
     private PluginSourceImageBoard Source => (PluginSourceImageBoard)Board.ImageBoard;
     public override IBoard Board { get; } = board;
     public override string ThreadId { get; } = threadId;
@@ -39,6 +42,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
 
     private async Task CheckCoreAsync(DownloadQueue queue, CancellationToken token)
     {
+        _clock = queue.Clock;
         await base.checkThreadAsync(queue, token).ConfigureAwait(false);
         await RestorePluginContentCandidatesAsync(_knownMedia, token).ConfigureAwait(false);
         await CaptureContentAsync(null, token).ConfigureAwait(false);
@@ -49,15 +53,21 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             await SettleTerminalWorkAsync().ConfigureAwait(false);
             return;
         }
-        if (_retryAt is DateTimeOffset due && due > DateTimeOffset.UtcNow)
-            throw new PluginWorkerException("source_deferred", $"Source is waiting until {due:O}.");
         using CancellationTokenSource lifetime = Source.LinkLifetime(token);
         token = lifetime.Token;
+        // Previously captured, still eligible media need not wait for fresh metadata admission.
+        if (_knownMedia.Count > 0)
+            await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
+        if (_retryAt is DateTimeOffset due && due > _clock.GetUtcNow())
+            throw _deferredHistory ?? new SourceCheckDeferredException(due, "source_failure_retry", false, _retryFailure);
+        using var history = new Http.PluginHostHttp.MetadataHistory();
+        var operation = new PluginOperationContext(Url, WatchGeneration);
+        history.Bind(operation);
         ThreadReadRequest request = new(new SourceThreadId(Source.Name, Board.BoardCode, ThreadId), _validators, _hasSnapshot);
         ThreadReadResult result;
         using (IDisposable admission = await queue.AcquireMetadataAsync(Source.Name, queue.GetThreadPriority(this), token).ConfigureAwait(false))
             result = await Source.InvokeAsync((worker, cancellation) => worker.ReadThreadAsync(request,
-                new PluginOperationContext(Url, WatchGeneration), cancellation), token).ConfigureAwait(false);
+                operation, cancellation), token).ConfigureAwait(false);
         PluginSourceImageBoard.Validate(SdkValidation.ValidateThreadResult(request, result, Source.Description));
         token.ThrowIfCancellationRequested();
         switch (result)
@@ -66,6 +76,9 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 await ApplyAsync(observed.Snapshot, queue, token).ConfigureAwait(false);
                 return;
             case ThreadUnchanged unchanged:
+                _retryAt = null;
+                _deferredHistory = null;
+                _retryFailure = null;
                 _validators = unchanged.Validators;
                 await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
                 return;
@@ -76,11 +89,14 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 await SettleTerminalWorkAsync().ConfigureAwait(false);
                 return;
             case ThreadDeferred deferred:
-                _retryAt = deferred.RetryAt;
-                throw new PluginWorkerException(deferred.ReasonCode, $"Source is waiting until {deferred.RetryAt:O}.");
+                _retryAt = history.InitialNoSend || deferred.RetryAt > _clock.GetUtcNow().AddSeconds(10)
+                    ? deferred.RetryAt : _clock.GetUtcNow().AddSeconds(10);
+                throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend, history.Failure);
             case ThreadFailure failure:
-                _retryAt = failure.Failure.RetryAt;
-                throw new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
+                _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > _clock.GetUtcNow().AddSeconds(10)
+                    ? retry : _clock.GetUtcNow().AddSeconds(10);
+                _deferredHistory = null;
+                throw _retryFailure = new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
             default: throw new PluginWorkerException("invalid_source_result", "Unsupported thread result.");
         }
     }
@@ -168,6 +184,8 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         _validators = snapshot.Validators;
         _hasSnapshot = true;
         _retryAt = null;
+                _deferredHistory = null;
+                _retryFailure = null;
         await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
         if (state != ThreadSourceState.Active) await SettleTerminalWorkAsync().ConfigureAwait(false);
     }
@@ -184,7 +202,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
 
     protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
     {
-        if (_retryAt is DateTimeOffset due && due - DateTimeOffset.UtcNow > interval) interval = due - DateTimeOffset.UtcNow;
-        return Task.Delay(interval, cancellationToken);
+        if (_retryAt is DateTimeOffset due && due - _clock.GetUtcNow() > interval) interval = due - _clock.GetUtcNow();
+        return Task.Delay(interval, _clock, cancellationToken);
     }
 }
