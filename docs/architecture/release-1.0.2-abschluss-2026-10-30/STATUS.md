@@ -1,3 +1,47 @@
+# Fortsetzung: Kandidatenfehler konkret eingegrenzt — 30.10.2026, abends
+
+**Reguläres 1.0.2 bleibt beauftragt, noch NICHT veröffentlicht.** Die folgenden
+älteren Abschnitte sind historische Momentaufnahmen, keine aktuelle Sperre der
+inzwischen ausdrücklich genehmigten Legacy-Neuauswahl.
+
+Backend/UI der bestätigten NEUauswahl sind geliefert; echte 1.0.0/1.0.1-Profile
+haben je zwei Folgestarts bestanden. Pins/Rechte/Herkunft werden nicht erfunden.
+Version 1.0.2, APIreview und 22 lokale Lockgraphs sind eingefroren; externe
+Abhängigkeiten unverändert. Kleiner `/gif/`-/„Goon Central“-Galerieworkflow-USP
+in den Release Notes ergänzt, keine neue Quelle und kein zusätzlicher Scope.
+
+- Erster Kandidat `76485fa`, Run41105942320: FAIL. Native Windowsaudioverfügbarkeit,
+  fehlende Prioritymenüicons, Setupreihenfolge der Apphostfixtures und zu kleines
+  Windows-Gesamttestbudget konkret korrigiert; Produktionsprofilhärtung erhalten.
+- Zweiter Kandidat `4a00873`, Run41116310065: **kein Gesamterfolg**. Windowspaket
+  und beide macOSpakete PASS. Native Validierung trifft veraltete Erwartungen an
+  technische Galerieinlinefehler, die laut Nutzerentscheidung zentral erscheinen
+  sollen; Windows zusätzlich Queue-Testdeadline und gepoolter Test-SQLitehandle.
+  Keine Veröffentlichung aus diesem Lauf und kein Mischen seiner Pakete mit neuen.
+- Neu: LibVLCstatistiken explizit aktiviert, damit externe VLC-Konfiguration die
+  nachgewiesene Audioverfügbarkeitsprüfung nicht abschaltet. Decodierte Tracks
+  ohne gerenderte Audiobuffer aktivieren keine funktionslosen Lautstärkeregler.
+- Galerie-Workload/Viewer/Fokusprüfungen an zentrale Diagnosen angepasst: exakte
+  Meldungsidentität, keine Inlinefehlermeldung, Fokus/Selektion unverändert;
+  echte Unavailable-/Pixel-/Decoder-/Transportprüfungen bleiben verbindlich.
+- Disposable SQLitetestverbindung ohne Pool: zwölf TitleRuntimefälle lokal PASS;
+  keine pauschale Löschwiederholung oder Lockerung des Produktarchivs.
+
+Lokaler Vorlauf mit `4a00873` plus damaligem uncommitted `--stats`: fünf echte
+Video-/Audiofixtures, Galeriefehlerinteraktion, normaler UI-Modus, stummer H264
+bei 2× und vierphasiger Apphostworkflow PASS. Eigene stumme Audio-/DBus-/Xvfb-
+Session beendet. **WIP-Belege, kein exakter finaler Quell-/Paketpass**; normaler
+UI-Modus allein ist insbesondere NICHT der separate download-session-Modus.
+Belege: `artifacts/release-1.0.2-ci-fix-verification/pre-final-summary.json`.
+
+Nächste Gates: ergänzende Downloadsession/Reader-/Galerieprüfungen, Queuefix,
+exakter neuer vollständiger stable-candidate/all/all-Lauf; erst bei dessen Grün
+18 Assets desselben Laufs prüfen und reguläres v1.0.2 Latest veröffentlichen.
+Manueller Windows-Praxistest folgt danach. Geschützte fremde `.gitignore` und
+`docs/releases/v1.0.1-preparation.md` bleiben uncommitted und bytegleich.
+
+---
+
 # Neue Nutzerfreigabe: Legacy-Neuauswahl umsetzen, Version1.0.2 — 30.10.2026
 
 Nutzer hat die zuvor angebotene sichere **Neuauswahl** aktueller gebündelter
