@@ -39,6 +39,10 @@ public sealed class PluginProfileStore : IPluginProfileStore
     }
 
     public string StorePath => path;
+    /// <summary>Immutable original v1 envelope, not an automatic recovery source. Restore only
+    /// with the application closed and the matching full profile snapshot; older readers reject v2.</summary>
+    public string PreV2BackupPath => Path.Combine(directory, "state.pre-v2.json");
+    public string PreV2BackupSha256Path => PreV2BackupPath + ".sha256";
     public event Action<PluginLifecycleChange>? LifecycleChanged;
     public event Action<PluginGrantChange>? GrantChanged;
 
@@ -402,7 +406,10 @@ public sealed class PluginProfileStore : IPluginProfileStore
     {
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
-        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        byte[]? original = null;
+        int originalVersion = FormatVersion;
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken,
+            (bytes, version) => { original = bytes; originalVersion = version; }).ConfigureAwait(false);
         PluginProfileSnapshot state = document.Profile;
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
         BundledProfileDocument updated = await update(document).ConfigureAwait(false);
@@ -410,12 +417,17 @@ public sealed class PluginProfileStore : IPluginProfileStore
         updated = updated with { Profile = next };
         ValidateState(next);
         BundledCandidateMigration.Validate(updated);
-        bool deliveredFormat = updated.Provenance.Count != 0 || updated.Bindings.Count != 0 || updated.RestrictedSourceIds.Count != 0;
+        bool deliveredFormat = originalVersion == DeliveredFormatVersion || updated.Provenance.Count != 0 || updated.Bindings.Count != 0 || updated.RestrictedSourceIds.Count != 0;
         byte[] payload = deliveredFormat ? SdkJson.Serialize(updated) : SdkJson.Serialize(next);
         if (payload.Length > SdkLimits.MaximumMetadataBytes * 2) throw new IOException("Plugin profile payload exceeds its bounded store size.");
         Envelope envelope = new(deliveredFormat ? DeliveredFormatVersion : FormatVersion, Convert.ToHexString(SHA256.HashData(payload)), payload);
         byte[] bytes = SdkJson.Serialize(envelope);
         if (bytes.Length > MaximumStoreBytes) throw new IOException("Plugin profile state exceeds its bounded store size.");
+        // Preserve the first observed v1 envelope before even a v1 startup observation
+        // can replace it. Later mutations verify, but never refresh, that original.
+        // A conflicting/oversized/unreadable backup aborts rather than replacing evidence.
+        if (originalVersion == FormatVersion && original is not null)
+            await PreservePreV2Async(original, cancellationToken).ConfigureAwait(false);
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
         bool preserveTemporary = false;
         try
@@ -450,10 +462,82 @@ public sealed class PluginProfileStore : IPluginProfileStore
         return Clone(next);
     }
 
+    private static async Task<byte[]> ReadBoundedStateBytesAsync(string file, CancellationToken token, int limit = MaximumStoreBytes)
+    {
+        await using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (stream.Length > limit) throw new IOException("Plugin state backup size limit exceeded.");
+        byte[] bytes = new byte[checked((int)stream.Length)];
+        await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+        return bytes;
+    }
+
+    private async Task PreservePreV2Async(byte[] original, CancellationToken token)
+    {
+        if (File.Exists(PreV2BackupPath) && File.Exists(PreV2BackupSha256Path))
+        {
+            RejectLinkedBackup(PreV2BackupPath);
+            RejectLinkedBackup(PreV2BackupSha256Path);
+            byte[] saved = await ReadBoundedStateBytesAsync(PreV2BackupPath, token).ConfigureAwait(false);
+            // Existing evidence may precede the current v1 revision. Accept only an intact
+            // v1 envelope and its exact digest, never v2 bytes mislabeled as pre-v2.
+            try
+            {
+                Envelope envelope = JsonSerializer.Deserialize<Envelope>(saved, SdkJson.CreateOptions())
+                    ?? throw new JsonException("Null backup envelope.");
+                if (envelope.Version != FormatVersion || envelope.Payload is null ||
+                    envelope.Sha256 != Convert.ToHexString(SHA256.HashData(envelope.Payload)))
+                    throw new JsonException("Invalid pre-v2 backup envelope.");
+                ValidateState(SdkJson.Deserialize<PluginProfileSnapshot>(envelope.Payload));
+            }
+            catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException or OverflowException or NullReferenceException)
+            { throw new IOException("Pre-v2 backup is invalid; state was not published.", exception); }
+            byte[] savedDigest = await ReadBoundedStateBytesAsync(PreV2BackupSha256Path, token, 65).ConfigureAwait(false);
+            byte[] expectedDigest = System.Text.Encoding.ASCII.GetBytes(Convert.ToHexString(SHA256.HashData(saved)) + "\n");
+            if (!savedDigest.AsSpan().SequenceEqual(expectedDigest))
+                throw new IOException("Pre-v2 backup digest differs; state was not published.");
+            return;
+        }
+        await PreserveExactFileAsync(PreV2BackupPath, original, MaximumStoreBytes, token).ConfigureAwait(false);
+        byte[] digest = System.Text.Encoding.ASCII.GetBytes(Convert.ToHexString(SHA256.HashData(original)) + "\n");
+        await PreserveExactFileAsync(PreV2BackupSha256Path, digest, 65, token).ConfigureAwait(false);
+    }
+
+    private static void RejectLinkedBackup(string file)
+    {
+        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Pre-v2 backup must be a regular file, not a symbolic link or reparse point.");
+    }
+
+    private async Task PreserveExactFileAsync(string destination, byte[] original, int limit, CancellationToken token)
+    {
+        string temporary = Path.Combine(directory, ".pre-v2-" + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            if (!File.Exists(destination))
+            {
+                await using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write,
+                    FileShare.None, 8192, FileOptions.WriteThrough))
+                {
+                    await stream.WriteAsync(original, token).ConfigureAwait(false);
+                    stream.Flush(flushToDisk: true);
+                }
+                token.ThrowIfCancellationRequested();
+                File.Move(temporary, destination, overwrite: false);
+            }
+            RejectLinkedBackup(destination);
+            byte[] saved = await ReadBoundedStateBytesAsync(destination, token, limit).ConfigureAwait(false);
+            if (!saved.AsSpan().SequenceEqual(original) ||
+                !SHA256.HashData(saved).AsSpan().SequenceEqual(SHA256.HashData(original)))
+                throw new IOException("Pre-v2 backup differs from the original state. Preserve both files; upgrade was not published.");
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
     private async Task<PluginProfileSnapshot> ReadCoreAsync(CancellationToken cancellationToken) =>
         (await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)).Profile;
 
-    private async Task<BundledProfileDocument> ReadDocumentCoreAsync(CancellationToken cancellationToken)
+    private async Task<BundledProfileDocument> ReadDocumentCoreAsync(CancellationToken cancellationToken,
+        Action<byte[], int>? validatedEnvelope = null)
     {
         try
         {
@@ -476,6 +560,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
                 : SdkJson.Deserialize<BundledProfileDocument>(envelope.Payload);
             ValidateState(document.Profile);
             BundledCandidateMigration.Validate(document);
+            validatedEnvelope?.Invoke(bytes, envelope.Version);
             return document;
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException or OverflowException or NullReferenceException or EndOfStreamException)
