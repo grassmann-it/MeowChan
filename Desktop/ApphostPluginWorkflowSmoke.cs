@@ -62,7 +62,6 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
             foreach (string file in Directory.EnumerateFiles(fixture.PreviousProfile, "*", SearchOption.AllDirectories))
                 File.Copy(file, Path.Combine(fixture.Profile, Path.GetRelativePath(fixture.PreviousProfile, file)));
         }
-        File.WriteAllText(Path.Combine(fixture.Profile, ".workflow-profile"), fixture.OwnerToken);
         Config config = fixture.PreviousProfile == null && !restart ? new Config
         {
             DownloadPath = fixture.DownloadRoot, DownloadsPaused = true, SaveUrlsOnExit = true,
@@ -76,6 +75,8 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
             || config.PluginMaximumProductionWorkers != (SourceActivationPhase == null ? ApphostPluginFixtures.WorkflowSources.Length + 1 : ApphostPluginFixtures.AuthorSources.Length + 1))
             throw new IOException("Plugin workflow settings escaped the owned paused fixture.");
         config.SaveConfig(fixture.Profile);
+        // Bootstrap the empty, descriptor-owned profile before adding any marker/data.
+        File.WriteAllText(Path.Combine(fixture.Profile, ".workflow-profile"), fixture.OwnerToken);
         return new DesktopSessionHost(fixture.Profile, providers: null,
             updateSessionFactory: (path, settings) => new UpdateSession(path, settings, Http.Client(), disableEnvironment: () => "1"),
             pluginTransportFactory: Http.Client);

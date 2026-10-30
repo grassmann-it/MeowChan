@@ -31,11 +31,11 @@ internal static class PostBookmarkGalleryReturnChecks
         using ManualResetEventSlim initialDecode = new(false);
         try
         {
+            new Config { DownloadsPaused = true, SaveUrlsOnExit = false,
+                CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced" }.SaveConfig(profile);
             await SeedAsync(profile, thread);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")
                 captureFixture = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(profile, "media", ".meowchan-manifest.json"))));
-            new Config { DownloadsPaused = true, SaveUrlsOnExit = false,
-                CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced" }.SaveConfig(profile);
             session = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
             shell = new MainWindow(session);
             shell.Show(owner);

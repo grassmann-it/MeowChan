@@ -6,6 +6,46 @@ namespace MeowChan.DesktopTests;
 
 public sealed class ApphostWorkflowSmokeTests
 {
+    [Theory]
+    [InlineData("workflow")]
+    [InlineData("plugin")]
+    [InlineData("policy")]
+    public async Task OwnedPackagedFixturesInitializeSettingsBeforeAddingData(string kind)
+    {
+        using OwnedRoot owned = new();
+        string descriptor = owned.Descriptor();
+        if (kind == "policy")
+        {
+            var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(descriptor))!;
+            json["policyPhase"] = "acquire";
+            File.WriteAllText(descriptor, json.ToJsonString());
+        }
+        IDisposable fixture;
+        DesktopSessionHost host;
+        if (kind == "workflow")
+        {
+            var parsed = ApphostWorkflowSmoke.Parse(descriptor, owned.Profile);
+            fixture = parsed; host = parsed.CreateSession();
+        }
+        else if (kind == "plugin")
+        {
+            var parsed = ApphostPluginWorkflowSmoke.Parse(descriptor, owned.Profile);
+            fixture = parsed; host = parsed.CreateSession();
+        }
+        else
+        {
+            var parsed = ApphostIntegrityProcessSmoke.Parse(descriptor, owned.Profile);
+            fixture = parsed; host = parsed.CreateSession();
+        }
+        try
+        {
+            Assert.Equal(ProfileOrigin.ExistingValid, Config.LoadConfig(owned.Profile).Origin);
+            Assert.Equal(owned.Token, File.ReadAllText(Path.Combine(owned.Profile, ".workflow-profile")));
+            Assert.True(File.Exists(Path.Combine(owned.Profile, "settings.json")));
+        }
+        finally { await host.DisposeAsync(); fixture.Dispose(); }
+    }
+
     [Fact]
     public void WorkflowNeedsExplicitOwnedDescriptorAndDoesNotCreateItsNewProfileDuringParse()
     {

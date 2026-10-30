@@ -34,8 +34,11 @@ public partial class MainWindow
         {
             string label = Texts.Language == "de" ? (high ? "Hohe Priorität" : "Normale Priorität")
                 : (high ? "High priority" : "Normal priority");
+            // Reuse the shared up/down glyphs, without registering navigation actions.
             var item = new MenuItem { Header = label + " (" + frozen.Length + ")",
+                Icon = CommandBindings.Icon(high ? "reader.previous-post" : "reader.next-post"),
                 IsEnabled = ready && available && frozen.Length > 0 };
+            Avalonia.Automation.AutomationProperties.SetName(item, label + " (" + frozen.Length + ")");
             item.Click += (_, _) =>
             {
                 if (RowCommandBusy || _selectionCommandRunning || _sessionRowsApplying || !_restoreCompleted) return;

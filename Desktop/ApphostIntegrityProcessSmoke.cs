@@ -63,11 +63,11 @@ internal sealed class ApphostIntegrityProcessSmoke : IDisposable
         {
             if (Directory.Exists(Descriptor.Profile)) throw new IOException("Policy profile already exists.");
             Directory.CreateDirectory(Descriptor.Profile);
-            File.WriteAllText(Path.Combine(Descriptor.Profile, ".workflow-profile"), Descriptor.OwnerToken);
             new Config { DownloadPath = Descriptor.DownloadRoot, DownloadsPaused = true, SaveUrlsOnExit = true,
                 AutomaticUpdateChecks = false, MinimizeToTray = false, CloseToTray = false,
                 MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
                 WorkspaceMode = "Barebones", Theme = "Dark", Language = "en" }.SaveConfig(Descriptor.Profile);
+            File.WriteAllText(Path.Combine(Descriptor.Profile, ".workflow-profile"), Descriptor.OwnerToken);
         }
         // Restarts load Config through the normal Host constructor. No grant or config is rewritten here.
         return new DesktopSessionHost(Descriptor.Profile, providers: null,

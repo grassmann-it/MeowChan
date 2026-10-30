@@ -61,8 +61,8 @@ internal static class PostBookmarkComparisonChecks
             {
                 if (Directory.EnumerateFileSystemEntries(profile).Any()) throw new IOException("Comparison refuses a non-empty initial profile.");
                 ownsFixture = true;
-                await File.WriteAllTextAsync(marker, "Disposable URSA20 fixture v1");
                 await SeedAsync(profile);
+                await File.WriteAllTextAsync(marker, "Disposable URSA20 fixture v1");
                 fixture = Hash(await File.ReadAllTextAsync(Path.Combine(profile, "post-bookmarks.json")) + V1 + V2);
                 winner = "";
             }

@@ -97,7 +97,6 @@ internal sealed class ApphostWorkflowSmoke : IDisposable
             foreach (string file in Directory.EnumerateFiles(PreviousProfile, "*", SearchOption.AllDirectories))
                 File.Copy(file, Path.Combine(Profile, Path.GetRelativePath(PreviousProfile, file)));
         }
-        File.WriteAllText(Path.Combine(Profile, ".workflow-profile"), OwnerToken);
         Config config = PreviousProfile == null ? new Config
         {
             DownloadPath = DownloadRoot, WorkspaceMode = "Barebones", Theme = "Dark", Language = "en",
@@ -106,6 +105,8 @@ internal sealed class ApphostWorkflowSmoke : IDisposable
         if (!SamePath(config.DownloadPath, DownloadRoot) || config.MinimizeToTray || config.CloseToTray)
             throw new IOException("Restored fixture settings refer outside the workflow or alter close behavior.");
         config.SaveConfig(Profile);
+        // Bootstrap the empty, descriptor-owned profile before adding any marker/data.
+        File.WriteAllText(Path.Combine(Profile, ".workflow-profile"), OwnerToken);
         if (PreviousProfile == null)
             ApphostWorkflowGalleryFixture.SeedAsync(Root, Profile).GetAwaiter().GetResult();
         if (PreviousProfile != null) Http.AllowMedia();

@@ -22,13 +22,13 @@ internal static class ReaderGroupChecks
         ResourceId a = new("local", "b", "1"), b = a with { Thread = "2" }, c = a with { Thread = "3" };
         try
         {
+            new Config { SaveUrlsOnExit = false }.SaveConfig(profile);
             using (ProfileLease lease = ProfileLease.Acquire(profile))
             await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease))
                 foreach (ResourceId id in new[] { a, b, c })
                     await catalog.CaptureAsync(new(id, "https://example.test/b/thread/" + id.Thread, "Group fixture " + id.Thread,
                         ThreadSourceState.Archived, DateTimeOffset.UtcNow, profile,
                         [new CapturedPost(id.Thread!, 0, PostFieldPresence.Html, Html: "Saved local post " + id.Thread)]));
-            new Config { SaveUrlsOnExit = false }.SaveConfig(profile);
             await using (DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>()))
             {
                 await host.StartAsync();

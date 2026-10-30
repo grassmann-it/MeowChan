@@ -89,7 +89,6 @@ internal static class Program
             if (Directory.Exists(profile) && !File.Exists(Path.Combine(profile, ".reading-smoke-profile")))
                 throw new IOException("Reading smoke refuses an unmarked existing profile.");
             Directory.CreateDirectory(profile);
-            File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
         }
         if (_savedSearchesOnly)
         {
@@ -99,7 +98,6 @@ internal static class Program
             if (Directory.Exists(profile) && !File.Exists(Path.Combine(profile, ".saved-search-smoke-profile")))
                 throw new IOException("Saved-search smoke refuses an unmarked existing profile.");
             Directory.CreateDirectory(profile);
-            File.WriteAllText(Path.Combine(profile, ".saved-search-smoke-profile"), "Disposable saved-search acceptance profile");
         }
         Directory.CreateDirectory(profile);
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
@@ -139,6 +137,11 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
                 config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced";
             if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
+            // Marker files are data too: initialize an owned empty profile first.
+            if (_readingPositionMode && Environment.GetEnvironmentVariable("MEOWCHAN_READING_TEST_PROFILE") is { Length: > 0 })
+                File.WriteAllText(Path.Combine(profile, ".reading-smoke-profile"), "Disposable reading-position test profile");
+            if (_savedSearchesOnly)
+                File.WriteAllText(Path.Combine(profile, ".saved-search-smoke-profile"), "Disposable saved-search acceptance profile");
             if (_savedSearchesOnly) SavedArchiveSearchChecks.PrepareAsync(profile).GetAwaiter().GetResult();
             if (_readingPositionMode && !File.Exists(Path.Combine(profile, "reading-fixture-ready")))
             {
