@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Linux CI: --report PATH -- COMMAND [ARG ...].
 
-Requires dbus-daemon, PipeWire, WirePlumber >= 0.5, pipewire-pulse,
-pactl and pw-dump. Runs real software audio, NOT a mocked availability flag.
+Requires dbus-daemon, pulseaudio and pulseaudio-utils (Ubuntu 24.04 stock).
+No PipeWire or WirePlumber services are started. Runs real software audio, NOT a mocked availability flag.
 Only a muted null sink and its monitor are allowed. No inherited session,
 display or audio environment is used. The child may start its own GUI bus/Xvfb;
 its absolute Pulse socket/cookie remain usable across that bus change.
@@ -13,7 +13,6 @@ The report contains summaries only (no environment, cookies or raw graphs).
 import argparse
 import json
 import os
-import re
 from pathlib import Path
 import signal
 import subprocess
@@ -22,7 +21,7 @@ import tempfile
 import time
 
 SINK = 'ci_private_null'
-SERVICES = ('pipewire', 'wireplumber', 'pipewire-pulse')
+MODULES = {'module-native-protocol-unix', 'module-null-sink'}
 
 
 def cli(argv):
@@ -44,32 +43,30 @@ def environment(base):
     env.update(HOME=str(base/'home'), TMPDIR=str(base/'tmp'),
                XDG_CONFIG_HOME=str(base/'config'), XDG_CACHE_HOME=str(base/'cache'),
                XDG_STATE_HOME=str(base/'state'), XDG_DATA_HOME=str(base/'data'),
-               XDG_RUNTIME_DIR=str(base/'runtime'), XDG_CONFIG_DIRS='/etc/xdg',
-               PIPEWIRE_RUNTIME_DIR=str(base/'runtime'), PIPEWIRE_REMOTE='pipewire-0',
+               XDG_RUNTIME_DIR=str(base/'runtime'), XDG_CONFIG_DIRS=str(base/'config'),
+               PIPEWIRE_RUNTIME_DIR=str(base/'runtime'), PIPEWIRE_REMOTE='disabled-private-no-server',
+               PULSE_CONFIG_PATH=str(base/'config/pulse'),
                PULSE_SERVER='unix:'+str(base/'runtime/pulse/native'),
                PULSE_SOCKET=str(base/'runtime/pulse/native'),
                PULSE_RUNTIME_PATH=str(base/'runtime/pulse'),
                PULSE_COOKIE=str(base/'config/pulse/cookie'), PULSE_SINK=SINK,
                ALSA_CONFIG_PATH=str(base/'config/alsa-null.conf'))
     config = base/'config'
-    (config/'pipewire/pipewire.conf.d').mkdir(parents=True)
-    (config/'pipewire/pipewire.conf.d/null.conf').write_text('''context.objects = [
-{ factory = adapter args = { factory.name = support.null-audio-sink
- node.name = ci_private_null media.class = "Audio/Sink" audio.position = [ FL FR ] } }
-]
-''')
-    (config/'wireplumber/wireplumber.conf.d').mkdir(parents=True)
-    (config/'wireplumber/wireplumber.conf.d/no-hardware.conf').write_text('''wireplumber.profiles = {
- main = { monitor.alsa = disabled monitor.bluez = disabled
- monitor.bluez-midi = disabled monitor.v4l2 = disabled monitor.libcamera = disabled }
-}
-''')
     (config/'alsa-null.conf').write_text('pcm.!default { type null }\nctl.!default { type null }\n')
     (config/'pulse').mkdir()
     cookie = config/'pulse/cookie'
     cookie.write_bytes(os.urandom(256))
     cookie.chmod(0o600)
     (config/'pulse/client.conf').write_text('autospawn = no\n')
+    (config/'pulse/daemon.conf').write_text(
+        'daemonize = no\nuse-pid-file = no\nexit-idle-time = -1\n')
+    # -n suppresses the system/user default.pa. Only these modules may load.
+    (config/'pulse/private.pa').write_text(
+        '.fail\n'
+        'load-module module-native-protocol-unix socket='+env['PULSE_SOCKET']+
+        ' auth-cookie='+str(cookie)+' auth-cookie-enabled=yes auth-anonymous=no\n'
+        'load-module module-null-sink sink_name='+SINK+' channels=2 rate=48000\n'
+        'set-default-sink '+SINK+'\nset-sink-mute '+SINK+' yes\n')
     return env
 
 
@@ -87,23 +84,28 @@ def checked(env, command):
 def proof(env):
     sinks = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sinks']))
     sources = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sources']))
-    graph = json.loads(checked(env, ['pw-dump']))
+    modules = json.loads(checked(env, ['pactl', '--format=json', 'list', 'modules']))
+    cards = json.loads(checked(env, ['pactl', '--format=json', 'list', 'cards']))
+    default = checked(env, ['pactl', 'get-default-sink']).strip()
     if len(sinks) != 1 or sinks[0]['name'] != SINK or sinks[0]['mute'] is not True:
         raise RuntimeError('unsafe sink count/name/mute')
-    if any(s['name'] != SINK+'.monitor' for s in sources):
+    if default != SINK:
+        raise RuntimeError('unexpected default sink')
+    if len(sources) != 1 or sources[0]['name'] != SINK+'.monitor':
         raise RuntimeError('unexpected source')
-    for item in graph:
-        props = item.get('info', {}).get('props', {})
-        # Reject every device, not just ALSA/BlueZ; also catch hardware nodes.
-        if item.get('type', '').endswith(':Device') or any(
-            k.startswith(('api.alsa.', 'api.bluez', 'api.v4l2.', 'api.libcamera.'))
-            or k == 'device.api' for k in props
-        ):
-            raise RuntimeError('hardware/device found')
-        if props.get('media.class') == 'Audio/Sink' and props.get('node.name') != SINK:
-            raise RuntimeError('extra graph sink')
-    return {'sink_count': len(sinks), 'sink': SINK, 'muted': True,
-            'source_count': len(sources), 'hardware_devices': 0, 'graph_objects': len(graph)}
+    if cards:
+        raise RuntimeError('hardware card found')
+    if len(modules) != 2 or {m['name'] for m in modules} != MODULES:
+        raise RuntimeError('unexpected module (only private protocol and null sink allowed)')
+    null_module = next(m for m in modules if m['name'] == 'module-null-sink')
+    if any(str(obj.get('owner_module')) != str(null_module['index'])
+           for obj in sinks+sources):
+        raise RuntimeError('sink/source not owned by null module')
+    if sinks[0].get('driver') != 'module-null-sink.c':
+        raise RuntimeError('unexpected sink driver')
+    return {'sink_count': 1, 'sink': SINK, 'muted': True, 'default_sink': default,
+            'source_count': 1, 'hardware_cards': 0,
+            'modules': sorted(MODULES)}
 
 
 def cleanup(owned):
@@ -139,7 +141,7 @@ def cleanup(owned):
 
 
 def execute(command, report_path):
-    report = {'status': 'starting', 'readiness': {'before': None, 'after': None},
+    report = {'status': 'starting', 'readiness': {'before': None, 'after': None, 'during_checks': 0},
               'services': {}, 'child_exit_code': None, 'cleanup': {'complete': False}}
     owned = []
     code = 1
@@ -150,7 +152,8 @@ def execute(command, report_path):
         temporary.replace(report_path)
     def spawn(name, args, env):
         p = subprocess.Popen(args, env=env, start_new_session=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                             stdout=None if name == 'child' else subprocess.DEVNULL,
+                             stderr=None if name == 'child' else subprocess.DEVNULL)
         owned.append((name, p))
         return p
     def alive():
@@ -178,12 +181,10 @@ def execute(command, report_path):
                     if time.monotonic() >= deadline:
                         raise RuntimeError('private bus readiness timeout')
                     time.sleep(.1)
-                version = checked(env, ['wireplumber', '--version'])
-                match = re.search(r'(?<![0-9])(\d+)\.(\d+)\.', version)
-                if not match or tuple(map(int, match.groups())) < (0, 5):
-                    raise RuntimeError('WirePlumber >= 0.5 required for disabled monitors')
-                for service in SERVICES:
-                    spawn(service, [service], env)
+                spawn('pulseaudio', ['pulseaudio', '-n',
+                    '--file='+str(base/'config/pulse/private.pa'),
+                    '--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1',
+                    '--system=no', '--fail=yes'], env)
                 while True:
                     alive()
                     result = run(env, ['pactl', '--format=json', 'list', 'sinks'])
@@ -209,6 +210,7 @@ def execute(command, report_path):
                     alive()
                     if time.monotonic() >= next_proof:
                         proof(env)
+                        report['readiness']['during_checks'] += 1
                         next_proof = time.monotonic()+.5
                     time.sleep(.1)
                 code = child.returncode if child.returncode >= 0 else 128-child.returncode
