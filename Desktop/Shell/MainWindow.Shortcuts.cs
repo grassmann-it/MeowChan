@@ -78,9 +78,13 @@ public partial class MainWindow
         if (e.Handled || ShortcutService.IsCapturing || !IsEnabled || _isClosing || HasVisibleShellDialog()
             || HasBlockingPageDecision() || _archivePage?.IsReaderDialogOpen == true
             || WorkspaceControl<Border>("ShellHelpOverlay").IsVisible || (_gallery?.IsOverlayOpen ?? false)) return false;
+        if (!CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
         if (_shortcutRouter?.Route(e) == true) return true;
+        // Gallery's tunnel handler owns its native-control and effective-gesture
+        // policy. Only a genuine unfocused Window input may enter that same policy
+        // here; focused controls and foreign native roots are never retried.
+        if (_gallery != null && !_gallerySuspended) return _gallery.RouteUnfocusedHostShortcut(e);
         if (!CanExecuteShellPowerCommand(e.Source, e.Key)) return false;
-        if (_gallery != null && !_gallerySuspended) return CommandBindings.RouteVisibleActions(_gallery, e);
         if (_largeReaderOpen && _archivePage?.FindControl<Control>("ArchiveReaderPane") is Control pane)
         {
             // The reader's tunnel handler exclusively owns these navigation

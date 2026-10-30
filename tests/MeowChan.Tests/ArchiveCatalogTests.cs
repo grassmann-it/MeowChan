@@ -206,6 +206,88 @@ public sealed class ArchiveCatalogTests
         Assert.Equal(CapturedAt.AddMinutes(1), current.LastCapturedAt);
     }
 
+    [Theory]
+    [InlineData(false, "")]
+    [InlineData(false, " \t ")]
+    [InlineData(true, "")]
+    [InlineData(true, " \t ")]
+    public async Task TitlePersistenceReopenWithEmptyRegistrationKeepsKnownTitleAndCapturePreference(bool captured, string placeholder)
+    {
+        using TempDirectory directory = new TempDirectory();
+        string media = Path.Combine(directory.Path, "media-not-created");
+        const string title = "Known source subject – café 😀";
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+            await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(ThreadId,
+                "https://boards.4chan.org/g/thread/123", title, media, captured));
+            if (captured)
+                await catalog.CaptureAsync(new CapturedThreadSnapshot(ThreadId,
+                    "https://boards.4chan.org/g/thread/123", title, ThreadSourceState.Active, CapturedAt,
+                    media, new[] { Post("123", 0, "Retained OP") }));
+        }
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+            ArchiveThreadSummary rebound = await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(ThreadId,
+                "https://boards.4chan.org/g/thread/123", placeholder, media, !captured));
+            Assert.Equal(title, rebound.Title);
+            Assert.Equal(captured, rebound.CaptureEnabled);
+            Assert.Equal(captured, rebound.LastCapturedAt.HasValue);
+        }
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        ArchivedThreadView stored = (await reader.ReadThreadAsync(ThreadId))!;
+        Assert.Equal(title, stored.Summary.Title);
+        Assert.Equal(captured, stored.Summary.CaptureEnabled);
+        Assert.Equal(captured ? 1 : 0, stored.PostCount);
+        Assert.False(Directory.Exists(media));
+    }
+
+    [Theory]
+    [InlineData(false, "Unknown")]
+    [InlineData(false, "Thread 123")]
+    [InlineData(true, "Unknown")]
+    [InlineData(true, "Thread 123")]
+    public async Task TitlePersistenceLiteralDefaultShapedSubjectsSurviveNewWriter(bool captured, string title)
+    {
+        using TempDirectory directory = new TempDirectory();
+        string media = Path.Combine(directory.Path, "media-not-created");
+        ArchiveThreadRegistration registration = new ArchiveThreadRegistration(ThreadId,
+            "https://boards.4chan.org/g/thread/123", title, media, captured);
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+            await catalog.RegisterThreadAsync(registration);
+            if (captured)
+                await catalog.CaptureAsync(new CapturedThreadSnapshot(ThreadId, registration.Url, title,
+                    ThreadSourceState.Active, CapturedAt, media, new[] { Post("123", 0, "Not the subject") }));
+        }
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+            Assert.Equal(title, (await catalog.RegisterThreadAsync(registration)).Title);
+        }
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        Assert.Equal(title, (await reader.ReadThreadAsync(ThreadId))!.Summary.Title);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t\r\n ")]
+    public async Task TitlePersistenceMissingSubjectObservationUpdatesPostsWithoutErasingTrueTitle(string missingTitle)
+    {
+        await using Harness fixture = await Harness.OpenAsync();
+        await fixture.Catalog.CaptureAsync(fixture.Snapshot(Post("123", 0, "Old OP"))
+            with { Title = "True subject" });
+        await fixture.Catalog.CaptureAsync(fixture.Snapshot(Post("123", 0, "New OP"))
+            with { Title = missingTitle, CapturedAt = CapturedAt.AddMinutes(1) });
+
+        ArchivedThreadView stored = (await fixture.Reader.ReadThreadAsync(ThreadId))!;
+        Assert.Equal("True subject", stored.Summary.Title);
+        Assert.Equal("New OP", Assert.Single(stored.GetPosts()).Html);
+        Assert.Equal(CapturedAt.AddMinutes(1), stored.Summary.LastCapturedAt);
+    }
+
     [Fact]
     public async Task FailedTransactionPreservesEarlierPostsAndCaptureTimeThenRetryCommits()
     {

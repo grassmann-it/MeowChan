@@ -49,7 +49,9 @@ internal sealed partial class PluginSession
                 || runtime.Active.ExecutionRevision != saved.Active.ExecutionRevision
                 || runtime.Active.CompilationFingerprint != saved.Active.CompilationFingerprint
                 || runtime.Active.Artifact.AssemblySha256 != saved.Active.Artifact.AssemblySha256
-                || saved.SelectedCandidateId != saved.Active.CandidateId
+                // A confirmed repair preserves its selected anchor but executes the validated target.
+                // Compare to the startup-established runtime anchor, never trust saved.Active alone.
+                || runtime.SelectedCandidateId != saved.SelectedCandidateId
                 || runtime.Enabled != saved.Enabled || runtime.LifecycleRevision != saved.LifecycleRevision
                 || actual.IsActive != saved.Enabled)
                 return new(null, actual, ready, "The source has no matching selected active build or its lifecycle changed.");

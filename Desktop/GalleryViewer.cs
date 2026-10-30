@@ -44,7 +44,11 @@ internal sealed class GalleryAssociationIndex
         _entries.TryGetValue(key, out GalleryEntry[]? entries) ? Array.AsReadOnly(entries) : Array.Empty<GalleryEntry>();
 }
 
-internal sealed class GalleryViewer : UserControl
+// A diagnostic is data for the owning shell, never an instruction to the transport.
+internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? Entry, long Revision,
+    string Message, bool MediaUnavailable);
+
+internal sealed partial class GalleryViewer : UserControl
 {
     private readonly TranslateTransform _imageTranslation = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -65,7 +69,7 @@ internal sealed class GalleryViewer : UserControl
     private readonly StackPanel _context = new() { Spacing = 12 };
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-    private readonly Grid _visualRoot = new() { ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
+    private readonly Grid _visualRoot = new() { Background = Brushes.Transparent, ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
     private readonly Grid _nativeVideoOverlay = new() { Background = Brushes.Transparent, ClipToBounds = true };
     private readonly Button _previous;
     private readonly Button _next;
@@ -88,11 +92,15 @@ internal sealed class GalleryViewer : UserControl
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = 650, IsHitTestVisible = false, IsVisible = false };
     private GalleryVideoPlayer? _video;
+    // Retiring video identity survives a new selection while native cleanup still owns it.
+    private GalleryEntry? _videoDiagnosticEntry;
+    private long _videoDiagnosticRevision;
     private bool _videoSuspended;
     private bool _nativeOverlayActive;
     private bool _nativeOverlayFallback;
     private bool _nativeOverlayUnsupported;
     private Window? _nativeOverlayWindow;
+    private Window? _nativeShortcutWindow;
     private CancellationToken _sessionCancellation;
     private readonly GalleryDecodeQueue _decodeQueue = new();
     private GalleryDecodeRequest? _desiredDecode;
@@ -130,6 +138,7 @@ internal sealed class GalleryViewer : UserControl
     internal long AssociationIndexBuildCount => _associationIndexBuilds;
     internal long AssociationRevision => _associationIndex?.Revision ?? 0;
 
+    internal event Action<GalleryDiagnosticNotice>? DiagnosticNotice;
     internal event Action? CloseRequested;
     internal event Action? ReadPostsRequested;
     internal event Action<int>? MoveRequested;
@@ -167,8 +176,10 @@ internal sealed class GalleryViewer : UserControl
     private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", TextWrapping = TextWrapping.Wrap };
     internal void SetRating(int? value, string? error, bool available = true)
     {
+        bool changedError = _ratingError != error;
         _ratingValue = value; _ratingError = error; _ratingAvailable = available;
-        _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value) + (error == null ? string.Empty : " · " + error);
+        _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value);
+        if (changedError) ReportDiagnostic("rating", error);
         _ratingButton.IsEnabled = available && _entry != null;
         UpdateMediaFocusVisibility();
     }
@@ -195,7 +206,7 @@ internal sealed class GalleryViewer : UserControl
         _videoAutoplay = videoAutoplay;
         _videoStartMuted = videoStartMuted;
         _videoVolume = Math.Clamp(videoVolume, 0, 100);
-        _video?.Configure(_videoAutoplay, _videoStartMuted, _videoVolume);
+        _video?.Configure(EffectiveVideoAutoplay, _videoStartMuted, _videoVolume);
         UpdateHelpButtonTooltip();
         SetContextOpen(contextOpen, notify: false);
     }
@@ -208,17 +219,16 @@ internal sealed class GalleryViewer : UserControl
 
     internal void SetFavoriteError(string? error)
     {
-        if (string.IsNullOrWhiteSpace(error) && _favoriteError.IsKeyboardFocusWithin)
-            _toolsToggle.Focus(NavigationMethod.Tab);
-        _favoriteError.Text = error;
-        _favoriteError.IsVisible = !string.IsNullOrWhiteSpace(error);
-        AutomationProperties.SetName(_favoriteError, error ?? string.Empty);
-        UpdateMediaFocusVisibility();
+        // Keep failed-write state in the owning model, not an inline error/focus target.
+        _favoriteError.Text = null;
+        _favoriteError.IsVisible = false;
+        ReportDiagnostic("favorite", error);
     }
 
     // Compatible fallback for callers that do not track revisions: each call supplies a new snapshot.
     internal void SetAssociations(IReadOnlyList<GalleryEntry> entries)
     {
+        PauseSlideshow(); // A replacement mapping is not permission to navigate an old selection.
         SetAssociationIndex(entries, AssociationRevision + 1);
         if (_entry is { } current)
             _entry = _associationIndex!.For(current.Key).FirstOrDefault(value => value.EntryKey == current.EntryKey) ?? current;
@@ -284,11 +294,13 @@ internal sealed class GalleryViewer : UserControl
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); });
         Command(view, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke());
         _helpButton = Command(view, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen));
-        _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => ReadPostsRequested?.Invoke());
+        _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
         _readPosts.IsVisible = false;
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
         StackPanel focusTools = ToolGroup("GalleryFocusTools");
         _toolsToggle = (ToggleButton)Command(focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
+        InitializePlaybackControls(toolbar, focusTools);
+        InitializeGifControls(focusTools);
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
@@ -305,6 +317,8 @@ internal sealed class GalleryViewer : UserControl
         infoContent.Children.Add(_warnings);
         infoContent.Children.Add(_favoriteError);
         infoContent.Children.Add(_ratingStatus);
+        infoContent.Children.Add(_overlayFallbackNotice);
+        infoContent.Children.Add(_slideshowStatus);
         AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
         _infoOverlay.Child = infoContent;
         _helpPanel.Child = new ScrollViewer { Content = _helpContent,
@@ -335,6 +349,7 @@ internal sealed class GalleryViewer : UserControl
         root.Children.Add(_infoOverlay); Grid.SetRow(_infoOverlay, 2);
         root.Children.Add(_helpPanel);
         Content = root;
+        InitializeOverlayInteraction();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
         _nativeVideoOverlay.ContextRequested += (_, e) =>
@@ -375,7 +390,10 @@ internal sealed class GalleryViewer : UserControl
             Texts.Changed += OnLanguageChanged;
             ShortcutService.Changed += OnShortcutBindingsChanged;
             _scaleOwner = TopLevel.GetTopLevel(this);
+            _viewerInteractionStopped = false;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
+            ApplyOverlayPlacement();
+            UpdateViewerInteractionTimer();
         };
         DetachedFromVisualTree += (_, _) =>
         {
@@ -383,6 +401,7 @@ internal sealed class GalleryViewer : UserControl
             ShortcutService.Changed -= OnShortcutBindingsChanged;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
             _scaleOwner = null;
+            StopViewerInteraction();
         };
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
@@ -420,6 +439,8 @@ internal sealed class GalleryViewer : UserControl
         }
         UpdateHelpButtonTooltip();
         UpdateContext(); UpdateQuality(); UpdateFavorite(); UpdateContextButton(); UpdateHelp(); UpdateMediaFocusPresentation();
+        RefreshPlaybackControls();
+        RefreshGifTransport();
     }
 
     private void OnShortcutBindingsChanged() => OnLanguageChanged(this, EventArgs.Empty);
@@ -488,23 +509,86 @@ internal sealed class GalleryViewer : UserControl
         panel.Children.Add(button); return button;
     }
     internal void SetPosition(string label, bool previous, bool next)
-    { _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next; }
+    {
+        _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
+        UpdateSlideshowAvailability(next);
+    }
     internal void SetScope(string message) => _scope.Text = message;
-    internal void SetWarnings(string message) { _warnings.Text = message; UpdateMediaFocusVisibility(); }
-    internal void SetEmpty(string message, bool canReadPosts)
-    { SetNotice(message); _readPosts.IsVisible = canReadPosts; _exportOriginal.IsEnabled = false; SetPosition(string.Empty, false, false); }
-    internal void SetNotice(string message) => _status.Text = message;
+    internal void SetWarnings(string message)
+    {
+        _warnings.Text = null;
+        ReportDiagnostic("source-warning", message);
+    }
+    internal Task SetEmpty(string message, bool canReadPosts)
+    {
+        if (_viewerInteractionStopped || _sessionCancellation.IsCancellationRequested) return Task.CompletedTask;
+        Task cleanup = SetMediaUnavailable(message);
+        _readPosts.IsVisible = canReadPosts; _exportOriginal.IsEnabled = false;
+        SetPosition(string.Empty, false, false);
+        return cleanup;
+    }
+    internal void SetLoadingNotice(string message) => _status.Text = message;
+    // Compatibility entry for informational/operation failures. Actual failed media must
+    // use SetMediaUnavailable, never infer failure from the presence of notification text.
+    internal void SetNotice(string message) => ReportDiagnostic("notice", message);
+
+    internal int MediaRequestGeneration => _request;
+
+    // Capture expectedRequestGeneration before asynchronous shell resolution. Admission
+    // and native retirement happen synchronously; only the guarded UI teardown awaits.
+    internal Task SetMediaUnavailable(string diagnosis, int? expectedRequestGeneration = null)
+    {
+        if (_viewerInteractionStopped || _sessionCancellation.IsCancellationRequested
+            || expectedRequestGeneration is int expected && expected != _request) return Task.CompletedTask;
+        int failureRequest = ++_request;
+        CancelLoads(); UnbindVideoPlaybackSignals();
+        _mediaFailed = true; _navigationPending = false;
+        _imageReadyRequest = _videoReadyRequest = -1;
+        SetImageCommands(false); _exportOriginal.IsEnabled = false;
+        _info = null; ClearBitmaps();
+        StopSlideshow();
+        _status.Text = GalleryViewerText.Get("Media unavailable. Details are available in diagnostics.",
+            "Medium nicht verfügbar. Details stehen in der Diagnose.");
+        _status.IsVisible = true;
+        GalleryVideoPlayer? retiring = _video;
+        Task cleanup = Task.WhenAll(RetireGifAsync(), retiring?.StopUnavailableAsync() ?? Task.CompletedTask);
+        ReportDiagnostic("media-unavailable", diagnosis, mediaUnavailable: true);
+        return CompleteUnavailableAsync(retiring, cleanup, failureRequest);
+    }
+
+    private async Task CompleteUnavailableAsync(GalleryVideoPlayer? retiring, Task cleanup, int failureRequest)
+    {
+        // Failure propagates to the owning shell. Never detach a drawable or conceal
+        // retained native ownership merely because its cleanup task faulted.
+        await cleanup;
+        if (failureRequest != _request || _viewerInteractionStopped || _sessionCancellation.IsCancellationRequested) return;
+        if (retiring != null) retiring.IsVisible = false;
+        _image.IsVisible = true;
+        UseNativeVideoOverlay(false);
+        SetVideoFallbackLayout(false);
+        _status.IsVisible = true;
+    }
+
+    private void ReportDiagnostic(string operation, string? message, bool mediaUnavailable = false)
+    {
+        if (_viewerInteractionStopped || _sessionCancellation.IsCancellationRequested || string.IsNullOrWhiteSpace(message)) return;
+        string bounded = message.Length <= 2048 ? message : message[..2048];
+        DiagnosticNotice?.Invoke(new(operation, _entry, AssociationRevision, bounded, mediaUnavailable));
+    }
     private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = enabled;
 
-    private void SetMediaFocus(bool enabled)
+    private void SetMediaFocus(bool enabled, bool notify = true)
     {
         if (_mediaFocus == enabled) return;
         // A disappearing control must never retain keyboard focus. Navigation and
         // the reveal toggle remain in the same visual tree, including native video.
         if (enabled && (_secondaryTools.Any(control => control.IsKeyboardFocusWithin) || _infoOverlay.IsKeyboardFocusWithin))
-            _toolsToggle.Focus(NavigationMethod.Tab);
+            _toolsToggle.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
         _mediaFocus = enabled;
+        _playbackPreferences = _playbackPreferences with { MediaFocus = enabled };
         UpdateMediaFocusPresentation();
+        RevealOverlayControls();
+        if (notify) PlaybackPreferencesChanged?.Invoke(_playbackPreferences);
     }
 
     private void UpdateMediaFocusPresentation()
@@ -518,25 +602,35 @@ internal sealed class GalleryViewer : UserControl
     private void UpdateMediaFocusVisibility()
     {
         foreach (Control control in _secondaryTools) control.IsVisible = !_mediaFocus;
+        // The legacy action remains routable, but must never reappear as duplicate chrome.
+        _autoHideToggle.IsVisible = false;
         _compactPosition.IsVisible = _mediaFocus;
         _quality.IsVisible = _position.IsVisible = _scope.IsVisible = !_mediaFocus;
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
-        _ratingStatus.IsVisible = !_mediaFocus || !string.IsNullOrWhiteSpace(_ratingError);
-        // Warnings and failed favorite/rating writes are not optional metadata.
-        _infoOverlay.IsVisible = !_mediaFocus || !string.IsNullOrWhiteSpace(_warnings.Text)
-            || _favoriteError.IsVisible || !string.IsNullOrWhiteSpace(_ratingError);
+        _ratingStatus.IsVisible = !_mediaFocus;
+        // Diagnostic notices have no visibility or auto-hide authority. The capability
+        // fallback is neutral layout information, not a dismissible technical banner.
+        _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
         _chrome.Margin = new Thickness(8, 8, 8, _infoOverlay.IsVisible ? 0 : 8);
     }
 
-    private void SetContextOpen(bool open, bool notify = true)
+    private void SetContextOpen(bool open, bool notify = true, bool hover = false)
     {
+        bool hadFocus = _contextPanel.IsKeyboardFocusWithin;
+        _hoverContextOpen = hover && open;
+        if (!hover && !open && notify) _suppressPostHoverUntilExit = true;
         if (_contextOpen == open) return;
         _contextOpen = open;
+        // Deliberate reading stops automatic progression until explicit restart;
+        // opening a panel is never permission to pause the native video itself.
+        if (open) PauseSlideshow(pauseVideo: false);
+        if (!hover) RevealOverlayControls();
         EnsureContextCurrent();
         LayoutContext();
         UpdateContextButton();
-        if (!open) Focus();
-        if (notify) ContextOpenChanged?.Invoke(open);
+        RefreshPlaybackControls();
+        if (!open && (!hover || hadFocus)) FocusGallerySurface();
+        if (notify && !hover) ContextOpenChanged?.Invoke(open);
     }
 
     private void ToggleFavorite()
@@ -569,9 +663,12 @@ internal sealed class GalleryViewer : UserControl
     {
         bool wasOpen = _helpOpen;
         _helpOpen = open;
+        if (open) HoldSlideshowAdvance();
+        RevealOverlayControls();
         _helpExpanded = expanded;
         UpdateHelp();
-        if (!open && wasOpen) Focus();
+        RefreshPlaybackControls();
+        if (!open && wasOpen) FocusGallerySurface();
     }
 
     private void UpdateHelp()
@@ -581,8 +678,8 @@ internal sealed class GalleryViewer : UserControl
         if (!_helpOpen) return;
         _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Classes = { "section-title" } });
         string[] ids = _helpExpanded
-            ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "window.fullscreen", "gallery.close" }
-            : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle" };
+            ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
+            : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
@@ -595,6 +692,8 @@ internal sealed class GalleryViewer : UserControl
 
     private void ShowMediaMenu()
     {
+        HoldSlideshowAdvance();
+        RevealOverlayControls();
         if (_entry == null) return;
         GalleryEntry entry = _entry;
         static MenuItem Item(string id, Action action, bool enabled = true)
@@ -619,10 +718,12 @@ internal sealed class GalleryViewer : UserControl
             Item("media.export-original", () => ExportOriginalRequested?.Invoke(entry)),
             Item("media.show-in-folder", () => ShowInFolderRequested?.Invoke(entry)),
             new Separator(),
-            Item("gallery.show-in-thread", () => ReadPostRequested?.Invoke(entry), entry.Post != null),
+            Item("gallery.show-in-thread", () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }, entry.Post != null),
             Item("media.details", () => DetailsRequested?.Invoke(entry))
         } };
         Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        menu.Opened += (_, _) => RefreshPlaybackControls();
+        menu.Closed += (_, _) => RefreshPlaybackControls();
         owner.ContextMenu = menu;
         menu.Open(owner);
     }
@@ -630,6 +731,7 @@ internal sealed class GalleryViewer : UserControl
     private void UseNativeVideoOverlay(bool active)
     {
         active &= OperatingSystem.IsWindows() && !_nativeOverlayUnsupported;
+        if (!active) UnbindNativeShortcutWindow();
         if (_nativeOverlayActive == active) return;
         Grid previous = _nativeOverlayActive ? _nativeVideoOverlay : _visualRoot;
         Grid next = active ? _nativeVideoOverlay : _visualRoot;
@@ -640,11 +742,13 @@ internal sealed class GalleryViewer : UserControl
         }
         _nativeOverlayActive = active;
         _video?.SetNativeOverlay(active ? _nativeVideoOverlay : null);
+        ApplyOverlayPlacement();
     }
 
     private void CheckNativeOverlayTransparency()
     {
         if (!_nativeOverlayActive || TopLevel.GetTopLevel(_nativeVideoOverlay) is not Window overlay) return;
+        BindNativeShortcutWindow(overlay);
         if (overlay.ActualTransparencyLevel == WindowTransparencyLevel.Transparent) return;
         _nativeOverlayUnsupported = true;
         _nativeOverlayWindow = overlay;
@@ -663,7 +767,7 @@ internal sealed class GalleryViewer : UserControl
         Grid.SetRow(_chrome, fallback ? 2 : 1);
         Grid.SetRow(_infoOverlay, fallback ? 3 : 2);
         _helpPanel.Margin = new Thickness(12);
-        LayoutContext();
+        ApplyOverlayPlacement();
     }
 
     internal GalleryViewerState CaptureState() => new(_entry?.Key, _entry?.Post?.PostId, _entry?.Attachment?.Position,
@@ -677,7 +781,9 @@ internal sealed class GalleryViewer : UserControl
     {
         if (_restore is not { } state || _entry == null || state.Key != _entry.Key || state.PostId != _entry.Post?.PostId
             || state.AttachmentPosition != _entry.Attachment?.Position) return;
-        _restore = null; _contextOpen = state.ContextOpen; EnsureContextCurrent(); LayoutContext(); UpdateContextButton();
+        _restore = null; _contextOpen = state.ContextOpen;
+        if (_contextOpen) HoldSlideshowAdvance();
+        EnsureContextCurrent(); LayoutContext(); UpdateContextButton();
         UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
         _manualZoom = state.ManualZoom; _actualZoom = state.ActualZoom;
         _zoom = _actualZoom && state.PhysicalZoom < CurrentFit
@@ -687,10 +793,20 @@ internal sealed class GalleryViewer : UserControl
         FitIfAutomatic(); if (_manualZoom) _ = EnsureDetailAsync();
     }
 
-    internal async Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
+    internal Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
+        => ShowMediaAsync(entry, cancellationToken);
+
+    private async Task ShowMediaAsync(GalleryEntry entry, CancellationToken cancellationToken, bool? resumeAutoplay = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // A retiring/disabled transport otherwise leaves FocusManager with no target;
+        // subsequent keys then originate on Window and never tunnel through the viewer.
+        if (_video?.IsKeyboardFocusWithin == true || _video?.TransportControl.IsKeyboardFocusWithin == true
+            || _gifPlayPause.IsKeyboardFocusWithin)
+            FocusGallerySurface();
         CancelLoads(); int request = ++_request;
+        Task gifRetired = RetireGifAsync();
+        BeginSlideshowMedia(entry);
         _navigationId = PerformanceDiagnostics.NextId();
         PerformanceDiagnostics.Record("gallery.navigation", "accepted", _navigationId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: AssociationRevision);
         // Invalidate old image input before an asynchronous video stop can yield.
@@ -703,6 +819,8 @@ internal sealed class GalleryViewer : UserControl
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;
         _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
+        await gifRetired;
+        if (request != _request || cancellationToken.IsCancellationRequested) return;
         if (_video != null)
         {
             await _video.StopAsync();
@@ -721,22 +839,40 @@ internal sealed class GalleryViewer : UserControl
             if (_video == null)
             {
                 _video = new GalleryVideoPlayer();
+                _video.CleanupDiagnostic += message =>
+                {
+                    if (!_viewerInteractionStopped && !_sessionCancellation.IsCancellationRequested && _videoDiagnosticEntry != null)
+                        DiagnosticNotice?.Invoke(new("video-cleanup", _videoDiagnosticEntry, _videoDiagnosticRevision, message, true));
+                };
                 _video.VolumeChanged += volume => { _videoVolume = volume; VideoVolumeChanged?.Invoke(volume); };
+                _video.LoopChanged += OnVideoLoopChanged;
+                _video.TransportControl.SizeChanged += (_, _) => { if (_contextOpen) LayoutContextPlacement(); };
                 UseNativeVideoOverlay(true);
                 _viewport.Children.Add(_video);
             }
             else UseNativeVideoOverlay(true);
             if (_nativeOverlayUnsupported) SetVideoFallbackLayout(true);
-            _video.Configure(_videoAutoplay, _videoStartMuted, _videoVolume);
+            _videoDiagnosticEntry = entry; _videoDiagnosticRevision = AssociationRevision;
+            BindVideoPlaybackSignals(request);
+            _video.SetLoopEnabled(_playbackPreferences.Mode == GalleryPlaybackMode.Repeat);
+            _video.Configure(resumeAutoplay ?? EffectiveVideoAutoplay, _videoStartMuted, _videoVolume);
             _image.IsVisible = _status.IsVisible = false; _video.IsVisible = true;
+            ApplyOverlayPlacement();
             if (_nativeOverlayUnsupported)
                 Dispatcher.UIThread.Post(() => _nativeOverlayWindow?.Hide(), DispatcherPriority.Loaded);
             if (_nativeOverlayActive)
                 Dispatcher.UIThread.Post(CheckNativeOverlayTransparency, DispatcherPriority.Loaded);
             await _video.ShowAsync(entry, cancellationToken);
+            if (request != _request || cancellationToken.IsCancellationRequested) return;
+            _videoReadyRequest = request;
+            // Initial selection already honored autoplay. Only a slideshow explicitly started
+            // during loading may still need Play; never Pause because progression is stopped.
+            if (_slideshow.IsRunning) await _video.PlayForSlideshowAsync();
+            RefreshPlaybackControls();
             return;
         }
-        if (entry.Kind == SavedMediaKind.Other) { _status.Text = Texts.T("gallery.fileOnly"); return; }
+        ApplyOverlayPlacement();
+        if (entry.Kind == SavedMediaKind.Other) { StopSlideshow(); _status.Text = Texts.T("gallery.fileOnly"); return; }
         await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
     }
 
@@ -754,12 +890,12 @@ internal sealed class GalleryViewer : UserControl
         return RequestDecodeAsync(new GalleryDecodeRequest.Original(), debounce: false);
     }
 
-    private bool HasOriginal => _highBitmap != null || (_info != null && _fitBitmap != null &&
+    private bool HasOriginal => _gif != null || _highBitmap != null || (_info != null && _fitBitmap != null &&
         _fitBitmap.PixelSize.Width == _info.Width && _fitBitmap.PixelSize.Height == _info.Height);
 
     private Task RequestDecodeAsync(GalleryDecodeRequest decode, bool debounce, bool retry = false)
     {
-        if (_entry == null) return Task.CompletedTask;
+        if (_entry == null || _gif != null) return Task.CompletedTask;
         // Automatic geometry can return to Fit while a manual Original is still
         // loading. Keep that explicit quality request ahead of resize upgrades.
         if (decode is GalleryDecodeRequest.Fit && debounce && _pendingOriginalGeneration.HasValue)
@@ -802,6 +938,7 @@ internal sealed class GalleryViewer : UserControl
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, sessionToken);
             try
             {
+                if (IsGifCandidate(entry) && await TryAdoptGifAsync(entry, session, generation, linked.Token)) return;
                 Bitmap bitmap;
                 GalleryImageInfo info;
                 using (PerformanceDiagnostics.Measure("gallery.image.load", decodeId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: mappingRevision))
@@ -821,16 +958,22 @@ internal sealed class GalleryViewer : UserControl
                 _image.Source = _highBitmap ?? bitmap;
                 DisposeBitmap(previous, entry.Key, decodeId, mappingRevision); // Switch Source before releasing its old backing pixels.
                 _status.Text = string.Empty;
+                _mediaFailed = false;
                 SetImageCommands(true);
                 FitIfAutomatic();
                 ApplyRestoredState();
+                MarkVisibleImageReady();
                 if (_manualZoom && !HasOriginal) _ = EnsureDetailAsync();
             }
             catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
             catch (Exception error)
             {
                 if (session == _request && generation == _decodeGeneration)
-                    _status.Text = (_image.Source != null ? Texts.T("viewer.decodeWarning") : string.Empty) + error.Message;
+                {
+                    // Preserve the existing failed-decode progression guard, including
+                    // an original/detail decode failure with older safe fit pixels present.
+                    await SetMediaUnavailable(error.Message, session);
+                }
             }
             finally
             {
@@ -914,9 +1057,9 @@ internal sealed class GalleryViewer : UserControl
                 foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
                 {
                     if (quote.Target == null || quote.IsExternal) continue;
-                    ContextCommand("GalleryQuote", quote.Label, () => QuoteRequested?.Invoke(quote)).Tag = quote.Target;
+                    ContextCommand("GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); }).Tag = quote.Target;
                 }
-            ContextCommand("GalleryReadPost", Texts.T("gallery.viewer10"), () => ReadPostRequested?.Invoke(entry));
+            ContextCommand("GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
         }
         finally
         {
@@ -935,37 +1078,53 @@ internal sealed class GalleryViewer : UserControl
     private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
     private void LayoutContext()
     {
-        bool compact = Bounds.Width < 850;
-        _contextPanel.IsVisible = _contextOpen; _viewport.IsVisible = !(_contextOpen && compact);
-        _contextPanel.Width = compact ? double.NaN : 320;
-        _contextPanel.Margin = default;
-        Grid.SetColumn(_contextPanel, compact ? 0 : 1);
-        Grid.SetColumnSpan(_contextPanel, compact ? 2 : 1);
+        LayoutContextPlacement();
         FitIfAutomatic();
     }
-    private void Move(int delta) { if (delta < 0 ? _previous.IsEnabled : _next.IsEnabled) MoveRequested?.Invoke(delta); }
+    private void Move(int delta)
+    {
+        if (!(delta < 0 ? _previous.IsEnabled : _next.IsEnabled)) return;
+        _navigationPending = true; // No old-media timer while the shell resolves the next entry.
+        MoveRequested?.Invoke(delta);
+    }
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing) return;
         Control routingOwner = sender is Control control ? control : this;
-        if (!CommandRouter.IsRoutingContextActive(routingOwner, e.Source)) return;
+        if (!CanRouteGalleryShortcut(routingOwner, e)) return;
+        if (RevealForKeyboard(e)) return;
         if (CommandBindings.Matches(e, "window.fullscreen")) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "viewer.shortcut-help"))
         { SetHelp(!_helpOpen); e.Handled = true; return; }
         if (_helpOpen) return;
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
-        if (e.Source is Visual input && input.GetVisualAncestors().Prepend(input).Any(control =>
-            control is TextBox or ComboBox or Slider or TabControl or DataGrid or SelectableTextBlock)) return;
+        // This is part of the existing gallery handler, not a second router. Only
+        // actual owned transport sliders may opt into these four effective commands.
+        if (_entry?.Kind == SavedMediaKind.Video && _video?.IsTransportInput(e.Source) == true)
+        {
+            if (_video.MatchesTransportShortcut(e, "gallery.previous")) { Move(-1); e.Handled = true; return; }
+            if (_video.MatchesTransportShortcut(e, "gallery.next")) { Move(1); e.Handled = true; return; }
+            if (_video.MatchesTransportShortcut(e, "video.volume-up")) { AdjustVideoVolume(1); e.Handled = true; return; }
+            if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
+        }
+        if (!IsGalleryShortcutInput(e)) return;
+        foreach (var (_, id) in PlaybackActions())
+            if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.toggle")) { ToggleFavorite(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
-        if (CommandBindings.Matches(e, "video.play-pause") && _entry?.Kind == SavedMediaKind.Video && _video != null &&
-            !(e.Source is Visual spaceSource && spaceSource.GetVisualAncestors().Prepend(spaceSource).Any(control => control is Button)))
+        // Matches already protects Button Space/Enter. A custom non-activation
+        // gesture must still work when a transport/toolbar button has focus.
+        if (CommandBindings.Matches(e, "video.play-pause") && _gif?.Evidence.FrameCount > 1)
+        { _ = ToggleGifPlaybackAsync(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "video.play-pause") && _entry?.Kind == SavedMediaKind.Video && _video != null)
         { _ = _video.TogglePlaybackAsync(); e.Handled = true; return; }
         if (_entry?.Kind == SavedMediaKind.Video && _video != null)
         {
+            if (CommandBindings.Matches(e, "video.volume-up")) { AdjustVideoVolume(1); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.mute")) { _ = _video.ToggleMuteAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
@@ -979,14 +1138,79 @@ internal sealed class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
         else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
-        else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) ReadPostRequested?.Invoke(_entry); }
+        else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
         else { CommandBindings.RouteVisibleActions(this, e); return; }
         e.Handled = true;
     }
 
+    private void AdjustVideoVolume(int direction)
+    {
+        if (!_interactionAvailable || _viewerInteractionStopped || _videoSuspended || _mediaFailed
+            || _navigationPending || _sessionCancellation.IsCancellationRequested) return;
+        _video?.AdjustVolume(direction);
+    }
+
+    // Input eligibility is separate from window eligibility: callers must pass
+    // CanRouteGalleryShortcut first. F1/F11 retain their existing explicit exceptions.
+    internal static bool IsGalleryShortcutInput(KeyEventArgs e) => !e.Handled && !ShortcutService.IsCapturing
+        && !CommandRouter.IsNativeInput(e.Source, e.Key)
+        && !(e.Source is Visual input && input.GetSelfAndVisualAncestors().Any(control =>
+            control is TabControl or DataGrid or SelectableTextBlock));
+
+    private bool CanRouteGalleryShortcut(Control owner, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(owner, e.Source)) return false;
+        // The native video overlay is an authorized gallery surface, not a dialog.
+        // Other owned windows must not leave this viewer's tunnel handler active.
+        return TopLevel.GetTopLevel(this) is not Window host
+            || !host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window));
+    }
+
+    internal static bool IsUnfocusedWindowKey(KeyEventArgs e, Window window, IInputElement? focused) =>
+        !e.Handled && ReferenceEquals(e.Source, window) && focused == null;
+
+    internal bool RouteUnfocusedHostShortcut(KeyEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window window
+            || !IsUnfocusedWindowKey(e, window, window.FocusManager?.GetFocusedElement())) return false;
+        // Re-enter the SAME gallery policy, not visible-button fallback. This is
+        // restricted to an actual Window source with no focused native control.
+        OnKeyDown(this, e);
+        return e.Handled;
+    }
+
+    private void BindNativeShortcutWindow(Window window)
+    {
+        if (ReferenceEquals(window, _nativeShortcutWindow)) return;
+        UnbindNativeShortcutWindow();
+        _nativeShortcutWindow = window;
+        window.AddHandler(KeyDownEvent, OnUnfocusedNativeWindowKeyDown, RoutingStrategies.Bubble);
+    }
+
+    private void UnbindNativeShortcutWindow()
+    {
+        _nativeShortcutWindow?.RemoveHandler(KeyDownEvent, OnUnfocusedNativeWindowKeyDown);
+        _nativeShortcutWindow = null;
+    }
+
+    private void OnUnfocusedNativeWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not Window window || !ReferenceEquals(window, _nativeShortcutWindow)
+            || !IsUnfocusedWindowKey(e, window, window.FocusManager?.GetFocusedElement())) return;
+        // Match the normal shell's Escape hierarchy even when native focus was lost:
+        // close help/context or leave fullscreen before closing the gallery itself.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        {
+            OnNativeOverlayKeyDown(_nativeVideoOverlay, e);
+            if (e.Handled) return;
+        }
+        OnKeyDown(_nativeVideoOverlay, e);
+        if (!e.Handled) OnNativeOverlayKeyDown(_nativeVideoOverlay, e);
+    }
+
     private void OnNativeOverlayKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _nativeVideoOverlay.ContextMenu?.IsOpen == true) return;
+        if (!CanRouteGalleryShortcut(_nativeVideoOverlay, e)) return;
         if (e.Key == Key.Escape && e.Source is Visual source &&
             source.GetVisualAncestors().Prepend(source).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
         ShellKeyRequested?.Invoke(this, e);
@@ -1066,20 +1290,32 @@ internal sealed class GalleryViewer : UserControl
         DisposeBitmap(_highBitmap, _entry?.Key, _navigationId, AssociationRevision); _highBitmap = null;
         DisposeBitmap(_fitBitmap, _entry?.Key, _navigationId, AssociationRevision); _fitBitmap = null;
     }
+    private VideoPlaybackMode? _suspendedPlaybackMode;
     internal Task SuspendMediaAsync()
     {
+        // Reader suspension retires the drawable/input, not the user's play/pause choice.
+        // Returning must not turn a paused video into autoplay because config still says On.
+        if (!_videoSuspended) _suspendedPlaybackMode = _video?.PlaybackMode;
+        PauseSlideshow();
+        _gif?.SetActive(false);
         _videoSuspended = _entry?.Kind == SavedMediaKind.Video;
         return _videoSuspended && _video != null ? _video.StopAsync() : Task.CompletedTask;
     }
     internal Task ResumeMediaAsync()
     {
+        UpdateGifPresentation();
         if (!_videoSuspended || _entry == null || _video == null) return Task.CompletedTask;
         _videoSuspended = false;
-        return _video.ShowAsync(_entry, _sessionCancellation);
+        return ShowMediaAsync(_entry, _sessionCancellation, _suspendedPlaybackMode == VideoPlaybackMode.Playing);
     }
     internal async Task StopAsync()
     {
-        ++_request; CancelLoads(); ClearBitmaps(); _entry = null; _info = null; _restore = null;
+        StopViewerInteraction();
+        UnbindVideoPlaybackSignals();
+        _video?.SetExternalTransportHost(null);
+        ++_request; CancelLoads();
+        await RetireGifAsync();
+        ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false;
         _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
@@ -1087,6 +1323,6 @@ internal sealed class GalleryViewer : UserControl
         if (_video != null) await _video.DisposeAsync();
         UseNativeVideoOverlay(false);
         SetVideoFallbackLayout(false);
-        SetMediaFocus(false);
+        // Preferences survive this viewer's close; a new instance receives them via ConfigurePlayback.
     }
 }

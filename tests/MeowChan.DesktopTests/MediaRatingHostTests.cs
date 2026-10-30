@@ -13,6 +13,7 @@ public sealed class MediaRatingHostTests
     public async Task CommitPublishesExactKeyAndFailurePreservesCacheAndOtherProfiles()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
         {
             await host.StartAsync();
@@ -37,6 +38,7 @@ public sealed class MediaRatingHostTests
     public async Task DeletionCleanupFailureReturnsFrozenIdsAndRetryNeverRepeatsArchiveDeletion()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         FavoriteAssetKey keep = Key with { Thread = new("4chan", "g", "43") };
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))
@@ -66,6 +68,7 @@ public sealed class MediaRatingHostTests
     public async Task InvalidRatingIndexBlocksDeletionBeforeFilesAndDoesNotBlockFavorites()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         string file = Path.Combine(temp.Path, "media-ratings.json"); File.WriteAllText(file, "{bad");
         await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
         await host.StartAsync();

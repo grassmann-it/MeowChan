@@ -33,10 +33,14 @@ public partial class MainWindow
         string? failure = null;
         GalleryVideoPlayer.PlaybackEvidence? imageCleanup = null, closeCleanup = null, shutdownCleanup = null;
         object? poster = null;
+        GalleryVideoPlayer.PlaybackEvidence? repeatAfterSwitch = null, reopenedPlayback = null;
+        string? persistedMode = null;
+        int? postCloseRestarts = null, postShutdownRestarts = null;
         void SaveEvidence() => File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
         {
-            schemaVersion = 1, completed, failure, fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))),
+            schemaVersion = 2, completed, failure, fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))),
             samples, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
+            repeatAfterSwitch, reopenedPlayback, persistedMode, postCloseRestarts, postShutdownRestarts,
             scope = "actual apphost, production verified gallery/native video output; no audio-device, screen-pixel or hardware-acceleration claim"
         }, new JsonSerializerOptions { WriteIndented = true }));
         try
@@ -47,7 +51,8 @@ public partial class MainWindow
             string mediaDirectory = Path.Combine(profile, "playback-fixture");
             Directory.CreateDirectory(mediaDirectory);
             byte[] video = await File.ReadAllBytesAsync(fixture);
-            await File.WriteAllBytesAsync(Path.Combine(mediaDirectory, "clip.webm"), video);
+            string videoName = "clip" + Path.GetExtension(fixture).ToLowerInvariant();
+            await File.WriteAllBytesAsync(Path.Combine(mediaDirectory, videoName), video);
             using SKBitmap bitmap = new(96, 64);
             bitmap.Erase(SKColors.CornflowerBlue);
             using SKImage image = SKImage.FromBitmap(bitmap);
@@ -64,7 +69,7 @@ public partial class MainWindow
             {
                 Version = 1, Entries = new Dictionary<string, object>
                 {
-                    ["image.png"] = Entry("image", "image.png", picture), ["clip.webm"] = Entry("video", "clip.webm", video)
+                    ["image.png"] = Entry("image", "image.png", picture), [videoName] = Entry("video", videoName, video)
                 }
             }));
             MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(mediaDirectory);
@@ -72,7 +77,7 @@ public partial class MainWindow
             GalleryEntry MakeEntry(MediaAssetReference asset) => new(
                 new GalleryAssetKey(new ResourceId("smoke", "local", "1"), manifest.Directory, asset.AssetId),
                 manifest, asset, null, null, false, true);
-            GalleryEntry[] entries = manifest.GetPage().OrderBy(asset => asset.Path.EndsWith(".webm", StringComparison.Ordinal) ? 1 : 0)
+            GalleryEntry[] entries = manifest.GetPage().OrderBy(asset => Path.GetFileName(asset.Path) == videoName ? 1 : 0)
                 .Select(MakeEntry).ToArray();
             string posterCache = Path.Combine(profile, "cache", "video-posters-v1");
             byte[] posterBytes = await VideoPosterCache.GetPngAsync(manifest, entries[1].Asset, posterCache, default)
@@ -220,42 +225,57 @@ public partial class MainWindow
             await WaitMediaSmokeAsync(async () =>
             {
                 imageCleanup = await player.InspectPlaybackAsync();
-                return !imageCleanup.HasPlayback && !imageCleanup.LoopEnabled && imageCleanup.ReleasedStreams >= 1 && imageCleanup.CleanupFailures == 0
+                return !imageCleanup.HasPlayback && imageCleanup.LoopEnabled && imageCleanup.ReleasedStreams >= 1 && imageCleanup.CleanupFailures == 0
                     && viewer.CaptureState().Key == entries[0].Key
                     && MediaSmokeControl<Button>(viewer, "GalleryActual").IsEffectivelyEnabled;
             }, "video-to-image stream cleanup");
             checks.Add("video-image-stream-released");
-            checks.Add("repeat-reset-on-image");
+            checks.Add("repeat-retained-across-media");
             ClickMediaSmoke(viewer, "GalleryNext");
             await PlayingSampleAsync();
             checks.Add("back-to-video");
-            RequireMediaSmoke(!(await player.InspectPlaybackAsync()).LoopEnabled, "A different display generation inherited repeat.");
-            ClickMediaSmoke(viewer, "GalleryVideoLoop");
+            RequireMediaSmoke((await player.InspectPlaybackAsync()).LoopEnabled, "A new media generation lost the chosen repeat preference.");
+            MediaSmokeControl<Slider>(viewer, "GalleryVideoSeek").Value = 980;
+            await WaitMediaSmokeAsync(async () =>
+            {
+                repeatAfterSwitch = await player.InspectPlaybackAsync();
+                return repeatAfterSwitch.LoopEnabled && repeatAfterSwitch.LoopRestarts >= 1
+                    && repeatAfterSwitch.State == "Playing" && repeatAfterSwitch.Time < repeatAfterSwitch.Length / 2;
+            }, "inherited repeat actually restarts the next video");
+            checks.Add("inherited-repeat-ended-restarted");
             MediaSmokeControl<Slider>(viewer, "GalleryVideoSeek").Value = 980;
             ClickMediaSmoke(viewer, "GalleryClose");
             await GalleryCleanupTask;
             closeCleanup = await player.InspectPlaybackAsync();
-            RequireMediaSmoke(closeCleanup.Disposed && !closeCleanup.HasPlayback && !closeCleanup.HasEngine && !closeCleanup.LoopEnabled
+            RequireMediaSmoke(closeCleanup.Disposed && !closeCleanup.HasPlayback && !closeCleanup.HasEngine && closeCleanup.LoopEnabled
                 && closeCleanup.ReleasedStreams >= 2 && closeCleanup.CleanupFailures == 0,
                 "Gallery close did not dispose the native player, engine and verified stream.");
             checks.Add("gallery-close-disposed");
             int afterCloseRepeats = closeCleanup.LoopRestarts;
             await Task.Delay(200);
-            RequireMediaSmoke((await player.InspectPlaybackAsync()).LoopRestarts == afterCloseRepeats,
+            postCloseRestarts = (await player.InspectPlaybackAsync()).LoopRestarts;
+            RequireMediaSmoke(postCloseRestarts == afterCloseRepeats,
                 "A pending EndReached callback restarted a closed video.");
+            persistedMode = Config.LoadConfig(profile).GalleryPlaybackMode;
+            RequireMediaSmoke(persistedMode == "Repeat", "Gallery close did not persist the chosen repeat mode.");
             checks.Add("repeat-close-no-restart");
             // Also exercise ordinary app shutdown while a fresh native player is actively playing.
             await OpenMediaGalleryAsync(entries, entries[1].EntryKey);
             viewer = _gallery ?? throw new InvalidOperationException("Gallery did not reopen.");
             await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "shutdown player");
             player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
-            await PlayingSampleAsync();
+            reopenedPlayback = await PlayingSampleAsync();
+            RequireMediaSmoke(reopenedPlayback.LoopEnabled, "Reopened gallery did not restore the chosen repeat mode.");
+            checks.Add("repeat-profile-restored-on-reopen");
             await CloseApplicationAsync();
             shutdownCleanup = await player.InspectPlaybackAsync();
             RequireMediaSmoke(_allowClose && !IsVisible && shutdownCleanup.Disposed && !shutdownCleanup.HasPlayback && !shutdownCleanup.HasEngine
                 && shutdownCleanup.ReleasedStreams >= 1 && shutdownCleanup.CleanupFailures == 0,
                 "Normal application shutdown did not finish native playback cleanup.");
             checks.Add("playing-shutdown-disposed");
+            await Task.Delay(200);
+            postShutdownRestarts = (await player.InspectPlaybackAsync()).LoopRestarts;
+            RequireMediaSmoke(postShutdownRestarts == shutdownCleanup.LoopRestarts, "Shutdown accepted a stale repeat callback.");
             completed = true;
         }
         catch (Exception exception) { failure = exception.ToString(); throw; }

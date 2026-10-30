@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "license": "CC0-1.0",
+  "generator": "generate.py",
+  "pillow_version": "12.3.0",
+  "pixel_format": "BGRA8888 premultiplied; rows top-to-bottom, tightly packed",
+  "repetition_semantics": "Skia count: -1 infinite, 0 one pass, positive N repeats after first pass",
+  "fixtures": [
+    {
+      "file": "animated-loop.gif",
+      "bytes": 2454,
+      "sha256": "07ab9ab287a15e595a12797259548fa347c5a8c3bd9f5580b2b3e74b6093632d",
+      "width": 12,
+      "height": 8,
+      "frame_count": 3,
+      "encoded_loop": 0,
+      "repetition_count": -1,
+      "frames": [
+        {
+          "index": 0,
+          "duration_ms": 10,
+          "effective_duration_ms": 100,
+          "disposal": 1,
+          "bgra_premul_sha256": "17d9e564bc1fcc55bb3356f4da146e904875d8fbefa15cd94259b92a583aff26"
+        },
+        {
+          "index": 1,
+          "duration_ms": 60,
+          "effective_duration_ms": 60,
+          "disposal": 1,
+          "bgra_premul_sha256": "9903339d0812de4d3c35ba6665d847de2427cbdb69cd7525366f140ea27a085a"
+        },
+        {
+          "index": 2,
+          "duration_ms": 140,
+          "effective_duration_ms": 140,
+          "disposal": 1,
+          "bgra_premul_sha256": "e1cd7d26547060b1f6c0b93d4252500cef416454d3559ae86f973ae5737d1ac3"
+        }
+      ]
+    },
+    {
+      "file": "finite-loop.gif",
+      "bytes": 2454,
+      "sha256": "3f6b0309acb1f3ea7ccf0985019251d4996b36044e6ec1b3048d2e93b2d29db7",
+      "width": 12,
+      "height": 8,
+      "frame_count": 3,
+      "encoded_loop": 2,
+      "repetition_count": 2,
+      "frames": [
+        {
+          "index": 0,
+          "duration_ms": 40,
+          "effective_duration_ms": 40,
+          "disposal": 1,
+          "bgra_premul_sha256": "e1cd7d26547060b1f6c0b93d4252500cef416454d3559ae86f973ae5737d1ac3"
+        },
+        {
+          "index": 1,
+          "duration_ms": 80,
+          "effective_duration_ms": 80,
+          "disposal": 1,
+          "bgra_premul_sha256": "17d9e564bc1fcc55bb3356f4da146e904875d8fbefa15cd94259b92a583aff26"
+        },
+        {
+          "index": 2,
+          "duration_ms": 120,
+          "effective_duration_ms": 120,
+          "disposal": 1,
+          "bgra_premul_sha256": "9903339d0812de4d3c35ba6665d847de2427cbdb69cd7525366f140ea27a085a"
+        }
+      ]
+    },
+    {
+      "file": "disposal-transparency.gif",
+      "bytes": 3283,
+      "sha256": "ebac367e742df7a60fbfe98972014f7ef2a360711f7582990e44f5ae8f9b82b0",
+      "width": 12,
+      "height": 8,
+      "frame_count": 4,
+      "encoded_loop": 0,
+      "repetition_count": -1,
+      "frames": [
+        {
+          "index": 0,
+          "duration_ms": 50,
+          "effective_duration_ms": 50,
+          "disposal": 1,
+          "bgra_premul_sha256": "46f079f5fcd2d061b05e0b53c7b606932677501a69c580d0e6c798cf29fde20a"
+        },
+        {
+          "index": 1,
+          "duration_ms": 70,
+          "effective_duration_ms": 70,
+          "disposal": 3,
+          "bgra_premul_sha256": "75277ea1f82676f918e0ef1cfe69a4bfed167cbdcae14925039229769d51868f"
+        },
+        {
+          "index": 2,
+          "duration_ms": 90,
+          "effective_duration_ms": 90,
+          "disposal": 2,
+          "bgra_premul_sha256": "4a8bce7ab3afb6db15089af33c9f22041db6081699d6973b19184dee2e1dd526"
+        },
+        {
+          "index": 3,
+          "duration_ms": 110,
+          "effective_duration_ms": 110,
+          "disposal": 1,
+          "bgra_premul_sha256": "874dadc497b45d9369d59c785e47846cb4890945bcc33a90f4993b8c76528b77"
+        }
+      ]
+    },
+    {
+      "file": "single-frame.gif",
+      "bytes": 821,
+      "sha256": "299dae1df1ca72181bace30c14473ef9b6ad72d6bc6fb162bc9a97e46e422ecb",
+      "width": 12,
+      "height": 8,
+      "frame_count": 1,
+      "encoded_loop": null,
+      "repetition_count": 0,
+      "frames": [
+        {
+          "index": 0,
+          "duration_ms": 100,
+          "effective_duration_ms": 100,
+          "disposal": 1,
+          "bgra_premul_sha256": "a292bc4a1d8d3caa7dd32d1858f7d642a27373526b84cde7df8634faad708d2a"
+        }
+      ]
+    },
+    {
+      "file": "truncated.gif",
+      "bytes": 8,
+      "sha256": "35bb8ae30c4e8ef3460f3aaede6df2fec66784978e661dd9ce7d3da5cd9b3e2d",
+      "expected_error": "InvalidDataException: incomplete GIF header; no frame may be published"
+    }
+  ]
+}

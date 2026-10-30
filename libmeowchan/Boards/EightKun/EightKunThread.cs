@@ -23,7 +23,12 @@ public class EightKunThread : BaseThread, IThread
     private DateTimeOffset? _lastModified;
     private bool _hasSnapshot;
 
-    public string CatalogOpeningText { get; set; } = string.Empty;
+    private string _catalogOpeningText = string.Empty;
+    public string CatalogOpeningText
+    {
+        get => _catalogOpeningText;
+        set { _catalogOpeningText = value; SetOpeningTitle(value); }
+    }
     public override bool SupportsContent => true;
     public override IBoard Board { get; }
     public override string ThreadId { get; }
@@ -37,7 +42,6 @@ public class EightKunThread : BaseThread, IThread
         if (!string.Equals(Board.BoardCode, ThreadUri.Segments[1].Trim('/'), StringComparison.Ordinal))
             throw new ArgumentException("Thread URI does not belong to the supplied board.", nameof(threadUri));
         ThreadId = Path.GetFileNameWithoutExtension(ThreadUri.AbsolutePath);
-        Title = $"Thread {ThreadId}";
     }
 
     public override async Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
@@ -108,7 +112,6 @@ public class EightKunThread : BaseThread, IThread
                 // Keep the established library exception contract for invalid JSON.
                 throw new JsonReaderException(exception.Message, exception);
             }
-            Title = string.IsNullOrWhiteSpace(parsed.Title) ? $"Thread {ThreadId}" : parsed.Title;
             Dictionary<string, DownloadItem> media = new Dictionary<string, DownloadItem>(StringComparer.Ordinal);
             List<CapturedPost> capturedPosts = new List<CapturedPost>();
             foreach (EightKunParser.Post post in parsed.Posts)
@@ -127,9 +130,14 @@ public class EightKunThread : BaseThread, IThread
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            // A partial response can start with a reply. Only the identified OP
+            // supplies a source title; missing subjects retain known metadata.
+            string? sourceTitle = capturedPosts.Find(post => post.PostId == ThreadId
+                && post.Fields.HasFlag(PostFieldPresence.Subject))?.Subject;
             foreach (KeyValuePair<string, DownloadItem> item in media) _knownMedia[item.Key] = item.Value;
             await CaptureContentAsync(new CapturedThreadSnapshot(
-                new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url, Title,
+                new ResourceId(Board.ImageBoard.Name, Board.BoardCode, ThreadId), Url,
+                string.IsNullOrWhiteSpace(sourceTitle) ? SourceTitle : sourceTitle,
                 SourceState, DateTimeOffset.UtcNow, DownloadDirectory,
                 capturedPosts.AsReadOnly()), cancellationToken);
             _lastModified = response.Content.Headers.LastModified;

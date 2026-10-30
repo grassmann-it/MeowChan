@@ -45,7 +45,7 @@ internal sealed class PluginSourceBoard : BaseBoard
                             throw new PluginWorkerException("invalid_source_result", "Catalog URL does not match its declared thread identity.");
                         threads.Add(new PluginSourceThread(this, id, canonical!)
                         {
-                            Title = reference.Title ?? $"Thread {id}",
+                            Title = reference.Title ?? string.Empty,
                             CatalogOpeningText = reference.OpeningTextFormat == SourceTextFormat.Html
                                 ? ArchiveText.PlainText(reference.OpeningText) : reference.OpeningText ?? string.Empty
                         });

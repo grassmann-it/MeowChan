@@ -696,8 +696,15 @@ def validate_positive_report(path, kind, runtime, source_commit, expected_apphos
                 raise ValueError('Executed managed build does not identify the exact release version/source commit')
     else:
         fixtures = report.get('fixtures', [])
-        if len(fixtures) != 2 or any(row.get('passed') is not True for row in fixtures):
-            raise ValueError('Both pinned VP8 and VP9 fixtures must pass')
+        if len(fixtures) != 5 or any(row.get('passed') is not True for row in fixtures):
+            raise ValueError('All five pinned codec/audio fixtures must pass')
+        fixtures_root = Path(__file__).resolve().parents[1] / 'tests' / 'Fixtures'
+        records = read_json(fixtures_root / 'gallery-playback-manifest.json')['files']
+        records += read_json(fixtures_root / 'release102' / 'manifest.json')['files']
+        expected = {row['sha256'].lower() for row in records}
+        observed = [str(row.get('fixtureSha256', '')).lower() for row in fixtures]
+        if len(expected) != 5 or len(set(observed)) != 5 or set(observed) != expected:
+            raise ValueError('Playback proof does not cover the exact pinned codec/audio fixtures')
     return report
 
 
@@ -705,7 +712,7 @@ def run_positive(launcher, root, artifact, manifest, args, label, extra_env=None
     destination = args.evidence / label
     destination.mkdir()
     results = {}
-    for kind, filename, required_count in [('playback', 'apphost-playback-smoke.py', 2),
+    for kind, filename, required_count in [('playback', 'apphost-playback-smoke.py', 5),
                                             ('workflow', 'apphost-workflow-smoke.py', 8)]:
         output = destination / kind
         command = [sys.executable, '/repo/scripts/' + filename, str(launcher), '--evidence-dir', str(output)]

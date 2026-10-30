@@ -58,9 +58,10 @@ internal sealed class ApphostStartupSmoke
             !int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out seconds) || seconds is < 1 or > 10))
             throw new ArgumentException("Usage: MeowChan --smoke-startup-seconds <1..10> | --smoke-playback-webm <absolute local WebM> | --smoke-workflow <absolute owned descriptor.json> | --smoke-plugin-workflow <absolute owned descriptor.json> | --smoke-source-activation <absolute owned descriptor.json> | --smoke-source-policy-process <absolute owned descriptor.json>");
         if (playback && (!Path.IsPathFullyQualified(args[1]) || !File.Exists(args[1]) ||
-            !string.Equals(Path.GetExtension(args[1]), ".webm", StringComparison.OrdinalIgnoreCase) ||
+            !(string.Equals(Path.GetExtension(args[1]), ".webm", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetExtension(args[1]), ".mp4", StringComparison.OrdinalIgnoreCase)) ||
             new FileInfo(args[1]).Length is <= 0 or > 2 * 1024 * 1024 || new FileInfo(args[1]).LinkTarget != null))
-            throw new ArgumentException("Playback smoke requires an existing local .webm fixture of at most 2 MiB, without a symlink.");
+            throw new ArgumentException("Playback smoke requires an existing local .webm/.mp4 fixture of at most 2 MiB, without a symlink.");
         if (string.IsNullOrWhiteSpace(profile) || !Path.IsPathFullyQualified(profile) || !string.IsNullOrEmpty(legacyProfile))
             throw new ArgumentException("Startup smoke requires an absolute MEOWCHAN_PROFILE and no OCHAN_PROFILE override.");
         string full = Path.GetFullPath(profile);

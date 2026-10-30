@@ -691,6 +691,8 @@ public partial class MainWindow
                 .Select(HelpLine).ToArray();
             if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
         }
+        if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
+            sections.Insert(0, Texts.T("help.reader.mediaActivation"));
         WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
             + Environment.NewLine + Environment.NewLine + Texts.T("help.escape");
         help.MaxHeight = Math.Max(180, ClientSize.Height - 40);

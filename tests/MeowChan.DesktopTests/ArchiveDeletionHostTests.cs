@@ -78,6 +78,7 @@ public sealed class ArchiveDeletionHostTests
     public async Task DeletePreservesSharedThreadAndPreviousPauseState()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         ResourceId shared = new("4chan", "g", "301");
         ResourceId kept = new("4chan", "g", "302");
         ResourceId exclusive = new("4chan", "g", "303");
@@ -114,6 +115,7 @@ public sealed class ArchiveDeletionHostTests
     public async Task ChangedCatalogPlanIsRejectedBeforeDeletion()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         ResourceId id = new("4chan", "g", "401");
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))

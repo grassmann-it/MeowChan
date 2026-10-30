@@ -40,6 +40,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly DownloadQueue _queue;
     private readonly ILogger _logger;
     private readonly string _shippedDirectory;
+    private readonly string[] _repairRestrictedSourceIds;
     private readonly PluginWorkerLaunch _launch;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
@@ -63,13 +64,20 @@ internal sealed partial class PluginSession : IAsyncDisposable
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
+        _repairRestrictedSourceIds = config.SourceMediaIntegrityPermissions
+            .Where(pair => pair.Value.AllowProviderSizeMd5Mismatch).Select(pair => pair.Value.SourceId).Distinct(StringComparer.Ordinal).ToArray();
         string compilerDirectory = Path.Combine(applicationDirectory, "plugin-compiler");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
         CompilationService = new PluginCompilationService(new PluginCompilerOptions(
             Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory,
             Path.Combine(profileDirectory, "plugin-cache")));
         Inventory = new PluginInstallationInventory();
-        ProfileStore = new PluginProfileStore(profileDirectory, ExperimentalSourceActivationPolicy.InitiallyEnabled);
+        ProfileStore = new PluginProfileStore(profileDirectory, ExperimentalSourceActivationPolicy.InitiallyEnabled, () =>
+        {
+            lock (_state)
+                return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
+                    .Select(source => source.Name).Concat(_repairRestrictedSourceIds).Distinct(StringComparer.Ordinal).ToArray();
+        });
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,
@@ -124,35 +132,40 @@ internal sealed partial class PluginSession : IAsyncDisposable
         PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
         List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
         List<PluginCandidateObservation> observations = new();
+        List<DeliveredCandidateProvenance> delivered = new();
+        HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
         foreach (PluginInstallationCandidate candidate in shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
             .Concat(local.Candidates))
         {
             token.ThrowIfCancellationRequested();
-            string? oldId = previous.Plugins.FirstOrDefault(plugin => plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId))?.PluginId;
-            try
+            PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
+                plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
+            PluginCandidateObservation observation = await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
+                ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
+                    ? ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, ct)
+                    : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
+                DescribeTestAsync, _logger, token).ConfigureAwait(false);
+            if (shippedIds.Contains(candidate.CandidateId) && observation is { Problem: null, Artifact: not null, Description: not null })
             {
-                if (candidate.Diagnostics.Count != 0) throw new InvalidDataException(string.Join("; ", candidate.Diagnostics.Select(item => item.Message)));
-                PluginBuildResult build = candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                    ? await MeasureStartupAsync("import", Path.GetFileName(candidate.Path),
-                        () => ((IPluginBundleInstaller)CompilationService).ImportBundleAsync(candidate.Path, token)).ConfigureAwait(false)
-                    : await MeasureStartupAsync("build", Path.GetFileName(candidate.Path),
-                        () => CompilationService.BuildAsync(candidate.Path, cancellationToken: token)).ConfigureAwait(false);
-                if (!build.Succeeded) throw new InvalidDataException(string.Join("; ", build.Diagnostics.Select(item => item.Message)));
-                PluginDescription description = await MeasureStartupAsync("describe", Path.GetFileName(candidate.Path),
-                    () => DescribeTestAsync(build.Artifact!, token)).ConfigureAwait(false);
-                observations.Add(new PluginCandidateObservation(candidate.CandidateId, description.PluginId, build.Artifact, description, CandidatePath: candidate.Path));
+                try
+                {
+                    delivered.Add(await PluginInstallationInventory.RecordDeliveredAsync(_shippedDirectory, candidate,
+                        observation.Artifact, observation.Description, token).ConfigureAwait(false));
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException)
+                {
+                    observation = observation with { Problem = "Delivered provenance validation failed: " + exception.Message };
+                }
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception exception)
-            {
-                string problem = Path.GetFileName(candidate.Path) + ": " + exception.Message;
-                warnings.Add(problem);
-                observations.Add(new PluginCandidateObservation(candidate.CandidateId, oldId ?? "unavailable-" + candidate.CandidateId,
-                    null, null, problem, candidate.Path));
-            }
+            observations.Add(observation);
+            if (observation.Problem is not null) warnings.Add(observation.Problem);
         }
         PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
-            () => ProfileStore.ApplyStartupAsync(observations, previous.Revision, token)).ConfigureAwait(false);
+            () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, _repairRestrictedSourceIds, previous.Revision, token)).ConfigureAwait(false);
+        foreach (PluginActivationSnapshot activation in activated.Plugins)
+            PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
         long adaptersStarted = Stopwatch.GetTimestamp();
         lock (_state) _grants = activated;
         List<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions = activated.Plugins
@@ -205,22 +218,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
         LogStartupPhase("adapters-routing", null, adaptersStarted, true);
     }
 
-    private async Task<T> MeasureStartupAsync<T>(string phase, string? candidate, Func<Task<T>> operation)
-    {
-        long started = Stopwatch.GetTimestamp();
-        bool succeeded = false;
-        try
-        {
-            T result = await operation().ConfigureAwait(false);
-            succeeded = true;
-            return result;
-        }
-        finally { LogStartupPhase(phase, candidate, started, succeeded); }
-    }
+    private Task<T> MeasureStartupAsync<T>(string phase, string? candidate, Func<Task<T>> operation) =>
+        PluginStartupDiagnostics.MeasureAsync(_logger, phase, candidate, operation);
 
     private void LogStartupPhase(string phase, string? candidate, long started, bool succeeded) =>
-        _logger.Debug("Plugin startup phase {PluginStartupPhase} candidate {PluginStartupCandidate} elapsed {PluginStartupElapsedMs} ms completed {PluginStartupCompleted}",
-            phase, candidate, Stopwatch.GetElapsedTime(started).TotalMilliseconds, succeeded);
+        PluginStartupDiagnostics.LogPhase(_logger, phase, candidate, started, succeeded);
 
     private static bool RouteConflict(PluginSourceImageBoard left, PluginSourceImageBoard right)
     {

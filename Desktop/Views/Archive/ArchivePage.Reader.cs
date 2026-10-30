@@ -3,6 +3,8 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
 using MeowChan.Archive;
+using MeowChan.Gallery;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -39,6 +41,8 @@ public partial class ArchivePage
         set { _readingFontSizePreference = value; Control<ListBox>("ArchivePosts").FontSize = value; }
     }
     private bool _largeReader;
+    private readonly ReaderPostTailSpace _readerPostTailSpace = new();
+    private double _readerPostTailInset;
     private IReadOnlyList<ResourceId> _readerThreads = Array.Empty<ResourceId>();
     private int _readerScopeRequest;
     private string? _readerPostId;
@@ -46,6 +50,15 @@ public partial class ArchivePage
     private int _readerInteractionRevision;
     private int _readerLayoutRevision;
     private IDisposable? _readerTabScope;
+    private readonly HashSet<Key> _readerMediaHeldKeys = new();
+    private CancellationTokenSource? _readerMediaActivationCancellation;
+    private Window? _readerMediaKeyOwner;
+    internal Task ReaderMediaActivationTask { get; private set; } = Task.CompletedTask;
+    // The existing OpenGallery callback can snapshot this during handoff and
+    // recheck after its own cleanup await, before committing gallery coverage.
+    internal Func<bool>? ReaderMediaActivationGuard { get; private set; }
+    // Controlled await boundary for routed/native smoke; production adds no delay.
+    internal Func<Task>? BeforeReaderMediaActivationAsync { get; set; }
     internal Task ReaderNavigationTask { get; private set; } = Task.CompletedTask;
     internal Task ReaderLocalizationTask { get; private set; } = Task.CompletedTask;
     // A controlled boundary for the smoke fixture; normal operations have no extra wait.
@@ -171,11 +184,29 @@ public partial class ArchivePage
         }
         Control<Grid>("ReaderContentSurface").LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
         ListBox posts = Control<ListBox>("ArchivePosts");
+        posts.ContainerPrepared += (_, e) => UpdateReaderPostTailSpace();
+        posts.ContainerIndexChanged += (_, e) => UpdateReaderPostTailSpace();
+        posts.ContainerClearing += (_, e) => _readerPostTailSpace.Release(e.Container);
+        posts.DetachedFromVisualTree += (_, _) => _readerPostTailSpace.Update(null, 0);
         posts.SelectionChanged += (_, _) =>
         {
+            CancelReaderMediaActivation();
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
             UpdateReaderNavigation();
         };
+        Grid pane = Control<Grid>("ArchiveReaderPane");
+        pane.AttachedToVisualTree += (_, _) => ObserveReaderMediaKeys(pane);
+        pane.DetachedFromVisualTree += (_, _) => StopObservingReaderMediaKeys();
+        pane.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.IsVisibleProperty || e.Property == InputElement.IsEnabledProperty)
+                CancelReaderMediaActivation();
+        };
+        Control<Border>("ArchiveExportDialog").PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
+        };
+        Control<TabControl>("ArchiveContentTabs").SelectionChanged += (_, _) => CancelReaderMediaActivation();
         posts.AddHandler(KeyDownEvent, (_, e) => TryRouteArchiveMediaShortcut(posts, e), RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -217,6 +248,7 @@ public partial class ArchivePage
 
     internal void AttachReader(Control pane)
     {
+        StopObservingReaderMediaKeys();
         ++_readerFocusRequest;
         _largeReader = false;
         _readerTabScope?.Dispose();
@@ -357,20 +389,15 @@ public partial class ArchivePage
         Control<WrapPanel>("ReaderStatusLine").IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = Control<Grid>("ReaderContentSurface");
         ListBox posts = Control<ListBox>("ArchivePosts");
-        const double navigationSize = 108; // Three 32-DIP buttons, two 2-DIP gaps, 4-DIP padding.
-        const double sideReserve = navigationSize + 24 + 12;
-        const double bottomReserve = navigationSize + 2;
-        // Keep the whole cross outside the scrolling area. Short windows use
-        // a side lane too, preserving a usable reading height instead of
-        // spending it on three rows of navigation buttons.
-        bool shortReadingArea = posts.Parent is Control postArea && postArea.Bounds.Height < bottomReserve + 120;
-        bool sideSpace = _largeReader && (surface.Bounds.Width >= posts.MaxWidth + sideReserve || shortReadingArea);
-        posts.Margin = !_largeReader ? default : sideSpace ? new Thickness(0, 0, sideReserve, 0) : new Thickness(0, 0, 0, bottomReserve);
+        ReaderNavigationLayout layout = ReaderNavigationLayout.Resolve(_largeReader, surface.Bounds.Width, posts.MaxWidth);
+        posts.Margin = layout.PostMargin;
+        _readerPostTailInset = layout.TailInset;
+        UpdateReaderPostTailSpace();
         // Secondary tabs keep full-width filters and footers. Reserve only
         // their scrolling surface, so the cross cannot consume their height
         // or force another line of media filters in a narrow window.
         tabs.Margin = default;
-        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, sideReserve, 0) : default;
+        Thickness secondaryLane = _largeReader ? new Thickness(0, 0, ReaderNavigationLayout.SideReserve, 0) : default;
         Control<Grid>("ArchiveMediaSurface").Margin = secondaryLane;
         Control<ListBox>("ArchiveReferences").Margin = secondaryLane;
         if (!_largeReader) return;
@@ -383,7 +410,20 @@ public partial class ArchivePage
         double bottom = 16;
         if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
-        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, 24, bottom);
+        double right = 24;
+        // MaxWidth can center the post list even just below the free-side-lane
+        // threshold. Anchor inside its right edge, leaving the scrollbar clear.
+        if (tabs.SelectedIndex == 0 && posts.IsEffectivelyVisible && posts.Bounds.Width > 0
+            && posts.TranslatePoint(default, surface) is Point postPosition)
+            right = layout.RightInset(surface.Bounds.Width, postPosition.X + posts.Bounds.Width);
+        Control<WrapPanel>("ReaderNavigation").Margin = new Thickness(0, 0, right, bottom);
+    }
+
+    private void UpdateReaderPostTailSpace()
+    {
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        Control? tail = posts.ItemCount > 0 ? posts.ContainerFromIndex(posts.ItemCount - 1) : null;
+        _readerPostTailSpace.Update(tail, _readerPostTailInset);
     }
 
     private async void OnReaderNavigationClick(object? sender, RoutedEventArgs e)
@@ -419,6 +459,11 @@ public partial class ArchivePage
             await OpenGallery(_thread.Summary.Id, null, e.Source as Control);
             return;
         }
+        if (TryActivateReaderMedia(e))
+        {
+            await ReaderMediaActivationTask;
+            return;
+        }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
@@ -434,6 +479,166 @@ public partial class ArchivePage
         if (post == 0 && thread == 0) return;
         e.Handled = true;
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
+    }
+
+    private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
+
+    private void ObserveReaderMediaKeys(Control pane)
+    {
+        StopObservingReaderMediaKeys();
+        if (!_largeReader || TopLevel.GetTopLevel(pane) is not Window owner) return;
+        _readerMediaKeyOwner = owner;
+        // KeyUp may belong to the gallery that just covered the reader. Observe
+        // release on this window, not globally, so a held key opens at most once.
+        owner.AddHandler(KeyUpEvent, OnReaderMediaKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        owner.Deactivated += OnReaderMediaOwnerDeactivated;
+        owner.AddHandler(GotFocusEvent, OnReaderMediaFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+    }
+
+    private void StopObservingReaderMediaKeys()
+    {
+        CancelReaderMediaActivation();
+        _readerMediaHeldKeys.Clear();
+        if (_readerMediaKeyOwner is not { } owner) return;
+        owner.RemoveHandler(KeyUpEvent, OnReaderMediaKeyUp);
+        owner.Deactivated -= OnReaderMediaOwnerDeactivated;
+        owner.RemoveHandler(GotFocusEvent, OnReaderMediaFocusChanged);
+        _readerMediaKeyOwner = null;
+    }
+
+    private void OnReaderMediaFocusChanged(object? sender, FocusChangedEventArgs e) => CancelReaderMediaActivation();
+    private void OnReaderMediaKeyUp(object? sender, KeyEventArgs e) => _readerMediaHeldKeys.Remove(e.Key);
+    private void OnReaderMediaOwnerDeactivated(object? sender, EventArgs e)
+    {
+        CancelReaderMediaActivation();
+        _readerMediaHeldKeys.Clear();
+    }
+
+    // Fixed content activation is not a new global binding. Explicit effective
+    // Reader/shell commands keep their meaning, including Enter/Space remaps.
+    internal static bool IsReaderMediaGesture(KeyEventArgs e, EffectiveShortcutBindings bindings) =>
+        e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None
+        && !bindings.Gestures.Keys.Any(id => bindings.Matches(e, id)
+            && EffectiveShortcutBindings.ExecutionContexts(id).Any(context => context is "reader" or "shell"));
+
+    internal static bool ReaderMediaBelongsToNativeControl(Visual source, ListBox posts)
+    {
+        foreach (Visual node in source.GetSelfAndVisualAncestors())
+        {
+            if (ReferenceEquals(node, posts)) return false;
+            if (node is SelectableTextBlock text
+                && (text is not ReaderBodyTextBlock || text.SelectionStart != text.SelectionEnd)) return true;
+            if (node is Button or TextBox or ComboBox or NumericUpDown or MenuItem or Menu
+                or Slider or ScrollBar or TabItem or TabStrip or DataGrid or Expander
+                or Ursa.Controls.AutoCompleteBox or Ursa.Controls.ClosableTag or Ursa.Controls.Rating
+                || node is SelectingItemsControl and not TabControl) return true;
+        }
+        return true; // Neither another tab nor the reader toolbar is post content.
+    }
+
+    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post)
+    {
+        ListBox posts = Control<ListBox>("ArchivePosts");
+        Control pane = Control<Grid>("ArchiveReaderPane");
+        return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && _largeReader
+            && ReaderShowsPosts && !_obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(this)
+            && !IsReaderDialogOpen && !ShortcutService.IsCapturing && OpenGallery != null
+            && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
+            && source.IsEffectivelyVisible && source.IsEffectivelyEnabled
+            && CommandRouter.IsRoutingContextActive(pane, source)
+            && TopLevel.GetTopLevel(pane) is Window owner && !owner.OwnedWindows.Any(window => window.IsVisible)
+            && ReferenceEquals(posts.SelectedItem, post) && _thread?.FindPostIndex(post.Id) >= 0
+            && !(posts.ContainerFromItem(post)?.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.SelectionStart != text.SelectionEnd) ?? false)
+            && !ReaderMediaBelongsToNativeControl(source, posts)
+            // A stale/unselected realized row must not activate the selected row's media.
+            && (ReferenceEquals(source, posts) || source.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+                .Any(item => ReferenceEquals(item.DataContext, post) && item.GetVisualAncestors().Contains(posts)));
+    }
+
+    private bool TryActivateReaderMedia(KeyEventArgs e)
+    {
+        if (e.Handled || e.Source is not Control source || !IsReaderMediaGesture(e, ShortcutService.Current)
+            || Control<ListBox>("ArchivePosts").SelectedItem is not ArchivePostRow post
+            || !ReaderMediaContextIsCurrent(source, post)) return false;
+        if (_readerMediaActivationCancellation != null || _readerMediaHeldKeys.Contains(e.Key))
+        {
+            _readerMediaHeldKeys.Add(e.Key);
+            e.Handled = true;
+            return true;
+        }
+        if (!post.Attachments.Any(row => !row.Attachment.IsDeleted)) return false;
+        Task<IReadOnlyList<ArchiveAssetRow>> ready = _mediaReady.Task;
+        ResourceId resource = _thread!.Summary.Id;
+        if (ready.IsCompletedSuccessfully && FindReaderMediaTarget(resource, post, ready.Result) == null) return false;
+        _readerMediaHeldKeys.Add(e.Key);
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _readerMediaActivationCancellation = cancellation;
+        e.Handled = true;
+        ReaderMediaActivationTask = ActivateReaderMediaAsync(source, post, resource, ready, cancellation);
+        return true;
+    }
+
+    private async Task ActivateReaderMediaAsync(Control origin, ArchivePostRow post, ResourceId resource,
+        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation)
+    {
+        int content = _contentRequest, media = _mediaRequest, focus = _readerFocusRequest;
+        long coverage = _readerCoverageRevision, shortcuts = ShortcutService.Revision;
+        var open = OpenGallery;
+        bool Current() => !cancellation.IsCancellationRequested && content == _contentRequest
+            && media == _mediaRequest && focus == _readerFocusRequest && coverage == _readerCoverageRevision
+            && shortcuts == ShortcutService.Revision && ReferenceEquals(ready, _mediaReady.Task)
+            && _thread?.Summary.Id == resource && ReferenceEquals(open, OpenGallery)
+            && ReaderMediaContextIsCurrent(origin, post);
+        try
+        {
+            // Await only the existing local manifest scan, never initiate a download.
+            IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(cancellation.Token);
+            if (!Current()) return;
+            if (BeforeReaderMediaActivationAsync is { } before) await before().WaitAsync(cancellation.Token);
+            if (!Current()) return;
+            // A stale manifest is not proof that an original still exists. Skip
+            // missing originals in post order, not toward unrelated thread media.
+            // The gallery retains byte integrity/decoding ownership after handoff.
+            ReaderMediaTarget? target = await Task.Run(() => FindReaderMediaTarget(resource, post, assets,
+                row => File.Exists(row.Asset.Path)), cancellation.Token);
+            if (target == null || !Current()) return;
+            ReaderMediaActivationGuard = Current;
+            try { await open!(resource, target.Key, origin); }
+            finally { ReaderMediaActivationGuard = null; }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (Current()) Message(exception.Message, true);
+        }
+        finally
+        {
+            if (ReferenceEquals(_readerMediaActivationCancellation, cancellation)) _readerMediaActivationCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    internal sealed record ReaderMediaTarget(ArchiveAssetRow Row, GalleryEntryKey Key);
+
+    internal static ReaderMediaTarget? FindReaderMediaTarget(ResourceId resource, ArchivePostRow? post,
+        IReadOnlyList<ArchiveAssetRow> assets, Func<ArchiveAssetRow, bool>? isAvailable = null)
+    {
+        if (post == null) return null;
+        // Captured position is the existing preview association order. Shared
+        // assets still get this selected post/position, never another post's key.
+        foreach (ArchiveAttachmentRow row in post.Attachments.OrderBy(row => row.Attachment.Position))
+        {
+            CapturedAttachment attachment = row.Attachment;
+            if (attachment.IsDeleted) continue;
+            ArchiveAssetRow? match = FindMatchingAsset(resource, post.Id, attachment, assets);
+            if (match == null || SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path)
+                is not (SavedMediaKind.Image or SavedMediaKind.Video)
+                || isAvailable?.Invoke(match) == false) continue;
+            return new(match, new GalleryEntryKey(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
+                post.Id, attachment.Position));
+        }
+        return null;
     }
 
     internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down)

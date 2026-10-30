@@ -6,6 +6,7 @@
         <TextBlock x:Name="PluginsTitle" Classes="page-title" Margin="0,0,8,0" VerticalAlignment="Center" />
         <Button x:Name="PluginsRefresh" Click="OnRefreshClick" />
         <Button x:Name="PluginsFolder" Click="OnFolderClick" />
+        <Button x:Name="PluginsReviewRepairs" Click="OnReviewBundledRepairsClick" />
       </WrapPanel>
       <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
       <StackPanel Orientation="Horizontal" Spacing="8">

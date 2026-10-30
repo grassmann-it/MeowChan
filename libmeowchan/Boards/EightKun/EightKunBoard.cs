@@ -99,7 +99,7 @@ public class EightKunBoard : BaseBoard
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 EightKunThread thread = new EightKunThread(this, EightKunParser.ThreadUri(BoardCode, entry.Id));
-                thread.Title = string.IsNullOrWhiteSpace(entry.Title) ? $"Thread {entry.Id}" : entry.Title;
+                thread.Title = entry.Title ?? string.Empty;
                 thread.CatalogOpeningText = MeowChan.Archive.ArchiveText.PlainText(entry.Text);
                 threads.Add(thread);
             }

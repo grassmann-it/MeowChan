@@ -28,6 +28,14 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.output = self.root / "evidence"
         self.args = ["--assembly", str(self.assembly), "--output", str(self.output)]
 
+    def test_fixture_children_drop_all_git_routing_and_config_overrides(self):
+        environment = runner.prepare_environment({
+            "GIT_DIR": "/project/.git", "GIT_WORK_TREE": "/frozen/source",
+            "GIT_INDEX_FILE": "/project/.git/index", "GIT_CONFIG_COUNT": "1",
+            "KEEP_ME": "retained"}, False, self.root)
+        self.assertFalse(any(key.startswith("GIT_") for key in environment))
+        self.assertEqual("retained", environment["KEEP_ME"])
+
     @mock.patch.object(runner.sys, "platform", "linux")
     def test_default_excludes_stress_and_stress_must_be_separate(self):
         self.assertNotIn("tray-lifecycle", runner.parse_args(self.args).modes)

@@ -11,6 +11,7 @@ public sealed class FavoriteRemovalTests
     public async Task RemovingUnavailableFavoritePreservesOtherIdentitiesAndLocalFilesAcrossRestart()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         FavoriteEntry missing = new(new FavoriteAssetKey(new ResourceId("4chan", "g", "100"), "old", "original", new string('a', 64)), 7, "gone.png");
         FavoriteEntry keep = missing with { Key = missing.Key with { Sha256 = new string('b', 64) } };
         string original = Path.Combine(temp.Path, "keep.png");

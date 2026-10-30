@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MeowChan.Desktop.FirstRunSetupWindow"
+        Icon="avares://MeowChan/Assets/meowchan.png"
+        Width="720" Height="700" MinWidth="440" MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Workspace.Background}" Foreground="{DynamicResource Workspace.Text}">
+    <Window.Styles>
+        <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    </Window.Styles>
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20" RowSpacing="12">
+        <StackPanel Spacing="6">
+            <TextBlock x:Name="SetupHeading" Classes="section-title" FontSize="23" />
+            <TextBlock x:Name="SetupIntroduction" Classes="muted workspace-help" />
+        </StackPanel>
+        <ScrollViewer x:Name="SetupScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="10">
+                <StackPanel x:Name="SetupFields" Spacing="10">
+                    <TextBlock x:Name="SetupFolderLabel" Classes="workspace-field-label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="SetupFolderInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupFolderLabel}" />
+                        <Button x:Name="SetupBrowseButton" Grid.Column="1" Click="OnBrowseClick" />
+                    </Grid>
+                    <TextBlock x:Name="SetupNormalizedPath" Classes="workspace-help" />
+                    <TextBlock x:Name="SetupPathError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                    <TextBlock x:Name="SetupBandwidthLabel" Classes="workspace-field-label" />
+                    <TextBox x:Name="SetupBandwidthInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupBandwidthLabel}" />
+                    <TextBlock x:Name="SetupParallelLabel" Classes="workspace-field-label" />
+                    <TextBox x:Name="SetupParallelInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupParallelLabel}" />
+                    <TextBlock x:Name="SetupLimitsError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                    <TextBlock x:Name="SetupReserveHint" Classes="muted workspace-help" />
+                    <TextBlock x:Name="SetupScopeHint" Classes="muted workspace-help" />
+                    <TextBlock x:Name="SetupProbePolicy" Classes="muted workspace-help" />
+                    <Button x:Name="SetupCheckButton" Click="OnCheckClick" HorizontalAlignment="Left" />
+                </StackPanel>
+                <TextBlock x:Name="SetupStatus" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock x:Name="SetupCleanupWarning" Classes="error workspace-error" AutomationProperties.LiveSetting="Assertive" />
+                <TextBlock x:Name="SetupError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+            </StackPanel>
+        </ScrollViewer>
+        <WrapPanel Grid.Row="2" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+            <Button x:Name="SetupCancelCheckButton" Click="OnCancelCheckClick" IsVisible="False" />
+            <Button x:Name="SetupLaterButton" Click="OnLaterClick" />
+            <Button x:Name="SetupAcceptButton" Classes="primary" Click="OnAcceptClick" />
+        </WrapPanel>
+    </Grid>
+</Window>

@@ -22,7 +22,7 @@ spec.loader.exec_module(desktop)
 CHECKS = {'video-poster-cache', 'initial-image', 'native-time-and-frame-progress', 'native-output-snapshot', 'pause-clock-held', 'play-resumed',
           'video-image-stream-released', 'back-to-video', 'gallery-close-disposed', 'playing-shutdown-disposed',
           'single-stateful-playback-button', 'audio-controls-availability', 'repeat-default-off', 'repeat-ended-restarted',
-          'repeat-disabled-at-end', 'repeat-reset-on-image', 'repeat-close-no-restart'}
+          'repeat-disabled-at-end', 'repeat-retained-across-media', 'inherited-repeat-ended-restarted', 'repeat-profile-restored-on-reopen', 'repeat-close-no-restart'}
 
 
 def sha256(path):
@@ -40,6 +40,14 @@ def default_fixtures():
         path = directory / record['file']
         if path.parent != directory or path.stat().st_size != record['bytes'] or sha256(path) != record['sha256']:
             raise ValueError('Pinned fixture manifest mismatch: ' + str(path))
+        paths.append(path)
+    extra = json.loads((directory / 'release102/manifest.json').read_text(encoding='utf-8'))
+    if len(extra['files']) != 3:
+        raise ValueError('Expected three additional pinned MP4/audio fixtures')
+    for record in extra['files']:
+        path = directory / 'release102' / record['file']
+        if path.parent != directory / 'release102' or path.stat().st_size != record['bytes'] or sha256(path) != record['sha256']:
+            raise ValueError('Pinned extra fixture manifest mismatch: ' + str(path))
         paths.append(path)
     return paths
 
@@ -73,7 +81,7 @@ def validate_png(path):
 
 
 def validate_metrics(metrics, fixture_hash):
-    if metrics.get('schemaVersion') != 1 or metrics.get('completed') is not True or metrics.get('failure') is not None:
+    if metrics.get('schemaVersion') != 2 or metrics.get('completed') is not True or metrics.get('failure') is not None:
         raise ValueError('Product did not complete playback checks')
     if str(metrics.get('fixtureSha256', '')).lower() != fixture_hash.lower():
         raise ValueError('Product fixture hash mismatch')
@@ -116,10 +124,22 @@ def validate_metrics(metrics, fixture_hash):
         raise ValueError('Missing actual audio availability outcome')
     for name, minimum, disposed in [('imageCleanup', 1, False), ('closeCleanup', 2, True), ('shutdownCleanup', 1, True)]:
         evidence = metrics[name]
-        if evidence['HasPlayback'] is not False or evidence.get('LoopEnabled') is not False or evidence['ReleasedStreams'] < minimum or evidence['CleanupFailures'] != 0:
+        if evidence['HasPlayback'] is not False or evidence.get('LoopEnabled') is not True or evidence['ReleasedStreams'] < minimum or evidence['CleanupFailures'] != 0:
             raise ValueError(name + ' did not release playback streams cleanly')
         if disposed and (evidence['Disposed'] is not True or evidence['HasEngine'] is not False):
             raise ValueError(name + ' did not dispose the native engine')
+
+    inherited = metrics.get('repeatAfterSwitch', {})
+    if not (inherited.get('LoopEnabled') is True and inherited.get('LoopRestarts', 0) >= 1
+            and inherited.get('State') == 'Playing' and inherited.get('Length', 0) > 0
+            and 0 <= inherited.get('Time', -1) < inherited['Length'] / 2):
+        raise ValueError('Missing actual inherited-repeat playback evidence')
+    reopened = metrics.get('reopenedPlayback', {})
+    if metrics.get('persistedMode') != 'Repeat' or reopened.get('LoopEnabled') is not True or reopened.get('State') != 'Playing':
+        raise ValueError('Missing saved repeat/reopened gallery evidence')
+    for key, cleanup in [('postCloseRestarts', 'closeCleanup'), ('postShutdownRestarts', 'shutdownCleanup')]:
+        if not isinstance(metrics.get(key), int) or metrics[key] != metrics[cleanup].get('LoopRestarts'):
+            raise ValueError('Late repeat after ' + cleanup)
 
 
 def validate_poster(metrics, path):
@@ -206,7 +226,7 @@ def main(argv=None):
                for index, fixture in enumerate(fixtures)]
     report = {'schemaVersion': 1, 'apphost': str(apphost), 'apphostSha256': sha256(apphost),
               'host': platform.platform(), 'machine': platform.machine(), 'isolatedDesktop': isolated,
-              'scope': 'Actual apphost, native VLC decoded/displayed frames and snapshot; silent fixtures, no physical audio/hardware claim.',
+              'scope': 'Actual apphost, native VLC decoded/displayed frames and snapshot; pinned VP8/VP9/H264 and optional audio tracks; no physical audio/hardware claim.',
               'passed': all(item['passed'] for item in results), 'fixtures': results}
     (args.evidence_dir / 'playback.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))

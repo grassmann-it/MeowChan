@@ -35,6 +35,9 @@ public partial class DiagnosticsPage
         this.FindControl<Button>("ClearSessionFeedbackButton")!.IsEnabled = entries.Length != 0;
         this.FindControl<Button>("ClearSessionFeedbackButton")!.Content = Texts.T("feedback.clear");
         this.FindControl<Button>("CopySessionFeedbackButton")!.Content = Texts.T("feedback.copy");
+        Button dismiss = this.FindControl<Button>("DismissSessionFeedbackButton")!;
+        dismiss.Content = Texts.T("feedback.dismiss");
+        AutomationProperties.SetName(dismiss, Texts.T("feedback.dismiss"));
         AutomationProperties.SetName(grid, Texts.T("feedback.title"));
         AutomationProperties.SetName(this.FindControl<TextBox>("SessionFeedbackDetails")!, Texts.T("settings.errorDetails"));
         RefreshFeedbackSelection();
@@ -44,8 +47,19 @@ public partial class DiagnosticsPage
     {
         SessionFeedback? entry = this.FindControl<DataGrid>("SessionFeedbackGrid")!.SelectedItem as SessionFeedback;
         this.FindControl<TextBox>("SessionFeedbackDetails")!.Text = entry?.DetailText ?? string.Empty;
-        this.FindControl<Button>("CopySessionFeedbackButton")!.IsEnabled = _copy != null && entry != null;
+        this.FindControl<Button>("CopySessionFeedbackButton")!.IsEnabled = !_ended && _copy != null && entry != null;
+        this.FindControl<Button>("DismissSessionFeedbackButton")!.IsEnabled = !_ended && entry != null
+            && _feedback != null && !_feedback.IsDismissed(entry);
         RenderDiagnosticActionFeedback();
+    }
+    private void OnDismissFeedback(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || _feedback == null
+            || this.FindControl<DataGrid>("SessionFeedbackGrid")!.SelectedItem is not SessionFeedback entry) return;
+        // Acknowledgement changes presentation only: retain the row, details,
+        // timestamp and repeat count. Dismiss intentionally emits no Changed event.
+        _feedback.Dismiss(entry);
+        RefreshFeedbackSelection();
     }
     private void OnClearFeedback(object? sender, RoutedEventArgs e) { if (!_ended) _feedback?.Clear(); }
     private async void OnCopyFeedback(object? sender, RoutedEventArgs e)

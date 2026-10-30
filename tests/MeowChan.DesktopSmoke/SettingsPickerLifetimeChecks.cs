@@ -5,6 +5,8 @@ using Avalonia.Controls.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MeowChan.Testing;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -18,12 +20,16 @@ internal static class SettingsPickerLifetimeChecks
         {
             await CheckLateCompletion(owner, Path.Combine(root, "cancel"), failed: false);
             await CheckLateCompletion(owner, Path.Combine(root, "failure"), failed: true);
+            await CheckLateCompletion(owner, Path.Combine(root, "selection"), failed: false, selected: true);
+            await CheckSupersededSelection(owner, Path.Combine(root, "superseded"));
+            await CheckProbeRetirement(owner, Path.Combine(root, "probe-stale"), endLifetime: false);
+            await CheckProbeRetirement(owner, Path.Combine(root, "probe-retired"), endLifetime: true);
             Console.WriteLine("SMOKE picker lifetime: late injected cancellation/failure after EndLifetime produced no notifications, draft/config/file changes or leaked busy state; native dialog not exercised.");
         }
         finally { Directory.Delete(root, recursive: true); }
     }
 
-    private static async Task CheckLateCompletion(MainWindow owner, string profile, bool failed)
+    private static async Task CheckLateCompletion(MainWindow owner, string profile, bool failed, bool selected = false)
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         var pending = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -50,10 +56,11 @@ internal static class SettingsPickerLifetimeChecks
             Require(window.Editor.IsBusy && provider.PickerCalls == 1, "Picker did not enter exactly one pending operation.");
             window.Editor.EndLifetime();
             window.Editor.PropertyChanged += observer;
+            var lateFolder = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-selected")));
             if (failed) pending.SetException(new IOException("Synthetic late picker failure"));
-            else pending.SetResult(Array.Empty<IStorageFolder>());
+            else pending.SetResult(selected ? new IStorageFolder[] { lateFolder } : Array.Empty<IStorageFolder>());
             await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
-            Require(changes.Count == 0 && window.Editor.DownloadPath == raw && path.Text == raw
+            Require((!selected || lateFolder.Disposed) && changes.Count == 0 && window.Editor.DownloadPath == raw && path.Text == raw
                 && !window.Editor.HasError && window.Editor.ErrorDetails == null
                 && config.DownloadPath == configPath && File.ReadAllBytes(file).SequenceEqual(original),
                 "Retired picker cancellation/failure notified, showed an error, or changed path/config/file state.");
@@ -64,6 +71,89 @@ internal static class SettingsPickerLifetimeChecks
             window.Editor.PropertyChanged -= observer;
             pending.TrySetResult(Array.Empty<IStorageFolder>());
             await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
+            if (window.IsVisible) window.Close();
+            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private static async Task CheckSupersededSelection(MainWindow owner, string profile)
+    {
+        using IDisposable scope = AvaloniaLocator.EnterScope();
+        var pending = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new SettingsChecks.FixtureStorageProvider { Result = pending.Task };
+        AvaloniaLocator.CurrentMutable.Bind<IStorageProviderFactory>().ToConstant(new SettingsChecks.FixtureStorageProviderFactory(provider));
+        Config config = Config.LoadConfig(profile);
+        config.SaveConfig();
+        byte[] original = File.ReadAllBytes(Path.Combine(profile, "settings.json"));
+        var window = new SettingsWindow(config);
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await Program.WaitUntilAsync(() => window.IsVisible);
+            window.Editor.FindControl<Button>("BrowseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(window.Editor.IsBusy, "Injected picker did not remain pending.");
+            window.Editor.DownloadPath = "newer draft";
+            window.Editor.IsAvailable = false;
+            window.Editor.IsAvailable = true; // availability round trip must also invalidate old selection
+            var folder = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "stale")));
+            pending.SetResult(new IStorageFolder[] { folder });
+            await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
+            Require(folder.Disposed && window.Editor.DownloadPath == "newer draft" && !window.Editor.HasError
+                && File.ReadAllBytes(Path.Combine(profile, "settings.json")).SequenceEqual(original),
+                "Superseded picker result overwrote a newer draft or escaped disposal.");
+        }
+        finally
+        {
+            pending.TrySetResult(Array.Empty<IStorageFolder>());
+            if (window.IsVisible) window.Close();
+            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private static async Task CheckProbeRetirement(MainWindow owner, string profile, bool endLifetime)
+    {
+        Config config = Config.LoadConfig(profile);
+        config.SaveConfig();
+        byte[] original = File.ReadAllBytes(Path.Combine(profile, "settings.json"));
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var window = new SettingsWindow(config);
+        window.Editor.DestinationValidator = new DownloadDestinationValidator(1, (path, _) =>
+        {
+            entered.TrySetResult();
+            release.Wait();
+            return new(DownloadDestinationStatus.Ready, path);
+        });
+        Task dialog = window.ShowDialog(owner);
+        var changes = new List<string?>();
+        PropertyChangedEventHandler observer = (_, args) => changes.Add(args.PropertyName);
+        try
+        {
+            await Program.WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
+            window.Editor.DownloadPath = Path.Combine(profile, "fake-selected");
+            window.Editor.FindControl<Button>("CheckDestinationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Require(window.Editor.IsBusy && window.Editor.IsCheckingDestination, "Check did not enter bounded background wait.");
+            if (endLifetime)
+            {
+                window.Editor.EndLifetime();
+                window.Editor.PropertyChanged += observer;
+            }
+            else window.Editor.DownloadPath = "newer probe draft";
+            await Program.WaitUntilAsync(() => !window.Editor.IsBusy);
+            Require(!window.Editor.HasError && !window.Editor.IsCheckingDestination
+                && (endLifetime ? changes.Count == 0 : window.Editor.DownloadPath == "newer probe draft"
+                    && window.Editor.DestinationStatusText == Texts.T("destination.NotChecked"))
+                && File.ReadAllBytes(Path.Combine(profile, "settings.json")).SequenceEqual(original),
+                "Retired/stale probe published a result, lost a newer draft, or wrote settings.");
+            Console.WriteLine("SMOKE destination lifetime: " + (endLifetime ? "closed editor" : "newer revision")
+                + " ends waiting without claiming OS cancellation; no stale result/config write.");
+        }
+        finally
+        {
+            window.Editor.PropertyChanged -= observer;
+            release.Set();
             if (window.IsVisible) window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }

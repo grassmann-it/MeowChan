@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using MeowChan.Desktop;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -11,6 +14,101 @@ namespace MeowChan;
 
 public partial class SettingsEditor
 {
+    internal DownloadDestinationValidator DestinationValidator { get; set; } = DownloadDestinationValidator.Shared;
+    private long _draftRevision;
+    private CancellationTokenSource? _destinationWait;
+    private DownloadDestinationStatus? _destinationStatus;
+    private bool _isCheckingDestination;
+    public string CheckDestinationLabel => Texts.T("destination.check");
+    public string CancelDestinationCheckLabel => Texts.T("destination.cancel");
+    public string DestinationPolicyHint => Texts.T("destination.policy");
+    public string DestinationScopeHint => Texts.T("destination.scope");
+    public string NormalizedDestination
+    {
+        get
+        {
+            DownloadDestinationResult result = DownloadDestinationValidator.Normalize(DownloadPath, _config.DownloadPathBaseDirectory);
+            return result.NormalizedPath == null ? Texts.T("destination.noPreview")
+                : Texts.T("destination.normalized", result.NormalizedPath);
+        }
+    }
+    public bool IsCheckingDestination => _isCheckingDestination;
+    public string DestinationStatusText => Texts.T("destination." + (_destinationStatus?.ToString() ?? "NotChecked"));
+    public string DestinationCleanupWarning => DownloadDestinationValidator.Shared.HasCleanupFailure ? Texts.T("destination.cleanupWarning", DownloadDestinationValidator.Shared.LastCleanupFailurePath ?? Texts.T("destination.unknownProbe")) : string.Empty;
+
+    private void OnDestinationCleanupFailed() => Dispatcher.UIThread.Post(() =>
+    {
+        if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationCleanupWarning)));
+    });
+
+    private bool ValidateDestinationSyntax(out string? normalizedPath)
+    {
+        DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(DownloadPath, _config.DownloadPathBaseDirectory);
+        normalizedPath = syntax.NormalizedPath;
+        if (normalizedPath != null) return true;
+        ShowDestinationError(Texts.T("settings.pathInvalid"));
+        return false;
+    }
+
+    private void ShowDestinationError(string message)
+    {
+        DownloadPathInputError.Text = message;
+        DownloadPathInputError.IsVisible = true;
+        SetFieldErrorHelp(DownloadPathInput, message);
+        _firstInvalidInput = DownloadPathInput;
+        FinishFieldValidation();
+    }
+
+    private bool DestinationNeedsCheck(Config candidate)
+    {
+        string? previous = DownloadDestinationValidator.Normalize(_config.DownloadPath, _config.DownloadPathBaseDirectory).NormalizedPath;
+        return !string.Equals(previous, candidate.DownloadPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            || candidate.MinimumFreeSpaceGiB != _config.MinimumFreeSpaceGiB;
+    }
+
+    private async Task<bool> CheckDestinationAsync(string path, int reserveGiB)
+    {
+        long revision = _draftRevision;
+        using var wait = new CancellationTokenSource();
+        _destinationWait = wait;
+        _isCheckingDestination = true;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
+        try
+        {
+            DownloadDestinationResult result = await DestinationValidator.CheckAsync(path,
+                _config.DownloadPathBaseDirectory, checked((long)reserveGiB * (1L << 30)), TimeSpan.FromSeconds(5), wait.Token);
+            if (_isClosed || !IsAvailable || revision != _draftRevision) return false;
+            _destinationStatus = result.Status;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationStatusText)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationCleanupWarning)));
+            if (!result.CanApply) ShowDestinationError(DestinationStatusText);
+            return result.CanApply;
+        }
+        finally
+        {
+            _destinationWait = null;
+            _isCheckingDestination = false;
+            if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
+        }
+    }
+
+    private async void OnCheckDestinationClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (IsBusy || !IsAvailable || _isClosed) return;
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusMessage = null;
+        try
+        {
+            if (!ValidateDestinationSyntax(out string? path) || !ValidateNumericDraft()) return;
+            await CheckDestinationAsync(path!, GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue));
+        }
+        finally { IsBusy = false; }
+    }
+
+    private void OnCancelDestinationCheckClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => _destinationWait?.Cancel();
+
     private Control? _firstInvalidInput;
     private readonly Dictionary<string, string> _fieldHelpErrors = new();
     private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out string? error) ? error : baseline;

@@ -69,7 +69,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -> dict[str, str]:
-    environment = base.copy()
+    # A fixture/application child must never inherit routing to the project Git index.
+    environment = {key: value for key, value in base.items() if not key.startswith("GIT_")}
     environment["MEOWCHAN_DISABLE_UPDATE_CHECK"] = "1"
     environment.pop("MEOWCHAN_PROFILE", None)
     environment.pop("OCHAN_PROFILE", None)
@@ -156,6 +157,8 @@ def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str
     exit_code = 1
     with tempfile.TemporaryDirectory(prefix="meowchan-smoke-cwd-") as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
+        if not isolated:
+            child_environment["MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED"] = "1"
         if mode == "shell-load":
             # Bind current source bytes and all sibling managed/native dependencies, even for a standalone cell.
             spec = importlib.util.spec_from_file_location("shell_matrix_binding", Path(__file__).with_name("run-shell-load-matrix.py"))

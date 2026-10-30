@@ -6,6 +6,7 @@ using Avalonia.Controls.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop;
 using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
@@ -29,6 +30,7 @@ internal static class SettingsPathInputChecks
             Texts.SetLanguage("en");
             await CheckSave(owner, Path.Combine(profile, "manual-save"), select: false);
             await CheckSave(owner, Path.Combine(profile, "selected-save"), select: true);
+            await CheckDestinationFailures(owner, Path.Combine(profile, "destination-failures"));
             Console.WriteLine("SMOKE path input: injected EN/DE rejection/raw/focus/discard and manual/selected save-failure/retry/reload gates passed; native dialogs and native keystrokes not exercised.");
         }
         finally
@@ -129,9 +131,11 @@ internal static class SettingsPathInputChecks
         string file = Path.Combine(profile, "settings.json");
         string backup = file + ".fixture";
         byte[] original = File.ReadAllBytes(file);
-        string raw = select ? Path.Combine(profile, "chosen folder ü 日本")
-            : Path.GetFileName(Path.GetDirectoryName(profile)) + " relative folder ü 日本";
-        string expected = Path.GetFullPath(raw, Environment.CurrentDirectory);
+        string expected = Path.Combine(profile, "chosen folder ü 日本");
+        string raw = select ? expected : Path.GetRelativePath(config.DownloadPathBaseDirectory, expected);
+        Directory.CreateDirectory(expected); // private fixture setup, never product validation
+        string retained = Path.Combine(expected, "existing.tmp");
+        File.WriteAllText(retained, "unchanged private fixture");
         var window = new SettingsWindow(config);
         Task dialog = window.ShowDialog(owner);
         try
@@ -140,6 +144,8 @@ internal static class SettingsPathInputChecks
             await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
             var path = window.Editor.FindControl<TextBox>("DownloadPathInput")!;
             var save = window.Editor.FindControl<Button>("SaveSettingsButton")!;
+            window.Editor.MinimumFreeSpaceGiB = 0;
+            window.Editor.FindControl<NumericUpDown>("ReserveInput")!.Value = 0;
             if (select)
             {
                 var folder = new SettingsChecks.FixtureStorageFolder(new Uri(raw));
@@ -180,13 +186,54 @@ internal static class SettingsPathInputChecks
             Config reloaded = Config.LoadConfig(profile);
             Require(!window.Editor.HasError && config.DownloadPath == expected && reloaded.DownloadPath == expected,
                 "Successful path save/reload did not preserve existing relative/local path semantics.");
-            Require(!Directory.Exists(expected), "Editing/saving a path created the destination directory.");
+            Require(Directory.Exists(expected) && File.ReadAllText(retained) == "unchanged private fixture"
+                && Directory.GetFiles(expected).SequenceEqual(new[] { retained }),
+                "Check/Apply changed an existing file or left an owned probe behind.");
             Console.WriteLine($"SMOKE path input {(select ? "selected" : "manual relative")}: save failure retains raw draft and active config; retry/reload passed.");
         }
         finally
         {
             if (Directory.Exists(file)) Directory.Delete(file);
             if (File.Exists(backup)) File.Move(backup, file, overwrite: true);
+            if (window.IsVisible) window.Close();
+            await dialog.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private static async Task CheckDestinationFailures(MainWindow owner, string profile)
+    {
+        Config config = Seed(profile);
+        byte[] original = File.ReadAllBytes(Path.Combine(profile, "settings.json"));
+        string oldTarget = config.DownloadPath;
+        var window = new SettingsWindow(config);
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await Program.WaitUntilAsync(() => window.IsVisible);
+            await SettingsSectionChecks.OpenAsync(window.Editor, "settings.downloads");
+            TextBox path = window.Editor.FindControl<TextBox>("DownloadPathInput")!;
+            Button check = window.Editor.FindControl<Button>("CheckDestinationButton")!;
+            string missing = Path.Combine(profile, "does-not-exist");
+            path.Text = missing;
+            await Program.WaitUntilAsync(() => window.Editor.DownloadPath == missing);
+            Require(window.Editor.NormalizedDestination.Contains(missing), "Absolute path preview is missing.");
+            Click(check);
+            await Program.WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError && path.IsFocused);
+            Require(window.Editor.DestinationStatusText == Texts.T("destination.Missing") && !Directory.Exists(missing)
+                && path.Text == missing && path.IsFocused, "Missing folder check created a directory or lost the draft/field error.");
+            string file = Path.Combine(profile, "existing-file.tmp");
+            File.WriteAllText(file, "preserve");
+            path.Text = file;
+            await Program.WaitUntilAsync(() => window.Editor.DownloadPath == file);
+            Click(window.Editor.FindControl<Button>("SaveSettingsButton")!);
+            await Program.WaitUntilAsync(() => !window.Editor.IsBusy && window.Editor.HasError);
+            Require(window.Editor.DestinationStatusText == Texts.T("destination.NotDirectory") && File.ReadAllText(file) == "preserve"
+                && config.DownloadPath == oldTarget && File.ReadAllBytes(Path.Combine(profile, "settings.json")).SequenceEqual(original),
+                "File target was applied, modified, or reported as a directory.");
+            Console.WriteLine("SMOKE destination: explicit Check missing / Apply file target; raw draft, focused field, originals and config preserved; no mkdir.");
+        }
+        finally
+        {
             if (window.IsVisible) window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }

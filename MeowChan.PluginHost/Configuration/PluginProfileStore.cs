@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using MeowChan.PluginHost.Activation;
+using MeowChan.PluginHost.Installation;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Configuration;
@@ -12,11 +13,13 @@ namespace MeowChan.PluginHost.Configuration;
 public sealed class PluginProfileStore : IPluginProfileStore
 {
     private const int FormatVersion = 1;
+    private const int DeliveredFormatVersion = 2;
     private const int MaximumStoreBytes = 24 * 1024 * 1024;
     private readonly string directory;
     private readonly string path;
     private readonly string lockPath;
     private readonly Func<string, bool> initiallyEnabled;
+    private readonly Func<IReadOnlyList<string>>? repairRestrictedSources;
 
     public PluginProfileStore(string profileDirectory) : this(profileDirectory, static _ => true) { }
 
@@ -24,11 +27,12 @@ public sealed class PluginProfileStore : IPluginProfileStore
     /// Uses the host's default only when a plugin identity is first recorded. Saved enable choices
     /// remain authoritative; resolving a provisional owner cannot bypass a disabled default.
     /// </summary>
-    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled)
+    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled, Func<IReadOnlyList<string>>? repairRestrictedSources = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
         ArgumentNullException.ThrowIfNull(initiallyEnabled);
         this.initiallyEnabled = initiallyEnabled;
+        this.repairRestrictedSources = repairRestrictedSources;
         directory = Path.Combine(Path.GetFullPath(profileDirectory), "plugin-state");
         path = Path.Combine(directory, "state.json");
         lockPath = Path.Combine(directory, "state.lock");
@@ -66,14 +70,41 @@ public sealed class PluginProfileStore : IPluginProfileStore
     }
 
     public Task<PluginProfileSnapshot> ApplyStartupAsync(IReadOnlyList<PluginCandidateObservation> candidates, long expectedRevision,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => ApplyStartupCoreAsync(candidates, null, null, expectedRevision, cancellationToken);
+
+    public Task<PluginProfileSnapshot> ApplyBundledStartupAsync(IReadOnlyList<PluginCandidateObservation> candidates,
+        IReadOnlyList<DeliveredCandidateProvenance> delivered, IReadOnlyList<string> restrictedSourceIds,
+        long expectedRevision, CancellationToken cancellationToken = default) =>
+        ApplyStartupCoreAsync(candidates, delivered, restrictedSourceIds, expectedRevision, cancellationToken);
+
+    private Task<PluginProfileSnapshot> ApplyStartupCoreAsync(IReadOnlyList<PluginCandidateObservation> candidates,
+        IReadOnlyList<DeliveredCandidateProvenance>? delivered, IReadOnlyList<string>? restrictedSourceIds,
+        long expectedRevision, CancellationToken cancellationToken)
     {
         PluginCandidateObservation[] observations = Clone(candidates.ToArray());
+        DeliveredCandidateProvenance[]? proofs = delivered is null ? null : Clone(delivered.ToArray());
+        string[]? restricted = restrictedSourceIds?.ToArray();
         foreach (PluginCandidateObservation candidate in observations) ValidateObservation(candidate);
         if (observations.Select(item => item.CandidateId).Distinct(StringComparer.Ordinal).Count() != observations.Length)
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
-        return MutateAsync(expectedRevision, state =>
+        return MutateDocumentAsync(expectedRevision, document =>
         {
+            if (proofs is not null)
+            {
+                if (proofs.Select(p => p.CandidateId).Distinct(StringComparer.Ordinal).Count() != proofs.Length ||
+                    proofs.Any(proof => !observations.Any(c => c.Problem is null && BundledCandidateMigration.Matches(proof, ToSnapshot(c)))))
+                    throw new ArgumentException("Delivered evidence does not match the successful startup inventory.");
+                List<DeliveredCandidateProvenance> evidence = document.Provenance.ToList();
+                foreach (DeliveredCandidateProvenance proof in proofs)
+                {
+                    DeliveredCandidateProvenance? known = evidence.FirstOrDefault(p => p.CandidateId == proof.CandidateId && p.ExecutionRevision == proof.ExecutionRevision);
+                    if (known is not null && known != proof) throw new InvalidDataException("Delivered provenance changed for a retained identity.");
+                    if (known is null) evidence.Add(proof);
+                }
+                document = document with { Provenance = evidence, RestrictedSourceIds = restricted ?? [] };
+                BundledCandidateMigration.Validate(document);
+            }
+            PluginProfileSnapshot state = document.Profile;
             state = ReleaseProvisionalOwners(state, observations);
             // A source file changing its declared plugin identity is an unavailable update of
             // that existing candidate, not permission to transfer its configuration or rights.
@@ -112,9 +143,36 @@ public sealed class PluginProfileStore : IPluginProfileStore
                     next = next with { Problem = present.Length > 1 ? "Multiple candidates require an explicit selection." : "Plugin is missing." };
                 else
                 {
-                    PluginCandidateSnapshot? candidate = inventory.FirstOrDefault(item => item.CandidateId == selected);
+                    BundledRepairBinding? binding = document.Bindings.FirstOrDefault(b => b.PluginId == pluginId && b.SelectedCandidateId == selected);
+                    string effectiveCandidate = binding?.TargetCandidateId ?? selected;
+                    PluginCandidateSnapshot? candidate = inventory.FirstOrDefault(item => item.CandidateId == effectiveCandidate);
+                    PreReplacementBasis previous = BundledCandidateMigration.TrustedPreReplacementBasis(document, old);
+                    bool buildChanged = candidate?.Artifact is not null && previous.HasHistory &&
+                        (previous.Missing || previous.ExecutionRevision != candidate.Artifact.ExecutionRevision);
+                    bool deliveredCandidate = candidate is not null && document.Provenance.Any(p => BundledCandidateMigration.Matches(p, candidate));
+                    bool deliveredIdentity = candidate is not null && (binding is not null || previous.Provenance is not null ||
+                        document.Provenance.Any(p => p.CandidateId == candidate.CandidateId));
+                    // An explicitly selected same-code local Pending may relocate established code,
+                    // but may not attest a first activation, claim delivered provenance or mask material changes.
+                    bool selectedLocalAlias = candidate is not null && old.SelectedCandidateId == candidate.CandidateId &&
+                        old.Pending is { } pendingAlias && pendingAlias.CandidateId == candidate.CandidateId &&
+                        BundledCandidateMigration.SameExecutableAndDescription(pendingAlias, candidate) &&
+                        BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, old, candidate, IsProfileLocal(candidate)) is not null;
+                    bool bindingMatches = binding is not null && !previous.Missing && previous.Provenance?.SlotId == binding.SlotId &&
+                        candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
+                        document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
                     if (candidate is null || !candidate.IsPresent || candidate.Problem is not null || candidate.Artifact is null || candidate.Description is null)
                         next = next with { Problem = candidate?.Problem ?? "Selected candidate is unavailable." };
+                    else if (binding is not null && !bindingMatches)
+                        next = next with { Problem = "Confirmed bundled target changed or disappeared; review repair again." };
+                    else if (deliveredIdentity && !deliveredCandidate && !selectedLocalAlias)
+                        next = next with { Problem = "Bundled target has no matching delivered provenance; review is required." };
+                    else if (deliveredIdentity && previous.Missing)
+                        next = next with { Problem = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required." };
+                    else if (deliveredCandidate && buildChanged && !bindingMatches)
+                        next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
+                    else if (deliveredCandidate && BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged))
+                        next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };
                     else
                     {
                         PluginReleaseSnapshot? basis = MatchingBasis(old, candidate.CandidateId);
@@ -152,34 +210,114 @@ public sealed class PluginProfileStore : IPluginProfileStore
                 }
                 plugins.Add(next);
             }
-            return state with { Plugins = plugins };
+            return Task.FromResult(document with { Profile = state with { Plugins = plugins } });
         }, cancellationToken);
     }
 
-    public Task<PluginProfileSnapshot> SelectCandidateAsync(string pluginId, string candidateId, long expectedRevision,
-        CancellationToken cancellationToken = default) => MutateAsync(expectedRevision, state =>
+    public async Task<BundledCandidateRepairPreview> PreviewBundledRepairsAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Directory.Exists(directory)) return new(0, []);
+        await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
+        return BundledCandidateMigration.Preview(WithCurrentRepairRestrictions(await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)));
+    }
+
+    public Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(repair);
+        return MutateDocumentAsync(expectedRevision, async document =>
+        {
+            document = WithCurrentRepairRestrictions(document);
+            BundledCandidateRepair? current = BundledCandidateMigration.Preview(document).Rows
+                .SingleOrDefault(row => row.PluginId == repair.PluginId && row.OldCandidateId == repair.OldCandidateId);
+            if (current is null || current != repair || !current.CanConfirm)
+                throw new InvalidOperationException("Bundled repair is blocked or the preview changed. Review it again.");
+            PluginActivationSnapshot plugin = Find(document.Profile, current.PluginId);
+            PluginCandidateSnapshot candidate = AvailableCandidate(plugin, current.NewCandidateId!);
+            DeliveredCandidateProvenance proof = document.Provenance.Single(p => p.SlotId == current.SlotId &&
+                BundledCandidateMigration.Matches(p, candidate));
+            // Revalidate both delivered bytes and immutable cache before committing the exact reviewed build.
+            await PluginInstallationInventory.VerifyRepairTargetAsync(proof, candidate.Artifact!, candidate.Description!, cancellationToken).ConfigureAwait(false);
+            document = WithCurrentRepairRestrictions(document);
+            if (BundledCandidateMigration.HasInheritedRights(document, plugin, candidate, current.BuildChanged))
+                throw new InvalidOperationException("Bundled replacement would inherit permissions; repair is blocked.");
+            PreReplacementBasis previous = BundledCandidateMigration.TrustedPreReplacementBasis(document, plugin);
+            PluginReleaseSnapshot basis = previous.Release ?? throw new InvalidOperationException("No trusted pre-replacement configuration is retained.");
+            PluginReleaseSnapshot pending = new(candidate.CandidateId, candidate.Artifact!, candidate.Description!, basis.Configuration);
+            BundledRepairBinding binding = new(plugin.PluginId, plugin.SelectedCandidateId!, basis.ExecutionRevision,
+                candidate.CandidateId, candidate.Artifact!.ExecutionRevision, proof.SlotId)
+                { OriginalRelease = Clone(basis) };
+            // Keep the user's original selection as the anchor. Only this explicit, versioned binding
+            // selects a different execution at next startup. No owner/grant/pin/config rewrite.
+            return document with
+            {
+                Profile = Replace(document.Profile, plugin with { Pending = pending,
+                    Problem = "Confirmed bundled repair saved for next start; original selection and rollback retained." }),
+                Bindings = document.Bindings.Where(b => b.PluginId != plugin.PluginId).Append(binding).ToArray()
+            };
+        }, cancellationToken);
+    }
+
+    private BundledProfileDocument WithCurrentRepairRestrictions(BundledProfileDocument document) => repairRestrictedSources is null
+        ? document : document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(repairRestrictedSources())
+            .Distinct(StringComparer.Ordinal).ToArray() };
+
+    private bool IsProfileLocal(PluginCandidateSnapshot candidate)
+    {
+        if (candidate.CandidatePath is not { } path || !Path.IsPathFullyQualified(path)) return false;
+        try
+        {
+            string local = Path.Combine(Path.GetDirectoryName(directory)!, "plugins");
+            return string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), local,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
+
+    private void RequireOrdinaryCandidateSelection(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot candidate)
+    {
+        PreReplacementBasis basis = BundledCandidateMigration.TrustedPreReplacementBasis(document, plugin);
+        bool selectedDelivered = document.Provenance.Any(p => p.CandidateId == plugin.SelectedCandidateId);
+        if (basis.Provenance is null && !selectedDelivered && !document.Bindings.Any(b => b.PluginId == plugin.PluginId) &&
+            !document.Provenance.Any(p => p.CandidateId == candidate.CandidateId)) return;
+        if (BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, plugin, candidate, IsProfileLocal(candidate)) is not null) return;
+        if (!basis.HasHistory) return;
+        if (basis.Missing || basis.CandidateId != candidate.CandidateId || basis.ExecutionRevision != candidate.Artifact!.ExecutionRevision)
+            throw new InvalidOperationException("Use bundled repair preview and confirmation; ordinary candidate selection cannot bypass provenance or grants.");
+    }
+
+    public Task<PluginProfileSnapshot> SelectCandidateAsync(string pluginId, string candidateId, long expectedRevision,
+        CancellationToken cancellationToken = default) => MutateDocumentAsync(expectedRevision, document =>
+    {
+        PluginProfileSnapshot state = document.Profile;
         PluginActivationSnapshot plugin = Find(state, pluginId);
         PluginCandidateSnapshot candidate = AvailableCandidate(plugin, candidateId);
-        ConfigurationMigrationResult migration = PluginSettingsMigration.Migrate(MatchingBasis(plugin, candidateId), candidate.Description!);
+        RequireOrdinaryCandidateSelection(document, plugin, candidate);
+        PluginReleaseSnapshot? sameCodeAlias = BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, plugin, candidate, IsProfileLocal(candidate));
+        ConfigurationMigrationResult migration = PluginSettingsMigration.Migrate(MatchingBasis(plugin, candidateId) ?? sameCodeAlias, candidate.Description!);
         // Selecting a candidate with incompatible settings records the choice, retaining the old values for explicit correction.
         PluginReleaseSnapshot? pending = migration.Configuration is null ? null : new(candidateId, candidate.Artifact!, candidate.Description!, migration.Configuration);
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in candidate.Description!.Sources) selectedSources[source.SourceId] = pluginId;
-        return Replace(state, plugin with { SelectedCandidateId = candidateId, Pinned = null, Pending = pending,
+        PluginProfileSnapshot next = Replace(state, plugin with { SelectedCandidateId = candidateId, Pinned = null, Pending = pending,
             Problem = migration.Configuration is null ? "Selected candidate needs settings correction: " + string.Join("; ", migration.Issues.Select(issue => issue.Message)) : null })
             with { SelectedSourceOwners = selectedSources };
+        return Task.FromResult(document with { Profile = next, Bindings = document.Bindings.Where(b => b.PluginId != pluginId).ToArray() });
     }, cancellationToken);
 
     public Task<PluginProfileSnapshot> SaveConfigurationAsync(string pluginId, string candidateId, PluginConfiguration configuration,
         long expectedRevision, CancellationToken cancellationToken = default)
     {
         configuration = Clone(configuration);
-        return MutateAsync(expectedRevision, state =>
+        return MutateDocumentAsync(expectedRevision, document =>
         {
+            PluginProfileSnapshot state = document.Profile;
             PluginActivationSnapshot plugin = Find(state, pluginId);
             PluginReleaseSnapshot? pinned = plugin.Pinned?.CandidateId == candidateId ? plugin.Pinned : null;
             PluginCandidateSnapshot? candidate = pinned is null ? AvailableCandidate(plugin, candidateId) : null;
+            if (candidate is not null) RequireOrdinaryCandidateSelection(document, plugin, candidate);
             PluginDescription description = pinned?.Description ?? candidate!.Description!;
             ThrowValidation(SdkValidation.ValidateConfiguration(description, configuration));
             Dictionary<string, SettingsSnapshot> sources = description.Sources.ToDictionary(source => source.SourceId,
@@ -187,7 +325,10 @@ public sealed class PluginProfileStore : IPluginProfileStore
             PluginConfiguration saved = new(Guid.NewGuid().ToString("N"),
                 PluginSettingsMigration.WithDefaults(description.Settings, configuration.PluginSettings), sources);
             PluginReleaseSnapshot pending = new(candidateId, pinned?.Artifact ?? candidate!.Artifact!, description, saved);
-            return Replace(state, plugin with { SelectedCandidateId = candidateId, Pending = pending, Problem = null });
+            bool bound = document.Bindings.Any(b => b.PluginId == pluginId && b.SelectedCandidateId == plugin.SelectedCandidateId &&
+                b.TargetCandidateId == candidateId && b.TargetExecutionRevision == pending.ExecutionRevision);
+            return Task.FromResult(document with { Profile = Replace(state, plugin with
+                { SelectedCandidateId = bound ? plugin.SelectedCandidateId : candidateId, Pending = pending, Problem = null }) });
         }, cancellationToken);
     }
 
@@ -252,18 +393,27 @@ public sealed class PluginProfileStore : IPluginProfileStore
         return Replace(state, plugin with { Active = null, Problem = problem, LifecycleRevision = checked(plugin.LifecycleRevision + 1) });
     }, cancellationToken);
 
-    private async Task<PluginProfileSnapshot> MutateAsync(long expectedRevision, Func<PluginProfileSnapshot, PluginProfileSnapshot> update,
-        CancellationToken cancellationToken)
+    private Task<PluginProfileSnapshot> MutateAsync(long expectedRevision, Func<PluginProfileSnapshot, PluginProfileSnapshot> update,
+        CancellationToken cancellationToken) => MutateDocumentAsync(expectedRevision,
+            document => Task.FromResult(document with { Profile = update(document.Profile) }), cancellationToken);
+
+    private async Task<PluginProfileSnapshot> MutateDocumentAsync(long expectedRevision,
+        Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
-        PluginProfileSnapshot state = await ReadCoreAsync(cancellationToken).ConfigureAwait(false);
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        PluginProfileSnapshot state = document.Profile;
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
-        PluginProfileSnapshot next = update(state) with { Revision = checked(state.Revision + 1) };
+        BundledProfileDocument updated = await update(document).ConfigureAwait(false);
+        PluginProfileSnapshot next = updated.Profile with { Revision = checked(state.Revision + 1) };
+        updated = updated with { Profile = next };
         ValidateState(next);
-        byte[] payload = SdkJson.Serialize(next);
+        BundledCandidateMigration.Validate(updated);
+        bool deliveredFormat = updated.Provenance.Count != 0 || updated.Bindings.Count != 0 || updated.RestrictedSourceIds.Count != 0;
+        byte[] payload = deliveredFormat ? SdkJson.Serialize(updated) : SdkJson.Serialize(next);
         if (payload.Length > SdkLimits.MaximumMetadataBytes * 2) throw new IOException("Plugin profile payload exceeds its bounded store size.");
-        Envelope envelope = new(FormatVersion, Convert.ToHexString(SHA256.HashData(payload)), payload);
+        Envelope envelope = new(deliveredFormat ? DeliveredFormatVersion : FormatVersion, Convert.ToHexString(SHA256.HashData(payload)), payload);
         byte[] bytes = SdkJson.Serialize(envelope);
         if (bytes.Length > MaximumStoreBytes) throw new IOException("Plugin profile state exceeds its bounded store size.");
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
@@ -300,7 +450,10 @@ public sealed class PluginProfileStore : IPluginProfileStore
         return Clone(next);
     }
 
-    private async Task<PluginProfileSnapshot> ReadCoreAsync(CancellationToken cancellationToken)
+    private async Task<PluginProfileSnapshot> ReadCoreAsync(CancellationToken cancellationToken) =>
+        (await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)).Profile;
+
+    private async Task<BundledProfileDocument> ReadDocumentCoreAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -312,15 +465,18 @@ public sealed class PluginProfileStore : IPluginProfileStore
                 bytes = new byte[checked((int)stream.Length)];
                 await stream.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
             }
-            catch (FileNotFoundException) { return Empty(); }
-            catch (DirectoryNotFoundException) { return Empty(); }
+            catch (FileNotFoundException) { return new(Empty(), [], [], []); }
+            catch (DirectoryNotFoundException) { return new(Empty(), [], [], []); }
             Envelope envelope = JsonSerializer.Deserialize<Envelope>(bytes, SdkJson.CreateOptions()) ?? throw new JsonException("Null envelope.");
-            if (envelope.Version != FormatVersion || envelope.Payload is null ||
+            if (envelope.Version is not (FormatVersion or DeliveredFormatVersion) || envelope.Payload is null ||
                 !string.Equals(envelope.Sha256, Convert.ToHexString(SHA256.HashData(envelope.Payload)), StringComparison.Ordinal))
                 throw new JsonException("Store version or integrity check failed.");
-            PluginProfileSnapshot state = SdkJson.Deserialize<PluginProfileSnapshot>(envelope.Payload);
-            ValidateState(state);
-            return state;
+            BundledProfileDocument document = envelope.Version == FormatVersion
+                ? new(SdkJson.Deserialize<PluginProfileSnapshot>(envelope.Payload), [], [], [])
+                : SdkJson.Deserialize<BundledProfileDocument>(envelope.Payload);
+            ValidateState(document.Profile);
+            BundledCandidateMigration.Validate(document);
+            return document;
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException or OverflowException or NullReferenceException or EndOfStreamException)
         { throw new PluginProfileCorruptException(path, exception); }

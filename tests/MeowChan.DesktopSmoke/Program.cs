@@ -158,6 +158,9 @@ internal static class Program
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE") is { Length: > 0 } fixture)
                     VideoGalleryChecks.SeedAsync(profile, fixture).GetAwaiter().GetResult();
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1")
+                VideoGalleryChecks.SeedAsync(profile, Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
+                    ?? throw new InvalidOperationException("Media interaction fixture is required."), includeSecondVideo: true).GetAwaiter().GetResult();
             using ProfileLease? conflictingLease = _lockedProfileMode ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
@@ -209,7 +212,25 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_GIF_PLAYBACK_ONLY") == "1"
+                ? "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETUP_ONLY") == "1"
+                ? "first-profile setup: EN/DE Light/Dark explicit accept/Later/X/errors/probe retirement; private fixtures, no package claim"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_PREFERENCE_STARTUP_ONLY") == "1"
+                ? "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY") == "1"
+                ? "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; routed harness input"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_ERROR_ONLY") == "1"
+                ? "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FEEDBACK_ONLY") == "1"
+                ? "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY") == "1"
+                ? (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
+                    ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"
+                    : "gallery playback features: saved choices, edge panels, real mixed-media sequence, replay and decode failure; recorded platform only")
+                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1"
+                ? "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1"
                 ? "IME product checkpoints completed; real engine and UI acceptance require the independent native driver"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_ALPHA2_COPY_ONLY") == "1"
                 ? "alpha2 copy: Sources granted/strict/null/inactive and Rules help at actual scale and minimum size"
@@ -301,6 +322,48 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GIF_PLAYBACK_ONLY") == "1")
+            {
+                await GifPlaybackChecks.RunAsync(mainWindow);
+                await GifOwnershipChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETUP_ONLY") == "1")
+            {
+                await FirstRunSetupChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PREFERENCE_STARTUP_ONLY") == "1")
+            {
+                await PreferenceStartupChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY") == "1")
+            {
+                await DownloadCompactStatusChecks.RunAsync(mainWindow);
+                await DiagnosticsScopedRetryChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_ERROR_ONLY") == "1")
+            {
+                await GalleryErrorInteractionChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FEEDBACK_ONLY") == "1")
+            {
+                await FeedbackChecks.CheckDismissalAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY") == "1")
+            {
+                await GalleryPlaybackFeatureChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_ONLY") == "1")
+            {
+                await MediaInteractionChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_IME_ONLY") == "1")
             {
                 await NativeImeChecks.RunAsync(mainWindow);
@@ -657,6 +720,11 @@ internal static class Program
             }
             if (_readerUxMode)
             {
+                if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_INPUT_ONLY") == "1")
+                {
+                    await ReaderInteractionChecks.RunMediaActivationInputAsync(mainWindow);
+                    _checksPassed = true; mainWindow.Close(); return;
+                }
                 bool videoFixture = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE"));
                 if (!_galleryCloseOnly)
                 {

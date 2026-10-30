@@ -1,0 +1,57 @@
+{
+  "license": "CC0-1.0 (derived synthetic VP8 fixture plus generated sine wave)",
+  "source": "tests/Fixtures/gallery-playback-vp8.webm",
+  "source_sha256": "92f5175697fa441fd6a95270ef307a55c51bc4d30b019f571dc99bf45d2fdddf",
+  "generator": "ffmpeg version n9.0.1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "files": [
+    {
+      "file": "playback-h264-audio.mp4",
+      "bytes": 242446,
+      "sha256": "677947056fdb71789e9ac9da651f8257adaf1e1b3ec1ccb8dfda48d9f9de0929",
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "width": 160,
+          "height": 90
+        },
+        {
+          "codec_name": "aac",
+          "codec_type": "audio",
+          "sample_rate": "48000"
+        }
+      ]
+    },
+    {
+      "file": "playback-h264-silent.mp4",
+      "bytes": 141018,
+      "sha256": "7c15acb2dc63822b37a3ebd69207b520d2fc8e1bf270f5c53d17bb068c5584be",
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "width": 160,
+          "height": 90
+        }
+      ]
+    },
+    {
+      "file": "playback-vp8-audio.webm",
+      "bytes": 214137,
+      "sha256": "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8",
+      "streams": [
+        {
+          "codec_name": "vp8",
+          "codec_type": "video",
+          "width": 160,
+          "height": 90
+        },
+        {
+          "codec_name": "vorbis",
+          "codec_type": "audio",
+          "sample_rate": "48000"
+        }
+      ]
+    }
+  ]
+}

@@ -93,7 +93,7 @@ public partial class PluginsPage : UserControl
         else C<ComboBox>("PluginCategory").Focus();
     }
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
-    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_ended) { Localize(); RenderList(); RenderDetails(); } });
+    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_ended) { CloseBundledRepairPreview(); Localize(); RenderList(); RenderDetails(); } });
     private void Localize()
     {
         foreach ((string name, string key) in new[]
@@ -106,6 +106,7 @@ public partial class PluginsPage : UserControl
         foreach ((string name, string key) in new[]
         {
             ("PluginsRefresh","plugins.refresh"),("PluginsFolder","plugins.folder"),("PluginBack","plugins.back"),
+            ("PluginsReviewRepairs","plugins.repair.review"),
             ("PluginSelectCandidate","plugins.selectCandidate"),("PluginRollback","plugins.rollback"),("PluginWatches","plugins.watches"),
             ("PluginSave","plugins.save"),("PluginDiscard","plugins.discard"),("PluginEdit","plugins.edit"),
             ("PluginDefaultEditor","plugins.defaultEditor"),("PluginBuild","plugins.build"),("PluginCancel","plugins.cancel"),
@@ -480,7 +481,7 @@ public partial class PluginsPage : UserControl
         _statusReadPending = true;
         try { await RefreshAsync(); } finally { _statusReadPending = false; }
     }
-    internal void Deactivate() { ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
+    internal void Deactivate() { CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
     internal void EndLifetime()
-    { if (_ended) return; ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; _pluginSectionNavigation?.Dispose(); IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
+    { if (_ended) return; CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; _pluginSectionNavigation?.Dispose(); IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
 }

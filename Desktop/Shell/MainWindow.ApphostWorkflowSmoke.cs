@@ -10,10 +10,11 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Media.Imaging;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
-using Avalonia.Media.Imaging;
 using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
@@ -193,6 +194,13 @@ public partial class MainWindow
                         "Creating a new export modified the preceding export.");
                     checks.Add("exports-created-updated-new");
                     ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
+                    await _session.SaveViewPreferencesAsync(config =>
+                    {
+                        config.GalleryPlaybackMode = "Slideshow"; config.GallerySlideshowSeconds = 1;
+                        config.GalleryMediaFocus = true; config.GalleryOverlayControls = true;
+                    });
+                    RequireWorkflow(Config.LoadConfig(fixture.Profile).GalleryPlaybackMode == "Slideshow", "Playback choices were not durably saved.");
+                    checks.Add("gallery-preferences-persisted");
                     await CloseWorkflowNormallyAsync();
                 }
             }
@@ -203,6 +211,19 @@ public partial class MainWindow
                 RequireWorkflow(fixture.Http.MediaRequests == 0 && _session.ReceivedMediaBytes == 0
                     && File.ReadAllBytes(saved).SequenceEqual(ApphostWorkflowSmoke.Payload), "Fresh restore downloaded or changed verified bytes.");
                 checks.Add("restored-media-no-redownload");
+                RequireWorkflow(_config.GalleryPlaybackMode == "Slideshow" && _config.GallerySlideshowSeconds == 1
+                    && _config.GalleryMediaFocus && _config.GalleryOverlayControls && _gallery == null,
+                    "Fresh process lost gallery preferences or opened a slideshow automatically.");
+                await OpenGalleryAsync(new ResourceId("4chan", "g", "123"));
+                GalleryViewer restoredGallery = _gallery ?? throw new InvalidOperationException("Restored gallery did not open.");
+                await WaitWorkflowAsync(() => restoredGallery.GetGalleryVisualDescendants().OfType<Image>()
+                    .Any(control => control.Name == "GalleryImage" && control.Source is Bitmap), "restored gallery image");
+                var originalKey = restoredGallery.CaptureState().Key;
+                await Task.Delay(1400);
+                RequireWorkflow(MediaSmokeControl<ToggleButton>(restoredGallery, "GallerySlideshowToggle").IsChecked != true
+                    && restoredGallery.CaptureState().Key == originalKey, "Restored slideshow started without a user action.");
+                CloseGallery(); await GalleryCleanupTask;
+                checks.Add("gallery-preferences-restored-no-autorun");
                 // Verify export history survived an actual process boundary as well.
                 await ArchivePage.OpenExportForThreadAsync(new ResourceId("4chan", "g", "123"), null);
                 RequireWorkflow(ArchivePage.FindControl<RadioButton>("ArchiveExportUpdate")!.IsEnabled,

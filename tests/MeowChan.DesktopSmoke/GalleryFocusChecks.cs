@@ -100,8 +100,11 @@ internal static class GalleryFocusChecks
                 Require(AutomationProperties.GetName(toggle) == Texts.T("viewer.tools.show"), "Live language change lost the reveal label.");
                 Program.CaptureWindow(window, $"smoke-gallery-focus-{testedLanguage}-{variant}-{testedWidth}.png");
             }
+            int teardownPreferenceWrites = 0;
+            viewer.PlaybackPreferencesChanged += _ => teardownPreferenceWrites++;
             await viewer.StopAsync();
-            Require(toggle.IsChecked != true && fit.IsVisible, "Closing did not reset session-only focus mode.");
+            Require(toggle.IsChecked == true && !fit.IsVisible && teardownPreferenceWrites == 0,
+                "Closing overwrote the remembered focus choice or published a lifecycle preference change.");
             GalleryViewer fresh = new();
             object? previousContent = window.Content;
             try
@@ -111,7 +114,7 @@ internal static class GalleryFocusChecks
                 Require(Find<ToggleButton>(fresh, "GalleryToolsToggle").IsChecked != true, "Focus mode leaked into a new gallery.");
             }
             finally { await fresh.StopAsync(); window.Content = previousContent; }
-            Console.WriteLine("SMOKE gallery focus: EN/DE Light/Dark at 640/850, visible navigation, reclaimed height, custom shortcut, focus transfer, retained errors and session reset passed.");
+            Console.WriteLine("SMOKE gallery focus: EN/DE Light/Dark at 640/850, visible navigation, reclaimed height, custom shortcut, focus transfer, retained errors and teardown without preference writes passed.");
         }
         finally
         {

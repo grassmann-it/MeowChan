@@ -344,6 +344,17 @@ public static class CommandBindings
         return ShortcutService.Current.Matches(e, id);
     }
 
+    // The caller first checks the active gallery/window/dialog context. Only these two
+    // owned transport controls opt into media navigation/volume; generic sliders stay native.
+    internal static bool MatchesGalleryTransport(KeyEventArgs e, string id, Control seek, Control volume)
+    {
+        if (e.Handled || ShortcutService.IsCapturing) return false;
+        bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down";
+        bool ownSlider = e.Source is Visual visual && visual.GetSelfAndVisualAncestors()
+            .Any(parent => ReferenceEquals(parent, seek) || ReferenceEquals(parent, volume));
+        return transportAction && ownSlider ? ShortcutService.Current.Matches(e, id) : Matches(e, id);
+    }
+
     private static bool AllowsInputShortcut(string id, KeyEventArgs e)
     {
         bool functionKey = e.Key >= Key.F1 && e.Key <= Key.F24;

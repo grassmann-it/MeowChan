@@ -143,7 +143,7 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveMediaColumnsButton").IsVisible = false;
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = 1;
     }
-    internal bool IsAvailable { set { _available = value; UpdateActions(); } }
+    internal bool IsAvailable { set { if (_available != value) CancelReaderMediaActivation(); _available = value; UpdateActions(); } }
     internal bool IsBusy => _busy;
     internal bool IsMediaLoading => _mediaLoading;
     internal Task MediaLoadTask { get; private set; } = Task.CompletedTask;
@@ -410,6 +410,7 @@ public partial class ArchivePage : UserControl
 
     private void CancelMediaLoad()
     {
+        CancelReaderMediaActivation();
         ClearOperationError("media");
         ++_mediaRequest;
         _mediaReady.TrySetCanceled();
@@ -976,6 +977,7 @@ public partial class ArchivePage : UserControl
     {
         if (_ended) return;
         _ended = true;
+        StopObservingReaderMediaKeys();
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();
         ClearPaginationInput();

@@ -202,7 +202,8 @@ internal static class ClipboardChecks
     private static INotification[] Notifications(Window window, string title) => window.GetVisualDescendants()
         .OfType<NotificationCard>()
         .Where(card => !card.IsClosing && !card.IsClosed)
-        .Select(card => card.Content)
+        .Select(card => card.Content is FeedbackToastContent toast
+            ? new Notification(toast.Title, toast.Message) : card.Content)
         .OfType<INotification>()
         .Where(notification => notification.Title == title)
         .ToArray();

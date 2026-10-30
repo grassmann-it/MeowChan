@@ -44,7 +44,7 @@ public partial class DiagnosticsPage : UserControl
 
     public DiagnosticsPage()
     {
-        InitializeComponent(); InitializeContextMenu();
+        InitializeComponent(); InitializeContextMenu(); _diagnosticFiltersReady = true;
         CommandRouter? ratings = null;
         AttachedToVisualTree += (_, _) =>
         {
@@ -73,21 +73,9 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<TextBlock>("DiagnosticsSummary")!.Text = Texts.T("downloads.statusSummary",
             snapshot.Threads, snapshot.Boards, snapshot.Queued, snapshot.Active);
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
-        string? selected = (grid.SelectedItem as DiagnosticEntry)?.Key;
-        if (!_entries.SequenceEqual(snapshot.Entries))
-        {
-            _entries = snapshot.Entries;
-            DiagnosticEntry? retained = _entries.FirstOrDefault(entry => entry.Key == selected);
-            if (selected != null) _diagnosticSelectionRemoved = retained == null;
-            _refreshingDiagnostics = true;
-            try
-            {
-                grid.ItemsSource = _entries;
-                grid.SelectedItem = retained;
-            }
-            finally { _refreshingDiagnostics = false; }
-        }
-        this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = _entries.Count == 0;
+        _entries = snapshot.Entries;
+        RefreshDiagnosticSources();
+        ApplyDiagnosticFilters();
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>())
         {
             if (control.Tag is not string key || !control.Classes.Contains("localized")) continue;
@@ -101,6 +89,7 @@ public partial class DiagnosticsPage : UserControl
         grid.Columns[2].Header = Texts.T("diagnostics.message");
         CommandBindings.Apply(this.FindControl<Button>("ManageMediaRatingsButton")!, "media.rating.manage");
         this.FindControl<Button>("ManageMediaRatingsButton")!.IsEnabled = _available && ManageMediaRatingsAsync != null;
+        RefreshDiagnosticFilterLabels();
         RefreshSelection();
         RefreshFeedback();
     }
@@ -136,7 +125,8 @@ public partial class DiagnosticsPage : UserControl
         title.Text = selected?.Summary ?? string.Empty;
         title.IsVisible = selected != null;
         TextBlock context = this.FindControl<TextBlock>("DiagnosticSelectionContext")!;
-        context.Text = selected == null ? string.Empty : selected.Category + " · " + selected.Resource;
+        context.Text = selected == null ? string.Empty : selected.Category + " · " + selected.Resource
+            + (selected.ResourceId == null ? string.Empty : " · " + selected.ResourceId.Source + " /" + selected.ResourceId.Board + "/ " + selected.ResourceId.Thread);
         context.IsVisible = selected != null;
         this.FindControl<TextBox>("DiagnosticDetails")!.Text = selected?.Details ?? string.Empty;
         this.FindControl<TextBox>("DiagnosticDetails")!.IsVisible = selected != null;
@@ -149,6 +139,7 @@ public partial class DiagnosticsPage : UserControl
         this.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled = _available && !_retryBusy
             && (Selected?.DownloadTargetPath != null && CheckTargetsAsync != null
                 || Selected?.Target is DiagnosticTarget target && _retry != null && _canRetry?.Invoke(target) == true);
+        RefreshDiagnosticBatchControls();
         RenderDiagnosticActionFeedback();
     }
     private int BeginDiagnosticAction()

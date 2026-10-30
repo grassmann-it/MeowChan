@@ -237,7 +237,13 @@ public sealed class OfficialSourceTests
             Assert.Empty(SdkValidation.ValidateCatalogResult(catalogRequest, catalog, plugin.Describe().Sources.Single()));
             IThread[] legacyCatalog = (await provider.GetBoard(new Uri(eightKun ? "https://8kun.top/g/" : "https://boards.4chan.org/g/")).GetThreadsAsync()).ToArray();
             Assert.Equal(legacyCatalog.Select(item => item.ThreadUri), catalog.Snapshot.Threads.Select(item => item.Url));
-            Assert.Equal(legacyCatalog.Select(item => item.Title), catalog.Snapshot.Threads.Select(item => string.IsNullOrWhiteSpace(item.Title) ? $"Thread {item.Id.ThreadId}" : item.Title));
+            // SDK metadata stays absent; display fallback belongs to the host, not the provider.
+            SourceThreadReference untitled = Assert.Single(catalog.Snapshot.Threads, item => item.Id.ThreadId == "124");
+            Assert.Null(untitled.Title);
+            Assert.Null(untitled.OpeningText);
+            Assert.Equal($"{request.Thread.SourceId} /g/ 124", Assert.Single(legacyCatalog, item => item.ThreadId == "124").Title);
+            Assert.Equal(legacyCatalog.Select(item => item.Title), catalog.Snapshot.Threads.Select(item => string.IsNullOrWhiteSpace(item.Title)
+                ? $"{item.Id.SourceId} /{item.Id.BoardId}/ {item.Id.ThreadId}" : item.Title));
             Assert.True(catalog.Snapshot.IsComplete);
             Assert.Equal(3, catalog.Snapshot.Threads.Count);
         }

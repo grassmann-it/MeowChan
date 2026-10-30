@@ -107,6 +107,34 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,14,0,0" />
+                    <TextBlock Text="{Binding GalleryPlaybackProfileHelp}" Classes="muted workspace-help" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryPlaybackModeFieldLabel" Text="{Binding GalleryPlaybackModeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <ComboBox x:Name="GalleryPlaybackModeInput" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  ItemsSource="{Binding GalleryPlaybackModeChoices}" SelectedItem="{Binding SelectedGalleryPlaybackMode, Mode=TwoWay}"
+                                  AutomationProperties.LabeledBy="{Binding ElementName=GalleryPlaybackModeFieldLabel}" AutomationProperties.Name="{Binding GalleryPlaybackModeLabel}" AutomationProperties.HelpText="{Binding GalleryPlaybackModeHelp}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryPlaybackModeHelp}" Classes="muted workspace-help" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshow}">
+                        <TextBlock x:Name="GallerySlideshowSecondsFieldLabel" Text="{Binding GallerySlideshowSecondsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GallerySlideshowSecondsInput" Value="{Binding GallerySlideshowSeconds, Mode=TwoWay}" Minimum="1" Maximum="300" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GallerySlideshowSecondsFieldLabel}" AutomationProperties.Name="{Binding GallerySlideshowSecondsLabel}" AutomationProperties.HelpText="{Binding GallerySlideshowSecondsHelp}" />
+                            <TextBlock Text="{Binding GallerySlideshowSecondsHelp}" Classes="muted workspace-help" />
+                            <TextBlock x:Name="GallerySlideshowSecondsInputError" IsVisible="False" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <StackPanel Spacing="8">
+                        <CheckBox x:Name="GalleryOverlayControlsInput" IsChecked="{Binding GalleryOverlayControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayControlsLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayControlsLabel}" TextWrapping="Wrap" /></CheckBox>
+                        <!-- Compatibility binding only: overlay and auto-hide are one visible choice. -->
+                        <CheckBox x:Name="GalleryAutoHideControlsInput" IsVisible="False" IsTabStop="False" IsChecked="{Binding GalleryAutoHideControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryAutoHideControlsLabel}" />
+                        <CheckBox x:Name="GalleryOverlayPostContextInput" IsChecked="{Binding GalleryOverlayPostContext, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayPostContextLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayPostContextLabel}" TextWrapping="Wrap" /></CheckBox>
+                        <TextBlock Text="{Binding GalleryOverlayHelp}" Classes="muted workspace-help" />
+                    </StackPanel>
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
@@ -127,6 +155,12 @@
                             <Button x:Name="BrowseButton" Grid.Column="1" Click="OnBrowseButtonClick" />
                         </Grid>
                         <TextBlock Text="{Binding PathHint}" Classes="muted workspace-help" />
+                        <TextBlock x:Name="NormalizedDestinationPreview" Text="{Binding NormalizedDestination}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DestinationScopeHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DestinationPolicyHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <Button x:Name="CheckDestinationButton" Content="{Binding CheckDestinationLabel}" AutomationProperties.Name="{Binding CheckDestinationLabel}" Click="OnCheckDestinationClick" HorizontalAlignment="Left" />
+                        <TextBlock x:Name="DestinationCheckStatus" Text="{Binding DestinationStatusText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock Text="{Binding DestinationCleanupWarning}" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         <TextBlock x:Name="DownloadPathInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                     </StackPanel>
                     <Border Classes="settings-divider">
@@ -241,6 +275,7 @@
         <Border Grid.Row="2" Classes="workspace-dialog-footer">
             <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6" HorizontalAlignment="Center" MaxWidth="1088">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="CancelDestinationCheckButton" Content="{Binding CancelDestinationCheckLabel}" Click="OnCancelDestinationCheckClick" IsVisible="{Binding IsCheckingDestination}" />
                     <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                     <TextBlock Text="{Binding BusyStatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>

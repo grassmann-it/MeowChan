@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased — gallery playback and session feedback
+
+- Animate GIFs through bounded verified frame decoding, preserving encoded loops,
+  transparency/disposal, pause/resume, zoom and safe retirement on media changes.
+  Reader posters open the actual associated gallery animation; no audio is invented.
+
+- Keep the selected repeat mode and media-focus/layout choices across gallery
+  openings and application restarts. Existing profiles retain the docked layout.
+- Add Manual, Repeat and mixed image/video Slideshow modes. Slideshow is started
+  explicitly; images use a configurable display period and videos advance after
+  their actual end. Pausing, reading context or losing interaction stops progress.
+- Reveal transport at the bottom edge and post context at the right edge, without
+  reopening controls for movements in the middle of the image. Pointer focus on
+  slideshow Start no longer pins controls; keyboard focus, gestures and menus stay protected.
+  Hover changes no saved preference. Keep opaque text and a native docked fallback.
+- Pair controls overlay and auto-hide in one option. Replace permanent boxed edge
+  indicators with subtle borderless chevrons shown briefly on mouse motion.
+  Hidden controls no longer consume the first navigation shortcut.
+- Honor autoplay for the first/manual video even with saved Slideshow mode,
+  without starting automatic next. Preserve native play/pause intent across
+  seeking, volume changes and panel interaction.
+- Resume timeline tracking after seek even with pointer hover or keyboard focus;
+  route effective media navigation after timeline/volume input, use gallery Up/Down
+  for available video volume, and disable timeline keyboard seeks without changing pointer seek.
+- Keep the narrow thread reader full-height: its navigation cross overlays the
+  posts instead of reserving a bottom strip. Scrollable last-post clearance keeps
+  the final content readable; the scrollbar and pagination remain unobstructed.
+- Preserve newer gallery volume changes when saving an unrelated Settings draft.
+- Restore known thread titles from local metadata, including media-only watches;
+  use a cleaned opening-post excerpt only when no real title exists.
+- Make central banners and notification toasts explicitly dismissible. Dismissal
+  suppresses matching repeats for the session without removing diagnostic history;
+  passive toast expiry is not acknowledgement.
+- Record clearer plugin-startup failure phases while retaining explicit activation
+  choices. The historical Windows/Leftypol incident has not been reproduced.
+
+These changes are not part of the published 1.0.1 assets. Native Windows/macOS
+interaction, physical audio output and a new release remain separately unverified.
+
 ## 1.0.1 — 2026-10-26
 
 - Keep UI queries independent of slow download commits through background state

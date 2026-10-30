@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using MeowChan.Models;
+using MeowChan.Desktop;
 using MeowChan.Persistence;
 using Serilog;
 
@@ -53,14 +54,26 @@ namespace MeowChan
         }
     }
 
+    internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
+
     public class Config : IJsonOnDeserialized
     {
         private string? _profileDirectory;
+        private ProfileLease? _writeLease;
+        [JsonIgnore] internal ProfileOrigin Origin { get; private set; }
+        [JsonIgnore] internal bool AllowsOrdinaryWrites => Origin is ProfileOrigin.Unbound or ProfileOrigin.ConfirmedNew or ProfileOrigin.ExistingValid;
+        internal void EnsureOrdinaryWritesAllowed()
+        {
+            if (!AllowsOrdinaryWrites) throw new InvalidOperationException($"Settings recovery requires an explicit recovery decision ({Origin}); existing files were preserved.");
+        }
         private string _relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
+        [JsonIgnore] internal string DownloadPathBaseDirectory => _relativePathBaseDirectory;
         private string _theme = "Dark";
         private string _language = "en";
         private string _workspaceMode = "Barebones";
         private int _videoVolume = 70;
+        private string _galleryPlaybackMode = "Manual";
+        private int _gallerySlideshowSeconds = 5;
         private double _windowWidth = 1380;
         private double _windowHeight = 850;
         private double? _windowPositionX;
@@ -71,6 +84,8 @@ namespace MeowChan
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
+        public bool FirstRunSetupPending { get; set; }
+        public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
         public int RecheckTimer { get; set; } = 60;
@@ -148,6 +163,8 @@ namespace MeowChan
 
         void IJsonOnDeserialized.OnDeserialized()
         {
+            // Couple only after all legacy keys have been read, independent of JSON order.
+            NormalizeGalleryControls();
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
             if (_deserializedLayoutProfiles == null) return;
@@ -192,6 +209,10 @@ namespace MeowChan
         internal string? SettingsBaselineWorkspaceMode { get; set; }
         [JsonIgnore]
         internal Dictionary<string, PresentationProfile>? SettingsBaselineProfiles { get; set; }
+        [JsonIgnore]
+        internal int? SettingsBaselineVideoVolume { get; set; }
+        [JsonIgnore]
+        internal GalleryPlaybackPreferences? SettingsBaselineGalleryPlayback { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -217,6 +238,26 @@ namespace MeowChan
         public bool VideoStartMuted { get; set; }
         [JsonConverter(typeof(DesktopPreferenceVolumeConverter))]
         public int VideoVolume { get => _videoVolume; set => _videoVolume = Math.Clamp(value, 0, 100); }
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryPlaybackMode
+        {
+            get => _galleryPlaybackMode;
+            set => _galleryPlaybackMode = string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase) ? "Repeat"
+                : string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+        }
+        [JsonConverter(typeof(DesktopPreferenceSlideshowSecondsConverter))]
+        public int GallerySlideshowSeconds { get => _gallerySlideshowSeconds; set => _gallerySlideshowSeconds = Math.Clamp(value, 1, 300); }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryMediaFocus { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryOverlayControls { get; set; }
+        // Keep both serialized keys for older profiles; explicit actions use
+        // GalleryPlaybackPreferences.WithControlsOverlay rather than coupled setters.
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryAutoHideControls { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryOverlayPostContext { get; set; }
+
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowShortcutHelp { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -339,20 +380,31 @@ namespace MeowChan
         public static Config LoadConfig() => LoadConfig(GetConfigDirectory());
 
         /// <summary>Loads an isolated profile. Loading never changes existing files.</summary>
-        public static Config LoadConfig(string profileDirectory)
+        public static Config LoadConfig(string profileDirectory) => LoadConfigCore(profileDirectory, null);
+
+        internal static Config LoadConfig(string profileDirectory, ProfileLease lease)
+        {
+            lease.EnsureMatches(profileDirectory);
+            Config config = LoadConfigCore(profileDirectory, lease.WasEmptyAtAcquisition);
+            config._writeLease = lease;
+            return config;
+        }
+
+        private static Config LoadConfigCore(string profileDirectory, bool? confirmedNew)
         {
             string directory = ResolveProfileDirectory(profileDirectory);
             string filePath = Path.Combine(directory, "settings.json");
             string relativePathBaseDirectory = Path.GetFullPath(Environment.CurrentDirectory);
             LoadStatus status = TryRead(filePath, relativePathBaseDirectory, out Config? config, out string? error);
             if (status == LoadStatus.Valid)
-                return BindProfile(config!, directory, relativePathBaseDirectory);
+                return BindProfile(config!, directory, relativePathBaseDirectory, ProfileOrigin.ExistingValid);
 
             string backupPath = filePath + ".bak";
             LoadStatus backupStatus = TryRead(backupPath, relativePathBaseDirectory, out Config? backup, out string? backupError);
             if (backupStatus == LoadStatus.Valid)
             {
-                Config recovered = BindProfile(backup!, directory, relativePathBaseDirectory);
+                Config recovered = BindProfile(backup!, directory, relativePathBaseDirectory,
+                    status == LoadStatus.Unsupported ? ProfileOrigin.Unsupported : ProfileOrigin.BackupRecovery);
                 // A backup can predate an explicit revoke. Recovery restores settings, but
                 // source exceptions require fresh consent rather than reviving an old grant.
                 bool disabledSourceGrants = recovered.SourceMediaIntegrityPermissions.Values
@@ -370,7 +422,10 @@ namespace MeowChan
                 return recovered;
             }
 
-            Config defaults = BindProfile(new Config(), directory, relativePathBaseDirectory);
+            ProfileOrigin origin = status == LoadStatus.Unsupported || backupStatus == LoadStatus.Unsupported ? ProfileOrigin.Unsupported
+                : status != LoadStatus.Missing || backupStatus != LoadStatus.Missing ? ProfileOrigin.Damaged
+                : (confirmedNew ?? IsEmptyProfile(directory)) ? ProfileOrigin.ConfirmedNew : ProfileOrigin.ExistingMissingSettings;
+            Config defaults = BindProfile(new Config(), directory, relativePathBaseDirectory, origin);
             if (IsLegacyProfileWithoutSettings(directory))
                 defaults.DownloadPath = GetDefaultDownloadPath("oChan");
             if (status != LoadStatus.Missing || backupStatus != LoadStatus.Missing)
@@ -384,8 +439,15 @@ namespace MeowChan
             return defaults;
         }
 
+        private void NormalizeGalleryControls()
+        {
+            GalleryAutoHideControls = GalleryOverlayControls;
+            SettingsBaselineGalleryPlayback = SettingsBaselineGalleryPlayback?.Normalize();
+        }
+
         public void Validate()
         {
+            NormalizeGalleryControls();
             if (SourceMediaIntegrityPermissions == null || SourceMediaIntegrityPermissions.Count > 1024)
                 throw new InvalidDataException("Saved source media permissions are invalid.");
             foreach ((string key, SourceMediaIntegrityPermission permission) in SourceMediaIntegrityPermissions)
@@ -398,6 +460,8 @@ namespace MeowChan
                 if (!string.Equals(key, expectedKey, StringComparison.Ordinal))
                     throw new InvalidDataException("Saved source media permission identity is invalid.");
             }
+            if (FirstRunSetupVersion is < 0 or > 1 || FirstRunSetupPending && FirstRunSetupVersion != 0)
+                throw new InvalidDataException("Unsupported or inconsistent first-run setup state.");
             if (SchemaVersion != 1)
                 throw new InvalidDataException($"Unsupported settings schema version: {SchemaVersion}.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
@@ -423,7 +487,9 @@ namespace MeowChan
             if (string.IsNullOrWhiteSpace(DownloadPath))
                 throw new ArgumentException("A download directory is required.", nameof(DownloadPath));
 
-            _ = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
+            try { _ = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory); }
+            catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
+            { throw new ArgumentException("The download directory path is invalid.", nameof(DownloadPath), error); }
             if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
                 throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
@@ -447,6 +513,7 @@ namespace MeowChan
             return new Config
             {
                 SchemaVersion = SchemaVersion,
+                FirstRunSetupPending = FirstRunSetupPending, FirstRunSetupVersion = FirstRunSetupVersion,
                 SourceMediaIntegrityPermissions = SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal),
                 DownloadPath = DownloadPath,
                 RecheckTimer = RecheckTimer,
@@ -479,6 +546,10 @@ namespace MeowChan
                 SettingsBaselineCompactDensity = CompactDensity,
                 SettingsBaselineReadingFontSize = ReadingFontSize,
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
+                SettingsBaselineVideoVolume = VideoVolume,
+                // A fresh draft captures the current normalized state. Session admission
+                // restores the editor's original baseline after freezing via Clone().
+                SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
                 SettingsBaselineProfiles = new[] { "Barebones", "Simple", "Advanced" }
                     .ToDictionary(mode => mode, mode => GetLayoutProfile(mode).Clone(), StringComparer.Ordinal),
                 ArchiveMediaTiles = ArchiveMediaTiles,
@@ -487,6 +558,12 @@ namespace MeowChan
                 VideoAutoplay = VideoAutoplay,
                 VideoStartMuted = VideoStartMuted,
                 VideoVolume = VideoVolume,
+                GalleryPlaybackMode = GalleryPlaybackMode,
+                GallerySlideshowSeconds = GallerySlideshowSeconds,
+                GalleryMediaFocus = GalleryMediaFocus,
+                GalleryOverlayControls = GalleryOverlayControls,
+                GalleryAutoHideControls = GalleryOverlayControls,
+                GalleryOverlayPostContext = GalleryOverlayPostContext,
                 ShowShortcutHelp = ShowShortcutHelp,
                 GalleryContextOpen = GalleryContextOpen,
                 ArchiveSplitWidth = ArchiveSplitWidth,
@@ -500,7 +577,9 @@ namespace MeowChan
                 LastExportDirectory = LastExportDirectory,
                 LoadWarning = LoadWarning,
                 _profileDirectory = _profileDirectory,
-                _relativePathBaseDirectory = _relativePathBaseDirectory
+                _writeLease = _writeLease,
+                _relativePathBaseDirectory = _relativePathBaseDirectory,
+                Origin = Origin
             };
         }
 
@@ -509,9 +588,15 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(source);
             source.Validate();
+            // A value copy cannot turn a recovered/indeterminate profile into an ordinary writer.
+            if (!source.AllowsOrdinaryWrites) Origin = source.Origin;
+            else if (AllowsOrdinaryWrites && source.Origin == ProfileOrigin.ExistingValid && _profileDirectory != null
+                && string.Equals(_profileDirectory, source._profileDirectory, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                Origin = ProfileOrigin.ExistingValid;
             string absoluteDownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
 
             SchemaVersion = source.SchemaVersion;
+            FirstRunSetupPending = source.FirstRunSetupPending; FirstRunSetupVersion = source.FirstRunSetupVersion;
             // Consent is portable within this profile's clones, never across profile-bound instances.
             if (string.Equals(_profileDirectory, source._profileDirectory,
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
@@ -548,6 +633,7 @@ namespace MeowChan
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
             VideoVolume = source.VideoVolume;
+            GalleryPlaybackPreferences.FromConfig(source).ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
             GalleryContextOpen = source.GalleryContextOpen;
             ArchiveSplitWidth = source.ArchiveSplitWidth;
@@ -607,7 +693,15 @@ namespace MeowChan
             WorkspaceMode = source.WorkspaceMode;
             VideoAutoplay = source.VideoAutoplay;
             VideoStartMuted = source.VideoStartMuted;
-            VideoVolume = source.VideoVolume;
+            // Gallery volume is also a direct preference. An unchanged settings
+            // draft must not roll back a newer gallery adjustment.
+            if (!source.SettingsBaselineVideoVolume.HasValue || source.VideoVolume != source.SettingsBaselineVideoVolume.Value)
+                VideoVolume = source.VideoVolume;
+            GalleryPlaybackPreferences galleryDraft = GalleryPlaybackPreferences.FromConfig(source);
+            if (source.SettingsBaselineGalleryPlayback is { } galleryBaseline)
+                galleryDraft.ApplyChangesTo(this, galleryBaseline);
+            else
+                galleryDraft.ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
         }
 
@@ -619,20 +713,39 @@ namespace MeowChan
         /// <summary>Atomically saves settings; validation and write errors reach the caller.</summary>
         public void SaveConfig(string profileDirectory)
         {
+            if (_writeLease != null) _writeLease.RunExclusive(() => { SaveConfigCore(profileDirectory); return true; });
+            else SaveConfigCore(profileDirectory);
+        }
+
+        private void SaveConfigCore(string profileDirectory)
+        {
+            EnsureOrdinaryWritesAllowed();
             Validate();
             string directory = ResolveProfileDirectory(profileDirectory);
+            _writeLease?.EnsureMatches(directory);
+            bool sameProfile = string.Equals(directory, _profileDirectory,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
             string filePath = Path.Combine(directory, "settings.json");
             DownloadPath = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
+            if (Origin == ProfileOrigin.ConfirmedNew && FirstRunSetupVersion == 0) FirstRunSetupPending = true;
             string json = JsonSerializer.Serialize(this, ConfigJsonContext.Default.Config);
 
             LoadStatus currentStatus = TryRead(filePath, _relativePathBaseDirectory, out _, out _);
             string backupPath = filePath + ".bak";
             LoadStatus backupStatus = TryRead(backupPath, _relativePathBaseDirectory, out _, out _);
+            // Recheck destination too: a freshly constructed Config is not a recovery bypass.
+            if (currentStatus is LoadStatus.Invalid or LoadStatus.Unsupported || backupStatus == LoadStatus.Unsupported
+                || currentStatus == LoadStatus.Missing && backupStatus != LoadStatus.Missing
+                    && !(sameProfile && Origin == ProfileOrigin.ExistingValid && backupStatus == LoadStatus.Valid)
+                || currentStatus == LoadStatus.Missing && !IsEmptyProfile(directory)
+                    && !(sameProfile && (Origin == ProfileOrigin.ExistingValid || Origin == ProfileOrigin.ConfirmedNew && _writeLease != null)))
+                throw new InvalidOperationException("Settings destination requires an explicit recovery decision; existing files were preserved.");
             if (currentStatus == LoadStatus.Valid && backupStatus == LoadStatus.Invalid)
                 AtomicJsonFile.PreserveFile(backupPath);
 
             AtomicJsonFile.WriteAllText(filePath, json, backupCurrentFile: currentStatus == LoadStatus.Valid);
             _profileDirectory = directory;
+            Origin = ProfileOrigin.ExistingValid;
             LoadWarning = null;
             Log.Information("Configuration saved to {ConfigFilePath}", filePath);
         }
@@ -647,8 +760,9 @@ namespace MeowChan
             Log.Information("Parallel downloads: {MaxParallelDownloads}", MaxParallelDownloads);
         }
 
-        private static Config BindProfile(Config config, string directory, string relativePathBaseDirectory)
+        private static Config BindProfile(Config config, string directory, string relativePathBaseDirectory, ProfileOrigin origin)
         {
+            config.Origin = origin;
             config._profileDirectory = directory;
             config._relativePathBaseDirectory = relativePathBaseDirectory;
             return config;
@@ -658,6 +772,12 @@ namespace MeowChan
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
             return Path.GetFullPath(profileDirectory);
+        }
+
+        private static bool IsEmptyProfile(string directory)
+        {
+            try { return !Directory.EnumerateFileSystemEntries(directory).Any(); }
+            catch (DirectoryNotFoundException) { return true; }
         }
 
         private static bool IsLegacyProfileWithoutSettings(string directory)
@@ -749,6 +869,8 @@ namespace MeowChan
                 }
 
                 config._relativePathBaseDirectory = relativePathBaseDirectory;
+                if (config.SchemaVersion != 1)
+                { error = $"Unsupported settings schema version: {config.SchemaVersion}."; config = null; return LoadStatus.Unsupported; }
                 config.Validate();
                 // Existing relative settings keep the location used by the old application.
                 // Resolve once on load so later working-directory changes cannot move jobs.
@@ -763,7 +885,7 @@ namespace MeowChan
             }
         }
 
-        private enum LoadStatus { Missing, Valid, Invalid }
+        private enum LoadStatus { Missing, Valid, Invalid, Unsupported }
     }
 
     // Invalid presentation preferences must not discard valid download/session settings.
@@ -823,6 +945,19 @@ namespace MeowChan
                 return Math.Clamp(value, 0, 100);
             reader.Skip();
             return 70;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowSecondsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, 1, 300);
+            reader.Skip();
+            return 5;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

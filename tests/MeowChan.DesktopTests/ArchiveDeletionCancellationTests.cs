@@ -16,6 +16,7 @@ public sealed class ArchiveDeletionCancellationTests
     public async Task CancellationAfterConfirmedDeleteReturnsActualIdsAndCleansOnlyThoseIds(int threadCount)
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         ResourceId[] ids = Enumerable.Range(0, threadCount).Select(index => new ResourceId("4chan", "g", (900 + index).ToString())).ToArray();
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))
@@ -79,6 +80,7 @@ public sealed class ArchiveDeletionCancellationTests
     public async Task CancellationBeforeFirstCommitKeepsCatalogRatingsAndFavorites()
     {
         using TempDirectory temp = new();
+        new Config().SaveConfig(temp.Path); // Establish valid settings before any other profile evidence.
         ResourceId id = new("4chan", "g", "999");
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
         await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))

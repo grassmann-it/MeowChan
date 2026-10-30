@@ -116,51 +116,39 @@ public sealed class ConfigSourceMediaIntegrityTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RecoveredConsentCanBeSavedSafelyAndExplicitlyGrantedWithRevisionChecks(bool missingPrimary)
+    public async Task RecoveredConsentCannotBypassRecoveryDecisionThroughOrdinarySaveOrGrant(bool missingPrimary)
     {
         using TempDirectory directory = new();
         await CreateRevokedConfigWithGrantedBackup(directory.Path);
         string path = Path.Combine(directory.Path, "settings.json");
-        byte[] backup = File.ReadAllBytes(path + ".bak");
         DamagePrimary(path, missingPrimary);
+        Dictionary<string, byte[]> before = SnapshotFiles(directory.Path);
         Config recovered = Config.LoadConfig(directory.Path);
-        long recoveredRevision = recovered.SourceMediaIntegrityPermissions[PermissionKey].Revision;
+        SourceMediaIntegrityPermission permission = recovered.SourceMediaIntegrityPermissions[PermissionKey];
+        Assert.False(permission.AllowProviderSizeMd5Mismatch);
+        Assert.Throws<InvalidOperationException>(() => recovered.SaveConfig());
+        Assert.NotNull(recovered.LoadWarning);
+        AssertFilesUnchanged(directory.Path, before);
 
-        recovered.SaveConfig();
-
-        Assert.Null(recovered.LoadWarning);
-        Config saved = Config.LoadConfig(directory.Path);
-        Assert.Null(saved.LoadWarning);
-        Assert.False(saved.SourceMediaIntegrityPermissions[PermissionKey].AllowProviderSizeMd5Mismatch);
-        Assert.Equal(recoveredRevision, saved.SourceMediaIntegrityPermissions[PermissionKey].Revision);
-        Assert.Equal(backup, File.ReadAllBytes(path + ".bak"));
-        if (!missingPrimary)
-        {
-            string preserved = Assert.Single(Directory.GetFiles(directory.Path, "settings.json.corrupt-*"));
-            Assert.Equal(DamagedPrimary, File.ReadAllText(preserved));
-        }
-        SourceMediaIntegrityPolicyService policy = CreatePolicy(saved, directory.Path);
+        SourceMediaIntegrityPolicyService policy = CreatePolicy(recovered, directory.Path);
         policy.SetActive(true);
         long activeRevision = policy.GetSnapshot().Revision;
-        Assert.Equal(recoveredRevision + 1, activeRevision);
-        await Assert.ThrowsAsync<InvalidDataException>(() => policy.SetPermissionAsync(true, recoveredRevision,
+        Assert.Equal(permission.Revision + 1, activeRevision);
+        await Assert.ThrowsAsync<InvalidDataException>(() => policy.SetPermissionAsync(true, permission.Revision,
             _ => Assert.Fail("Stale recovery revision was persisted")));
-        await policy.SetPermissionAsync(true, activeRevision, value => Persist(saved, value));
-        Assert.Equal(activeRevision + 1, policy.GetSnapshot().Revision);
-        Assert.True(policy.GetSnapshot().AllowProviderSizeMd5Mismatch);
-        Assert.Equal(policy.GetSnapshot().Revision, saved.SourceMediaIntegrityPermissions[PermissionKey].Revision);
-        await Assert.ThrowsAsync<InvalidDataException>(() => policy.SetPermissionAsync(false, activeRevision,
-            _ => Assert.Fail("Stale pre-grant revision was persisted")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => policy.SetPermissionAsync(true, activeRevision,
+            value => Persist(recovered, value)));
+        Assert.Equal(activeRevision, policy.GetSnapshot().Revision);
+        Assert.False(policy.GetSnapshot().AllowProviderSizeMd5Mismatch);
+        Assert.Equal(permission, recovered.SourceMediaIntegrityPermissions[PermissionKey]);
         await Assert.ThrowsAsync<InvalidDataException>(() => policy.AcquireAcceptanceLeaseAsync(activeRevision, default).AsTask());
-
         Config reloaded = Config.LoadConfig(directory.Path);
-        Assert.Null(reloaded.LoadWarning);
-        Assert.Equal(saved.SourceMediaIntegrityPermissions[PermissionKey], reloaded.SourceMediaIntegrityPermissions[PermissionKey]);
+        Assert.NotNull(reloaded.LoadWarning);
+        Assert.False(reloaded.SourceMediaIntegrityPermissions[PermissionKey].AllowProviderSizeMd5Mismatch);
         SourceMediaIntegrityPolicyService restarted = CreatePolicy(reloaded, directory.Path);
         restarted.SetActive(true);
-        Assert.True(restarted.GetSnapshot().AllowProviderSizeMd5Mismatch);
-        Assert.Equal(policy.GetSnapshot().Revision + 1, restarted.GetSnapshot().Revision);
-        await using var lease = await restarted.AcquireAcceptanceLeaseAsync(restarted.GetSnapshot().Revision, default);
+        Assert.False(restarted.GetSnapshot().AllowProviderSizeMd5Mismatch);
+        AssertFilesUnchanged(directory.Path, before);
     }
 
     private static readonly string PermissionKey = SourceMediaIntegrityPermission.CreateKey("owner", "source");

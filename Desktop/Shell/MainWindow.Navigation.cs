@@ -49,6 +49,10 @@ public partial class MainWindow
             if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
             await Clipboard.SetTextAsync(text);
         }, _session.RequestCheckAsync, _session.CanRequestCheck);
+        _diagnosticsPage.RetryMediaAsync = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
+            ? _session.RetryMissingMediaAsync(target.WatchId) : System.Threading.Tasks.Task.FromResult(0);
+        _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
+            && _session.CanRetryMissingMedia(target.WatchId);
         _diagnosticsPage.AttachFeedback(_feedback);
         _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         this.FindControl<ContentControl>("DiagnosticsPageHost")!.Content = _diagnosticsPage;

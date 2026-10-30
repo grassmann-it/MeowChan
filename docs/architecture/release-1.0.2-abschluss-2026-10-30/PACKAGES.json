@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-30",
+  "planning_only": true,
+  "target_version": "1.0.2",
+  "new_channels_excluded": true,
+  "packages": [
+    {
+      "id": "C102-00",
+      "title": "Restumfang und exakte Ausgangsquelle festzurren",
+      "owner": "R0",
+      "dependencies": [],
+      "path": "packages/C102-00.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-01",
+      "title": "Start setzt aktive Threads fort; Deferred und Mehrfach-Check korrigieren",
+      "owner": "A1 + S1",
+      "dependencies": [
+        "C102-00"
+      ],
+      "path": "packages/C102-01.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-02",
+      "title": "Altprofile und Plugin-Upgradepfade wirklich benutzbar schließen",
+      "owner": "A1 + S4",
+      "dependencies": [
+        "C102-00"
+      ],
+      "path": "packages/C102-02.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-03",
+      "title": "25-Thread-Last, 60s-Budget und Parallelitäts-Hardening",
+      "owner": "A1 + S6",
+      "dependencies": [
+        "C102-01"
+      ],
+      "path": "packages/C102-03.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-04",
+      "title": "Faire Erst-Erfassung und mehrere gemeinsam priorisierte Threads",
+      "owner": "S1 + A1",
+      "dependencies": [
+        "C102-03"
+      ],
+      "path": "packages/C102-04.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-05",
+      "title": "Bestehende Media-/GIF-/Readerblocker schließen",
+      "owner": "S2 + S3",
+      "dependencies": [
+        "C102-00"
+      ],
+      "path": "packages/C102-05.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-06",
+      "title": "Integrierte Start-/Upgrade-/Batch-Abnahme",
+      "owner": "S6 + A2",
+      "dependencies": [
+        "C102-01",
+        "C102-02",
+        "C102-04",
+        "C102-05"
+      ],
+      "path": "packages/C102-06.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-07",
+      "title": "1.0.2-Version, Lockgraph und nativer Kandidat",
+      "owner": "R0 + S6",
+      "dependencies": [
+        "C102-06"
+      ],
+      "path": "packages/C102-07.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-08",
+      "title": "Testbarer Releasekandidat und gezielte Benutzerabnahme",
+      "owner": "S6 + R0",
+      "dependencies": [
+        "C102-07"
+      ],
+      "path": "packages/C102-08.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    },
+    {
+      "id": "C102-09",
+      "title": "Reguläres v1.0.2 veröffentlichen und anonym verifizieren",
+      "owner": "R0 + A2",
+      "dependencies": [
+        "C102-08"
+      ],
+      "path": "packages/C102-09.md",
+      "status": "PLANNED",
+      "source": "currentWIP+userfeedback, not a prior release candidate"
+    }
+  ]
+}

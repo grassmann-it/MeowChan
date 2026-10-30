@@ -95,6 +95,33 @@ public sealed class DesktopSessionHostTests
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
     }
 
+    [Theory]
+    [InlineData(null, 29)]
+    [InlineData(47, 47)]
+    [InlineData(0, 0)]
+    public async Task SettingsDraftMergesNewerGalleryVolumeUnlessVolumeWasEdited(int? editedVolume, int expectedVolume)
+    {
+        using TempDirectory directory = new();
+        new Config { VideoVolume = 70 }.SaveConfig(directory.Path);
+        DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>(), (_, _) => new ControlledStore());
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            Config draft = host.Config.Clone();
+            draft.RecheckTimer = 120;
+            if (editedVolume.HasValue) draft.VideoVolume = editedVolume.Value;
+            await host.SaveViewPreferencesAsync(current => current.VideoVolume = 29).WaitAsync(Timeout);
+
+            await host.ApplySettingsAsync(draft).WaitAsync(Timeout);
+
+            Assert.Equal(expectedVolume, host.Config.VideoVolume);
+            Config saved = Config.LoadConfig(directory.Path);
+            Assert.Equal(expectedVolume, saved.VideoVolume);
+            Assert.Equal(120, saved.RecheckTimer);
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
     [Fact]
     public async Task ManualCheckUsesExactWatchLifetimeAndRespectsPause()
     {
@@ -224,6 +251,7 @@ public sealed class DesktopSessionHostTests
         try
         {
             await host.StartAsync().WaitAsync(Timeout);
+            File.Delete(Path.Combine(directory.Path, "settings.json"));
             Directory.CreateDirectory(Path.Combine(directory.Path, "settings.json"));
             await Assert.ThrowsAnyAsync<Exception>(() => host.SetPausedAsync(true).WaitAsync(Timeout));
             Assert.False(host.IsPaused);
@@ -368,6 +396,7 @@ public sealed class DesktopSessionHostTests
         candidate.MaxParallelDownloads = 9;
         candidate.BandwidthLimiter = 3 * 1024 * 1024;
         string settingsPath = Path.Combine(directory.Path, "settings.json");
+        File.Delete(settingsPath);
         Directory.CreateDirectory(settingsPath);
 
         await Assert.ThrowsAnyAsync<Exception>(() => host.ApplySettingsAsync(candidate).WaitAsync(Timeout));

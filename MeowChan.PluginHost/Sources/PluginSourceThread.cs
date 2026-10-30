@@ -22,7 +22,12 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     public override Uri ThreadUri { get; } = canonical;
     public override string NiceName => $"{Title} ({ThreadId})";
     public override bool SupportsContent => true;
-    public string CatalogOpeningText { get; set; } = string.Empty;
+    private string _catalogOpeningText = string.Empty;
+    public string CatalogOpeningText
+    {
+        get => _catalogOpeningText;
+        set { _catalogOpeningText = value; SetOpeningTitle(value); }
+    }
     protected override TimeSpan MinimumRecheckInterval => TimeSpan.FromSeconds(10);
 
     public override async Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
@@ -150,7 +155,8 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             };
         }
         token.ThrowIfCancellationRequested();
-        string title = snapshot.Title ?? Title;
+        // Captures carry raw source metadata, never an OP/identity display fallback.
+        string title = string.IsNullOrWhiteSpace(snapshot.Title) ? SourceTitle : snapshot.Title;
         ThreadSourceState state = snapshot.SourceState == SourceThreadState.Archived ? ThreadSourceState.Archived : ThreadSourceState.Active;
         CapturedThreadSnapshot capture = new(resource, Url, title,
             state, DateTimeOffset.UtcNow, DownloadDirectory, posts.AsReadOnly())

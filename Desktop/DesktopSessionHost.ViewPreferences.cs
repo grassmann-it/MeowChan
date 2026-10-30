@@ -28,6 +28,18 @@ internal sealed partial class DesktopSessionHost
     private readonly Dictionary<string, Task> _finalWriteLoops = new(StringComparer.Ordinal);
     private Config? _confirmedConfig;
     private bool _finalWritesSealed;
+    // 0: startup owns readiness; 1: permitted Ready reached; 2: startup failed/was overtaken.
+    private int _finalWriteStartupState;
+
+    private void CompleteStartupFinalWrites(bool permittedReady)
+    {
+        lock (_finalWrites)
+        {
+            if (_finalWriteStartupState != 0) return;
+            _finalWriteStartupState = permittedReady ? 1 : 2;
+            foreach (string unit in _pendingFinalWrites.Keys.ToArray()) StartFinalWriteLoop(unit);
+        }
+    }
     internal (int Active, int Pending, int Failed) PreferenceWriteCounts
     { get { lock (_finalWrites) return (_activeFinalWrites.Count, _pendingFinalWrites.Count, _failedFinalWrites.Count); } }
     private static readonly HashSet<string> LegacyProfileAliases = new(StringComparer.Ordinal)
@@ -96,7 +108,7 @@ internal sealed partial class DesktopSessionHost
 
     private void StartFinalWriteLoop(string unit)
     {
-        if (!_finalWriteLoops.ContainsKey(unit))
+        if (_finalWriteStartupState != 0 && !_finalWriteLoops.ContainsKey(unit))
             _finalWriteLoops.Add(unit, Task.Run(() => RunFinalWriteLoopAsync(unit)));
     }
 

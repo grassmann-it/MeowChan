@@ -10,6 +10,7 @@ internal static class BuiltInCatalog
     // Keeping both built-ins on each line makes missing translations visible during review.
     private static readonly (string Key, string English, string German)[] Entries =
     {
+        ("help.reader.mediaActivation", "Selected post content: Enter or Space opens its first available image or video. Native controls and text selections keep their keys; explicit custom bindings take precedence.", "Ausgewählter Beitragsinhalt: Eingabe oder Leertaste öffnet das erste verfügbare Bild oder Video. Native Bedienelemente und Textauswahl behalten ihre Tasten; ausdrückliche eigene Belegungen haben Vorrang."),
         ("shell.paused", "Paused · sources and transfers stopped", "Pausiert · Quellen und Transfers angehalten"),
         ("action.pauseShort", "Pause", "Pause"),
         ("action.resumeShort", "Resume", "Fortsetzen"),
@@ -30,6 +31,13 @@ internal static class BuiltInCatalog
         ("diagnostics.hint", "Current requests, errors and the latest session warnings. This is a live snapshot, not an event history.", "Aktuelle Anfragen, Fehler und die letzten Sitzungswarnungen. Die Ansicht zeigt den jetzigen Zustand, keinen Ereignisverlauf."),
         ("diagnostics.empty", "No current requests or reported problems. Downloads continue in the background.", "Keine laufenden Anfragen oder gemeldeten Probleme. Downloads laufen im Hintergrund weiter."),
         ("diagnostics.current", "Current requests and problems", "Aktuelle Anfragen und Probleme"),
+        ("diagnostics.allSources", "All sources", "Alle Quellen"),
+        ("diagnostics.filterText", "Filter source, board, thread or message", "Quelle, Board, Thread oder Meldung filtern"),
+        ("diagnostics.onlyProblems", "Problems only", "Nur Probleme"),
+        ("diagnostics.clearFilters", "Clear filters", "Filter zurücksetzen"),
+        ("diagnostics.filterCount", "{0} / {1} entries · {2} selected · {3} selected targets", "{0} / {1} Einträge · {2} ausgewählt · {3} ausgewählte Ziele"),
+        ("diagnostics.retryScope", "Retries problems for the frozen threads/boards in this scope, not the entire session. Media retries cover missing files in those threads. Limits and pause still apply. Messages without a retry action are skipped.", "Wiederholt Probleme der beim Start erfassten Threads/Boards, nicht der gesamten Sitzung. Medienversuche gelten für fehlende Dateien dieser Threads. Limits und Pause gelten weiterhin. Meldungen ohne Wiederholungsaktion werden übersprungen."),
+        ("diagnostics.batchResult", "Scope: {0} targets · checks requested/already queued: {1}/{2} · media retries queued: {3} · skipped actions: {4} · failed: {5}. Limits and pause still apply.", "Menge: {0} Ziele · Prüfungen angefordert/bereits vorgemerkt: {1}/{2} · Medienversuche eingeplant: {3} · Aktionen übersprungen: {4} · fehlgeschlagen: {5}. Limits und Pause gelten weiterhin."),
         ("diagnostics.choose", "Select a current entry to see its context and details.", "Einen aktuellen Eintrag auswählen, um Kontext und Details zu sehen."),
         ("diagnostics.selectionGone", "The selected entry is no longer in the current snapshot. Select another entry to continue.", "Der gewählte Eintrag ist nicht mehr im aktuellen Stand enthalten. Zum Fortfahren einen anderen Eintrag auswählen."),
         ("diagnostics.session", "Session", "Sitzung"),

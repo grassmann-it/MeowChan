@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -18,6 +19,14 @@ public partial class MainWindow
 {
     private GalleryViewer? _gallery;
     private Task _galleryCleanupTask = Task.CompletedTask;
+    // Only actual stop/detach drains own native input/drawable lifetime; preference failures do not.
+    private Task _galleryNativeCleanupTask = Task.CompletedTask;
+    private void TrackNativeGalleryCleanup(Task task)
+    {
+        _galleryNativeCleanupTask = _galleryNativeCleanupTask.IsCompletedSuccessfully
+            ? task : Task.WhenAll(_galleryNativeCleanupTask, task);
+        TrackGalleryCleanup(task);
+    }
     internal Task GalleryCleanupTask => _galleryCleanupTask;
     private void TrackGalleryCleanup(Task task) => _galleryCleanupTask = _galleryCleanupTask.IsCompletedSuccessfully
         ? task : Task.WhenAll(_galleryCleanupTask, task);
@@ -49,7 +58,9 @@ public partial class MainWindow
 
     internal async Task OpenGalleryAsync(ResourceId id, GalleryEntryKey? start = null, Control? origin = null)
     {
-        if (_gallerySuspended && _largeReaderOpen && start != null)
+        Func<bool>? readerRequest = _archivePage?.ReaderMediaActivationGuard;
+        if (readerRequest?.Invoke() == false) return;
+        if (readerRequest == null && _gallerySuspended && _largeReaderOpen && start != null)
         {
             int existing = _galleryEntries.FindIndex(entry => entry.EntryKey == start);
             if (existing >= 0)
@@ -62,7 +73,7 @@ public partial class MainWindow
         }
         _galleryStart = start;
         _galleryAllVersions = start != null;
-        await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin);
+        await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin, stillRequested: readerRequest);
     }
 
     internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null)
@@ -97,9 +108,9 @@ public partial class MainWindow
 
     private async Task StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
-        Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null)
+        Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null, Func<bool>? stillRequested = null)
     {
-        if (_archivePage?.IsArchiveCleanupOpen == true) return;
+        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
         WorkspacePage originPage = _selectedPage;
@@ -108,7 +119,8 @@ public partial class MainWindow
         // Keep a retiring video's native drawable attached until VLC has
         // stopped. A new viewer must not replace that host prematurely.
         await _galleryCleanupTask;
-        if (_isClosing || request != _galleryRequest || _archivePage?.IsArchiveCleanupOpen == true) return;
+        if (_isClosing || request != _galleryRequest || _archivePage?.IsArchiveCleanupOpen == true
+            || stillRequested?.Invoke() == false) return;
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
         _galleryReaderOrigin = readerOrigin;
@@ -132,13 +144,29 @@ public partial class MainWindow
         }
         _galleryCancellation = new CancellationTokenSource();
         _gallery = new GalleryViewer();
+        GalleryViewer diagnosticOwner = _gallery;
+        _gallery.DiagnosticNotice += notice =>
+        {
+            if (_isClosing || !ReferenceEquals(_gallery, diagnosticOwner)) return;
+            string context = notice.Entry is { } entry
+                ? entry.Key.Thread.Source + "/" + entry.Key.Thread.Board + "/" + entry.Key.Thread.Thread + "/" + entry.Asset.AssetId
+                : "gallery";
+            context += "@" + notice.Revision;
+            _feedback.Record(notice.Operation == "source-warning" ? FeedbackCategory.Warning : FeedbackCategory.Error,
+                "gallery." + notice.Operation, context, notice.Message, faultKey: "gallery." + notice.Operation);
+        };
         _gallery.SetPosition(string.Empty, false, false);
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
         _gallery.ShellKeyRequested += OnShellKeyDown;
-        _gallery.ContextOpenChanged += open => QueueGalleryPreference(open, null);
-        _gallery.VideoVolumeChanged += volume => QueueGalleryPreference(null, volume);
+        GalleryViewer preferenceOwner = _gallery;
+        _gallery.ContextOpenChanged += open =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(open, null); };
+        _gallery.VideoVolumeChanged += volume =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
+        _gallery.PlaybackPreferencesChanged += preferences =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
         _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
@@ -152,13 +180,17 @@ public partial class MainWindow
         ContentControl host = this.FindControl<ContentControl>("GalleryHost")!;
         host.Content = _gallery;
         host.IsVisible = true;
+        HideFeedbackForGallery();
         UpdateGalleryFullscreenPresentation();
         _gallery.Focus();
+        UpdateGalleryInteractionAvailability();
         UpdateGalleryScope();
         if (selectThreads != null)
         {
             CancellationToken token = _galleryCancellation.Token;
-            _gallery.SetNotice(Texts.T("gallery.loading"));
+            GalleryViewer resolvingViewer = _gallery;
+            int mediaGeneration = resolvingViewer.MediaRequestGeneration;
+            _gallery.SetLoadingNotice(Texts.T("gallery.loading"));
             try
             {
                 IReadOnlyList<ResourceId> selected = await Task.Run(() => selectThreads(token), token);
@@ -170,7 +202,12 @@ public partial class MainWindow
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
             catch (Exception exception)
             {
-                if (request == _galleryRequest) _gallery?.SetNotice(exception.Message);
+                if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
+                {
+                    Task failure = resolvingViewer.SetMediaUnavailable(exception.Message, mediaGeneration);
+                    TrackNativeGalleryCleanup(failure);
+                    await failure;
+                }
                 return;
             }
         }
@@ -185,13 +222,15 @@ public partial class MainWindow
         _galleryResolvingRequest = request;
         UpdateGalleryPosition();
         CancellationToken token = _galleryCancellation.Token;
+        GalleryViewer resolvingViewer = _gallery;
+        int mediaGeneration = resolvingViewer.MediaRequestGeneration;
         try
         {
             while (_galleryThreadIndex < _galleryThreads.Count && _galleryEntries.Count <= _galleryIndex)
             {
                 token.ThrowIfCancellationRequested();
                 ResourceId id = _galleryThreads[_galleryThreadIndex++];
-                _gallery?.SetNotice(Texts.T("gallery.more"));
+                _gallery?.SetLoadingNotice(Texts.T("gallery.more"));
                 bool allVersions = _galleryAllVersions;
                 GalleryThreadResult? result = await Task.Run(async () =>
                 {
@@ -255,11 +294,24 @@ public partial class MainWindow
                     _galleryIndex = _galleryEntries.Count - 1;
                     await ShowGalleryEntryAsync();
                 }
-                else _gallery.SetEmpty(Texts.T("gallery.empty"), _galleryThreads.Count > 0);
+                else
+                {
+                    Task empty = resolvingViewer.SetEmpty(Texts.T("gallery.empty"), _galleryThreads.Count > 0);
+                    TrackNativeGalleryCleanup(empty);
+                    await empty;
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception exception) { if (request == _galleryRequest) _gallery?.SetNotice(exception.Message); }
+        catch (Exception exception)
+        {
+            if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
+            {
+                Task failure = resolvingViewer.SetMediaUnavailable(exception.Message, mediaGeneration);
+                TrackNativeGalleryCleanup(failure);
+                await failure;
+            }
+        }
         finally
         {
             if (_galleryResolvingRequest == request)
@@ -360,7 +412,8 @@ public partial class MainWindow
     {
         if (_gallery == null) return;
         _galleryReturnState = _gallery.CaptureState();
-        TrackGalleryCleanup(_gallery.SuspendMediaAsync());
+        _gallery.SetInteractionAvailable(false);
+        TrackNativeGalleryCleanup(_gallery.SuspendMediaAsync());
         _gallerySuspended = true;
         _galleryVisitedReader = true;
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = false;
@@ -376,9 +429,11 @@ public partial class MainWindow
         _gallerySuspended = false;
         ArchivePage.ShowGalleryReturn(false);
         this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
+        HideFeedbackForGallery();
         UpdateGalleryFullscreenPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
         TrackGalleryCleanup(_gallery.ResumeMediaAsync());
+        UpdateGalleryInteractionAvailability();
         RefreshGalleryFavorite();
         _gallery.Focus();
     }
@@ -403,7 +458,7 @@ public partial class MainWindow
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
         UpdateGalleryFullscreenPresentation();
-        if (retiring != null) TrackGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
+        if (retiring != null) TrackNativeGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
         _galleryRestoreOrigin = null;
         if (followReader)
         {

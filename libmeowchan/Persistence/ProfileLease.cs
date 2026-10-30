@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace MeowChan.Persistence;
@@ -22,11 +23,14 @@ public sealed class ProfileLease : IDisposable
     private FileStream? _lockStream;
 
     public string ProfileDirectory { get; }
+    // Captured under the exclusive lease, before this acquisition publishes protocol traces.
+    internal bool WasEmptyAtAcquisition { get; }
 
-    private ProfileLease(string profileDirectory, FileStream lockStream)
+    private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty)
     {
         ProfileDirectory = profileDirectory;
         _lockStream = lockStream;
+        WasEmptyAtAcquisition = wasEmpty;
     }
 
     /// <summary>
@@ -41,9 +45,20 @@ public sealed class ProfileLease : IDisposable
         string lockPath = Path.Combine(directory, LockName);
 
         FileStream stream;
+        bool createdLock;
         try
         {
-            stream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            try
+            {
+                stream = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+                createdLock = true;
+            }
+            catch (IOException) when (File.Exists(lockPath))
+            {
+                // CreateNew is the atomic provenance decision, never a prior existence sample.
+                stream = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                createdLock = false;
+            }
         }
         catch (IOException ex)
         {
@@ -52,6 +67,8 @@ public sealed class ProfileLease : IDisposable
 
         try
         {
+            bool wasEmpty = !Directory.EnumerateFileSystemEntries(directory)
+                .Any(entry => !createdLock || Path.GetFileName(entry) != LockName);
             if (!HasProtocolMarker(directory))
             {
                 if (HasLegacyData(directory))
@@ -75,7 +92,7 @@ public sealed class ProfileLease : IDisposable
                 }
             }
 
-            return new ProfileLease(directory, stream);
+            return new ProfileLease(directory, stream, wasEmpty);
         }
         catch
         {

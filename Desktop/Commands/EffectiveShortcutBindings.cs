@@ -125,6 +125,27 @@ public sealed class EffectiveShortcutBindings
                 { issues.Add(new(entry.Name, ex.Message)); }
             }
         }
+        // These new defaults did not exist in older profiles. They must not disable an
+        // existing explicit effective gesture merely by being introduced on upgrade.
+        // This is deliberately NOT a general priority rule: two explicit bindings (or
+        // existing conflicts) still receive the ordinary symmetric conflict rejection.
+        if (section.IsEditable)
+        foreach (string id in new[] { "video.volume-up", "video.volume-down" })
+        {
+            if (section.HasOverride(id)) continue;
+            var retained = new List<ShortcutGesture>();
+            foreach (ShortcutGesture gesture in values[id])
+            {
+                string? owner = CommandCatalog.All.Where(c => c.IsImplemented && c.Id != id
+                    && section.HasOverride(c.Id) && ContextsOverlap(id, c.Id))
+                    .Select(c => c.Id).FirstOrDefault(other => values[other].Any(g => Equivalent(gesture, g, os)));
+                if (owner is null) retained.Add(gesture);
+                else issues.Add(new(id,
+                    "New volume default yields to your saved binding / Neuer Lautstärkestandard lässt deine gespeicherte Belegung unverändert",
+                    owner, BlocksSave: false));
+            }
+            values[id] = retained.AsReadOnly();
+        }
         foreach (string id in values.Keys.ToArray()) values[id] = Array.AsReadOnly(values[id].Select(g => new ShortcutGesture(g.Key, Array.AsReadOnly(g.Modifiers.ToArray()), g.Symbol)).ToArray());
         var requested = new Dictionary<string, IReadOnlyList<ShortcutGesture>>(values, StringComparer.Ordinal);
         foreach (var command in CommandCatalog.All.Where(command => !command.IsImplemented))

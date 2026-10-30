@@ -7,11 +7,12 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Gallery;
 
 namespace MeowChan.DesktopSmoke;
 
-// Diagnostic path first runs against the unchanged Full44 product. Assertions
-// accumulate so a failed content key does not hide the native ownership probes.
+// Assertions accumulate so a failed content key does not hide native ownership
+// probes. UX-04 adds selected-post activation, not a global Enter/Space remap.
 internal static class ReaderShortcutContextChecks
 {
     internal static async Task RunAsync(MainWindow window)
@@ -116,6 +117,7 @@ internal static class ReaderShortcutContextChecks
                         navigationTaskChanged = changed, selected = Selected(), tab = tabs.SelectedIndex });
             }
             await Commit(original);
+            await CheckPostMediaContextAsync(page, Check);
             await page.FocusPostAsync("1000");
             Click(next);
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
@@ -166,6 +168,43 @@ internal static class ReaderShortcutContextChecks
         if (failures.Count > 0) throw new InvalidOperationException("Shortcut context failures: " + string.Join(", ", failures));
         Console.WriteLine("SMOKE shortcut contexts: committed remaps, native ownership, capture, menu labels and disabled targets passed.");
     }
+    private static async Task CheckPostMediaContextAsync(ArchivePage page, Action<bool, string, object?> check)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        var previous = page.OpenGallery;
+        int opens = 0;
+        GalleryEntryKey? target = null;
+        page.OpenGallery = (_, key, _) => { opens++; target = key; return Task.CompletedTask; };
+        ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single(body =>
+            body.GetVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, posts.SelectedItem)));
+        try
+        {
+            foreach (Key key in new[] { Key.Enter, Key.Space })
+            {
+                await page.FocusPostAsync("1003"); await page.MediaLoadTask;
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+                ReaderBodyTextBlock body = Body(); body.SelectionStart = body.SelectionEnd = 0; body.Focus();
+                int before = opens;
+                KeyEventArgs e = Press(body, key);
+                body.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key });
+                await page.ReaderMediaActivationTask;
+                check(e.Handled && opens == before + 1 && target?.PostId == "1003", "selected-later-body-media-" + key, target);
+                body.SelectionEnd = 4;
+                before = opens; Press(body, key); await page.ReaderMediaActivationTask;
+                check(opens == before, "selected-body-text-selection-" + key, null);
+                body.SelectionEnd = 0;
+                posts.SelectedItem = null;
+                Press(body, key); await page.ReaderMediaActivationTask;
+                check(opens == before, "no-reader-post-selection-" + key, null);
+                await page.FocusPostAsync("1001"); // Mixed fixture: text-only, unlike 1003.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+                body = Body(); body.Focus(); Press(body, key); await page.ReaderMediaActivationTask;
+                check(opens == before, "text-only-selected-post-" + key, null);
+            }
+        }
+        finally { page.OpenGallery = previous; }
+    }
+
     private static KeyEventArgs Press(Control source, Key key)
     {
         var e = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key };

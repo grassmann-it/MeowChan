@@ -219,6 +219,14 @@ or copy its details. **Clear session messages** clears that list; it does not fi
 the underlying problem. The list ends with the app session. Field validation and
 confirmation dialogs still apply when popups are disabled.
 
+**Unreleased source-build behavior:** the central banner and each popup have an
+explicit **×**. Closing one acknowledges that occurrence for the current app
+session, suppresses matching queued/repeated displays and leaves its diagnostic
+entry/count intact. Another source or failure still has its own message. Clearing
+Diagnostics does not re-enable acknowledged messages. Passive popup expiry does
+not acknowledge a failure. Unstructured provider errors still distinguish their
+exact diagnostic text; changed error details can represent a separate occurrence.
+
 ## Linux packages and startup
 
 For either `linux-x64` or `linux-arm64`, choose a package from the [1.0.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
@@ -245,6 +253,16 @@ moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
 thread sequence. Input fields keep their native arrow-key behavior.
 
+The lower-right navigation cross overlays the thread in narrow windows instead
+of shortening its scrolling viewport. At the end of a page, extra scrollable
+clearance lets you move the final post above the cross. Wide layouts can keep
+the cross in unused space beside the text; pagination and scrollbar remain usable.
+
+In selected post content, **Enter or Space** opens the first available image or video
+in attachment order. Text selections, editors, buttons, links and dialogs keep their
+native keys. Explicit Reader or application shortcut bindings take precedence.
+The configurable **Open in gallery** command remains separate.
+
 Newly captured posts leave the open reader unchanged. A **Show new posts** notice
 lets you load them and jump to the first newly appended post. **Follow live** is
 an explicit choice for a currently watched thread with post capture enabled; it
@@ -270,6 +288,37 @@ Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen.
+
+**Unreleased source-build controls:** Settings → Reading & media → **Gallery &
+playback** offers **Manual**, **Repeat current video**, and **Slideshow**. The same
+mode is available in the gallery. Repeat applies to each video you select until
+changed; its choice and media focus are remembered for the profile. Slideshow
+must be started explicitly, even after reopening the gallery or restarting the
+app. Images remain for the chosen duration (1–300 seconds, initially 5); videos
+advance at their actual end. The last item finishes and stops. Explicit Pause
+stops progression until you resume. Seeking, dialogs and temporary loss of active
+interaction hold automatic advancement while the interaction is unsafe; they do
+not pause the native video. Reading a hover-opened post stops slideshow progression
+until you explicitly start it again. Decode or integrity failures stop progress
+rather than silently skipping files. Video autoplay also applies to the first or
+manually selected video with saved Slideshow mode, without starting automatic next.
+Seeking and volume changes preserve whether the video was playing or paused.
+
+**Auto-hide controls overlay** is one paired option, independent of media focus.
+It reveals controls from the bottom edge and collapses them after the pointer
+leaves their panel. The former separate auto-hide command remains a compatibility
+alias for the same choice. Moving in the middle of the picture does not reopen
+panels: it only briefly shows subtle bottom/right chevrons. These hints have no
+box or border and disappear after mouse inactivity. Navigation shortcuts work
+on the first press even while controls are hidden. A pointer click on
+Start does not pin the controls; keyboard focus, active gestures and menus do.
+Keyboard access remains available. **Post overlay** reveals at the right edge,
+stays open while you read inside it and collapses after leaving; hover does not
+save a new preference. It pauses slideshow without automatic resume when closed.
+An explicitly opened/pinned context retains its normal toggle behavior. Its
+background is translucent and its text stays opaque. Unsupported native-video
+transparency uses the docked layout and explains the fallback. Existing profiles
+start docked; later choices are remembered. F11 remains a separate window action.
 
 Show context to read the associated saved post and available local references.
 A media-only item can have no captured post. In the gallery, **P** toggles saved-post
@@ -388,7 +437,17 @@ keeps bookmarks and notes but can make their posts unavailable. Forgetting the
 last reading position does not remove bookmarks.
 
 Built-in image views support PNG, JPEG, GIF, WebP and BMP when the decoder accepts
-the file. Animated files show a still first frame. Image previews above 64 MiB
+the file. In current unreleased source builds, **GIFs animate in the gallery**;
+**Space** (or the effective Play/Pause binding) and the GIF control pause/resume them.
+Encoded finite/infinite loops are respected; ending a GIF does not silently select
+another medium. Reader/thumbnail previews remain posters like video previews:
+click, or Enter/Space in the selected post, opens the actual associated animation.
+The explicitly started slideshow still treats a GIF as an image for its selected
+image duration; Repeat-video preferences do not rewrite a GIF's encoded loop count.
+Other animated image formats retain their still-first-frame fallback. GIF animation
+uses verified originals only, at most 64 MiB, 16 million source pixels and 1024 frames;
+over-limit or damaged GIFs remain unavailable with details in Diagnostics rather
+than being presented as successful still-frame playback. Image previews above 64 MiB
 or 80 million source pixels are refused by the gallery. Fit decoding is bounded to 16 million pixels; 1:1 may need substantially
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
@@ -439,9 +498,14 @@ local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
 Use its compact transport strip for **Play/Pause**, seeking, mute, volume and
-repeat. Repeat applies to the current medium. At narrow widths the controls use
+repeat. In published 1.0.1 Repeat applies to the current medium; unreleased
+source builds retain the chosen repeat mode as described above. At narrow widths the controls use
 two rows. Audio controls show why they are unavailable when there is no track or
-usable output; focused seek and volume sliders retain their own arrow keys.
+usable output. In unreleased source builds, Left/Right on the gallery timeline or
+volume control uses the effective previous/next-media bindings; Up/Down adjusts
+available video volume. Timeline keyboard seeking is disabled; mouse seeking and
+volume remain available and preserve Playing/Paused. Other native controls and
+Reader arrows keep their own roles.
 Linux uses either the selected private bundled VLC or the supported system VLC
 runtime, checked before startup as described above. Windows/macOS use official
 VideoLAN native assets. All desktop variants include .NET; bundled Linux archives
@@ -449,6 +513,13 @@ and AppImages also include VLC. Individual decode failures remain per-file error
 evidence and limits; audio, GPU and other OS coverage must be assessed there.
 
 ## Missing media and finished threads
+
+**Unreleased source builds:** Download rows reuse known locally saved thread
+titles on restart without waiting for the source website. When a thread truly
+has no title, a short cleaned opening-post excerpt is shown; without available
+content, its source/board/thread identity is used. Capture-off watches retain
+observed real titles without enabling full-post capture. Legacy ambiguous text
+such as a genuine title named “Unknown” is not deleted based on its spelling.
 
 Full Pause applies globally to source checks, media transfers and manual retries.
 It waits for active cancellation before reporting a settled pause. Verified files

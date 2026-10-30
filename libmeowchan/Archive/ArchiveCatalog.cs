@@ -81,6 +81,26 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         }, cancellationToken);
     }
 
+    // Metadata-only observation. Does not enable capture, save posts, or claim a
+    // content capture timestamp. Registration/startup is deliberately not observation.
+    internal Task UpdateObservedTitleAsync(ResourceId id, string title, CancellationToken cancellationToken = default)
+    {
+        ArchiveValidation.ValidateId(id);
+        if (string.IsNullOrWhiteSpace(title)) return Task.CompletedTask;
+        return WriteAsync((connection, transaction) =>
+        {
+            using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
+                UPDATE archive_threads SET title=$title,search_text=$search,revision=revision+1
+                WHERE source=$source AND board=$board AND thread=$thread AND title<>$title
+                """);
+            ArchiveSql.AddId(command, id);
+            command.Parameters.AddWithValue("$title", title);
+            command.Parameters.AddWithValue("$search", id.Source + "\n" + id.Board + "\n" + id.Thread + "\n" + ArchiveText.PlainText(title));
+            command.ExecuteNonQuery();
+            return true;
+        }, cancellationToken);
+    }
+
     public Task<bool?> GetCaptureEnabledAsync(ResourceId id, CancellationToken cancellationToken = default)
     {
         ArchiveValidation.ValidateId(id);
@@ -202,14 +222,15 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision,search_text)
             VALUES($source,$board,$thread,$url,$title,$directory,$state,$capture,$first,0,$search)
             ON CONFLICT(source,board,thread) DO UPDATE SET url=excluded.url,
-                title=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.title ELSE archive_threads.title END,
-                search_text=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.search_text ELSE archive_threads.search_text END,
+                title=CASE WHEN $hasTitle=1 AND ($observed=1 OR trim(archive_threads.title)='') THEN excluded.title ELSE archive_threads.title END,
+                search_text=CASE WHEN $hasTitle=1 AND ($observed=1 OR trim(archive_threads.title)='') THEN excluded.search_text ELSE archive_threads.search_text END,
                 media_directory=excluded.media_directory,
                 source_state=CASE WHEN $observed=1 OR archive_threads.last_captured_at IS NULL THEN excluded.source_state ELSE archive_threads.source_state END
             """);
         ArchiveSql.AddId(command, registration.Id);
         command.Parameters.AddWithValue("$url", registration.Url);
-        command.Parameters.AddWithValue("$title", registration.Title);
+        command.Parameters.AddWithValue("$title", string.IsNullOrWhiteSpace(registration.Title) ? string.Empty : registration.Title);
+        command.Parameters.AddWithValue("$hasTitle", string.IsNullOrWhiteSpace(registration.Title) ? 0 : 1);
         command.Parameters.AddWithValue("$search", registration.Id.Source + "\n" + registration.Id.Board + "\n" + registration.Id.Thread + "\n" + ArchiveText.PlainText(registration.Title));
         command.Parameters.AddWithValue("$directory", registration.MediaDirectory);
         command.Parameters.AddWithValue("$state", (int)registration.SourceState);

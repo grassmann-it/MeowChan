@@ -88,6 +88,8 @@ public partial class MainWindow : Window
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
             _session.ProjectionPublished += OnSessionChanged;
             DataContext = this;
+            Activated += OnGalleryActivationChanged;
+            Deactivated += OnGalleryActivationChanged;
 
             // The Add button is wired once in XAML. Enter uses that same action.
             this.FindControl<TextBox>("UrlInput")!.AddHandler(KeyDownEvent,
@@ -140,6 +142,7 @@ public partial class MainWindow : Window
     {
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
+        TryOfferFirstRunSetup();
         RestoreWindowPreferences();
         BeginStartupWindowFit();
         if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
@@ -361,7 +364,32 @@ public partial class MainWindow : Window
                     Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
             UpdateInteractionState();
+            TryOfferFirstRunSetup();
         });
+    }
+
+    private bool _firstRunSetupScheduled;
+    private void TryOfferFirstRunSetup()
+    {
+        if (_firstRunSetupScheduled || !_hasOpened || !_restoreCompleted || _isClosing
+            || !FirstRunSetupCoordinator.CanOffer(_config, _session.State)) return;
+        _firstRunSetupScheduled = true;
+        // Setup is not part of the restore task that shutdown must drain.
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (_isClosing || !IsVisible) return;
+            try
+            {
+                FirstRunSetupRunResult result = await FirstRunSetupCoordinator.RunAsync(this, _session);
+                if (result.Outcome == FirstRunSetupOutcome.PreparationFailed && !_isClosing)
+                    ShowNotification(Texts.T("notification.error"), result.Message ?? Texts.T("setup.prepareFailed"), NotificationType.Error, operation: "setup.prepare");
+            }
+            catch (Exception error)
+            {
+                Log.Warning(error, "First-run setup could not be displayed.");
+                if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("setup.prepareFailed"), NotificationType.Error, operation: "setup.prepare");
+            }
+        }, DispatcherPriority.Background);
     }
 
     private async Task<DesktopAdmissionResult?> AddUrlAsync(string url)
@@ -834,10 +862,25 @@ public partial class MainWindow : Window
             Task readingPosition = _readingPositionSave;
             Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition);
             Log.Debug("Shutdown: engine cancellation requested; waiting independently for final writes and gallery cleanup.");
-            await Task.WhenAll(engineDrain, finalPreferences, _galleryCleanupTask, _restoreTask);
-            Log.Debug("Shutdown: gallery media and final writes released; draining the session.");
-            await _session.StopAsync();
+            Exception? preferenceFailure = null;
+            try { await Task.WhenAll(engineDrain, finalPreferences, _galleryCleanupTask, _restoreTask); }
+            catch (Exception error)
+            {
+                // Do not abandon the profile owner when one final write is rejected.
+                // A faulted drain is NOT proof that its resources were released.
+                preferenceFailure = error;
+            }
+            bool nativeOwnershipReleased = _galleryNativeCleanupTask.IsCompletedSuccessfully;
+            if (!nativeOwnershipReleased) _session.RetainProfileForExternalCleanupFailure();
+            Log.Debug("Shutdown: draining session; native ownership released {Released}.", nativeOwnershipReleased);
+            try { await _session.StopAsync(); }
+            catch (Exception error) { preferenceFailure ??= error; }
             Log.Debug("Shutdown: session stopped; disposing the session.");
+            // Dispose the profile owner before fallible UI subscription/tray teardown.
+            try { await _session.DisposeAsync(); }
+            catch (Exception error) { preferenceFailure ??= error; }
+            if (!nativeOwnershipReleased || !_session.IsProfileReleased)
+                throw new InvalidOperationException("Shutdown ownership is unproven; native surface and profile remain retained.", preferenceFailure);
             Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
             _session.ProjectionPublished -= OnSessionChanged;
             Texts.Changed -= OnLanguageChanged;
@@ -872,7 +915,15 @@ public partial class MainWindow : Window
             Log.Debug("Shutdown: disposing the tray icon; tray present {TrayPresent}.", _trayIcon != null);
             DisposeTrayIcon();
             Log.Debug("Shutdown: tray disposal returned; releasing the profile lease.");
-            await _session.DisposeAsync();
+            if (preferenceFailure != null)
+            {
+                Log.Error(preferenceFailure, "Shutdown cleanup finished, but preferences were not confirmed saved.");
+                ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
+                // Leave an inert, safely disposed window for acknowledgement; the next close
+                // exits directly instead of retrying side effects against a released profile.
+                _allowClose = true;
+                return;
+            }
             Log.Debug("Shutdown: profile lease released; requesting final window close.");
             _allowClose = true;
             Close();
@@ -971,6 +1022,7 @@ public partial class MainWindow : Window
         UpdateInteractionState();
         try
         {
+            await FlushGalleryPreferencesAsync();
             await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
             InvalidateReadingResumeState();

@@ -70,6 +70,159 @@ public sealed class DiagnosticsTests
         Assert.Equal("Backup is corrupt", entry.Details);
     }
 
+    [Fact]
+    public void ScopeDeduplicatesWatchFlagsWithoutMixingStorageBoardMediaOrDisplayLabels()
+    {
+        DiagnosticEntry check = Problem("check", 1, DiagnosticKind.Check);
+        DiagnosticEntry media = Problem("media", 1, DiagnosticKind.Media);
+        DiagnosticEntry capture = Problem("capture", 2, DiagnosticKind.Media) with { CheckAlso = true };
+        DiagnosticEntry board = Problem("board", 1, DiagnosticKind.Check) with
+        { Target = new(DiagnosticTargetKind.Board, 1), ResourceId = new("fixture", "b") };
+        DiagnosticEntry storage = Problem("storage", 3, DiagnosticKind.Storage) with { DownloadTargetPath = "/fixture/storage" };
+        DiagnosticRetryTarget[] scope = DiagnosticRetryScope.Capture(new[] { check, media, media, capture, board, storage,
+            Problem("request", 4, DiagnosticKind.Request), Problem("pending", 5, DiagnosticKind.PendingWork) });
+        Assert.Equal(3, scope.Length);
+        Assert.Equal(new[] { true, true, true }, scope.Select(item => item.Check));
+        Assert.Equal(new[] { true, true, false }, scope.Select(item => item.Media));
+        Assert.Equal(board.Target, scope[2].Target);
+        Assert.Equal(check.ResourceId, scope[0].ResourceId);
+        Assert.Empty(DiagnosticRetryScope.Capture(new[] { storage }));
+        Assert.Empty(DiagnosticRetryScope.Capture(new[] { media with { Target = board.Target } }));
+        Assert.Empty(DiagnosticRetryScope.Capture(new[] { check with { ResourceId = null } }));
+        Assert.Empty(DiagnosticRetryScope.Capture(new[] { check, media with { ResourceId = new("other", "b", "1") } }));
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void FiltersUseExactSourceIdentityAndSearchThreadEvenWhenTitlesAreIdentical(string language)
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            DiagnosticEntry first = Problem("first", 1, DiagnosticKind.Media);
+            DiagnosticEntry second = Problem("second", 2, DiagnosticKind.Media) with { ResourceId = new("fixture-other", "b", "2") };
+            Assert.True(DiagnosticRetryScope.Matches(first, "fixture", " #1 ", true));
+            Assert.False(DiagnosticRetryScope.Matches(second, "fixture", null, false));
+            Assert.False(DiagnosticRetryScope.Matches(first, "FIXTURE", null, false));
+            Assert.True(DiagnosticRetryScope.Matches(second, null, "fixture-other /b/ #2", true));
+            Assert.False(DiagnosticRetryScope.Matches(first with { Kind = DiagnosticKind.PendingWork }, null, "", true));
+            Assert.True(DiagnosticRetryScope.Matches(first with { Kind = DiagnosticKind.PendingWork }, null, "", false));
+            Assert.False(DiagnosticRetryScope.Matches(first, null, "no match", false));
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
+    [Fact]
+    public async Task ExecutorOwnsScopeBeforeAwaitAndRechecksBothOperationsInOrder()
+    {
+        DiagnosticRetryTarget[] frozen = DiagnosticRetryScope.Capture(new[] {
+            Problem("media", 1, DiagnosticKind.Media) with { CheckAlso = true }, Problem("check", 2, DiagnosticKind.Check) });
+        TaskCompletionSource<int> held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<string> calls = new();
+        HashSet<long> live = new() { 1, 2 };
+        Task<DiagnosticRetryResult> running = DiagnosticRetryScope.ExecuteAsync(frozen,
+            (item, _) => live.Contains(item.Target.WatchId),
+            target => { calls.Add("check:" + target.WatchId); return Task.FromResult(CheckRequestStatus.Scheduled); },
+            target => { calls.Add("media:" + target.WatchId); return held.Task; });
+        Assert.Equal(new[] { "media:1" }, calls);
+        // A filter/selection change or newly appearing problem cannot redirect the owned array.
+        frozen[1] = new(new(DiagnosticTargetKind.Thread, 999), true, false) { ResourceId = new("new", "b", "999") };
+        live.Remove(1); live.Add(999);
+        held.SetResult(3);
+        DiagnosticRetryResult result = await running;
+        Assert.Equal(new[] { "media:1", "check:2" }, calls);
+        Assert.Equal((2, 1, 3, 1, 0), (result.Targets, result.Checks, result.Files, result.Skipped, result.Failures));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LosingAvailabilityOrLifetimeDuringAwaitSkipsEveryRemainingOperation(bool ended)
+    {
+        DiagnosticRetryTarget[] scope = DiagnosticRetryScope.Capture(new[] {
+            Problem("first", 1, DiagnosticKind.Media) with { CheckAlso = true }, Problem("second", 2, DiagnosticKind.Check) });
+        bool available = true, alive = true;
+        int calls = 0;
+        TaskCompletionSource<int> held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<DiagnosticRetryResult> running = DiagnosticRetryScope.ExecuteAsync(scope, (_, _) => available && alive,
+            _ => { calls++; return Task.FromResult(CheckRequestStatus.Scheduled); },
+            _ => { calls++; return held.Task; });
+        if (ended) alive = false; else available = false;
+        held.SetResult(1);
+        DiagnosticRetryResult result = await running;
+        Assert.Equal(1, calls);
+        Assert.Equal(1, result.Files);
+        Assert.Equal(2, result.Skipped);
+        Assert.Equal(0, result.Failures);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task FirstOrMiddleFailureRetainsHonestPartialResultsAndContinuesOnlyFrozenTargets(int failingWatch)
+    {
+        DiagnosticRetryTarget[] scope = DiagnosticRetryScope.Capture(Enumerable.Range(1, 3).Select(id => Problem("p" + id, id, DiagnosticKind.Check)));
+        List<long> calls = new();
+        DiagnosticRetryResult result = await DiagnosticRetryScope.ExecuteAsync(scope, (_, _) => true, target =>
+        {
+            calls.Add(target.WatchId);
+            return target.WatchId == failingWatch ? Task.FromException<CheckRequestStatus>(new IOException("failure " + target.WatchId))
+                : Task.FromResult(target.WatchId == 3 ? CheckRequestStatus.AlreadyScheduled : CheckRequestStatus.Scheduled);
+        }, null);
+        Assert.Equal(new long[] { 1, 2, 3 }, calls);
+        Assert.Equal(1, result.Checks);
+        Assert.Equal(1, result.AlreadyScheduled);
+        Assert.Equal(1, result.Failures);
+        Assert.Contains("#" + failingWatch, Assert.Single(result.Errors));
+    }
+
+    [Fact]
+    public async Task CancellationStopsIntentAndAccountsUnsubmittedChecksAndMedia()
+    {
+        DiagnosticRetryTarget[] scope = DiagnosticRetryScope.Capture(new[] {
+            Problem("first", 1, DiagnosticKind.Media) with { CheckAlso = true }, Problem("second", 2, DiagnosticKind.Media) with { CheckAlso = true } });
+        int checks = 0, media = 0;
+        DiagnosticRetryResult result = await DiagnosticRetryScope.ExecuteAsync(scope, (_, _) => true,
+            _ => { checks++; return Task.FromResult(CheckRequestStatus.Scheduled); },
+            _ => { media++; return Task.FromException<int>(new OperationCanceledException("canceled fixture")); });
+        Assert.Equal(0, checks); Assert.Equal(1, media);
+        Assert.Equal(1, result.Failures); Assert.Equal(3, result.Skipped);
+    }
+
+    [Fact]
+    public async Task CooldownDisabledPausedAndStaleAdmissionNeverBecomeSuccessfulRequests()
+    {
+        DiagnosticRetryTarget[] scope = DiagnosticRetryScope.Capture(Enumerable.Range(1, 4).Select(id => Problem("p" + id, id, DiagnosticKind.Check)));
+        List<long> calls = new();
+        DiagnosticRetryResult result = await DiagnosticRetryScope.ExecuteAsync(scope, (item, _) => item.Target.WatchId > 2,
+            target => { calls.Add(target.WatchId); return Task.FromResult(CheckRequestStatus.Stale); }, null);
+        Assert.Equal(new long[] { 3, 4 }, calls);
+        Assert.Equal(4, result.Skipped); Assert.Equal(0, result.Checks); Assert.Equal(0, result.Failures);
+        DiagnosticRetryResult empty = await DiagnosticRetryScope.ExecuteAsync(Array.Empty<DiagnosticRetryTarget>(), (_, _) => throw new Exception(), null, null);
+        Assert.Equal(0, empty.Targets); Assert.Empty(empty.Errors);
+    }
+
+    [Theory]
+    [InlineData(CheckRequestStatus.Paused)]
+    [InlineData(CheckRequestStatus.Stale)]
+    [InlineData(CheckRequestStatus.Unsupported)]
+    [InlineData(CheckRequestStatus.Stopping)]
+    public async Task AuthoritativeHostRejectionIsASkippedActionNotAQueuedCheck(CheckRequestStatus status)
+    {
+        DiagnosticRetryResult result = await DiagnosticRetryScope.ExecuteAsync(
+            DiagnosticRetryScope.Capture(new[] { Problem("p", 1, DiagnosticKind.Check) }),
+            (_, _) => true, _ => Task.FromResult(status), null);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(0, result.Checks);
+        Assert.Equal(0, result.AlreadyScheduled);
+        Assert.Equal(0, result.Failures);
+    }
+
+    private static DiagnosticEntry Problem(string key, long watch, DiagnosticKind kind) => new(key, "same category", "same title", "same message", key,
+        new(DiagnosticTargetKind.Thread, watch)) { Kind = kind, ResourceId = new("fixture", "b", watch.ToString()) };
+
     private static DesktopSessionView View(IReadOnlyList<DesktopThreadEntry> threads, IReadOnlyList<DesktopBoardEntry>? boards = null) =>
         new DesktopSessionView(threads, boards ?? Array.Empty<DesktopBoardEntry>(), Array.Empty<string>(), DesktopSessionState.Ready, null);
     private static DesktopThreadEntry Thread(long watch) => new DesktopThreadEntry(watch,

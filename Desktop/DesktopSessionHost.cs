@@ -82,7 +82,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         DownloadQueue? queue = null;
         try
         {
-            Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory);
+            Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
+            Config.EnsureOrdinaryWritesAllowed();
             _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
@@ -135,6 +136,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         try
         {
+            Config.EnsureOrdinaryWritesAllowed();
             if (Plugins != null)
             {
                 await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
@@ -148,6 +150,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
             }
+            CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
+            if (State == DesktopSessionState.Ready && Config.Origin == ProfileOrigin.ConfirmedNew)
+                await SaveViewPreferencesAsync(candidate => candidate.FirstRunSetupPending = true).ConfigureAwait(false);
             if (State == DesktopSessionState.Ready) Updates.Start();
         }
         catch (Exception exception)
@@ -161,6 +166,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
         finally
         {
+            CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
             SignalChanged();
             // Publish the final startup state before callers observe completion; the capture runs off the caller's thread.
             try { await CaptureProjectionAsync().ConfigureAwait(false); }
@@ -272,11 +278,22 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 _threadHandles.TryGetValue(target.WatchId, out thread);
                 _boardHandles.TryGetValue(target.WatchId, out board);
             }
+            if (Projection.IsStale) return CheckRequestStatus.Stale;
             if (target.Kind == DiagnosticTargetKind.Thread)
-                return thread == null ? CheckRequestStatus.Stale : _registry.RequestCheck(thread);
-            return board == null ? CheckRequestStatus.Stale : _registry.RequestCheck(board);
+                return thread == null || thread.Board.ImageBoard is PluginSourceImageBoard { Enabled: false }
+                    ? CheckRequestStatus.Stale : _registry.RequestCheck(thread);
+            return board == null || board.ImageBoard is PluginSourceImageBoard { Enabled: false }
+                ? CheckRequestStatus.Stale : _registry.RequestCheck(board);
         }
         finally { _commands.Release(); }
+    }
+
+    internal bool CanRetryMissingMedia(long watchId)
+    {
+        DesktopSessionProjection frame = Projection;
+        return frame.View.State == DesktopSessionState.Ready && !frame.IsStale
+            && frame.View.Threads.FirstOrDefault(entry => entry.WatchId == watchId)?.Snapshot.Work
+                is ThreadWorkSnapshot work && WorkStatusFormatter.Format(work).CanRetry;
     }
 
     internal Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
@@ -290,7 +307,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             EnsureReady();
             IThread? thread;
             lock (_projection) { _threadHandles.TryGetValue(watchId, out thread); }
-            return thread == null ? 0 : _registry.RetryMissingMedia(thread, mediaIdentifier);
+            if (thread == null || Projection.IsStale || thread.Board.ImageBoard is PluginSourceImageBoard { Enabled: false }) return 0;
+            // Recheck live work after command admission, never trust a visible row predicate.
+            ThreadWorkSnapshot? work = _registry.GetWorkSnapshots().FirstOrDefault(item => item.Url == thread.Url);
+            if (work == null || work.Intent == WorkIntent.Suppressed || !work.Media.Any(media =>
+                (mediaIdentifier == null || media.MediaIdentifier == mediaIdentifier) && !media.ManualAttempt
+                && media.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded))) return 0;
+            // Registry/queue retain lifetime, cooldown, cleanup fences and final manual-attempt authority.
+            // A manual retry may record intent while globally paused; it never unpauses transfer.
+            return _registry.RetryMissingMedia(thread, mediaIdentifier);
         }
         finally { _commands.Release(); }
     }
@@ -362,6 +387,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.SettingsBaselineCompactDensity = settings.SettingsBaselineCompactDensity;
         frozen.SettingsBaselineReadingFontSize = settings.SettingsBaselineReadingFontSize;
         frozen.SettingsBaselineWorkspaceMode = settings.SettingsBaselineWorkspaceMode;
+        frozen.SettingsBaselineVideoVolume = settings.SettingsBaselineVideoVolume;
+        frozen.SettingsBaselineGalleryPlayback = settings.SettingsBaselineGalleryPlayback;
         frozen.SettingsBaselineProfiles = settings.SettingsBaselineProfiles?.ToDictionary(
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         frozen.Validate();
@@ -403,6 +430,54 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
         finally { _commands.Release(); }
         SignalChanged();
+    }
+
+    internal Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAsync(FirstRunSetupValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return RunInteractiveAsync<FirstRunSetupCommitResult>(nameof(CompleteFirstRunSetupAsync), "first-run",
+            () => CompleteFirstRunSetupAdmittedCoreAsync(values));
+    }
+
+    private async Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAdmittedCoreAsync(FirstRunSetupValues values)
+    {
+        await FlushPreferencesAsync().ConfigureAwait(false);
+        await _commands.WaitAsync().ConfigureAwait(false);
+        bool persisted = false;
+        try
+        {
+            EnsureReady();
+            if (!FirstRunSetupCoordinator.CanOffer(Config, State) || !Config.FirstRunSetupPending)
+                throw new InvalidOperationException("First-run setup is no longer pending for this profile.");
+            FirstRunSetupCoordinator.ValidateValues(values, Config.DownloadPathBaseDirectory);
+            Config candidate = Config.Clone();
+            candidate.DownloadPath = values.DownloadPath;
+            candidate.BandwidthLimiter = values.BandwidthBytesPerSecond;
+            candidate.MaxParallelDownloads = values.ParallelDownloads;
+            candidate.FirstRunSetupPending = false;
+            candidate.FirstRunSetupVersion = 1;
+            candidate.Validate();
+            SessionOptions options = new()
+            {
+                DownloadPath = candidate.DownloadPath, RecheckInterval = TimeSpan.FromSeconds(candidate.RecheckTimer),
+                MaxParallelDownloads = candidate.MaxParallelDownloads, BandwidthBytesPerSecond = candidate.BandwidthLimiter
+            };
+            await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit, () =>
+            {
+                candidate.SaveConfig(_profileLease.ProfileDirectory);
+                persisted = true;
+                PublishConfig(candidate);
+            }).ConfigureAwait(false);
+            SignalChanged();
+            return new(true);
+        }
+        catch (Exception error) when (persisted)
+        {
+            _logger.Warning(error, "First-run settings were durably saved, but activation reported a failure.");
+            SignalChanged();
+            return new(true, error.Message);
+        }
+        finally { _commands.Release(); }
     }
 
     public bool IsPaused => Projection.IsPaused;
@@ -491,6 +566,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         lock (_lifecycle)
         {
+            Config.EnsureOrdinaryWritesAllowed();
             if (_state != DesktopSessionState.Ready)
                 throw new InvalidOperationException("The desktop session is not ready to change watches or settings.");
         }
@@ -509,6 +585,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         lock (_lifecycle)
         {
             if (_engineStopTask != null) return _engineStopTask;
+            CompleteStartupFinalWrites(_state == DesktopSessionState.Ready);
             _state = DesktopSessionState.Stopping;
             _acceptedDrain = CloseInteractiveAdmission();
             Task restoration = _startTask ?? Task.CompletedTask;
@@ -520,11 +597,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 // Queue admission/cancellation must not wait for restoration, profile writes or native cleanup.
                 Task queueStopped = _downloadQueue.StopAllAsync();
                 RetireSourceMediaIntegrityPolicies();
-                await startupCanceled.ConfigureAwait(false);
-                await restoration.ConfigureAwait(false);
+                List<Exception> errors = new();
+                async Task Drain(Task task)
+                { try { await task.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
+                await Drain(startupCanceled).ConfigureAwait(false);
+                await Drain(restoration).ConfigureAwait(false);
                 Task registryStopped = _registry.StopAsync();
-                await Task.WhenAll(queueStopped, registryStopped).ConfigureAwait(false);
-                await Updates.DisposeAsync().ConfigureAwait(false);
+                await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
+                try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
+                if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
             });
             PublishLifecycleState(notifyOnWorker: true);
             return _engineStopTask;
@@ -547,28 +628,46 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.drain", epoch: _epoch);
         // Seal only the final writers. Already accepted writes are drained even if the engine is still stopping.
         Task finalWrites = SealFinalWritesAsync();
-        await Task.WhenAll(engineStopped, _acceptedDrain, finalWrites).ConfigureAwait(false);
-        await CloseProjectionAsync().ConfigureAwait(false);
-        await _lifecycleNotification.ConfigureAwait(false);
+        List<Exception> errors = new();
+        bool quiescent = true;
+        async Task Observe(Func<Task> action, bool ownsLifetime = false)
+        {
+            try { await action().ConfigureAwait(false); }
+            catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
+        }
+        await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
+        quiescent &= _updatesQuiescent;
+        await Observe(CloseProjectionAsync, ownsLifetime: true).ConfigureAwait(false);
+        await Observe(() => _lifecycleNotification).ConfigureAwait(false);
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _registry.DisposeAsync().ConfigureAwait(false);
-            await _content.DisposeAsync().ConfigureAwait(false);
-            if (Plugins != null) await Plugins.DisposeAsync().ConfigureAwait(false);
+            await Observe(() => _registry.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
+            await Observe(() => _content.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
+            if (Plugins != null) await Observe(() => Plugins.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             _registry.StateChanged -= OnRegistryChanged;
-            lock (_lifecycle) { _state = DesktopSessionState.Stopped; }
+            _ownersQuiescent = quiescent;
+            lock (_lifecycle) { if (quiescent) _state = DesktopSessionState.Stopped; }
         }
         finally { _commands.Release(); }
         PublishLifecycleState();
         lock (_lifecycle) _projectionClosed = true;
+        if (errors.Count != 0) throw new AggregateException("Session shutdown reported failures.", errors);
     }
+
+    private bool _ownersQuiescent;
+    private volatile bool _updatesQuiescent;
+    private bool _externalOwnershipBlocked;
+    internal bool IsProfileReleased { get { lock (_lifecycle) return _disposed; } }
+    internal void RetainProfileForExternalCleanupFailure()
+    { lock (_lifecycle) _externalOwnershipBlocked = true; }
 
     private void EnsureFinalWriteAllowed()
     {
         lock (_lifecycle)
         {
-            if (_state != DesktopSessionState.Ready && _state != DesktopSessionState.Stopping)
+            Config.EnsureOrdinaryWritesAllowed();
+            if (_finalWriteStartupState != 1 || (_state != DesktopSessionState.Ready && _state != DesktopSessionState.Stopping))
                 throw new InvalidOperationException("The desktop session is not ready to save preferences.");
         }
     }
@@ -580,10 +679,13 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
-        await StopAsync().ConfigureAwait(false);
+        try { await StopAsync().ConfigureAwait(false); }
+        finally
+        {
         lock (_lifecycle)
         {
-            if (_disposed) return;
+            if (!_disposed && _ownersQuiescent && !_externalOwnershipBlocked)
+            {
             _disposed = true;
             _projectionClosed = true;
             ProjectionPublished = null;
@@ -594,6 +696,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             _profileLease.Dispose();
             StateChanged = null;
+            }
+        }
         }
     }
 

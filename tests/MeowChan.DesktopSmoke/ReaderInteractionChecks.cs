@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -13,6 +15,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Testing;
+using MeowChan.Storage;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -20,6 +23,8 @@ internal static class ReaderInteractionChecks
 {
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
+        await CheckReaderMediaActivationAsync(window, page);
+        await CheckPendingReaderMediaLifetimeAsync(window);
         await CheckNativeMediaKeysAsync(page);
         Console.WriteLine("SMOKE reader native controls and media Enter passed.");
         await CheckReaderShortcutsAsync(page);
@@ -30,6 +35,526 @@ internal static class ReaderInteractionChecks
         Console.WriteLine("SMOKE exact cross-page quote anchor and newest-32 history passed.");
         await CheckFavoritesOverviewAsync(window, page);
         Console.WriteLine("SMOKE reader interactions: native focus, exact media Enter, persistent favorite failure, exact bounded quote return and favorite removal/view/export passed.");
+    }
+
+    private static async Task CheckReaderMediaActivationAsync(MainWindow window, ArchivePage page)
+    {
+        ResourceId thread = page.CurrentThread!.Summary.Id;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        var open = page.OpenGallery;
+        var boundary = page.BeforeReaderMediaActivationAsync;
+        int opens = 0;
+        GalleryEntryKey? opened = null;
+        Control? origin = null;
+        ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>()
+            .Single(body => body.GetVisualAncestors().OfType<ListBoxItem>()
+                .Any(item => ReferenceEquals(item.DataContext, posts.SelectedItem)));
+        async Task SelectSecond()
+        {
+            await page.FocusPostAsync("1001");
+            await page.MediaLoadTask;
+            await FlushAsync();
+            Body().SelectionStart = Body().SelectionEnd = 0;
+            Body().Focus();
+        }
+        async Task AssertNoOpen(Control source, Key key, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            int before = opens;
+            Press(source, key, modifiers);
+            await page.ReaderMediaActivationTask;
+            Require(opens == before, "Reader media activation escaped a protected input context.");
+        }
+        try
+        {
+            page.OpenGallery = (id, key, from) =>
+            {
+                Require(id == thread && key != null, "Content activation used a thread-first/empty gallery target.");
+                opens++; opened = key; origin = from;
+                return Task.CompletedTask;
+            };
+            window.Activate();
+            await Program.WaitUntilAsync(() => window.IsActive);
+            foreach (Key key in new[] { Key.Enter, Key.Space })
+            {
+                await SelectSecond();
+                ReaderBodyTextBlock body = Body();
+                int before = opens;
+                KeyEventArgs e = Press(body, key);
+                await page.ReaderMediaActivationTask;
+                Require(e.Handled && opens == before + 1 && opened!.PostId == "1001"
+                    && opened.AttachmentPosition == 0 && ReferenceEquals(origin, body),
+                    "Ordinary selected ReaderBodyTextBlock did not activate its exact second-post association/origin.");
+                body.SelectionStart = 0; body.SelectionEnd = 5;
+                await AssertNoOpen(body, key);
+                body.SelectionEnd = 0;
+                using (ShortcutService.BeginCapture()) await AssertNoOpen(body, key);
+                await AssertNoOpen(body, key, KeyModifiers.Control | KeyModifiers.Shift);
+                await AssertNoOpen(page.FindControl<Button>("ReaderNextPost")!, key);
+            }
+
+            // Two keys while resolution is pending, then held-key repeats after
+            // completion, must still produce one callback. No fake gallery state.
+            await SelectSecond();
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            page.BeforeReaderMediaActivationAsync = () => gate.Task;
+            ReaderBodyTextBlock repeatBody = Body();
+            int repeatBefore = opens;
+            void Down(Key key) => repeatBody.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+            Down(Key.Enter); Down(Key.Enter); Down(Key.Space);
+            Task pending = page.ReaderMediaActivationTask;
+            Require(!pending.IsCompleted, "Repeated-key fixture never reached the async mapping boundary.");
+            gate.SetResult(); await pending;
+            Down(Key.Enter); await page.ReaderMediaActivationTask;
+            Require(opens == repeatBefore + 1, "Repeated Reader media keys opened duplicate galleries.");
+            repeatBody.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+            repeatBody.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+
+            foreach (string change in new[] { "selection-away-back", "content-request", "thread", "unavailable", "dialog" })
+            {
+                page.BeforeReaderMediaActivationAsync = null;
+                await page.LoadThreadAsync(thread); await SelectSecond();
+                gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                page.BeforeReaderMediaActivationAsync = () => gate.Task;
+                int before = opens;
+                Press(Body(), Key.Space);
+                pending = page.ReaderMediaActivationTask;
+                Require(!pending.IsCompleted, "Stale activation fixture missed its await boundary.");
+                switch (change)
+                {
+                    case "selection-away-back": await page.FocusPostAsync("1002"); await page.FocusPostAsync("1001"); break;
+                    case "content-request": await page.LoadThreadAsync(thread); break;
+                    case "thread": await page.LoadThreadAsync(thread with { Thread = "1001" }); break;
+                    case "unavailable": page.IsAvailable = false; page.IsAvailable = true; break;
+                    case "dialog":
+                        Click(page.FindControl<Button>("ExportArchiveButton")!);
+                        await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
+                        Click(page.FindControl<Button>("ArchiveExportClose")!);
+                        break;
+                }
+                gate.SetResult(); await pending;
+                Require(opens == before, "Stale Reader media activation survived " + change + ".");
+            }
+            // Model the existing host's retiring-gallery cleanup await. R0 must
+            // snapshot this guard during the callback and recheck before showing UI.
+            page.BeforeReaderMediaActivationAsync = null;
+            await page.LoadThreadAsync(thread); await SelectSecond();
+            var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var callbackRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            int callbackBefore = opens;
+            page.OpenGallery = async (_, _, _) =>
+            {
+                Func<bool>? stillCurrent = page.ReaderMediaActivationGuard;
+                Require(stillCurrent?.Invoke() == true, "Reader callback did not carry its live request guard.");
+                callbackEntered.SetResult();
+                await callbackRelease.Task;
+                if (stillCurrent!()) opens++;
+            };
+            try
+            {
+                Press(Body(), Key.Enter);
+                Task handoff = page.ReaderMediaActivationTask;
+                await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                await page.FocusPostAsync("1002"); await page.FocusPostAsync("1001");
+                callbackRelease.SetResult(); await handoff;
+                Require(opens == callbackBefore && page.ReaderMediaActivationGuard == null,
+                    "Retired Reader callback guard survived selection churn or leaked beyond handoff.");
+            }
+            finally { callbackRelease.TrySetResult(); }
+            Console.WriteLine("SMOKE reader media: second/shared post Enter+Space, body/selection/native/capture/modifier guards, repeats and stale awaits passed.");
+        }
+        finally
+        {
+            page.BeforeReaderMediaActivationAsync = boundary;
+            page.OpenGallery = open;
+            page.IsAvailable = true;
+            await page.LoadThreadAsync(thread); await page.FocusPostAsync("1000"); await page.MediaLoadTask;
+        }
+    }
+
+    private static async Task CheckPendingReaderMediaLifetimeAsync(MainWindow owner)
+    {
+        ResourceId thread = new("4chan", "g", "1000");
+        foreach (string change in new[] { "ready", "selection", "reader-close", "lifetime" })
+        {
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            int opens = 0;
+            GalleryEntryKey? opened = null;
+            var page = new ArchivePage(owner.SessionHost.OpenArchiveReaderAsync, (_, _) => Task.CompletedTask, _ => { },
+                async (directory, token) =>
+                {
+                    // Deliberately model a scan that returns late after cancellation.
+                    await release.Task;
+                    return await MediaAssetReader.OpenAsync(directory, CancellationToken.None);
+                }) { IsAvailable = true, ReaderRefreshAllowed = () => false };
+            Control pane = page.DetachReader();
+            var window = new Window { Width = 1000, Height = 800, Content = pane, Title = "Private Reader media lifetime " + change };
+            page.OpenGallery = (_, key, _) => { opens++; opened = key; return Task.CompletedTask; };
+            try
+            {
+                window.Show(owner); window.Activate();
+                await Program.WaitUntilAsync(() => window.IsActive);
+                await page.LoadThreadAsync(thread);
+                Task scan = page.MediaLoadTask;
+                await page.FocusPostAsync("1001"); await FlushAsync();
+                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+                Control source = posts.ContainerFromItem(posts.SelectedItem!)!;
+                Press(source, Key.Enter);
+                Task activation = page.ReaderMediaActivationTask;
+                Require(!activation.IsCompleted && !scan.IsCompleted, "Reader activation did not await the existing pending manifest scan.");
+                switch (change)
+                {
+                    case "selection": await page.FocusPostAsync("1002"); await page.FocusPostAsync("1001"); break;
+                    case "reader-close": window.Content = null; page.AttachReader(pane); break;
+                    case "lifetime": page.EndLifetime(); break;
+                }
+                release.SetResult();
+                await activation; await scan;
+                Require(change == "ready" ? opens == 1 && opened?.PostId == "1001" : opens == 0,
+                    "Pending local media scan lost identity/cancellation for " + change + ".");
+            }
+            finally { release.TrySetResult(); page.EndLifetime(); window.Close(); }
+        }
+        owner.Activate(); await Program.WaitUntilAsync(() => owner.IsActive);
+        Console.WriteLine("SMOKE Reader media pending-scan: exact second-post readiness and away/back, close and lifetime cancellation passed.");
+    }
+
+    // Opt-in real-input entry point for R0's serialized private-desktop runner.
+    // Seed ReaderUxChecks first. No synthetic-key fallback is used in this path.
+    internal static async Task RunMediaActivationInputAsync(MainWindow window)
+    {
+        const ulong enter = MediaNativeInput.Enter, up = MediaNativeInput.Up, down = MediaNativeInput.Down;
+        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        ArchivePage page = window.ArchivePage;
+        await Program.WaitUntilAsync(() => !page.IsBusy);
+        page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX 1000";
+        await page.ApplySearchAsync();
+        page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1000");
+        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+            && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1000" && page.ReaderShowsPosts
+            && page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> loadedPosts
+            && loadedPosts.Any(post => post.Id == "1001")
+            && typeof(ArchivePage).GetField("_contentCancellation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page) == null);
+        await page.MediaLoadTask;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single(body =>
+            body.IsEffectivelyVisible && body.GetVisualAncestors().OfType<ListBoxItem>()
+                .Any(item => item.DataContext is ArchivePostRow { Id: "1001" }));
+        async Task SelectSecond()
+        {
+            // Arrange the target row, but let the ACTUAL pointer select/focus it below.
+            // Initial localization/anchor continuations may still own programmatic focus;
+            // they are not the user selection whose Enter/Space behavior is being tested.
+            await page.ReaderLocalizationTask;
+            await page.ReaderNavigationTask;
+            page.ShowPost("1001");
+            await FlushAsync();
+            await Program.WaitUntilAsync(() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>()
+                .Any(body => body.IsEffectivelyVisible && body.GetVisualAncestors().OfType<ListBoxItem>()
+                    .Any(item => item.DataContext is ArchivePostRow { Id: "1001" })));
+            Body().SelectionStart = Body().SelectionEnd = 0;
+        }
+        var realOpen = page.OpenGallery;
+        int opens = 0;
+        GalleryEntryKey? opened = null, expectedGalleryKey = null;
+        ResourceId? openedThread = null;
+        Control? from = null;
+        page.OpenGallery = (thread, key, origin) => { opens++; openedThread = thread; opened = key; from = origin; return Task.CompletedTask; };
+        using var input = new MediaNativeInput(window);
+        Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
+        TaskCompletionSource? keyDownSeen = null, keyUpSeen = null, pointerSeen = null;
+        Key? expectedNativeKey = null;
+        Control? keySource = null, keyFocus = null, keyPostContainer = null, pointerSource = null;
+        string? keyPost = null;
+        Task? activationAtKey = null;
+        bool keyHandled = false;
+        bool? nativeOwnedAtKey = null, gestureEligibleAtKey = null;
+        KeyModifiers keyModifiers = KeyModifiers.None;
+        ReaderBodyTextBlock? requestedBody = null;
+        object? Describe(Control? control) => control == null ? null : new
+        {
+            type = control.GetType().Name, control.Name, identity = RuntimeHelpers.GetHashCode(control),
+            control.Focusable, control.IsFocused, control.IsEffectivelyVisible,
+            post = control.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+                .Select(item => (item.DataContext as ArchivePostRow)?.Id).FirstOrDefault(id => id != null),
+            ownerType = TopLevel.GetTopLevel(control)?.GetType().Name
+        };
+        void Evidence(string phase, Key? key = null) => Console.WriteLine("SMOKE reader-native-probe " + JsonSerializer.Serialize(new
+        {
+            phase, key = key?.ToString(), modifiers = keyModifiers.ToString(), opens, openedThread, opened,
+            expectedGalleryKey, origin = Describe(from), requestedBody = Describe(requestedBody),
+            selected = (posts.SelectedItem as ArchivePostRow)?.Id, thread = page.CurrentThread?.Summary.Id,
+            focus = Describe(window.FocusManager?.GetFocusedElement() as Control),
+            eventSource = Describe(keySource), eventFocus = Describe(keyFocus),
+            eventPost = keyPost, eventPostContainer = Describe(keyPostContainer), keyHandled,
+            nativeOwnedAtKey, gestureEligibleAtKey,
+            activeSelections = keyPostContainer?.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Where(text => text.SelectionStart != text.SelectionEnd)
+                .Select(text => new { type = text.GetType().Name, text.SelectionStart, text.SelectionEnd }).ToArray(),
+            pointerSource = Describe(pointerSource), window.IsActive, page.IsBusy, page.IsMediaLoading,
+            page.IsReaderDialogOpen, page.IsObscuredByGallery, ShortcutService.IsCapturing,
+            paneVisible = pane.IsEffectivelyVisible,
+            activationTask = RuntimeHelpers.GetHashCode(page.ReaderMediaActivationTask),
+            activationStatus = page.ReaderMediaActivationTask.Status.ToString()
+        }));
+        void ObserveKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != expectedNativeKey) return;
+            keySource = e.Source as Control;
+            keyFocus = window.FocusManager?.GetFocusedElement() as Control;
+            keyPost = (posts.SelectedItem as ArchivePostRow)?.Id;
+            keyPostContainer = posts.SelectedItem is { } selected ? posts.ContainerFromItem(selected) : null;
+            activationAtKey = page.ReaderMediaActivationTask;
+            keyHandled = e.Handled;
+            keyModifiers = e.KeyModifiers;
+            nativeOwnedAtKey = keySource == null ? null : ArchivePage.ReaderMediaBelongsToNativeControl(keySource, posts);
+            gestureEligibleAtKey = ArchivePage.IsReaderMediaGesture(e, ShortcutService.Current);
+            Evidence("native-key-down", e.Key);
+            keyDownSeen?.TrySetResult();
+        }
+        void ObserveKeyUp(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != expectedNativeKey) return;
+            Evidence("native-key-up", e.Key);
+            keyUpSeen?.TrySetResult();
+        }
+        void ObservePointer(object? sender, PointerPressedEventArgs e)
+        {
+            if (pointerSeen == null) return;
+            pointerSource = e.Source as Control;
+            Evidence("native-pointer-down");
+            pointerSeen.TrySetResult();
+        }
+        async Task<Control> ClickBodyAsync(ReaderBodyTextBlock body)
+        {
+            requestedBody = body;
+            pointerSource = null;
+            pointerSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                await input.ClickAsync(body, new Point(16, 10));
+                await pointerSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Evidence("after-native-body-click");
+                Control? focus = window.FocusManager?.GetFocusedElement() as Control;
+                Control? container = posts.SelectedItem is { } selected ? posts.ContainerFromItem(selected) : null;
+                Require(pointerSource?.GetSelfAndVisualAncestors().Contains(body) == true,
+                    "Native reader click did not hit the requested body; see reader-native-probe pointer evidence.");
+                Require((posts.SelectedItem as ArchivePostRow)?.Id == "1001" && container != null
+                    && body.GetVisualAncestors().Contains(container)
+                    && (ReferenceEquals(focus, body) || ReferenceEquals(focus, container))
+                    && !ArchivePage.ReaderMediaBelongsToNativeControl(focus!, posts),
+                    "Native body click did not focus its body/selected-post container; see reader-native-probe focus evidence.");
+                return focus!;
+            }
+            finally { pointerSeen = null; }
+        }
+        async Task SendObservedKeyAsync(ulong symbol, bool modified = false, bool awaitActivation = true,
+            bool transfersToGallery = false)
+        {
+            expectedNativeKey = symbol switch
+            {
+                MediaNativeInput.Enter => Key.Enter, MediaNativeInput.Space => Key.Space,
+                MediaNativeInput.Up => Key.Up, MediaNativeInput.Down => Key.Down,
+                _ => throw new ArgumentOutOfRangeException(nameof(symbol))
+            };
+            keyDownSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            keyUpSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            keySource = keyFocus = keyPostContainer = null; keyPost = null; activationAtKey = null; keyHandled = false;
+            nativeOwnedAtKey = gestureEligibleAtKey = null;
+            Evidence("before-native-key", expectedNativeKey);
+            try
+            {
+                await input.KeyAsync(symbol, modified);
+                // Observe actual routed delivery before reading the task. A driver
+                // delay alone is not proof that this key created/owned that task.
+                await keyDownSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                // The real gallery callback may legitimately receive KeyUp after
+                // taking focus. Its native release still comes from the driver.
+                if (!transfersToGallery) await keyUpSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                // A tunnel observer can run before the production handler. Its task is
+                // diagnostic pre-routing state, not the operation created by this key.
+                // Anchor after actual native delivery/routing, then require that exact
+                // operation to remain current through its real completion.
+                Task routedActivation = page.ReaderMediaActivationTask;
+                if (awaitActivation)
+                {
+                    await routedActivation;
+                    Require(ReferenceEquals(routedActivation, page.ReaderMediaActivationTask),
+                        "Reader replaced the activation after the native key finished routing.");
+                }
+                Evidence("after-native-key", expectedNativeKey);
+            }
+            finally { expectedNativeKey = null; keyDownSeen = keyUpSeen = null; }
+        }
+        pane.AddHandler(InputElement.PointerPressedEvent, ObservePointer, RoutingStrategies.Tunnel, handledEventsToo: true);
+        pane.AddHandler(InputElement.KeyDownEvent, ObserveKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        pane.AddHandler(InputElement.KeyUpEvent, ObserveKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        try
+        {
+            await SelectSecond();
+            ReaderBodyTextBlock body = Body();
+            // Activation deliberately uses all completed manifest assets, independent of
+            // the media tab's current/favorites/rating filters. Do not derive an expected
+            // post association from that unrelated, potentially hidden tile projection.
+            await page.MediaLoadTask;
+            var allAssets = (IReadOnlyList<ArchiveAssetRow>)typeof(ArchivePage).GetField("_assets",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(page)!;
+            ArchivePostRow intendedPost = posts.ItemsSource!.Cast<ArchivePostRow>().Single(post => post.Id == "1001");
+            expectedGalleryKey = ArchivePage.FindReaderMediaTarget(page.CurrentThread!.Summary.Id,
+                intendedPost, allAssets)?.Key;
+            Console.WriteLine("SMOKE reader-native-fixture " + JsonSerializer.Serialize(new {
+                selected = (posts.SelectedItem as ArchivePostRow)?.Id, allAssets = allAssets.Count,
+                visibleAssets = page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().Count(),
+                intendedPost = intendedPost.Id,
+                attachments = intendedPost.Attachments.Select(row => new {
+                    row.Attachment.Position, row.Attachment.MediaId, row.Attachment.Variant,
+                    row.Attachment.AttachmentRevisionKey, row.Attachment.IsDeleted
+                }).ToArray(),
+                assetStates = allAssets.Select(row => new { row.Asset.MediaIdentifier, row.Asset.Variant,
+                    row.Asset.OriginalFileName, row.Asset.IsCurrent, exists = File.Exists(row.Asset.Path) }).ToArray(),
+                expected = expectedGalleryKey?.ToString(), mediaTask = page.MediaLoadTask.Status.ToString()
+            }));
+            Require(expectedGalleryKey?.PostId == "1001" && expectedGalleryKey.AttachmentPosition == 0,
+                "Native fixture has no exact eligible second-post association in completed manifest assets.");
+            foreach (ulong key in new[] { enter, MediaNativeInput.Space })
+            {
+                Control expectedOrigin = await ClickBodyAsync(body);
+                Require(body.SelectionStart == body.SelectionEnd, "Native post click unexpectedly selected text.");
+                int before = opens;
+                await SendObservedKeyAsync(key);
+                Require(opens == before + 1 && openedThread == page.CurrentThread!.Summary.Id
+                    && opened == expectedGalleryKey
+                    && ReferenceEquals(keySource, expectedOrigin) && ReferenceEquals(keyFocus, expectedOrigin)
+                    && keyPost == "1001" && ReferenceEquals(keyPostContainer, posts.ContainerFromItem(posts.SelectedItem!))
+                    && ReferenceEquals(from, expectedOrigin),
+                    "Native Reader content key lost the exact selected-post association/origin; see reader-native-probe evidence.");
+                body.SelectionStart = 0; body.SelectionEnd = 6;
+                before = opens;
+                await SendObservedKeyAsync(key);
+                Require(opens == before, "Native text-selection gesture opened a gallery.");
+                body.SelectionStart = body.SelectionEnd = 0;
+                using (ShortcutService.BeginCapture()) await SendObservedKeyAsync(key);
+                Require(opens == before, "Native shortcut capture opened a gallery.");
+                await SendObservedKeyAsync(key, modified: true);
+                Require(opens == before, "Modified native activation escaped its existing meaning.");
+            }
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var previousBoundary = page.BeforeReaderMediaActivationAsync;
+            int pendingBefore = opens;
+            try
+            {
+                page.BeforeReaderMediaActivationAsync = () => release.Task;
+                await SendObservedKeyAsync(enter, awaitActivation: false); await SendObservedKeyAsync(enter, awaitActivation: false);
+                await SendObservedKeyAsync(MediaNativeInput.Space, awaitActivation: false);
+                Require(!page.ReaderMediaActivationTask.IsCompleted && opens == pendingBefore,
+                    "Native repeated-key fixture did not hold activation pending.");
+                release.SetResult(); await page.ReaderMediaActivationTask;
+                Require(opens == pendingBefore + 1, "Native repeated media keys opened duplicate galleries.");
+            }
+            finally { release.TrySetResult(); page.BeforeReaderMediaActivationAsync = previousBoundary; }
+            await SendObservedKeyAsync(down); await page.ReaderNavigationTask;
+            Require((posts.SelectedItem as ArchivePostRow)?.Id == "1002", "Reader Down stopped navigating posts.");
+            await SendObservedKeyAsync(up); await page.ReaderNavigationTask;
+            Require((posts.SelectedItem as ArchivePostRow)?.Id == "1001", "Reader Up stopped navigating posts.");
+
+            body = Body();
+            var host = (StackPanel)body.Parent!;
+            var editor = new TextBox { Name = "ReaderActivationFixtureEditor", AcceptsReturn = true, Height = 70, Text = "text" };
+            var button = new Button { Name = "ReaderActivationFixtureButton", Content = "Native button" };
+            var link = new HyperlinkButton { Name = "ReaderActivationFixtureLink", Content = "Native link" };
+            var slider = new Slider { Name = "ReaderActivationFixtureSlider", Minimum = 0, Maximum = 10, Value = 5 };
+            int buttonClicks = 0, linkClicks = 0;
+            button.Click += (_, _) => buttonClicks++;
+            link.Click += (_, _) => linkClicks++;
+            Control[] native = [editor, button, link, slider];
+            foreach (Control control in native.Reverse()) host.Children.Insert(0, control);
+            try
+            {
+                await page.FocusPostAsync("1001"); await FlushAsync();
+                int before = opens;
+                editor.Focus(); editor.CaretIndex = editor.Text!.Length;
+                await SendObservedKeyAsync(MediaNativeInput.Space); await SendObservedKeyAsync(enter);
+                Require(editor.Text!.Contains(' ') && editor.Text.Contains('\n') && opens == before,
+                    "Native editor lost space/newline ownership.");
+                foreach (ulong key in new[] { enter, MediaNativeInput.Space })
+                {
+                    button.Focus(); await SendObservedKeyAsync(key);
+                    link.Focus(); await SendObservedKeyAsync(key);
+                    slider.Focus(); await SendObservedKeyAsync(key);
+                }
+                Require(buttonClicks == 2 && linkClicks == 2 && opens == before,
+                    "Native button/link activation was stolen or duplicated.");
+                body.ContextMenu = new ContextMenu { Items = { new MenuItem { Header = "Fixture menu action" } } };
+                body.ContextMenu.Open(body);
+                await input.KeyAsync(MediaNativeInput.Space);
+                Require(opens == before, "An open native menu leaked Reader activation.");
+                body.ContextMenu.Close(); body.ContextMenu = null;
+            }
+            finally { foreach (Control control in native) host.Children.Remove(control); }
+
+            int protectedBefore = opens;
+            await input.ClickAsync(page.FindControl<Button>("ExportArchiveButton")!);
+            await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
+            page.FindControl<TextBox>("ArchiveExportDestination")!.Focus();
+            await input.KeyAsync(MediaNativeInput.Space);
+            Require(opens == protectedBefore && page.IsReaderDialogOpen, "Native export dialog leaked Reader activation.");
+            await input.ClickAsync(page.FindControl<Button>("ArchiveExportClose")!);
+            var foreignBody = new TextBox { AcceptsReturn = true, Text = "foreign", Width = 180 };
+            var foreign = new Window { Width = 240, Height = 150, Content = foreignBody };
+            try
+            {
+                foreign.Show(window); foreignBody.Focus();
+                await Program.WaitUntilAsync(() => foreign.IsActive);
+                using var foreignInput = new MediaNativeInput(foreign);
+                await foreignInput.KeyAsync(MediaNativeInput.Space); await foreignInput.KeyAsync(enter);
+                Require(opens == protectedBefore, "A foreign window opened Reader media.");
+            }
+            finally { foreign.Close(); window.Activate(); }
+            await Program.WaitUntilAsync(() => window.IsActive);
+
+            // Exercise the production callback and return path once, not only a spy.
+            page.OpenGallery = realOpen;
+            await SelectSecond(); body = Body();
+            Control productionOrigin = await ClickBodyAsync(body);
+            await SendObservedKeyAsync(enter, transfersToGallery: true);
+            // The real callback may already have focused its gallery by the
+            // observation point; the key must still carry the proven input origin.
+            Require(ReferenceEquals(keySource, productionOrigin) && keyPost == "1001",
+                "Production reader key lost its proven focused selected-post origin.");
+            ContentControl galleryHost = window.FindControl<ContentControl>("GalleryHost")!;
+            await Program.WaitUntilAsync(() => galleryHost.IsVisible && galleryHost.Content is GalleryViewer);
+            var viewer = (GalleryViewer)galleryHost.Content!;
+            GalleryViewerState productionState = viewer.CaptureState();
+            Require(productionState.Key == expectedGalleryKey!.Asset && productionState.PostId == expectedGalleryKey.PostId
+                && productionState.AttachmentPosition == expectedGalleryKey.AttachmentPosition,
+                "Production callback opened unrelated first-thread media or lost the exact asset association.");
+            Button closeGallery = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(b => b.Name == "GalleryClose");
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                if (!closeGallery.IsEffectivelyVisible || closeGallery.Bounds.Width <= 0 || closeGallery.Bounds.Height <= 0
+                    || closeGallery.TranslatePoint(new Point(closeGallery.Bounds.Width / 2, closeGallery.Bounds.Height / 2), window) is not Point point)
+                    return false;
+                return window.InputHitTest(point) is Visual hit
+                    && hit.GetSelfAndVisualAncestors().Contains(closeGallery);
+            }); // Do not send a native click into the preceding Reader render scene.
+            await input.ClickAsync(closeGallery);
+            await Program.WaitUntilAsync(() => !galleryHost.IsVisible && window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+                && (posts.SelectedItem as ArchivePostRow)?.Id == "1001");
+            Require((posts.SelectedItem as ArchivePostRow)?.Id == "1001", "Gallery return lost the selected reader post.");
+            Program.CaptureWindow(window, "smoke-reader-media-native-return.png");
+            Console.WriteLine("SMOKE reader media native: clicked body Enter/Space, selection, editor, button/link, slider/menu/dialog/foreign-window guards, Up/Down and production gallery return passed via " + input.Backend);
+        }
+        finally
+        {
+            pane.RemoveHandler(InputElement.PointerPressedEvent, ObservePointer);
+            pane.RemoveHandler(InputElement.KeyDownEvent, ObserveKeyDown);
+            pane.RemoveHandler(InputElement.KeyUpEvent, ObserveKeyUp);
+            page.OpenGallery = realOpen;
+        }
     }
 
     private static async Task CheckReaderShortcutsAsync(ArchivePage page)
@@ -300,9 +825,12 @@ internal static class ReaderInteractionChecks
     {
         control.Focus();
         KeyEventArgs args = new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
-        control.RaiseEvent(args); return args;
+        control.RaiseEvent(args);
+        control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = modifiers });
+        return args;
     }
     private static T Named<T>(Control parent, string name) where T : Control => parent.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
+    private static void Click(MenuItem item) => SmokeActionClick.Execute(item);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static async Task FlushAsync() { await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded); await Task.Delay(20); }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

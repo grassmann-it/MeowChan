@@ -4,6 +4,23 @@ namespace MeowChan.DesktopTests;
 
 public sealed class ConfigTests
 {
+    [Fact]
+    public void UnchangedVideoVolumeDraftPreservesDirectPreferenceButExplicitEditWins()
+    {
+        Config live = new() { VideoVolume = 70 };
+        Config draft = live.Clone();
+        live.VideoVolume = 29;
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(29, live.VideoVolume);
+
+        draft.VideoVolume = 0;
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(0, live.VideoVolume);
+        live.CopySettingsFieldsFrom(new Config { VideoVolume = 43 });
+        Assert.Equal(43, live.VideoVolume);
+        Assert.DoesNotContain(nameof(Config.SettingsBaselineVideoVolume), JsonSerializer.Serialize(draft));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -292,7 +309,7 @@ public sealed class ConfigTests
     }
 
     [Fact]
-    public void CorruptPrimaryRecoversBackupAndAnExplicitSavePreservesBothRecoverySources()
+    public void CorruptPrimaryRecoversBackupButOrdinarySaveCannotAuthorizeRecovery()
     {
         using TempDirectory directory = new TempDirectory();
         Config original = Config.LoadConfig(directory.Path);
@@ -312,13 +329,13 @@ public sealed class ConfigTests
         Assert.Equal(backup, File.ReadAllText(SettingsPath(directory) + ".bak"));
 
         recovered.RecheckTimer = 240;
-        recovered.SaveConfig();
+        Assert.Throws<InvalidOperationException>(() => recovered.SaveConfig());
 
-        Assert.Null(recovered.LoadWarning);
-        Assert.Equal(240, Config.LoadConfig(directory.Path).RecheckTimer);
+        Assert.NotNull(recovered.LoadWarning);
+        Assert.Equal(damaged, File.ReadAllText(SettingsPath(directory)));
+        Assert.Equal(120, Config.LoadConfig(directory.Path).RecheckTimer);
         Assert.Equal(backup, File.ReadAllText(SettingsPath(directory) + ".bak"));
-        string preserved = Assert.Single(Directory.GetFiles(directory.Path, "settings.json.corrupt-*"));
-        Assert.Equal(damaged, File.ReadAllText(preserved));
+        Assert.Empty(Directory.GetFiles(directory.Path, "settings.json.corrupt-*"));
         Assert.DoesNotContain("LoadWarning", File.ReadAllText(SettingsPath(directory)));
     }
 
@@ -423,18 +440,18 @@ public sealed class ConfigTests
     }
 
     [Fact]
-    public void SavingDefaultsAfterInvalidPrimaryKeepsTheInvalidDocumentForRecovery()
+    public void SavingDefaultsAfterInvalidPrimaryIsDeniedAndPreservesTheOriginal()
     {
         using TempDirectory directory = new TempDirectory();
         const string damaged = "null";
         File.WriteAllText(SettingsPath(directory), damaged);
         Config defaults = Config.LoadConfig(directory.Path);
 
-        defaults.SaveConfig();
+        Assert.Throws<InvalidOperationException>(() => defaults.SaveConfig());
 
-        Assert.Null(Config.LoadConfig(directory.Path).LoadWarning);
-        string preserved = Assert.Single(Directory.GetFiles(directory.Path, "settings.json.corrupt-*"));
-        Assert.Equal(damaged, File.ReadAllText(preserved));
+        Assert.NotNull(Config.LoadConfig(directory.Path).LoadWarning);
+        Assert.Equal(damaged, File.ReadAllText(SettingsPath(directory)));
+        Assert.Empty(Directory.GetFiles(directory.Path, "settings.json.corrupt-*"));
     }
 
     [Fact]
