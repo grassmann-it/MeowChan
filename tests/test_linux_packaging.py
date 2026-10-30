@@ -132,8 +132,9 @@ class LinuxPackagingTests(unittest.TestCase):
         self.assertFalse(list(self.root.glob("deb-*")))
 
     def test_runtime_profile_includes_all_gallery_container_demuxers(self):
-        self.assertTrue({"mkv", "mp4", "avi"} <= set(pack.PLUGIN_FILES["demux"]))
+        self.assertTrue({"mkv", "mp4", "avi", "avformat"} <= set(pack.PLUGIN_FILES["demux"]))
         self.assertIn("avcodec", pack.REQUIRED_PLUGINS)
+        self.assertIn("avformat", pack.REQUIRED_PLUGINS)
         root = self.root / "plugins"
         for name in pack.REQUIRED_PLUGINS:
             category = next(category for category, names in pack.PLUGIN_FILES.items() if name in names)

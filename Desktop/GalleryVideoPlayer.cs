@@ -545,6 +545,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
                     input = new StreamMediaInput(stream);
                     media = new Media(_engine, input);
+                    // VLC 3's MP4 demux can consume a callback-backed, single-chunk
+                    // video-only track to EOF while its reported clock stays at 250ms.
+                    // Keep the verified handle (never reopen by path); avformat demuxes
+                    // the same bytes with progressing native PCR/time and the same decoder.
+                    if (VideoStreamDemux.HasIsoBaseMediaHeader(stream)) media.AddOption(":demux=avformat");
                 }
                 _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
                 MediaPlayer ownedPlayer = player;
@@ -1427,5 +1432,25 @@ internal sealed class VideoCleanupWatch
             _timer?.Dispose(); _timer = null;
             PerformanceDiagnostics.Record(_prefix, "failed:ownership-retained", _request, revision: _generation);
         }
+    }
+}
+
+/// <summary>Bounded container sniff on the already verified handle, not a filename/codec guess.</summary>
+internal static class VideoStreamDemux
+{
+    internal static bool HasIsoBaseMediaHeader(Stream stream)
+    {
+        if (!stream.CanSeek) return false;
+        long position = stream.Position;
+        try
+        {
+            stream.Position = 0;
+            Span<byte> header = stackalloc byte[12];
+            if (stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) != header.Length) return false;
+            uint boxLength = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header);
+            return boxLength >= 16 && boxLength <= stream.Length
+                && header.Slice(4, 4).SequenceEqual("ftyp"u8);
+        }
+        finally { stream.Position = position; }
     }
 }

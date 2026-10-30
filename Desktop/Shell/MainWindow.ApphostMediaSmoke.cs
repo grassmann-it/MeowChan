@@ -29,6 +29,8 @@ public partial class MainWindow
         string framePath = Path.Combine(profile, "apphost-playback-frame.png");
         List<GalleryVideoPlayer.PlaybackEvidence> samples = new();
         List<string> checks = new();
+        GalleryVideoPlayer.PlaybackEvidence? lastPlaybackObservation = null;
+        object? lastPlaybackReadiness = null;
         bool completed = false;
         string? failure = null;
         GalleryVideoPlayer.PlaybackEvidence? imageCleanup = null, closeCleanup = null, shutdownCleanup = null;
@@ -39,7 +41,7 @@ public partial class MainWindow
         void SaveEvidence() => File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
         {
             schemaVersion = 2, completed, failure, fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))),
-            samples, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
+            samples, lastPlaybackObservation, lastPlaybackReadiness, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
             repeatAfterSwitch, reopenedPlayback, persistedMode, postCloseRestarts, postShutdownRestarts,
             scope = "actual apphost, production verified gallery/native video output; no audio-device, screen-pixel or hardware-acceleration claim"
         }, new JsonSerializerOptions { WriteIndented = true }));
@@ -117,6 +119,16 @@ public partial class MainWindow
                 await WaitMediaSmokeAsync(async () =>
                 {
                     result = await player.InspectPlaybackAsync();
+                    // Keep the failing real decoder state too; successful samples retain
+                    // their existing ordering and all acceptance thresholds stay unchanged.
+                    lastPlaybackObservation = result;
+                    lastPlaybackReadiness = new
+                    {
+                        TransportEnabled = MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause").IsEffectivelyEnabled,
+                        player.IsEffectivelyVisible, Width = player.Bounds.Width, Height = player.Bounds.Height,
+                        Intent = player.PlaybackMode.ToString(),
+                        RenderScaling = TopLevel.GetTopLevel(player)?.RenderScaling
+                    };
                     return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
                         && (OperatingSystem.IsWindows() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
                         && MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause").IsEffectivelyEnabled

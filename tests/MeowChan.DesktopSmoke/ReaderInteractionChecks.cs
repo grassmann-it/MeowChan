@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -532,18 +533,106 @@ internal static class ReaderInteractionChecks
                 && productionState.AttachmentPosition == expectedGalleryKey.AttachmentPosition,
                 "Production callback opened unrelated first-thread media or lost the exact asset association.");
             Button closeGallery = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(b => b.Name == "GalleryClose");
-            await Program.WaitUntilAsync(() =>
+            try
             {
-                window.UpdateLayout();
-                if (!closeGallery.IsEffectivelyVisible || closeGallery.Bounds.Width <= 0 || closeGallery.Bounds.Height <= 0
-                    || closeGallery.TranslatePoint(new Point(closeGallery.Bounds.Width / 2, closeGallery.Bounds.Height / 2), window) is not Point point)
-                    return false;
-                return window.InputHitTest(point) is Visual hit
-                    && hit.GetSelfAndVisualAncestors().Contains(closeGallery);
-            }); // Do not send a native click into the preceding Reader render scene.
-            await input.ClickAsync(closeGallery);
-            await Program.WaitUntilAsync(() => !galleryHost.IsVisible && window.FindControl<ContentControl>("ReaderHost")!.IsVisible
-                && (posts.SelectedItem as ArchivePostRow)?.Id == "1001");
+                await Program.WaitUntilAsync(() =>
+                {
+                    window.UpdateLayout();
+                    if (!closeGallery.IsEffectivelyVisible || closeGallery.Bounds.Width <= 0 || closeGallery.Bounds.Height <= 0
+                        || closeGallery.TranslatePoint(new Point(closeGallery.Bounds.Width / 2, closeGallery.Bounds.Height / 2), window) is not Point point)
+                        return false;
+                    return window.InputHitTest(point) is Visual hit
+                        && hit.GetSelfAndVisualAncestors().Contains(closeGallery);
+                }); // Do not send a native click into the preceding Reader render scene.
+            }
+            finally
+            {
+                Point? center = closeGallery.TranslatePoint(new Point(closeGallery.Bounds.Width / 2, closeGallery.Bounds.Height / 2), window);
+                Console.WriteLine("SMOKE reader-native-close-geometry " + JsonSerializer.Serialize(new {
+                    center = center?.ToString(),
+                    adorners = window.GetVisualDescendants().OfType<AdornerLayer>().SelectMany(layer => layer.Children).Select(adorner => new {
+                        type = adorner.GetType().FullName, adorner.Name,
+                        adornedType = adorner.GetValue(AdornerLayer.AdornedElementProperty)?.GetType().FullName,
+                        adornedName = (adorner.GetValue(AdornerLayer.AdornedElementProperty) as Control)?.Name,
+                        adornedParent = (adorner.GetValue(AdornerLayer.AdornedElementProperty) as Control)?.Parent?.GetType().FullName
+                    }).ToArray(),
+                    hit = center is Point at ? (window.InputHitTest(at) as Control)?.GetType().FullName : null,
+                    hitAncestors = center is Point hitPoint && window.InputHitTest(hitPoint) is Visual hitVisual
+                        ? hitVisual.GetSelfAndVisualAncestors().OfType<Control>().Select(control => new {
+                            type = control.GetType().FullName, control.Name, bounds = control.Bounds.ToString(),
+                            control.IsVisible, control.IsHitTestVisible, control.ZIndex
+                        }).ToArray() : null,
+                    ancestors = closeGallery.GetSelfAndVisualAncestors().OfType<Control>().Select(control => new {
+                        type = control.GetType().Name, control.Name, bounds = control.Bounds.ToString(),
+                        control.IsVisible, control.IsEffectivelyVisible, control.IsHitTestVisible, control.Opacity
+                    }).ToArray(),
+                    galleryVisible = galleryHost.IsVisible,
+                    readerVisible = window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+                }));
+                Program.CaptureWindow(window, "smoke-reader-native-close-geometry.png");
+            }
+            int closePresses = 0, closeReleases = 0, closeClicks = 0, closeRequests = 0;
+            double? returnedTop = null;
+            bool ReturnedPostHasFocusAndAnchor()
+            {
+                if (posts.SelectedItem is not ArchivePostRow { Id: "1001" }
+                    || posts.ContainerFromItem(posts.SelectedItem!) is not Control returnedPost
+                    || window.FocusManager?.GetFocusedElement() is not Control returnedFocus
+                    || !returnedFocus.GetSelfAndVisualAncestors().Contains(returnedPost)) return false;
+                var viewport = posts.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+                returnedTop = viewport == null ? null : returnedPost.TranslatePoint(default, viewport)?.Y;
+                return returnedTop is double top && Math.Abs(top - 8) <= 2;
+            }
+            string? pressedSource = null, releasedSource = null, pressedPosition = null, releasedPosition = null;
+            void WindowPressed(object? sender, PointerPressedEventArgs e)
+            {
+                pressedSource = (e.Source as Control)?.Name ?? e.Source?.GetType().Name;
+                pressedPosition = e.GetPosition(window).ToString();
+            }
+            void WindowReleased(object? sender, PointerReleasedEventArgs e)
+            {
+                releasedSource = (e.Source as Control)?.Name ?? e.Source?.GetType().Name;
+                releasedPosition = e.GetPosition(window).ToString();
+            }
+            void ClosePressed(object? sender, PointerPressedEventArgs e) => closePresses++;
+            void CloseReleased(object? sender, PointerReleasedEventArgs e) => closeReleases++;
+            void CloseClicked(object? sender, RoutedEventArgs e) => closeClicks++;
+            void CloseRequested() => closeRequests++;
+            closeGallery.AddHandler(InputElement.PointerPressedEvent, ClosePressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+            closeGallery.AddHandler(InputElement.PointerReleasedEvent, CloseReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+            closeGallery.Click += CloseClicked;
+            viewer.CloseRequested += CloseRequested;
+            window.AddHandler(InputElement.PointerPressedEvent, WindowPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+            window.AddHandler(InputElement.PointerReleasedEvent, WindowReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+            try
+            {
+                await input.ClickAsync(closeGallery);
+                await Program.WaitUntilAsync(() => !galleryHost.IsVisible && window.FindControl<ContentControl>("ReaderHost")!.IsVisible
+                    && ReturnedPostHasFocusAndAnchor());
+                Require(closePresses == 1 && closeReleases == 1 && closeClicks == 1 && closeRequests == 1,
+                    "Native GalleryClose did not deliver exactly one pointer press/release, click and close request.");
+            }
+            finally
+            {
+                Console.WriteLine("SMOKE reader-native-return " + JsonSerializer.Serialize(new {
+                    closePresses, closeReleases, closeClicks, closeRequests, returnedTop,
+                    pressedSource, releasedSource, pressedPosition, releasedPosition,
+                    galleryVisible = galleryHost.IsVisible,
+                    readerVisible = window.FindControl<ContentControl>("ReaderHost")!.IsVisible,
+                    selectedPost = (posts.SelectedItem as ArchivePostRow)?.Id,
+                    closeBounds = closeGallery.Bounds.ToString(),
+                    closeOrigin = closeGallery.TranslatePoint(default, window)?.ToString(),
+                    windowSize = window.Bounds.Size.ToString(), window.RenderScaling,
+                    activationStatus = page.ReaderMediaActivationTask.Status.ToString(),
+                    focus = (window.FocusManager?.GetFocusedElement() as Control)?.GetType().Name
+                }));
+                closeGallery.RemoveHandler(InputElement.PointerPressedEvent, ClosePressed);
+                closeGallery.RemoveHandler(InputElement.PointerReleasedEvent, CloseReleased);
+                closeGallery.Click -= CloseClicked;
+                viewer.CloseRequested -= CloseRequested;
+                window.RemoveHandler(InputElement.PointerPressedEvent, WindowPressed);
+                window.RemoveHandler(InputElement.PointerReleasedEvent, WindowReleased);
+            }
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "1001", "Gallery return lost the selected reader post.");
             Program.CaptureWindow(window, "smoke-reader-media-native-return.png");
             Console.WriteLine("SMOKE reader media native: clicked body Enter/Space, selection, editor, button/link, slider/menu/dialog/foreign-window guards, Up/Down and production gallery return passed via " + input.Backend);

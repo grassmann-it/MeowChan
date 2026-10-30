@@ -4,7 +4,11 @@ using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Data;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -49,6 +53,7 @@ public partial class MainWindow
     private bool _gallerySuspended;
     // True while the gallery overlay actually covers the shell content (open, visible, not suspended for the reader).
     private bool _galleryCoversWorkspace;
+    private readonly ReaderGalleryAdornerCoverage _galleryReaderAdorners = new();
     private bool _sessionDirtyWhileCovered;
     private bool _galleryVisitedReader;
     private bool _galleryReaderOrigin;
@@ -503,12 +508,35 @@ public partial class MainWindow
     {
         if (_galleryCoversWorkspace == covers) return;
         _galleryCoversWorkspace = covers;
+        if (covers)
+        {
+            LayoutUpdated += OnGalleryCoveredLayoutUpdated;
+            UpdateGalleryCoveredAdorners();
+        }
+        else
+        {
+            LayoutUpdated -= OnGalleryCoveredLayoutUpdated;
+            _galleryReaderAdorners.Clear();
+        }
         _archivePage?.SetObscuredByGallery(covers);
         if (!covers && _sessionDirtyWhileCovered && !_isClosing)
         {
             _sessionDirtyWhileCovered = false;
             _sessionRefresh.RequestImmediate();
         }
+    }
+
+    private void OnGalleryCoveredLayoutUpdated(object? sender, EventArgs e) => UpdateGalleryCoveredAdorners();
+
+    private void UpdateGalleryCoveredAdorners()
+    {
+        // Ursa pagination adorners live in the window's AdornerLayer, not in
+        // ReaderHost. Keeping the covered reader in the tree must not leave its
+        // disabled-button masks above the gallery, intercepting native clicks.
+        // Include late-created adorners without touching gallery/notification UI.
+        Control reader = WorkspaceControl<ContentControl>("ReaderHost");
+        _galleryReaderAdorners.Update(reader, _archivePage,
+            this.GetVisualDescendants().OfType<AdornerLayer>().SelectMany(layer => layer.Children));
     }
 
     private static async Task StopAndDetachGalleryAsync(GalleryViewer retiring, ContentControl? host)
@@ -529,4 +557,30 @@ public partial class MainWindow
             await ArchivePage.FocusPostAsync(entry.Post.PostId);
     }
 
+}
+
+/// <summary>Temporarily covers only adorners owned by the retained reader/archive.</summary>
+internal sealed class ReaderGalleryAdornerCoverage
+{
+    private readonly Dictionary<Control, IDisposable> _hidden = new();
+
+    internal void Update(Control reader, Control? archive, IEnumerable<Control> adorners)
+    {
+        foreach (Control adorner in adorners)
+        {
+            if (_hidden.ContainsKey(adorner)) continue;
+            Visual? adorned = adorner.GetValue(AdornerLayer.AdornedElementProperty);
+            if (adorned == null || !adorned.GetSelfAndVisualAncestors().Any(ancestor =>
+                ReferenceEquals(ancestor, reader) || ReferenceEquals(ancestor, archive))) continue;
+            // A disposable priority override preserves bindings/styles/local values,
+            // including an adorner that was already hidden before gallery entry.
+            _hidden.Add(adorner, adorner.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation));
+        }
+    }
+
+    internal void Clear()
+    {
+        foreach (IDisposable visibility in _hidden.Values) visibility.Dispose();
+        _hidden.Clear();
+    }
 }
