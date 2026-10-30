@@ -276,16 +276,52 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()) && Running(viewer), "Transport fixture did not start.");
         var evidence = await player.InspectPlaybackAsync();
-        Require(evidence.AudioAvailable && evidence.AudioTracks > 0, "Synthetic audio track is unavailable; volume acceptance cannot silently skip.");
         int contextWrites = 0;
         viewer.ContextOpenChanged += _ => contextWrites++;
         Slider volume = Find<Slider>(viewer, "GalleryVideoVolume");
-        Require(volume.IsEffectivelyEnabled, "Real audio fixture did not enable volume.");
+        bool nativeUnavailable = !evidence.AudioAvailable;
+        bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence sample) =>
+            sample.HasPlayback && !sample.AudioAvailable && sample.AudioTracks > 0
+            && (sample.Volume < 0 || (sample.DecodedAudio > 0 && sample.PlayedAudioBuffers == 0));
+        if (nativeUnavailable)
+            Require(ProvesNativeUnavailable(evidence), "Unavailable audio lacks native no-output evidence.");
+        else
+        {
+            Require(evidence.AudioAvailable && evidence.AudioTracks > 0, "Synthetic audio track is unavailable; volume acceptance cannot silently skip.");
+            Require(volume.IsEffectivelyEnabled, "Real audio fixture did not enable volume.");
+        }
         await native.MoveAsync(volume);
         await ObservePlayingAsync(player, "volume hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Volume hover opened post/paused slideshow.");
-        await native.ClickAsync(volume, SliderPoint(volume, .65));
-        await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume >= 55, "Native volume click did not change decoder volume.");
+        if (nativeUnavailable)
+        {
+            var before = await player.InspectPlaybackAsync();
+            var selection = viewer.CaptureState();
+            bool running = Running(viewer);
+            int writes = contextWrites;
+            ToggleButton mute = Find<ToggleButton>(viewer, "GalleryVideoMute");
+            Require(ProvesNativeUnavailable(before) && before.State == "Playing"
+                && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
+                "Native no-output volume check requires disabled controls and actual unavailable evidence.");
+            await native.MoveAsync(volume, SliderPoint(volume, .65));
+            await native.ButtonAsync(true);
+            await native.ButtonAsync(false);
+            await ObservePlayingAsync(player, "disabled volume click");
+            var after = await player.InspectPlaybackAsync();
+            Require(ProvesNativeUnavailable(after) && after.Volume == before.Volume && after.Muted == before.Muted
+                && after.State == before.State && viewer.CaptureState().PostId == selection.PostId
+                    && viewer.CaptureState().Key == selection.Key && viewer.CaptureState().AttachmentPosition == selection.AttachmentPosition
+                && viewer.CaptureState().ContextOpen == selection.ContextOpen && Running(viewer) == running
+                && contextWrites == writes && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
+                "Disabled volume pointer changed native volume/mute/state, selection, slideshow or context.");
+            Console.WriteLine("SMOKE coverage-limit transport volume: native output unavailable; volume editing/focus NOT exercised; physical disabled-pointer invariance verified. Evidence: "
+                + System.Text.Json.JsonSerializer.Serialize(new { before, after }));
+        }
+        else
+        {
+            await native.ClickAsync(volume, SliderPoint(volume, .65));
+            await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume >= 55, "Native volume click did not change decoder volume.");
+        }
         await ObservePlayingAsync(player, "volume click");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Volume click opened right post or stopped advancement.");
         Border transport = Find<Border>(viewer, "GalleryVideoTransport");

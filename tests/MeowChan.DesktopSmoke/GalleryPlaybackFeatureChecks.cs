@@ -542,7 +542,44 @@ internal static partial class GalleryPlaybackFeatureChecks
                 "Hovering bottom transport leaked into right-post reveal or stopped slideshow: " + name));
         }
         Slider volume = Find<Slider>(viewer, "GalleryVideoVolume");
-        await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+        var volumeEvidence = await player.InspectPlaybackAsync();
+        if (!volumeEvidence.AudioAvailable)
+        {
+            bool ProvesNativeUnavailable(GalleryVideoPlayer.PlaybackEvidence sample) =>
+                sample.HasPlayback && !sample.AudioAvailable && sample.AudioTracks > 0
+                && (sample.Volume < 0 || (sample.DecodedAudio > 0 && sample.PlayedAudioBuffers == 0));
+            var selection = viewer.CaptureState();
+            bool running = Running(viewer), postVisible = Visible(post);
+            int volumeContextWrites = 0;
+            void VolumeContextChanged(bool _) => volumeContextWrites++;
+            viewer.ContextOpenChanged += VolumeContextChanged;
+            try
+            {
+                ToggleButton mute = Find<ToggleButton>(viewer, "GalleryVideoMute");
+                Require(ProvesNativeUnavailable(volumeEvidence) && volumeEvidence.State == "Playing"
+                    && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
+                    "Native no-output edge check requires disabled controls and actual unavailable evidence.");
+                await native.MoveAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native.ButtonAsync(true);
+                await native.ButtonAsync(false);
+                await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Disabled bottom-edge volume interaction");
+                var after = await player.InspectPlaybackAsync();
+                Require(ProvesNativeUnavailable(after) && after.Volume == volumeEvidence.Volume
+                    && after.Muted == volumeEvidence.Muted && after.State == volumeEvidence.State
+                    && viewer.CaptureState().PostId == selection.PostId
+                    && viewer.CaptureState().Key == selection.Key && viewer.CaptureState().AttachmentPosition == selection.AttachmentPosition && Running(viewer) == running
+                    && viewer.CaptureState().ContextOpen == selection.ContextOpen && Visible(post) == postVisible
+                    && volumeContextWrites == 0 && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
+                    "Disabled edge volume pointer changed native volume/mute/state, selection, slideshow or context.");
+                Console.WriteLine("SMOKE coverage-limit edge volume: native output unavailable; volume editing/focus NOT exercised; physical disabled-pointer invariance verified. Evidence: "
+                    + JsonSerializer.Serialize(new { before = volumeEvidence, after }));
+            }
+            finally { viewer.ContextOpenChanged -= VolumeContextChanged; }
+        }
+        else
+        {
+            await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+        }
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Bottom-edge volume interaction");
         Require(Running(viewer) && !Visible(post) && !viewer.CaptureState().ContextOpen,
             "Bottom volume interaction opened right post or stopped automatic advancement.");
