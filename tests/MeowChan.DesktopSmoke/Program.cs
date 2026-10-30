@@ -1027,7 +1027,7 @@ internal static class Program
     // Ownerless fixture windows have no authoritative shell mode: report null, not a default.
     internal static MainWindow? OwningMainWindow(Window window)
     {
-        for (Window? owner = window; owner != null; owner = owner.Owner)
+        for (WindowBase? owner = window; owner != null; owner = owner.Owner)
         {
             if (owner is MainWindow main)
                 return main;
