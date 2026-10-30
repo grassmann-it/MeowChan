@@ -21,6 +21,11 @@ public interface IPluginProfileStore
     Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled repair is not supported by this profile store.");
+    Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Bundled new selection is not supported by this profile store.");
+    Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Bundled new selection is not supported by this profile store.");
     Task<PluginProfileSnapshot> SelectCandidateAsync(string pluginId, string candidateId, long expectedRevision, CancellationToken cancellationToken = default);
     Task<PluginProfileSnapshot> SaveConfigurationAsync(string pluginId, string candidateId, PluginConfiguration configuration, long expectedRevision, CancellationToken cancellationToken = default);
     Task<PluginProfileSnapshot> SelectRollbackAsync(string pluginId, long expectedRevision, CancellationToken cancellationToken = default);

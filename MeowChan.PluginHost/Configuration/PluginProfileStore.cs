@@ -10,7 +10,7 @@ namespace MeowChan.PluginHost.Configuration;
 /// Profile-owned atomic store. A separate stable lock file serializes readers and writers across processes;
 /// the revision is rechecked under that lock. Corrupt state is never replaced with defaults.
 /// </summary>
-public sealed class PluginProfileStore : IPluginProfileStore
+public sealed partial class PluginProfileStore : IPluginProfileStore
 {
     private const int FormatVersion = 1;
     private const int DeliveredFormatVersion = 2;
@@ -20,6 +20,7 @@ public sealed class PluginProfileStore : IPluginProfileStore
     private readonly string lockPath;
     private readonly Func<string, bool> initiallyEnabled;
     private readonly Func<IReadOnlyList<string>>? repairRestrictedSources;
+    private readonly SemaphoreSlim? repairPermissionGate;
 
     public PluginProfileStore(string profileDirectory) : this(profileDirectory, static _ => true) { }
 
@@ -27,12 +28,20 @@ public sealed class PluginProfileStore : IPluginProfileStore
     /// Uses the host's default only when a plugin identity is first recorded. Saved enable choices
     /// remain authoritative; resolving a provisional owner cannot bypass a disabled default.
     /// </summary>
-    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled, Func<IReadOnlyList<string>>? repairRestrictedSources = null)
+    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled,
+        Func<IReadOnlyList<string>>? repairRestrictedSources = null)
+        : this(profileDirectory, initiallyEnabled, repairRestrictedSources, null) { }
+
+    /// <summary>The gate must be the same gate used by every writer of the supplied live permission authority.
+    /// The store borrows it and does not dispose it. The original three-argument constructor remains ABI-compatible.</summary>
+    public PluginProfileStore(string profileDirectory, Func<string, bool> initiallyEnabled,
+        Func<IReadOnlyList<string>>? repairRestrictedSources, SemaphoreSlim? repairPermissionGate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
         ArgumentNullException.ThrowIfNull(initiallyEnabled);
         this.initiallyEnabled = initiallyEnabled;
         this.repairRestrictedSources = repairRestrictedSources;
+        this.repairPermissionGate = repairPermissionGate;
         directory = Path.Combine(Path.GetFullPath(profileDirectory), "plugin-state");
         path = Path.Combine(directory, "state.json");
         lockPath = Path.Combine(directory, "state.lock");
@@ -402,7 +411,8 @@ public sealed class PluginProfileStore : IPluginProfileStore
             document => Task.FromResult(document with { Profile = update(document.Profile) }), cancellationToken);
 
     private async Task<PluginProfileSnapshot> MutateDocumentAsync(long expectedRevision,
-        Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken)
+        Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken,
+        bool preserveReselectionBackup = false)
     {
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
@@ -413,6 +423,9 @@ public sealed class PluginProfileStore : IPluginProfileStore
         PluginProfileSnapshot state = document.Profile;
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
         BundledProfileDocument updated = await update(document).ConfigureAwait(false);
+        if (preserveReselectionBackup && original is not null)
+            updated = updated with { ReselectionBackupSha256 = document.ReselectionBackupSha256
+                ?? Convert.ToHexStringLower(SHA256.HashData(original)) };
         PluginProfileSnapshot next = updated.Profile with { Revision = checked(state.Revision + 1) };
         updated = updated with { Profile = next };
         ValidateState(next);
@@ -428,6 +441,8 @@ public sealed class PluginProfileStore : IPluginProfileStore
         // A conflicting/oversized/unreadable backup aborts rather than replacing evidence.
         if (originalVersion == FormatVersion && original is not null)
             await PreservePreV2Async(original, cancellationToken).ConfigureAwait(false);
+        if (preserveReselectionBackup && original is not null)
+            await PreserveReselectionBackupAsync(original, updated.ReselectionBackupSha256!, cancellationToken).ConfigureAwait(false);
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
         bool preserveTemporary = false;
         try

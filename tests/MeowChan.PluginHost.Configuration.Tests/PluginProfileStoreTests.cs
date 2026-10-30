@@ -9,7 +9,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Configuration.Tests;
 
-public sealed class PluginProfileStoreTests : IDisposable
+public sealed partial class PluginProfileStoreTests : IDisposable
 {
     private readonly string profile = Path.Combine(Path.GetTempPath(), "meowchan-activation-" + Guid.NewGuid().ToString("N"));
     private static readonly SettingsSchema Empty = new("1", Array.Empty<SettingDefinition>());
@@ -1435,7 +1435,7 @@ public sealed class PluginProfileStoreTests : IDisposable
     }
 
     private async Task<(PluginCandidateObservation Candidate, DeliveredCandidateProvenance Proof)> Delivered(string installation, string build,
-        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false)
+        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false, SettingsSchema? settings = null)
     {
         string root = Path.Combine(profile, installation, "plugins"); Directory.CreateDirectory(root);
         byte[] assembly = Encoding.UTF8.GetBytes("synthetic offline assembly " + build);
@@ -1451,8 +1451,8 @@ public sealed class PluginProfileStoreTests : IDisposable
         var installed = Assert.Single((await new PluginInstallationInventory().ScanAsync(root)).Candidates,
             c => c.Kind == PluginCandidateKind.PrebuiltManifest);
         PluginArtifact artifact = new(compilation, execution, Path.Combine(cache, "plugin.dll"), sha, sdk, compiler, [], cache);
-        SettingsSchema schema = requiredSetting ? new("1", [new("count", SettingScope.Plugin,
-            SettingKind.Integer, "Count", IsRequired: true)]) : NumberSchema("1", 1);
+        SettingsSchema schema = settings ?? (requiredSetting ? new("1", [new("count", SettingScope.Plugin,
+            SettingKind.Integer, "Count", IsRequired: true)]) : NumberSchema("1", 1));
         PluginCandidateObservation candidate = Candidate(execution, schema) with
             { CandidateId = installed.CandidateId, CandidatePath = installed.Path, Artifact = artifact };
         if (source)

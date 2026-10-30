@@ -38,7 +38,11 @@ internal sealed record PreReplacementBasis(PluginReleaseSnapshot? Release, strin
 }
 internal sealed record BundledProfileDocument(PluginProfileSnapshot Profile,
     IReadOnlyList<DeliveredCandidateProvenance> Provenance, IReadOnlyList<BundledRepairBinding> Bindings,
-    IReadOnlyList<string> RestrictedSourceIds);
+    IReadOnlyList<string> RestrictedSourceIds)
+{
+    // Bind the actual first pre-selection envelope, without pretending it was v1.
+    public string? ReselectionBackupSha256 { get; init; }
+}
 
 internal static class BundledCandidateMigration
 {
@@ -220,6 +224,8 @@ internal static class BundledCandidateMigration
 
     internal static void Validate(BundledProfileDocument document)
     {
+        if (document.ReselectionBackupSha256 is { } backupHash && !CompilerWire.IsHash(backupHash))
+            throw new ArgumentException("Invalid new-selection backup binding.");
         if (document.Provenance is null || document.Bindings is null || document.RestrictedSourceIds is null ||
             document.Provenance.Count > MaximumEvidence || document.Bindings.Count > MaximumEvidence || document.RestrictedSourceIds.Count > 4096)
             throw new ArgumentException("Invalid bounded delivered provenance collections.");

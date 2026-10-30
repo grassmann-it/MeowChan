@@ -94,7 +94,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             queue.SetPaused(Config.DownloadsPaused);
             if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
-                pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy);
+                pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);

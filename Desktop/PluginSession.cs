@@ -57,7 +57,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
         Func<HttpClient>? transportFactory = null,
-        Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null)
+        Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null,
+        SemaphoreSlim? sourcePermissionCommitGate = null)
     {
         _queue = queue; _logger = logger;
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
@@ -77,7 +78,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             lock (_state)
                 return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
                     .Select(source => source.Name).Concat(_repairRestrictedSourceIds).Distinct(StringComparer.Ordinal).ToArray();
-        });
+        }, sourcePermissionCommitGate);
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,
