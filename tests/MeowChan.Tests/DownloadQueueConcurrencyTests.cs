@@ -114,7 +114,28 @@ public sealed partial class DownloadQueueTests
             Assert.Equal(configured, queue.MaxParallelDownloads);
             Assert.InRange(queue.GetCapacitySnapshot().Pending, 0, 256);
             long heldHeap = GC.GetTotalMemory(false);
-            handler.Release(250);
+            // Test scheduler progress, not whether this machine can durably publish all
+            // 250 files within one TestWait.Timeout (especially on Windows CI). Keep
+            // each wave held until every available slot has reached HTTP, then grant
+            // exactly that wave's responses. No permits can leak into the next wave.
+            // The first wave's start notifications were consumed above.
+            int remaining = 250;
+            while (remaining > 0)
+            {
+                int wave = Math.Min(effective, remaining);
+                if (remaining != 250)
+                    await handler.WaitForStartsAsync(wave);
+                // A short final wave may overlap returning responses from the
+                // preceding wave; full waves must occupy every effective slot.
+                Assert.InRange(handler.ActiveRequests, wave, effective);
+                Assert.Equal(configured, queue.MaxParallelDownloads);
+                Assert.Equal(effective, queue.GetConcurrencySnapshot().Effective);
+                Assert.InRange(handler.MaximumActiveRequests, 1, effective);
+                handler.Release(wave);
+                remaining -= wave;
+            }
+            // Only a capacity-bounded tail of publication/retirement remains, bounded
+            // by the unchanged timeout; a stalled scheduler cannot pass silently.
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
             Assert.Equal(250, handler.RequestCount);
             Assert.InRange(handler.MaximumActiveRequests, 1, effective);
