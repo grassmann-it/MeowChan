@@ -122,16 +122,21 @@ public partial class MainWindow
                     // Keep the failing real decoder state too; successful samples retain
                     // their existing ordering and all acceptance thresholds stay unchanged.
                     lastPlaybackObservation = result;
+                    // The player can enter the visual tree before its transport is attached.
+                    // Retry absence within the existing readiness deadline; duplicates still fail.
+                    Button? transport = viewer.GetGalleryVisualDescendants().OfType<Button>()
+                        .SingleOrDefault(control => control.Name == "GalleryVideoPlayPause");
                     lastPlaybackReadiness = new
                     {
-                        TransportEnabled = MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause").IsEffectivelyEnabled,
+                        TransportPresent = transport != null,
+                        TransportEnabled = transport?.IsEffectivelyEnabled ?? false,
                         player.IsEffectivelyVisible, Width = player.Bounds.Width, Height = player.Bounds.Height,
                         Intent = player.PlaybackMode.ToString(),
                         RenderScaling = TopLevel.GetTopLevel(player)?.RenderScaling
                     };
                     return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
                         && (OperatingSystem.IsWindows() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
-                        && MediaSmokeControl<Button>(viewer, "GalleryVideoPlayPause").IsEffectivelyEnabled
+                        && transport != null && transport.IsEffectivelyEnabled
                         && player.IsEffectivelyVisible && player.Bounds.Width > 0 && player.Bounds.Height > 0;
                 }, "native decoded/displayed frames and enabled transport");
                 samples.Add(result!); SaveEvidence(); return result!;
