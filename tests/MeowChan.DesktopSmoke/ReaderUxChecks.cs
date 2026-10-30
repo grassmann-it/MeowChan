@@ -719,7 +719,7 @@ internal static class ReaderUxChecks
     private static async Task CheckSmallOverlayChromeAsync(MainWindow window, ContentControl overlay)
     {
         double width = window.Width, height = window.Height;
-        string mode = Config.LoadConfig().WorkspaceMode;
+        string mode = window.SessionHost.Config.WorkspaceMode;
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Barebones");

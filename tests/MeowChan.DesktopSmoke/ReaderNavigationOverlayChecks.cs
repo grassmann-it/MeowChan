@@ -23,7 +23,7 @@ internal static class ReaderNavigationOverlayChecks
 
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
-        string mode = Config.LoadConfig().WorkspaceMode;
+        string mode = window.SessionHost.Config.WorkspaceMode;
         string language = Texts.Language;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         double width = window.Width, height = window.Height;
@@ -165,7 +165,7 @@ internal static class ReaderNavigationOverlayChecks
         Rect pageBar = Bounds(page.FindControl<Grid>("ArchivePostNavigation")!, window);
         Console.WriteLine("SMOKE reader navigation precondition: " + System.Text.Json.JsonSerializer.Serialize(new
         {
-            mode = Config.LoadConfig().WorkspaceMode, language = Texts.Language,
+            mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
             theme = Application.Current!.RequestedThemeVariant?.ToString(), scale = window.RenderScaling,
             client = window.ClientSize.ToString(), navigation.IsVisible, navigation.IsEffectivelyVisible,
             navigation.IsMeasureValid, navigation.IsArrangeValid, localBounds = navigation.Bounds.ToString(),
@@ -203,7 +203,7 @@ internal static class ReaderNavigationOverlayChecks
                 "Narrow navigation is not an overlay inside the full-height thread viewport.");
         else Require(postBounds.Right <= pad.Left - 4,
             "Wide-screen navigation lost its free side lane.");
-        Console.WriteLine($"SMOKE reader navigation geometry: mode={Config.LoadConfig().WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
+        Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
         foreach (ScrollBar bar in posts.GetVisualDescendants().OfType<ScrollBar>()
             .Where(bar => bar.IsEffectivelyVisible && bar.Orientation == Orientation.Vertical && bar.Bounds.Width > 0))
             Require(Separated(Bounds(bar, window), pad, 4),
@@ -390,7 +390,7 @@ internal static class ReaderNavigationOverlayChecks
             "Reader history lacks its visible, unclipped localized label or accessible command semantics.");
         Console.WriteLine("SMOKE reader navigation toolbar: " + System.Text.Json.JsonSerializer.Serialize(new
         {
-            mode = Config.LoadConfig().WorkspaceMode, language = Texts.Language,
+            mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
             theme = Application.Current!.RequestedThemeVariant?.ToString(), client = window.ClientSize.ToString(),
             scale = window.RenderScaling, bounds = area.ToString(), rows = rows.Count,
             buttons = buttons.Select(item => new { name = item.Button.Name, bounds = item.Box.ToString() }).ToArray(),
