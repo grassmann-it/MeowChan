@@ -1,3 +1,33 @@
+# Veröffentlichung 1.0.2 abgeschlossen — 31.10.2026
+
+Reguläres Latest, kein Prerelease: https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2
+Release-ID430056148, unveränderter Paketsource/Tag eec6c0169f8d52f7481ea0bf7febfd20981e97c3.
+Abgenommener Fullrun41215622532, Attempt1: alle13PflichtjobsSUCCESS.18Originaldateien
+vonArtifact13047849388;ZIP3435175591Bytes/SHA2564089c85a3c74a8ca79d1c2d2c8473ae096940f871e4abd1df4b08480df33a5f8.
+Originalbytes/Größen/Quellbindungen/Checksummen/Legal-/NuGet-Inhalt und35explizite
+Native-/Upgrade-/Fixturesteps vorPublication geprüft. Alle18Assets anschließend
+OHNEAuthentifizierungvollständig heruntergeladen und gegenSHA256/Größe geprüft.
+Alte6öffentlicheReleases undbestehenderAlpha-Tag2432db2a3dd9e073bb96b7b2a4b3f6a51bec6bfd
+unverändert; Alpha hat keinenReleaseeintrag, Tag-only-Snapshot schützt ihn explizit.
+FehlgeschlageneReadtransfers/altePreflightannahme bliebeninlokalenReceipts,keine
+partiellenBytes oderaltenCandidateassets veröffentlicht.
+
+main erhielt den vollständigen Releasebranch alsFast-forward; anschließende
+README-/Releaseabschluss-/vomNutzerfreigegebeneCopyedits sind ausschließlichDoku.
+Originalpakete/Tag bleibenaufgetestetemeec6c01. ÖffentlichesReleasebody-Copyedit
+entferntseparaten„GoonCentral“-Abschnitt undverwendetnormalen„Improvedmediafeatures“-
+PunktmitVLC/Imageviewer-Workflow undFeedbackeinladungfürgooners//gif/Poweruser.
+Assets,Latest,SourceundBuildprovenienz bliebenauchbeimCopyeditunverändert.
+
+LokaleBelege:artifacts/releases/2026-10-30/v1.0.2/final-eec6c01/{original-candidate-long,
+root-final-attestation.json,content-review.json,publisher-receipts/attempt-2s08k20e,
+anonymous-downloads.json,copyedit}. GeschützteBenutzerdateienunverändert.
+ManuellerWindowsfeldtestbleibtNachveröffentlichungsaufgabe;physischeAudio-/GPU-
+oderAlltagsabnahme wirdnichtbehauptet. BegrenzteFollow-upsgegebenenfalls1.0.3;
+keineNeueQuellen/CSVextras oderBooru-/PluginwerkstattideeninsReleasegezogen.
+
+---
+
 # Aktuell: bekannte GIF-/Fokus-/CI-Blocker nativ bestätigt korrigiert — 31.10.2026
 
 f6acc54GIFreadiness:ARM41213612139+Intel41213615598SUCCESS;Originalartefaktezeigen

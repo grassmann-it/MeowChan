@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.2 — stability, media controls and startup recovery
+## 1.0.2 — 2026-10-31 — stability, media controls and startup recovery
 
 - Automatically activate compatible in-place rebuilds of already established bundled
   plugins at startup, including local `dotnet run` builds and an explicitly selected

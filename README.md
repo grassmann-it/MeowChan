@@ -19,7 +19,7 @@ Original-media verification remains enforced.
 ## What's improved in 1.0.2 🐾
 
 - **Dependable startup and upgrades.** Compatible, verified bundled-plugin rebuilds retain your settings and enabled choices without another confirmation/restart loop. Preference saves wait for readiness; missing unproven legacy selections retain their explicit review-and-backup path, not silent remapping.
-- **“Goon Central” for /gif/ power users and HQ collections.** Download a thread, then browse its original images, animated GIFs, WebM and MP4 directly in the gallery—with remembered video repeat, media focus and explicitly started mixed slideshow. Original files stay original; quality depends on the source. Less folder-to-player switching, not a replacement for every VLC feature.
+- **Improved media features.** Usually open your downloads in VLC or a separate image viewer? Try the gallery for images, GIFs, WebM and MP4, with remembered looping, media focus and mixed slideshows. Feedback from gooners and /gif/ power users is especially welcome.
 - **Safer viewing transitions.** Bottom/right edge controls, a full-height Reader and reliable Reader return keep media in focus. Windows overlay transfers no longer trip the LayoutManager crash; the first navigation arrow works even when video-to-image transitions briefly clear native focus. macOS rapid-fullscreen restoration respects the latest window choice.
 - **Bounded downloads.** Fair next-file slots for multiple High watches and an effective 32-transfer cap; defaults remain 1 MiB/s and 5 transfers, with a 256-item pending queue.
 
