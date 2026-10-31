@@ -418,7 +418,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                                                ('all', 'selection', 1), ('all', 'gallery-errors', 1),
                                                ('windows-2022', 'gallery-errors', 1),
                                                ('all', 'gallery-features', 1),
-                                               ('windows-2022', 'gallery-features', 1)):
+                                               ('windows-2022', 'gallery-features', 1),
+                                               ('all', 'gif-playback', 1),
+                                               ('macos-15', 'gif-playback', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
             self.assertEqual(expected, subprocess.run(['bash', '-e', '-c', command]).returncode)
 
@@ -428,6 +430,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         selectors = {
             'gallery-errors': 'Exercise gallery error interaction on the actual platform',
             'gallery-features': 'Exercise changed gallery features on the actual platform',
+            'gif-playback': 'Exercise GIF playback and ownership on the actual platform',
         }
         gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()
@@ -482,6 +485,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('--allow-native-desktop --mode normal', features)
         self.assertIn('artifacts/gallery-features/**', self.jobs['validate'])
         self.assertIn('artifacts/private-audio/**', self.jobs['validate'])
+        gif = steps[selectors['gif-playback']]
+        self.assertIn("MEOWCHAN_GIF_PLAYBACK_ONLY: '1'", gif)
+        self.assertIn('--mode normal --timeout 300 --output artifacts/closure-gif-playback', gif)
+        self.assertIn('artifacts/closure-gif-playback/**', self.jobs['validate'])
         for scenario in selectors:
             self.assertIn(f'          - {scenario}\n', self.workflow)
         self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])

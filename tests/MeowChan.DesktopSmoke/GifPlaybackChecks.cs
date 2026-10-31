@@ -493,12 +493,45 @@ internal static partial class GalleryPlaybackFeatureChecks
             body.SelectionStart = body.SelectionEnd = 0;
             using MediaNativeInput native = new(shell);
             Control? pointerSource = null;
-            void Pointer(object? sender, PointerPressedEventArgs e) => pointerSource = e.Source as Control;
+            void Pointer(object? sender, PointerPressedEventArgs e)
+            {
+                pointerSource = e.Source as Control;
+                Console.WriteLine("SMOKE gif-reader-pointer " + JsonSerializer.Serialize(new
+                {
+                    source = pointerSource?.GetType().Name, name = pointerSource?.Name,
+                    inBody = pointerSource?.GetSelfAndVisualAncestors().Contains(body) == true,
+                    bodyPoint = e.GetPosition(body).ToString(), windowPoint = e.GetPosition(shell).ToString(),
+                    selected = (list.SelectedItem as ArchivePostRow)?.Id, active = shell.IsActive
+                }));
+            }
+            object ClickEvidence()
+            {
+                var pixel = body.PointToScreen(new Point(16, 10));
+                var hit = shell.InputHitTest(shell.PointToClient(pixel)) as Control;
+                var focus = shell.FocusManager?.GetFocusedElement() as Control;
+                return new
+                {
+                    backend = native.Backend, active = shell.IsActive, scale = shell.RenderScaling,
+                    windowPosition = shell.Position.ToString(), windowBounds = shell.Bounds.ToString(),
+                    bodyBounds = body.Bounds.ToString(), rowBounds = row.Bounds.ToString(),
+                    targetPixel = pixel.ToString(), hit = hit?.GetType().Name, hitName = hit?.Name,
+                    hitInBody = hit?.GetSelfAndVisualAncestors().Contains(body) == true,
+                    pointer = pointerSource?.GetType().Name, pointerName = pointerSource?.Name,
+                    pointerInBody = pointerSource?.GetSelfAndVisualAncestors().Contains(body) == true,
+                    target = target.Id, selected = (list.SelectedItem as ArchivePostRow)?.Id,
+                    exactSelected = ReferenceEquals(list.SelectedItem, target),
+                    focus = focus?.GetType().Name, focusName = focus?.Name,
+                    focusInBody = ReferenceEquals(focus, body), focusInRow = ReferenceEquals(focus, row),
+                    body.SelectionStart, body.SelectionEnd
+                };
+            }
             page.FindControl<Grid>("ArchiveReaderPane")!.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel, handledEventsToo: true);
             try
             {
+                Console.WriteLine("SMOKE gif-reader-click-before " + JsonSerializer.Serialize(ClickEvidence()));
                 await native.ClickAsync(body, new Point(16, 10));
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Console.WriteLine("SMOKE gif-reader-click-after " + JsonSerializer.Serialize(ClickEvidence()));
                 Control? focus = shell.FocusManager?.GetFocusedElement() as Control;
                 Require(pointerSource?.GetSelfAndVisualAncestors().Contains(body) == true && ReferenceEquals(list.SelectedItem, target)
                     && (ReferenceEquals(focus, body) || ReferenceEquals(focus, row)) && body.SelectionStart == body.SelectionEnd,
