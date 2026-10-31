@@ -4,27 +4,29 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.0.2</strong></p>
+<p align="center"><strong>1.0.2 · Stable release</strong></p>
 
-<p align="center">More chans. Better reading. Your archive, offline.</p>
+<p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
 [**Get MeowChan 1.0.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.0.2.md) · [Platform requirements](docs/platform-support.md)
 
-**1.0.2 focuses on reliable startup, downloads and viewing**, with retained
-media choices, explicit mixed slideshows and safer native gallery interaction.
+**1.0.2 is a stability release for startup, downloads and media viewing**, with remembered
+loop/media-focus choices, explicit mixed slideshows and safer native gallery interaction.
 Original-media verification remains enforced.
 
 ## What's improved in 1.0.2 🐾
 
-- **Dependable startup and upgrades.** Preference saves wait for readiness; missing legacy bundled plugins have an explicit reviewed new-selection path with backups, not silent remapping.
-- **“Goon Central” for /gif/ power users.** Download a thread, then browse images, animated GIFs, WebM and MP4 directly in the gallery—with remembered video repeat, media focus and explicitly started mixed slideshow. Less folder-to-player switching, not a replacement for every VLC feature.
-- **Safer viewing transitions.** Reachable edge controls, Reader return, Windows native-overlay clip/lifecycle fixes and macOS rapid-fullscreen restoration make interaction more predictable.
+- **Dependable startup and upgrades.** Compatible, verified bundled-plugin rebuilds retain your settings and enabled choices without another confirmation/restart loop. Preference saves wait for readiness; missing unproven legacy selections retain their explicit review-and-backup path, not silent remapping.
+- **“Goon Central” for /gif/ power users and HQ collections.** Download a thread, then browse its original images, animated GIFs, WebM and MP4 directly in the gallery—with remembered video repeat, media focus and explicitly started mixed slideshow. Original files stay original; quality depends on the source. Less folder-to-player switching, not a replacement for every VLC feature.
+- **Safer viewing transitions.** Bottom/right edge controls, a full-height Reader and reliable Reader return keep media in focus. Windows overlay transfers no longer trip the LayoutManager crash; the first navigation arrow works even when video-to-image transitions briefly clear native focus. macOS rapid-fullscreen restoration respects the latest window choice.
 - **Bounded downloads.** Fair next-file slots for multiple High watches and an effective 32-transfer cap; defaults remain 1 MiB/s and 5 transfers, with a 256-item pending queue.
 
 See the [1.0.2 release notes](docs/releases/v1.0.2.md) for upgrade warnings,
 release evidence and limits. No new sources or unselected CSV extras are included.
+
+The released packages come from the [successful 13-job native/package candidate](https://github.com/grassmann-it/MeowChan/actions/runs/41215622532). [Download checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/SHA256SUMS) cover the published filenames; automated checks do not establish physical audio/GPU or everyday-use acceptance.
 
 ### Features introduced in 1.0.0
 
