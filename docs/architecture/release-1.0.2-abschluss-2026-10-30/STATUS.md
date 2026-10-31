@@ -1,3 +1,34 @@
+# Aktuell: bekannte GIF-/Fokus-/CI-Blocker nativ bestätigt korrigiert — 31.10.2026
+
+f6acc54GIFreadiness:ARM41213612139+Intel41213615598SUCCESS;Originalartefaktezeigen
+preparingMisshit→vorInputBodyhit→echterPressBody→FokusBody/exakterGIFkey. 781b463
+ProduktfixfürgenuinunfokussierteHostkeysimShelltunnel,dbd80dd korrigiertnurden
+kanonischenPfadvergleichdesneuenBashfixturetests(/var↔/private/var,Win8.3↔Langpfad).
+KeineAussageüberunbewieseneFrameworkinternals,keineFokusforcing-/Assertionausnahme.
+
+Windows41214988207undMacIntel41214990175media-inputSUCCESSaufexaktdbd80dd.
+OriginalWindowsinteraction.json: beiderPlaying-/Paused-FälleaufBild2001focusnull,
+genau1OSLeft→Video2000. Alle5Stufenhover-click/focused-pointer-away/paused-drag-key/
+custom-routing-loop/retired-gesture-transitionPASS,0Traceverlust,keineFailures.
+MacIntelalle5ebenfallsPASS. PackagefixturestepaufbeidenHostsSUCCESSmitBash+
+set-euopipefail;14alteFAIL/4ERROR werdennichtmehrmaskiert. GemischteLegalbytes
+bleibenexactcommitgebunden,GitbashkeinWSL,44PythonfälleinklFailfastnegativPASS.
+Erste781DiagnosejobsstopptenkorrektvorMedienanPfadalias-Testfehler;vollständige
+Fehlerbelegeerhalten,keinRetryfalscherAppzuständealsClosureverkauft.
+
+Lokale446.NETPASS1SKIP,privatePulseOSinputalle5PASSmitfunktionalerVolumeprüfung
+Playing+Paused/Hardwarekarten0/muted/Cleanupvollständig;privateLinuxGIFPASS.
+WindowsnativehatkeinenfunktionalenAudiooutput: striktDisabledpointer+Seekfocus-
+Navigationgeprüft,keinephysischeAudio-/GPU-/Alltagsabnahmebehauptet.
+
+Altf90Full41211080927endgültigFAILnurMacARMGIFundWindowsOSinput(weiterePackage-
+FixturefailshattenPowerShellmaskiert). KeinTag/Release. JetztNEUERvollerall/all-
+stablecandidateaufaktuellemSource,13gleichePflichtjobs/18Originalassets+Root-
+Provenienz/Inhalt/Upgrade/Publishergatesnotwendig. AlteAssetssindkeineAbnahme.
+Belegeci-twentyfourth-gif-reader/ci-twentyfifth-native-routing;Benutzerdateienbytegleich.
+
+---
+
 # Aktuell: Mac-GIF-Gate nativ grün; Windows-Fokusroute und versteckte Fixturefehler — 31.10.2026
 
 f6acc54 MacARM41213612139 undMacIntel41213615598SUCCESS,Originalartefaktezeigen
