@@ -14,7 +14,7 @@ internal static partial class GalleryPlaybackFeatureChecks
     private sealed class ModeMenuInputTrace : IDisposable
     {
         private readonly GalleryViewer _viewer;
-        private readonly ComboBox _mode;
+        private readonly Control _mode;
         private readonly Window[] _roots;
         private readonly PixelPoint _requested;
         private int _remaining = 40;
@@ -24,7 +24,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         internal bool ViewportCaptured { get; private set; }
         private readonly Stopwatch _clock = Stopwatch.StartNew();
 
-        internal ModeMenuInputTrace(Window host, GalleryViewer viewer, ComboBox mode)
+        internal ModeMenuInputTrace(Window host, GalleryViewer viewer, Control mode)
         {
             _viewer = viewer; _mode = mode;
             _requested = mode.PointToScreen(new Point(mode.Bounds.Width / 2, mode.Bounds.Height / 2));
@@ -35,8 +35,11 @@ internal static partial class GalleryPlaybackFeatureChecks
                 target.AddHandler(InputElement.PointerReleasedEvent, Released, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
             }
             mode.PropertyChanged += Changed;
-            mode.DropDownOpened += Opened;
-            mode.DropDownClosed += Closed;
+            if (mode is ComboBox selector)
+            {
+                selector.DropDownOpened += Opened;
+                selector.DropDownClosed += Closed;
+            }
         }
         private void Pressed(object? sender, PointerPressedEventArgs e)
         {
@@ -71,7 +74,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 phase, elapsedMs = _clock.ElapsedMilliseconds, sender = Label(sender),
                 routing = pointer?.Route.ToString(), source = Label(pointer?.Source), handled = pointer?.Handled,
                 pointerId = pointer?.Pointer.Id, capture = Label(pointer?.Pointer.Captured),
-                opened = _opened, closed = _closed, _mode.IsDropDownOpen,
+                opened = _opened, closed = _closed, IsDropDownOpen = (_mode as ComboBox)?.IsDropDownOpen,
                 pressed = _mode.Classes.Contains(":pressed"),
                 bounds = _mode.Bounds.ToString(), requestedScreen = _requested.ToString(), currentCenterScreen = center,
                 _mode.IsArrangeValid, _mode.IsEffectivelyVisible, _mode.IsEffectivelyEnabled,
@@ -103,8 +106,11 @@ internal static partial class GalleryPlaybackFeatureChecks
                 target.RemoveHandler(InputElement.PointerReleasedEvent, Released);
             }
             _mode.PropertyChanged -= Changed;
-            _mode.DropDownOpened -= Opened;
-            _mode.DropDownClosed -= Closed;
+            if (_mode is ComboBox selector)
+            {
+                selector.DropDownOpened -= Opened;
+                selector.DropDownClosed -= Closed;
+            }
         }
         [StructLayout(LayoutKind.Sequential)] private struct WinPoint { internal int X, Y; }
         [DllImport("user32.dll")] private static extern nint WindowFromPoint(WinPoint point);

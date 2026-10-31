@@ -1,3 +1,4 @@
+using Avalonia.Layout;
 using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -625,14 +626,14 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private sealed class ShellGalleryLayoutTrace : IDisposable
     {
-        private readonly MainWindow _shell;
+        private readonly Window _shell;
         private readonly GalleryViewer _viewer;
         private readonly Window? _overlay;
         private int _remaining = 40;
         private string? _last;
         private int _layoutEvents;
 
-        internal ShellGalleryLayoutTrace(MainWindow shell, GalleryViewer viewer)
+        internal ShellGalleryLayoutTrace(Window shell, GalleryViewer viewer)
         {
             _shell = shell; _viewer = viewer;
             _overlay = TopLevel.GetTopLevel(ErrorField<Grid>(viewer, "_nativeVideoOverlay")) as Window;
@@ -680,8 +681,19 @@ internal static partial class GalleryPlaybackFeatureChecks
                     passes = Field(callback.Target, "_totalPassCount"), disposed = Field(callback.Target, "_disposed"),
                     measure = Queue(callback.Target, "_toMeasure"), arrange = Queue(callback.Target, "_toArrange")
                 }).ToArray() ?? [];
+                object[] roots = new[] { _shell, _overlay }.OfType<Window>().Distinct().Select(root =>
+                {
+                    object manager = typeof(TopLevel).GetProperty("LayoutManager", flags)!.GetValue(root)!;
+                    return (object)new
+                    {
+                        owner = Label(root), queued = Field(manager, "_queued"), running = Field(manager, "_running"),
+                        passes = Field(manager, "_totalPassCount"), disposed = Field(manager, "_disposed"),
+                        measure = Queue(manager, "_toMeasure"), arrange = Queue(manager, "_toArrange"),
+                        afterMeasure = Queue(manager, "_toArrangeAfterMeasure")
+                    };
+                }).ToArray();
                 Console.WriteLine("SMOKE gallery-render-callbacks " + phase + ": "
-                    + System.Text.Json.JsonSerializer.Serialize(new { layoutEvents = _layoutEvents, pending }));
+                    + System.Text.Json.JsonSerializer.Serialize(new { layoutEvents = _layoutEvents, roots, pending }));
             }
             catch (Exception error)
             {
@@ -704,7 +716,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 overlay = _overlay?.Bounds.ToString(), overlayWidth = _overlay?.Width.ToString(),
                 overlayHeight = _overlay?.Height.ToString(), sizeToContent = _overlay?.SizeToContent.ToString(),
                 overlayValid = native.IsArrangeValid,
-                banner = _shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+                banner = _shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")?.IsVisible
             });
             if (phase.EndsWith("layout", StringComparison.Ordinal) && state == _last) return;
             _last = state; _remaining--;

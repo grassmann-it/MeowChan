@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -54,6 +55,16 @@ internal static class MediaInteractionSmokeHelpers
         }));
         if (!withinViewer || !withinHost)
             throw new InvalidOperationException("Edge indicator is clipped outside the usable gallery/host: " + target.Name);
+    }
+
+    internal static bool IsPointerTargetReady(Control target)
+    {
+        if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
+            || !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
+            || TopLevel.GetTopLevel(target) is not { } root) return false;
+        PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+        return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
+            && hit.GetSelfAndVisualAncestors().Contains(target);
     }
 
     internal static Point TrackPoint(Slider slider, double fraction)

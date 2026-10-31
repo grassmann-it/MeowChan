@@ -386,10 +386,18 @@ internal static partial class GalleryPlaybackFeatureChecks
         Button restart = Find<Button>(viewer, "GallerySlideshowToggle");
         int restartClicks = 0;
         restart.Click += (_, _) => restartClicks++;
-        // ConfigurePlayback changes toolbar labels/layout synchronously, but native hit
-        // geometry is settled on the layout pass. Never click its previous coordinates.
+        // ConfigurePlayback changes toolbar labels/layout. A host layout pass alone
+        // does not prove that the presenter has published its current hit geometry.
         await LayoutAsync(fixture.Window);
+        // Configuration is fixture setup. Await an actual current-root hit target,
+        // not merely arranged bounds while the presenter still hits its old parent.
+        // The action remains one native click and exactly one Click event.
+        await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(restart),
+            "Slideshow restart setup never became a real current-root pointer target.");
+        using var restartTrace = new ModeMenuInputTrace(fixture.Window, viewer, restart);
+        restartTrace.Record("before-restart");
         await native.ClickAsync(restart);
+        restartTrace.Record("after-restart");
         Require(restartClicks == 1, "Native slideshow restart click was lost or delivered twice; observed clicks=" + restartClicks);
         await UntilAsync(() => Running(viewer), "Could not restart automation before panel/menu intent checks.");
         await native.ClickAsync(Find<Button>(viewer, "GalleryToggleContext"));

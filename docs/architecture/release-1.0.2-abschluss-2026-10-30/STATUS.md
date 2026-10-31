@@ -1,3 +1,38 @@
+# Aktuell: erneuter nativer Layoutmanager-Absturz; konkrete Migrationsdiagnose — 31.10.2026
+
+e529f23/Windows41202921421 scheitertfatalmit `InvalidateArrange on wrong
+LayoutManager` inExecuteArrangePass. LetztesLogPostindicator; obEscape bereits
+abschließtoderfolgendesLiveDockingauslöst,istnichtbelegt. BeidevorigenMenü-/Rand-
+Fixessindseparatnativbestätigt, darauskeineglobaleAbnahmeableiten. KeinRelease.
+
+PinnedAvalonia12.1.4: Arrangequeue behältmigrierteDescendants; Arrangefolgtderen
+neuerAncestry, beiinvalidMeasure landetDescendant inalter_toArrangeAfterMeasure,
+alterManager re-enqueuedundwirftbeianderemRoot. KonkretesProdukttransferRisiko
+inMoveOverlayControl UND SetExternalTransportHost; terminaleNo-reparent-Lösung
+bleibtunverändert. KeinequeueReflection/Purge/ExceptionunterdrückungimProdukt.
+
+NurHarness: begrenzteStage-/Rootlayoutlogs vor/nachSpace,Escape,Docking undReturn;
+fatalRead-onlySnapshotsderbeidenechtenManagerinklafterMeasurequeue. Expliziter
+ZweiRoot/noDecoderProbe mitwirklichvorhergequeuetemDescendantArrange inbeiden
+Richtungen, direkterBaselinegegenDetachedSourceDrain-Control. PrivaterX11ProbePASS: beide direktenRichtungenreproduzierenexaktFrameworkfehler,
+beideDetachedDrainControlssettlenohneFehler;alle4ManagerSchließungensynchron
+disposednachgewiesen,stumm/Hardware0/Cleanupvollständig. DiesistkausalerFramework-
+ReproKEINbelegterProduktfix. SourceUpdateLayoutalleininsbesonderebeiReentranz
+KEINbelegterProduktfix. FrüheCompilefehler(ILayoutRootinternal/fehlenderInputusing,
+danachüberlappendeRoot-/Workerhelper/GetVisualRootAPI)separaterhaltenundkorrigiert.
+EinSetupversuchnutztfalschenWindow-ILayoutRootTyp,andererwirdwegenbestehender
+Evidencekorrektabgewiesen;FinalprobeübertatsächlicheTopLevel.LayoutManagerProperty
+istseparat/frischundBuild0Fehler4bestehendeWarnings,keinPASSfürdieSetupfehler.
+
+LokalerRestart-Zählerfehler wiederholt=0; begrenzterTracezeigtvorAktionarrangierte
+BoundsaberHittestnurElternBorder,späterechterButtoninhalt. Fixturewartetjetztauf
+tatsächlichenaktuellenRoot-HittestVORweiterhineinemnativenKlick/exakt1ClickEvent;
+keinKlickretry/keineDeadline-/Audio-/Assertionlockerung. Vorigerdiagnostischer
+GesamtfeaturelaufPASS,ursprünglicheFAILbleibenerhalten. e529f23Python374=373PASS/
+1AppleSkip/0FAIL0ERROR/alleGuardsidentisch. Voller13Job-/18AssetKandidatweiteroffen.
+
+---
+
 # Aktuell: native Randgeometrie grün, fehlende Escape-Hostverdrahtung im Fixture — 31.10.2026
 
 1081899/Windows41202332305: echteZweiRootGeometrie/Inset-/Negativprobe und

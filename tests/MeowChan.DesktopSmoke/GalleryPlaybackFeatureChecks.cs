@@ -55,6 +55,8 @@ internal static partial class GalleryPlaybackFeatureChecks
                 "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8", StringComparison.OrdinalIgnoreCase),
                 "Edge volume checks require the pinned synthetic VP8/Vorbis fixture.");
             GalleryEntry edgeClip = await AssetAsync(directory, "edge-audio", "edge-audio.webm", edgeAudio);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY") == "1")
+            { await CheckCrossRootMigrationAsync(owner); return; }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY") == "1")
             { await CheckNativeOverlayVisibilityAsync(owner); return; }
             if (OperatingSystem.IsWindows()) await CheckNativeOverlayVisibilityAsync(owner);
@@ -632,6 +634,8 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(contextWrites == 0 && preferenceWrites == 0, "Hover changed persisted gallery/context preferences.");
         Require(!Running(viewer), "Leaving the post overlay automatically resumed slideshow.");
         postIndicator = RequireEdgeIndicator(viewer, "GalleryPostEdgeIndicator");
+        using var migrationTrace = new ShellGalleryLayoutTrace(fixture.Window, viewer);
+        migrationTrace.Record("before post-indicator focus/Space");
         Require(postIndicator.Focus(NavigationMethod.Tab), "Post edge indicator is not keyboard focusable.");
         await native.KeyAsync(MediaNativeInput.Space);
         await UntilAsync(() => Visible(post) && viewer.CaptureState().ContextOpen,
@@ -639,19 +643,26 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Running(viewer), "Keyboard post activation resumed automatic progression.");
         // Dismiss by native Escape before the independent explicit context-open tests below.
         int nativeShellRequests = fixture.NativeShellKeyRequests;
+        migrationTrace.Record("before post Escape");
         await native.KeyAsync(MediaNativeInput.Escape);
+        migrationTrace.Record("after post Escape");
         Require(!viewer.CaptureState().ContextOpen, "Post-indicator Escape did not dismiss the active post.");
         if (OperatingSystem.IsWindows())
             Require(fixture.NativeShellKeyRequests == nativeShellRequests + 1,
                 "Native post Escape did not cross the existing gallery-to-shell host boundary exactly once.");
         contextWrites = 0; // Explicit keyboard choices may persist; hover-only checks above must not.
+        migrationTrace.Record("before disable controls overlay");
         viewer.ConfigurePlayback(prefs.WithControlsOverlay(false));
+        migrationTrace.Record("after disable controls overlay");
         Click(Find<Button>(viewer, "GalleryToggleContext"));
+        migrationTrace.Record("after docked explicit context open");
         await CenterAsync();
         await HoldAsync(TimeSpan.FromMilliseconds(800), () => Require(Visible(post), "Explicitly opened post context was treated as transient hover."));
         Click(Find<Button>(viewer, "GalleryToggleContext"));
         Require(contextWrites == 2, "Explicit context choices did not retain their existing preference semantics.");
+        migrationTrace.Record("before enable controls overlay");
         viewer.ConfigurePlayback(prefs);
+        migrationTrace.Record("after enable controls overlay");
         viewer.Focus(); await CenterAsync();
         await UntilAsync(() => !Visible(controls), "Controls did not return to edge-auto mode.");
         viewer.SetLoadingNotice("Synthetic loading notice");
