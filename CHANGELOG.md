@@ -56,8 +56,16 @@
 - Record clearer plugin-startup failure phases while retaining explicit activation
   choices. The historical Windows/Leftypol incident has not been reproduced.
 
-These changes are not part of the published 1.0.1 assets. Native Windows/macOS
-interaction, physical audio output and a new release remain separately unverified.
+- Stabilize Windows native-overlay clipping to break redundant clip/focus-adorner
+  layout feedback, without claiming a general framework subscription-retention fix.
+  Retire overlay controls terminally without cross-root return; reject late pointer
+  and timer callbacks after stop/detach and avoid detached coordinate conversion.
+- Preserve observed macOS fullscreen-entry frames across exit so delayed native
+  callbacks do not overwrite the restored window size; unknown user resizes still win.
+
+See the [1.0.2 release notes](docs/releases/v1.0.2.md) for the exact-source
+publication gate and evidence limits. Native output checks do not establish
+physical-speaker output; the manual Windows field test follows publication.
 
 ## 1.0.1 — 2026-10-26
 

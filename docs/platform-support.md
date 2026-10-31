@@ -2,7 +2,26 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## Final 0.9.0 platform packages
+## 1.0.2 release evidence contract
+
+The current release target is **1.0.2**; the 0.9.0 records below are historical,
+not acceptance of current packages. See [1.0.2 release notes](releases/v1.0.2.md)
+and the [closure checklist](releases/v1.0.2-preparation.md).
+
+Publication requires one exact-source `stable-candidate` run with `all/all`, all
+**13 required jobs successful and 18 original assets**, plus root source,
+upgrade/package, inventory and checksum verification. Changes to release
+documentation require a new full candidate on the integrated source. The published release
+will identify the accepted run/source/checksums; no current candidate pass or
+publication is asserted by this platform record.
+
+Focused Windows overlay clip/lifecycle and macOS fullscreen checks cover their
+recorded scenarios only. Decoded audio without output and functional native output
+are distinct checks; neither proves audible physical-speaker output or every GPU,
+audio device or desktop environment. The manual Windows field test follows
+publication and does not replace the pre-publication technical gates.
+
+## Final 0.9.0 platform packages (historical)
 
 The accepted platform packages have explicit, independently verified source
 boundaries:

@@ -251,11 +251,13 @@ exact diagnostic text; changed error details can represent a separate occurrence
 
 ## Linux packages and startup
 
-For either `linux-x64` or `linux-arm64`, choose a package from the [1.0.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.0):
+For either `linux-x64` or `linux-arm64`, choose a package from the [1.0.2 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2):
 
-- `MeowChan-1.0.0-<RID>-bundled-vlc.tar.gz`: VLC and .NET included; extract everything and run `./MeowChan`.
-- `MeowChan-1.0.0-<RID>-system-vlc.tar.gz`: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
-- `MeowChan-1.0.0-<RID>.AppImage`: VLC and .NET included. For example on x64, run `chmod +x MeowChan-1.0.0-linux-x64.AppImage`, then `./MeowChan-1.0.0-linux-x64.AppImage`. If FUSE is unavailable, use `./MeowChan-1.0.0-linux-x64.AppImage --appimage-extract-and-run`. Use the `linux-arm64` filename on ARM64.
+Release download names carry numeric prefixes. The archive suffixes below apply to either CPU; AppImage commands use the actual public x64 filename.
+
+- `MeowChan-1.0.2-<RID>-bundled-vlc.tar.gz` suffix: VLC and .NET included; extract everything and run `./MeowChan`.
+- `MeowChan-1.0.2-<RID>-system-vlc.tar.gz` suffix: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
+- `.AppImage`: VLC and .NET included. On x64, run `chmod +x 04-MeowChan-1.0.2-linux-x64.AppImage`, then `./04-MeowChan-1.0.2-linux-x64.AppImage`. If FUSE is unavailable, use `./04-MeowChan-1.0.2-linux-x64.AppImage --appimage-extract-and-run`. On ARM64, use `05-MeowChan-1.0.2-linux-arm64.AppImage` instead.
 
 Bundled archives and AppImages avoid a separate VLC installation. Linux still needs a compatible glibc desktop with X11/XWayland and native graphics/font dependencies. Before any session starts, the application checks the selected VLC backend. Missing, unsupported or unusable system VLC opens a dismissible installation hint; closing it exits with code **2**. Install a supported VLC 3 runtime and plugins, then start again. On Debian-derived distributions, relevant package families include `libvlc5`, `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; distribution versions must meet the minimum. Development-package symlinks are not required.
 
@@ -459,7 +461,7 @@ keeps bookmarks and notes but can make their posts unavailable. Forgetting the
 last reading position does not remove bookmarks.
 
 Built-in image views support PNG, JPEG, GIF, WebP and BMP when the decoder accepts
-the file. In current unreleased source builds, **GIFs animate in the gallery**;
+the file. In 1.0.2, **GIFs animate in the gallery**;
 **Space** (or the effective Play/Pause binding) and the GIF control pause/resume them.
 Encoded finite/infinite loops are respected; ending a GIF does not silently select
 another medium. Reader/thumbnail previews remain posters like video previews:
@@ -520,10 +522,9 @@ local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
 Use its compact transport strip for **Play/Pause**, seeking, mute, volume and
-repeat. In published 1.0.1 Repeat applies to the current medium; unreleased
-source builds retain the chosen repeat mode as described above. At narrow widths the controls use
+repeat. In 1.0.2 the chosen repeat mode is retained as described above. At narrow widths the controls use
 two rows. Audio controls show why they are unavailable when there is no track or
-usable output. In unreleased source builds, Left/Right on the gallery timeline or
+usable output. In 1.0.2, Left/Right on the gallery timeline or
 volume control uses the effective previous/next-media bindings; Up/Down adjusts
 available video volume. Timeline keyboard seeking is disabled; mouse seeking and
 volume remain available and preserve Playing/Paused. Other native controls and
