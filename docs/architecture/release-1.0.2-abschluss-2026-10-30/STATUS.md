@@ -1,3 +1,24 @@
+# Aktuell: native Windows-Fehlerprüfung PASS; Featurefixture braucht Placementbarriere — 31.10.2026
+
+942b3d0 committed/gepusht. Windows41210061441 gallery-errors SUCCESS.
+Windows41210058433 gallery-features besteht die realen2-/3Root-Transferfälle und
+12Indikatorzyklen, stoppt später mit kontrolliertem Testfehler (kein Prozesscrash):
+ConfigurePlayback(Overlay=false)→synchronerClick auf noch im gerade versteckten
+Quellfooter befindlichenGalleryToggleContext. Die neue sichere Cross-root-
+Platzierung ist absichtlich deferred. Der tatsächliche alte Post-open-Crashpfad
+ist damit noch NICHT vollständig passiert/geschlossen.
+
+Fixture wartet jetzt mit existierender niedrigerpriorisierter LayoutAsync-Barriere
+auf die Placementcallbacks, prüft zusätzlich echte Main-Presentation vonKontextknopf
+UNDTransport und behält unveränderte Sichtbar/Enabled/Keyboard-Focus-Prüfung beim
+Click. Keine Schlaf-/Timeoutverlängerung oder Fokus-/Assertionlockerung.
+Lokale ganze Galeriefeatures + Fehler zuvor PASS, finalerProbe auch12Indikator-
+zyklen PASS; alleDesktoptests1504PASS/7SKIP/0FAIL. PrivateAudiohardware0/muted,
+Cleanupvollständig. Neuer Featurebarriere-Gegentest und anschließender nativer
+Windowslauf nötig. KeinRelease/Tag;13Job-/18Asset-Gesamtkandidat weiter offen.
+
+---
+
 # Aktuell: Windows-Layoutmigration repariert, native Bestätigung ausstehend — 31.10.2026
 
 Konkreter Blocker bleibt der echte wrong-LayoutManager-Absturz aus Windowsrun

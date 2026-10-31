@@ -659,7 +659,16 @@ internal static partial class GalleryPlaybackFeatureChecks
         migrationTrace.Record("before disable controls overlay");
         viewer.ConfigurePlayback(prefs.WithControlsOverlay(false));
         migrationTrace.Record("after disable controls overlay");
-        Click(Find<Button>(viewer, "GalleryToggleContext"));
+        // Cross-presentation placement intentionally leaves the current event/layout
+        // stack before draining the old manager. Do not activate chrome still inside
+        // the just-hidden source footer in the same synchronous ConfigurePlayback call.
+        await LayoutAsync(fixture.Window); // lower-priority barrier after placement, not a timed retry
+        Button dockedContext = Find<Button>(viewer, "GalleryToggleContext");
+        Require(ReferenceEquals(TopLevel.GetTopLevel(dockedContext), fixture.Window)
+            && ReferenceEquals(TopLevel.GetTopLevel(player.TransportControl), fixture.Window),
+            "Docked context and transport did not migrate to their actual main presentation.");
+        migrationTrace.Record("after docked placement barrier");
+        Click(dockedContext);
         migrationTrace.Record("after docked explicit context open");
         await CenterAsync();
         await HoldAsync(TimeSpan.FromMilliseconds(800), () => Require(Visible(post), "Explicitly opened post context was treated as transient hover."));
