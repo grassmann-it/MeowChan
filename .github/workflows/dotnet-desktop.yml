@@ -36,7 +36,7 @@ on:
           - macos-15
           - macos-15-intel
       scenario:
-        description: Native GUI scenarios (gui-only skips offline suites; candidates require all)
+        description: Native GUI scenarios (gallery-errors isolates gallery diagnostics; candidates require all)
         type: choice
         required: false
         default: all
@@ -44,6 +44,7 @@ on:
           - all
           - selection
           - gui-only
+          - gallery-errors
 
 permissions:
   contents: read
@@ -191,6 +192,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils
       - name: Exercise native graphical startup and fallback paths
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario != 'gallery-errors'
         # The normal mode renders over 200 screenshots. Native macOS runners can
         # exceed three minutes while still making progress; per-check waits stay bounded.
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout ${{ runner.os == 'macOS' && '300' || '180' }} ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
@@ -249,7 +251,7 @@ jobs:
           export MEOWCHAN_MP4_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/release102/playback-h264-silent.mp4"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gif-playback
       - name: Exercise gallery error interaction on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors'
         shell: bash
         env:
           MEOWCHAN_GALLERY_ERROR_ONLY: '1'

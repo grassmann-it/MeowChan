@@ -429,6 +429,8 @@ internal sealed partial class GalleryViewer
         PauseSlideshow();
         StopSlideshow();
         _pressedPointers.Clear();
+        _lastPointer = null;
+        _lastIndicatorMotion = null;
         _lastPointerScreen = null; _controlsHot = _postHot = _pointerInControls = _pointerInPost = false;
         if (_hoverContextOpen) SetContextOpen(false, notify: false, hover: true);
         _revealPointerId = null; _swallowRevealTap = false;

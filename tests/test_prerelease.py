@@ -380,6 +380,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
 
     def condition(self, job, mode, scenario='all', platform='all', event='workflow_dispatch'):
         expression = re.search(r'^    if: (.+)$', self.jobs[job], re.M).group(1)
+        return self.evaluate(expression, mode, scenario, platform, event)
+
+    def evaluate(self, expression, mode='validate', scenario='all', platform='all',
+                 event='workflow_dispatch'):
         for key, value in {'github.event_name': event, 'inputs.mode': mode,
                            'inputs.scenario': scenario, 'inputs.platform': platform}.items():
             expression = expression.replace(key, repr(value))
@@ -411,9 +415,57 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                           r'        if: [^\n]+\n        shell: bash\n        run: \|\n(.*?)'
                           r'(?=      -)', self.jobs['validate'], re.S).group(1)
         for platform, scenario, expected in (('all', 'all', 0), ('windows-2022', 'all', 1),
-                                               ('all', 'selection', 1)):
+                                               ('all', 'selection', 1), ('all', 'gallery-errors', 1),
+                                               ('windows-2022', 'gallery-errors', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
             self.assertEqual(expected, subprocess.run(['bash', '-e', '-c', command]).returncode)
+
+    def test_gallery_errors_isolates_existing_scene_but_retains_preparation_and_evidence(self):
+        steps = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
+                                self.jobs['validate'], re.M | re.S))
+        gallery = 'Exercise gallery error interaction on the actual platform'
+        scenes = {name: body for name, body in steps.items()
+                  if 'scripts/run-desktop-smoke.py' in body
+                  or 'scripts/test-media-interaction-smoke.py' in body
+                  or name.startswith('Replay genuine')}
+        self.assertGreater(len(scenes), 10)
+        for scenario in ('all', 'gui-only', 'selection', 'gallery-errors'):
+            for name, body in scenes.items():
+                condition = re.search(r'^        if: (.+)$', body, re.M)
+                expression = condition.group(1) if condition else 'True'
+                expression = expression.replace('runner.os', repr('Windows'))
+                enabled = self.evaluate(expression, scenario=scenario)
+                if scenario == 'gallery-errors':
+                    self.assertEqual(name == gallery, enabled, name)
+                elif name == gallery:
+                    self.assertEqual(scenario in ('all', 'gui-only'), enabled)
+                elif name == 'Exercise native graphical startup and fallback paths':
+                    self.assertTrue(enabled, scenario)
+                self.assertEqual(name != 'Check native Linux tray host lifecycle on private DBus',
+                                 self.evaluate(expression, event='push'), name)
+        for name in ('Record SDK and source commit',
+                     'Restore graphical harness with reviewed dependencies',
+                     'Retain exact graphical harness dependency graph',
+                     'Build graphical harness',
+                     'Verify plugin delivery in desktop and transitive harness outputs'):
+            self.assertNotRegex(steps[name], r'^        if:', name)
+        self.assertIn("MEOWCHAN_GALLERY_ERROR_ONLY: '1'", steps[gallery])
+        self.assertIn('--mode normal --timeout 300 --output artifacts/closure-gallery-errors',
+                      steps[gallery])
+        self.assertIn('artifacts/closure-gallery-errors/**', self.jobs['validate'])
+        self.assertIn('artifacts/build-evidence/**', self.jobs['validate'])
+        self.assertIn("if: always()", self.jobs['validate'])
+        self.assertIn('          - gallery-errors\n', self.workflow)
+        self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])
+        matrix = re.search(r'^        os: (.+)$', self.jobs['validate'], re.M).group(1)
+        self.assertIn("format('[\"{0}\"]', inputs.platform)", matrix)
+        self.assertNotIn('inputs.scenario', matrix)
+        for job in self.jobs:
+            if job != 'validate':
+                self.assertFalse(self.condition(job, 'validate', scenario='gallery-errors',
+                                                platform='windows-2022'), job)
+        for mode in ('prerelease-candidate', 'stable-candidate'):
+            self.assertFalse(self.condition('library-package', mode, scenario='gallery-errors'))
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']

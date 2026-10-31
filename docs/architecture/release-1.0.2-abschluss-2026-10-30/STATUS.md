@@ -1,3 +1,39 @@
+# Aktuell: neuer Windows-Absturz eindeutig im späten Pointer-Exit — 31.10.2026
+
+Run41192596293/77a8ee0 scheitert VOR der vorherigen Shell-Layoutschleife. Nach
+drei portablen Rootprüfungen dispatcht Window.HandleClosed über
+PresentationSource.Dispose einen PointerExited. RefreshHoverGeometry/Inside
+ruft PointToClient für ein nicht mehr angehängtes Element auf: `Visual does not
+belong to a visual tree`. Build, Startup und die vorherigen GUI-Schritte grün;
+keine Aussage zur Behebung der späteren Infinite-layout-Schleife möglich.
+
+Ursache anhand exakter Avalonia12.1.4-Quelle unabhängig durch Sol bestätigt:
+TopLevel.GetTopLevel prüft nur die erhaltene Elternkette, PointToClient/Screen
+verlangen dagegen eine PresentationSource. Zusätzlich akzeptierten unsere
+Pointer-/Timerhandler noch Ereignisse nach Stop/Detach und konnten den zuvor
+geleerten Pointerzustand erneut setzen. Fix: späte Ereignisse an der bestehenden
+terminalen/temporären Interaktionssperre abweisen, Pointer/Motionreferenzen beim
+Stop leeren, alle drei Koordinatenstellen über IsAttachedToVisualTree absichern.
+Keine Exceptionunterdrückung, keine Deadline-/Audioprüfungslockerung. Reattach
+hebt weiterhin nur die temporäre Sperre auf; terminaler Stop bleibt endgültig.
+
+106 gezielte .NET-Fälle PASS, darunter24 neue Latecallbackfälle. Ganzer privater
+Ubuntu/Pulse-Galeriefehlerlauf PASS, mit echter OS-Zeigerposition über jeder
+schließenden Root und anschließendem Kein-Pointer-/Kein-Timer-Neustartnachweis.
+Das prüft den tatsächlichen Produkt-Stop-vor-Close-Vertrag, keine allgemeine
+Garantie für beliebige externe Fensterschließungen ohne vorherigen Stop.
+Audio privat/stumm, Hardwarekarten0, Child/Dienste/Cleanup0; kein WindowsPASS.
+
+Diagnoseszenario `validate/gallery-errors` führt dieselbe echte Szene mit
+Setup/Restore/Build/Pluginprüfung/Evidenz aus, ohne minutenlang zuvor fremde
+Szenen zu wiederholen. Vier Workflowtests PASS; Kandidaten erzwingen weiterhin
+all/all und unveränderte13Jobs/18Assets. Native Gegenprobe jetzt erforderlich;
+falls die ältere Layoutschleife wieder erreicht wird, vorhandene max40
+Layoutzustandslogs auswerten. Belege: `ci-tenth-failures` im Verifikationsordner.
+Kein Tag/Release, Benutzerdateien unverändert.
+
+---
+
 # Aktuell: Windows-Readiness bestanden, danach echte Layoutschleife — 31.10.2026
 
 Windows-Run41190807684 auf08cbfa3 ist FAIL, kein Tag/Release. Die getrennten

@@ -97,7 +97,16 @@ internal static partial class GalleryPlaybackFeatureChecks
                     Require(Math.Abs(context.Margin.Bottom - expected) < .01,
                         $"Context inherited the wrong root's footer inset: external={externalRoot}, postOverlay={postOverlay}, actual={context.Margin.Bottom}, expected={expected}.");
                 }
-                Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; no native playback claim");
+                // Put the actual OS pointer over the closing root, rather than
+                // relying on where a hosted runner happened to leave its cursor.
+                Control pointerRoot = externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : viewer;
+                using (var native = new MediaNativeInput(overlay ?? window))
+                {
+                    await native.MoveAsync(footer);
+                    await UntilAsync(() => pointerRoot.IsPointerOver,
+                        "Closing-root regression did not receive real OS pointer entry.");
+                }
+                Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; real pointer over closing root; no native playback claim");
             }
             finally
             {
@@ -105,6 +114,14 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await viewer.StopAsync();
                 overlay?.Close();
                 window.Close();
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    Require(ErrorField<object?>(viewer, "_lastPointer") == null
+                        && ErrorField<Avalonia.PixelPoint?>(viewer, "_lastPointerScreen") == null,
+                        "Closing-root pointer events revived the retired viewer's pointer state.");
+                    Require(ErrorField<DispatcherTimer?>(viewer, "_indicatorExpiryTimer")?.IsEnabled != true,
+                        "Closing-root pointer events restarted the retired indicator timer.");
+                }, DispatcherPriority.Background);
             }
         }
     }

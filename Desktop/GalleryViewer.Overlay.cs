@@ -409,14 +409,19 @@ internal sealed partial class GalleryViewer
 
     private void RememberPointer(object? sender, PointerEventArgs e)
     {
+        // Window teardown can dispatch PointerExited after Stop and while the
+        // presentation source is being disposed. Never reacquire pointer state
+        // or touch coordinate transforms for a retired/detached viewer.
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         _lastPointer = e.Pointer;
-        if (sender is Control surface && TopLevel.GetTopLevel(surface) != null)
+        if (sender is Control surface && surface.IsAttachedToVisualTree())
             _lastPointerScreen = surface.PointToScreen(e.GetPosition(surface));
         RefreshHoverGeometry();
     }
 
     private void RefreshHoverGeometry()
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         bool wasControls = _controlsHot || _pointerInControls || _pointerOnControlsIndicator;
         bool wasPost = _postHot || _pointerInPost || _pointerOnPostIndicator;
         _controlsHot = _postHot = _pointerInControls = _pointerInPost = false;
@@ -424,7 +429,10 @@ internal sealed partial class GalleryViewer
         if (_lastPointerScreen is PixelPoint pixel)
         {
             Control surface = _nativeOverlayActive ? _nativeVideoOverlay : _body;
-            bool Inside(Control panel) => panel.IsEffectivelyVisible && TopLevel.GetTopLevel(panel) != null
+            // A closed TopLevel may remain in the parent chain after its
+            // presentation source is gone. Coordinate APIs require attachment,
+            // not merely a discoverable window ancestor.
+            bool Inside(Control panel) => panel.IsEffectivelyVisible && panel.IsAttachedToVisualTree()
                 && new Rect(panel.Bounds.Size).Contains(panel.PointToClient(pixel));
             // Count the actual transport even in docked/native-fallback placement.
             // Its volume/loop controls can sit in the right strip above the bottom band.
@@ -433,7 +441,7 @@ internal sealed partial class GalleryViewer
             _pointerInPost = Inside(_contextPanel);
             _pointerOnControlsIndicator = Inside(_controlsEdgeIndicator);
             _pointerOnPostIndicator = Inside(_postEdgeIndicator);
-            if (TopLevel.GetTopLevel(surface) != null)
+            if (surface.IsAttachedToVisualTree())
             {
                 var hit = GalleryEdgeHit.At(surface.PointToClient(pixel), surface.Bounds.Size)
                     .WithoutPanelOverlap(_pointerInControls, _pointerInPost,
@@ -449,6 +457,7 @@ internal sealed partial class GalleryViewer
 
     private void RevealHoveredPanels()
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         // Ordinary motion should neither reveal chrome nor scan every popup in the shell.
         bool controls = _controlsHot || _pointerOnControlsIndicator && _overlayHidden && !_pointerInPost;
         bool post = _postHot || _pointerOnPostIndicator && !_contextOpen && !_pointerInControls;
@@ -469,6 +478,7 @@ internal sealed partial class GalleryViewer
 
     private void OnOverlayPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         PixelPoint? previous = _lastPointerScreen;
         RememberPointer(sender, e);
         if (e.Pointer.Type == PointerType.Mouse && _lastPointerScreen is PixelPoint current
@@ -487,6 +497,7 @@ internal sealed partial class GalleryViewer
 
     private void OnIndicatorExpiry(object? sender, EventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         _indicatorExpiryTimer?.Stop();
         // A one-shot tick may arrive fractionally early. Clear deterministically
         // rather than retaining artwork with no remaining expiry callback.
@@ -496,6 +507,7 @@ internal sealed partial class GalleryViewer
 
     private void OnOverlayPointerExited(object? sender, PointerEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         // Exit can also mean that a newly shown child replaced the hit-test target.
         // Keep actual screen geometry instead of treating every routed exit as leaving
         // the gallery (which made a bottom-edge reveal immediately disappear again).
@@ -507,6 +519,7 @@ internal sealed partial class GalleryViewer
 
     private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         _keyboardInteraction = false;
         bool hidden = _overlayHidden, postWasOpen = _contextOpen;
         RememberPointer(sender, e);
@@ -519,6 +532,7 @@ internal sealed partial class GalleryViewer
     }
     private void OnOverlayPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         _pressedPointers.Remove(e.Pointer);
         if (_revealPointerId != e.Pointer.Id) return;
         e.Handled = true;
@@ -526,12 +540,14 @@ internal sealed partial class GalleryViewer
     }
     private void OnOverlayPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         _pressedPointers.Remove(e.Pointer);
         _lastOverlayActivity = _lastPostActivity = Stopwatch.GetTimestamp();
         UpdateViewerInteractionTimer();
     }
     private void OnOverlayPointerWheel(object? sender, PointerWheelEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         bool hidden = _overlayHidden, postWasOpen = _contextOpen;
         RememberPointer(sender, e);
         RevealHoveredPanels();
@@ -539,11 +555,13 @@ internal sealed partial class GalleryViewer
     }
     private void OnOverlayTap(object? sender, TappedEventArgs e)
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         if (_swallowRevealTap) e.Handled = true;
     }
 
     private void OnViewerInteractionTick()
     {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
         MarkVisibleImageReady();
         bool active = IsGalleryWindowActive;
         if (!active) _pressedPointers.Clear();
