@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import plistlib
 import re
@@ -11,6 +12,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
 
@@ -19,6 +21,30 @@ SPEC = importlib.util.spec_from_file_location('alpha_assembly', ROOT / 'scripts/
 A = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(A)
 VERSION = '1.0.0-alpha.2'
+
+
+def workflow_bash():
+    """Use native Bash on POSIX and Git for Windows Bash, never the WSL shim."""
+    if os.name != 'nt':
+        bash = shutil.which('bash')
+        if bash:
+            return bash
+    else:
+        candidates = []
+        git = shutil.which('git')
+        if git:
+            # git.exe is normally in Git/cmd or Git/bin (also Git/mingw64/bin).
+            for parent in Path(git).resolve().parents:
+                candidates.extend((parent / 'bin/bash.exe', parent / 'usr/bin/bash.exe'))
+        for variable in ('ProgramW6432', 'ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA'):
+            base = os.environ.get(variable)
+            if base:
+                root = Path(base) / ('Programs/Git' if variable == 'LOCALAPPDATA' else 'Git')
+                candidates.extend((root / 'bin/bash.exe', root / 'usr/bin/bash.exe'))
+        for candidate in candidates:
+            if candidate.is_file():
+                return str(candidate)
+    raise RuntimeError('Workflow guard tests require Bash (Git for Windows Bash on Windows)')
 
 
 def write(path, data):
@@ -41,6 +67,28 @@ def tar(path, values):
     return path
 
 
+class WorkflowBashResolutionTests(unittest.TestCase):
+    def test_windows_uses_git_installation_not_path_wsl_bash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'Git with spaces'
+            git = write(root / 'cmd/git.exe', b'')
+            bash = write(root / 'bin/bash.exe', b'')
+            with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
+                    patch.object(shutil, 'which', side_effect=lambda name: str(git) if name == 'git' else 'WSL/bash.exe'):
+                self.assertEqual(str(bash), workflow_bash())
+
+    def test_windows_missing_git_bash_fails_instead_of_using_wsl(self):
+        with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
+                patch.object(shutil, 'which', side_effect=lambda name: None if name == 'git' else 'WSL/bash.exe'):
+            with self.assertRaisesRegex(RuntimeError, 'Git for Windows Bash'):
+                workflow_bash()
+
+    def test_posix_uses_path_bash(self):
+        with patch.dict(globals(), os=SimpleNamespace(name='posix')), \
+                patch.object(shutil, 'which', return_value='/bin/bash'):
+            self.assertEqual('/bin/bash', workflow_bash())
+
+
 class PrereleaseFixtures(unittest.TestCase):
     version = VERSION
     channel = 'prerelease'
@@ -61,10 +109,16 @@ class PrereleaseFixtures(unittest.TestCase):
         for project in A.public_api.PROJECTS:
             for kind in ('Shipped', 'Unshipped'):
                 write(self.repo / project / ('PublicAPI.' + kind + '.txt'), '#nullable enable\n')
+        # Apply the real shipping byte policy BEFORE the first git add. Otherwise
+        # inherited Windows autocrlf normalizes the mixed-ending legal fixture.
+        write(self.repo / '.gitattributes', (ROOT / '.gitattributes').read_bytes())
         self.git('init', '--quiet')
         self.git('add', '.')
         self.git('-c', 'user.name=Alpha fixture', '-c', 'user.email=alpha@example.invalid', 'commit', '--quiet', '-m', 'fixture')
         self.source = self.git('rev-parse', 'HEAD').strip()
+        for name, expected in self.legal.items():
+            self.assertEqual(expected, subprocess.check_output(
+                ['git', '-C', str(self.repo), 'show', f'{self.source}:{name}']), name)
         self.base = write(self.directory / A.retained.BASE_NAME, b'fixture native corresponding-source base')
         self.patch = patch.multiple(A.retained, BASE_BYTES=self.base.stat().st_size, BASE_SHA=A.digest(self.base))
         self.patch.start()
@@ -414,15 +468,36 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         guard = re.search(r'name: Require the complete current-source candidate matrix\n'
                           r'        if: [^\n]+\n        shell: bash\n        run: \|\n(.*?)'
                           r'(?=      -)', self.jobs['validate'], re.S).group(1)
+        bash = workflow_bash()
         for platform, scenario, expected in (('all', 'all', 0), ('windows-2022', 'all', 1),
                                                ('all', 'selection', 1), ('all', 'gallery-errors', 1),
                                                ('windows-2022', 'gallery-errors', 1),
                                                ('all', 'gallery-features', 1),
                                                ('windows-2022', 'gallery-features', 1),
                                                ('all', 'gif-playback', 1),
-                                               ('macos-15', 'gif-playback', 1)):
+                                               ('macos-15', 'gif-playback', 1),
+                                               ('all', 'media-input', 1),
+                                               ('windows-2022', 'media-input', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
-            self.assertEqual(expected, subprocess.run(['bash', '-e', '-c', command]).returncode)
+            with self.subTest(platform=platform, scenario=scenario):
+                result = subprocess.run([bash, '-e', '-c', command], capture_output=True, text=True)
+                self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
+
+    def test_package_fixture_step_stops_at_first_failure_on_every_platform(self):
+        body = re.search(r'^      - name: Check package layout fixtures\n(.*?)(?=^      - )',
+                         self.jobs['validate'], re.M | re.S).group(1)
+        self.assertIn('        shell: bash\n', body)
+        condition = re.search(r'^        if: (.+)$', body, re.M).group(1)
+        for scenario, expected in (('all', True), ('media-input', True), ('gui-only', False)):
+            self.assertEqual(expected, self.evaluate(condition, scenario=scenario))
+        command = body.split('        run: |\n', 1)[1]
+        self.assertIn('set -euo pipefail', command)
+        # Run the real extracted multi-command shape with a fake failing Python.
+        # A late successful suite must not mask the first suite's nonzero status.
+        script = 'python() { echo attempted; return 17; }\n' + command
+        result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
+        self.assertEqual(17, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(['attempted'], result.stdout.splitlines())
 
     def test_gallery_selectors_isolate_existing_scenes_but_retain_preparation_and_evidence(self):
         steps = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
@@ -431,6 +506,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'gallery-errors': 'Exercise gallery error interaction on the actual platform',
             'gallery-features': 'Exercise changed gallery features on the actual platform',
             'gif-playback': 'Exercise GIF playback and ownership on the actual platform',
+            'media-input': 'Exercise real OS media input (not synthetic routed keys)',
         }
         gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()

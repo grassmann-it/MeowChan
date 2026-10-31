@@ -1,3 +1,34 @@
+# Aktuell: Mac-GIF-Gate nativ grün; Windows-Fokusroute und versteckte Fixturefehler — 31.10.2026
+
+f6acc54 MacARM41213612139 undMacIntel41213615598SUCCESS,Originalartefaktezeigen
+preparingHitfalsch→vorInputBodyhitwahr→tatsächlicherPressBody→FokusBody/exakterGIFkey.
+PrivaterLinuxGIFebenfallsPASS. KonkreteHitreadinesskorrekturbelegt,keineDecoder-
+änderung/Assertionlockerung. AlterFull41211080927hat weitereWindowsfailure:
+focused-pointer-away+paused-drag-key im echtenOSmediainput. Tracebeweist Right
+vonSeek2000→Bild2001;150msspäterLeftSourceMainWindow/focusnull/matchesPrevious,
+FrameworkDirectionalFocus setzt BrandAboutButton undhandled bevorShellbubble-
+Fallback. Produktpatch lässt ausschließlich genuineWindow+nullFocusInput im
+bestehendenShellTUNNEL durchgleicheGaleriepolicy;Escape/Fullscreen/Dialogs/Help/
+Popup/Fremdroot undfokussierteControls bleiben geschützt. KeinFocusforcing.
+SolreviewkeinBlocker,Shellhelp/Contextguardexpliziterhalten.
+
+ZusätzlicheWindows-CIfailureaudit: Checkpackagefixtures wurde vonPowerShell trotz
+14FAIL/4ERROR in test_prerelease alsgrüngewertet,weillateSuites0lieferten. Absofort
+Bash+set-euopipefail;neuerTestführt echtenextrahiertenMulti-commandbodymitFakePython
+return17ausundbelegtStoppbeimerstenKommando. UrsachenTestportability: WSLbashstatt
+GitforWindowsBash undFixturemixedCRLFlegalbytes durchautocrlf vorGitcommit verändert.
+TemporäreFixturesverwendenvorerstemAdddieechte.gitattributes;exactBlobbyteswerden
+zusätzlichgeprüft,expliziteGitbashauflösungundNegativtestkeinWSLfallback. Produktions-
+Assemblerlegalchecks unverändertstreng.44lokalePythonfällePASS,Worker43auchunter
+inheritedcoreautocrlftruePASS. Finale446gezielte.NETPASS/1SKIP,0Buildfehler.
+
+Neuerisoliertermedia-inputSelectorprüftaußerdemdieWindowsPythonfixturekorrekturen;
+fullall/allGuard unverändert. NativeWindows-/MacmediaGegenläufeundneuerFullcandidate
+noch nötig. KeineVermischungmitaltemf90Kandidat,keinRelease/Tag. Belegeci24/ci25,
+Benutzerdateienbytegleich. Productdefaults/Quellen/Verträgeunverändert.
+
+---
+
 # Aktuell: GIF-Reader-Klick trifft vor Hit-Test-Readiness; enge Fixturekorrektur — 31.10.2026
 
 Fullcandidate41211080927/f90d222 NICHTreleasefähig: macOSARM GIFReadercompositeFAIL.

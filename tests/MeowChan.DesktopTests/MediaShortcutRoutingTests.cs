@@ -31,6 +31,22 @@ public sealed class MediaShortcutRoutingTests
         Assert.False(GalleryViewer.IsUnfocusedWindowKey(e, window, null));
     }
 
+    [Theory]
+    [InlineData(Key.Left)]
+    [InlineData(Key.Right)]
+    [InlineData(Key.F7)]
+    [InlineData(Key.F8)]
+    public void UnfocusedHostFallbackRetainsEffectiveNavigationButNeverStealsFocusedInput(Key key)
+    {
+        Window host = (Window)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Window));
+        var press = Press(host, key);
+        Assert.True(GalleryViewer.IsUnfocusedWindowKey(press, host, null));
+        foreach (IInputElement focused in new IInputElement[] { new TextBox(), new ComboBox(), new Slider(), new Button() })
+            Assert.False(GalleryViewer.IsUnfocusedWindowKey(press, host, focused));
+        press.Handled = true;
+        Assert.False(GalleryViewer.IsUnfocusedWindowKey(press, host, null));
+    }
+
     private static KeyEventArgs Press(object source, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         new() { Source = source, Key = key, KeyModifiers = modifiers, RoutedEvent = InputElement.KeyDownEvent };
 

@@ -511,8 +511,11 @@ internal static class MediaInteractionChecks
             }
             await native.KeyAsync(MediaNativeInput.Right);
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2001");
-            await native.KeyAsync(MediaNativeInput.Left);
+            Record("image-return-input", new { expected, post = viewer!.CaptureState().PostId,
+                focus = Target(window.FocusManager?.GetFocusedElement()), routing = RoutingState(window) });
+            await native.KeyAsync(MediaNativeInput.Left); // exactly one OS key, including unfocused Window input
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2000");
+            Record("image-return-selection", new { expected, post = viewer!.CaptureState().PostId });
             await ReadyAsync();
             if (expected == "Paused")
             {
