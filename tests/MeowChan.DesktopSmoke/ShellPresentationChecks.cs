@@ -49,6 +49,10 @@ internal static class ShellPresentationChecks
         PixelPoint position = window.Position;
         window.FindControl<Button>("FullscreenButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await WaitForSettledGeometryAsync(window, () => IsNativeFullscreen(window), "native fullscreen");
+        Size[] observedEntryFrames = OperatingSystem.IsMacOS()
+            ? FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients").ToArray() : [];
+        if (OperatingSystem.IsMacOS())
+            Require(observedEntryFrames.Length > 0, "Native fullscreen entry produced no recorded resize observations.");
         Press(window, Key.F1);
         Require(window.FindControl<Border>("ShellHelpOverlay")!.IsVisible, "F1 did not open fullscreen shortcut help.");
         Press(window, Key.Escape);
@@ -61,6 +65,11 @@ internal static class ShellPresentationChecks
         }
         catch { TraceGeometry(window, "normal restore failure"); throw; }
         TraceGeometry(window, "normal restored");
+        if (OperatingSystem.IsMacOS())
+            Console.WriteLine("SMOKE native fullscreen entry observations PASS: nonempty real-entry history; bounded FIFO eviction permitted; entry="
+                + string.Join(";", observedEntryFrames) + "; after-exit="
+                + string.Join(";", FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients")));
+
         Require(Math.Abs(window.ClientSize.Height - size.Height) <= 2 && Math.Abs(window.Position.X - position.X) <= 2
             && Math.Abs(window.Position.Y - position.Y) <= 2, "Fullscreen did not restore normal window geometry.");
         // A completed transition must also release ordinary resize behavior.
@@ -98,7 +107,6 @@ internal static class ShellPresentationChecks
             window.RequestNormalWindowSize(size);
             await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
                 && Math.Abs(window.ClientSize.Width - size.Width) <= 2, "rapid enter-exit resize returned");
-            await CheckMacTransitionFeedbackReplayAsync(window, size);
         }
 
         window.WindowState = WindowState.Maximized;
@@ -118,52 +126,10 @@ internal static class ShellPresentationChecks
             && Math.Abs(window.ClientSize.Height - size.Height) <= 2, "final normal restored");
     }
 
-    private static async Task CheckMacTransitionFeedbackReplayAsync(MainWindow window, Size normal)
-    {
-        // Deterministic callback replay supplements, never replaces, the real
-        // native rapid-entry/exit check above. This is not an OS-input claim.
-        Action<Size, Avalonia.Controls.WindowResizeReason> nativeResize = window.PlatformImpl?.Resized
-            ?? throw new InvalidOperationException("Native resize callback is unavailable for the private Mac replay.");
-        Size intermediate = new(normal.Width + 73, normal.Height + 57);
-        Size requested = new(normal.Width + 11, normal.Height + 9);
-        Size deliberate = new(normal.Width + 37, normal.Height + 23);
-        window.ToggleFullscreen();
-        await WaitForSettledGeometryAsync(window, () => IsNativeFullscreen(window), "feedback replay native entry");
-        nativeResize(intermediate, Avalonia.Controls.WindowResizeReason.User);
-        Require(FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients").Contains(intermediate),
-            "The synthetic entry resize callback was not recorded as transition feedback.");
-        Press(window, Key.Escape);
-        await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
-            && Math.Abs(window.ClientSize.Width - normal.Width) <= 2
-            && Math.Abs(window.ClientSize.Height - normal.Height) <= 2, "feedback replay native exit");
-        Require(FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients").Contains(intermediate),
-            "Leaving fullscreen erased a frame already observed during this entry.");
-        window.RequestNormalWindowSize(requested);
-        await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
-            && Math.Abs(window.ClientSize.Width - requested.Width) <= 2
-            && Math.Abs(window.ClientSize.Height - requested.Height) <= 2, "feedback replay requested resize");
-        nativeResize(intermediate, Avalonia.Controls.WindowResizeReason.User);
-        Require(FullscreenField<MainWindow.FullscreenOrigin>(window, "_fullscreenExitIntent").Client == requested,
-            "Late known native entry feedback overwrote the newer normal resize intent.");
-        await WaitForSettledGeometryAsync(window, () => Math.Abs(window.ClientSize.Width - requested.Width) <= 2
-            && Math.Abs(window.ClientSize.Height - requested.Height) <= 2, "feedback replay duplicate repaired");
-        // Supersede a queued correction before it can dispatch. A genuinely
-        // unknown normal User size must win instead of pinning the old target.
-        nativeResize(intermediate, Avalonia.Controls.WindowResizeReason.User);
-        Require(FullscreenField<bool>(window, "_fullscreenExitSizeCorrectionQueued"),
-            "Known native feedback did not queue the correction that the next User resize must supersede.");
-        nativeResize(deliberate, Avalonia.Controls.WindowResizeReason.User);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Require(FullscreenField<MainWindow.FullscreenOrigin>(window, "_fullscreenExitIntent").Client == deliberate
-            && Math.Abs(window.Width - deliberate.Width) <= 2 && Math.Abs(window.Height - deliberate.Height) <= 2,
-            "An obsolete queued correction overrode a newer unknown User resize.");
-        window.RequestNormalWindowSize(normal);
-        await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
-            && Math.Abs(window.ClientSize.Width - normal.Width) <= 2
-            && Math.Abs(window.ClientSize.Height - normal.Height) <= 2, "feedback replay ordinary resize restored");
-        Console.WriteLine("SMOKE fullscreen callback replay PASS: recorded entry retained across exit, duplicate repaired, unknown normal User resize supersedes queued correction; synthetic callback replay, not OS input");
-    }
-
+    // Synthetic feedback ordering is tested by FullscreenFeedbackReplayTests
+    // against the same production decisions and a deterministic command queue.
+    // Never fabricate PlatformImpl.Resized notifications on a Cocoa window:
+    // Avalonia forwards them into real native application-resize commands.
     private static T FullscreenField<T>(MainWindow window, string name) =>
         (T)typeof(MainWindow).GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .GetValue(window)!;

@@ -288,6 +288,34 @@ public partial class MainWindow
                     || (Math.Abs(size.Width - (_fullscreenRestoreFromClient.Width - _normalDecoration.Width)) <= 1
                         && Math.Abs(size.Height - (_fullscreenRestoreFromClient.Height - _normalDecoration.Height)) <= 1)));
 
+    internal enum FullscreenUserResizeAction { RememberTransition, RepairKnownFrame, AcceptUserSize }
+
+    internal static FullscreenUserResizeAction ClassifyFullscreenUserResize(bool restoring, Size client,
+        Size intended, IReadOnlyCollection<Size> staleClients) => restoring
+        ? FullscreenUserResizeAction.RememberTransition
+        : client != intended && staleClients.Contains(client)
+            ? FullscreenUserResizeAction.RepairKnownFrame : FullscreenUserResizeAction.AcceptUserSize;
+
+    internal readonly record struct FullscreenExitRepairSnapshot(FullscreenOrigin? Intent,
+        bool Entering, bool Restoring, bool Closing, WindowState State, Size Client, bool MaximizePending);
+
+    // Pure admission decision shared with the deterministic feedback replay. It
+    // observes the latest state at dispatch, never an earlier captured target.
+    internal static Size? ResolveFullscreenExitSizeRepair(FullscreenExitRepairSnapshot current,
+        IReadOnlyCollection<Size> staleClients, int queuedGeneration, int currentGeneration)
+    {
+        if (queuedGeneration != currentGeneration || current.Intent is not { } intent
+            || current.Entering || current.Restoring || current.Closing || current.State != WindowState.Normal
+            || !intent.ShouldRepairExitFrame(current.Client, staleClients, current.MaximizePending)
+            || Math.Abs(current.Client.Width - intent.Client.Width) <= 1
+                && Math.Abs(current.Client.Height - intent.Client.Height) <= 1) return null;
+        return intent.Client;
+    }
+
+    private FullscreenExitRepairSnapshot CaptureFullscreenExitRepairSnapshot() => new(_fullscreenExitIntent,
+        _fullscreenOrigin != null, _restoringFullscreen, _isClosing, WindowState, ClientSize,
+        _fullscreenMaximizeRestoreClient != null);
+
     private void OnFullscreenRestoreResized(object? sender, WindowResizedEventArgs e)
     {
         ObserveStartupWindowResize(e);
@@ -305,7 +333,9 @@ public partial class MainWindow
             if (OperatingSystem.IsMacOS() && _fullscreenExitIntent is { } intent
                 && WindowState == WindowState.Normal)
             {
-                if (_restoringFullscreen)
+                FullscreenUserResizeAction action = ClassifyFullscreenUserResize(_restoringFullscreen,
+                    ClientSize, intent.Client, _fullscreenExitStaleNativeClients);
+                if (action == FullscreenUserResizeAction.RememberTransition)
                 {
                     // Cocoa can label its own exit animation as User. Remember
                     // this exact native frame, including a Maximized origin,
@@ -313,7 +343,7 @@ public partial class MainWindow
                     if (ClientSize != intent.Client) RememberFullscreenExitStaleClient(ClientSize);
                     return;
                 }
-                if (ClientSize != intent.Client && _fullscreenExitStaleNativeClients.Contains(ClientSize))
+                if (action == FullscreenUserResizeAction.RepairKnownFrame)
                 {
                     TraceFullscreen($"duplicate native exit frame ignored={ClientSize}");
                     ContinuePendingFullscreenExitSizeRepair();
@@ -461,13 +491,9 @@ public partial class MainWindow
         // After a Maximized exit has been restaged and the caller unmaximizes,
         // only a frame observed during the exit is stale. Other native Layout
         // sizes can be later, deliberate normal-window resizes.
-        if (!OperatingSystem.IsMacOS() || _fullscreenExitIntent is not { } intent
-            || _fullscreenOrigin != null || _restoringFullscreen || _applyingFullscreenRestoreGeometry
-            || !intent.ShouldRepairExitFrame(ClientSize, _fullscreenExitStaleNativeClients, _fullscreenMaximizeRestoreClient != null)
-            || WindowState != WindowState.Normal || _isClosing
-            || Math.Abs(ClientSize.Width - intent.Client.Width) <= 1
-                && Math.Abs(ClientSize.Height - intent.Client.Height) <= 1
-            || _fullscreenExitSizeCorrectionQueued) return;
+        if (!OperatingSystem.IsMacOS() || _applyingFullscreenRestoreGeometry || _fullscreenExitSizeCorrectionQueued
+            || ResolveFullscreenExitSizeRepair(CaptureFullscreenExitRepairSnapshot(), _fullscreenExitStaleNativeClients,
+                _fullscreenExitGeneration, _fullscreenExitGeneration) == null) return;
         TraceFullscreen("normal size correction queued");
         _fullscreenExitSizeCorrectionQueued = true;
         int generation = _fullscreenExitGeneration;
@@ -479,14 +505,11 @@ public partial class MainWindow
             TraceFullscreen($"normal size correction callback generation={generation}");
             if (generation != _fullscreenExitGeneration) return;
             _fullscreenExitSizeCorrectionQueued = false;
-            if (_fullscreenExitIntent is not { } target
-                || _fullscreenOrigin != null || _restoringFullscreen || WindowState != WindowState.Normal || _isClosing
-                || !target.ShouldRepairExitFrame(ClientSize, _fullscreenExitStaleNativeClients, _fullscreenMaximizeRestoreClient != null)
-                || Math.Abs(ClientSize.Width - target.Client.Width) <= 1
-                    && Math.Abs(ClientSize.Height - target.Client.Height) <= 1) return;
-            TraceFullscreen($"normal size correction applied={target.Client}");
-            Width = target.Client.Width;
-            Height = target.Client.Height;
+            if (ResolveFullscreenExitSizeRepair(CaptureFullscreenExitRepairSnapshot(), _fullscreenExitStaleNativeClients,
+                generation, _fullscreenExitGeneration) is not Size target) return;
+            TraceFullscreen($"normal size correction applied={target}");
+            Width = target.Width;
+            Height = target.Height;
         }, DispatcherPriority.Background);
     }
 

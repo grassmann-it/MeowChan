@@ -1,3 +1,40 @@
+# Aktuell: synthetischen Mac-Replay von Cocoa getrennt, Dokumentationsstand vorbereitet — 31.10.2026
+
+177af98/Fullcandidate41195426476 ist wegen MacARMvalidate NICHT freigabefähig.
+Normale Start-/Fallback-/Readerprüfungen und der ursprüngliche echte schnelle
+Vollbildwechsel bestehen; Fehler im zusätzlich eingefügten synthetischen Replay
+beim nativen Exit (ShellPresentationChecks136). Pinned Avalonia12.1.4 und Solreview
+belegen: direktes PlatformImpl.Resized(fakeSize,User) ist keine passive Beobachtung,
+sondern setzt Frameworkgrößen und sendet echte Resize(Application)-Aufträge an
+Cocoa. Trace zeigt1073×757Application VOR dem künstlichen Userereignis. Welche
+Cocoa-Restoresnapshotquelle danach1380×850 erzeugte, ist damit NICHT bewiesen.
+
+Replay jetzt als vier deterministische Entscheidungstests ohne native Plattform:
+dieselben aus dem Produkt extrahierten Klassifizierungs-/Repairentscheidungen,
+echte Ausführung einer kontrollierten Actionqueue, aktueller Zielwert, unbekannte
+Usergröße überholt schon gequeue­te Korrektur, Generationwechsel und Eintritts-
+/Restore-/Schließguards. Keine Behauptung vollständiger Dispatcher-/Flagintegration.
+Produktguards bleiben äquivalent; FIFO4/fresh-entryReset/UnknownUserpolicy unverändert.
+Native Smoke injiziert KEINE Plattformresizecallbacks mehr. Ursprünglicher echter
+Rapid-Enter/Exit und Maximized→Fullscreen→Restore bleiben samt15s-/350msGrenzen;
+echte Entrybeobachtungen sind nichtleer, Ein-/Austrittsverlauf wird geloggt, keine
+falsche Preserve-all-Anforderung an den begrenzten FIFO.25gezielte.NET-FällePASS,
+Smoke-Build0Fehler. Native Gegenläufe ARM64/Intel weiterhin erforderlich.
+
+Nutzer gibt Veröffentlichung bedingt bei allen grünen Gates ausdrücklich frei
+und verlangt korrekte Docs/Versionsstellen. Sechs Dokumente auf1.0.2 vorbereitet:
+README/Downloads, Changelog, Repo-/Webhilfe, Releasehinweise/-Vorbereitung und
+Plattformnachweise. 1.0.1Screenshots/historischeUpgrade-/Protokollversionen bleiben
+korrekt beschriftet. Öffentliche AppImage-Kommandos verwenden tatsächliche04-/05-
+Dateinamen.80relativeLinks geprüft, keinefehlendenZiele; Version1.0.2,Assembly/
+FileVersion1.0.2.0. Wichtige Präzisierung: docs/Help.md ist laut Projekt-/Paket-
+vertrag Repo-/Webhilfe, NICHT eingebettete Appressource; frühere Annahme korrigiert.
+Die neue Quellrevision benötigt trotzdem einen eigenen vollständigen Kandidaten;
+keine alten Artefakte auf neue SHAs umetikettieren. Quellen/Defaults/Dependencies
+unverändert, beide Benutzerdateien geschützt. Noch kein Tag/Release.
+
+---
+
 # Aktuell: Render-Schleife kausal reproduziert, eng begrenzter Clip-Fix — 31.10.2026
 
 Windows41194191169/ae8f8a0 liefert den entscheidenden Nachweis: durchgehend
