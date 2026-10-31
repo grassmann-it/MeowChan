@@ -718,6 +718,25 @@ New durable work state records retries, source end and watch intent independentl
 of captured posts. Never delete its files to dismiss a failure; preserve a backup
 and inspect the reported recovery error.
 
+### In-place bundled-plugin rebuilds
+
+A normal in-place rebuild of an already selected, proven bundled plugin (including
+`dotnet run`) is adopted at startup when its current delivered identity is verified,
+its description is unchanged and the exact saved configuration remains valid.
+You do not need another repair confirmation followed by a second application start
+merely because the executable hash changed. Enabled/disabled choices and rollback
+history remain intact. A previously confirmed same-identity in-place repair does
+not force the confirmation loop again when another compatible rebuild occurs.
+A reviewed new selection with complete saved configuration and genuine prior
+bundle proof can also follow a compatible rebuild before its first activation;
+its old selected build is not falsely recorded as previously runtime-activated.
+
+This does not silently unpin code, transfer special permissions, select a different
+installation/candidate, accept changed declarations or invent missing legacy
+provenance. Those cases remain separate reviewed operations. Manual repair/new
+selection in the running session is still saved for the next start; general live
+plugin replacement is not currently implemented.
+
 ### Missing legacy plugin candidates
 
 If an older profile reports **Candidate is missing from the startup inventory**,

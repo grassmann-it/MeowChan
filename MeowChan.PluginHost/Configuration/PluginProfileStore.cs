@@ -100,7 +100,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         foreach (PluginCandidateObservation candidate in observations) ValidateObservation(candidate);
         if (observations.Select(item => item.CandidateId).Distinct(StringComparer.Ordinal).Count() != observations.Length)
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
-        return MutateDocumentAsync(expectedRevision, document =>
+        return MutateStartupDocumentAsync(expectedRevision, async document =>
         {
             if (proofs is not null)
             {
@@ -117,6 +117,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 document = document with { Provenance = evidence, RestrictedSourceIds = restricted ?? [] };
                 BundledCandidateMigration.Validate(document);
             }
+            document = WithCurrentRepairRestrictions(document);
             PluginProfileSnapshot state = document.Profile;
             state = ReleaseProvisionalOwners(state, observations);
             // A source file changing its declared plugin identity is an unavailable update of
@@ -150,6 +151,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 PluginActivationSnapshot next = old with { Candidates = inventory, SelectedCandidateId = selected, Active = null,
                     LastGood = old.Active ?? old.LastGood, LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
                 PluginReleaseSnapshot? release = null;
+                BundledRepairBinding? automaticBinding = null;
                 if (old.Pinned is not null)
                     release = old.Pending is not null && SameBuild(old.Pending, old.Pinned) ? old.Pending : old.Pinned;
                 else if (selected is null)
@@ -174,7 +176,36 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     bool bindingMatches = binding is not null && !previous.Missing && previous.Provenance?.SlotId == binding.SlotId &&
                         candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
                         document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
-                    if (candidate is null || !candidate.IsPresent || candidate.Problem is not null || candidate.Artifact is null || candidate.Description is null)
+                    bool automaticBundleUpdate = buildChanged && (repairRestrictedSources is null || repairPermissionGate is not null)
+                        && BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(
+                        document, old, candidate, previous, proofs, present.Length);
+                    string? automaticUpdateProblem = null;
+                    if (automaticBundleUpdate)
+                    {
+                        try
+                        {
+                            DeliveredCandidateProvenance proof = proofs!.Single(value => BundledCandidateMigration.Matches(value, candidate!));
+                            // Revalidate shipped bytes AND imported cache under the writer lease.
+                            await PluginInstallationInventory.VerifyRepairTargetAsync(proof, candidate!.Artifact!, candidate.Description!, cancellationToken)
+                                .ConfigureAwait(false);
+                            document = WithCurrentRepairRestrictions(document);
+                            if (!BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length))
+                                throw new InvalidOperationException("Bundled update authority changed during integrity verification.");
+                            if (binding is not null)
+                            {
+                                automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision };
+                                bindingMatches = true;
+                            }
+                        }
+                        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException)
+                        {
+                            automaticBundleUpdate = false;
+                            automaticUpdateProblem = "Bundled update integrity validation failed: " + error.Message;
+                        }
+                    }
+                    if (automaticUpdateProblem is not null)
+                        next = next with { Problem = automaticUpdateProblem };
+                    else if (candidate is null || !candidate.IsPresent || candidate.Problem is not null || candidate.Artifact is null || candidate.Description is null)
                         next = next with { Problem = candidate?.Problem ?? "Selected candidate is unavailable." };
                     else if (binding is not null && !bindingMatches)
                         next = next with { Problem = "Confirmed bundled target changed or disappeared; review repair again." };
@@ -182,14 +213,16 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Problem = "Bundled target has no matching delivered provenance; review is required." };
                     else if (deliveredIdentity && previous.Missing)
                         next = next with { Problem = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required." };
-                    else if (deliveredCandidate && buildChanged && !bindingMatches)
+                    else if (deliveredCandidate && buildChanged && !bindingMatches && !automaticBundleUpdate)
                         next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
                     else if (deliveredCandidate && BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged))
                         next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };
                     else
                     {
                         PluginReleaseSnapshot? basis = MatchingBasis(old, candidate.CandidateId);
-                        if (basis?.ExecutionRevision == candidate.Artifact.ExecutionRevision &&
+                        if (automaticBundleUpdate)
+                            release = new(candidate.CandidateId, candidate.Artifact, candidate.Description, old.Pending?.Configuration ?? previous.Release!.Configuration);
+                        else if (basis?.ExecutionRevision == candidate.Artifact.ExecutionRevision &&
                             SdkJson.Serialize(basis.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description)))
                             release = basis;
                         else
@@ -219,12 +252,27 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                             Pinned = old.Pinned is null ? null : release,
                             LifecycleRevision = checked(old.LifecycleRevision + 1),
                             Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained." : null };
+                        // Advance an established binding only with the accepted activation,
+                        // never while a later ownership/conflict check can still reject it.
+                        if (automaticBinding is { } acceptedBinding)
+                            document = document with { Bindings = document.Bindings
+                                .Select(value => value.PluginId == pluginId ? acceptedBinding : value).ToArray() };
                     }
                 }
                 plugins.Add(next);
             }
-            return Task.FromResult(document with { Profile = state with { Plugins = plugins } });
+            return document with { Profile = state with { Plugins = plugins } };
         }, cancellationToken);
+    }
+
+    private async Task<PluginProfileSnapshot> MutateStartupDocumentAsync(long expectedRevision,
+        Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken)
+    {
+        // Same lock order as explicit reselection: live source permissions, then
+        // profile writer lease. Never inherit a permission added during async IO.
+        if (repairPermissionGate is not null) await repairPermissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await MutateDocumentAsync(expectedRevision, update, cancellationToken).ConfigureAwait(false); }
+        finally { repairPermissionGate?.Release(); }
     }
 
     public async Task<BundledCandidateRepairPreview> PreviewBundledRepairsAsync(CancellationToken cancellationToken = default)

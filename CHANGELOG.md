@@ -2,6 +2,12 @@
 
 ## 1.0.2 — stability, media controls and startup recovery
 
+- Automatically activate compatible in-place rebuilds of already established bundled
+  plugins at startup, including local `dotnet run` builds and an explicitly selected
+  bundle rebuilt before its first activation. Preserve exact settings,
+  enabled/disabled choices and rollback history, without another confirmation/restart
+  loop. Current delivered and cached bytes are reverified; pins, changed declarations,
+  special rights, ambiguous targets and unproven legacy history remain guarded.
 - Automatically continue restored watches after proven initial source admission waits,
   retaining real failure diagnostics and check intervals after attempted requests.
   Correlate metadata history through host-owned worker contexts and retire it safely.

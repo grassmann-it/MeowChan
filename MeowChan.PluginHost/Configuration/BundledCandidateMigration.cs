@@ -211,6 +211,62 @@ internal static class BundledCandidateMigration
         return new(document.Profile.Revision, rows);
     }
 
+    // A normal in-place app/development rebuild is not a change of plugin owner.
+    // Only current host-observed delivery evidence may authorize this exception;
+    // persisted inventory alone, local plugins and unproven pending history cannot.
+    internal static bool CanAutomaticallyUpdateKnownBundle(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
+    {
+        if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null
+            || candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null }
+            || previous.Missing || previous.Release is null || previous.Provenance is null
+            || previous.CandidateId != candidate.CandidateId) return false;
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        if (established is not null)
+        {
+            if (established.CandidateId != previous.CandidateId
+                || established.ExecutionRevision != previous.ExecutionRevision) return false;
+        }
+        else
+        {
+            // Explicit new selection/configuration can be complete and trusted
+            // before its first activation. Its retained OLD Pending proof—not
+            // today's inventory or a global backup marker—must supply the basis.
+            bool provenPendingBeforeFirstActivation = plugin.Pending is { } pendingBeforeFirst
+                && plugin.SelectedCandidateId == pendingBeforeFirst.CandidateId
+                && pendingBeforeFirst.CandidateId == previous.CandidateId
+                && pendingBeforeFirst.ExecutionRevision == previous.ExecutionRevision
+                && !document.Bindings.Any(binding => binding.PluginId == plugin.PluginId);
+            if (!provenPendingBeforeFirstActivation) return false;
+        }
+        // Retain independent pending choices. A prior explicit SAME-IDENTITY repair
+        // must not trap an established in-place source in a rebuild/confirm loop.
+        if (plugin.Pending is { } pending && (pending.CandidateId != previous.CandidateId
+            || pending.ExecutionRevision != previous.ExecutionRevision))
+        {
+            bool approvedInPlacePending = pending.CandidateId == previous.CandidateId
+                && document.Bindings.Any(binding => binding.PluginId == plugin.PluginId
+                    && binding.SelectedCandidateId == plugin.SelectedCandidateId
+                    && binding.TargetCandidateId == previous.CandidateId
+                    && binding.TargetExecutionRevision == pending.ExecutionRevision
+                    && binding.SlotId == previous.Provenance.SlotId)
+                && SdkJson.Serialize(pending.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description));
+            if (!approvedInPlacePending) return false;
+        }
+        bool selectedIdentity = plugin.SelectedCandidateId == candidate.CandidateId
+            || document.Bindings.Any(binding => binding.PluginId == plugin.PluginId
+                && binding.SelectedCandidateId == plugin.SelectedCandidateId
+                && binding.TargetCandidateId == candidate.CandidateId && binding.SlotId == previous.Provenance.SlotId);
+        if (!selectedIdentity || HasInheritedRights(document, plugin, candidate, changed: true)
+            || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
+            || !SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description))
+            || SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
+        DeliveredCandidateProvenance[] currentSlot = currentDelivery
+            .Where(proof => proof.SlotId == previous.Provenance.SlotId).ToArray();
+        return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
+    }
+
     internal static bool HasInheritedRights(BundledProfileDocument document, PluginActivationSnapshot plugin,
         PluginCandidateSnapshot target, bool changed) => changed &&
         (document.Profile.Grants.Any(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None) ||

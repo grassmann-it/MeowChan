@@ -1002,7 +1002,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PendingOnlyRequiredOldConfigurationCannotActivateOrOrdinarilySelectChangedSamePathBuild(bool grant)
+    public async Task ProvenPendingOnlyInPlaceRebuildActivatesWithoutRightsButCannotTransferGrants(bool grant)
     {
         var f = await PendingOnlyRequired();
         var state = f.State;
@@ -1015,6 +1015,17 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         for (int restart = 0; restart < 2; restart++)
         {
             state = await Store().ApplyBundledStartupAsync([changed.Candidate], [changed.Proof], [], state.Revision);
+            if (!grant)
+            {
+                Assert.Equal(changed.Candidate.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
+                Assert.Equal(config, SdkJson.Serialize(Active(state).Configuration));
+                Assert.Equal(changed.Candidate.Artifact.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
+                Assert.Null(state.Plugins[0].Pending); Assert.Null(state.Plugins[0].Pinned); Assert.Null(state.Plugins[0].Problem);
+                Assert.Equal(f.Candidate.CandidateId, state.Plugins[0].SelectedCandidateId);
+                Assert.Equal(grants, SdkJson.Serialize(state.Grants)); Assert.Equal(owners, SdkJson.Serialize(state.SelectedSourceOwners));
+                Assert.Empty((await Store().PreviewBundledRepairsAsync()).Rows);
+                continue;
+            }
             Assert.Null(state.Plugins[0].Active); Assert.Null(state.Plugins[0].LastGood);
             Assert.Equal(f.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Pending!.ExecutionRevision);
             Assert.Equal(config, SdkJson.Serialize(state.Plugins[0].Pending!.Configuration));
@@ -1042,7 +1053,10 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     {
         var f = await PendingOnlyRequired(source: sourceRestriction);
         var moved = await Delivered(samePath ? "pending-old" : "pending-new", "two", source: sourceRestriction, requiredSetting: true);
-        var state = await f.Store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], f.State.Revision);
+        // Recreate a pre-fix reviewed update while retaining this test's late-rights
+        // boundary. A host without serialized live authority cannot auto-adopt it.
+        PluginProfileStore reviewing = samePath ? new(profile, static _ => true, () => Array.Empty<string>()) : f.Store;
+        var state = await reviewing.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], f.State.Revision);
         byte[] oldConfig = SdkJson.Serialize(state.Plugins[0].Pending!.Configuration);
         byte[] owners = SdkJson.Serialize(state.SelectedSourceOwners);
         var preview = await f.Store.PreviewBundledRepairsAsync(); var row = Assert.Single(preview.Rows);
