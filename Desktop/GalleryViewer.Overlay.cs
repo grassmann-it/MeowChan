@@ -344,7 +344,12 @@ internal sealed partial class GalleryViewer
             _contextPanel.Width = compact ? double.NaN : 320;
             _contextPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
-            _contextPanel.Margin = new Thickness(0, 0, 0, OverlayControlsEffective && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8 : 0);
+            // Native chrome covers only the video viewport in a separate window.
+            // The adjacent docked context is not underneath it. Feeding that
+            // footer's measured height into this root also creates a cross-root
+            // layout dependency (main layout positions the native overlay).
+            _contextPanel.Margin = new Thickness(0, 0, 0, !_nativeOverlayActive && OverlayControlsEffective
+                && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8 : 0);
             Grid.SetColumn(_contextPanel, compact ? 0 : 1); Grid.SetColumnSpan(_contextPanel, compact ? 2 : 1);
             Grid.SetRow(_contextPanel, 0); Grid.SetRowSpan(_contextPanel, 1);
         }

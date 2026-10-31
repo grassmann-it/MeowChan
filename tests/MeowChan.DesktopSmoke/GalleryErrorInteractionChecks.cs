@@ -37,6 +37,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             GalleryEntry clip = await AssetAsync(directory, "notice-video", "notice-video.webm",
                 await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video)));
             GalleryEntry image = await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue);
+            await CheckContextLayoutRootsAsync(owner);
             foreach (bool overlay in new[] { false, true })
             foreach (bool paused in new[] { false, true })
                 await CheckNotificationTransportAsync(owner, clip, overlay, paused);
@@ -48,6 +49,64 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
         }
         finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    private static async Task CheckContextLayoutRootsAsync(MainWindow owner)
+    {
+        // Portable layout-ownership regression, NOT a native VideoView emulation.
+        // Establish all parentage before showing either real layout root. Live
+        // cross-root transfers remain covered by the actual native feature suite.
+        foreach (bool externalRoot in new[] { false, true })
+        foreach (bool postOverlay in new[] { false, true })
+        {
+            GalleryViewer viewer = new();
+            viewer.Configure(contextOpen: true, showShortcutHelp: true, videoAutoplay: false,
+                videoStartMuted: true, videoVolume: 0);
+            if (externalRoot) ShellErrorSet(viewer, "_nativeOverlayActive", true);
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayPostContext: postOverlay).WithControlsOverlay(true));
+            viewer.SetInteractionAvailable(false); // Explicit reveal, held stable during sizing.
+            Window window = new() { Width = 1000, Height = 700, Content = viewer,
+                Title = "Private gallery layout ownership regression" };
+            Window? overlay = externalRoot ? new Window
+            {
+                Width = 650, Height = 500, Content = ErrorField<Grid>(viewer, "_nativeVideoOverlay"),
+                Title = "Private external gallery layout root"
+            } : null;
+            try
+            {
+                window.Show(owner);
+                overlay?.Show(window);
+                Border context = Find<Border>(viewer, "GalleryContext");
+                StackPanel footer = Find<StackPanel>(viewer, "GalleryOverlayFooter");
+                foreach (double height in new[] { 180d, 280d, 180d })
+                {
+                    footer.Height = height; // Actual SizeChanged callbacks, including repeated sizing.
+                    await LayoutAsync(window);
+                    if (overlay != null) await LayoutAsync(overlay);
+                    Require(footer.IsVisible && footer.Bounds.Height > 0 && context.IsVisible,
+                        "Root layout regression requires actually visible footer/context controls.");
+                    Require(Math.Abs(footer.Bounds.Height - height) < .01,
+                        $"Footer did not realize the requested layout height {height}: {footer.Bounds.Height}.");
+                    Require(ReferenceEquals(context.Parent, postOverlay
+                        ? externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : ErrorField<Grid>(viewer, "_visualRoot")
+                        : ErrorField<Grid>(viewer, "_body")), "Context left its selected layout parent.");
+                    Require(ReferenceEquals(TopLevel.GetTopLevel(footer), overlay ?? window),
+                        "Footer did not belong to the selected real layout root.");
+                    double expected = postOverlay ? footer.Bounds.Height + 16
+                        : externalRoot ? 0 : footer.Bounds.Height + 8;
+                    Require(Math.Abs(context.Margin.Bottom - expected) < .01,
+                        $"Context inherited the wrong root's footer inset: external={externalRoot}, postOverlay={postOverlay}, actual={context.Margin.Bottom}, expected={expected}.");
+                }
+                Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; no native playback claim");
+            }
+            finally
+            {
+                // Do not close either root before terminal cleanup has succeeded.
+                await viewer.StopAsync();
+                overlay?.Close();
+                window.Close();
+            }
+        }
     }
 
     private static async Task CheckExternalTransportRetirementAsync(MainWindow owner)
@@ -351,14 +410,25 @@ internal static partial class GalleryPlaybackFeatureChecks
             Console.WriteLine("SMOKE gallery-shell volume unavailable: decoded audio but zero rendered buffers; disabled-control contract checked, native volume edit NOT claimed.");
         }
         int expectedSavedVolume = availableAudio ? 61 : 25;
+        using var layoutTrace = new ShellGalleryLayoutTrace(shell, viewer);
+        layoutTrace.Record("before repeat");
         Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex = (int)GalleryPlaybackMode.Repeat;
+        layoutTrace.Record("before context");
         Click(Find<Button>(viewer, "GalleryToggleContext"));
+        layoutTrace.Record("before overlay");
         Click(Find<Button>(viewer, "GalleryOverlayToggle"));
+        layoutTrace.Record("after overlay");
         GalleryViewerState intendedSelection = viewer.CaptureState();
         Require(intendedSelection.ContextOpen, "Actual context action did not open the gallery context.");
         Task observed = (Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!;
         Task raw = ShellErrorField<Task>(shell, "_galleryPreferenceWrite");
         await observed.WaitAsync(Deadline); // The UI observer catches; the actual writer must still fault.
+        layoutTrace.Record("write observed");
+        await LayoutAsync(shell);
+        StackPanel shellFooter = Find<StackPanel>(viewer, "GalleryOverlayFooter");
+        Require(Find<Border>(viewer, "GalleryContext").Margin.Bottom ==
+            (!ErrorField<bool>(viewer, "_nativeOverlayActive") && shellFooter.IsVisible ? shellFooter.Bounds.Height + 8 : 0),
+            "Real shell docked context reserved space for a footer in the wrong layout root.");
         bool ioFailed = false;
         try { await raw.WaitAsync(Deadline); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ioFailed = true; }
@@ -460,6 +530,51 @@ internal static partial class GalleryPlaybackFeatureChecks
                 : settled.State != "Playing" && Math.Abs(settled.Time - resumed.Time) <= 120),
             "Reader warning/return changed volume/repeat or restarted the paused playback clock.");
         Console.WriteLine($"SMOKE gallery-shell Reader return PASS: prior={expected}, resumed={settled.State}, real banner/toast hidden on reentry, history retained/unacknowledged, playing/non-playing intent preserved");
+    }
+
+    private sealed class ShellGalleryLayoutTrace : IDisposable
+    {
+        private readonly MainWindow _shell;
+        private readonly GalleryViewer _viewer;
+        private readonly Window? _overlay;
+        private int _remaining = 40;
+        private string? _last;
+
+        internal ShellGalleryLayoutTrace(MainWindow shell, GalleryViewer viewer)
+        {
+            _shell = shell; _viewer = viewer;
+            _overlay = TopLevel.GetTopLevel(ErrorField<Grid>(viewer, "_nativeVideoOverlay")) as Window;
+            shell.LayoutUpdated += OnLayout;
+            if (_overlay != null) _overlay.LayoutUpdated += OnLayout;
+        }
+        private void OnLayout(object? sender, EventArgs args) => Record(ReferenceEquals(sender, _shell) ? "main layout" : "overlay layout");
+        internal void Record(string phase)
+        {
+            if (_remaining <= 0) return;
+            var footer = ErrorField<StackPanel>(_viewer, "_overlayFooter");
+            var context = ErrorField<Border>(_viewer, "_contextPanel");
+            var native = ErrorField<Grid>(_viewer, "_nativeVideoOverlay");
+            var surface = Player(_viewer).GetVisualDescendants().OfType<LibVLCSharp.Avalonia.VideoView>().SingleOrDefault();
+            string state = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                viewer = _viewer.Bounds.ToString(), viewport = Find<Grid>(_viewer, "GalleryViewport").Bounds.ToString(),
+                nativeActive = ErrorField<bool>(_viewer, "_nativeOverlayActive"),
+                video = surface?.Bounds.ToString(), footer = footer.Bounds.ToString(),
+                contextInset = context.Margin.Bottom, contextInMain = ReferenceEquals(TopLevel.GetTopLevel(context), _shell),
+                overlay = _overlay?.Bounds.ToString(), overlayWidth = _overlay?.Width.ToString(),
+                overlayHeight = _overlay?.Height.ToString(), sizeToContent = _overlay?.SizeToContent.ToString(),
+                overlayValid = native.IsArrangeValid,
+                banner = _shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+            });
+            if (phase.EndsWith("layout", StringComparison.Ordinal) && state == _last) return;
+            _last = state; _remaining--;
+            Console.WriteLine($"SMOKE gallery-shell layout {phase}: {state}");
+        }
+        public void Dispose()
+        {
+            _shell.LayoutUpdated -= OnLayout;
+            if (_overlay != null) _overlay.LayoutUpdated -= OnLayout;
+        }
     }
 
     private static async Task RequireShellNativeIntentAsync(GalleryVideoPlayer player,

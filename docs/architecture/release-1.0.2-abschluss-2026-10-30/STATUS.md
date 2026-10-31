@@ -1,3 +1,42 @@
+# Aktuell: Windows-Readiness bestanden, danach echte Layoutschleife — 31.10.2026
+
+Windows-Run41190807684 auf08cbfa3 ist FAIL, kein Tag/Release. Die getrennten
+Readinesswerte belegen diesmal aktives eigenes Overlay, echte Frames/Playing
+(Time729, decoded32/displayed11) und explizites No-output-Audio
+(Tracks2, decoded57, played0, deaktivierte Regler). Danach Prozessabsturz:
+`InvalidOperationException: Infinite layout loop detected`. Die vorherige
+Readinesskorrektur genügt also nicht; kein Audio-/Buildfehler daraus behauptet.
+
+Konkrete Layout-Unstimmigkeit (Root + unabhängiger Sol-Review): angedockter
+Postkontext im Hauptfenster reservierte Footerhöhe aus dem separaten nativen
+Videofenster. Der Footer überdeckt diesen neben dem Video liegenden Kontext
+nicht. Native aktive Overlays beeinflussen diesen Abstand jetzt nicht mehr;
+Softwareoverlay und Kontext innerhalb desselben Overlays behalten ihre Abstände.
+Damit entfällt ein falscher Cross-Root-Layoutbezug. Ob genau dieser Bezug die
+Windows-Schleife schließt, bleibt durch einen nativen Gegenlauf zu belegen.
+
+Lokale portable Regression etabliert Eltern vor dem Anzeigen zweier echter
+Fenster und prüft vier Root-/Kontextkombinationen bei tatsächlichen Footerhöhen
+180→280→180. Alle vier PASS; keine emulierte native VideoView-Abnahme. Vorheriger
+Produktstand08cbfa3 mit derselben neuen Layoutprüfung scheitert gezielt an
+externem Footer→angedocktem Kontext (188 statt0). Ganzer Galeriefehlerlauf mit
+privater stummer Pulse-Nullsink PASS, Playing/Paused samt realem IO-Fehler und
+Reader-Rückkehr; Cleanup/Child/Dienste0, keine Hardwarekarten. APIreleaseReady.
+
+Die echte Shellprüfung behält ihre Readiness-/Audio-/Zeitgrenzen und enthält
+zusätzlich begrenzte (max40) Layoutzustands-/Aktionslogs, falls der native Fehler
+fortbesteht. Zwei frühere Hilfsfixture-Setups (noch versteckter Footer bzw.
+synthetisches Live-Reparenting mit wrongLayoutManager) sind als FAIL aufbewahrt;
+keine allgemeine Live-Reparenting-Reparatur behauptet. Verfeinerte Prüfung
+isoliert den konkreten Rootbezug; bestehende echte native Featuregates bleiben.
+
+Belege unter `artifacts/release-1.0.2-ci-fix-verification/ci-ninth-failures/`.
+Nächster Schritt: fokussierter Windowsvalidate/gui-only auf neuem Commit,
+erst danach neuer vollständiger eingefrorener 13-Job-/18-Asset-Kandidat.
+Benutzerdateien unverändert, keine neuen Quellen/Abhängigkeiten/Defaults.
+
+---
+
 # Aktuell: beide Mac-Gegenläufe grün; Windows-Bereitschaft bleibt offen — 31.10.2026
 
 MacARM41190070091 undIntel41190071934 sindsuccess aufexakt1b3ca16. Das belegt
