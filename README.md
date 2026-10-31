@@ -201,7 +201,7 @@ In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpa
 
 **F** toggles the current gallery favorite; **P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
 
-PNG, JPEG, GIF, WebP and BMP depend on decoder support; animation shows a still first frame. Image previews refuse files above 64 MiB or 80 million source pixels; Fit buffers are bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
+PNG, JPEG, GIF, WebP and BMP depend on decoder support. The gallery animates supported GIFs from verified originals, with pause/resume and zoom; other animated image formats use a still first-frame preview. GIF playback is limited to 64 MiB, 16 million source pixels and 1024 frames; damaged or over-limit GIFs are unavailable rather than silently played as stills. Other image previews are limited to 64 MiB and 80 million source pixels, with Fit buffers bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
 
 Video attachments in captured posts can reuse persistent still previews offline, generated from verified saved originals. If a preview is unavailable, open the original in the gallery for playback.
 

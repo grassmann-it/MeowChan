@@ -364,13 +364,13 @@ internal sealed partial class GalleryViewer : UserControl
         };
         _viewport.SizeChanged += (_, _) => FitIfAutomatic();
         _viewport.PointerWheelChanged += (_, e) => { Focus(); Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), e.GetPosition(_viewport)); e.Handled = true; };
-        _viewport.PointerPressed += (_, e) =>
+        _viewport.PointerPressed += OnViewportPointerPressed;
+        _viewport.PointerReleased += (_, e) =>
         {
-            if (!e.GetCurrentPoint(_viewport).Properties.IsLeftButtonPressed) return;
-            Focus();
-            _dragging = true; _dragPoint = e.GetPosition(_viewport); e.Pointer.Capture(_viewport); e.Handled = true;
+            if (!_dragging) return;
+            _dragging = false;
+            if (ReferenceEquals(e.Pointer.Captured, _viewport)) e.Pointer.Capture(null);
         };
-        _viewport.PointerReleased += (_, e) => { _dragging = false; e.Pointer.Capture(null); };
         _viewport.PointerCaptureLost += (_, _) => _dragging = false;
         _viewport.PointerMoved += (_, e) =>
         {
@@ -801,6 +801,22 @@ internal sealed partial class GalleryViewer : UserControl
 
     internal Task ShowAsync(GalleryEntry entry, CancellationToken cancellationToken)
         => ShowMediaAsync(entry, cancellationToken);
+
+    internal static bool CanPanDecodedImage(SavedMediaKind? kind, GalleryImageInfo? info) =>
+        info != null && kind is SavedMediaKind.Image or SavedMediaKind.Unknown;
+
+    private void OnViewportPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // VideoView forwards unhandled overlay presses to its owner. In particular,
+        // ComboBox opens on release: image panning must not capture that press or
+        // steal focus from a native video control before it receives the release.
+        if (_viewerInteractionStopped || !_interactionAvailable || _videoSuspended || _mediaFailed
+            || _sessionCancellation.IsCancellationRequested || !CanPanDecodedImage(_entry?.Kind, _info)
+            || !IsEffectivelyVisible || !_image.IsVisible || _image.Source == null) return;
+        if (!e.GetCurrentPoint(_viewport).Properties.IsLeftButtonPressed) return;
+        Focus();
+        _dragging = true; _dragPoint = e.GetPosition(_viewport); e.Pointer.Capture(_viewport); e.Handled = true;
+    }
 
     private async Task ShowMediaAsync(GalleryEntry entry, CancellationToken cancellationToken, bool? resumeAutoplay = null)
     {

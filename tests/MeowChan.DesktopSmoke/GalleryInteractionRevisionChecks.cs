@@ -411,6 +411,8 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.ClickAsync(mode);
         menuTrace.Record("after-click");
         await UntilAsync(() => mode.IsDropDownOpen, "Native mode menu did not open.");
+        Require(menuTrace.ModePressed && menuTrace.ModeReleased && !menuTrace.ViewportCaptured,
+            "Native mode click did not retain its press/release route independently of image panning.");
         await ObservePlayingAsync(player, "open playback menu");
         await native.KeyAsync(MediaNativeInput.Escape);
         await UntilAsync(() => !mode.IsDropDownOpen, "Native Escape did not close mode menu.");

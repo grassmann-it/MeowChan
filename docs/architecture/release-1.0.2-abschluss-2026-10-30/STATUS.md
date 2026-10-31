@@ -1,3 +1,27 @@
+# Aktuell: Windows-Menüursache belegt, Bild-Pancapture begrenzen — 31.10.2026
+
+6194ca2/Windows41200667484FAIL konkret am Modusmenü. Der echte Trace widerlegt
+stale Koordinaten/Revealguard/Doppeltoggle: HWND/Hittest treffen Comboinhalt,
+Combo empfängt Press und setzt :pressed; LibVLC leitet unhandled Press anVideoView
+weiter. Der GalleryViewport erfasst diesen Press als Bildpan, übernimmt Capture;
+Release erreicht nurViewport stattCombo, Menü bleibt ohneOpen/Close. KeinRelease.
+
+Fix beschränkt Panadmission VOR Focus/Capture auf tatsächlich dekodierte Bilder
+undGIFs (auch erfolgreich dekodiertesUnknown), keineVideos/Other/Loading/Fehler/
+inaktive oder suspendierte Interaktion. Release räumt nur eigene aktiveDragcapture
+auf, nicht Capture andererControls. _info wird bereits vor erstemAwait eines
+Medienwechsels gelöscht, Decodegenerationguards bleiben unverändert. Kein globales
+Handled/Focusabschalten, keine Popup-/Audio-/Deadline-/Releasegatelockerung.
+16neuePolicy/Frühabbruchfälle plus bestehendeChecks:144gezielte.NET-PASS.
+NativeMenütest fordert weiterhin echten einmaligenKlick+offenesMenü und jetzt
+zusätzlich ComboPress/Release ohneViewportcapture. KompletteprivatePulseGaleriefeaturesPASS inkl echterComboPress/Release ohne
+Viewportcapture und weiterlaufendemVideo;Hardware0/stumm/Cleanupvollständig.
+Galeriefehlergegenprobe/nativeWindows noch offen;danachneuer13Job-/18AssetKandidat.
+README präzisiert GIF-Animation/16Mpixel-/1024Framegrenzen gegenüber Standbild
+andererAnimationsformate.
+
+---
+
 # Aktuell: Windows-Sichtbarkeitsfix bestätigt, Menüeingabe separat diagnostizieren — 31.10.2026
 
 87ac866/WinErrors41199133701SUCCESS, WinFeatures41199131831FAILerstspäter bei

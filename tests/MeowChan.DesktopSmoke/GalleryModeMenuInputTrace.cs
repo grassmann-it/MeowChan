@@ -19,6 +19,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         private readonly PixelPoint _requested;
         private int _remaining = 40;
         private int _opened, _closed;
+        internal bool ModePressed { get; private set; }
+        internal bool ModeReleased { get; private set; }
+        internal bool ViewportCaptured { get; private set; }
         private readonly Stopwatch _clock = Stopwatch.StartNew();
 
         internal ModeMenuInputTrace(Window host, GalleryViewer viewer, ComboBox mode)
@@ -35,8 +38,16 @@ internal static partial class GalleryPlaybackFeatureChecks
             mode.DropDownOpened += Opened;
             mode.DropDownClosed += Closed;
         }
-        private void Pressed(object? sender, PointerPressedEventArgs e) => Record("press", sender as Control, e);
-        private void Released(object? sender, PointerReleasedEventArgs e) => Record("release", sender as Control, e);
+        private void Pressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (ReferenceEquals(sender, _mode)) ModePressed = true;
+            Record("press", sender as Control, e);
+        }
+        private void Released(object? sender, PointerReleasedEventArgs e)
+        {
+            if (ReferenceEquals(sender, _mode)) ModeReleased = true;
+            Record("release", sender as Control, e);
+        }
         private void Changed(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == ComboBox.IsDropDownOpenProperty || e.Property == Visual.IsVisibleProperty
@@ -46,6 +57,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         private void Closed(object? sender, EventArgs args) { _closed++; Record("closed"); }
         internal void Record(string phase, Control? sender = null, PointerEventArgs? pointer = null)
         {
+            if (pointer?.Pointer.Captured is Control { Name: "GalleryViewport" }) ViewportCaptured = true;
             if (_remaining-- <= 0) return;
             string Label(object? value) => value is Control control ? control.GetType().Name + ":" + control.Name
                 : value?.GetType().Name ?? "null";
