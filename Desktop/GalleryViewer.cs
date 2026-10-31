@@ -70,7 +70,7 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
     private readonly Grid _visualRoot = new() { Background = Brushes.Transparent, ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _nativeVideoOverlay = new() { Background = Brushes.Transparent, ClipToBounds = true };
+    private readonly Grid _nativeVideoOverlay = new NativeVideoOverlayRoot() { Background = Brushes.Transparent, ClipToBounds = true };
     private readonly Button _previous;
     private readonly Button _next;
     private readonly Button _close;

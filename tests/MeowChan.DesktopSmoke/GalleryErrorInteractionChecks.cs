@@ -34,6 +34,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         try
         {
             await CheckExternalTransportRetirementAsync(owner);
+            await CheckNativeClipFeedbackAsync(owner);
             GalleryEntry clip = await AssetAsync(directory, "notice-video", "notice-video.webm",
                 await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video)));
             GalleryEntry image = await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue);
@@ -49,6 +50,75 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
         }
         finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    private static async Task CheckNativeClipFeedbackAsync(MainWindow owner)
+    {
+        // No native decoder: reproduce the exact owner-layout -> fresh Clip
+        // projection from the pinned VideoView using real roots/focus adorners.
+        bool raw = Environment.GetEnvironmentVariable("MEOWCHAN_REPRO_RAW_NATIVE_CLIP") == "1";
+        Grid nativeRoot = raw ? new Grid() : new NativeVideoOverlayRoot();
+        Button moved = new() { Content = "Transfer focus target", Width = 180, Height = 44 };
+        Button other = new() { Content = "Retain focus target", Width = 180, Height = 44 };
+        StackPanel controls = new(); controls.Children.Add(moved); controls.Children.Add(other);
+        Window main = new() { Width = 650, Height = 500, Content = controls, Title = "Private focus-clip source" };
+        Window overlay = new() { Width = 650, Height = 500, Content = nativeRoot, Title = "Private focus-clip overlay" };
+        int passes = 0;
+        Avalonia.Rect clip = new(0, 0, 650, 500);
+        void ProjectClip(object? sender, EventArgs args)
+        {
+            passes++;
+            nativeRoot.Clip = new Avalonia.Media.RectangleGeometry(clip);
+        }
+        try
+        {
+            main.Show(owner); main.Activate();
+            await LayoutAsync(main);
+            Require(moved.Focus(Avalonia.Input.NavigationMethod.Tab), "Focus-clip source is not keyboard reachable.");
+            await LayoutAsync(main);
+            AdornerLayer layer = AdornerLayer.GetAdornerLayer(moved)!;
+            Control ring = layer.Children.Single(adorner => AdornerLayer.GetAdornedElement(adorner)
+                ?.GetSelfAndVisualAncestors().Contains(moved) == true);
+            Require(other.Focus(Avalonia.Input.NavigationMethod.Tab), "Focus-clip source did not lose focus.");
+            Require(!layer.Children.Contains(ring), "Former focus ring remained visibly attached.");
+            // Drain the old root with the target detached, so this regression is
+            // not an unrelated stale cross-root arrange-queue reproduction.
+            controls.Children.Remove(moved);
+            await LayoutAsync(main);
+            nativeRoot.Children.Add(moved);
+            overlay.Show(main);
+            await LayoutAsync(overlay);
+            await LayoutAsync(main);
+            Require(layer.IsMeasureValid, "Former focus layer did not settle before clip-only probe.");
+            nativeRoot.Clip = new Avalonia.Media.RectangleGeometry(clip);
+            Require(!layer.IsMeasureValid,
+                "Pinned orphan-focus reproduction did not observe the removed ring's old-layer clip subscription.");
+            Console.WriteLine($"SMOKE native-clip orphan confirmed: raw={raw}, removed focus ring, target in other root, clip-only change invalidated former layer");
+            await LayoutAsync(main);
+            main.LayoutUpdated += ProjectClip;
+            main.InvalidateMeasure();
+            await Task.Delay(150);
+            await LayoutAsync(main);
+            Require(passes < 10, "Unchanged native clip repeatedly invalidated its former focus root.");
+            int before = passes;
+            clip = new Avalonia.Rect(4, 8, 620, 460);
+            ProjectClip(null, EventArgs.Empty);
+            await Task.Delay(150);
+            await LayoutAsync(main);
+            Require(passes - before < 10 && nativeRoot.Clip is Avalonia.Media.RectangleGeometry rectangle
+                && rectangle.Rect == clip, "Changed clipping did not settle with its actual new bounds.");
+            overlay.Activate();
+            Require(moved.Focus(Avalonia.Input.NavigationMethod.Tab), "Transferred control lost keyboard focus capability.");
+            await LayoutAsync(overlay);
+            Require(AdornerLayer.GetAdornerLayer(moved)!.Children.Any(adorner => AdornerLayer.GetAdornedElement(adorner)
+                ?.GetSelfAndVisualAncestors().Contains(moved) == true), "Transferred control lost its visible focus ring.");
+            Console.WriteLine($"SMOKE native-clip feedback PASS: raw={raw}, passes={passes}, actual focus loss/root transfer, unchanged clip settled, changed clip/focus ring retained; no decoder claim");
+        }
+        finally
+        {
+            main.LayoutUpdated -= ProjectClip;
+            overlay.Close(); main.Close();
+        }
     }
 
     private static async Task CheckContextLayoutRootsAsync(MainWindow owner)

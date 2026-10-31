@@ -1,3 +1,44 @@
+# Aktuell: Render-Schleife kausal reproduziert, eng begrenzter Clip-Fix — 31.10.2026
+
+Windows41194191169/ae8f8a0 liefert den entscheidenden Nachweis: durchgehend
+LayoutManager.ExecuteQueuedLayoutPass mit AdornerLayer im Hauptfenster in der
+Measurequeue;155Layout-Ereignisse/174Managerpässe bis zur fatalen153-Batch-Grenze.
+Die Grenze zählt Callbackbatches, nicht einzelne Layoutpässe. Geometrie stabil.
+
+Pinned Avalonia12.1.4 plus unabhängiger Solreview: Control.OnLostFocus entfernt
+Fokusadorner, AdornerLayer behandelt jedoch nur Collection.Add; die alte
+Ancestor-Subscription bleibt. Sie folgt beim späteren Control-Transfer dessen
+neuen Overlayvorfahren. LibVLCSharp3.10.2 setzt bei jedem Hauptfenster-Layout
+eine neue, geometrisch identische RectangleGeometry als Overlayclip. Die alte
+Fokussubscription übersetzt diese Clipänderung wieder in Hauptfenster-Adorner-
+InvalidateMeasure: geschlossene Rückkopplung, auch ohne veränderte Fenstermaße.
+
+Realer Zwei-Fenster-Repro OHNE Decoder: Tastaturfokus erzeugt einen echten Ring,
+Fokusverlust entfernt ihn, Transfer nach Drain des alten Roots; Clip-only-
+Änderung invalidiert nachweislich die alte Ebene. Mit unverändertem Grid tritt
+exakt Infinite layout loop auf (FAIL erhalten), mit gleicher Prüfung und neuem
+NativeVideoOverlayRoot konvergiert es in6beobachteten Layouts. Geänderte Clip-
+Maße und ein neuer sichtbarer Fokusadorner im Zielroot bleiben funktionsfähig.
+Dies ist eine sourceäquivalente Clipprojektion, kein vollständiger VideoView-
+oder nativer Windows-Abnahmenachweis.
+
+Fix ausschließlich am privaten Nativeoverlay-Root: Coercion behält bei exakt
+gleicher Rect/RadiusX/RadiusY und beidseitig Transform=null die aktuell effektive
+Clipinstanz. Andere/transformierte/geänderte Geometrien, null und ClearValue
+bleiben wirksam. Kein globaler Grid-/Frameworkpatch, kein Fokusabschalten, keine
+Exceptionunterdrückung, keine Grenzerhöhung oder Abhängigkeitsänderung.
+109gezielte.NET-Fälle PASS inkl3Cliptests; gesamteprivatePulse-Galeriefehler-
+prüfung PASS. Vergleichslauf intentionalFAIL; beide Audio-/Childcleanup sauber.
+
+Grenze: behebt die redundante Clip-Rückkopplung, NICHT Avalonia-Subscription-
+Retention generell. Beruht auf VideoViews frischen, danach unveränderten Clip-
+Rechtecken; nicht als generischer Normalisierer für beliebige mutableGeometry
+verwenden. Frameworkbefund für spätere Upstreamkorrektur festhalten. Nächster
+Schritt echte Windows-Galeriegegenprobe, danach erst vollständige Releasegates.
+Belege `ci-twelfth-failures`; weiterhin kein Tag/Release.
+
+---
+
 # Aktuell: Pointerfix nativ bestätigt; ursprüngliche Render-Schleife bleibt — 31.10.2026
 
 21321d0/Windows41193755798: alle vier Root-/Pointer-Stop/Close-Prüfungen PASS,
