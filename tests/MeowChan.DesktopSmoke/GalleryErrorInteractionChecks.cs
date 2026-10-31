@@ -716,7 +716,8 @@ internal static partial class GalleryPlaybackFeatureChecks
                 overlay = _overlay?.Bounds.ToString(), overlayWidth = _overlay?.Width.ToString(),
                 overlayHeight = _overlay?.Height.ToString(), sizeToContent = _overlay?.SizeToContent.ToString(),
                 overlayValid = native.IsArrangeValid,
-                banner = _shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")?.IsVisible
+                banner = _shell.GetVisualDescendants().OfType<Ursa.Controls.Banner>()
+                    .FirstOrDefault(control => control.Name == "ShellActionErrorBanner")?.IsVisible
             });
             if (phase.EndsWith("layout", StringComparison.Ordinal) && state == _last) return;
             _last = state; _remaining--;
