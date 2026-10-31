@@ -390,7 +390,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         // geometry is settled on the layout pass. Never click its previous coordinates.
         await LayoutAsync(fixture.Window);
         await native.ClickAsync(restart);
-        Require(restartClicks == 1, "Native slideshow restart click was lost or delivered twice.");
+        Require(restartClicks == 1, "Native slideshow restart click was lost or delivered twice; observed clicks=" + restartClicks);
         await UntilAsync(() => Running(viewer), "Could not restart automation before panel/menu intent checks.");
         await native.ClickAsync(Find<Button>(viewer, "GalleryToggleContext"));
         await UntilAsync(() => viewer.CaptureState().ContextOpen, "Explicit post panel did not open.");

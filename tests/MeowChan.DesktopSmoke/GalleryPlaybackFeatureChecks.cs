@@ -638,8 +638,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             "Keyboard activation of post edge indicator did not expose readable post context.");
         Require(!Running(viewer), "Keyboard post activation resumed automatic progression.");
         // Dismiss by native Escape before the independent explicit context-open tests below.
+        int nativeShellRequests = fixture.NativeShellKeyRequests;
         await native.KeyAsync(MediaNativeInput.Escape);
         Require(!viewer.CaptureState().ContextOpen, "Post-indicator Escape did not dismiss the active post.");
+        if (OperatingSystem.IsWindows())
+            Require(fixture.NativeShellKeyRequests == nativeShellRequests + 1,
+                "Native post Escape did not cross the existing gallery-to-shell host boundary exactly once.");
         contextWrites = 0; // Explicit keyboard choices may persist; hover-only checks above must not.
         viewer.ConfigurePlayback(prefs.WithControlsOverlay(false));
         Click(Find<Button>(viewer, "GalleryToggleContext"));
@@ -870,6 +874,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         internal GalleryViewer Viewer { get; } = new();
         internal Window Window { get; }
         internal int Decodes { get; private set; }
+        internal int NativeShellKeyRequests { get; private set; }
         internal Fixture(MainWindow owner)
         {
             Viewer.Configure(contextOpen: false, showShortcutHelp: true, videoAutoplay: false, videoStartMuted: true, videoVolume: 0);
@@ -880,12 +885,22 @@ internal static partial class GalleryPlaybackFeatureChecks
             // This owned fixture bypasses MainWindow's normal Escape hierarchy. Supply
             // only that host boundary: popups retain their first Escape, then the
             // existing production dismiss operation handles the viewer's own panels.
-            Window.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+            void HostEscape(object? sender, KeyEventArgs e)
             {
+                Control keyRoot = e.Source is Visual source ? (Control?)TopLevel.GetTopLevel(source) ?? Window : Window;
                 if (!e.Handled && !ShortcutService.IsCapturing && e.Key == Key.Escape
                     && e.KeyModifiers == KeyModifiers.None && !CommandRouter.HasOpenPopup(Window)
-                    && Viewer.TryDismissOverlay()) e.Handled = true;
-            }, RoutingStrategies.Tunnel);
+                    && !CommandRouter.HasOpenPopup(keyRoot) && Viewer.TryDismissOverlay()) e.Handled = true;
+            }
+            Window.AddHandler(InputElement.KeyDownEvent, HostEscape, RoutingStrategies.Tunnel);
+            // Match MainWindow's existing host subscription as well: on Windows,
+            // the focused post lives in VideoView's separate native overlay root,
+            // whose events cannot tunnel through this fixture Window.
+            Viewer.ShellKeyRequested += (sender, e) =>
+            {
+                NativeShellKeyRequests++;
+                HostEscape(sender, e);
+            };
             Window.Show(owner);
             Window.Activate();
         }

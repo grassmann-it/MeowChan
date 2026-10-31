@@ -1,3 +1,26 @@
+# Aktuell: native Randgeometrie grün, fehlende Escape-Hostverdrahtung im Fixture — 31.10.2026
+
+1081899/Windows41202332305: echteZweiRootGeometrie/Inset-/Negativprobe und
+GalerieRandcontainmentbestehen;Motion→Hint→Idle→Renew undBottom/RightHover kommen
+durch. SpäterPostindicatorSpaceöffnet, Escape schließt nicht. Fixture besitztnur
+Window-Keytunnel; ProduktMainWindowverdrahtetzusätzlichShellKeyRequested. Der
+nativeOverlay liegt inanderemRoot undemittiertgenaudiesenEvent ohneFixturesubscriber.
+KeinProduktfehlernachweisdaraus,unabhängigerSolreviewbestätigtHostboundarylücke.
+
+NurSmoke: gleicherbestehenderEscapehandler anWindowtunnelUNDGalleryShellKeyRequested,
+Popup-firstGuardfür tatsächlichenKeyroot+Host, e.HandledverhindertKaskaden. Echtes
+OS-Escapeunverändert; WindowsfordertzusätzlichgenaueinenShellrequest. KeinProdukt-
+DismissdirektaufrufdurchTestaktion/keinekünstlichenKeys/keineAbnahmelockerung.
+
+SeparateLokalfahrt1081899scheitertfrüheranexaktemrestartClicks==1ohneWertlog;
+Ursache0vsDuplikatnichtbelegt. UnveränderteDiagnosewiederholung separatgesichert;
+Folgecode loggt tatsächlichenZähler,Assertionbleibtexakt/keineKlickwiederholung.
+Gegenläufe noch offen.1081899Python374=373PASS1AppleSkip/0FAIL0ERROR, alleGuards
+identisch; keineglobaleReleaseabnahme.13gleicheJobs/18OriginalassetweiterPflicht,
+keinTag/Release.
+
+---
+
 # Aktuell: Windows-Menü nativ bestätigt; Randprüfung über getrennte Roots korrigieren — 31.10.2026
 
 65dd4df/Windows41201703857: Modusmenü empfängt echtenPress/Release ohneViewport-
