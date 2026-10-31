@@ -406,7 +406,10 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         await UntilAsync(() => Running(viewer), "Could not restart automation before menu intent check.");
         ComboBox mode = Find<ComboBox>(viewer, "GalleryPlaybackModeSelector");
+        using var menuTrace = new ModeMenuInputTrace(fixture.Window, viewer, mode);
+        menuTrace.Record("before-click");
         await native.ClickAsync(mode);
+        menuTrace.Record("after-click");
         await UntilAsync(() => mode.IsDropDownOpen, "Native mode menu did not open.");
         await ObservePlayingAsync(player, "open playback menu");
         await native.KeyAsync(MediaNativeInput.Escape);

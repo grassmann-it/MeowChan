@@ -1,3 +1,29 @@
+# Aktuell: Windows-Sichtbarkeitsfix bestätigt, Menüeingabe separat diagnostizieren — 31.10.2026
+
+87ac866/WinErrors41199133701SUCCESS, WinFeatures41199131831FAILerstspäter bei
+`Native mode menu did not open`. Tatsächlicher VideoView-Visibilityprobe und
+Post-seek-Bildwechsel bestehen nativ, altesOverlay verborgen, Hostaktiv/keinDialog;
+Paused/Playing-Transporttests kommen bis zum abschließenden Combo-Menütest.
+Kein erneuter alter Clip-/Sichtbarkeitsfehler daraus ableiten, kein Release.
+
+Source-/Solreview schließt pauschales Combo-Doppeltoggle durch LibVLC-Forwarding
+aus: zweiter Eventroute beginnt anVideoView, nicht erneut imCombo. Möglich bleiben
+veraltete Koordinaten nachStart/Contextlayout, bewussterReveal-Gestureschluck oder
+kurzesÖffnen/Schließen. Alter Poll vonIsDropDownOpen allein trennt das nicht.
+
+NurHarnessdiagnose ergänzt: eine unveränderte echte Klickfolge, maximal40lesende
+Ereignis-/Geometriesnapshots mit ursprünglicher/currentScreenposition, Root-Hittest,
+Win32WindowFromPoint/Foreground/Cursor, ComboPress/Releasephase/Handled/Capture/
+pressed-Pseudoklasse, Reveal-ID/Hiddenflags und allenOpen/CloseTransitions. Keine
+Retry-/Layout-/Fokus-/Timeoutänderung, keineProduktvermutung umgesetzt. Build0Fehler.
+NächsterWindowsvalidate/gallery-featuresLauf soll konkreteUrsache belegen.
+
+Parallel maximalvierSol erlaubt; abgeschlosseneSidecars liefern nurignoredTools/
+ProposedNotes für spätereRootprüfung, keinePublikation/Git-/CI-Mutation. Weiter
+13gleichePflichtjobs/18Originalassets+Rootverifikation vorregulärem1.0.2Release.
+
+---
+
 # Aktuell: separaten Video-Overlay beim Medien-/Readerwechsel synchronisieren — 31.10.2026
 
 177af98/Fullrun41195426476: Windows-Galeriefehlerprüfung besteht nun vollständig,
