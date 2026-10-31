@@ -186,7 +186,9 @@ public partial class MainWindow
         {
             _fullscreenExitIntent = origin;
             _fullscreenExitMode = _config.WorkspaceMode;
-            _fullscreenExitStaleNativeClients.Clear();
+            // Keep frames already observed during native entry: Cocoa can
+            // acknowledge one of them again after Normal and a newer resize.
+            // A fresh explicit entry already cleared the previous history.
         }
         _fullscreenOrigin = null;
         _fullscreenRestoreFromClient = ClientSize;
@@ -291,6 +293,8 @@ public partial class MainWindow
         ObserveStartupWindowResize(e);
         if (_fullscreenOrigin != null || _fullscreenExitIntent != null || _restoringFullscreen)
             TraceFullscreen($"resized reason={e.Reason} event-client={e.ClientSize}");
+        if (OperatingSystem.IsMacOS() && _fullscreenOrigin != null && WindowState == WindowState.FullScreen)
+            RememberFullscreenExitStaleClient(e.ClientSize);
         if (_fullscreenMaximizeRestoreClient != null)
         {
             ContinueFullscreenMaximizeRestore();
@@ -437,11 +441,16 @@ public partial class MainWindow
 
     private void RememberFullscreenExitStaleClient(Size client)
     {
-        if (_fullscreenExitStaleNativeClients.Contains(client)) return;
-        if (_fullscreenExitStaleNativeClients.Count == 4)
-            _fullscreenExitStaleNativeClients.RemoveAt(0);
-        _fullscreenExitStaleNativeClients.Add(client);
-        TraceFullscreen($"prior exit frame remembered={client}");
+        if (RememberFullscreenTransitionClient(_fullscreenExitStaleNativeClients, client))
+            TraceFullscreen($"native transition frame remembered={client}");
+    }
+
+    internal static bool RememberFullscreenTransitionClient(List<Size> clients, Size client)
+    {
+        if (clients.Contains(client)) return false;
+        if (clients.Count == 4) clients.RemoveAt(0);
+        clients.Add(client);
+        return true;
     }
 
     internal static bool ShouldRepairKnownMaximizedExitFrame(Size client, Size target, IReadOnlyCollection<Size> staleClients) =>

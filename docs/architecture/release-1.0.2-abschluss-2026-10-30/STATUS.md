@@ -1,3 +1,34 @@
+# Aktuell: macOS-Einstiegsframes über Exit bewahren, native Gegenläufe offen — 31.10.2026
+
+Run41188344991/6251d86: ARM64validate124499765766 scheitert an unverändertem
+`ShellPresentationChecks`-Schnellwechseltest, nicht am Macpaketbau. Trace zeigt
+1380×850 während FullScreen-Einstieg, dann Normal1000×700, explizit1011×709 und
+spätes natives User1380×850, das irrtümlich neuer Sollwert wird;15sTimeout.
+Entryframes wurden nicht erfasst und beim Leave wurde ihr Verlauf gelöscht.
+
+Enger macOS-Fix: tatsächliche e.ClientSize bei explizitem FullScreen-Einstieg vor
+Earlyreturns merken, vorhandenen deduplizierten4erFIFO bis zum Exit behalten.
+Frischer Einstieg/Dispose löschen weiter; bestehende Generation-/Zielguards und
+unbekannte normale Usergrößen bleiben erhalten. Kein Timeoutplus/Skip oder neue
+Zeitheuristik. Solreview ohne Blockingbefund; Beobachtungsbuffer3neueUnits.
+
+Lokal21gezielteFullscreen-/Startupgeometrie-TestsPASS, kompletterSmoke-Build0Fehler/
+5bestehendeWarnungen. Originaler nativer Schnellwechsel bleibt unverändert.
+Zusätzlicher Mac-only-Replay ruft den nativen Resize-Callback synthetisch auf und
+prüft tatsächliche Handler-/Leaveintegration, bekannterFrame→neuesZielschutz und
+unbekannteUsergröße→queuedKorrekturüberschreiben. Queuevorbedingung explizit geprüft;
+KEIN OS-Input-/nativer MacPASS daraus. Physische unbekannteUserfenstergeometrie wird
+durch diesen Replay nicht behauptet, nur Intent/managedWidthHeight; native Gates
+bleiben erforderlich. Gezielte ARM64-/Intel-selection-CI vor neuem Gesamtkandidaten.
+
+Grenzen: vierPlätze sind keine Zeitexpiry; echtes Userresize auf exakt bekannte
+Framegröße ist innerhalb bestehender Feedbackpolicy mehrdeutig. Keine allgemeine
+Cocoa-/unbegrenzteAnimationsabnahme. Belege `ci-eighth-failures` im bisherigen
+Verifikationsverzeichnis; RUNSTATE enthält nächsteRunIDs. Kein Tag/Release; neue
+Quellen/Defaults/Abhängigkeiten unverändert, beide Benutzerdateien geschützt.
+
+---
+
 # Aktuell: Windows-Layoutabsturz eingegrenzt, terminale Overlayfreigabe korrigiert — 31.10.2026
 
 **Run41137675108/7d20825 ist FAIL; weiterhin kein Tag/Release.** Einziger roter
