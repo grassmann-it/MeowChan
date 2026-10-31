@@ -1,3 +1,23 @@
+# Aktuell: Pointerfix nativ bestätigt; ursprüngliche Render-Schleife bleibt — 31.10.2026
+
+21321d0/Windows41193755798: alle vier Root-/Pointer-Stop/Close-Prüfungen PASS,
+kein missing-visual-tree mehr; danach erneut Infinite layout loop im echten
+Shell-Speicherfehlertest. Beobachtete finale Maße sind stabil: Video/Overlay
+1052×802, Footer255, Hauptkontextinset0, nativeArrangeValidtrue, Bannerfalse.
+Der falsche Footerabstand war real, seine Korrektur behebt diese Schleife jedoch
+NICHT. Settings-Zugriffsfehler ist absichtlich injiziert; der UI-Absturz nicht.
+
+Keine weitere Produktvermutung implementiert. Harness ergänzt ausschließlich
+begrenzte, lesende Diagnose der in MediaContext tatsächlich wartenden Callbacks
+inkl Ziel/Owner/Layoutqueues bei Layoutzählern1/2/4/.../128 und vor fatalem
+Prozessende. Keine Callbackausführung/-entnahme, keine Exceptionunterdrückung
+oder Schwellenänderung. Build0Fehler; lokale privatePulse-Galerieprüfung samt
+Diagnose verfügbar. Nächster fokussierter Windowslauf muss den konkreten
+wiederkehrenden Callback belegen. Kein Release; 13Jobs/18Assets weiter offen.
+Belege: `ci-eleventh-failures` im bisherigen Verifikationsordner.
+
+---
+
 # Aktuell: neuer Windows-Absturz eindeutig im späten Pointer-Exit — 31.10.2026
 
 Run41192596293/77a8ee0 scheitert VOR der vorherigen Shell-Layoutschleife. Nach

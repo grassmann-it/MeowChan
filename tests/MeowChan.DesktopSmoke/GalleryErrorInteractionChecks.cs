@@ -556,6 +556,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         private readonly Window? _overlay;
         private int _remaining = 40;
         private string? _last;
+        private int _layoutEvents;
 
         internal ShellGalleryLayoutTrace(MainWindow shell, GalleryViewer viewer)
         {
@@ -563,8 +564,56 @@ internal static partial class GalleryPlaybackFeatureChecks
             _overlay = TopLevel.GetTopLevel(ErrorField<Grid>(viewer, "_nativeVideoOverlay")) as Window;
             shell.LayoutUpdated += OnLayout;
             if (_overlay != null) _overlay.LayoutUpdated += OnLayout;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandled;
         }
-        private void OnLayout(object? sender, EventArgs args) => Record(ReferenceEquals(sender, _shell) ? "main layout" : "overlay layout");
+        private void OnLayout(object? sender, EventArgs args)
+        {
+            _layoutEvents++;
+            Record(ReferenceEquals(sender, _shell) ? "main layout" : "overlay layout");
+            if (_layoutEvents <= 128 && (_layoutEvents & (_layoutEvents - 1)) == 0)
+                RecordPendingCallbacks("layout-event-" + _layoutEvents);
+        }
+        private void OnUnhandled(object sender, UnhandledExceptionEventArgs args) => RecordPendingCallbacks("unhandled-fatal");
+
+        // Read-only, bounded harness diagnostics against the pinned framework.
+        // Never invoke/dequeue callbacks or swallow/change the original exception.
+        private void RecordPendingCallbacks(string phase)
+        {
+            try
+            {
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                object? Field(object? target, string name) => target?.GetType().GetField(name, flags)?.GetValue(target);
+                object? Property(object? target, string name) => target?.GetType().GetProperty(name, flags)?.GetValue(target);
+                string Label(object? target) => ReferenceEquals(target, _shell) ? "shell"
+                    : ReferenceEquals(target, _overlay) ? "video-overlay"
+                    : target is Control control ? control.GetType().Name + ":" + control.Name
+                    : target?.GetType().FullName ?? "null";
+                object[] Queue(object? target, string name) => Field(target, name) is System.Collections.IEnumerable values
+                    ? values.Cast<object>().Take(12).Select(value => (object)new
+                    {
+                        control = Label(value), root = value is Control control ? Label(TopLevel.GetTopLevel(control)) : null,
+                        measureValid = Property(value, "IsMeasureValid"), arrangeValid = Property(value, "IsArrangeValid")
+                    }).ToArray() : [];
+                Type? type = typeof(Avalonia.Visual).Assembly.GetType("Avalonia.Media.MediaContext");
+                object? media = type?.GetProperty("Instance", BindingFlags.Static | BindingFlags.Public)?.GetValue(null);
+                var callbacks = Field(media, "_invokeOnRenderCallbacks") as System.Collections.IEnumerable;
+                object[] pending = callbacks?.Cast<Delegate>().Take(12).Select(callback => (object)new
+                {
+                    method = callback.Method.DeclaringType?.FullName + "." + callback.Method.Name,
+                    target = Label(callback.Target),
+                    owner = Label(Property(Field(callback.Target, "_owner"), "RootVisual")),
+                    queued = Field(callback.Target, "_queued"), running = Field(callback.Target, "_running"),
+                    passes = Field(callback.Target, "_totalPassCount"), disposed = Field(callback.Target, "_disposed"),
+                    measure = Queue(callback.Target, "_toMeasure"), arrange = Queue(callback.Target, "_toArrange")
+                }).ToArray() ?? [];
+                Console.WriteLine("SMOKE gallery-render-callbacks " + phase + ": "
+                    + System.Text.Json.JsonSerializer.Serialize(new { layoutEvents = _layoutEvents, pending }));
+            }
+            catch (Exception error)
+            {
+                Console.WriteLine("SMOKE gallery-render-callback diagnostic unavailable: " + error.GetType().Name + ": " + error.Message);
+            }
+        }
         internal void Record(string phase)
         {
             if (_remaining <= 0) return;
@@ -591,6 +640,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         {
             _shell.LayoutUpdated -= OnLayout;
             if (_overlay != null) _overlay.LayoutUpdated -= OnLayout;
+            AppDomain.CurrentDomain.UnhandledException -= OnUnhandled;
         }
     }
 
