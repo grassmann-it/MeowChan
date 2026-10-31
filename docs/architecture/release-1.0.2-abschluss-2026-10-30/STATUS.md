@@ -1,3 +1,33 @@
+# Aktuell: Windows-LayoutManager-Absturz nativ geschlossen — 31.10.2026
+
+Produktfix942b3d0 + Fixturebarriere4a045c0 auf release/1.0.2 committed/gepusht.
+[WindowsFeatures41210587817](https://github.com/grassmann-it/MeowChan/actions/runs/41210587817)
+SUCCESS. Originalartefakt nachgelesen: echte2-/3Root-Transferfälle,12Indikatorzyklen,
+OverlayDisable→Main-Kontextknopf+Transport tatsächlich imMain→explizitesPostopen→
+OverlayEnable→EdgeAutoHide/Loading/Notification bestehen. Kein wrong-LayoutManager,
+kein alter Infinite-layout-/Pointerclosecrash. Der ursprüngliche vollständige
+Interaktionspfad ist jetzt tatsächlich durchlaufen, nicht nur ein No-decoderprobe.
+[WindowsErrors41210061441](https://github.com/grassmann-it/MeowChan/actions/runs/41210061441)
+SUCCESS auf identischem Produkt942b3d0, bevor nur Featurefixture/Status geändert
+wurden. Kein genereller Frameworkpatch/arbitraryExternalAncestor-Reparentclaim.
+Windowsrunner hat kein funktionalesAudiooutput; tatsächliche Disabledpointer-
+Invarianz bleibt streng geprüft, keine physischeAudioabnahme behauptet.
+
+Lokal derselbe Produktassemblydigest in vollem privatePulseFeatures/errors und
+finalem2/3Root+12Indikatorprobe: allePASS; FeaturesmitBarriere erneutPASS. Alle
+Desktoptests1504PASS/7SKIP/0FAIL, gezielterLauf442PASS/1SKIP. MutedNullAudio,
+Hardwarekarten0 und vollständigeServicecleanup bestätigt. Früherefehlgeschlagene
+Läufe/Fixtureannahmen bleiben in den folgenden Abschnitten und Artefakten erhalten.
+
+Damit ist der konkreteWindowsblocker geschlossen, NICHT automatisch1.0.2releasebereit.
+Jetzt neuer vollständiger stable-candidate/all/all auf aktuellem Commit nötig:
+13Pflichtjobs derselbenAttempt,18Originalassets,Provenienz/Inhalt/Upgrade und
+Publisherprüfung vor Tag/Latest. Kein v1.0.2 veröffentlicht. Fremde.gitignore und
+v1.0.1-preparation bytegleich/uncommitted. Sourcebelege:
+artifacts/release-1.0.2-ci-fix-verification/ci-twentythird-owned-transfer/.
+
+---
+
 # Aktuell: native Windows-Fehlerprüfung PASS; Featurefixture braucht Placementbarriere — 31.10.2026
 
 942b3d0 committed/gepusht. Windows41210061441 gallery-errors SUCCESS.
