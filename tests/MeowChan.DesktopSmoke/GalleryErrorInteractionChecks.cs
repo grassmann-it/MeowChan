@@ -272,12 +272,33 @@ internal static partial class GalleryPlaybackFeatureChecks
             await shell.OpenMediaGalleryAsync([clip], clip.EntryKey).WaitAsync(Deadline);
             GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
             GalleryVideoPlayer player = Player(viewer);
+            long? lastReadinessLog = null;
             await UntilAsync(async () =>
             {
                 var state = await player.InspectPlaybackAsync();
-                return shell.IsActive && HasRealFrames(state) && state.Time >= 500
-                    && (state.AudioAvailable || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0);
-            }, "Shell fixture has neither working audio nor explicit decoded-without-output evidence.");
+                // Windows video chrome is hosted in its own owned native window.
+                // That valid input root can be active instead of the shell; do not
+                // misreport that focus handoff as missing audio readiness.
+                bool activeInput = shell.IsEnabled && viewer.IsEffectivelyVisible && viewer.IsEffectivelyEnabled
+                    && (shell.IsActive || shell.OwnedWindows.Any(window => viewer.OwnsOverlayWindow(window)
+                        && window.IsVisible && window.IsEnabled && window.IsActive));
+                bool decoded = HasRealFrames(state) && state.Time >= 500;
+                bool audio = state.AudioAvailable
+                    || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0;
+                if (lastReadinessLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastReadinessLog.Value).TotalSeconds >= 1
+                    || activeInput && decoded && audio)
+                {
+                    lastReadinessLog = System.Diagnostics.Stopwatch.GetTimestamp();
+                    Console.WriteLine("SMOKE gallery-shell readiness: " + System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        pausedCase = paused, shellActive = shell.IsActive, activeInput, decoded, audio,
+                        ownedRoots = shell.OwnedWindows.Select(window => new
+                        { overlay = viewer.OwnsOverlayWindow(window), window.IsActive, window.IsVisible, window.IsEnabled }).ToArray(),
+                        playback = state
+                    }));
+                }
+                return activeInput && decoded && audio;
+            }, "Shell fixture readiness failed; inspect gallery-shell readiness records for input ownership, video and audio evidence.");
             if (paused)
             {
                 Click(Find<Button>(viewer, "GalleryVideoPlayPause"));

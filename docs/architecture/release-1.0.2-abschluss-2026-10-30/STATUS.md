@@ -1,3 +1,32 @@
+# Aktuell: beide Mac-Gegenläufe grün; Windows-Bereitschaft bleibt offen — 31.10.2026
+
+MacARM41190070091 undIntel41190071934 sindsuccess aufexakt1b3ca16. Das belegt
+validate/selection inklusive ursprünglichem nativen Schnellwechsel und klar
+synthetischem Callbackreplay, NICHT Gesamtkandidat/Pakete/Release.
+
+Älterer Gesamtlauf41188344991/6251d86 hat zusätzlich Windowsvalidate124499765718
+FAIL: Galeriefehler-Shellfixture lief20s in kombinierte Readinessbedingung. Vier
+native Notice-Playing/Paused×Overlay/Docked-Fälle und terminales Aufräumen vorher
+PASS, einschließlich5externer Kontrollen ohne Rücktransfer. Voriger Layoutcrash
+ist dort nicht erneut aufgetreten, Windowsgesamtgate trotzdem FAIL.
+
+Vorherige Readinessdiagnose erlaubte keine Trennung von Fokus, realen Frames und
+Audio. Fixture erkennt nun entsprechend der Produktpolicy auch aktives sichtbares,
+aktiviertes EIGENES Galerie-Nativeoverlay statt nur shell.IsActive. Kein Fokus-
+Stehlen, keine Audioverfügbarkeitsannahme, keine gelockerte Audio-/Framebedingung
+oder längere Deadline. Begrenzte Readinesslogs weisen pro Klausel samt echten
+Playbackwerten aus. Fokus ist eine belegte Lücke im Testvertrag, als Ursache dieses
+Timeouts jedoch noch NICHT nachgewiesen; Windowsdaten müssen das bestätigen.
+
+Lokaler Build0Fehler, gesamteGaleriefehlerprüfung mit echterprivaterstummerPulse-
+NullsinkPASS, Cleanup/Child/Services0,0Hardwarekarten. Linux aktiviert keinen
+Windows-Nativeoverlay und liefert dafür KEINEN Windowsfokusnachweis. Nächster
+Schritt gezieltesWindowsvalidate/gui-only, erstnachGrün neuer kompletter
+stablecandidate/all/all aufgleichemaktuellenSource. Keine Mac-/Windows-/Asset-
+Ergebnisse unterschiedlicherSources vermischen; keinTag/Release.
+
+---
+
 # Aktuell: macOS-Einstiegsframes über Exit bewahren, native Gegenläufe offen — 31.10.2026
 
 Run41188344991/6251d86: ARM64validate124499765766 scheitert an unverändertem
