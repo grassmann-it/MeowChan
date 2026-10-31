@@ -905,8 +905,36 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         public async ValueTask DisposeAsync()
         {
-            // Actual cleanup is awaited before closing the owned native window or deleting files.
-            await Viewer.StopAsync();
+            // Terminal cleanup must not restore controls from an owned native
+            // overlay into this still-attached root. That can leave queued arrange
+            // work owned by the old LayoutManager on Windows.
+            Control[] externalControls = Viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .Where(control => control.Name is "GalleryOverlayFooter" or "GalleryOverlayControls"
+                    or "GalleryOverlayInfo" or "GalleryContext" or "GalleryShortcutHelp"
+                    or "GalleryVideoTransport")
+                .Where(control => TopLevel.GetTopLevel(control) is { } root && !ReferenceEquals(root, Window))
+                .Distinct().ToArray();
+            int retiredHostAttachments = 0;
+            void Attached(object? sender, Avalonia.VisualTreeAttachmentEventArgs args)
+            {
+                if (sender is Control control && ReferenceEquals(TopLevel.GetTopLevel(control), Window))
+                    retiredHostAttachments++;
+            }
+            foreach (Control control in externalControls) control.AttachedToVisualTree += Attached;
+            Console.WriteLine($"SMOKE gallery fixture terminal stop begin: externalControls={externalControls.Length}");
+            try
+            {
+                // Actual cleanup is awaited before closing the owned native window or deleting files.
+                await Viewer.StopAsync();
+                Require(retiredHostAttachments == 0,
+                    "Terminal gallery retirement moved native overlay controls back into the host root.");
+                await LayoutAsync(Window);
+                Console.WriteLine("SMOKE gallery fixture terminal stop complete: no cross-root restoration");
+            }
+            finally
+            {
+                foreach (Control control in externalControls) control.AttachedToVisualTree -= Attached;
+            }
             Window.Content = null;
             Window.Close();
         }

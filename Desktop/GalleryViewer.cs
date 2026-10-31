@@ -387,6 +387,7 @@ internal sealed partial class GalleryViewer : UserControl
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AttachedToVisualTree += (_, _) =>
         {
+            if (_terminalRetirement) return;
             Texts.Changed += OnLanguageChanged;
             ShortcutService.Changed += OnShortcutBindingsChanged;
             _scaleOwner = TopLevel.GetTopLevel(this);
@@ -728,8 +729,13 @@ internal sealed partial class GalleryViewer : UserControl
         menu.Open(owner);
     }
 
+    // Unlike _viewerInteractionStopped (also used for reusable detachment), this
+    // closes placement admission permanently before terminal stop begins.
+    private bool _terminalRetirement;
+
     private void UseNativeVideoOverlay(bool active)
     {
+        if (_terminalRetirement) return;
         active &= OperatingSystem.IsWindows() && !_nativeOverlayUnsupported;
         if (!active) UnbindNativeShortcutWindow();
         if (_nativeOverlayActive == active) return;
@@ -747,7 +753,7 @@ internal sealed partial class GalleryViewer : UserControl
 
     private void CheckNativeOverlayTransparency()
     {
-        if (!_nativeOverlayActive || TopLevel.GetTopLevel(_nativeVideoOverlay) is not Window overlay) return;
+        if (_terminalRetirement || !_nativeOverlayActive || TopLevel.GetTopLevel(_nativeVideoOverlay) is not Window overlay) return;
         BindNativeShortcutWindow(overlay);
         if (overlay.ActualTransparencyLevel == WindowTransparencyLevel.Transparent) return;
         _nativeOverlayUnsupported = true;
@@ -1078,6 +1084,7 @@ internal sealed partial class GalleryViewer : UserControl
     private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
     private void LayoutContext()
     {
+        if (_terminalRetirement) return;
         LayoutContextPlacement();
         FitIfAutomatic();
     }
@@ -1310,9 +1317,9 @@ internal sealed partial class GalleryViewer : UserControl
     }
     internal async Task StopAsync()
     {
+        _terminalRetirement = true;
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();
-        _video?.SetExternalTransportHost(null);
         ++_request; CancelLoads();
         await RetireGifAsync();
         ClearBitmaps(); _entry = null; _info = null; _restore = null;
@@ -1321,8 +1328,11 @@ internal sealed partial class GalleryViewer : UserControl
         _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
         _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
-        UseNativeVideoOverlay(false);
-        SetVideoFallbackLayout(false);
+        // Native stop/disposal has completed. Release the overlay as a subtree;
+        // never restore its help/context/chrome/transport to the attached main root.
+        UnbindNativeShortcutWindow();
+        _video?.SetNativeOverlay(null);
+        _nativeOverlayActive = false;
         // Preferences survive this viewer's close; a new instance receives them via ConfigurePlayback.
     }
 }

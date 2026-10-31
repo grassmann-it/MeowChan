@@ -100,10 +100,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal void SetExternalTransportHost(Panel? host)
     {
         Dispatcher.UIThread.VerifyAccess();
+        if (IsDisposed) { DetachTransport(); return; }
         if (ReferenceEquals(host, _root)) host = null;
-        if (host != null && (IsDisposed || host.GetLogicalAncestors().Contains(_transportPanel)))
+        if (host != null && host.GetLogicalAncestors().Contains(_transportPanel))
         {
-            if (IsDisposed) return;
             throw new ArgumentException("The transport cannot be hosted inside itself.", nameof(host));
         }
         if (ReferenceEquals(host, _externalTransportHost)) return;
@@ -114,6 +114,14 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
         Grid.SetRowSpan(UsesSoftwareVideo ? _softwareVideo : _video, host == null ? 1 : 2);
         (host ?? _root).Children.Add(_transportPanel);
+    }
+
+    // Terminal retirement never transfers a laid-out control to another root.
+    private void DetachTransport()
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (_transportPanel.Parent is Panel parent) parent.Children.Remove(_transportPanel);
+        _externalTransportHost = null;
     }
 
     // May be applied before media is ready; unlike a user toggle this has no enabled-control
@@ -421,7 +429,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         {
             if (_ownerWindow != null) _ownerWindow.Deactivated -= OnWindowDeactivated;
             _ownerWindow = null;
-            SetExternalTransportHost(null);
+            if (IsDisposed) DetachTransport();
+            else SetExternalTransportHost(null);
             Texts.Changed -= OnLanguageChanged; ShortcutService.Changed -= RefreshTransportPresentation; await StopAsync();
         };
     }
@@ -1052,17 +1061,15 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
         CancelSeekGesture();
         Task cleanup = _lifetime.DisposeAsync();
-        if (_externalTransportHost == null) return new(cleanup);
-        return new(RestoreTransportAndDrainAsync(cleanup));
+        return new(DetachTransportAfterCleanupAsync(cleanup));
     }
-    private async Task RestoreTransportAndDrainAsync(Task cleanup)
+    private async Task DetachTransportAfterCleanupAsync(Task cleanup)
     {
-        try
-        {
-            if (Dispatcher.UIThread.CheckAccess()) SetExternalTransportHost(null);
-            else await Dispatcher.UIThread.InvokeAsync(() => SetExternalTransportHost(null));
-        }
-        finally { await cleanup.ConfigureAwait(false); }
+        // Keep the drawable and its overlay root alive until native cleanup succeeds.
+        // A cleanup failure must not tear down the still-owned native surface.
+        await cleanup.ConfigureAwait(false);
+        if (Dispatcher.UIThread.CheckAccess()) DetachTransport();
+        else await Dispatcher.UIThread.InvokeAsync(DetachTransport);
     }
 }
 

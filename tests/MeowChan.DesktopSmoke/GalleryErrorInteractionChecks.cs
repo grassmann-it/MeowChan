@@ -33,6 +33,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         string directory = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-errors-");
         try
         {
+            await CheckExternalTransportRetirementAsync(owner);
             GalleryEntry clip = await AssetAsync(directory, "notice-video", "notice-video.webm",
                 await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video)));
             GalleryEntry image = await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue);
@@ -47,6 +48,63 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
         }
         finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    private static async Task CheckExternalTransportRetirementAsync(MainWindow owner)
+    {
+        // Two real layout roots, even on software-video platforms. This isolates
+        // terminal transport ownership from codecs and native audio availability.
+        GalleryVideoPlayer player = new();
+        StackPanel external = new();
+        Window host = new() { Width = 700, Height = 400, Content = player,
+            Title = "Private transport retirement host" };
+        Window overlay = new() { Width = 700, Height = 180, Content = external,
+            Title = "Private transport retirement overlay" };
+        Control transport = player.TransportControl;
+        int terminalHostAttachments = 0;
+        bool retiring = false;
+        void Attached(object? sender, Avalonia.VisualTreeAttachmentEventArgs args)
+        {
+            if (retiring && ReferenceEquals(TopLevel.GetTopLevel(transport), host))
+                terminalHostAttachments++;
+        }
+        transport.AttachedToVisualTree += Attached;
+        try
+        {
+            // Establish ownership before either root is attached. Live placement
+            // is tested by the feature suite; this check must isolate retirement,
+            // not inherit pending work from a prior live root transfer.
+            player.SetExternalTransportHost(external);
+            host.Show(owner);
+            overlay.Show(host);
+            await LayoutAsync(host);
+            await LayoutAsync(overlay);
+            Require(ReferenceEquals(TopLevel.GetTopLevel(transport), overlay),
+                "Retirement precondition: transport is not in the external layout root.");
+            Console.WriteLine("SMOKE gallery terminal transport begin: external root settled; invalidating layout before disposal");
+            transport.InvalidateMeasure();
+            transport.InvalidateArrange();
+            retiring = true;
+            await player.DisposeAsync();
+            Require(terminalHostAttachments == 0 && transport.Parent == null
+                && TopLevel.GetTopLevel(transport) == null,
+                "Terminal cleanup reattached retired transport to the host layout root instead of detaching it.");
+            await LayoutAsync(overlay);
+            await LayoutAsync(host);
+            await player.DisposeAsync(); // Idempotent retirement cannot restore it later.
+            Require(terminalHostAttachments == 0 && transport.Parent == null,
+                "Repeated terminal cleanup restored retired transport.");
+            Console.WriteLine("SMOKE gallery terminal transport PASS: queued-layout retirement detached without host reattachment");
+        }
+        finally
+        {
+            transport.AttachedToVisualTree -= Attached;
+            await player.DisposeAsync();
+            overlay.Content = null;
+            overlay.Close();
+            host.Content = null;
+            host.Close();
+        }
     }
 
     private static async Task CheckNotificationTransportAsync(MainWindow owner, GalleryEntry clip, bool overlay, bool paused)

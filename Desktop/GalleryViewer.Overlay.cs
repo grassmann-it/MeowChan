@@ -266,7 +266,7 @@ internal sealed partial class GalleryViewer
 
     private void ApplyOverlayPlacement()
     {
-        if (_applyingOverlayPlacement || _slideshow == null || _chrome.Child == null) return;
+        if (_terminalRetirement || _applyingOverlayPlacement || _slideshow == null || _chrome.Child == null) return;
         _applyingOverlayPlacement = true;
         try
         {
@@ -309,6 +309,7 @@ internal sealed partial class GalleryViewer
 
     private void MoveOverlayControl(Control control, Panel target)
     {
+        if (_terminalRetirement) return;
         if (ReferenceEquals(control.Parent, target)) return;
         Control? focused = control.IsKeyboardFocusWithin
             ? TopLevel.GetTopLevel(control)?.FocusManager?.GetFocusedElement() as Control : null;
@@ -321,6 +322,7 @@ internal sealed partial class GalleryViewer
 
     private void LayoutContextPlacement()
     {
+        if (_terminalRetirement) return;
         bool overlay = PostOverlayEffective;
         bool compact = Bounds.Width < 850;
         MoveOverlayControl(_contextPanel, overlay ? OverlayHost : _body);

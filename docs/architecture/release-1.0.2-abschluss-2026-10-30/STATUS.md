@@ -1,3 +1,41 @@
+# Aktuell: Windows-Layoutabsturz eingegrenzt, terminale Overlayfreigabe korrigiert — 31.10.2026
+
+**Run41137675108/7d20825 ist FAIL; weiterhin kein Tag/Release.** Einziger roter
+abgelaufener Job: Windowsvalidate124344042052, Galeriefehlerprüfung, tatsächlicher
+Prozessabsturz `InvalidateArrange on wrong LayoutManager` nach drittem Noticefall
+(Overlay/Playing). Kein Timeout und kein Beleg, dass Audiowarnungen ihn verursachen.
+Andere ausgeführte Jobs einschließlich Windowspaket und beiden Linux-/Macpaaren
+sind grün; abhängige Paket-/Inventur-/Libraryjobs wurden übersprungen.
+
+Solreview + Rootprüfung: endgültiges Stoppen verschob noch Transport/Chrome/Help
+von LibVLCs nativem Overlay ins angehängte Hauptfenster. Terminale Freigabe sperrt
+nun solche Platzierung dauerhaft, wartet echten nativen Cleanup ab, trennt den
+Transport ab und löst den Overlayteilbaum ohne Rücktransfer. Cleanupfehler bleiben
+sichtbar/ownershiphaltend. Live-Umschalten/Suspend/Resume bleiben eigene Pfade;
+keine generelle Avaloniafehlerbehebung oder exakte Täterkontrollidentität behauptet.
+
+Lokale gezielte Prüfung (Source-WIP, NICHT nativer Windows-/Releasepaketnachweis):
+- 88.NET-Fälle PASS/0FAIL/0SKIP, inklusive6terminaler Admissionregressionen.
+- Originalprodukt7d im separaten Clone + isolierter Zwei-Fenster-Test ohne Medien:
+  erwartetes FAIL wegen tatsächlichem Host-Rücktransfer beim Dispose.
+- Gleicher gezielter Terminaltest mit Fix PASS; wiederholtes Dispose bleibt
+  parentlos. Reale Galeriefixtures prüfen zusätzlich fehlenden Rücktransfer.
+- Private Ubuntu24.04 mit echtem stummem Nullsink,0Hardwarekarten: komplette
+  Galeriefehlerprüfung, Galeriefeatureprüfung und alle5nativen OS-Eingabestufen
+  PASS. Funktionales Audio in positiver Feature-/Eingabeprüfung explizit verlangt;
+  kein No-output-Ersatzpass. Child/DBus/Pulse exit0, Cleanup vollständig.
+- Frühe breitere Zwei-Root-Hilfsproben (inkl ungesetzter Liveplatzierung) schlugen
+  auf altem UND korrigiertem Code fehl; unverändert als FAIL erhalten, kein
+  allgemeiner Live-Reparenting-PASS daraus. Präziser Terminaltest isoliert seinen
+  Übergang; echte native Windows-Umschalt-/Shutdownprüfung bleibt CIpflichtig.
+
+Belege: `artifacts/release-1.0.2-ci-fix-verification/ci-seventh-failures/`, besonders
+`baseline-gui-refined` und `fixed-gui-refined`. Neuer eingefrorener Gesamt-CIpass
+auf aktuellem Commit noch erforderlich; Fortschritt im bestehenden RUNSTATE.json.
+Neue Quellen/Defaults/Version/Abhängigkeiten unverändert, Benutzerdateien geschützt.
+
+---
+
 # Aktuell: vier rote Kandidatengates gezielt korrigiert, neue Gesamtabnahme offen — 30.10.2026
 
 **Run41126700379/f4a6251 ist NICHT grün; kein Tag und kein Release.** Vier konkrete
