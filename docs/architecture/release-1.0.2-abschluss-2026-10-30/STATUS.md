@@ -1,3 +1,46 @@
+# Aktuell: separaten Video-Overlay beim Medien-/Readerwechsel synchronisieren — 31.10.2026
+
+177af98/Fullrun41195426476: Windows-Galeriefehlerprüfung besteht nun vollständig,
+spätere Featureprüfung scheitert nach Playing→Seek→echtemVideoende→Bild bei
+`Post-seek terminal image did not stop the sequence` (GalleryInteractionRevisionChecks227).
+Bekannter Mac-Replayfehler dieses Runs separat korrigiert: beide Mac-selection-
+Läufe41197385941/41197388050 aufcd0b788 sindSUCCESS, echteRapid-/Max-/Restoregates
+unverändert. Neuer cd0b788Fullrun41197661235 läuft, kann ausstehende Winänderungen
+nicht abnehmen; keine Veröffentlichung/kein alter Lauf alsfinalPASS.
+
+Sourceprüfung (LibVLCSharp3.10.2 commit3082c09) und unabhängiger Solreview:
+VideoView reagiert auf eigenes IsVisible, nicht auf versteckte Vorfahren;
+Content=null/MediaPlayer=null verstecken das separate FloatingWindow nicht.
+NachVideo→Bild kann das sichtbare leere Fenster mangels aktiver Galeriezuordnung
+als Dialog gelten und die Bilddauer blockieren. Alter Timeoutlog beweist seine
+konkrete Blockierklausel noch nicht; neue begrenzte Zustandslogs unterscheiden sie.
+
+Fix: Player-Sichtbarkeitswechsel setzt direkte VideoView-Sichtbarkeit nur mit
+vorhandenemOverlay und außerhalbSoftware-/Disposepfaden. Content=null-Fallback
+ändert die native lokale Surface-Sichtbarkeit nicht und öffnet kein leeresOverlay.
+Reader-Suspend wartet Stop ab und versteckt danach den Player nur bei gleichem
+Request/Player, weiterSuspended und nichtterminal; alteCompletion kann keine
+wiederaufgenommene Auswahl verstecken. Keine Dialog-/Fokusausnahme, kein extra
+Activate, keine Zeit-/Audio-/Navigationslockerung, Stop-vor-Hide erhalten.
+
+114gezielte.NET-FällePASS inkl5Sichtbarkeitsfälle,4WorkflowprüfungenPASS,Smoke-
+Build0Fehler. PrivateX11-Probe mit tatsächlichem VideoView/OwnedWindow OHNE
+MediaPlayer bestätigt zuerst den Leak und dann Hide/Show/Fallbackzustände mit
+dem Produktionshelper (Surfacezustand, kein gerenderter Bildnachweis). Ganze
+privatePulse-Galeriefeatureprüfung mit funktionalem Audio undGaleriefehlerprüfung
+inkl neuerReader-HidebehauptungPASS; Hardware0, stumm, vollständigesCleanup.
+Post-seek-Test verlangt nun zusätzlich das tatsächliche alteOverlay verborgen und
+loggt bei anhaltendem Dwellfailure Aktivierung/Dialog/Popup/Ready/Timer getrennt.
+StaleSuspendguards nur Code-/Reviewnachweis, kein separater asynchroner Racetest.
+
+Diagnoseszenario validate/gallery-features führt ausschließlich dieselbe bestehende
+Featureprüfung aus, mit unverändertem Linux-Positivaudio und Evidenz/Build/Plugins.
+Candidates bleiben all/all mit13Pflichtjobs/18Originalassets. Nächster Schritt
+nativeWindows gallery-features UND gallery-errors auf diesem Commit, danach neue
+vollständige exakte Quellabnahme. Version1.0.2 undBenutzerdateien unverändert.
+
+---
+
 # Aktuell: synthetischen Mac-Replay von Cocoa getrennt, Dokumentationsstand vorbereitet — 31.10.2026
 
 177af98/Fullcandidate41195426476 ist wegen MacARMvalidate NICHT freigabefähig.

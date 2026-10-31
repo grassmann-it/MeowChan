@@ -416,33 +416,51 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                           r'(?=      -)', self.jobs['validate'], re.S).group(1)
         for platform, scenario, expected in (('all', 'all', 0), ('windows-2022', 'all', 1),
                                                ('all', 'selection', 1), ('all', 'gallery-errors', 1),
-                                               ('windows-2022', 'gallery-errors', 1)):
+                                               ('windows-2022', 'gallery-errors', 1),
+                                               ('all', 'gallery-features', 1),
+                                               ('windows-2022', 'gallery-features', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
             self.assertEqual(expected, subprocess.run(['bash', '-e', '-c', command]).returncode)
 
-    def test_gallery_errors_isolates_existing_scene_but_retains_preparation_and_evidence(self):
+    def test_gallery_selectors_isolate_existing_scenes_but_retain_preparation_and_evidence(self):
         steps = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
                                 self.jobs['validate'], re.M | re.S))
-        gallery = 'Exercise gallery error interaction on the actual platform'
+        selectors = {
+            'gallery-errors': 'Exercise gallery error interaction on the actual platform',
+            'gallery-features': 'Exercise changed gallery features on the actual platform',
+        }
+        gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()
                   if 'scripts/run-desktop-smoke.py' in body
                   or 'scripts/test-media-interaction-smoke.py' in body
                   or name.startswith('Replay genuine')}
         self.assertGreater(len(scenes), 10)
-        for scenario in ('all', 'gui-only', 'selection', 'gallery-errors'):
-            for name, body in scenes.items():
-                condition = re.search(r'^        if: (.+)$', body, re.M)
-                expression = condition.group(1) if condition else 'True'
-                expression = expression.replace('runner.os', repr('Windows'))
-                enabled = self.evaluate(expression, scenario=scenario)
-                if scenario == 'gallery-errors':
-                    self.assertEqual(name == gallery, enabled, name)
-                elif name == gallery:
-                    self.assertEqual(scenario in ('all', 'gui-only'), enabled)
-                elif name == 'Exercise native graphical startup and fallback paths':
-                    self.assertTrue(enabled, scenario)
-                self.assertEqual(name != 'Check native Linux tray host lifecycle on private DBus',
-                                 self.evaluate(expression, event='push'), name)
+        startup = 'Exercise native graphical startup and fallback paths'
+        full_only = {
+            'Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections',
+            'Exercise real OS media input (not synthetic routed keys)',
+            'Exercise tray lifecycle separately on the disposable runner',
+            'Check native Linux tray host lifecycle on private DBus',
+        }
+        for os in ('Windows', 'Linux', 'macOS'):
+            for scenario in ('all', 'gui-only', 'selection', *selectors):
+                for name, body in scenes.items():
+                    condition = re.search(r'^        if: (.+)$', body, re.M)
+                    expression = condition.group(1) if condition else 'True'
+                    expression = expression.replace('runner.os', repr(os))
+                    if scenario in selectors:
+                        expected = name == selectors[scenario]
+                    elif scenario == 'selection':
+                        expected = name == startup
+                    else:
+                        expected = scenario == 'all' or name not in full_only
+                        if name == 'Check native Linux tray host lifecycle on private DBus':
+                            expected = expected and os == 'Linux'
+                    with self.subTest(os=os, scenario=scenario, scene=name):
+                        self.assertEqual(expected, self.evaluate(expression, scenario=scenario))
+                        self.assertEqual(
+                            name != 'Check native Linux tray host lifecycle on private DBus' or os == 'Linux',
+                            self.evaluate(expression, event='push'))
         for name in ('Record SDK and source commit',
                      'Restore graphical harness with reviewed dependencies',
                      'Retain exact graphical harness dependency graph',
@@ -455,17 +473,30 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('artifacts/closure-gallery-errors/**', self.jobs['validate'])
         self.assertIn('artifacts/build-evidence/**', self.jobs['validate'])
         self.assertIn("if: always()", self.jobs['validate'])
-        self.assertIn('          - gallery-errors\n', self.workflow)
+        features = steps[selectors['gallery-features']]
+        self.assertIn("MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'", features)
+        self.assertIn('if [[ "$RUNNER_OS" == Linux ]]; then', features)
+        self.assertIn('scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-features.json --', features)
+        self.assertIn('env MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1', features)
+        self.assertEqual(2, features.count('--mode normal --timeout 300 --output artifacts/gallery-features'))
+        self.assertIn('--allow-native-desktop --mode normal', features)
+        self.assertIn('artifacts/gallery-features/**', self.jobs['validate'])
+        self.assertIn('artifacts/private-audio/**', self.jobs['validate'])
+        for scenario in selectors:
+            self.assertIn(f'          - {scenario}\n', self.workflow)
         self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])
         matrix = re.search(r'^        os: (.+)$', self.jobs['validate'], re.M).group(1)
         self.assertIn("format('[\"{0}\"]', inputs.platform)", matrix)
         self.assertNotIn('inputs.scenario', matrix)
-        for job in self.jobs:
-            if job != 'validate':
-                self.assertFalse(self.condition(job, 'validate', scenario='gallery-errors',
-                                                platform='windows-2022'), job)
-        for mode in ('prerelease-candidate', 'stable-candidate'):
-            self.assertFalse(self.condition('library-package', mode, scenario='gallery-errors'))
+        for scenario in selectors:
+            for platform in ('all', 'ubuntu-24.04', 'windows-2022', 'macos-15'):
+                self.assertTrue(self.condition('validate', 'validate', scenario, platform))
+                for job in self.jobs:
+                    if job != 'validate':
+                        with self.subTest(scenario=scenario, platform=platform, job=job):
+                            self.assertFalse(self.condition(job, 'validate', scenario, platform))
+            for mode in ('prerelease-candidate', 'stable-candidate'):
+                self.assertFalse(self.condition('library-package', mode, scenario=scenario))
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']

@@ -569,6 +569,8 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         var before = await player.InspectPlaybackAsync();
         GalleryViewerState selection = viewer.CaptureState();
+        Window? overlayBeforeSuspend = ErrorField<bool>(viewer, "_nativeOverlayActive")
+            ? TopLevel.GetTopLevel(ErrorField<Grid>(viewer, "_nativeVideoOverlay")) as Window : null;
         // Exact production shell boundaries: no fake suspended flag or viewer-only notice.
         // OpenMediaGalleryAsync has no archive thread to fetch; avoid creating a source/network request.
         ShellErrorCall(shell, "OpenGalleryReader");
@@ -577,6 +579,8 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(ShellErrorField<bool>(shell, "_largeReaderOpen") && ShellErrorField<bool>(shell, "_gallerySuspended")
             && !shell.FindControl<ContentControl>("GalleryHost")!.IsVisible,
             "Actual shell Reader/suspend path did not hide and retire gallery playback.");
+        Require(!player.IsVisible && overlayBeforeSuspend?.IsVisible != true,
+            "Reader suspension left the player or its separate native overlay visible.");
         string operation = "fixture.gallery-reader-warning." + Guid.NewGuid().ToString("N");
         ShellErrorCall(shell, "ShowNotification", "Reader warning", "Private synthetic Reader warning",
             NotificationType.Warning, "gallery-reader-fixture", operation);

@@ -214,6 +214,8 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()) && Running(viewer),
             "Explicit slideshow Start did not play the native clip with ordinary autoplay OFF.");
+        Window? nativeOverlay = ErrorField<bool>(viewer, "_nativeOverlayActive")
+            ? TopLevel.GetTopLevel(ErrorField<Grid>(viewer, "_nativeVideoOverlay")) as Window : null;
         await NativeSeekAsync(native, viewer, .20, drag: false);
         await ObservePlayingAsync(player, "playing track seek");
         await NativeSeekAsync(native, viewer, .45, drag: true);
@@ -224,9 +226,45 @@ internal static partial class GalleryPlaybackFeatureChecks
         await UntilAsync(() => failure != null || moves == 1 && transition.IsCompleted,
             "After native seeking, actual video end no longer advanced the running slideshow.");
         Require(failure == null && viewer.CaptureState().Key == image.Key, "Post-seek successor failed: " + failure);
-        await UntilAsync(() => !Running(viewer), "Post-seek terminal image did not stop the sequence.");
+        TracePostSeekImageState(fixture.Window, viewer, nativeOverlay);
+        Require(nativeOverlay?.IsVisible != true,
+            "Retired native video overlay stayed visible above the image and can block slideshow interaction.");
+        long? lastStateLog = null;
+        await UntilAsync(() =>
+        {
+            if (!Running(viewer)) return true;
+            if (lastStateLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastStateLog.Value).TotalSeconds >= 1)
+            {
+                lastStateLog = System.Diagnostics.Stopwatch.GetTimestamp();
+                TracePostSeekImageState(fixture.Window, viewer, nativeOverlay);
+            }
+            return false;
+        }, "Post-seek terminal image did not stop the sequence.");
         await HoldAsync(ImageObservation, () => Require(moves == 1 && !Running(viewer),
             "A stale seek/end callback restarted or duplicated terminal navigation."));
+    }
+
+    private static void TracePostSeekImageState(Window host, GalleryViewer viewer, Window? retiredOverlay)
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        object? Property(string name) => typeof(GalleryViewer).GetProperty(name, flags)?.GetValue(viewer);
+        Console.WriteLine("SMOKE post-seek image state: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            hostActive = host.IsActive, host.IsVisible, host.IsEnabled,
+            viewerVisible = viewer.IsEffectivelyVisible, viewerEnabled = viewer.IsEffectivelyEnabled,
+            running = Running(viewer), status = Property("CurrentSlideshowStatus")?.ToString(),
+            canRun = Property("CanRunSlideshow"), popup = Property("HasGalleryPopup"), dialog = Property("HasGalleryDialog"),
+            nativeActive = ErrorField<bool>(viewer, "_nativeOverlayActive"),
+            retiredOverlayVisible = retiredOverlay?.IsVisible, retiredOverlayActive = retiredOverlay?.IsActive,
+            available = ErrorField<bool>(viewer, "_interactionAvailable"),
+            context = ErrorField<bool>(viewer, "_contextOpen"), help = ErrorField<bool>(viewer, "_helpOpen"),
+            navigation = ErrorField<bool>(viewer, "_navigationPending"), suspended = ErrorField<bool>(viewer, "_videoSuspended"),
+            failed = ErrorField<bool>(viewer, "_mediaFailed"),
+            request = ErrorField<int>(viewer, "_request"), imageReady = ErrorField<int>(viewer, "_imageReadyRequest"),
+            timer = ErrorField<Avalonia.Threading.DispatcherTimer>(viewer, "_interactionTimer").IsEnabled,
+            owned = host.OwnedWindows.Select(window => new
+            { galleryOverlay = viewer.OwnsOverlayWindow(window), window.IsVisible, window.IsActive }).ToArray()
+        }));
     }
 
     private static async Task CheckPausedSeekAsync(MainWindow owner, GalleryEntry clip)

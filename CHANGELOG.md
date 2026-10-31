@@ -60,6 +60,8 @@
   layout feedback, without claiming a general framework subscription-retention fix.
   Retire overlay controls terminally without cross-root return; reject late pointer
   and timer callbacks after stop/detach and avoid detached coordinate conversion.
+  Hide the separate video overlay on image/Reader transitions so an empty owned
+  window does not block image slideshow progress as a false dialog.
 - Preserve observed macOS fullscreen-entry frames across exit so delayed native
   callbacks do not overwrite the restored window size; unknown user resizes still win.
 

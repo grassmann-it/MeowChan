@@ -55,6 +55,9 @@ internal static partial class GalleryPlaybackFeatureChecks
                 "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8", StringComparison.OrdinalIgnoreCase),
                 "Edge volume checks require the pinned synthetic VP8/Vorbis fixture.");
             GalleryEntry edgeClip = await AssetAsync(directory, "edge-audio", "edge-audio.webm", edgeAudio);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY") == "1")
+            { await CheckNativeOverlayVisibilityAsync(owner); return; }
+            if (OperatingSystem.IsWindows()) await CheckNativeOverlayVisibilityAsync(owner);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_EDGE_ONLY") == "1")
             { await CheckEdgeHoverAsync(owner, edgeClip); return; }
             await CheckFirstNavigationAsync(owner, first, last);

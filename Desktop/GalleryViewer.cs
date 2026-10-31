@@ -1298,7 +1298,7 @@ internal sealed partial class GalleryViewer : UserControl
         DisposeBitmap(_fitBitmap, _entry?.Key, _navigationId, AssociationRevision); _fitBitmap = null;
     }
     private VideoPlaybackMode? _suspendedPlaybackMode;
-    internal Task SuspendMediaAsync()
+    internal async Task SuspendMediaAsync()
     {
         // Reader suspension retires the drawable/input, not the user's play/pause choice.
         // Returning must not turn a paused video into autoplay because config still says On.
@@ -1306,7 +1306,16 @@ internal sealed partial class GalleryViewer : UserControl
         PauseSlideshow();
         _gif?.SetActive(false);
         _videoSuspended = _entry?.Kind == SavedMediaKind.Video;
-        return _videoSuspended && _video != null ? _video.StopAsync() : Task.CompletedTask;
+        if (_videoSuspended && _video is { } video)
+        {
+            int request = _request;
+            await video.StopAsync();
+            // Hiding only GalleryHost changes effective ancestor visibility, not
+            // VideoView's own visibility notification for its separate overlay.
+            // Never let an old suspension hide a resumed/replaced selection.
+            if (_videoSuspended && request == _request && !_terminalRetirement && ReferenceEquals(video, _video))
+                video.IsVisible = false;
+        }
     }
     internal Task ResumeMediaAsync()
     {

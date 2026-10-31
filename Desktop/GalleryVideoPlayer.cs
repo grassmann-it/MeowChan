@@ -153,7 +153,24 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     // Avalonia Image and keep chrome in the viewer's ordinary visual tree.
     internal void SetNativeOverlay(Control? overlay)
     {
-        if (OperatingSystem.IsWindows()) _video.Content = overlay;
+        if (OperatingSystem.IsWindows())
+        {
+            _video.Content = overlay;
+            SynchronizeNativeOverlaySurfaceVisibility();
+        }
+    }
+
+    private void SynchronizeNativeOverlaySurfaceVisibility() => SynchronizeNativeOverlaySurfaceVisibility(
+        _video, UsesSoftwareVideo, IsDisposed, _video.Content != null, IsVisible);
+
+    internal static void SynchronizeNativeOverlaySurfaceVisibility(Control surface, bool softwareVideo,
+        bool disposing, bool hasOverlay, bool playerVisible)
+    {
+        // VideoView 3.10.2 observes its OWN IsVisible to hide/show its floating
+        // window, not an ancestor's effective visibility. Keep that notification
+        // in sync when our player is hidden for an image. Content=null is the
+        // native-transparency fallback: do not hide its usable video surface.
+        if (!softwareVideo && !disposing && hasOverlay) surface.IsVisible = playerVisible;
     }
 
     internal void Configure(bool autoplay, bool startMuted, int volume)
@@ -284,6 +301,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         _lifetime = new VideoPlaybackLifetime(CleanupAsync, ReleaseEngineAsync);
         _seeks = new VideoLatestSeekQueue(SeekAsync);
+        PropertyChanged += (_, change) =>
+        {
+            if (change.Property == IsVisibleProperty) SynchronizeNativeOverlaySurfaceVisibility();
+        };
         _intent.LoopChanged += enabled => { RefreshTransportPresentation(); LoopChanged?.Invoke(enabled); };
         _intent.UserPlaybackRequested += playing => UserPlaybackRequested?.Invoke(playing);
         _intent.PlaybackEnded += () => PlaybackEnded?.Invoke();
