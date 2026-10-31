@@ -1,3 +1,38 @@
+# Aktuell: Windows-Layoutmigration repariert, native Bestätigung ausstehend — 31.10.2026
+
+Konkreter Blocker bleibt der echte wrong-LayoutManager-Absturz aus Windowsrun
+41205075015. Produktfix jetzt integriert: GalleryControlTransfer verfolgt die
+ursprünglichen Presentationroots vor dem ersten Attachment. Cross-root-Moves
+verlassen Arrange/SizeChanged, lösen den Teilbaum, führen echtes UpdateLayout
+aller behaltenen Quellen bei abgetrenntem Teilbaum aus und hängen erst danach an
+den neuesten Zielhost. Gemeinsame Serialisierung verhindert reentrante physische
+Umzüge anderer Footer-/Transport-/Kontextcontrols während dieses Drains.
+Kein Queue-Purge, keine private Frameworkmutation, keine Fehlerunterdrückung.
+
+Galeriechrome, Footer, Kontext, Hilfe, Randindikatoren und Playertransport nutzen
+den Pfad. A→B→A/A→B→C werden koalesziert, Werte/Identitäten bleiben bestehen,
+Fokus wird nur im aktiven Zielfenster restauriert. Terminal Stop schließt vor dem
+ersten await auch die Transportplatzierung, nicht erst bei späterer Disposal.
+Temporärer Readerreturn bleibt wiederverwendbar; unveränderte Hostanfragen brechen
+keine Seekgeste ab. Versteckter Footer bleibt bis zum nächsten Placement parented,
+statt die Quelle während ausstehender Kindtransfers roh abzutrennen.
+
+Lokaler Produktbuild 0 Fehler/5 Warnungen; echter 2-/3-Window/no-decoder-Probe
+PASS mit vorab invalider Descendantarrange, beiden Richtungen, Bursts, verschachtelten
+Teilbäumen, anderem Move während echtem Source-Drain und Content=null/Hide.
+Erster Probe scheiterte an Testannahme Source-Drain vor Render bei Loaded-Priorität;
+Normal-Dispatch verlässt ebenfalls den Stack und läuft vor gequeuetem Render,
+zweiter Probe PASS. Erster Unitlauf 442PASS/1SKIP/1FAIL: alter UI-Move auf xUnit-
+Workerthread; tatsächliche Identity-/12Zyklen-/NoFooterrow-Prüfung wird in den
+registrierten nativen Dispatcher-Smoke verschoben, Zugriffsschutz bleibt bestehen.
+Zweiter Unitlauf 442PASS/1SKIP. Ganze private GUI-Features/Fehler und Review laufen;
+noch KEINE native Windows-/Releasefreigabe. Belege separat unter
+artifacts/release-1.0.2-ci-fix-verification/ci-twentythird-owned-transfer/.
+Linux-Startupregression 41207440009 auf vorherigem3f44666 ist SUCCESS.
+Benutzereigene .gitignore und v1.0.1-preparation bytegleich, nicht Teil des Fixes.
+
+---
+
 # Aktuell: bekannte lokale Bundle-Rebuilds ohne erneuten Freigabe-/Restartloop — 31.10.2026
 
 Nutzer meldet alleBoardsbeiStartup „Bundled executable changed“ undpräzisiert

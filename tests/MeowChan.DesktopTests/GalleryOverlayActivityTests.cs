@@ -226,32 +226,9 @@ public sealed class GalleryOverlayActivityTests
         }
     }
 
-    [Fact]
-    public void ReparentingUsesTheSameIndicatorsAndNeverDuplicatesOrReservesAFooterRow()
-    {
-        // Exercise the real tree-moving method on managed controls only. This does
-        // not create a platform window and is not evidence of native overlay rendering.
-        var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
-        var managed = new Grid { RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-        var nativeOverlay = new Grid();
-        var indicators = new[] { GalleryViewer.CreateEdgeIndicator(false), GalleryViewer.CreateEdgeIndicator(true) };
-        foreach (Button indicator in indicators) managed.Children.Add(indicator);
-        for (int cycle = 0; cycle < 12; cycle++)
-        {
-            Panel target = cycle % 2 == 0 ? nativeOverlay : managed;
-            Panel previous = cycle % 2 == 0 ? managed : nativeOverlay;
-            foreach (Button indicator in indicators)
-            {
-                Invoke(viewer, "MoveOverlayControl", indicator, target);
-                Invoke(viewer, "MoveOverlayControl", indicator, target); // placement is idempotent
-                Assert.Same(target, indicator.Parent);
-                Assert.Equal(0, Grid.GetRow(indicator));
-            }
-            Assert.Empty(previous.Children);
-            Assert.Equal(indicators, target.Children.Cast<Button>());
-            Assert.Equal(3, managed.RowDefinitions.Count);
-        }
-    }
+    // Actual indicator reparenting requires the UI dispatcher. Its identity,
+    // idempotence and no-footer-row assertions live in the registered native
+    // GalleryControlTransferChecks rather than invoking UI work on xUnit threads.
 
     [Fact]
     public void StoppedViewerDetachesIndicatorsFromBothRootsAndNeverRefocusesOrReattachesThem()

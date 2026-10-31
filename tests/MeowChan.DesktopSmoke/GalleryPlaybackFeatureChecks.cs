@@ -37,6 +37,8 @@ internal static partial class GalleryPlaybackFeatureChecks
             throw new PlatformNotSupportedException("Feature smoke requires an explicitly authorized disposable native desktop.");
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1")
             throw new InvalidOperationException("MU feature smoke requires the parent's private Xvfb display on Linux, never a personal display.");
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_OWNED_CONTROL_TRANSFERS_ONLY") == "1")
+        { await CheckOwnedControlTransfersAsync(owner); return; }
         string video = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
             ?? throw new InvalidOperationException("MU feature smoke requires a real synthetic WebM in MEOWCHAN_VIDEO_FIXTURE; supply the existing pinned playback fixture.");
         Require(File.Exists(video), "The supplied real video fixture does not exist.");
@@ -62,6 +64,9 @@ internal static partial class GalleryPlaybackFeatureChecks
             if (OperatingSystem.IsWindows()) await CheckNativeOverlayVisibilityAsync(owner);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_EDGE_ONLY") == "1")
             { await CheckEdgeHoverAsync(owner, edgeClip); return; }
+            // Positive coordinator regression is mandatory in the ordinary native
+            // feature suite (including Windows); causal negative probe stays opt-in.
+            await CheckOwnedControlTransfersAsync(owner);
             await CheckFirstNavigationAsync(owner, first, last);
             await CheckSavedSlideshowAutoplayAsync(owner, clip, first);
             await CheckNativePlaybackIntentAsync(owner, directory, video, first);

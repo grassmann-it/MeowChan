@@ -292,7 +292,8 @@ internal sealed partial class GalleryViewer
                 MoveOverlayControl(_infoOverlay, _visualRoot);
                 Grid.SetRow(_chrome, _nativeOverlayFallback ? 2 : 1); Grid.SetRowSpan(_chrome, 1);
                 Grid.SetRow(_infoOverlay, _nativeOverlayFallback ? 3 : 2); Grid.SetRowSpan(_infoOverlay, 1);
-                if (_overlayFooter.Parent is Panel parent) parent.Children.Remove(_overlayFooter);
+                // Keep the hidden footer parented. Removing it here would detach the
+                // source ancestor while its chrome/transport transfers are still queued.
             }
             _overlayFooter.IsVisible = overlay && !_overlayHidden;
             _overlayFooter.IsHitTestVisible = !_overlayHidden;
@@ -310,14 +311,20 @@ internal sealed partial class GalleryViewer
     private void MoveOverlayControl(Control control, Panel target)
     {
         if (_terminalRetirement) return;
-        if (ReferenceEquals(control.Parent, target)) return;
         Control? focused = control.IsKeyboardFocusWithin
             ? TopLevel.GetTopLevel(control)?.FocusManager?.GetFocusedElement() as Control : null;
-        if (control.Parent is Panel parent) parent.Children.Remove(control);
-        target.Children.Add(control);
-        // Reparenting never activates another native window to recover focus.
-        if (focused != null && TopLevel.GetTopLevel(target) is Window { IsActive: true } && focused.IsEffectivelyVisible)
-            focused.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+        Action? restoreFocus = focused == null ? null : () =>
+        {
+            // Reparenting never activates another native window to recover focus.
+            if (!_terminalRetirement && focused.IsAttachedToVisualTree()
+                && TopLevel.GetTopLevel(control) is Window { IsActive: true }
+                && focused.IsEffectivelyVisible && focused.IsEffectivelyEnabled)
+                focused.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+        };
+        // Submit even when target is the actual parent: this may retarget a pending move.
+        GalleryControlTransfer.Move(control, target, () => !_terminalRetirement
+            && (!(ReferenceEquals(control, _controlsEdgeIndicator) || ReferenceEquals(control, _postEdgeIndicator))
+                || !_viewerInteractionStopped), restoreFocus);
     }
 
     private void LayoutContextPlacement()

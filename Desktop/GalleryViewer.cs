@@ -255,6 +255,12 @@ internal sealed partial class GalleryViewer : UserControl
 
     internal GalleryViewer()
     {
+        // Subscribe before any of these subtrees can enter a presentation root.
+        foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
+            _contextPanel, _helpPanel, _controlsEdgeIndicator, _postEdgeIndicator })
+            GalleryControlTransfer.Track(control, () => !_terminalRetirement);
+        foreach (Control indicator in new Control[] { _controlsEdgeIndicator, _postEdgeIndicator })
+            GalleryControlTransfer.Track(indicator, () => !_terminalRetirement && !_viewerInteractionStopped);
         AttachedToVisualTree += (_, _) =>
         {
             _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose();
@@ -739,13 +745,8 @@ internal sealed partial class GalleryViewer : UserControl
         active &= OperatingSystem.IsWindows() && !_nativeOverlayUnsupported;
         if (!active) UnbindNativeShortcutWindow();
         if (_nativeOverlayActive == active) return;
-        Grid previous = _nativeOverlayActive ? _nativeVideoOverlay : _visualRoot;
         Grid next = active ? _nativeVideoOverlay : _visualRoot;
-        foreach (Control control in new Control[] { _helpPanel })
-        {
-            previous.Children.Remove(control);
-            next.Children.Add(control);
-        }
+        MoveOverlayControl(_helpPanel, next);
         _nativeOverlayActive = active;
         _video?.SetNativeOverlay(active ? _nativeVideoOverlay : null);
         ApplyOverlayPlacement();
@@ -1343,6 +1344,12 @@ internal sealed partial class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         _terminalRetirement = true;
+        // Permanently close both owners' placement admission before the FIRST await.
+        // In particular, player disposal happens only after GIF retirement below.
+        foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
+            _contextPanel, _helpPanel, _controlsEdgeIndicator, _postEdgeIndicator })
+            GalleryControlTransfer.Cancel(control);
+        _video?.RetireTransportPlacement();
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();
         ++_request; CancelLoads();

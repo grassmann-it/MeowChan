@@ -45,6 +45,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly Grid _root = new() { RowDefinitions = new RowDefinitions("*,Auto") };
     private readonly Border _transportPanel = new() { Name = "GalleryVideoTransport", Classes = { "workspace-media-transport" } };
     private Panel? _externalTransportHost;
+    private bool _transportPlacementRetired;
     private Window? _transportWindow;
     private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
     private readonly SemaphoreSlim _operations = new(1, 1);
@@ -100,29 +101,35 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal void SetExternalTransportHost(Panel? host)
     {
         Dispatcher.UIThread.VerifyAccess();
-        if (IsDisposed) { DetachTransport(); return; }
+        if (IsDisposed || _transportPlacementRetired) { RetireTransportPlacement(); return; }
         if (ReferenceEquals(host, _root)) host = null;
         if (host != null && host.GetLogicalAncestors().Contains(_transportPanel))
         {
             throw new ArgumentException("The transport cannot be hosted inside itself.", nameof(host));
         }
-        if (ReferenceEquals(host, _externalTransportHost)) return;
-        CancelSeekGesture();
-        Panel oldHost = _externalTransportHost ?? _root;
-        oldHost.Children.Remove(_transportPanel);
+        // Repeated layout/refresh placement must not interrupt an active seek.
+        // Still submit Move below so an outstanding transfer receives the latest target.
+        if (!ReferenceEquals(host, _externalTransportHost)) CancelSeekGesture();
         _externalTransportHost = host;
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
         Grid.SetRowSpan(UsesSoftwareVideo ? _softwareVideo : _video, host == null ? 1 : 2);
-        (host ?? _root).Children.Add(_transportPanel);
+        // Always submit the latest desired host, even if it is the actual parent:
+        // an earlier cross-root request may still be pending. The transfer owns removal.
+        GalleryControlTransfer.Move(_transportPanel, host ?? _root,
+            () => !_transportPlacementRetired && !IsDisposed);
     }
 
-    // Terminal retirement never transfers a laid-out control to another root.
-    private void DetachTransport()
+    // Close placement admission before native disposal (or the viewer's first await).
+    // Temporary viewer detachment must not call this permanent cancellation path.
+    internal void RetireTransportPlacement()
     {
         Dispatcher.UIThread.VerifyAccess();
-        if (_transportPanel.Parent is Panel parent) parent.Children.Remove(_transportPanel);
+        _transportPlacementRetired = true;
+        GalleryControlTransfer.Cancel(_transportPanel);
         _externalTransportHost = null;
     }
+
+    private void DetachTransport() => RetireTransportPlacement();
 
     // May be applied before media is ready; unlike a user toggle this has no enabled-control
     // prerequisite. Setting an unchanged value is always silent, preventing preference echoes.
@@ -300,6 +307,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal GalleryVideoPlayer()
     {
         _lifetime = new VideoPlaybackLifetime(CleanupAsync, ReleaseEngineAsync);
+        GalleryControlTransfer.Track(_transportPanel, () => !_transportPlacementRetired && !IsDisposed);
         _seeks = new VideoLatestSeekQueue(SeekAsync);
         PropertyChanged += (_, change) =>
         {
@@ -1082,6 +1090,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
         CancelSeekGesture();
         Task cleanup = _lifetime.DisposeAsync();
+        if (Dispatcher.UIThread.CheckAccess()) RetireTransportPlacement();
+        else Dispatcher.UIThread.Post(RetireTransportPlacement);
         return new(DetachTransportAfterCleanupAsync(cleanup));
     }
     private async Task DetachTransportAfterCleanupAsync(Task cleanup)
