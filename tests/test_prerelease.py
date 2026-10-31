@@ -75,7 +75,9 @@ class WorkflowBashResolutionTests(unittest.TestCase):
             bash = write(root / 'bin/bash.exe', b'')
             with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
                     patch.object(shutil, 'which', side_effect=lambda name: str(git) if name == 'git' else 'WSL/bash.exe'):
-                self.assertEqual(str(bash), workflow_bash())
+                # macOS /var aliases and Windows 8.3 temp paths canonicalize
+                # while resolving git.exe. Compare the same canonical file path.
+                self.assertEqual(str(bash.resolve()), workflow_bash())
 
     def test_windows_missing_git_bash_fails_instead_of_using_wsl(self):
         with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
