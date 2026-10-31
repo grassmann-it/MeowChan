@@ -816,11 +816,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             && indicator.Bounds.Width >= 24 && indicator.Bounds.Height >= 24
             && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(indicator)),
             "Collapsed overlay has no discoverable, named keyboard/pointer target (minimum 24 DIP): " + name);
-        Point? position = indicator.TranslatePoint(default, viewer);
-        Require(position.HasValue && position.Value.X >= 0 && position.Value.Y >= 0
-            && position.Value.X + indicator.Bounds.Width <= viewer.Bounds.Width + 1
-            && position.Value.Y + indicator.Bounds.Height <= viewer.Bounds.Height + 1,
-            "Edge indicator is clipped outside the usable gallery: " + name);
+        MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, viewer);
         return indicator;
     }
     private static void RequireSingleControlsChoice(GalleryViewer viewer)

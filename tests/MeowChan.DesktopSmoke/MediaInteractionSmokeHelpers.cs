@@ -24,6 +24,38 @@ internal static class MediaInteractionSmokeHelpers
             throw new InvalidOperationException("Edge hint has a persistent box/fill/border: " + target.Name);
     }
 
+    internal static Rect ScreenBoundsIn(Control target, Control owner)
+    {
+        if (!target.IsAttachedToVisualTree() || !owner.IsAttachedToVisualTree())
+            throw new InvalidOperationException("Edge geometry requires two attached visual trees.");
+        // Ownership is not visual ancestry. Native video chrome lives in a separate
+        // window; TranslatePoint returns null across those roots. Convert both
+        // corners through screen pixels so root scaling is respected as well.
+        Point first = owner.PointToClient(target.PointToScreen(default));
+        Point last = owner.PointToClient(target.PointToScreen(new Point(target.Bounds.Width, target.Bounds.Height)));
+        return new Rect(first, last);
+    }
+
+    internal static void RequireEdgeTargetWithinViewer(Control target, Control viewer)
+    {
+        Rect mapped = ScreenBoundsIn(target, viewer);
+        bool withinViewer = mapped.Left >= 0 && mapped.Top >= 0
+            && mapped.Right <= viewer.Bounds.Width + 1 && mapped.Bottom <= viewer.Bounds.Height + 1;
+        Control? host = target.Parent as Control;
+        Rect? local = host == null ? null : ScreenBoundsIn(target, host);
+        bool withinHost = local is { } bounds && bounds.Left >= 0 && bounds.Top >= 0
+            && bounds.Right <= host!.Bounds.Width + 1 && bounds.Bottom <= host.Bounds.Height + 1;
+        Console.WriteLine("SMOKE edge bounds: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            target.Name, mapped = mapped.ToString(), viewer = viewer.Bounds.ToString(),
+            host = host?.GetType().Name, hostBounds = host?.Bounds.ToString(), local = local?.ToString(),
+            separateRoots = !ReferenceEquals(TopLevel.GetTopLevel(target), TopLevel.GetTopLevel(viewer)),
+            withinViewer, withinHost
+        }));
+        if (!withinViewer || !withinHost)
+            throw new InvalidOperationException("Edge indicator is clipped outside the usable gallery/host: " + target.Name);
+    }
+
     internal static Point TrackPoint(Slider slider, double fraction)
     {
         if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));

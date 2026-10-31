@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Media;
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 
@@ -10,8 +13,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         // Actual pinned VideoView/owned-window behavior, no MediaPlayer or codec.
         // Normal acceptance uses this on Windows. The explicit private-X11 probe
         // can also reproduce the same upstream visibility contract on Linux.
-        LibVLCSharp.Avalonia.VideoView surface = new() { Content = new NativeVideoOverlayRoot() };
-        Border player = new() { Child = surface };
+        NativeVideoOverlayRoot chrome = new();
+        Button indicator = GalleryViewer.CreateEdgeIndicator(post: false);
+        indicator.IsVisible = true;
+        chrome.Children.Add(indicator);
+        LibVLCSharp.Avalonia.VideoView surface = new() { Content = chrome };
+        Border player = new() { Child = surface, Padding = new Thickness(13, 17, 19, 23) };
         Window window = new() { Width = 700, Height = 500, Content = player,
             Title = "Private native overlay visibility regression" };
         try
@@ -21,6 +28,23 @@ internal static partial class GalleryPlaybackFeatureChecks
             await UntilAsync(() => window.OwnedWindows.Count == 1 && window.OwnedWindows.Single().IsVisible,
                 "Actual VideoView did not create its owned overlay without a decoder.");
             Window overlay = window.OwnedWindows.Single();
+            Require(indicator.TranslatePoint(default, window) == null,
+                "Two-root indicator regression did not reproduce the missing common visual ancestor.");
+            MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, window);
+            Rect mapped = MediaInteractionSmokeHelpers.ScreenBoundsIn(indicator, window);
+            Point surfaceOrigin = surface.TranslatePoint(default, window)!.Value;
+            Require(mapped.Left >= surfaceOrigin.X && mapped.Top >= surfaceOrigin.Y
+                && mapped.Right <= surfaceOrigin.X + surface.Bounds.Width + 1
+                && mapped.Bottom <= surfaceOrigin.Y + surface.Bounds.Height + 1,
+                "Screen-mapped indicator escaped the inset native media surface.");
+            indicator.RenderTransform = new TranslateTransform(2000, 0);
+            bool clippedRejected = false;
+            try { MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, window); }
+            catch (InvalidOperationException) { clippedRejected = true; }
+            finally { indicator.RenderTransform = null; }
+            Require(clippedRejected, "Screen mapping accepted an actually displaced/clipped indicator.");
+            MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, window);
+            Console.WriteLine("SMOKE native edge geometry PASS: separate roots/null visual transform, inset surface containment, real displaced target rejected; no decoder/audio");
             player.IsVisible = false;
             await LayoutAsync(window);
             Require(surface.IsVisible && !surface.IsEffectivelyVisible && overlay.IsVisible,

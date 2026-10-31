@@ -34,11 +34,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             "Collapsed edge has no available named keyboard/touch target (artwork may be idle-hidden): " + name);
         Require(indicator.Bounds.Width >= 16 && indicator.Bounds.Height >= 16,
             "Edge indicator has no usable pointer/touch hit area: " + name);
-        Point? position = indicator.TranslatePoint(default, viewer);
-        Require(position.HasValue && position.Value.X >= 0 && position.Value.Y >= 0
-            && position.Value.X + indicator.Bounds.Width <= viewer.Bounds.Width + 1
-            && position.Value.Y + indicator.Bounds.Height <= viewer.Bounds.Height + 1,
-            "Edge indicator is clipped outside the usable gallery: " + name);
+        MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, viewer);
         return indicator;
     }
 

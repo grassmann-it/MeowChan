@@ -1,3 +1,27 @@
+# Aktuell: Windows-Menü nativ bestätigt; Randprüfung über getrennte Roots korrigieren — 31.10.2026
+
+65dd4df/Windows41201703857: Modusmenü empfängt echtenPress/Release ohneViewport-
+Capture, öffnet/schließt genaueinmal; Videoclockläuftweiter. AlteMenüursache damit
+nativbestätigtbehoben. Lauf scheitert erst späteram erstenRandindikator in
+CheckEdgeHoverAsync: RequireEdgeIndicator verwendet TranslatePoint zumViewer,
+obwohl derIndicator imseparaten VideoView-OwnedWindow liegt. Avalonia12.1.4
+liefert ohne gemeinsamenVisualancestor null; Assertion nennt auchnull „clipped“.
+Das ist ein konkreterHarnessfehler, keinNachweisfalscherProduktpositionierung.
+
+NurSmoke: beideIndicatorhelper rechnenbeideEcken durchScreenpixel inViewer-DIP,
+behalten0/+1Containment undprüfenzusätzlich tatsächlichenOverlayhost. KeinProdukt-
+Repositionieren oderToleranz-/Zeit-/Audio-/Interaktionslockerung. Tatsächlicher
+VideoView/noDecoder-ZweiRootProbe mit nichtnullSurfaceinsets verlangt vorher
+nullVisualtransform, danach echteSurfacecontainment undAblehnung eines absichtlich
+2000DIPverschobenenTargets. TatsächlicherprivateX11ProbePASS;Build0Fehler,
+privatesstummesNullaudio/Hardware0/Cleanupvollständig;nativeWindowsnoch offen.
+65dd4df separatePythonfork374Cases=373PASS/1AppleSkip,Root/Fork/Quell/Git/Userguards
+gleich;144.NET undvolleprivatePulseFeatures/ErrorsPASSgehörenzu65dd4df,nichtneuem
+Harnesscommit. Neuer voller13Job-/18OriginalassetKandidat erst nachWindowsgrün.
+KeinTag/Release;reguläreVeröffentlichungweiterbedingt freigegeben.
+
+---
+
 # Aktuell: Windows-Menüursache belegt, Bild-Pancapture begrenzen — 31.10.2026
 
 6194ca2/Windows41200667484FAIL konkret am Modusmenü. Der echte Trace widerlegt
