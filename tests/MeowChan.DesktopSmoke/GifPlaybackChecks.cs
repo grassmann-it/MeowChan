@@ -504,6 +504,15 @@ internal static partial class GalleryPlaybackFeatureChecks
                     selected = (list.SelectedItem as ArchivePostRow)?.Id, active = shell.IsActive
                 }));
             }
+            bool BodyIsNativePointerTarget()
+            {
+                if (!shell.IsActive || !body.IsEffectivelyVisible || !body.IsEffectivelyEnabled
+                    || !body.IsMeasureValid || !body.IsArrangeValid
+                    || !ReferenceEquals(TopLevel.GetTopLevel(body), shell)) return false;
+                var pixel = body.PointToScreen(new Point(16, 10));
+                return (shell.InputHitTest(shell.PointToClient(pixel)) as Control)?
+                    .GetSelfAndVisualAncestors().Contains(body) == true;
+            }
             object ClickEvidence()
             {
                 var pixel = body.PointToScreen(new Point(16, 10));
@@ -528,7 +537,15 @@ internal static partial class GalleryPlaybackFeatureChecks
             page.FindControl<Grid>("ArchiveReaderPane")!.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel, handledEventsToo: true);
             try
             {
+                Console.WriteLine("SMOKE gif-reader-click-preparing " + JsonSerializer.Serialize(ClickEvidence()));
+                // Realization and UpdateLayout alone do not establish hit-test readiness.
+                // Native macOS and X11 diagnostics still hit an earlier content
+                // presenter here even though this body was visible and arranged.
+                // Wait for the actual pointer target, not a fixed delay or another click.
+                await UntilAsync(BodyIsNativePointerTarget,
+                    "Realized GIF post never became the actual native pointer hit target.");
                 Console.WriteLine("SMOKE gif-reader-click-before " + JsonSerializer.Serialize(ClickEvidence()));
+                Require(BodyIsNativePointerTarget(), "GIF body lost pointer readiness before native input.");
                 await native.ClickAsync(body, new Point(16, 10));
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Console.WriteLine("SMOKE gif-reader-click-after " + JsonSerializer.Serialize(ClickEvidence()));

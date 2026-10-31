@@ -1,3 +1,28 @@
+# Aktuell: GIF-Reader-Klick trifft vor Hit-Test-Readiness; enge Fixturekorrektur — 31.10.2026
+
+Fullcandidate41211080927/f90d222 NICHTreleasefähig: macOSARM GIFReadercompositeFAIL.
+10f3a9c fügt unveränderten Prüfungen echte Pointer-/Hit-/Auswahl-/Fokusdiagnostik und
+einen isolierten gif-playback-Workflowselector hinzu;40WorkflowtestsPASS,all/all-
+Kandidatguard unverändert. MacARM41213057684PASS,MacIntel41213060072FAIL. Intelbeleg:
+vorKlick hitBorderArchiveReaderContent stattBody; tatsächlicherPointerPressed bei
+Bodypoint16,10 hat ContentPresenter alsSource; danachHitBody,aberFocusalterRow.
+Auswahl501 undleereTextselektion bleiben korrekt. Damit echterMisshit+Fokusfehler
+belegt; ursprünglicheARM-Einzelklausel weiterhin unbekannt. KeinGIFdecoderdefekt:
+Animations-/Disposal-/Loop-/Video-/Integritätsprüfungen bestehen zuvor.
+
+Fix ausschließlichHarness: Vor nativemKlick auf denselbenPunkt tatsächlichenBodyhit,
+aktiven korrektenRoot,enabled/visible/validLayout im bestehendenDeadlinebudget
+abwarten. KeinFocus/SelectedItem/Selectionclear,keineextraklicks/Schlafpause oder
+Assertionlockerung. Alle4Originalpostclick-Prädikate undexakteAsset/Post/Attachment-
+Checks erhalten; tatsächlichePressSource darf nichtdurchspäterenHit ersetztwerden.
+SolreviewkeinBlockerfürnativeBestätigung;Inputwaitnichtatomar,daherbleibtRace
+strengsichtbar. GezieltebeideMac-GegenläufeundneuerGesamtkandidatnötig. Lokaler
+Build0Fehler/4Warnungen,privateLinuxGIFdiagPASS; ersterprivaterLinuxfixtureRoot-
+Setupfehlerdokumentiert,mitkopiertenunverändertenFixtureskorrigiert. KeinRelease.
+Belegeci-twentyfourth-gif-reader,geschützteBenutzerdateienunverändert.
+
+---
+
 # Aktuell: Windows-LayoutManager-Absturz nativ geschlossen — 31.10.2026
 
 Produktfix942b3d0 + Fixturebarriere4a045c0 auf release/1.0.2 committed/gepusht.
