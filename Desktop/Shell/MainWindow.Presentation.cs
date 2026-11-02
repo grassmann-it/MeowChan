@@ -349,11 +349,10 @@ public partial class MainWindow
         string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
             UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
         var concurrency = priorityFrame.MediaConcurrency;
-        string fullSummary = summary;
+        string fullSummary = summary + " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
         if (concurrency.DeferredSlots > 0)
         {
             summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
-            fullSummary += " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
         }
         WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;
         ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);

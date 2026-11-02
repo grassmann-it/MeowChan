@@ -93,11 +93,14 @@ namespace MeowChan
         public bool ShowBoardAdmissionWizard { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool RememberReadingPosition { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool MonitorClipboardUrls { get; set; }
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public bool CloseToTray { get; set; }
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         public int MaxParallelDownloads { get; set; } = 5;
+        public int ParallelDownloadsSafetyLimit { get; set; } = Downloader.DownloadQueue.ProtectiveParallelDownloadsCeiling;
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool AutomaticUpdateChecks { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -470,6 +473,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BandwidthLimiter), "The bandwidth limit must be greater than zero.");
             if (MaxParallelDownloads <= 0)
                 throw new ArgumentOutOfRangeException(nameof(MaxParallelDownloads), "Parallel downloads must be greater than zero.");
+            if (ParallelDownloadsSafetyLimit is < 1 or > Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit)
+                throw new ArgumentOutOfRangeException(nameof(ParallelDownloadsSafetyLimit), "The parallel download safety limit must be between 1 and 256.");
             if (PluginMaximumProductionWorkers is < 1 or > 8)
                 throw new ArgumentOutOfRangeException(nameof(PluginMaximumProductionWorkers), "The plugin limit must be between 1 and 8.");
             if (PluginWorkerIdleMinutes is < 1 or > 30)
@@ -520,11 +525,13 @@ namespace MeowChan
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 RememberReadingPosition = RememberReadingPosition,
+                MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
                 CloseToTray = CloseToTray,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
+                ParallelDownloadsSafetyLimit = ParallelDownloadsSafetyLimit,
                 AutomaticUpdateChecks = AutomaticUpdateChecks,
                 ShowInformationNotifications = ShowInformationNotifications,
                 ShowWarningNotifications = ShowWarningNotifications,
@@ -606,11 +613,13 @@ namespace MeowChan
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             RememberReadingPosition = source.RememberReadingPosition;
+            MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
+            ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit;
             AutomaticUpdateChecks = source.AutomaticUpdateChecks;
             ShowInformationNotifications = source.ShowInformationNotifications;
             ShowWarningNotifications = source.ShowWarningNotifications;
@@ -660,10 +669,12 @@ namespace MeowChan
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             RememberReadingPosition = source.RememberReadingPosition;
+            MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
+            ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit;
             AutomaticUpdateChecks = source.AutomaticUpdateChecks;
             ShowInformationNotifications = source.ShowInformationNotifications;
             ShowWarningNotifications = source.ShowWarningNotifications;

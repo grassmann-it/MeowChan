@@ -33,6 +33,8 @@ public sealed partial class ArchiveCatalog
                         && selectedPaths.Contains(CanonicalDeletionDirectory(rows.GetString(3))))
                         throw new InvalidDataException("The media directory has another archive owner.");
             DeleteRows(connection, transaction, id, "media_decisions", "source_id", "board_id", "thread_id");
+            ArchiveSql.DeleteCommittedMediaImportOperations(connection, transaction, id);
+            ArchiveSql.DeleteCommittedMediaMergeOperations(connection, transaction, id);
             DeleteRows(connection, transaction, id, "archive_attachments");
             DeleteRows(connection, transaction, id, "archive_posts");
             DeleteRows(connection, transaction, id, "archive_media_directories");

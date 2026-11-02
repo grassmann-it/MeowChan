@@ -190,6 +190,16 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <Border Padding="0,10">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <TextBlock x:Name="ParallelSafetyFieldLabel" Text="{Binding ParallelSafetyLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ParallelDownloadsSafetyInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelSafetyFieldLabel}" AutomationProperties.Name="{Binding ParallelSafetyLabel}" Value="{Binding ParallelDownloadsSafetyLimit, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsSafetyHelp}" />
+                                <TextBlock x:Name="ParallelDownloadsSafetyInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelSafetyHint}" Classes="muted" TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
                 <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding AdvancedBudgetsLabel}" Classes="section-title" />
@@ -256,6 +266,10 @@
                 <StackPanel x:Name="SettingsBehaviorPage" Spacing="10" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" />
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
+                    <CheckBox x:Name="MonitorClipboardUrlsInput" IsChecked="{Binding MonitorClipboardUrls, Mode=TwoWay}" AutomationProperties.Name="{Binding MonitorClipboardLabel}" AutomationProperties.HelpText="{Binding MonitorClipboardHint}">
+                        <TextBlock Text="{Binding MonitorClipboardLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding MonitorClipboardHint}" Classes="muted" TextWrapping="Wrap" />
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
                     <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />

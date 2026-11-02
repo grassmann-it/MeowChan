@@ -8,9 +8,14 @@ namespace MeowChan.Desktop;
 internal static class MediaProvenanceText
 {
     private static string T(string en, string de) => Texts.Culture.TwoLetterISOLanguageName == "de" ? de : en;
-    internal static string Summary(MediaAttachmentBinding? binding) => binding?.Acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch
-        ? T("Saved with source permission; source size or checksum differs.",
-            "Mit Quellenfreigabe gespeichert; Anbietergröße oder Prüfsumme weicht ab.") : string.Empty;
+    internal static string Summary(MediaAttachmentBinding? binding) => binding?.Acceptance.Kind switch
+    {
+        MediaAcceptanceKind.ExplicitProviderMismatch => T("Saved with source permission; source size or checksum differs.",
+            "Mit Quellenfreigabe gespeichert; Anbietergröße oder Prüfsumme weicht ab."),
+        MediaAcceptanceKind.PassiveImport => T("Imported archive file; no local source permission is implied.",
+            "Importierte Archivdatei; daraus folgt keine lokale Quellenfreigabe."),
+        _ => string.Empty
+    };
 
     internal static string LocalSize(long length) => T("Saved file: ", "Gespeicherte Datei: ")
         + length.ToString("N0", Texts.Culture) + " bytes";

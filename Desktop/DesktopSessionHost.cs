@@ -90,6 +90,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
+            queue.UpdateParallelDownloadsSafetyLimit(Config.ParallelDownloadsSafetyLimit);
             _downloadQueue = queue;
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             queue.SetPaused(Config.DownloadsPaused);
@@ -137,14 +138,19 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         try
         {
             Config.EnsureOrdinaryWritesAllowed();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.preview", epoch: _epoch))
+                await LoadStartupPreviewAsync(_startupCancellation.Token).ConfigureAwait(false);
             if (Plugins != null)
             {
-                await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
+                using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.plugins", epoch: _epoch))
+                    await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
                 await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
             }
-            await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.content", epoch: _epoch))
+                await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
             Plugins?.AttachContent(_content);
-            await _registry.RestoreAsync().ConfigureAwait(false);
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.registry", epoch: _epoch))
+                await _registry.RestoreAsync().ConfigureAwait(false);
             InitializePassiveMetadata();
             lock (_lifecycle)
             {
@@ -419,6 +425,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 DownloadPath = candidate.DownloadPath,
                 RecheckInterval = TimeSpan.FromSeconds(candidate.RecheckTimer),
                 MaxParallelDownloads = candidate.MaxParallelDownloads,
+                ParallelDownloadsSafetyLimit = candidate.ParallelDownloadsSafetyLimit,
                 BandwidthBytesPerSecond = candidate.BandwidthLimiter
             };
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
@@ -460,7 +467,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             SessionOptions options = new()
             {
                 DownloadPath = candidate.DownloadPath, RecheckInterval = TimeSpan.FromSeconds(candidate.RecheckTimer),
-                MaxParallelDownloads = candidate.MaxParallelDownloads, BandwidthBytesPerSecond = candidate.BandwidthLimiter
+                MaxParallelDownloads = candidate.MaxParallelDownloads,
+                ParallelDownloadsSafetyLimit = candidate.ParallelDownloadsSafetyLimit,
+                BandwidthBytesPerSecond = candidate.BandwidthLimiter
             };
             await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit, () =>
             {
@@ -585,6 +594,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         lock (_lifecycle)
         {
             if (_engineStopTask != null) return _engineStopTask;
+            CaptureStartupPreviewCheckpoint();
             CompleteStartupFinalWrites(_state == DesktopSessionState.Ready);
             _state = DesktopSessionState.Stopping;
             _acceptedDrain = CloseInteractiveAdmission();
@@ -639,6 +649,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         quiescent &= _updatesQuiescent;
         await Observe(CloseProjectionAsync, ownsLifetime: true).ConfigureAwait(false);
         await Observe(() => _lifecycleNotification).ConfigureAwait(false);
+        SaveStartupPreviewCheckpoint();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {

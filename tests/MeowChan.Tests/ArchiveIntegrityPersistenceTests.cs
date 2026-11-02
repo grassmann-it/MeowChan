@@ -155,7 +155,7 @@ public sealed class ArchiveIntegrityPersistenceTests
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
             Assert.Null(Attachment(await reader.ReadThreadAsync(Id)).AttachmentRevisionKey);
         }
-        Assert.Equal(5L, Scalar(temp.Path, "PRAGMA user_version"));
+        Assert.Equal(8L, Scalar(temp.Path, "PRAGMA user_version"));
         Assert.False(Directory.Exists(Path.Combine(temp.Path, "disconnected")));
     }
 

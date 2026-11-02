@@ -62,13 +62,14 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveAsync(nameof(SetFavoriteAsync), candidate.Key.ToString(), () => SetFavoriteAdmittedCoreAsync(candidate, favorite, token));
 
     private async Task<bool> SetFavoriteAdmittedCoreAsync(FavoriteEntry candidate, bool favorite,
-        CancellationToken token = default)
+        CancellationToken token = default, FavoriteWriteSequence? sequence = null)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         await _commands.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            EnsureReady();
+            if (sequence == null) EnsureReady();
+            else EnsureFavoriteSequenceWriteAllowed(sequence, candidate);
             bool changed;
             lock (_favoritesSync)
             {

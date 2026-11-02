@@ -80,7 +80,7 @@ internal static class MediaInteractionChecks
         {
             routedKeys++;
             // Fixed scripted keys only; no text input/labels/paths/profile values are captured.
-            if (e.Key is Key.Left or Key.Right or Key.Home or Key.End or Key.Escape or Key.Space or Key.F7 or Key.F8 or Key.LeftCtrl or Key.LeftShift)
+            if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.Escape or Key.Space or Key.F7 or Key.F8 or Key.LeftCtrl or Key.LeftShift)
                 Record(kind, new { key = e.Key.ToString(), modifiers = e.KeyModifiers.ToString(), e.Handled,
                     source = Target(e.Source), focus = Target(window.FocusManager?.GetFocusedElement()), post = viewer?.CaptureState().PostId,
                     routing = RoutingState(e.Source, e) });
@@ -401,12 +401,14 @@ internal static class MediaInteractionChecks
                 await WaitPlaybackAsync(p => p.Volume == Math.Max(0, before.Volume - 1) && p.State == expected);
             else
                 Require(!Player().CanAdjustVolume, "Unavailable audio enabled a volume command.");
+            await SampleAsync("timeline-volume-after-down");
             await native.KeyAsync(MediaNativeInput.Up);
             if (before.AudioAvailable && before.Volume > 0)
                 await WaitPlaybackAsync(p => p.Volume == before.Volume && p.State == expected);
             else if (!before.AudioAvailable)
                 Require((await SampleAsync("timeline-volume-unavailable")).Volume == before.Volume,
                     "No-audio/output-unavailable key fabricated a volume update.");
+            await SampleAsync("timeline-volume-after-up");
             Require(viewer!.CaptureState().PostId == "2000", "Timeline Up/Down changed media identity.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Timeline Up/Down volume");
         }

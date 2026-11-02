@@ -105,17 +105,29 @@ public static class MediaAttachmentResolver
         attachment.Url!, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint };
 
     private static bool LegacyMatches(CapturedAttachment attachment, MediaAssetReference asset)
+        => LegacyMatches(attachment, asset.MediaIdentifier, asset.Variant, asset.SourceUrl,
+            asset.Length, asset.Md5, asset.Sha256, asset.Sha1);
+
+    // Metadata-only prospective check. It shares the resolver's exact legacy predicate,
+    // but grants no asset identity or byte/publication authority to the caller.
+    internal static bool WouldMatchLegacy(CapturedAttachment attachment, MediaProviderMetadata provider,
+        MediaActualIntegrity actual)
+        => LegacyMatches(attachment, provider.MediaId, provider.Variant, provider.Url,
+            actual.Length, actual.Md5, actual.Sha256, actual.Sha1);
+
+    private static bool LegacyMatches(CapturedAttachment attachment, string mediaId, string variant,
+        string sourceUrl, long length, string md5, string sha256, string? sha1)
     {
         try
         {
-            return asset.MediaIdentifier == attachment.MediaId && asset.Variant == attachment.Variant
+            return mediaId == attachment.MediaId && variant == attachment.Variant
                 && (attachment.ExpectedSize != null || attachment.ExpectedMd5 != null || attachment.ExpectedSha256 != null || attachment.ExpectedSha1 != null
-                    || attachment.Url != null && attachment.Url == asset.SourceUrl)
-                && (attachment.ExpectedSize == null || attachment.ExpectedSize == asset.Length)
-                && (attachment.ExpectedMd5 == null || Md5Equals(attachment.ExpectedMd5, asset.Md5))
-                && (attachment.ExpectedSha1 == null || asset.Sha1 != null && Sha1Equals(attachment.ExpectedSha1, asset.Sha1))
+                    || attachment.Url != null && attachment.Url == sourceUrl)
+                && (attachment.ExpectedSize == null || attachment.ExpectedSize == length)
+                && (attachment.ExpectedMd5 == null || Md5Equals(attachment.ExpectedMd5, md5))
+                && (attachment.ExpectedSha1 == null || sha1 != null && Sha1Equals(attachment.ExpectedSha1, sha1))
                 && (attachment.ExpectedSha256 == null || MediaIntegrityValidation.IsSha256(attachment.ExpectedSha256)
-                    && string.Equals(attachment.ExpectedSha256, asset.Sha256, StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(attachment.ExpectedSha256, sha256, StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception error) when (EvidenceError(error)) { return false; }
     }

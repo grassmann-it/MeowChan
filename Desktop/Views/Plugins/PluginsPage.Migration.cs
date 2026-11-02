@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -10,6 +12,7 @@ using Avalonia.Media;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
@@ -50,8 +53,11 @@ public partial class PluginsPage
             repairRows.Children.Add(RepairText(Texts.T("plugins.reselection.repairSection")));
             repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
             if (preview.Rows.Count == 0) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.empty")));
-            foreach (BundledCandidateRepair row in preview.Rows)
+            int repairRowIndex = 0;
+            foreach (BundledCandidateRepair row in preview.Rows.OrderByDescending(row => row.CanReauthorize || row.CanConfirm))
             {
+                string automationPrefix = "BundledRepairReauthorization" + repairRowIndex++;
+                BundledRepairPermissions? permissions = ReadBundledRepairPermissions(row);
                 StackPanel content = new() { Spacing = 6 };
                 content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
                 content.Children.Add(RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
@@ -60,21 +66,68 @@ public partial class PluginsPage
                     row.NewPath ?? Texts.T("plugins.repair.unknown"))));
                 content.Children.Add(RepairText(Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
                     row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))));
-                content.Children.Add(RepairText(Texts.T(row.BlockedReason is { } reason
-                    ? "plugins.repair.blocked." + reason : row.BuildChanged ? "plugins.repair.changed" : "plugins.repair.sameBuild")));
-                Button confirm = new()
+                content.Children.Add(RepairText(Texts.T(permissions is not null ? "plugins.repair.reauthorize.ready" :
+                    row.BlockedReason is { } reason ? "plugins.repair.blocked." + reason :
+                    row.BuildChanged ? "plugins.repair.changed" : "plugins.repair.sameBuild")));
+                if (row.CanReauthorize)
                 {
-                    Content = Texts.T("plugins.repair.confirm"), IsEnabled = row.CanConfirm,
-                    HorizontalAlignment = HorizontalAlignment.Left
-                };
-                AutomationProperties.SetName(confirm, Texts.T("plugins.repair.confirmNamed", row.PluginId));
-                confirm.Click += (_, _) =>
+                    // Keep this permission decision bound to the exact backend row, fingerprint and profile revision.
+                    var choice = new ReauthorizedRepairChoice(row, preview.ProfileRevision);
+                    content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.policy")));
+                    if (permissions is not null)
+                    {
+                        content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.rights", row.NewExecutionRevision!)));
+                        foreach (string sourceId in permissions.SourceIds)
+                            content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.source", sourceId)));
+                        foreach (PluginGrantSnapshot grant in permissions.FilterGrants)
+                            content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.filter", grant.FilterKey,
+                                grant.Scope.SourceId, grant.Scope.BoardId ?? Texts.T("plugins.allBoards"),
+                                grant.Scope.RuleId ?? Texts.T("plugins.allRules"), grant.Access)));
+                    }
+                    else content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.unavailable")));
+                    string acknowledgementText = Texts.T("plugins.repair.reauthorize.acknowledge", row.PluginId,
+                        row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"));
+                    CheckBox acknowledgement = new()
+                    {
+                        Content = RepairText(acknowledgementText), IsChecked = false, IsThreeState = false,
+                        IsEnabled = permissions is not null
+                    };
+                    AutomationProperties.SetAutomationId(acknowledgement, automationPrefix + "Acknowledge");
+                    AutomationProperties.SetName(acknowledgement, acknowledgementText);
+                    Button reauthorize = new()
+                    {
+                        Content = Texts.T("plugins.repair.reauthorize.confirm"), IsEnabled = false,
+                        HorizontalAlignment = HorizontalAlignment.Left
+                    };
+                    AutomationProperties.SetAutomationId(reauthorize, automationPrefix + "Confirm");
+                    AutomationProperties.SetName(reauthorize, Texts.T("plugins.repair.reauthorize.confirmNamed", row.PluginId));
+                    acknowledgement.IsCheckedChanged += (_, _) => reauthorize.IsEnabled =
+                        permissions is not null && row.CanReauthorize && acknowledgement.IsChecked == true;
+                    reauthorize.Click += (_, _) =>
+                    {
+                        if (Current(generation) && window.IsActive && IsEffectivelyVisible && Texts.Language == language &&
+                            permissions is not null && row.CanReauthorize && acknowledgement.IsChecked == true)
+                            window.Close(choice);
+                    };
+                    content.Children.Add(acknowledgement);
+                    content.Children.Add(reauthorize);
+                }
+                else
                 {
-                    // The row and revision belong to this modal's immutable preview, not current list selection.
-                    if (Current(generation) && window.IsActive && IsEffectivelyVisible && Texts.Language == language && row.CanConfirm)
-                        window.Close(new ProvenRepairChoice(row, preview.ProfileRevision));
-                };
-                content.Children.Add(confirm);
+                    Button confirm = new()
+                    {
+                        Content = Texts.T("plugins.repair.confirm"), IsEnabled = row.CanConfirm,
+                        HorizontalAlignment = HorizontalAlignment.Left
+                    };
+                    AutomationProperties.SetName(confirm, Texts.T("plugins.repair.confirmNamed", row.PluginId));
+                    confirm.Click += (_, _) =>
+                    {
+                        // The row and revision belong to this modal's immutable preview, not current list selection.
+                        if (Current(generation) && window.IsActive && IsEffectivelyVisible && Texts.Language == language && row.CanConfirm)
+                            window.Close(new ProvenRepairChoice(row, preview.ProfileRevision));
+                    };
+                    content.Children.Add(confirm);
+                }
                 repairRows.Children.Add(new Border { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1) });
             }
             selectionRows.Children.Add(RepairText(Texts.T("plugins.reselection.section")));
@@ -147,6 +200,9 @@ public partial class PluginsPage
                 case ProvenRepairChoice repair:
                     await services.ProfileStore.ConfirmBundledRepairAsync(repair.Row, repair.Revision, token);
                     break;
+                case ReauthorizedRepairChoice reauthorization:
+                    await services.ProfileStore.ReauthorizeBundledRepairAsync(reauthorization.Row, reauthorization.Revision, token);
+                    break;
                 case NewSelectionChoice selection:
                     await services.ProfileStore.ConfirmBundledReselectionAsync(selection.Row, selection.Revision, token);
                     break;
@@ -154,7 +210,12 @@ public partial class PluginsPage
             }
             if (!Current(generation)) return;
             await RefreshAsync();
-            if (Current(generation)) SetTestStatus(chosen is NewSelectionChoice ? "plugins.reselection.saved" : "plugins.repair.saved");
+            if (Current(generation)) SetTestStatus(chosen switch
+            {
+                NewSelectionChoice => "plugins.reselection.saved",
+                ReauthorizedRepairChoice => "plugins.repair.reauthorize.saved",
+                _ => "plugins.repair.saved"
+            });
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
@@ -167,7 +228,28 @@ public partial class PluginsPage
     }
 
     private sealed record ProvenRepairChoice(BundledCandidateRepair Row, long Revision);
+    private sealed record ReauthorizedRepairChoice(BundledCandidateRepair Row, long Revision);
     private sealed record NewSelectionChoice(BundledCandidateReselection Row, long Revision);
+
+    private static BundledRepairPermissions? ReadBundledRepairPermissions(BundledCandidateRepair row)
+    {
+        if (!row.CanReauthorize || string.IsNullOrWhiteSpace(row.PermissionReviewJson) ||
+            string.IsNullOrWhiteSpace(row.PermissionFingerprint) || string.IsNullOrWhiteSpace(row.NewExecutionRevision)) return null;
+        try
+        {
+            BundledRepairPermissions permissions = SdkJson.Deserialize<BundledRepairPermissions>(
+                Encoding.UTF8.GetBytes(row.PermissionReviewJson));
+            // Fail closed if the UI cannot faithfully show every right; the backend revalidates on confirmation.
+            if (permissions.FilterGrants is null || permissions.SourceIds is null ||
+                permissions.FilterGrants.Count + permissions.SourceIds.Count == 0 ||
+                permissions.SourceIds.Any(string.IsNullOrWhiteSpace) ||
+                permissions.FilterGrants.Any(grant => grant is null || grant.Scope is null ||
+                    grant.PluginId != row.PluginId || string.IsNullOrWhiteSpace(grant.FilterKey) ||
+                    string.IsNullOrWhiteSpace(grant.Scope.SourceId))) return null;
+            return permissions;
+        }
+        catch (JsonException) { return null; }
+    }
 
     private static string ReselectionReason(BundledCandidateReselection row) => row.BlockedReason switch
     {

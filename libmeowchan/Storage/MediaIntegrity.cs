@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Downloader;
@@ -62,12 +63,24 @@ public abstract class MediaAcceptanceLease : IAsyncDisposable
     public SourceMediaIntegrityPolicySnapshot Snapshot { get; }
     public abstract ValueTask DisposeAsync();
 }
-public enum MediaAcceptanceKind { Strict, ExplicitProviderMismatch }
+public enum MediaAcceptanceKind { Strict, ExplicitProviderMismatch, PassiveImport }
+/// <summary>Untrusted historical observation from a package, never a local source permission.</summary>
+public sealed record MediaImportedHistory(MediaAcceptanceKind Kind, DateTimeOffset AcceptedAtUtc,
+    bool SizeMismatch, bool Md5Mismatch);
+/// <summary>Local passive admission provenance. A null incoming key means a locally derived legacy key.
+/// Neither this data nor an optional remote history authorizes a download or a new active binding.</summary>
+public sealed record MediaPassiveImportRecord(string OperationId, string PackageFingerprint,
+    DateTimeOffset ImportedAtUtc, string? IncomingRevisionKey, MediaImportedHistory? History);
 public sealed record MediaAcceptanceRecord(MediaAcceptanceKind Kind, bool SizeMismatch, bool Md5Mismatch,
     DateTimeOffset AcceptedAtUtc, string? ProfileId = null, string? PluginOwnerId = null, string? SourceId = null,
     long? PolicyRevision = null);
 public sealed record MediaAttachmentBinding(AttachmentRevisionReference Reference, string AcquisitionRevisionKey,
-    string AssetId, MediaProviderMetadata Provider, MediaActualIntegrity Actual, MediaAcceptanceRecord Acceptance);
+    string AssetId, MediaProviderMetadata Provider, MediaActualIntegrity Actual, MediaAcceptanceRecord Acceptance)
+{
+    /// <summary>Required only for PassiveImport. Acceptance then records local import time, not source permission.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MediaPassiveImportRecord? PassiveImport { get; init; }
+}
 
 /// <summary>V1 implies unknown provider metadata semantics. Null differs from empty; every UTF-8 component
 /// has a signed big-endian Int32 byte length (-1 for null). Numeric fields use invariant decimal text.</summary>
@@ -204,12 +217,39 @@ internal static class MediaIntegrityValidation
             || !IsSha256(binding.AssetId)) throw new InvalidDataException("Invalid attachment binding identity.");
         ProviderIntegrityAssessment assessment = ProviderIntegrityAssessment.Assess(binding.Provider, binding.Actual);
         MediaAcceptanceRecord acceptance = binding.Acceptance;
-        if (assessment.Sha1Mismatch || assessment.Sha256Mismatch || assessment.SizeMismatch != acceptance.SizeMismatch || assessment.Md5Mismatch != acceptance.Md5Mismatch
+        if (acceptance.Kind == MediaAcceptanceKind.PassiveImport)
+        {
+            ValidatePassiveImport(binding, assessment);
+            return;
+        }
+        if (binding.PassiveImport != null || assessment.Sha1Mismatch || assessment.Sha256Mismatch || assessment.SizeMismatch != acceptance.SizeMismatch || assessment.Md5Mismatch != acceptance.Md5Mismatch
             || !Enum.IsDefined(acceptance.Kind) || acceptance.AcceptedAtUtc == default
             || (assessment.IsStrictMatch ? acceptance.Kind != MediaAcceptanceKind.Strict : acceptance.Kind != MediaAcceptanceKind.ExplicitProviderMismatch)
             || acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch && (string.IsNullOrWhiteSpace(acceptance.ProfileId)
                 || string.IsNullOrWhiteSpace(acceptance.PluginOwnerId) || acceptance.SourceId != binding.Reference.Resource.Source || acceptance.PolicyRevision is null or < 0))
             throw new InvalidDataException("Invalid attachment acceptance evidence.");
+    }
+
+    private static void ValidatePassiveImport(MediaAttachmentBinding binding, ProviderIntegrityAssessment assessment)
+    {
+        MediaAcceptanceRecord acceptance = binding.Acceptance;
+        MediaPassiveImportRecord? import = binding.PassiveImport;
+        if (binding.Provider.Variant != "original" || import == null || !Guid.TryParseExact(import.OperationId, "D", out Guid operation) || operation == Guid.Empty
+            || operation.ToString("D") != import.OperationId || !IsSha256(import.PackageFingerprint)
+            || import.PackageFingerprint != import.PackageFingerprint.ToLowerInvariant()
+            || import.ImportedAtUtc.UtcDateTime == DateTime.MinValue || acceptance.AcceptedAtUtc != import.ImportedAtUtc
+            || acceptance.ProfileId != null || acceptance.PluginOwnerId != null || acceptance.SourceId != null || acceptance.PolicyRevision != null
+            || acceptance.SizeMismatch != assessment.SizeMismatch || acceptance.Md5Mismatch != assessment.Md5Mismatch
+            || import.IncomingRevisionKey != null && import.IncomingRevisionKey != binding.Reference.RevisionKey
+            || import.IncomingRevisionKey == null && import.History != null)
+            throw new InvalidDataException("Invalid passive media provenance.");
+        // Unattributed imported bytes need not agree with untrusted provider expectations.
+        // A nonnull claim of historical active acceptance still has its original strict semantics.
+        if (import.History is { } history && (history.Kind is not (MediaAcceptanceKind.Strict or MediaAcceptanceKind.ExplicitProviderMismatch)
+            || history.AcceptedAtUtc.UtcDateTime == DateTime.MinValue || assessment.Sha1Mismatch || assessment.Sha256Mismatch
+            || history.SizeMismatch != assessment.SizeMismatch || history.Md5Mismatch != assessment.Md5Mismatch
+            || (history.Kind == MediaAcceptanceKind.Strict) != assessment.IsStrictMatch))
+            throw new InvalidDataException("Invalid imported historical observation.");
     }
 }
 

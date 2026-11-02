@@ -36,12 +36,38 @@ public static class Texts
     public static IReadOnlyList<LanguageInfo> Languages => Volatile.Read(ref _state).Languages;
     public static IReadOnlyList<string> Warnings => Volatile.Read(ref _state).Warnings;
 
-    /// <summary>Reloads built-ins and optional JSON packs. A missing directory is normal.</summary>
-    public static void Initialize(string? directory = null)
+    /// <summary>Reloads built-ins, bundled previews and optional user JSON packs. A missing directory is normal.</summary>
+    public static void Initialize(string? directory = null) => InitializeCore(directory, includeBundles: true);
+
+    // Isolates the original user-pack loader contract without changing normal startup defaults.
+    internal static void InitializeWithoutBundlesForTests(string? directory = null) => InitializeCore(directory, includeBundles: false);
+
+    private static void InitializeCore(string? directory, bool includeBundles)
     {
         State builtIns = CreateBuiltIns();
         Dictionary<string, Catalog> catalogs = new Dictionary<string, Catalog>(builtIns.Catalogs, StringComparer.OrdinalIgnoreCase);
         List<string> warnings = new List<string>();
+        if (includeBundles)
+        {
+            foreach (string code in new[] { "es", "fr", "ru" })
+            {
+                string resource = "MeowChan.Desktop.Localization.Packs." + code + ".json";
+                try
+                {
+                    using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(resource)
+                        ?? throw new InvalidDataException("Bundled language resource is missing.");
+                    Catalog catalog = ReadPack(stream, catalogs["en"].Strings);
+                    if (!string.Equals(catalog.Info.Code, code, StringComparison.OrdinalIgnoreCase)
+                        || !catalogs.TryAdd(catalog.Info.Code, catalog))
+                        throw new InvalidDataException("Unexpected bundled language code: " + catalog.Info.Code);
+                }
+                catch (Exception exception) when (IsPackError(exception))
+                {
+                    warnings.Add("Bundled " + code + ": " + exception.Message);
+                }
+            }
+        }
+        HashSet<string> userCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             try
@@ -53,8 +79,11 @@ public static class Texts
                         try
                         {
                             Catalog catalog = ReadPack(path, catalogs["en"].Strings);
-                            if (!catalogs.TryAdd(catalog.Info.Code, catalog))
+                            // Only a fully validated user pack may replace a bundled preview. Never
+                            // replace EN/DE or let a second user file silently win by filename order.
+                            if (builtIns.Catalogs.ContainsKey(catalog.Info.Code) || !userCodes.Add(catalog.Info.Code))
                                 throw new InvalidDataException("Duplicate language code: " + catalog.Info.Code);
+                            catalogs[catalog.Info.Code] = catalog;
                         }
                         catch (Exception exception) when (IsPackError(exception))
                         {
@@ -173,6 +202,12 @@ public static class Texts
     private static Catalog ReadPack(string path, IReadOnlyDictionary<string, string> english)
     {
         using FileStream stream = File.OpenRead(path);
+        return ReadPack(stream, english);
+    }
+
+    // Both embedded and user packs use exactly the same schema, size and formatting checks.
+    private static Catalog ReadPack(Stream stream, IReadOnlyDictionary<string, string> english)
+    {
         if (stream.Length > MaximumPackBytes)
             throw new InvalidDataException("Language pack exceeds 2 MB.");
         using JsonDocument document = JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 8 });

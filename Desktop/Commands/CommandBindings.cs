@@ -167,7 +167,6 @@ public static class CommandBindings
             "reader.expand" => german ? "Lesen" : "Read",
             "gallery.open" => german ? "Galerie" : "Gallery",
             "window.fullscreen" => german ? "Vollbild" : "Full screen",
-            "export.open-html-dialog" => "HTML…",
             _ => CommandCatalog.Label(id)
         };
     }

@@ -44,6 +44,10 @@ public sealed record ShortcutIssue(string CommandId, string Message, string? Oth
 public sealed class EffectiveShortcutBindings
 {
     private static long _nextVersion;
+    private static readonly string[] AdditiveDefaultCommandIds =
+    {
+        "video.volume-up", "video.volume-down", "favorites.add", "favorites.remove"
+    };
     public long Version { get; } = System.Threading.Interlocked.Increment(ref _nextVersion);
     public ShortcutPlatform Platform { get; }
     public IReadOnlyList<ShortcutIssue> Issues { get; }
@@ -130,7 +134,7 @@ public sealed class EffectiveShortcutBindings
         // This is deliberately NOT a general priority rule: two explicit bindings (or
         // existing conflicts) still receive the ordinary symmetric conflict rejection.
         if (section.IsEditable)
-        foreach (string id in new[] { "video.volume-up", "video.volume-down" })
+        foreach (string id in AdditiveDefaultCommandIds)
         {
             if (section.HasOverride(id)) continue;
             var retained = new List<ShortcutGesture>();
@@ -141,7 +145,7 @@ public sealed class EffectiveShortcutBindings
                     .Select(c => c.Id).FirstOrDefault(other => values[other].Any(g => Equivalent(gesture, g, os)));
                 if (owner is null) retained.Add(gesture);
                 else issues.Add(new(id,
-                    "New volume default yields to your saved binding / Neuer Lautstärkestandard lässt deine gespeicherte Belegung unverändert",
+                    "New default yields to your saved binding / Neuer Standard lässt deine gespeicherte Belegung unverändert",
                     owner, BlocksSave: false));
             }
             values[id] = retained.AsReadOnly();

@@ -71,7 +71,7 @@
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveResultsExport" Content="HTML…" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveReaderGroups" Content="Reader groups" Click="OnReaderGroupsClick" />
                         <Button x:Name="ArchiveSaveSearch" Click="OnSaveCurrentSearchClick" />
                         <Button x:Name="ArchiveSavedSearches" Click="OnSavedSearchesClick" />

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -11,6 +12,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 
 namespace MeowChan;
@@ -111,7 +113,7 @@ public partial class SourcesPage : UserControl
     }
 
     private static string SourceDisplayName(SourceRow row) => row.Name +
-        (row.MediaIntegrityPolicy?.Maturity == SourceMaturity.Experimental ? " · " + Texts.T("sources.experimental") : string.Empty);
+        (row.Classification is { } classification ? " · " + SourceWording.DescribeLabels(classification) : string.Empty);
 
     private void SetSelectedSource(string? sourceId)
     {
@@ -214,9 +216,11 @@ public partial class SourcesPage : UserControl
     private void RenderSourceMediaIntegrity(SourceRow row)
     {
         SourceMediaIntegrityPolicyView? policy = row.MediaIntegrityPolicy;
-        TextBlock experimental = this.FindControl<TextBlock>("SourceExperimental")!;
-        experimental.IsVisible = policy?.Maturity == SourceMaturity.Experimental;
-        experimental.Text = Texts.T("sources.experimental");
+        TextBlock classificationText = this.FindControl<TextBlock>("SourceExperimental")!;
+        string classification = row.Classification is { } wording ? SourceWording.Describe(wording) : string.Empty;
+        classificationText.IsVisible = classification.Length > 0;
+        classificationText.Text = classification;
+        AutomationProperties.SetName(classificationText, classification);
         this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null
             && !ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(policy.Snapshot.PluginOwnerId, policy.Snapshot.SourceId);
         RenderSourceMediaIntegrityError(policy);

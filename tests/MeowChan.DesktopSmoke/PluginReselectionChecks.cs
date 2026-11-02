@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text;
+using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -117,6 +119,44 @@ internal static class PluginReselectionChecks
                 await ClosedAsync(page, modal);
                 Require(store.Calls == before + 2, "Blocked-only review mutated the profile.");
                 store.OfferNewChoice = true;
+                // Changed executable with existing rights is actionable only through
+                // its separate explicit per-build review, never ordinary repair.
+                int beforeReauthorization = store.Calls;
+                modal = await OpenAsync(owner, page);
+                using (MediaNativeInput input = new(modal))
+                {
+                    Button consent = ReauthorizeConfirm(modal, store.Reauthorization.PluginId);
+                    CheckBox ack = Ack(consent);
+                    Require(!consent.IsEnabled && ack.IsChecked == false, "Permission review was preconsented.");
+                    consent.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(store.Calls == beforeReauthorization && modal.IsVisible, "Unchecked reauthorization was accepted.");
+                    string[] labels = modal.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").ToArray();
+                    Require(labels.Contains(Texts.T("plugins.repair.reauthorize.source", "source-with-md5-exception")), "Source exception not disclosed.");
+                    Require(labels.Any(text => text.Contains("board-exact") && text.Contains("rule-exact") && text.Contains("dimensions")), "Filter grant scope not disclosed.");
+                    await ClickAsync(modal, input, ack);
+                    Require(consent.IsEnabled, "Acknowledgement did not enable explicit permission confirmation.");
+                    await ClickAsync(modal, input, ack);
+                    Require(!consent.IsEnabled, "Unchecking did not disable permission confirmation.");
+                    await ClickAsync(modal, input, ack);
+                    await input.KeyAsync(MediaNativeInput.Escape);
+                }
+                await ClosedAsync(page, modal);
+                Require(store.Calls == beforeReauthorization, "Escape after permission review wrote profile state.");
+                modal = await OpenAsync(owner, page);
+                using (MediaNativeInput input = new(modal))
+                {
+                    Button consent = ReauthorizeConfirm(modal, store.Reauthorization.PluginId);
+                    Require(!consent.IsEnabled && Ack(consent).IsChecked == false, "Consent leaked across modal openings.");
+                    await ClickAsync(modal, input, Ack(consent));
+                    Program.CaptureWindow(modal, "smoke-reauthorization-modal-" + currentLanguage + ".png");
+                    await ClickAsync(modal, input, consent);
+                }
+                await ClosedAsync(page, modal);
+                Require(store.Calls == beforeReauthorization + 1 && ReferenceEquals(store.ChosenReauthorization, store.Reauthorization) &&
+                    store.ReauthorizationRevision == RecordingStore.Revision && store.OwnerReadyAtConfirmation,
+                    "Permission review did not submit the exact frozen row/revision to its own API exactly once.");
+                Console.WriteLine("PLUGIN_REAUTHORIZATION " + JsonSerializer.Serialize(new { result = "pass", language = currentLanguage,
+                    explicitSourceAndScopedFilterRights = true, uncheckedUncheckEscape = true, exactRowRevision = true, ownerReactivated = true }));
                 Console.WriteLine("PLUGIN_RESELECTION " + JsonSerializer.Serialize(new { result = "pass", language = currentLanguage,
                     backend = "private Xvfb/XTest; passive profile-store decorator", exactConfiguration = true,
                     consentCancelEscapeBlockedLanguageDeactivate = true, provenRepair = true, legacyBlockedRows = 15, newChoicesFirst = true, ownerReactivated = true, forbiddenCalls = fixture.ForbiddenCalls }));
@@ -160,7 +200,7 @@ internal static class PluginReselectionChecks
         Require(labels.Contains(Texts.T("plugins.reselection.backup")) && labels.Contains(Texts.T("plugins.reselection.policy")), "Safety/backup explanation missing.");
         Require(labels.Contains(Texts.T("plugins.reselection.blocked.pinned")), "Blocked reason is not localized.");
         VerifyOrder(modal, newFirst: true);
-        foreach (BundledCandidateRepair repair in store.RepairRows)
+        foreach (BundledCandidateRepair repair in store.RepairRows.Where(row => !row.CanReauthorize))
             Require(Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.confirmNamed", repair.PluginId)).IsEnabled == repair.CanConfirm,
                 "A proven repair row disappeared or changed confirmability.");
     }
@@ -180,6 +220,7 @@ internal static class PluginReselectionChecks
     }
     private static IEnumerable<Button> Buttons(Window modal) => modal.GetVisualDescendants().OfType<Button>();
     private static Button NewConfirm(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.reselection.confirmNamed", id));
+    private static Button ReauthorizeConfirm(Window modal, string id) => Buttons(modal).Single(b => AutomationProperties.GetName(b) == Texts.T("plugins.repair.reauthorize.confirmNamed", id));
     private static CheckBox Ack(Button confirm) => ((StackPanel)confirm.Parent!).Children.OfType<CheckBox>().Single();
     private static Button Cancel(Window modal) => Buttons(modal).Single(b => Equals(b.Content, Texts.T("plugins.repair.cancel")));
     private static async Task ClickAsync(Window window, MediaNativeInput input, Control control)
@@ -201,12 +242,26 @@ internal static class PluginReselectionChecks
         internal BundledCandidateReselection Row { get; } = new("new-explicit-choice", "old-id ü", "new-id ü", "delivered-slot", "/old location/ü.cs", "/new location/漢.cs", "old-execution", "new-execution", Configuration, null);
         internal BundledCandidateReselection Blocked { get; } = new("blocked-choice", "pinned-old", "pinned-new", "slot-blocked", "/old", "/new", "old", "new", "{\"blocked\":true}", "pinned");
         internal BundledCandidateRepair Repair { get; } = new("proven-repair", "proven-old", "proven-new", "proven-slot", "/proven/old", "/proven/new", "execution-old", "execution-new", true, null);
+        internal BundledCandidateRepair Reauthorization { get; } = CreateReauthorization();
+        private static BundledCandidateRepair CreateReauthorization()
+        {
+            string json = Encoding.UTF8.GetString(SdkJson.Serialize(new BundledRepairPermissions(
+                [new("reauthorize-plugin", "dimensions", new("filter-source", "board-exact", "rule-exact"), FilterDataAccess.OriginalImage, 9)],
+                ["source-with-md5-exception"])));
+            return new("reauthorize-plugin", "old-reauthorize", "new-reauthorize", "slot", "/old", "/new", "old-execution", "new-execution", true, "inherited-grants")
+            {
+                PermissionReviewJson = json,
+                PermissionFingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)))
+            };
+        }
+        internal BundledCandidateRepair? ChosenReauthorization { get; private set; }
+        internal long ReauthorizationRevision { get; private set; }
         internal bool OfferNewChoice { get; set; } = true;
         internal Func<bool>? OwnerReady { get; set; }
         internal bool OwnerReadyAtConfirmation { get; private set; }
         internal IReadOnlyList<BundledCandidateRepair> RepairRows => Enumerable.Range(0, 15)
             .Select(i => Repair with { PluginId = "legacy-blocked-" + i, BlockedReason = "unproven-history" })
-            .Append(Repair).ToArray();
+            .Append(Repair).Append(Reauthorization).ToArray();
         internal int Calls { get; private set; }
         internal BundledCandidateReselection? Chosen { get; private set; }
         internal long ChosenRevision { get; private set; }
@@ -219,6 +274,8 @@ internal static class PluginReselectionChecks
         public Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BundledCandidateReselectionPreview(Revision, new[] { OfferNewChoice ? Row : Row with { BlockedReason = "unproven-configuration" }, Blocked }));
         public Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision, CancellationToken cancellationToken = default)
         { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; ChosenRepair = repair; RepairRevision = expectedRevision; return ReadAsync(cancellationToken); }
+        public Task<PluginProfileSnapshot> ReauthorizeBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision, CancellationToken cancellationToken = default)
+        { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; ChosenReauthorization = repair; ReauthorizationRevision = expectedRevision; return ReadAsync(cancellationToken); }
         public Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision, CancellationToken cancellationToken = default)
         { cancellationToken.ThrowIfCancellationRequested(); OwnerReadyAtConfirmation = OwnerReady?.Invoke() == true; Calls++; Chosen = selection; ChosenRevision = expectedRevision; return ReadAsync(cancellationToken); }
         private static Task<PluginProfileSnapshot> Forbidden() => throw new InvalidOperationException("Unexpected UI mutation API.");

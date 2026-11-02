@@ -24,15 +24,17 @@ internal sealed class PluginEntryPresentation
     internal string? PluginId { get; private init; }
     internal string? CandidateId { get; private init; }
     internal string Name { get; private init; } = string.Empty;
-    internal string? Description => DescriptionMetadata?.Description;
+    internal string? Description => DescriptionMetadata is null ? null : SourceWording.DisplayDescription(DescriptionMetadata);
     internal PluginDescription? DescriptionMetadata { get; private init; }
     internal PluginDescriptionOrigin DescriptionOrigin { get; private init; }
     internal bool HasRetainedDescription => DescriptionOrigin is PluginDescriptionOrigin.ActiveFallback or PluginDescriptionOrigin.LastGoodFallback;
     internal string? CandidateVersion { get; private init; }
     internal IReadOnlyList<SourceDescription> Sources => DescriptionMetadata?.Sources ?? Array.Empty<SourceDescription>();
+    internal IReadOnlyList<SourceWordingClassification> SourceClassifications { get; private init; } = Array.Empty<SourceWordingClassification>();
     internal IReadOnlyList<FilterDescription> Filters => DescriptionMetadata?.Filters ?? Array.Empty<FilterDescription>();
     internal bool IsSource => Sources.Count > 0;
-    internal bool HasExperimentalSources => Sources.Any(source => source.Maturity == SourceMaturity.Experimental);
+    internal bool HasSourceClassifications => SourceClassifications.Count > 0;
+    internal bool HasExperimentalSources => SourceClassifications.Any(source => source.Maturity == SourceWordingMaturity.Experimental);
     internal bool IsFilter => Filters.Count > 0;
     internal PluginAvailability Availability { get; private init; }
     internal PluginReleaseSnapshot? Active { get; private init; }
@@ -62,7 +64,9 @@ internal sealed class PluginEntryPresentation
 
     internal static PluginEntryPresentation Create(PluginCatalogEntry entry,
         IReadOnlyList<PluginProductionWorkerSnapshot>? productionWorkers = null,
-        PluginConfigurationDraft? draft = null, long? profileRevision = null)
+        PluginConfigurationDraft? draft = null, long? profileRevision = null,
+        IReadOnlyList<SourceWordingMaintenanceEvidence>? maintenanceEvidence = null,
+        IReadOnlyList<SourceWordingMaturityEvidence>? maturityEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         PluginActivationSnapshot? state = entry.Activation;
@@ -88,6 +92,13 @@ internal sealed class PluginEntryPresentation
                 ? MatchesCandidateBuild(pending, entry)
                 : state?.Active is { } active && MatchesCandidateBuild(active, entry));
         bool matchingDraft = draft != null && entry.CandidateId != null && draft.CandidateId == entry.CandidateId;
+        PluginArtifact? displayedArtifact = origin switch
+        {
+            PluginDescriptionOrigin.Candidate => candidate?.Artifact,
+            PluginDescriptionOrigin.ActiveFallback => state?.Active?.Artifact,
+            PluginDescriptionOrigin.LastGoodFallback => state?.LastGood?.Artifact,
+            _ => null
+        };
         PluginWorkerSnapshot[] workers = state?.Active is { } release && pluginId != null && state.Enabled
             ? (productionWorkers ?? Array.Empty<PluginProductionWorkerSnapshot>())
                 .Where(item => item.PluginId == pluginId &&
@@ -103,6 +114,9 @@ internal sealed class PluginEntryPresentation
             CandidateId = entry.CandidateId,
             Name = entry.Name,
             DescriptionMetadata = description,
+            SourceClassifications = description?.Sources.Select(source => SourceWording.Classify(description, source,
+                displayedArtifact?.ExecutionRevision, maintenanceEvidence, maturityEvidence)).ToArray()
+                ?? Array.Empty<SourceWordingClassification>(),
             DescriptionOrigin = origin,
             CandidateVersion = candidate?.Description?.PluginVersion,
             Availability = state == null ? PluginAvailability.NotLoaded :

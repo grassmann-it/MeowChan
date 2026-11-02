@@ -52,7 +52,7 @@
               <TextBlock x:Name="PluginDescription" TextWrapping="Wrap" />
               <WrapPanel x:Name="PluginCompactIdentity" ItemSpacing="6" LineSpacing="6">
                 <Border x:Name="PluginTypeChip" Classes="workspace-status"><TextBlock x:Name="PluginType" Classes="workspace-status" /></Border>
-                <Border x:Name="PluginExperimentalChip" Classes="workspace-status workspace-status-warning" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="workspace-status" /></Border>
+                <Border x:Name="PluginExperimentalChip" Classes="workspace-status" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="workspace-status" TextWrapping="Wrap" /></Border>
                 <Border x:Name="PluginVersionChip" Classes="workspace-status" IsVisible="False"><TextBlock x:Name="PluginVersion" Classes="workspace-status" TextWrapping="Wrap" /></Border>
                 <Border x:Name="PluginIdChip" Classes="workspace-status" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="workspace-status muted" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
               </WrapPanel>

@@ -31,9 +31,11 @@ namespace MeowChan
         private readonly Func<Task>? _forgetReadingPosition;
         private readonly bool _closeOnDiscard;
         private bool _rememberReadingPosition;
+        private bool _monitorClipboardUrls;
         private string _downloadPath = string.Empty;
         private decimal? _recheckTimer;
         private decimal? _maxParallelDownloads;
+        private decimal? _parallelDownloadsSafetyLimit;
         private decimal? _bandwidthLimiterMB;
         private bool _saveUrlsOnExit;
         private bool _showBoardAdmissionWizard;
@@ -157,6 +159,7 @@ namespace MeowChan
             DownloadPath = config.DownloadPath;
             RecheckTimer = config.RecheckTimer;
             MaxParallelDownloads = config.MaxParallelDownloads;
+            ParallelDownloadsSafetyLimit = config.ParallelDownloadsSafetyLimit;
             SaveUrlsOnExit = config.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = config.ShowBoardAdmissionWizard;
             MinimizeToTray = config.MinimizeToTray;
@@ -169,6 +172,7 @@ namespace MeowChan
             ResetGalleryPlaybackDraft();
             ShowShortcutHelp = config.ShowShortcutHelp;
             RememberReadingPosition = config.RememberReadingPosition;
+            MonitorClipboardUrls = config.MonitorClipboardUrls;
             AutomaticUpdateChecks = config.AutomaticUpdateChecks;
             ShowInformationNotifications = config.ShowInformationNotifications;
             ShowWarningNotifications = config.ShowWarningNotifications;
@@ -186,6 +190,7 @@ namespace MeowChan
             InitializeSectionNavigation();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
+            ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
             ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
             ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
@@ -259,8 +264,12 @@ namespace MeowChan
         public string RecheckLabel => Texts.T("settings.recheckSeconds");
         public string BandwidthLabel => Texts.T("settings.bandwidth");
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
+        public string ParallelSafetyLabel => Texts.T("settings.parallelSafetyLimit");
+        public string ParallelSafetyHint => Texts.T("settings.parallelSafetyHint");
         public string RestoreSessionLabel => Texts.T("settings.restoreSession");
         public string BoardAdmissionWizardLabel => Texts.T("settings.boardAdmissionWizard");
+        public string MonitorClipboardLabel => Texts.T("settings.monitorClipboard");
+        public string MonitorClipboardHint => Texts.T("settings.monitorClipboardHint");
         public string CloseToTrayLabel => Texts.T("settings.closeToTray");
         public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
         public string ThemeLabel => Texts.T("settings.theme");
@@ -382,6 +391,12 @@ namespace MeowChan
             set => SetField(ref _maxParallelDownloads, value, nameof(MaxParallelDownloads));
         }
 
+        public decimal? ParallelDownloadsSafetyLimit
+        {
+            get => _parallelDownloadsSafetyLimit;
+            set => SetField(ref _parallelDownloadsSafetyLimit, value, nameof(ParallelDownloadsSafetyLimit));
+        }
+
         public decimal? BandwidthLimiterMB
         {
             get => _bandwidthLimiterMB;
@@ -392,6 +407,13 @@ namespace MeowChan
         {
             get => _saveUrlsOnExit;
             set => SetField(ref _saveUrlsOnExit, value, nameof(SaveUrlsOnExit));
+        }
+
+        // Opt-in stays in this draft until the explicit Save commits its candidate.
+        public bool MonitorClipboardUrls
+        {
+            get => _monitorClipboardUrls;
+            set => SetField(ref _monitorClipboardUrls, value, nameof(MonitorClipboardUrls));
         }
 
         public bool ShowBoardAdmissionWizard
@@ -500,6 +522,20 @@ namespace MeowChan
             if (workspaceMode) SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == _config.WorkspaceMode);
         }
 
+        // The shell creates this editor before the first-run modal is offered.
+        // Refresh only the fields that setup durably committed; do not discard an
+        // unrelated settings draft or re-read values merely on page navigation.
+        internal void RefreshConfirmedFirstRunSetup()
+        {
+            if (_isClosed) return;
+            DownloadPath = _config.DownloadPath;
+            MaxParallelDownloads = _config.MaxParallelDownloads;
+            BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
+            // Settings validates raw numeric text, not just the bound Value.
+            ResetNumber(ParallelDownloadsInput, MaxParallelDownloads.Value);
+            ResetNumber(BandwidthInput, BandwidthLimiterMB.Value);
+        }
+
         internal void RevealCurrentError() => RevealErrorAfterLayout();
 
         internal void CancelChanges()
@@ -509,6 +545,7 @@ namespace MeowChan
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
+            ParallelDownloadsSafetyLimit = _config.ParallelDownloadsSafetyLimit;
             SaveUrlsOnExit = _config.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = _config.ShowBoardAdmissionWizard;
             MinimizeToTray = _config.MinimizeToTray;
@@ -522,6 +559,7 @@ namespace MeowChan
             ResetGalleryPlaybackDraft();
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
+            MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
             ShowWarningNotifications = _config.ShowWarningNotifications;
@@ -536,6 +574,7 @@ namespace MeowChan
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
+            ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
             ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
             ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
@@ -635,7 +674,8 @@ namespace MeowChan
                     nameof(GalleryPlaybackModeHelp), nameof(GalleryMediaFocusLabel), nameof(GalleryOverlayControlsLabel),
                     nameof(GalleryAutoHideControlsLabel), nameof(GalleryOverlayPostContextLabel), nameof(GalleryOverlayHelp), nameof(GalleryPlaybackProfileHelp),
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
-                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(RestoreSessionLabel),
+                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
+                    nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
                     nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
                     nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
@@ -644,7 +684,7 @@ namespace MeowChan
                     nameof(DecreaseNumericValueFormat), nameof(SupportedSources), nameof(DownloadPathHelp), nameof(CheckDestinationLabel), nameof(CancelDestinationCheckLabel),
                     nameof(DestinationPolicyHint), nameof(DestinationScopeHint), nameof(NormalizedDestination),
                     nameof(DestinationStatusText), nameof(DestinationCleanupWarning), nameof(RecheckTimerHelp),
-                    nameof(BandwidthInputHelp), nameof(ParallelDownloadsHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
+                    nameof(BandwidthInputHelp), nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
                     nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
                 })
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
@@ -820,6 +860,7 @@ namespace MeowChan
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
                 candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
+                candidate.ParallelDownloadsSafetyLimit = GetInteger(ParallelDownloadsSafetyLimit, ParallelSafetyLabel, 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit);
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
                 candidate.ShowBoardAdmissionWizard = ShowBoardAdmissionWizard;
                 candidate.MinimizeToTray = MinimizeToTray;
@@ -843,6 +884,7 @@ namespace MeowChan
                 candidate.SettingsBaselineGalleryPlayback = _initialGalleryPlayback;
                 candidate.ShowShortcutHelp = ShowShortcutHelp;
                 candidate.RememberReadingPosition = RememberReadingPosition;
+                candidate.MonitorClipboardUrls = MonitorClipboardUrls;
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
                 candidate.ShowInformationNotifications = ShowInformationNotifications;
                 candidate.ShowWarningNotifications = ShowWarningNotifications;
@@ -919,6 +961,7 @@ namespace MeowChan
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
+            ParallelDownloadsSafetyLimit = _config.ParallelDownloadsSafetyLimit;
             BandwidthLimiterMB = _config.BandwidthLimiter / (1024m * 1024m);
             VideoAutoplay = _config.VideoAutoplay;
             VideoStartMuted = _config.VideoStartMuted;
@@ -927,6 +970,7 @@ namespace MeowChan
             ResetGalleryPlaybackDraft();
             ShowShortcutHelp = _config.ShowShortcutHelp;
             RememberReadingPosition = _config.RememberReadingPosition;
+            MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
             ShowWarningNotifications = _config.ShowWarningNotifications;
@@ -941,6 +985,7 @@ namespace MeowChan
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
+            ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
             ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
             ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);

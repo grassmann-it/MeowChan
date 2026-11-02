@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
 
 namespace MeowChan.Desktop;
 
@@ -9,6 +10,7 @@ internal sealed record SourceWatchRow(DiagnosticTarget Target, string Resource, 
 internal sealed record SourceRow(ProviderDescriptor Descriptor, string Summary, IReadOnlyList<SourceWatchRow> Watches)
 {
     internal SourceMediaIntegrityPolicyView? MediaIntegrityPolicy { get; init; }
+    internal SourceWordingClassification? Classification { get; init; }
     public string Id => Descriptor.SourceId;
     public string Name => Descriptor.DisplayName;
     public string Address => Descriptor.BaseUri.AbsoluteUri;
@@ -52,8 +54,13 @@ internal static class SourcesSnapshot
                 : Texts.T("sources.watchCounts", threads.Length, boards.Length,
                     threads.Sum(thread => (long)thread.Snapshot.Downloads.Queued), threads.Sum(thread => (long)thread.Snapshot.Downloads.Active));
             if (view.State is DesktopSessionState.Stopping or DesktopSessionState.Stopped) summary = Texts.T("sources.stopped");
+            SourceMediaIntegrityPolicyView? policy = FindPolicy(provider.SourceId, policies);
             return new SourceRow(provider, summary, Array.AsReadOnly(watches.ToArray()))
-            { MediaIntegrityPolicy = FindPolicy(provider.SourceId, policies) };
+            {
+                MediaIntegrityPolicy = policy,
+                Classification = policy is null ? null : SourceWording.Classify(policy.Snapshot.PluginOwnerId,
+                    provider.SourceId, provider.DisplayName, policy.Maturity)
+            };
         }).ToArray());
     }
     internal static SourceMediaIntegrityPolicyView? FindPolicy(string sourceId, IReadOnlyList<SourceMediaIntegrityPolicyView>? policies)

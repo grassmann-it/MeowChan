@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -87,6 +88,32 @@ public sealed class GallerySeekNavigationPolicyTests
         e.Handled = false;
         using (ShortcutService.BeginCapture())
             Assert.False(CommandBindings.MatchesGalleryTransport(e, "gallery.next", seek, volume));
+    }
+
+    [Theory]
+    [InlineData(Key.Up, "video.volume-up")]
+    [InlineData(Key.Down, "video.volume-down")]
+    public void VolumeArrowsOnlyOptInForOwnedTransportAndLeaveNativeInputsAlone(Key key, string command)
+    {
+        var seek = new TimelineHost();
+        var volume = new VolumeHost();
+        foreach (Control control in new Control[] { seek, volume })
+        {
+            var press = new KeyEventArgs { Source = control, Key = key };
+            Assert.False(CommandBindings.Matches(press, command));
+            Assert.True(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
+            Assert.False(press.Handled); // Matching alone never invokes volume or consumes input.
+        }
+        foreach (Control control in new Control[] { new TextBox(), new ComboBox(), new NumericUpDown(),
+            new ScrollBar(), new MenuItem(), new Slider(),
+            new SelectableTextBlock { Text = "Selected text", SelectionStart = 0, SelectionEnd = 1 },
+            new TabControl(), new DataGrid() })
+        {
+            var press = new KeyEventArgs { Source = control, Key = key };
+            Assert.False(GalleryViewer.IsGalleryShortcutInput(press));
+            Assert.False(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
+            Assert.False(press.Handled);
+        }
     }
 
     [Fact]

@@ -35,7 +35,7 @@ public sealed partial class MediaStore
     private const string LegacyManifestFileName = ".ochan-manifest.json";
     private const string DirectoryLeaseFileName = ".meowchan-store.lock";
     private const string LegacyDirectoryLeaseFileName = ".ochan-store.lock";
-    private const int ManifestVersion = 4;
+    private const int ManifestVersion = 5;
     private const int MaximumManifestBytes = 32 * 1024 * 1024;
     private const int MaximumRecoveryCandidates = 256;
     private const int MaximumVerificationCacheEntries = 4096;
@@ -895,10 +895,14 @@ public sealed partial class MediaStore
                 && wireDocument.RootElement.TryGetProperty("Version", out JsonElement versionElement)
                 && versionElement.ValueKind == JsonValueKind.Number && versionElement.TryGetInt32(out int declaredVersion))
                 wireVersion = declaredVersion;
-            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != 3 && wireVersion != ManifestVersion)
+            if (wireVersion > 0 && wireVersion != 1 && wireVersion != 2 && wireVersion != 3 && wireVersion != 4 && wireVersion != ManifestVersion)
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
+            // Check raw properties before DTO deserialization can hide an earlier passive
+            // discriminator/inventory behind a later duplicate, including v1/2 projections.
+            try { ValidateUniqueJson(wireDocument.RootElement); }
+            catch (InvalidDataException) { return NewManifestRead(corrupt: true) with { SourceVersion = wireVersion }; }
             MediaManifest? manifest = JsonSerializer.Deserialize<MediaManifest>(bytes, JsonOptions);
-            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != 3 && manifest.Version != ManifestVersion)
+            if (manifest != null && manifest.Version > 0 && manifest.Version != 1 && manifest.Version != 2 && manifest.Version != 3 && manifest.Version != 4 && manifest.Version != ManifestVersion)
             {
                 throw new InvalidDataException("This media manifest was written with an unsupported schema version.");
             }
@@ -909,11 +913,15 @@ public sealed partial class MediaStore
             }
 
             int sourceVersion = manifest.Version;
+            // Never let the v1/2 legacy projection erase passive evidence under an old schema.
+            if (sourceVersion < 5 && manifest.AttachmentBindings != null
+                && System.Linq.Enumerable.Any(manifest.AttachmentBindings.Values,
+                    binding => binding != null && (binding.Acceptance?.Kind == MediaAcceptanceKind.PassiveImport || binding.PassiveImport != null)))
+                return NewManifestRead(corrupt: true) with { SourceVersion = sourceVersion };
             try
             {
                 if (sourceVersion >= 3)
                 {
-                    ValidateUniqueJson(wireDocument.RootElement);
                     if (!wireDocument.RootElement.TryGetProperty("AttachmentBindings", out JsonElement bindings) || bindings.ValueKind != JsonValueKind.Object)
                         throw new InvalidDataException("A manifest with attachment evidence must contain its binding inventory.");
                 }
@@ -974,6 +982,10 @@ public sealed partial class MediaStore
 
     private async Task SaveManifestAsync(string directory, ManifestRead manifestRead, CancellationToken cancellationToken)
     {
+        // Old active-only writers retain their original v4 contract. A passive binding must
+        // never be published under a schema whose readers could misinterpret its provenance.
+        manifestRead.Manifest.Version = System.Linq.Enumerable.Any(manifestRead.Manifest.AttachmentBindings.Values,
+            binding => binding.Acceptance.Kind == MediaAcceptanceKind.PassiveImport) ? ManifestVersion : 4;
         Directory.CreateDirectory(directory);
         string destination = Path.Combine(directory, ManifestFileName);
         string temporaryPath = Path.Combine(directory, ".meowchan-manifest-" + Guid.NewGuid().ToString("N") + ".part");

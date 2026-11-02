@@ -73,6 +73,11 @@ internal static class GalleryViewerChecks
                     && string.IsNullOrEmpty(GalleryControl<TextBlock>(viewer, "GalleryWarnings").Text),
                     "Manifest warning was lost/reported again or leaked into inline technical text.");
             }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FAVORITES_ONLY") == "1")
+            {
+                await GalleryFavoriteChecks.RunAsync(window, viewer, selected);
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FOCUS_ONLY") == "1")
             {
                 await GalleryFocusChecks.RunAsync(window, viewer, selected);

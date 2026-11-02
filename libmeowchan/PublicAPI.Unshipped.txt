@@ -1,1 +1,32 @@
 #nullable enable
+const MeowChan.Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit = 256 -> int
+MeowChan.Downloader.DownloadQueue.ParallelDownloadsSafetyLimit.get -> int
+MeowChan.Downloader.DownloadQueue.UpdateConcurrencyLimits(int requested, int safetyLimit) -> void
+MeowChan.Downloader.DownloadQueue.UpdateParallelDownloadsSafetyLimit(int safetyLimit) -> void
+MeowChan.SessionOptions.ParallelDownloadsSafetyLimit.get -> int
+MeowChan.SessionOptions.ParallelDownloadsSafetyLimit.init -> void
+MeowChan.Storage.MediaAcceptanceKind.PassiveImport = 2 -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaAttachmentBinding.PassiveImport.get -> MeowChan.Storage.MediaPassiveImportRecord?
+MeowChan.Storage.MediaAttachmentBinding.PassiveImport.init -> void
+MeowChan.Storage.MediaImportedHistory
+MeowChan.Storage.MediaImportedHistory.AcceptedAtUtc.get -> System.DateTimeOffset
+MeowChan.Storage.MediaImportedHistory.AcceptedAtUtc.init -> void
+MeowChan.Storage.MediaImportedHistory.Kind.get -> MeowChan.Storage.MediaAcceptanceKind
+MeowChan.Storage.MediaImportedHistory.Kind.init -> void
+MeowChan.Storage.MediaImportedHistory.Md5Mismatch.get -> bool
+MeowChan.Storage.MediaImportedHistory.Md5Mismatch.init -> void
+MeowChan.Storage.MediaImportedHistory.MediaImportedHistory(MeowChan.Storage.MediaAcceptanceKind Kind, System.DateTimeOffset AcceptedAtUtc, bool SizeMismatch, bool Md5Mismatch) -> void
+MeowChan.Storage.MediaImportedHistory.SizeMismatch.get -> bool
+MeowChan.Storage.MediaImportedHistory.SizeMismatch.init -> void
+MeowChan.Storage.MediaPassiveImportRecord
+MeowChan.Storage.MediaPassiveImportRecord.History.get -> MeowChan.Storage.MediaImportedHistory?
+MeowChan.Storage.MediaPassiveImportRecord.History.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.ImportedAtUtc.get -> System.DateTimeOffset
+MeowChan.Storage.MediaPassiveImportRecord.ImportedAtUtc.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.IncomingRevisionKey.get -> string?
+MeowChan.Storage.MediaPassiveImportRecord.IncomingRevisionKey.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.MediaPassiveImportRecord(string! OperationId, string! PackageFingerprint, System.DateTimeOffset ImportedAtUtc, string? IncomingRevisionKey, MeowChan.Storage.MediaImportedHistory? History) -> void
+MeowChan.Storage.MediaPassiveImportRecord.OperationId.get -> string!
+MeowChan.Storage.MediaPassiveImportRecord.OperationId.init -> void
+MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.get -> string!
+MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.init -> void

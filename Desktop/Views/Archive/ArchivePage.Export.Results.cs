@@ -20,9 +20,16 @@ public partial class ArchivePage
     private void UpdateResultsExportAction(bool ready)
     {
         Button button = Control<Button>("ArchiveResultsExport");
-        string label = Texts.T("export.resultsAction", _listTotal);
         button.IsEnabled = CanExportResults;
-        button.Content = Texts.T("export.resultsShortAction");
+        ApplyResultsExportLabel(button, _listTotal);
+    }
+
+    internal static void ApplyResultsExportLabel(Button button, int total)
+    {
+        // Keep the complete, count-bearing title in the measured toolbar item.
+        // ActionToolBar moves this same button into overflow when it cannot fit.
+        string label = Texts.T("export.resultsAction", total);
+        button.Content = label;
         ToolTip.SetTip(button, label);
         AutomationProperties.SetName(button, label);
         AutomationProperties.SetHelpText(button, Texts.T("export.resultsScope"));

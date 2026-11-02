@@ -465,7 +465,7 @@ public sealed partial class Registry : IAsyncDisposable
                 }
                 throw;
             }
-            _queue.UpdateMaxParallelDownloads(options.MaxParallelDownloads);
+            _queue.UpdateConcurrencyLimits(options.MaxParallelDownloads, options.ParallelDownloadsSafetyLimit);
             _queue.UpdateMaxBandwidth(options.BandwidthBytesPerSecond);
             Watch[] active;
             lock (_state) { active = _watches.Values.Where(w => !w.Stopping).ToArray(); }

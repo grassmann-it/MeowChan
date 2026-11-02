@@ -60,6 +60,8 @@ public sealed partial class ArchiveCatalog
                 cancellationToken.ThrowIfCancellationRequested();
                 // media_decisions has its own identity columns and no foreign key to archive_threads.
                 DeleteRows(connection, transaction, id, "media_decisions", "source_id", "board_id", "thread_id");
+                ArchiveSql.DeleteCommittedMediaImportOperations(connection, transaction, id);
+                ArchiveSql.DeleteCommittedMediaMergeOperations(connection, transaction, id);
                 DeleteRows(connection, transaction, id, "archive_attachments");
                 // Deleting posts cascades origin quotes; FTS delete triggers remove their indexed text.
                 DeleteRows(connection, transaction, id, "archive_posts");

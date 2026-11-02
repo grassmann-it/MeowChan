@@ -364,7 +364,12 @@ public partial class MainWindow
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
         UpdateGalleryPosition();
         GalleryEntry entry = _galleryEntries[_galleryIndex];
-        await viewer.ShowAsync(entry, _galleryEntries, _galleryAssociationsRevision, _galleryCancellation.Token);
+        Task showing = viewer.ShowAsync(entry, _galleryEntries, _galleryAssociationsRevision, _galleryCancellation.Token);
+        // Selection is admitted synchronously; read its saved favorite before slow decoding
+        // yields. Do not show the previous entry or an invented unmarked state while loading.
+        if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
+            RefreshGalleryFavorite();
+        await showing;
         if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
             RefreshGalleryFavorite();
     }

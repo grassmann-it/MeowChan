@@ -5,7 +5,10 @@
         Width="1380" Height="850" MinWidth="760" MinHeight="500"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
         Title="MeowChan" Icon="avares://MeowChan/Assets/meowchan.png" TextOptions.TextRenderingMode="Antialias">
-    <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52">
+    <!-- Paint the complete allocated client root explicitly. Template/native decoration
+         margins are outside this root and require separate native evidence.
+         This does not change native frame geometry or normal restore behavior. -->
+    <Grid x:Name="WorkspaceRoot" RowDefinitions="48,*,26,52" Background="{DynamicResource Workspace.Background}">
         <Border x:Name="WorkspaceTitleBarFrame" Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
@@ -71,7 +74,7 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,*">
+        <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
         <ursa:Banner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch" Margin="20,8,20,0">
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
@@ -90,7 +93,17 @@
                 </Button>
             </Grid>
         </ursa:Banner>
-        <Grid Grid.Row="1" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
+        <Border x:Name="ClipboardSuggestionPanel" Grid.Row="1" IsVisible="False" Classes="panel" Margin="20,8,20,0" Padding="12,8"
+                KeyDown="OnClipboardSuggestionKeyDown">
+            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                <TextBlock x:Name="ClipboardSuggestionTitle" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button x:Name="ClipboardSuggestionAccept" Grid.Column="1" Classes="primary" Click="OnClipboardSuggestionAccept" />
+                <Button x:Name="ClipboardSuggestionDismiss" Grid.Column="2" Click="OnClipboardSuggestionDismiss" />
+                <TextBox x:Name="ClipboardSuggestionUrls" Grid.Row="1" Grid.ColumnSpan="3" IsReadOnly="True" AcceptsReturn="True"
+                         TextWrapping="NoWrap" MaxHeight="80" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardSuggestionTitle}" />
+            </Grid>
+        </Border>
+        <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="10">
             <Grid x:Name="WorkspaceHeading">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
             </Grid>
@@ -359,12 +372,31 @@
                 </Border>
             </Grid>
         </Grid>
-        <ContentControl Grid.Row="1" x:Name="SettingsPageHost" IsVisible="False" />
-        <ContentControl Grid.Row="1" x:Name="DiagnosticsPageHost" IsVisible="False" />
-        <ContentControl Grid.Row="1" x:Name="RulesPageHost" IsVisible="False" />
-        <ContentControl Grid.Row="1" x:Name="ArchivePageHost" IsVisible="False" />
-        <ContentControl Grid.Row="1" x:Name="SourcesPageHost" IsVisible="False" />
-        <ContentControl Grid.Row="1" x:Name="PluginsPageHost" IsVisible="False" />
+        <!-- Display-only last session. No watch IDs, commands, links, thumbnails or provider objects. -->
+        <Border Grid.Row="2" x:Name="StartupPreviewPanel" Classes="panel" Margin="20" Padding="16" IsVisible="False">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+                <TextBlock x:Name="StartupPreviewTitle" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="StartupPreviewDetails" Grid.Row="1" Classes="muted" TextWrapping="Wrap" />
+                <ListBox x:Name="StartupPreviewRows" Grid.Row="2">
+                    <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="desktop:StartupPreviewRow">
+                            <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="12" Margin="0,4">
+                                <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source}" /><Run Text=" /" /><Run Text="{Binding Board}" /><Run Text="/" /></TextBlock>
+                                <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="2" Classes="muted"><Run Text="{Binding CompletedMedia}" /><Run Text=" / " /><Run Text="{Binding KnownMedia}" /></TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+        <ContentControl Grid.Row="2" x:Name="SettingsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="DiagnosticsPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="RulesPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="ArchivePageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="PluginsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">

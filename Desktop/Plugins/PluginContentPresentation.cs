@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 
@@ -15,7 +16,13 @@ internal static class PluginContentPresentation
         DescriptionOrFallback(presentation.Description);
 
     internal static string DescribeDescription(PluginDescription? description) =>
-        DescriptionOrFallback(description?.Description);
+        DescriptionOrFallback(description is null ? null : SourceWording.DisplayDescription(description));
+
+    internal static string DescribeSourceClassifications(PluginEntryPresentation presentation) =>
+        SourceWording.DescribeCompact(presentation.SourceClassifications);
+
+    internal static string DescribeDetailedSourceClassifications(PluginEntryPresentation presentation) =>
+        SourceWording.DescribeDetailed(presentation.SourceClassifications);
 
     private static string DescriptionOrFallback(string? description) =>
         string.IsNullOrWhiteSpace(description) ? Texts.T("plugins.noDescription") : description;

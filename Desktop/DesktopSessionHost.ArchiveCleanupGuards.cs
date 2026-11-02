@@ -110,6 +110,14 @@ internal sealed partial class DesktopSessionHost
                 throw new InvalidDataException(name + " has unexpected recovery data.");
             foreach (byte[] bytes in new[] { primary, backup }.OfType<byte[]>())
             {
+                if (name == "media-favorites.json")
+                {
+                    // Its real writer now emits an instance/revision fenced v2.
+                    // Validate BOTH primary and backup with the canonical parser;
+                    // do not widen the generic schema-1 protection check below.
+                    FavoriteStore.ValidateDocumentBytes(bytes);
+                    continue;
+                }
                 using JsonDocument document = JsonDocument.Parse(CleanupUtf8.GetString(bytes));
                 RejectCleanupDuplicateFields(document.RootElement);
                 if (version.Length > 0 && (document.RootElement.GetProperty(version).GetInt32() != 1
@@ -125,16 +133,27 @@ internal sealed partial class DesktopSessionHost
     private byte[]? ReadCleanupOptionalFile(string name, int maximum, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        string path = Path.Combine(ProfileDirectory, name);
-        if (new FileInfo(path).LinkTarget != null) throw new InvalidDataException(name + " must not be a symbolic link.");
         try
         {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (stream.Length > maximum) throw new InvalidDataException(name + " exceeds its size limit.");
-            byte[] bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes);
+            // Open only a verified regular handle: a path precheck followed by a
+            // blocking FileStream open can hang on a FIFO (including after a swap).
+            using FileStream stream = RegularProfileFile.OpenRead(Path.Combine(ProfileDirectory, name));
+            token.ThrowIfCancellationRequested();
+            long length = stream.Length;
+            if (length > maximum) throw new InvalidDataException(name + " exceeds its size limit.");
+            byte[] bytes = new byte[checked((int)length)]; stream.ReadExactly(bytes);
+            if (stream.ReadByte() != -1 || stream.Length != length)
+                throw new InvalidDataException(name + " changed during inventory.");
+            token.ThrowIfCancellationRequested();
             return bytes;
         }
         catch (FileNotFoundException) { return null; }
+        // Cover the entire IO boundary, not just open: reads, length/EOF checks
+        // and disposal can fail too. Never retain path-bearing inner exceptions.
+        catch (UnauthorizedAccessException)
+        { throw new UnauthorizedAccessException("A cleanup protection file could not be accessed."); }
+        catch (IOException)
+        { throw new IOException("A cleanup protection file could not be read."); }
     }
 
     private static void RejectCleanupDuplicateFields(JsonElement element)

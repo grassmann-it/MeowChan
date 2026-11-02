@@ -21,6 +21,30 @@ public sealed record BundledCandidateRepair(string PluginId, string OldCandidate
     string? NewExecutionRevision, bool BuildChanged, string? BlockedReason)
 {
     public bool CanConfirm => BlockedReason is null && NewCandidateId is not null;
+    // Exact, deterministic review payload. Strings preserve frozen-row value equality
+    // across rederivation, unlike mutable/list reference equality.
+    public string? PermissionReviewJson { get; init; }
+    public string? PermissionFingerprint { get; init; }
+    public bool CanReauthorize => BlockedReason == "inherited-grants" && NewCandidateId is not null &&
+        PermissionReviewJson is not null && PermissionFingerprint is not null;
+}
+
+/// <summary>Existing special permissions, not requests for additional permissions.</summary>
+public sealed record BundledRepairPermissions(IReadOnlyList<PluginGrantSnapshot> FilterGrants,
+    IReadOnlyList<string> SourceIds);
+
+internal static class BundledRepairPermissionReview
+{
+    internal static string Json(BundledProfileDocument document, PluginActivationSnapshot plugin,
+        PluginCandidateSnapshot target) => Encoding.UTF8.GetString(SdkJson.Serialize(new BundledRepairPermissions(
+            document.Profile.Grants.Where(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None)
+                .OrderBy(g => g.FilterKey, StringComparer.Ordinal).ThenBy(g => g.Scope.SourceId, StringComparer.Ordinal)
+                .ThenBy(g => g.Scope.BoardId, StringComparer.Ordinal).ThenBy(g => g.Scope.RuleId, StringComparer.Ordinal).ToArray(),
+            (target.Description?.Sources.Select(s => s.SourceId) ?? [])
+                .Where(id => document.RestrictedSourceIds.Contains(id, StringComparer.Ordinal))
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())));
+
+    internal static string Fingerprint(string json) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
 }
 
 // Kept inside the versioned store payload, not injected into SDK/provider metadata.
@@ -30,6 +54,9 @@ internal sealed record BundledRepairBinding(string PluginId, string SelectedCand
     // Confirmation can replace the only Pending snapshot before any successful activation.
     // Retain the exact proven OLD release, not merely NEW Pending as the comparison basis.
     public PluginReleaseSnapshot? OriginalRelease { get; init; }
+    // Explicit UI consent is scoped to TargetCandidateId + TargetExecutionRevision
+    // and the exact effective permissions (including filter-grant revisions).
+    public string? ReauthorizedPermissionFingerprint { get; init; }
 }
 internal sealed record PreReplacementBasis(PluginReleaseSnapshot? Release, string? CandidateId,
     string? ExecutionRevision, DeliveredCandidateProvenance? Provenance, bool HasHistory)
@@ -177,7 +204,7 @@ internal static class BundledCandidateMigration
                 plugin.Pending?.CandidateId == b.TargetCandidateId && plugin.Pending.ExecutionRevision == b.TargetExecutionRevision &&
                 plugin.Candidates.Any(c => c.CandidateId == b.TargetCandidateId && c.IsPresent && c.Problem is null &&
                     c.Artifact?.ExecutionRevision == b.TargetExecutionRevision &&
-                    !HasInheritedRights(document, plugin, c, previous.ExecutionRevision != c.Artifact.ExecutionRevision)))) continue;
+                    !HasUnreviewedInheritedRights(document, plugin, c, previous.ExecutionRevision != c.Artifact.ExecutionRevision)))) continue;
             if (!previous.Missing && plugin.Active is not null && document.Bindings.Any(b => b.PluginId == plugin.PluginId &&
                 b.SelectedCandidateId == selected && b.TargetCandidateId == plugin.Active.CandidateId &&
                 b.TargetExecutionRevision == plugin.Active.ExecutionRevision && plugin.Candidates.Any(c =>
@@ -201,12 +228,18 @@ internal static class BundledCandidateMigration
                     .Count(c => c.IsPresent && document.Provenance.Any(p => p.SlotId == old.SlotId && Matches(p, c))) > 1 ? "ambiguous" :
                 target is null ? "no-proven-target" :
                 !SdkJson.Serialize(basis.Description).AsSpan().SequenceEqual(SdkJson.Serialize(target.Description!)) ? "description-changed" :
-                HasInheritedRights(document, plugin, target, changed) ? "inherited-grants" :
                 HasOwnerConflict(document.Profile, plugin.PluginId, target.Description!) ? "source-owner-conflict" :
-                SdkValidation.ValidateConfiguration(target.Description!, basis.Configuration).Count != 0 ? "configuration-incompatible" : null;
+                SdkValidation.ValidateConfiguration(target.Description!, basis.Configuration).Count != 0 ? "configuration-incompatible" :
+                HasInheritedRights(document, plugin, target, changed) ? "inherited-grants" : null;
+            string? permissions = reason == "inherited-grants"
+                ? BundledRepairPermissionReview.Json(document, plugin, target!) : null;
             rows.Add(new(plugin.PluginId, selected, target?.CandidateId, old?.SlotId,
                 old?.CandidatePath ?? selectedCandidate?.CandidatePath, target?.CandidatePath,
-                previous.ExecutionRevision, target?.Artifact?.ExecutionRevision, changed, reason));
+                previous.ExecutionRevision, target?.Artifact?.ExecutionRevision, changed, reason)
+            {
+                PermissionReviewJson = permissions,
+                PermissionFingerprint = permissions is null ? null : BundledRepairPermissionReview.Fingerprint(permissions)
+            });
         }
         return new(document.Profile.Revision, rows);
     }
@@ -272,6 +305,17 @@ internal static class BundledCandidateMigration
         (document.Profile.Grants.Any(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None) ||
          (target.Description?.Sources.Any(s => document.RestrictedSourceIds.Contains(s.SourceId, StringComparer.Ordinal)) ?? false));
 
+    internal static bool HasUnreviewedInheritedRights(BundledProfileDocument document, PluginActivationSnapshot plugin,
+        PluginCandidateSnapshot target, bool changed)
+    {
+        if (!HasInheritedRights(document, plugin, target, changed)) return false;
+        BundledRepairBinding? binding = document.Bindings.SingleOrDefault(b => b.PluginId == plugin.PluginId &&
+            b.SelectedCandidateId == plugin.SelectedCandidateId && b.TargetCandidateId == target.CandidateId &&
+            b.TargetExecutionRevision == target.Artifact?.ExecutionRevision);
+        return binding?.ReauthorizedPermissionFingerprint is not { } fingerprint ||
+            fingerprint != BundledRepairPermissionReview.Fingerprint(BundledRepairPermissionReview.Json(document, plugin, target));
+    }
+
     internal static bool HasOwnerConflict(PluginProfileSnapshot state, string pluginId, PluginDescription description) =>
         description.Sources.Any(s => state.SelectedSourceOwners.TryGetValue(s.SourceId, out string? owner) && owner != pluginId ||
             state.Plugins.Any(p => p.PluginId != pluginId &&
@@ -303,7 +347,8 @@ internal static class BundledCandidateMigration
                 !document.Provenance.Any(p => p.PluginId == b.PluginId && p.SlotId == b.SlotId &&
                     p.CandidateId == b.TargetCandidateId && p.ExecutionRevision == b.TargetExecutionRevision) ||
                 !document.Provenance.Any(p => p.PluginId == b.PluginId && p.SlotId == b.SlotId && p.ExecutionRevision == b.OldExecutionRevision) ||
-                string.IsNullOrWhiteSpace(b.SelectedCandidateId))
+                string.IsNullOrWhiteSpace(b.SelectedCandidateId) ||
+                b.ReauthorizedPermissionFingerprint is { } fingerprint && !CompilerWire.IsHash(fingerprint))
                 throw new ArgumentException("Unproven delivered repair binding.");
         foreach (BundledRepairBinding binding in document.Bindings.Where(b => b.OriginalRelease is not null))
         {

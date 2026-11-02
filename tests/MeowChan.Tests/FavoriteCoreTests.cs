@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using MeowChan.Downloader;
 using MeowChan.Favorites;
 using MeowChan.Persistence;
@@ -152,6 +154,280 @@ public sealed class FavoriteCoreTests
         ratings.Set(original.Key, null);
         Assert.True(favorites.Contains(original.Key));
     }
+
+    [Fact]
+    public void TransferSnapshotIsImmutableLeaseBoundAndRechecksAcrossStoreInstances()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+
+        FavoriteStoreSnapshot missing = store.ReadTransferSnapshot();
+        Assert.Empty(missing.Entries);
+        Assert.Equal("missing", missing.Fingerprint);
+        Assert.Null(missing.InstanceId);
+        Assert.Equal(0, missing.Revision);
+        Assert.True(store.IsTransferSnapshotCurrent(missing));
+        Assert.Throws<NotSupportedException>(() => ((IList<FavoriteEntry>)missing.Entries).Add(Entry()));
+
+        FavoriteEntry entry = Entry();
+        Assert.True(store.SetFavorite(entry, true));
+        Assert.Empty(missing.Entries);
+        Assert.False(store.IsTransferSnapshotCurrent(missing));
+
+        FavoriteStoreSnapshot saved = store.ReadTransferSnapshot();
+        Assert.NotNull(saved.InstanceId);
+        Assert.Equal(1, saved.Revision);
+        Assert.True(store.IsTransferSnapshotCurrent(saved));
+        Assert.True(new FavoriteStore(temp.Path, lease).IsTransferSnapshotCurrent(saved));
+        Assert.False(store.SetFavorite(entry, true));
+        Assert.True(store.IsTransferSnapshotCurrent(saved));
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        Assert.Throws<OperationCanceledException>(() => store.SetFavorite(Entry("cancel"), true, cancelled.Token));
+        Assert.True(store.IsTransferSnapshotCurrent(saved));
+    }
+
+    [Fact]
+    public void TransferSnapshotRejectsForeignOwnerAndTracksRestartAndPersistentAbaFence()
+    {
+        using TempDirectory temp = new();
+        using TempDirectory other = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        using ProfileLease otherLease = ProfileLease.Acquire(other.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        FavoriteStore foreignStore = new(other.Path, otherLease);
+        FavoriteEntry entry = Entry();
+
+        FavoriteStoreSnapshot before = store.ReadTransferSnapshot();
+        Assert.False(foreignStore.IsTransferSnapshotCurrent(before));
+        Assert.True(store.SetFavorite(entry, true));
+        FavoriteStoreSnapshot added = store.ReadTransferSnapshot();
+        Assert.True(store.SetFavorite(entry, false));
+        Assert.False(store.IsTransferSnapshotCurrent(added));
+        Assert.True(store.SetFavorite(entry, true));
+        Assert.False(store.IsTransferSnapshotCurrent(added));
+        FavoriteStoreSnapshot current = store.ReadTransferSnapshot();
+        Assert.Equal(3, current.Revision);
+        Guid instance = Assert.IsType<Guid>(current.InstanceId);
+
+        lease.Dispose();
+        using ProfileLease restartedLease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore restarted = new(temp.Path, restartedLease);
+        // Persisted fences survive restart, but old owner authority never does.
+        Assert.False(restarted.IsTransferSnapshotCurrent(current));
+        FavoriteStoreSnapshot restartedSnapshot = restarted.ReadTransferSnapshot();
+        Assert.True(restarted.IsTransferSnapshotCurrent(restartedSnapshot));
+        Assert.Equal(current.Fingerprint, restartedSnapshot.Fingerprint);
+        Assert.Equal(current.Revision, restartedSnapshot.Revision);
+        Assert.Equal(instance, Assert.IsType<Guid>(restartedSnapshot.InstanceId));
+        Assert.Equal(1, restarted.RemoveThreads([entry.Key.Thread]));
+        FavoriteStoreSnapshot removed = restarted.ReadTransferSnapshot();
+        Assert.Empty(removed.Entries);
+        Assert.Equal(4, removed.Revision);
+        Assert.False(restarted.IsTransferSnapshotCurrent(restartedSnapshot));
+        Assert.Equal(instance, Assert.IsType<Guid>(removed.InstanceId));
+        byte[] committed = File.ReadAllBytes(Path.Combine(temp.Path, "media-favorites.json"));
+        Assert.Equal(0, restarted.RemoveThreads([entry.Key.Thread]));
+        Assert.Throws<OperationCanceledException>(() => restarted.RemoveThreads([entry.Key.Thread], new CancellationToken(true)));
+        Assert.Equal(committed, File.ReadAllBytes(Path.Combine(temp.Path, "media-favorites.json")));
+        Assert.True(restarted.IsTransferSnapshotCurrent(removed));
+        Assert.Throws<ObjectDisposedException>(() => store.ReadTransferSnapshot());
+        Assert.Throws<ObjectDisposedException>(() => store.IsTransferSnapshotCurrent(current));
+    }
+
+    [Fact]
+    public void V1ReadIsByteStableAndFirstMutationAddsV2Fence()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        byte[] v1 = Encoding.UTF8.GetBytes("{\"Version\":1,\"Entries\":[]}");
+        File.WriteAllBytes(path, v1);
+
+        FavoriteStoreSnapshot snapshot = store.ReadTransferSnapshot();
+        Assert.Null(snapshot.InstanceId);
+        Assert.Equal(0, snapshot.Revision);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(v1)), snapshot.Fingerprint);
+        Assert.False(store.SetFavorite(Entry(), false));
+        Assert.Equal(0, store.RemoveThreads([Thread]));
+        Assert.Throws<OperationCanceledException>(() => store.SetFavorite(Entry(), true, new CancellationToken(true)));
+        Assert.Equal(v1, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".bak"));
+        Assert.True(store.IsTransferSnapshotCurrent(snapshot));
+        Assert.True(store.SetFavorite(Entry(), true));
+        Assert.Equal(v1, File.ReadAllBytes(path + ".bak"));
+        Assert.False(store.IsTransferSnapshotCurrent(snapshot));
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
+        Assert.Equal(2, document.RootElement.GetProperty("Version").GetInt32());
+        Assert.NotEqual(Guid.Empty, document.RootElement.GetProperty("InstanceId").GetGuid());
+        Assert.Equal(1, document.RootElement.GetProperty("Revision").GetInt64());
+    }
+
+    [Fact]
+    public void MissingPrimaryWithBackupIsRecoveryRequiredAndMissingIsDistinct()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        Assert.Equal("missing", store.ReadTransferSnapshot().Fingerprint);
+        File.WriteAllText(path + ".bak", "{\"Version\":1,\"Entries\":[]}");
+        Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+        Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+        Assert.False(File.Exists(path));
+        Assert.Equal("{\"Version\":1,\"Entries\":[]}", File.ReadAllText(path + ".bak"));
+    }
+
+    [Fact]
+    public void MalformedFutureInvalidUtf8AndBoundsFailClosedWithoutBackupRotation()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        string[] invalid = ["{broken", "{\"Version\":99,\"Entries\":[]}", "{\"Version\":1,\"Entries\":[null]}",
+            "{\"Version\":2,\"InstanceId\":\"b64b2d98-4ca8-4e9f-9c95-3e3f4b1d7a6c\",\"Revision\":9223372036854775808,\"Entries\":[]}"];
+        foreach (string json in invalid)
+        {
+            File.WriteAllText(path, json);
+            InvalidDataException error = Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+            Assert.Null(error.InnerException);
+            Assert.DoesNotContain("secret", error.ToString(), StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry("secret"), true));
+            Assert.Equal(json, File.ReadAllText(path));
+        }
+
+        byte[] invalidUtf8 = Encoding.UTF8.GetBytes("{\"Version\":1,\"Entries\":[]}");
+        invalidUtf8[^1] = 0xFF;
+        File.WriteAllBytes(path, invalidUtf8);
+        Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+        Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+        Assert.Equal(invalidUtf8, File.ReadAllBytes(path));
+
+        File.WriteAllBytes(path, new byte[FavoriteStore.MaximumBytes + 1]);
+        Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+        Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+        File.Delete(path);
+        Directory.CreateDirectory(path);
+        Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+        Directory.Delete(path);
+        File.WriteAllText(path, "{\"Version\":1,\"Entries\":[" + string.Join(',', Enumerable.Repeat("null", 50_001)) + "]}");
+        Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+
+        File.WriteAllText(path, "{\"Version\":1,\"Entries\":[]}");
+        File.WriteAllText(path + ".bak", "{\"Version\":99,\"Entries\":[]}");
+        Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+        Assert.Equal("{\"Version\":99,\"Entries\":[]}", File.ReadAllText(path + ".bak"));
+    }
+
+    [Fact]
+    public void TransferSnapshotDefensivelyCopiesInputAndNeverPrintsPrivateFields()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        List<FavoriteEntry> input = [Entry("private-media") with { OriginalFileName = "private-name" }];
+        FavoriteEntry saved = input[0];
+        FavoriteStoreSnapshot snapshot = new(lease, input, "private-fingerprint", null, 0);
+        input.Clear();
+        Assert.Equal(saved, Assert.Single(snapshot.Entries));
+        Assert.Throws<NotSupportedException>(() => ((IList<FavoriteEntry>)snapshot.Entries).Clear());
+        Assert.DoesNotContain("private-", snapshot.ToString()!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingEmptyAndExactPrimaryBytesHaveDistinctFencesWithoutReadWrites()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        FavoriteStoreSnapshot missing = store.ReadTransferSnapshot();
+        Assert.False(store.SetFavorite(Entry(), false));
+        Assert.False(File.Exists(path));
+        byte[] bytes = Encoding.UTF8.GetBytes("{\"Version\":1,\"Entries\":[]} ");
+        File.WriteAllBytes(path, bytes);
+        FavoriteStoreSnapshot empty = store.ReadTransferSnapshot();
+        Assert.NotEqual(missing.Fingerprint, empty.Fingerprint);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)), empty.Fingerprint);
+        Assert.False(store.IsTransferSnapshotCurrent(missing));
+        File.WriteAllText(path, "{\"Version\":1,\"Entries\":[]}");
+        Assert.False(store.IsTransferSnapshotCurrent(empty));
+        Assert.Empty(store.ReadTransferSnapshot().Entries);
+        Assert.False(File.Exists(path + ".bak"));
+    }
+
+    [Fact]
+    public void InvalidBackupBlocksOnlyActualWritesAndPreservesBothFiles()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        store.SetFavorite(Entry(), true);
+        byte[] primary = File.ReadAllBytes(path);
+        foreach (string invalid in new[] { "{broken", "{\"Version\":99,\"Entries\":[]}" })
+        {
+            File.WriteAllText(path + ".bak", invalid);
+            FavoriteStoreSnapshot snapshot = store.ReadTransferSnapshot();
+            Assert.False(store.SetFavorite(Entry(), true));
+            Assert.True(store.IsTransferSnapshotCurrent(snapshot));
+            Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), false));
+            Assert.Throws<InvalidDataException>(() => store.RemoveThreads([Thread]));
+            Assert.Equal(primary, File.ReadAllBytes(path));
+            Assert.Equal(invalid, File.ReadAllText(path + ".bak"));
+        }
+    }
+
+    [Fact]
+    public void LinkAndDanglingLinkPrimaryAndBackupAreNeverFollowedOrRepaired()
+    {
+        if (OperatingSystem.IsWindows()) return; // Creating symlinks may require an OS privilege.
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        string target = Path.Combine(temp.Path, "target.json");
+        const string valid = "{\"Version\":1,\"Entries\":[]}";
+        File.WriteAllText(target, valid);
+        foreach (bool dangling in new[] { false, true })
+        {
+            File.CreateSymbolicLink(path, dangling ? target + ".missing" : target);
+            Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+            Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+            File.Delete(path);
+            File.CreateSymbolicLink(path + ".bak", dangling ? target + ".missing" : target);
+            Assert.Throws<InvalidDataException>(() => store.ReadTransferSnapshot());
+            File.WriteAllText(path, valid);
+            Assert.Empty(store.ReadTransferSnapshot().Entries);
+            Assert.Throws<InvalidDataException>(() => store.SetFavorite(Entry(), true));
+            File.Delete(path);
+            File.Delete(path + ".bak");
+        }
+        Assert.Equal(valid, File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void BackupDirectoryMutationFailurePreservesIoContractAndOriginalEvidence()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        FavoriteStore store = new(temp.Path, lease);
+        string path = Path.Combine(temp.Path, "media-favorites.json");
+        store.SetFavorite(Entry(), true);
+        byte[] before = File.ReadAllBytes(path);
+        Directory.CreateDirectory(path + ".bak");
+        string evidence = Path.Combine(path + ".bak", "foreign-evidence.txt");
+        File.WriteAllText(evidence, "preserve");
+        Assert.Throws<IOException>(() => store.SetFavorite(Entry(), false));
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.Equal("preserve", File.ReadAllText(evidence));
+        Assert.True(store.Contains(Entry().Key));
+    }
+
+    private static FavoriteEntry Entry(string media = "media") =>
+        new(new(Thread, media, "original", new string('a', 64)), 12, "image.png");
 
     private static async Task<FavoriteExportAsset> Commit(string root, StubImageBoard board, byte[] bytes, string mediaId)
     {

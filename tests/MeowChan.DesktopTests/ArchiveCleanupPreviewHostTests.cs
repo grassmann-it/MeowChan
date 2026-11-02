@@ -80,6 +80,59 @@ public sealed class ArchiveCleanupPreviewHostTests
     }
 
     [Theory]
+    [InlineData(1, 1)] [InlineData(1, 2)] [InlineData(2, 1)] [InlineData(2, 2)]
+    public async Task MediaFavoriteV1AndV2PrimaryAndBackupProtectWithoutReadMigration(int primaryVersion, int backupVersion)
+    {
+        using TempDirectory temp = new();
+        string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
+        Config(profile, root); ResourceId id = Id("favorite-schema");
+        Directory.CreateDirectory(DirectoryFor(root, id)); await RegisterAsync(profile, root, id);
+        FavoriteEntry entry = new(new(id, "historical", "original", new string('a', 64)), 3, "old.bin");
+        string Document(int version) => version == 1
+            ? JsonSerializer.Serialize(new { Version = 1, Entries = new[] { entry } })
+            : JsonSerializer.Serialize(new { Version = 2, Entries = new[] { entry },
+                InstanceId = Guid.Parse("4e71f7e1-b614-484f-a395-4b76f21fd9bb"), Revision = 7L });
+        await File.WriteAllTextAsync(Path.Combine(profile, "media-favorites.json"), Document(primaryVersion));
+        await File.WriteAllTextAsync(Path.Combine(profile, "media-favorites.json.bak"), Document(backupVersion));
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync();
+        var before = Snapshot(profile, root);
+        var preview = await host.PrepareArchiveCleanupAsync();
+        Assert.True(preview.Complete, string.Join(";", preview.Errors)); Assert.Empty(preview.Errors);
+        var row = Assert.Single(preview.Rows);
+        Assert.Equal(ArchiveCleanupEligibility.Protected, row.Eligibility);
+        Assert.Contains(ArchiveCleanupReason.MediaFavorite, row.Reasons);
+        AssertSnapshot(before, Snapshot(profile, root));
+    }
+
+    [Theory]
+    [InlineData("{\"Version\":99,\"Entries\":[]}")]
+    [InlineData("{\"Version\":2,\"Entries\":[]}")]
+    [InlineData("{\"Version\":2,\"Entries\":[],\"InstanceId\":\"00000000-0000-0000-0000-000000000000\",\"Revision\":1}")]
+    [InlineData("{\"Version\":2,\"Entries\":[],\"InstanceId\":\"4e71f7e1-b614-484f-a395-4b76f21fd9bb\",\"Revision\":0}")]
+    [InlineData("{\"Version\":1,\"Entries\":[],\"unknown\":true}")]
+    [InlineData("{\"Version\":1,\"Entries\":[],\"Entries\":[]}")]
+    public async Task InvalidMediaFavoriteBackupKeepsCleanupUnknownAndRetainsEvidence(string backup)
+    {
+        using TempDirectory temp = new();
+        string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
+        Config(profile, root); ResourceId id = Id("invalid-favorite-backup");
+        Directory.CreateDirectory(DirectoryFor(root, id)); await RegisterAsync(profile, root, id);
+        using (ProfileLease lease = ProfileLease.Acquire(profile))
+            new FavoriteStore(profile, lease).SetFavorite(new(new(id, "old", "original", new string('a', 64)), 3, "old.bin"), true);
+        await File.WriteAllTextAsync(Path.Combine(profile, "media-favorites.json.bak"), backup);
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await host.StartAsync();
+        var before = Snapshot(profile, root);
+        var preview = await host.PrepareArchiveCleanupAsync();
+        Assert.False(preview.Complete); Assert.NotEmpty(preview.Errors);
+        var row = Assert.Single(preview.Rows);
+        Assert.Equal(ArchiveCleanupEligibility.Unknown, row.Eligibility);
+        Assert.Contains(ArchiveCleanupReason.ProtectionUnknown, row.Reasons);
+        AssertSnapshot(before, Snapshot(profile, root));
+    }
+
+    [Theory]
     [InlineData("2")]
     [InlineData("2147483648")]
     [InlineData("1.5")]

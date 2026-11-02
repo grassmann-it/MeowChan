@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
@@ -18,8 +19,7 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    private readonly HashSet<FavoriteAssetKey> _favoriteChanges = new();
-    private readonly Dictionary<FavoriteAssetKey, string> _galleryFavoriteErrors = new();
+    private readonly GalleryFavoriteCommandQueue<FavoriteAssetKey> _favoriteChanges = new();
 
     private void WireGalleryActions()
     {
@@ -27,6 +27,7 @@ public partial class MainWindow
         _gallery.RatingSetRequested += (entry, value) => _ = SetGalleryRatingAsync(entry, value);
         _gallery.RatingEditRequested += entry => _ = RunGalleryActionAsync(() => EditMediaRatingAsync(entry), entry.Key.ToString());
         _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry), entry.Key.ToString());
+        _gallery.FavoriteSetRequested += (entry, selected) => _ = RunGalleryActionAsync(() => SetGalleryFavoriteAsync(entry, selected), entry.Key.ToString());
         _gallery.ExportOriginalRequested += entry => _ = RunGalleryActionAsync(() => ArchivePage.OpenOriginalExportAsync(
             new[] { FavoriteExportAsset.From(entry.Key.Thread, entry.Manifest, entry.Asset) }, _gallery), entry.Key.ToString());
         _gallery.ShowInFolderRequested += entry =>
@@ -45,24 +46,44 @@ public partial class MainWindow
         { if (!_isClosing) ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: context, operation: "gallery.action"); }
     }
 
-    private async Task ToggleGalleryFavoriteAsync(GalleryEntry entry)
+    private Task ToggleGalleryFavoriteAsync(GalleryEntry entry)
     {
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
-        if (!_favoriteChanges.Add(key)) return;
-        _galleryFavoriteErrors.Remove(key);
+        return SetGalleryFavoriteAsync(entry, !_favoriteChanges.Target(key, _session.IsFavorite(entry)));
+    }
+
+    private async Task SetGalleryFavoriteAsync(GalleryEntry entry, bool selected)
+    {
+        if (_isClosing) return; // New UI intents stop; already accepted sequences still drain.
+        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+        if (_favoriteChanges.IsPending(key))
+        {
+            // The original operation owns persistence, diagnostics and the session
+            // admission lease. Repeats only update its desired value and await it.
+            try { await _favoriteChanges.SetAsync(key, selected,
+                _ => throw new InvalidOperationException("Pending favorite lost its owner."), () => { }); }
+            catch (Exception error) when (error is not OutOfMemoryException) { }
+            return;
+        }
+        long revision = _galleryAssociationsRevision;
         _archivePage?.ClearFavoriteError(key);
-        RefreshGalleryFavorite();
+        // Hold one existing bounded session slot through ALL latest-intent writes.
+        // BeginShutdown can cancel the engine immediately without losing an already
+        // accepted M -> U queued behind the first persisted write.
+        using var sequence = _session.AdmitFavoriteSequence(entry);
         try
         {
-            await _session.SetFavoriteAsync(entry, !_session.IsFavorite(entry));
-            RefreshGalleryFavorite();
+            await _favoriteChanges.SetAsync(key, selected,
+                async desired => { await sequence.SetAsync(desired); }, RefreshGalleryFavorite);
         }
-        catch (Exception error)
+        catch (Exception error) when (error is not OutOfMemoryException)
         {
-            _galleryFavoriteErrors[key] = error.Message;
-            RefreshGalleryFavorite();
+            // Operation-owned: exactly once, even after navigation/gallery close.
+            string context = entry.Key.Thread.Source + "/" + entry.Key.Thread.Board + "/"
+                + entry.Key.Thread.Thread + "/" + entry.Asset.AssetId + "@" + revision;
+            _feedback.Record(FeedbackCategory.Error, "gallery.favorite", context,
+                error.Message, faultKey: "gallery.favorite");
         }
-        finally { _favoriteChanges.Remove(key); }
     }
 
     private void RefreshGalleryFavorite()
@@ -71,9 +92,11 @@ public partial class MainWindow
         _archivePage?.RefreshArchiveFavoriteControls();
         if (_gallery != null && _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count)
         {
-            _gallery.SetFavorite(_session.IsFavorite(_galleryEntries[_galleryIndex]));
             GalleryEntry current = _galleryEntries[_galleryIndex];
-            _gallery.SetFavoriteError(_galleryFavoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(current.Key.Thread, current.Asset)));
+            _gallery.SetFavorite(_session.IsFavorite(current),
+                _favoriteChanges.IsPending(FavoriteAssetKey.From(current.Key.Thread, current.Asset)));
+            // Persistence failures are recorded by their operation owner, not by the
+            // currently displayed entry (which may have changed while saving).
         }
     }
 

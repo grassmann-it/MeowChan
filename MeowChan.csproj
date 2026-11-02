@@ -50,6 +50,10 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 
+    <!-- Embedded data stays available through the assembly in normal, published and single-file builds. -->
+    <EmbeddedResource Include="Desktop/Localization/Packs/es.json" LogicalName="MeowChan.Desktop.Localization.Packs.es.json" WithCulture="false" />
+    <EmbeddedResource Include="Desktop/Localization/Packs/fr.json" LogicalName="MeowChan.Desktop.Localization.Packs.fr.json" WithCulture="false" />
+    <EmbeddedResource Include="Desktop/Localization/Packs/ru.json" LogicalName="MeowChan.Desktop.Localization.Packs.ru.json" WithCulture="false" />
     <AvaloniaResource Include="Assets/**" />
     <None Update="Assets/meowchan.png" CopyToPublishDirectory="PreserveNewest" />
     <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -5,6 +6,10 @@ using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using SkiaSharp;
+using System.Text.Json;
 using MeowChan.Desktop.Localization;
 using System.Runtime.InteropServices;
 using MeowChan.Desktop;
@@ -17,6 +22,7 @@ internal static class WindowChromeChecks
     {
         Require(window.WindowDecorations == WindowDecorations.BorderOnly,
             "The shell still requests an OS title bar.");
+        PrepareIsolatedBackdrop();
         Size entryBounds = window.Bounds.Size;
         // Reader fixtures can request a canvas larger than a hosted native
         // desktop. Start the caption resize probe from a size with room for its
@@ -55,6 +61,7 @@ internal static class WindowChromeChecks
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized
                 && AutomationProperties.GetName(maximize) == Texts.T("window.restore"));
             await WaitForMaximizedBoundsAsync(window);
+            await CheckMaximizedClientEdgesAsync(window, window.FindControl<Grid>("WorkspaceRoot")!, "main");
             await CheckReachableAsync(window);
             Click(maximize);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
@@ -64,6 +71,7 @@ internal static class WindowChromeChecks
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized);
             await WaitForMaximizedBoundsAsync(window);
+            await CheckMaximizedClientEdgesAsync(window, window.FindControl<Grid>("WorkspaceRoot")!, "main");
             await CheckReachableAsync(window);
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
@@ -128,6 +136,173 @@ internal static class WindowChromeChecks
         return screen != null && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
             && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
     });
+
+    // Native rectangle reads + a separately labelled renderer observation. No resizing
+    // is performed here; a stable 1px uncovered right edge is a failure, not tolerance.
+    internal static async Task CheckMaximizedClientEdgesAsync(Window window, Control root, string evidenceName)
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            Console.WriteLine("SMOKE maximized client-edge probe NOT COVERED on macOS; existing AppKit maximize probe is separate.");
+            return;
+        }
+        Require(OperatingSystem.IsWindows() || OperatingSystem.IsLinux(), "Unsupported native client-edge backend.");
+        ChromeSnapshot? previous = null;
+        ChromeSnapshot? stable = null;
+        int equalSamples = 0;
+        try
+        {
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                if (window.WindowState != WindowState.Maximized) { equalSamples = 0; return false; }
+                ChromeSnapshot current = ObserveClient(window, root);
+                equalSamples = current == previous ? equalSamples + 1 : 0;
+                previous = current;
+                if (equalSamples < 10) return false; // >=500ms unchanged, not one state acknowledgement.
+                stable = current;
+                return true;
+            });
+            ChromeSnapshot sample = stable!;
+            PixelRect nativeVisible = sample.NativeClient.Intersect(sample.WorkingArea);
+            PixelRect rootVisible = sample.RootScreen.Intersect(sample.WorkingArea);
+            Console.WriteLine("SMOKE maximized native/client-root evidence: " + JsonSerializer.Serialize(sample));
+            // Windows may retain off-screen resize borders. Intersect measured
+            // rectangles, never guess their width or impose monitor-sized requests.
+            Require(nativeVisible == sample.WorkingArea,
+                $"Stable native client does not cover WorkingArea: client={sample.NativeClient}; area={sample.WorkingArea}; rightGap={sample.WorkingArea.Right - sample.NativeClient.Right}px.");
+            Require(rootVisible == sample.WorkingArea,
+                $"Stable root does not cover WorkingArea: root={sample.RootScreen}; area={sample.WorkingArea}; rightGap={sample.WorkingArea.Right - sample.RootScreen.Right}px; decorations={sample.DecorationMargin}.");
+            Require(root is Panel { Background: ISolidColorBrush brush } && brush.Color.A == 255 && brush.Opacity == 1,
+                "Maximized client root has no opaque theme background.");
+            CheckRendererRightEdge(window, evidenceName);
+            await CheckIsolatedDesktopRightEdgeAsync(sample.WorkingArea, evidenceName);
+        }
+        finally
+        {
+            // Diagnostic metadata is retained even when geometry/pixel assertions fail.
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, $"smoke-chrome-{evidenceName}-maximized.json"),
+                JsonSerializer.Serialize(new { observer = "owned native client rectangle + live Avalonia root geometry",
+                    last = previous, stable, rendererCapture = "RenderTargetBitmap, NOT compositor/OS screenshot",
+                    compositorRightEdge = "not observed by this probe" }, new JsonSerializerOptions { WriteIndented = true }));
+            Program.CaptureWindow(window, $"smoke-chrome-{evidenceName}-maximized.png");
+        }
+    }
+
+    private sealed record ChromeSnapshot(PixelRect NativeClient, PixelRect WorkingArea, PixelRect RootScreen,
+        Rect RootBounds, Size ClientDip, Size WindowDip, double Scaling, Thickness DecorationMargin, Thickness OffScreenMargin);
+
+    private static ChromeSnapshot ObserveClient(Window window, Control root)
+    {
+        var screen = window.Screens.ScreenFromWindow(window)
+            ?? throw new InvalidOperationException("Maximized probe has no screen.");
+        PixelPoint start = root.PointToScreen(default);
+        PixelPoint end = root.PointToScreen(new Point(root.Bounds.Width, root.Bounds.Height));
+        return new(ReadNativeClient(window), screen.WorkingArea,
+            new PixelRect(start, new PixelSize(Math.Max(0, end.X - start.X), Math.Max(0, end.Y - start.Y))),
+            root.Bounds, window.ClientSize, window.Bounds.Size, window.RenderScaling,
+            window.WindowDecorationMargin, window.OffScreenMargin);
+    }
+
+    private static PixelRect ReadNativeClient(Window window)
+    {
+        var handle = window.TryGetPlatformHandle() ?? throw new InvalidOperationException("Window has no native handle.");
+        if (OperatingSystem.IsWindows())
+        {
+            Require(handle.HandleDescriptor == "HWND", "Expected Win32 HWND for native client read.");
+            Require(GetClientRect(handle.Handle, out WinRect rect), "GetClientRect failed.");
+            WinPoint origin = new() { X = rect.Left, Y = rect.Top };
+            Require(ClientToScreen(handle.Handle, ref origin), "ClientToScreen failed.");
+            return new PixelRect(origin.X, origin.Y, rect.Right - rect.Left, rect.Bottom - rect.Top);
+        }
+        Require(handle.HandleDescriptor == "XID"
+            && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1",
+            "Native Linux client read requires the isolated X11/XWayland XID; no Wayland/personal-display fallback.");
+        nint display = XOpenDisplay(null);
+        Require(display != 0, "Cannot open isolated X11 display.");
+        try
+        {
+            Require(XGetGeometry(display, handle.Handle, out nint root, out _, out _, out uint width, out uint height, out _, out _) != 0,
+                "XGetGeometry failed.");
+            Require(XTranslateCoordinates(display, handle.Handle, root, 0, 0, out int x, out int y, out _) != 0,
+                "XTranslateCoordinates failed.");
+            return new PixelRect(x, y, checked((int)width), checked((int)height));
+        }
+        finally { XCloseDisplay(display); }
+    }
+
+    private static void CheckRendererRightEdge(Window window, string evidenceName)
+    {
+        double scale = window.RenderScaling;
+        PixelSize size = PixelSize.FromSize(window.Bounds.Size, scale);
+        Require(size.Width is > 0 and <= 16384 && size.Height is > 0 and <= 16384, "Client-edge raster is unbounded.");
+        using RenderTargetBitmap render = new(size, new Vector(96 * scale, 96 * scale));
+        render.Render(window);
+        using MemoryStream png = new();
+        render.Save(png, PngBitmapEncoderOptions.Default);
+        using SKBitmap pixels = SKBitmap.Decode(png.ToArray()) ?? throw new InvalidDataException("Client-edge raster unavailable.");
+        for (int y = 0; y < pixels.Height; y++)
+            Require(pixels.GetPixel(pixels.Width - 1, y).Alpha == 255,
+                $"{evidenceName}: renderer right edge is not opaque at {pixels.Width - 1},{y}; this is not OS compositor evidence.");
+        Console.WriteLine($"SMOKE renderer-only right edge opaque: {evidenceName}, {pixels.Width}x{pixels.Height}; native geometry observed separately; compositor pixels NOT checked.");
+    }
+
+    // This affects only the root of our private Xvfb display, never a user desktop.
+    private static void PrepareIsolatedBackdrop()
+    {
+        if (!OperatingSystem.IsLinux() || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1") return;
+        nint display = XOpenDisplay(null);
+        Require(display != 0, "Private backdrop display unavailable.");
+        try
+        {
+            nint root = XDefaultRootWindow(display);
+            XSetWindowBackground(display, root, 0xff00ff);
+            XClearWindow(display, root);
+            XSync(display, false);
+        }
+        finally { XCloseDisplay(display); }
+    }
+
+    private static async Task CheckIsolatedDesktopRightEdgeAsync(PixelRect area, string name)
+    {
+        if (!OperatingSystem.IsLinux() || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1") return;
+        // import reads X11 root pixels (not RenderTargetBitmap). Let the real
+        // software renderer publish before capturing this isolated desktop.
+        await Task.Delay(250);
+        string path = Path.Combine(AppContext.BaseDirectory, "smoke-chrome-" + name + "-desktop.png");
+        var start = new ProcessStartInfo("/usr/bin/import") { UseShellExecute = false };
+        foreach (string arg in new[] { "-window", "root", path }) start.ArgumentList.Add(arg);
+        using Process capture = Process.Start(start) ?? throw new InvalidOperationException("Private desktop capture unavailable.");
+        await capture.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Require(capture.ExitCode == 0, "Private desktop capture failed.");
+        using SKBitmap pixels = SKBitmap.Decode(path) ?? throw new InvalidDataException("Private X11 desktop image invalid.");
+        Require(area.X >= 0 && area.Y >= 0 && area.Right <= pixels.Width && area.Bottom <= pixels.Height,
+            "Measured WorkingArea is outside captured private desktop.");
+        for (int y = area.Y; y < area.Bottom; y++)
+        {
+            SKColor pixel = pixels.GetPixel(area.Right - 1, y);
+            Require(pixel.Red != 255 || pixel.Green != 0 || pixel.Blue != 255,
+                $"{name}: private desktop backdrop visible at maximized right edge {area.Right - 1},{y}.");
+        }
+        Console.WriteLine($"SMOKE isolated X11 desktop capture: {name}, WorkingArea right column contains no magenta backdrop; actual Xvfb pixels, not native Windows/Wayland evidence.");
+    }
+    [DllImport("libX11.so.6")] private static extern nint XDefaultRootWindow(nint display);
+    [DllImport("libX11.so.6")] private static extern int XSetWindowBackground(nint display, nint window, nuint color);
+    [DllImport("libX11.so.6")] private static extern int XClearWindow(nint display, nint window);
+    [DllImport("libX11.so.6")] private static extern int XSync(nint display, [MarshalAs(UnmanagedType.Bool)] bool discard);
+
+    [StructLayout(LayoutKind.Sequential)] private struct WinRect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct WinPoint { public int X, Y; }
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetClientRect(nint window, out WinRect rect);
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ClientToScreen(nint window, ref WinPoint point);
+    [DllImport("libX11.so.6")] private static extern nint XOpenDisplay(string? name);
+    [DllImport("libX11.so.6")] private static extern int XCloseDisplay(nint display);
+    [DllImport("libX11.so.6")] private static extern int XGetGeometry(nint display, nint window, out nint root,
+        out int x, out int y, out uint width, out uint height, out uint borderWidth, out uint depth);
+    [DllImport("libX11.so.6")] private static extern int XTranslateCoordinates(nint display, nint source, nint destination,
+        int x, int y, out int targetX, out int targetY, out nint child);
 
     internal static bool MacMaximizedBoundsMatch(MainWindow window)
     {

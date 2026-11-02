@@ -21,16 +21,24 @@ public sealed class ProfileLease : IDisposable
     private const string MarkerValue = "MeowChan profile protocol v1\n";
     private readonly object _sync = new object();
     private FileStream? _lockStream;
+    private readonly ProfileDirectoryIdentity? _directoryIdentity;
+    private readonly ProfileAdmission _admission;
 
     public string ProfileDirectory { get; }
     // Captured under the exclusive lease, before this acquisition publishes protocol traces.
     internal bool WasEmptyAtAcquisition { get; }
+
+    // One cooperative admission domain belongs to exactly one lease lifetime.
+    // It is intentionally internal: the kernel is not a public import/apply API.
+    internal ProfileAdmission Admission => _admission;
 
     private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty)
     {
         ProfileDirectory = profileDirectory;
         _lockStream = lockStream;
         WasEmptyAtAcquisition = wasEmpty;
+        _directoryIdentity = ProfileDirectoryIdentity.TryCapture(profileDirectory);
+        _admission = new ProfileAdmission();
     }
 
     /// <summary>
@@ -167,6 +175,16 @@ public sealed class ProfileLease : IDisposable
         RunExclusive(() => true);
     }
 
+    // Stricter admission for the private journal. Ordinary store compatibility is
+    // unchanged; this fence is in-process, not a persistent profile incarnation.
+    internal void EnsureDirectoryIdentity() => RunExclusive(() =>
+    {
+        if (_directoryIdentity is null)
+            throw new InvalidDataException("The leased profile directory identity is unavailable.");
+        _directoryIdentity.EnsureMatches(ProfileDirectory);
+        return true;
+    });
+
     internal T RunExclusive<T>(Func<T> operation)
     {
         lock (_sync)
@@ -184,6 +202,11 @@ public sealed class ProfileLease : IDisposable
 
     public void Dispose()
     {
+        // Seal new cooperative entries before releasing the OS lock. Existing
+        // accepted entries are drained by their owners; Dispose stays synchronous
+        // and never waits while holding the lease monitor.
+        _admission.Close();
+
         lock (_sync)
         {
             _lockStream?.Dispose();

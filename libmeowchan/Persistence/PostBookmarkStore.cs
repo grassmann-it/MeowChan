@@ -3,10 +3,12 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using MeowChan.Archive;
+using MeowChan.Transfer;
 
 namespace MeowChan.Persistence;
 
@@ -22,20 +24,48 @@ internal sealed record PostBookmarkKey(ResourceId Thread, string Post)
 }
 internal sealed record PostBookmark(PostBookmarkKey Key, string Note);
 internal sealed record PostBookmarkSnapshot(long Revision, IReadOnlyList<PostBookmark> Bookmarks);
+
+/// <summary>A read-only, owner-bound projection for private bookmark transfer.</summary>
+internal sealed class PostBookmarkTransferSnapshot
+{
+    private readonly ProfileLease _ownerLease;
+    private readonly IReadOnlyList<PostBookmark> _bookmarks;
+
+    internal PostBookmarkTransferSnapshot(
+        IReadOnlyList<PostBookmark> bookmarks, long revision, string fingerprint, ProfileLease ownerLease)
+    {
+        ArgumentNullException.ThrowIfNull(bookmarks);
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        ArgumentNullException.ThrowIfNull(ownerLease);
+        _bookmarks = Array.AsReadOnly(bookmarks.ToArray());
+        Revision = revision;
+        Fingerprint = fingerprint;
+        _ownerLease = ownerLease;
+    }
+
+    internal IReadOnlyList<PostBookmark> Bookmarks => _bookmarks;
+    internal long Revision { get; }
+    internal string Fingerprint { get; }
+    internal bool IsOwnedBy(ProfileLease lease) => ReferenceEquals(_ownerLease, lease);
+}
 internal sealed class PostBookmarkConflictException : IOException
 {
     internal PostBookmarkConflictException() : base("Post bookmarks changed. Reload before saving; your draft has been retained.") { }
 }
 
 /// <summary>Explicit local references and user notes. No content copies, history or backup files.</summary>
-internal sealed class PostBookmarkStore
+internal sealed partial class PostBookmarkStore
 {
     internal const int MaximumEntries = 10_000;
     internal const int MaximumNoteCodepoints = 8_000;
     internal const int MaximumDocumentBytes = 32 * 1024 * 1024;
     private readonly ProfileLease _lease;
+    // Prepared batches are owned by an opaque per-store capability, not by the
+    // public store object that an internal caller could otherwise reuse.
+    private readonly object _batchOwner = new();
     internal string Path { get; }
     private readonly string _pendingPrefix;
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     internal PostBookmarkStore(string profileDirectory, ProfileLease lease)
     {
@@ -46,9 +76,30 @@ internal sealed class PostBookmarkStore
         // Only our own exact GUID temp names, and only while this profile is exclusively leased.
         _lease.RunExclusive(() =>
         {
-            foreach (string file in Directory.EnumerateFiles(lease.ProfileDirectory, _pendingPrefix + "*"))
-                if (Guid.TryParseExact(System.IO.Path.GetFileName(file)[_pendingPrefix.Length..], "N", out _))
-                    File.Delete(file);
+            string[] ownPending = Directory.EnumerateFiles(lease.ProfileDirectory, _pendingPrefix + "*")
+                .Where(file => Guid.TryParseExact(
+                    System.IO.Path.GetFileName(file)[_pendingPrefix.Length..], "N", out _))
+                .ToArray();
+            if (ownPending.Length == 0) return true;
+            if (HasPrivatePending()) return true;
+
+            // A marked/uncertain primary is recovery evidence. Never erase an exact
+            // pending artifact merely because this ordinary store constructor ran.
+            bool mayClean = true;
+            try
+            {
+                ParsedFile current = ReadParsedFile(Path);
+                mayClean = current.OperationMarker is null;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException
+                or InvalidDataException)
+            {
+                mayClean = false;
+            }
+            if (!mayClean) return true;
+
+            foreach (string file in ownPending)
+                File.Delete(file);
             return true;
         });
     }
@@ -60,6 +111,57 @@ internal sealed class PostBookmarkStore
     {
         lease.EnsureMatches(profileDirectory);
         return lease.RunExclusive(() => ReadFile(System.IO.Path.Combine(lease.ProfileDirectory, "post-bookmarks.json")));
+    }
+
+    internal static PostBookmarkTransferSnapshot ReadTransferSnapshot(string profileDirectory, ProfileLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        lease.EnsureMatches(profileDirectory);
+        return lease.RunExclusive(() =>
+        {
+            ParsedFile parsed = ReadParsedFile(System.IO.Path.Combine(lease.ProfileDirectory, "post-bookmarks.json"));
+            return new PostBookmarkTransferSnapshot(parsed.Snapshot.Bookmarks, parsed.Snapshot.Revision, parsed.Fingerprint, lease);
+        });
+    }
+
+    internal static bool IsTransferSnapshotCurrent(
+        string profileDirectory, ProfileLease lease, PostBookmarkTransferSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        // Reject an owner mismatch before validating or touching the supplied profile path.
+        if (!snapshot.IsOwnedBy(lease)) return false;
+        try
+        {
+            lease.EnsureMatches(profileDirectory);
+            return lease.RunExclusive(() =>
+            {
+                ParsedFile current = ReadParsedFile(System.IO.Path.Combine(lease.ProfileDirectory, "post-bookmarks.json"));
+                return current.Snapshot.Revision == snapshot.Revision
+                    && string.Equals(current.Fingerprint, snapshot.Fingerprint, StringComparison.Ordinal);
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     internal PostBookmarkSnapshot Upsert(PostBookmarkKey key, string note, long expectedRevision,
@@ -92,7 +194,14 @@ internal sealed class PostBookmarkStore
         => _lease.RunExclusive(() =>
         {
             token.ThrowIfCancellationRequested();
-            PostBookmarkSnapshot current = ReadCore();
+            // Preserve the existing mutation failure contract for an unusable
+            // destination; passive snapshot reads classify it as invalid data.
+            if (Directory.Exists(Path))
+                throw new IOException("The post-bookmark destination is not a file.");
+            EnsureNoPrivatePending();
+            ParsedFile parsed = ReadParsedFile(Path);
+            PrivateStoreBatchFiles.EnsureUnmarked(parsed.OperationMarker);
+            PostBookmarkSnapshot current = parsed.Snapshot;
             if (current.Revision != expectedRevision) throw new PostBookmarkConflictException();
             List<PostBookmark> entries = current.Bookmarks.ToList();
             change(entries);
@@ -128,21 +237,54 @@ internal sealed class PostBookmarkStore
 
     private PostBookmarkSnapshot ReadCore() => ReadFile(Path);
 
-    private static PostBookmarkSnapshot ReadFile(string path)
+    private sealed class ParsedFile(
+        PostBookmarkSnapshot snapshot, string fingerprint, int schemaVersion, Guid? instanceId,
+        PrivateStoreOperationMarker? operationMarker)
     {
+        internal PostBookmarkSnapshot Snapshot { get; } = snapshot;
+        internal string Fingerprint { get; } = fingerprint;
+        internal int SchemaVersion { get; } = schemaVersion;
+        internal Guid? InstanceId { get; } = instanceId;
+        internal PrivateStoreOperationMarker? OperationMarker { get; } = operationMarker;
+    }
+
+    private static PostBookmarkSnapshot ReadFile(string path) => ReadParsedFile(path).Snapshot;
+
+    private static ParsedFile ReadParsedFile(string path) => ParseBookmarkBytes(ReadBoundedBytes(path));
+
+    private static ParsedFile ParseBookmarkBytes(byte[]? bytes, bool exactNotes = false)
+    {
+        // Only an explicitly absent file is an empty store. An existing empty file is invalid.
+        if (bytes == null)
+            return new ParsedFile(new PostBookmarkSnapshot(0, Array.Empty<PostBookmark>()),
+                Convert.ToHexString(SHA256.HashData(Array.Empty<byte>())), 0, null, null);
+        if (bytes.Length == 0)
+            throw new InvalidDataException("The post-bookmark document is empty.");
+
         try
         {
-            if (new FileInfo(path).LinkTarget != null) throw new InvalidDataException("Post bookmarks must not be a symbolic link.");
-            using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (file.Length > MaximumDocumentBytes)
-                throw new InvalidDataException("Post bookmarks exceed the size limit or are a symbolic link.");
-            using JsonDocument json = JsonDocument.Parse(file, new JsonDocumentOptions { MaxDepth = 8 });
+            // Validate all raw bytes, including JSON strings, before the JSON reader can replace
+            // invalid UTF-8. The digest below is over these exact bytes, not normalized notes.
+            StrictUtf8.GetCharCount(bytes);
+            using JsonDocument json = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 8 });
             JsonElement root = json.RootElement;
-            RequireFields(root, "schemaVersion", "revision", "bookmarks");
-            if (root.GetProperty("schemaVersion").GetInt32() != 1)
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("Invalid post-bookmark document.");
+            int schema = root.GetProperty("schemaVersion").GetInt32();
+            RequireFields(root, schema == 1
+                ? new[] { "schemaVersion", "revision", "bookmarks" }
+                : new[] { "schemaVersion", "revision", "bookmarks", "instanceId", "operationMarker" });
+            if (schema is not (1 or 2))
                 throw new InvalidDataException("Unsupported post-bookmark schema; the file is read-only.");
             long revision = root.GetProperty("revision").GetInt64();
-            if (revision < 0) throw new InvalidDataException("Invalid post-bookmark revision.");
+            if (revision < 0 || schema == 2 && revision == 0)
+                throw new InvalidDataException("Invalid post-bookmark revision.");
+            Guid? instance = schema == 2 ? root.GetProperty("instanceId").GetGuid() : null;
+            if (schema == 2 && instance == Guid.Empty)
+                throw new InvalidDataException("Invalid post-bookmark instance.");
+            PrivateStoreOperationMarker? marker = schema == 2
+                ? PrivateStoreOperationMarker.Parse(root.GetProperty("operationMarker"),
+                    NativePrivateApplyStoreKind.PostBookmarksAndNotes) : null;
             JsonElement items = root.GetProperty("bookmarks");
             if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() > MaximumEntries)
                 throw new InvalidDataException("Invalid post-bookmark list.");
@@ -155,13 +297,58 @@ internal sealed class PostBookmarkStore
                 PostBookmarkKey key = new(new ResourceId(S("source"), S("board"), S("thread")), S("post"));
                 key.Validate();
                 if (!seen.Add(key)) throw new InvalidDataException("Duplicate post-bookmark identity.");
-                entries.Add(new PostBookmark(key, NormalizeNote(S("note"))));
+                string note = S("note");
+                string normalized = NormalizeNote(note);
+                if ((exactNotes || schema == 2) && !string.Equals(note, normalized, StringComparison.Ordinal))
+                    throw new InvalidDataException("Invalid post-bookmark document.");
+                if (exactNotes || schema == 2) ValidateBatchKey(key);
+                entries.Add(new PostBookmark(key, normalized));
             }
-            return new PostBookmarkSnapshot(revision, Array.AsReadOnly(entries.ToArray()));
+            return new ParsedFile(
+                new PostBookmarkSnapshot(revision, Array.AsReadOnly(entries.ToArray())),
+                Convert.ToHexString(SHA256.HashData(bytes)), schema, instance, marker);
         }
-        catch (FileNotFoundException) { return new PostBookmarkSnapshot(0, Array.Empty<PostBookmark>()); }
-        catch (Exception error) when (error is JsonException or ArgumentException or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
-        { throw new InvalidDataException("Invalid post-bookmark file: " + path, error); }
+        catch (Exception error) when (error is JsonException or ArgumentException
+            or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
+        {
+            // Parser/decoder messages may quote private text. Do not retain them as inner errors.
+            throw new InvalidDataException("Invalid post-bookmark document.");
+        }
+    }
+
+    private static byte[]? ReadBoundedBytes(string path)
+    {
+        try
+        {
+            using FileStream file = RegularProfileFile.OpenRead(path);
+            long length = file.Length;
+            if (length < 0 || length > MaximumDocumentBytes)
+                throw new InvalidDataException("Post bookmarks exceed the size limit.");
+            byte[] bytes = new byte[checked((int)length)];
+            file.ReadExactly(bytes);
+            // Do not parse a length-sampled prefix if the file grew. At most one overflow
+            // byte is probed; no unbounded stream parser or CopyTo allocation is involved.
+            if (file.ReadByte() != -1 || file.Length != length)
+                throw new InvalidDataException("The post-bookmark document changed while it was being read.");
+            return bytes;
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (IOException)
+        {
+            // IO exceptions can contain the absolute profile path. Keep read diagnostics opaque.
+            throw new IOException("The post-bookmark document could not be read.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new UnauthorizedAccessException("The post-bookmark document could not be read.");
+        }
     }
 
     private static void RequireFields(JsonElement item, params string[] names)

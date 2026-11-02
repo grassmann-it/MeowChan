@@ -116,6 +116,7 @@ public partial class SettingsEditor
     public string RecheckTimerHelp => FieldHelp(nameof(RecheckTimerInput), SecondsHelp);
     public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp);
     public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount"));
+    public string ParallelDownloadsSafetyHelp => FieldHelp(nameof(ParallelDownloadsSafetyInput), ParallelSafetyHint);
     public string ReserveInputHelp => FieldHelp(nameof(ReserveInput), Texts.T("settings.unitGiB") + ". " + ReserveHint);
     public string ProductionWorkersHelp => FieldHelp(nameof(ProductionWorkersInput), Texts.T("settings.unitCount") + ". " + BudgetRestartHint);
     public string WorkerIdleMinutesHelp => FieldHelp(nameof(WorkerIdleMinutesInput), Texts.T("settings.unitMinutes") + ". " + BudgetRestartHint);
@@ -125,7 +126,7 @@ public partial class SettingsEditor
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
-            nameof(ParallelDownloadsHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
+            nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
@@ -154,6 +155,7 @@ public partial class SettingsEditor
         yield return (RecheckTimerInput, RecheckTimer, RecheckLabel, SecondsHelp, 10, 4294967, true);
         yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, long.MaxValue / (1024m * 1024m), false);
         yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), 1, int.MaxValue, true);
+        yield return (ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit, ParallelSafetyLabel, Texts.T("settings.unitCount"), 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit, true);
         yield return (ReserveInput, MinimumFreeSpaceGiB, ReserveLabel, Texts.T("settings.unitGiB"), 0, int.MaxValue, true);
         yield return (ProductionWorkersInput, ProductionWorkers, ProductionWorkersLabel, Texts.T("settings.unitCount"), 1, 8, true);
         yield return (WorkerIdleMinutesInput, WorkerIdleMinutes, WorkerIdleMinutesLabel, Texts.T("settings.unitMinutes"), 1, 30, true);

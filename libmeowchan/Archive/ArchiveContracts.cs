@@ -70,10 +70,14 @@ public sealed class ArchivedThreadView
         bool? decimalPostOrder = null)
     {
         Summary = summary;
+        DecimalPostOrder = decimalPostOrder;
         MediaDirectories = Array.AsReadOnly((mediaDirectories ?? Array.Empty<string>()).ToArray());
         _posts = ArchivePostOrder.Sort(summary.Id, posts.Select(ArchiveCaptureMerge.CopyPost), decimalPostOrder);
     }
     public ArchiveThreadSummary Summary { get; }
+    // Preserve the stored nullable contract for passive native export; sorting's legacy
+    // fallback is an interpretation, not a reason to rewrite the captured contract.
+    internal bool? DecimalPostOrder { get; }
     public IReadOnlyList<string> MediaDirectories { get; }
     public int PostCount => _posts.Length;
     public IReadOnlyList<CapturedPost> GetPosts(int offset = 0, int limit = 100)

@@ -11,11 +11,12 @@ public sealed class LocalizationCollection { }
 public sealed class LocalizationTests : IDisposable
 {
     public LocalizationTests() => Reset();
-    public void Dispose() => Reset();
+    public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    // Keep exact EN/DE and invalid/partial custom-pack assertions isolated from shipped previews.
     private static void Reset()
     {
-        Texts.Initialize();
+        Texts.InitializeWithoutBundlesForTests();
         Texts.SetLanguage("en");
     }
 
@@ -74,7 +75,7 @@ public sealed class LocalizationTests : IDisposable
         using TempDirectory directory = new TempDirectory();
         string missing = Path.Combine(directory.Path, "LanguagePacks");
 
-        Texts.Initialize(missing);
+        Texts.InitializeWithoutBundlesForTests(missing);
 
         Assert.False(Directory.Exists(missing));
         Assert.Empty(Texts.Warnings);
@@ -92,7 +93,7 @@ public sealed class LocalizationTests : IDisposable
             ["future.key"] = "Ignored by this version"
         });
 
-        Texts.Initialize(directory.Path);
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
         Texts.SetLanguage("fr");
 
         Assert.Empty(Texts.Warnings);
@@ -110,7 +111,7 @@ public sealed class LocalizationTests : IDisposable
         {
             ["admission.summary"] = "{{Résultat}} {2} refusées, {0} ajoutées, {1} présentes"
         });
-        Texts.Initialize(directory.Path);
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
         Texts.SetLanguage("fr");
 
         Assert.Empty(Texts.Warnings);
@@ -131,7 +132,7 @@ public sealed class LocalizationTests : IDisposable
             ["progress.media"] = translatedProgress
         });
 
-        Texts.Initialize(directory.Path);
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
 
         Assert.DoesNotContain(Texts.Languages, language => language.Code == "fr");
         Assert.Single(Texts.Warnings);
@@ -154,7 +155,7 @@ public sealed class LocalizationTests : IDisposable
         File.WriteAllText(Path.Combine(directory.Path, "invalid.json"), json);
         WritePack(directory, "es", new Dictionary<string, string> { ["settings.title"] = "Ajustes" });
 
-        Texts.Initialize(directory.Path);
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
         Texts.SetLanguage("es");
 
         Assert.Single(Texts.Warnings);
@@ -169,7 +170,7 @@ public sealed class LocalizationTests : IDisposable
         using TempDirectory directory = new TempDirectory();
         WritePack(directory, "EN", new Dictionary<string, string> { ["settings.title"] = "Overridden" });
 
-        Texts.Initialize(directory.Path);
+        Texts.InitializeWithoutBundlesForTests(directory.Path);
 
         Assert.Single(Texts.Warnings);
         Assert.Equal("Settings", Texts.T("settings.title"));

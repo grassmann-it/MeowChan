@@ -61,14 +61,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private int _releasedStreams;
     private int _cleanupFailures;
     private bool _autoplay = true;
-    private bool _startMuted;
     private bool _settingVolume;
     private bool _isPlaying;
     private bool _publishingUserTransport;
     private bool _ended;
-    private bool _muted;
     private readonly VideoPlaybackIntent _intent = new();
     private readonly VideoVolumeIntent _volumeIntent = new();
+    private readonly VideoMuteIntent _muteIntent = new();
     private readonly VideoTransportIntent _transportIntent = new();
     // Accessed only under _operations, unlike UI input revisions.
     private long _appliedVolumeRevision;
@@ -183,13 +182,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal void Configure(bool autoplay, bool startMuted, int volume)
     {
         _autoplay = autoplay;
-        _startMuted = startMuted;
+        _muteIntent.ConfigureStartup(startMuted);
         int nextVolume = Math.Clamp(volume, 0, 100);
         bool changed = (int)_volume.Value != nextVolume;
         _settingVolume = true;
         try { _volume.Value = nextVolume; }
         finally { _settingVolume = false; }
-        if (changed) _ = SetVolumeAsync(nextVolume);
+        if (changed) _ = SetVolumeAsync(nextVolume, userInitiated: false);
     }
 
     internal Task TogglePlaybackAsync() => SetPlaybackModeAsync(
@@ -254,15 +253,23 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private async Task RequestPlaybackOnUiAsync(VideoPlaybackMode mode, bool notify)
         => await Dispatcher.UIThread.InvokeAsync(() => SetPlaybackModeAsync(mode, notify)).ConfigureAwait(false);
 
-    internal Task ToggleMuteAsync() => CommandAsync(playback =>
+    internal Task ToggleMuteAsync()
     {
-        MediaPlayer player = playback.Player;
-        if (!_audioAvailable || !HasUsableAudio(playback)) return;
-        player.Mute = !player.Mute;
-        bool muted = player.Mute;
-        long generation = playback.Generation;
-        Post(generation, () => { _muted = muted; RefreshTransportPresentation(); });
-    });
+        if (!Dispatcher.UIThread.CheckAccess()) return ToggleMuteOnUiAsync();
+        if (IsDisposed || !IsCurrent(_generation) || !_audioAvailable || _lifetime.HasCleanupPending)
+            return Task.CompletedTask;
+        // Accept intent before waiting for a native operation. Navigation may retire this
+        // playback before the command executes; the next selection still inherits the choice.
+        _muteIntent.Toggle();
+        RefreshTransportPresentation();
+        return CommandAsync(playback =>
+        {
+            if (HasUsableAudio(playback)) ApplyMute(playback.Player);
+        });
+    }
+    private async Task ToggleMuteOnUiAsync()
+        => await Dispatcher.UIThread.InvokeAsync(() => ToggleMuteAsync()).ConfigureAwait(false);
+
     internal void ToggleLoop()
     {
         if (IsDisposed || !_loop.IsEnabled) return;
@@ -411,7 +418,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
             // Capture the event value, not a potentially reentrant current slider value.
             int volume = (int)args.GetNewValue<double>();
-            _ = SetVolumeAsync(volume);
+            _ = SetVolumeAsync(volume, userInitiated: true);
             // Persist input in UI order, never completion order of native worker tasks.
             VolumeChanged?.Invoke(volume);
         };
@@ -499,10 +506,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         }
         _playPause.Content = TransportIcon("video.play-pause", 20, _isPlaying ? "playing" : "paused");
         ActionName(_playPause, "video.play-pause", Texts.T(_isPlaying ? "viewer.video.pause" : "viewer.video.play"));
-        _mute.Content = TransportIcon("video.mute", 18, _muted ? "muted" : "audible");
-        _mute.IsChecked = _muted;
+        bool muted = _muteIntent.Muted;
+        _mute.Content = TransportIcon("video.mute", 18, muted ? "muted" : "audible");
+        _mute.IsChecked = muted;
         string audioUnavailable = Texts.T(_audioTracks == 0 ? "viewer.video.noAudioTrack" : "viewer.video.audioUnavailable");
-        ActionName(_mute, "video.mute", _audioAvailable ? Texts.T(_muted ? "viewer.video.unmute" : "viewer.video.mute") : audioUnavailable);
+        ActionName(_mute, "video.mute", _audioAvailable ? Texts.T(muted ? "viewer.video.unmute" : "viewer.video.mute") : audioUnavailable);
         _loop.Content = TransportIcon("video.loop", 18);
         _loop.IsChecked = _intent.LoopEnabled;
         ActionName(_loop, "video.loop", Texts.T(_loop.IsChecked == true ? "viewer.video.loop.disable" : "viewer.video.loop.enable"));
@@ -549,7 +557,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _loopRestarts = 0;
         CancelSeekGesture();
         _timeline.Reset(generation);
-        _isPlaying = false; _ended = false; _muted = _startMuted; _canSeek = _knownSeekable = false;
+        _isPlaying = false; _ended = false; _canSeek = _knownSeekable = false;
+        _muteIntent.BeginMedia();
         _audioAvailable = false; _audioTracks = -1;
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
@@ -578,7 +587,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                         : new LibVLC("--no-video-title-show", "--no-media-library", "--stats");
                     player = new MediaPlayer(_engine);
                     VideoVolumeRequest initialVolume = _volumeIntent.Current;
-                    player.Volume = initialVolume.Volume; player.Mute = _startMuted;
+                    player.Volume = initialVolume.Volume; ApplyMute(player);
                     _appliedVolumeRevision = initialVolume.Revision;
                     player.EnableKeyInput = false; player.EnableMouseInput = false;
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
@@ -907,11 +916,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (available && requestedVolume.Generation == generation
                         && requestedVolume.Revision != _appliedVolumeRevision)
                         ApplyVolume(expectedPlayer, requestedVolume);
-                    bool muted = available && expectedPlayer.Mute;
+                    // Audio/output creation may reset native mute. Reconcile from session
+                    // intent, never infer a new user choice from a backend readback.
+                    if (available) ApplyMute(expectedPlayer);
                     Post(generation, () =>
                     {
                         _audioTracks = tracks; _audioAvailable = available;
-                        if (available) _muted = muted;
                         _mute.IsEnabled = _volume.IsEnabled = _playPause.IsEnabled && available;
                         RefreshTransportPresentation();
                     });
@@ -941,8 +951,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _volume.Value = Math.Clamp(_volume.Value + Math.Sign(direction) * step, _volume.Minimum, _volume.Maximum);
     }
 
-    private Task SetVolumeAsync(int volume)
+    private Task SetVolumeAsync(int volume, bool userInitiated)
     {
+        // UI input order, not native completion order, owns the mute decision.
+        _muteIntent.OnVolumeChanged(volume, userInitiated);
+        RefreshTransportPresentation();
         VideoVolumeRequest request = _volumeIntent.Request(_generation, volume);
         return CommandAsync(playback =>
         {
@@ -950,11 +963,9 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             MediaPlayer player = playback.Player;
             if (!HasUsableAudio(playback)) return;
             ApplyVolume(player, request);
-            bool muted = player.Mute;
             Post(request.Generation, () =>
             {
                 if (!_volumeIntent.IsCurrent(request)) return;
-                _muted = muted;
                 RefreshTransportPresentation();
             });
         });
@@ -969,8 +980,17 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         if (!_volumeIntent.IsCurrent(request)) return;
         player.Volume = request.Volume;
-        if (request.Volume > 0) player.Mute = false;
+        // Neither Configure nor delayed readiness replay is an implicit unmute.
+        // Read the latest intent, not the intent when this volume request was queued.
+        ApplyMute(player);
         _appliedVolumeRevision = request.Revision;
+    }
+
+    // Caller owns _operations. Native observations never write back into session intent.
+    private void ApplyMute(MediaPlayer player)
+    {
+        bool muted = _muteIntent.Muted;
+        if (player.Mute != muted) player.Mute = muted;
     }
 
     private async Task CommandAsync(Action<Playback> command)

@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 5;
+    internal const int SchemaVersion = 8;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -44,7 +44,7 @@ internal static partial class ArchiveSql
 
     internal static void ValidateSchema(SqliteConnection connection)
     {
-        if (GetPragma(connection, "user_version") is not (1 or 2 or 3 or 4 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
+        if (GetPragma(connection, "user_version") is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         using SqliteCommand journal = connection.CreateCommand();
         journal.CommandText = "PRAGMA journal_mode";
@@ -61,6 +61,9 @@ internal static partial class ArchiveSql
         using SqliteDataReader reader = columns.ExecuteReader();
         while (reader.NextResult()) { }
         reader.Close();
+        if (GetPragma(connection, "user_version") >= 6) ValidateNativeImportSchema(connection);
+        if (GetPragma(connection, "user_version") >= 7) ValidateMediaImportSchema(connection);
+        if (GetPragma(connection, "user_version") >= 8) ValidateMediaMergeSchema(connection);
         if (GetPragma(connection, "user_version") >= 2)
         {
             using SqliteCommand indexed = connection.CreateCommand();

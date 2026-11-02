@@ -303,6 +303,7 @@ internal sealed partial class GalleryViewer
             ApplyOverlayBackgrounds();
             LayoutContext();
             UpdateMediaFocusVisibility();
+            UpdateFavoriteIndicators();
             RefreshPlaybackControls();
         }
         finally { _applyingOverlayPlacement = false; }

@@ -46,19 +46,25 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                 ArchiveSql.CreateSearchSchema(connection, transaction);
                 ArchiveSql.CreateSourceContractSchema(connection, transaction);
                 ArchiveSql.CreateIntegritySchema(connection, transaction);
+                ArchiveSql.CreateNativeImportSchema(connection, transaction);
+                ArchiveSql.CreateMediaImportSchema(connection, transaction);
+                ArchiveSql.CreateMediaMergeSchema(connection, transaction);
                 using SqliteCommand schema = ArchiveSql.Command(connection, transaction,
                     $"PRAGMA application_id={ArchiveSql.ApplicationId}; PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
-            if ((version is 1 or 2 or 3 or 4) && application == ArchiveSql.ApplicationId)
+            if ((version is 1 or 2 or 3 or 4 or 5 or 6 or 7) && application == ArchiveSql.ApplicationId)
             {
                 ArchiveSql.ValidateSchema(connection);
                 using SqliteTransaction migration = connection.BeginTransaction();
                 if (version == 1) ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
                 if (version <= 2) ArchiveSql.CreateSourceContractSchema(connection, migration);
                 ArchiveSql.CreateIntegritySchema(connection, migration);
+                ArchiveSql.CreateNativeImportSchema(connection, migration);
+                ArchiveSql.CreateMediaImportSchema(connection, migration);
+                ArchiveSql.CreateMediaMergeSchema(connection, migration);
                 using SqliteCommand schema = ArchiveSql.Command(connection, migration, $"PRAGMA user_version={ArchiveSql.SchemaVersion};");
                 schema.ExecuteNonQuery();
                 cancellationToken.ThrowIfCancellationRequested();

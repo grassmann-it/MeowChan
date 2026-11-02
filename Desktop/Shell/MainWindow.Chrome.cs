@@ -1,20 +1,19 @@
 using System.Linq;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using MeowChan.Desktop.Localization;
+using MeowChan.Desktop;
 
 namespace MeowChan;
 
 public partial class MainWindow
 {
-    private static readonly Geometry MaximizeGeometry = Geometry.Parse("M 0.5,0.5 L 9.5,0.5 L 9.5,9.5 L 0.5,9.5 Z");
-    private static readonly Geometry RestoreGeometry = Geometry.Parse("M 2.5,2.5 L 2.5,0.5 L 9.5,0.5 L 9.5,7.5 L 7.5,7.5 M 0.5,2.5 L 7.5,2.5 L 7.5,9.5 L 0.5,9.5 Z");
+    private static readonly Geometry MaximizeGeometry = Geometry.Parse(WindowChromePolicy.MaximizePath);
+    private static readonly Geometry RestoreGeometry = Geometry.Parse(WindowChromePolicy.RestorePath);
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -90,17 +89,12 @@ public partial class MainWindow
         Button minimize = WorkspaceControl<Button>("WindowMinimizeButton");
         Button maximize = WorkspaceControl<Button>("WindowMaximizeButton");
         minimize.IsEnabled = CanMinimize;
-        maximize.IsEnabled = WindowState != WindowState.FullScreen && (maximized ? CanResize : CanMaximize);
+        maximize.IsEnabled = WindowChromePolicy.CanToggleMaximize(WindowState, CanMaximize, CanResize);
         WorkspaceControl<Path>("WindowMaximizeIcon").Data = maximized ? RestoreGeometry : MaximizeGeometry;
         SetWindowControlLabel(minimize, "window.minimize");
-        SetWindowControlLabel(maximize, maximized ? "window.restore" : "window.maximize");
+        SetWindowControlLabel(maximize, WindowChromePolicy.MaximizeLabel(WindowState));
         SetWindowControlLabel(WorkspaceControl<Button>("WindowCloseButton"), "action.close");
     }
 
-    private static void SetWindowControlLabel(Button button, string key)
-    {
-        string label = Texts.T(key);
-        AutomationProperties.SetName(button, label);
-        ToolTip.SetTip(button, label);
-    }
+    private static void SetWindowControlLabel(Button button, string key) => WindowChromeBar.SetLabel(button, key);
 }

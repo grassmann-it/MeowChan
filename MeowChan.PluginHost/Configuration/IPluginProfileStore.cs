@@ -21,6 +21,10 @@ public interface IPluginProfileStore
     Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled repair is not supported by this profile store.");
+    /// <summary>Explicitly reconfirm the displayed existing permissions for this exact changed executable.</summary>
+    Task<PluginProfileSnapshot> ReauthorizeBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Bundled permission reauthorization is not supported by this profile store.");
     Task<BundledCandidateReselectionPreview> PreviewBundledReselectionsAsync(CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Bundled new selection is not supported by this profile store.");
     Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,

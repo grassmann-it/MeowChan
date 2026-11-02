@@ -87,6 +87,7 @@ public partial class MainWindow : Window
             // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
             _session.ProjectionPublished += OnSessionChanged;
+            _session.StartupPreviewChanged += OnStartupPreviewChanged;
             DataContext = this;
             Activated += OnGalleryActivationChanged;
             Deactivated += OnGalleryActivationChanged;
@@ -121,6 +122,7 @@ public partial class MainWindow : Window
             InitializeSelectionCommands();
             Texts.Changed += OnLanguageChanged;
             SetupTrayIcon();
+            InitializeClipboardMonitor();
             Opened += OnMainWindowOpened;
             UpdateInteractionState();
             _restoreTask = RestoreSessionAsync();
@@ -129,9 +131,11 @@ public partial class MainWindow : Window
         {
             Texts.Changed -= OnLanguageChanged;
             _session.ProjectionPublished -= OnSessionChanged;
+            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
             DisposeWorkspace();
             DisposeWorkspacePages();
             _sessionRefresh?.Dispose();
+            StopClipboardMonitor();
             DisposeTrayIcon();
             _session.DisposeAsync().AsTask().GetAwaiter().GetResult();
             throw;
@@ -142,6 +146,7 @@ public partial class MainWindow : Window
     {
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
+        RefreshClipboardMonitor();
         TryOfferFirstRunSetup();
         RestoreWindowPreferences();
         BeginStartupWindowFit();
@@ -177,6 +182,8 @@ public partial class MainWindow : Window
 
     private void UpdateInteractionState()
     {
+        RefreshStartupPreview();
+        RefreshClipboardMonitor();
         bool ready = _restoreCompleted && !_isClosing && !_applyingPreferences;
         bool navigationReady = ready && !WorkspaceCommandBusy;
         UpdatePauseControls(ready && !WorkspaceEditorBusy);
@@ -232,6 +239,7 @@ public partial class MainWindow : Window
     private void RefreshSession()
     {
         if (_isClosing) return;
+        RefreshStartupPreview();
         DesktopSessionProjection projection = _session.Projection;
         if (MeowChan.Diagnostics.PerformanceDiagnostics.Enabled)
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("ui.session.age-us", "observed",
@@ -285,6 +293,7 @@ public partial class MainWindow : Window
             row => { _boardFilterExclusions.Remove(row.WatchId); row.Dispose(); }, projection.Epoch, projection.Version);
         // Existing selection and focus stay owned by the grids; commands/filter/inspector cannot consume a partial frame.
         RefreshMediaRetryControls();
+        RefreshClipboardMonitor();
     }
 
     private void PostSessionRowSlice()
@@ -319,6 +328,10 @@ public partial class MainWindow : Window
         _applyingSessionProjection = null;
         _threadReconciliation = null; _boardReconciliation = null;
         _sessionRowsApplying = false;
+        // Re-enable an already offered batch when its row-command guard clears;
+        // waiting for another clipboard poll would leave a stale disabled action.
+        RefreshClipboardMonitor();
+        RefreshStartupPreview();
         if (!SelectedThreads().Any(row => row.WatchId == _threadLeadId)) _threadLeadId = SelectedThreads().FirstOrDefault()?.WatchId;
         if (!SelectedBoards().Any(row => row.WatchId == _boardLeadId)) _boardLeadId = SelectedBoards().FirstOrDefault()?.WatchId;
         _sessionRowsApplied?.TrySetResult();
@@ -381,6 +394,8 @@ public partial class MainWindow : Window
             try
             {
                 FirstRunSetupRunResult result = await FirstRunSetupCoordinator.RunAsync(this, _session);
+                if (result.Outcome == FirstRunSetupOutcome.Completed && !_isClosing)
+                    _settingsEditor?.RefreshConfirmedFirstRunSetup();
                 if (result.Outcome == FirstRunSetupOutcome.PreparationFailed && !_isClosing)
                     ShowNotification(Texts.T("notification.error"), result.Message ?? Texts.T("setup.prepareFailed"), NotificationType.Error, operation: "setup.prepare");
             }
@@ -838,6 +853,7 @@ public partial class MainWindow : Window
         if (_postBookmarksDialog != null && !await _postBookmarksDialog.PrepareToCloseAsync()) return;
         _archivePage?.FlushReadingPositionInput();
         _isClosing = true;
+        StopClipboardMonitor();
         _pendingSessionProjection = null;
         _sessionRowsApplying = false;
         _sessionRowsApplied?.TrySetResult(); _sessionRowsApplied = null;
@@ -883,6 +899,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Shutdown ownership is unproven; native surface and profile remain retained.", preferenceFailure);
             Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
             _session.ProjectionPublished -= OnSessionChanged;
+            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
             Texts.Changed -= OnLanguageChanged;
             DisposeWorkspace();
             _sessionRefresh.Dispose();
@@ -1125,6 +1142,7 @@ public partial class MainWindow : Window
         if (_isClosing) return;
         _sessionRefresh.Request();
         RefreshAdmissionResults();
+        RefreshClipboardMonitor();
         RefreshTrayMenuIcons();
     }
 

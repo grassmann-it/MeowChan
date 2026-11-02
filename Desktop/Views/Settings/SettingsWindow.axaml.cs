@@ -12,6 +12,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(Config config, Func<Config, Task>? applySettings = null)
     {
         InitializeComponent();
+        AppCaption.Attach(this);
         Editor = new SettingsEditor(config, applySettings, closeOnDiscard: true);
         EditorHost.Content = Editor;
         DataContext = Editor;

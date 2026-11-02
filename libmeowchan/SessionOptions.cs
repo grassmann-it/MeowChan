@@ -2,12 +2,14 @@ namespace MeowChan;
 
 using System;
 using System.IO;
+using MeowChan.Downloader;
 
 public sealed class SessionOptions
 {
     public string DownloadPath { get; init; } = string.Empty;
     public TimeSpan RecheckInterval { get; init; } = TimeSpan.FromSeconds(60);
     public int MaxParallelDownloads { get; init; } = 5;
+    public int ParallelDownloadsSafetyLimit { get; init; } = DownloadQueue.ProtectiveParallelDownloadsCeiling;
     public long BandwidthBytesPerSecond { get; init; } = 1024 * 1024;
 
     public void Validate()
@@ -17,6 +19,8 @@ public sealed class SessionOptions
         if (RecheckInterval < TimeSpan.FromSeconds(10) || RecheckInterval.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(RecheckInterval), "The recheck interval must be between 10 seconds and the supported timer maximum.");
         if (MaxParallelDownloads <= 0) throw new ArgumentOutOfRangeException(nameof(MaxParallelDownloads));
+        if (ParallelDownloadsSafetyLimit is < 1 or > DownloadQueue.MaximumParallelDownloadsSafetyLimit)
+            throw new ArgumentOutOfRangeException(nameof(ParallelDownloadsSafetyLimit));
         if (BandwidthBytesPerSecond <= 0) throw new ArgumentOutOfRangeException(nameof(BandwidthBytesPerSecond));
     }
 }

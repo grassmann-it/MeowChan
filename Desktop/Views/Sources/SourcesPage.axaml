@@ -25,7 +25,7 @@
                 <StackPanel Spacing="12">
                     <Button x:Name="SourceBackButton" HorizontalAlignment="Left" Click="OnBackClick" />
                     <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" />
-                    <TextBlock x:Name="SourceExperimental" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
+                    <TextBlock x:Name="SourceExperimental" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
                     <StackPanel x:Name="SourceMediaIntegrityPanel" Spacing="6" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">

@@ -289,6 +289,8 @@ public static class ArchiveHtmlExporter
                     await html.WriteLineAsync("<p class=\"meta\">Saved file: " + saved.Asset.Length.ToString(CultureInfo.InvariantCulture) + " bytes.</p>");
                     if (provenance != null)
                     {
+                        if (provenance.Acceptance.Kind == MediaAcceptanceKind.PassiveImport)
+                            await html.WriteLineAsync("<p class=\"meta\">Imported archive file; no local source permission is implied.</p>");
                         if (provenance.Acceptance.Kind == MediaAcceptanceKind.ExplicitProviderMismatch)
                             await html.WriteLineAsync("<p class=\"meta\">Saved with source-specific permission; the source size or checksum differs from the saved file.</p>");
                         await html.WriteLineAsync("<details><summary>Source-reported media information</summary><p>Size: "

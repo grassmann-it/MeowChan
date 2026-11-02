@@ -307,23 +307,50 @@ public sealed class DesktopSessionHostTests
     {
         using TempDirectory directory = new TempDirectory();
         TaskCompletionSource<SessionLoadResult> restore = new TaskCompletionSource<SessionLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ControlledStore store = new ControlledStore { Load = () => restore.Task };
+        TaskCompletionSource restoreEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ControlledStore store = new ControlledStore
+        {
+            Load = () =>
+            {
+                restoreEntered.TrySetResult();
+                return restore.Task; // Real store work already entered; deliberately not canceled by Stop.
+            }
+        };
         DesktopSessionHost host = new DesktopSessionHost(directory.Path, Array.Empty<IImageBoard>(), (_, _) => store);
         await using BoundedHostDisposal cleanup = new BoundedHostDisposal(host);
+        CancellationToken startupToken = default;
+        host.AfterStartupPreviewForTests = token => { startupToken = token; return Task.CompletedTask; };
         ConcurrentQueue<DesktopSessionState> states = new ConcurrentQueue<DesktopSessionState>();
         host.StateChanged += () => states.Enqueue(host.State);
 
         try
         {
             Task start = host.StartAsync();
+            // StartAsync only schedules startup. Stop before the preview/content phases finish may
+            // legitimately skip restoration; this test specifically holds an already-entered load.
+            await restoreEntered.Task.WaitAsync(Timeout);
+            Assert.False(start.IsCompleted);
+            Assert.Equal(DesktopSessionState.Starting, host.State);
+            Assert.True(startupToken.CanBeCanceled);
+            TaskCompletionSource startupCanceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            using CancellationTokenRegistration registration = startupToken.Register(() => startupCanceled.TrySetResult());
+
             Task stop = host.StopAsync();
+            // Observe actual shutdown-worker progress, not merely a stop task that has not run yet.
+            await startupCanceled.Task.WaitAsync(Timeout);
+            Assert.False(start.IsCompleted);
             Assert.False(stop.IsCompleted);
             Assert.Equal(DesktopSessionState.Stopping, host.State);
+            Assert.Equal(DesktopSessionState.Stopping, host.GetView().State);
             await Assert.ThrowsAsync<InvalidOperationException>(() => host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Timeout));
+            Assert.Throws<IOException>(() => ProfileLease.Acquire(directory.Path));
+            Assert.Equal(0, store.Saves);
+            Assert.DoesNotContain(DesktopSessionState.Ready, states);
             restore.TrySetResult(new SessionLoadResult(new SessionSnapshot(), null, false));
             await Task.WhenAll(start, stop).WaitAsync(Timeout);
 
             Assert.Equal(DesktopSessionState.Stopped, host.State);
+            Assert.Equal(DesktopSessionState.Stopped, host.GetView().State);
             Assert.DoesNotContain(DesktopSessionState.Ready, states);
             Assert.Same(stop, host.StopAsync());
         }

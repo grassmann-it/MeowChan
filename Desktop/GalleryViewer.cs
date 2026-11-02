@@ -211,8 +211,10 @@ internal sealed partial class GalleryViewer : UserControl
         SetContextOpen(contextOpen, notify: false);
     }
 
-    internal void SetFavorite(bool selected)
+    internal void SetFavorite(bool selected, bool pending = false)
     {
+        _favoriteKnown = true;
+        _favoritePending = pending;
         _favoriteSelected = selected;
         UpdateFavorite();
     }
@@ -356,6 +358,7 @@ internal sealed partial class GalleryViewer : UserControl
         root.Children.Add(_helpPanel);
         Content = root;
         InitializeOverlayInteraction();
+        InitializeFavoriteIndicators();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
         _nativeVideoOverlay.ContextRequested += (_, e) =>
@@ -454,7 +457,7 @@ internal sealed partial class GalleryViewer : UserControl
 
     private void UpdateHelpButtonTooltip()
     {
-        string tip = string.Join(" · ", (_showShortcutHelp ? new[] { "viewer.shortcut-help", "favorites.toggle", "gallery.context-toggle" } : new[] { "viewer.shortcut-help" }).Select(id => CommandBindings.Tooltip(id)));
+        string tip = string.Join(" · ", (_showShortcutHelp ? new[] { "viewer.shortcut-help", "favorites.add", "favorites.remove", "gallery.context-toggle" } : new[] { "viewer.shortcut-help" }).Select(id => CommandBindings.Tooltip(id)));
         ToolTip.SetTip(_helpButton, tip);
         AutomationProperties.SetHelpText(_helpButton, tip);
     }
@@ -644,7 +647,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         _favorite.IsChecked = _favoriteSelected;
         ApplyCompactLabel(_favorite, "GalleryFavorite");
-        if (_entry != null) FavoriteToggleRequested?.Invoke(_entry);
+        if (CanRequestFavorite && _entry != null) FavoriteToggleRequested?.Invoke(_entry);
     }
 
     private void UpdateFavorite()
@@ -654,7 +657,8 @@ internal sealed partial class GalleryViewer : UserControl
         AutomationProperties.SetName(_favorite, label);
         ToolTip.SetTip(_favorite, CommandBindings.Tooltip("favorites.toggle"));
         AutomationProperties.SetHelpText(_favorite, CommandBindings.Tooltip("favorites.toggle"));
-        _favorite.IsEnabled = _entry != null;
+        _favorite.IsEnabled = _entry != null && !_terminalRetirement;
+        UpdateFavoriteIndicators();
     }
 
     private void UpdateContextButton()
@@ -685,8 +689,8 @@ internal sealed partial class GalleryViewer : UserControl
         if (!_helpOpen) return;
         _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Classes = { "section-title" } });
         string[] ids = _helpExpanded
-            ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
-            : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.toggle", "gallery.context-toggle", "gallery.slideshow-toggle" };
+            ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.add", "favorites.remove", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
+            : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.add", "favorites.remove", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
@@ -838,7 +842,8 @@ internal sealed partial class GalleryViewer : UserControl
         if (_entry?.Key != entry.Key) SetFavoriteError(null);
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
-        SetFavorite(false);
+        _favoriteKnown = _favoritePending = _favoriteSelected = false;
+        UpdateFavorite();
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;
         _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
@@ -1134,6 +1139,8 @@ internal sealed partial class GalleryViewer : UserControl
         if (!IsGalleryShortcutInput(e)) return;
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
+        if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "favorites.remove")) { RequestFavorite(false); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "favorites.toggle")) { ToggleFavorite(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
@@ -1344,6 +1351,7 @@ internal sealed partial class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         _terminalRetirement = true;
+        UpdateFavoriteIndicators();
         // Permanently close both owners' placement admission before the FIRST await.
         // In particular, player disposal happens only after GIF retirement below.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,

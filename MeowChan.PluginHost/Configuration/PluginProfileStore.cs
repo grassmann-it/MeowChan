@@ -215,7 +215,11 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Problem = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required." };
                     else if (deliveredCandidate && buildChanged && !bindingMatches && !automaticBundleUpdate)
                         next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
-                    else if (deliveredCandidate && BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged))
+                    // Persisted consent cannot replace serialization of a live permission authority.
+                    // Legacy callers without its shared gate retain the raw inheritance guard.
+                    else if (deliveredCandidate && (repairRestrictedSources is not null && repairPermissionGate is null
+                        ? BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged)
+                        : BundledCandidateMigration.HasUnreviewedInheritedRights(document, old, candidate, buildChanged)))
                         next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };
                     else
                     {
