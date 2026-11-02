@@ -30,6 +30,14 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveAsync<object?>(action, target, async () => { await operation().ConfigureAwait(false); return null; }, onAccepted, captureAfter);
 
     private Task<T> RunInteractiveAsync<T>(string action, string target, Func<Task<T>> operation, Action? onAccepted = null, bool captureAfter = true)
+        => RunInteractiveCoreAsync(action, target, _ => operation(), onAccepted, captureAfter);
+
+    private Task<T> RunInteractiveWithAdmissionAsync<T>(string action, string target,
+        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted = null, bool captureAfter = true)
+        => RunInteractiveCoreAsync(action, target, operation, onAccepted, captureAfter);
+
+    private Task<T> RunInteractiveCoreAsync<T>(string action, string target,
+        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted, bool captureAfter)
     {
         long request = PerformanceDiagnostics.NextId();
         var key = (action, target);
@@ -61,7 +69,7 @@ internal sealed partial class DesktopSessionHost
                 try
                 {
                     using var measurement = PerformanceDiagnostics.Measure("host.command", request, target, epoch: _epoch);
-                    T result = await operation().ConfigureAwait(false);
+                    T result = await operation(acceptedAdmission).ConfigureAwait(false);
                     // All command completions observe the same bounded publication path, including forced reads.
                     if (captureAfter) await CaptureProjectionAsync().ConfigureAwait(false);
                     return result;

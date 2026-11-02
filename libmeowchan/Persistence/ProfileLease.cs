@@ -185,6 +185,16 @@ public sealed class ProfileLease : IDisposable
         return true;
     });
 
+    // Pin before waiting on the lease monitor, and release only after I/O returns.
+    // The token authorizes the role; RunExclusive still verifies the live OS lease.
+    internal T RunStoreWrite<T>(ProfileAdmissionToken admission, Func<T> operation) =>
+        _admission.RunWithToken(admission, () => RunExclusive(operation),
+            ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+
+    internal T RunPrivateStoreCommit<T>(ProfileAdmissionToken admission, Func<T> operation) =>
+        _admission.RunWithToken(admission, () => RunExclusive(operation),
+            ProfileAdmissionKind.Startup, ProfileAdmissionKind.Exclusive);
+
     internal T RunExclusive<T>(Func<T> operation)
     {
         lock (_sync)

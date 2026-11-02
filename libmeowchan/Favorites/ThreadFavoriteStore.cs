@@ -56,40 +56,50 @@ public sealed partial class ThreadFavoriteStore
     public ThreadFavoriteCommit Set(ResourceId thread, bool favorite, CancellationToken token = default)
     {
         Validate(thread);
-        return _lease.RunExclusive(() =>
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return SetAdmitted(thread, favorite, admission, token);
+    }
+
+    internal ThreadFavoriteCommit SetAdmitted(ResourceId thread, bool favorite,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+    {
+        Validate(thread);
+        return _lease.RunStoreWrite(admission, () => SetCore(thread, favorite, token));
+    }
+
+    private ThreadFavoriteCommit SetCore(ResourceId thread, bool favorite, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        (Document document, ThreadFavoriteSnapshot current) = Read();
+        PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
+        int index = document.Threads.FindIndex(id => id == thread);
+        bool unchanged = favorite == (index >= 0);
+        PrivateStoreOperationMarker? backupMarker = null;
+        try { backupMarker = ReadDocument(_path + ".bak").Document.OperationMarker; }
+        catch (FileNotFoundException) { }
+        catch (InvalidDataException) when (unchanged)
         {
-            token.ThrowIfCancellationRequested();
-            (Document document, ThreadFavoriteSnapshot current) = Read();
-            PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
-            int index = document.Threads.FindIndex(id => id == thread);
-            bool unchanged = favorite == (index >= 0);
-            PrivateStoreOperationMarker? backupMarker = null;
-            try { backupMarker = ReadDocument(_path + ".bak").Document.OperationMarker; }
-            catch (FileNotFoundException) { }
-            catch (InvalidDataException) when (unchanged)
-            {
-                // An invalid legacy backup is never rotated by a no-op. Keep
-                // that established behavior, but a valid operation marker below
-                // still bars even same-value calls until explicit recovery.
-            }
-            PrivateStoreBatchFiles.EnsureUnmarked(backupMarker);
-            if (unchanged) return new ThreadFavoriteCommit(thread, favorite, false, current);
-            if (favorite)
-            {
-                if (document.Threads.Count >= MaximumEntries)
-                    throw new InvalidDataException("The thread favorites index has reached its entry limit.");
-                document.Threads.Add(thread);
-            }
-            else document.Threads.RemoveAt(index);
-            document = document with { Revision = checked(document.Revision + 1) };
-            string json = JsonSerializer.Serialize(document);
-            byte[] bytes = StrictUtf8.GetBytes(json);
-            if (bytes.Length > MaximumBytes)
-                throw new InvalidDataException("The thread favorites index has reached its size limit.");
-            // A future or malformed backup must never be rotated away by an older writer.
-            AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
-            return new ThreadFavoriteCommit(thread, favorite, true, Snapshot(document, bytes));
-        });
+            // An invalid legacy backup is never rotated by a no-op. Keep
+            // that established behavior, but a valid operation marker below
+            // still bars even same-value calls until explicit recovery.
+        }
+        PrivateStoreBatchFiles.EnsureUnmarked(backupMarker);
+        if (unchanged) return new ThreadFavoriteCommit(thread, favorite, false, current);
+        if (favorite)
+        {
+            if (document.Threads.Count >= MaximumEntries)
+                throw new InvalidDataException("The thread favorites index has reached its entry limit.");
+            document.Threads.Add(thread);
+        }
+        else document.Threads.RemoveAt(index);
+        document = document with { Revision = checked(document.Revision + 1) };
+        string json = JsonSerializer.Serialize(document);
+        byte[] bytes = StrictUtf8.GetBytes(json);
+        if (bytes.Length > MaximumBytes)
+            throw new InvalidDataException("The thread favorites index has reached its size limit.");
+        // A future or malformed backup must never be rotated away by an older writer.
+        AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
+        return new ThreadFavoriteCommit(thread, favorite, true, Snapshot(document, bytes));
     }
 
     public static void Validate(ResourceId thread)

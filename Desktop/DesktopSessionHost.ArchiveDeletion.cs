@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Favorites;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -43,10 +44,10 @@ internal sealed partial class DesktopSessionHost
 
     internal Task<ArchivePermanentDeletionResult> DeleteArchivePermanentlyAsync(
         ArchivePermanentDeletionPlan plan, CancellationToken token = default)
-        => RunInteractiveAsync(nameof(DeleteArchivePermanentlyAsync), "profile", () => DeleteArchivePermanentlyAdmittedCoreAsync(plan, token));
+        => RunInteractiveWithAdmissionAsync(nameof(DeleteArchivePermanentlyAsync), "profile", admission => DeleteArchivePermanentlyAdmittedCoreAsync(plan, admission, token));
 
     private async Task<ArchivePermanentDeletionResult> DeleteArchivePermanentlyAdmittedCoreAsync(
-        ArchivePermanentDeletionPlan plan, CancellationToken token = default)
+        ArchivePermanentDeletionPlan plan, ProfileAdmissionToken admission, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
         await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -189,7 +190,7 @@ internal sealed partial class DesktopSessionHost
                             LoadFavoritesIfNeeded();
                             // These catalog deletions are already committed. Finish their
                             // metadata cleanup and return the actual result despite cancellation.
-                            _favoritesStore!.RemoveThreads(deleted);
+                            _favoritesStore!.RemoveThreadsAdmitted(deleted, admission);
                             FavoriteEntry[] retained = _favoriteEntries!.Where(entry =>
                                 !deleted.Contains(entry.Key.Thread)).ToArray();
                             _favoriteEntries = Array.AsReadOnly(retained);

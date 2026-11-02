@@ -99,46 +99,68 @@ public sealed partial class FavoriteStore
         ArgumentNullException.ThrowIfNull(entry);
         Validate(entry.Key);
         if (entry.Length < 0) throw new ArgumentOutOfRangeException(nameof(entry));
-        return _lease.RunExclusive(() =>
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return SetFavoriteAdmitted(entry, favorite, admission, cancellationToken);
+    }
+
+    internal bool SetFavoriteAdmitted(FavoriteEntry entry, bool favorite, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        Validate(entry.Key);
+        if (entry.Length < 0) throw new ArgumentOutOfRangeException(nameof(entry));
+        return _lease.RunStoreWrite(admission, () => SetFavoriteCore(entry, favorite, cancellationToken));
+    }
+
+    private bool SetFavoriteCore(FavoriteEntry entry, bool favorite, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Document document = Read().Document;
+        PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
+        int index = document.Entries.FindIndex(item => item.Key == entry.Key);
+        if (favorite == (index >= 0))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Document document = Read().Document;
-            PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
-            int index = document.Entries.FindIndex(item => item.Key == entry.Key);
-            if (favorite == (index >= 0))
-            {
-                EnsureNoopBackupUnmarked();
-                return false;
-            }
-            if (favorite)
-            {
-                if (document.Entries.Count >= MaximumEntries)
-                    throw new InvalidDataException("The favorites index has reached its entry limit.");
-                document.Entries.Add(entry);
-            }
-            else document.Entries.RemoveAt(index);
-            Write(document, cancellationToken);
-            return true;
-        });
+            EnsureNoopBackupUnmarked();
+            return false;
+        }
+        if (favorite)
+        {
+            if (document.Entries.Count >= MaximumEntries)
+                throw new InvalidDataException("The favorites index has reached its entry limit.");
+            document.Entries.Add(entry);
+        }
+        else document.Entries.RemoveAt(index);
+        Write(document, cancellationToken);
+        return true;
     }
 
     /// <summary>Removes all favorites of deleted archive threads in one profile update.</summary>
     public int RemoveThreads(IReadOnlyCollection<ResourceId> threads, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(threads);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return RemoveThreadsAdmitted(threads, admission, cancellationToken);
+    }
+
+    internal int RemoveThreadsAdmitted(IReadOnlyCollection<ResourceId> threads, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
         HashSet<ResourceId> selected = threads.ToHashSet();
-        return _lease.RunExclusive(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Document document = Read().Document;
-            PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
-            int removed = document.Entries.RemoveAll(entry => selected.Contains(entry.Key.Thread));
-            if (removed > 0)
-                Write(document, cancellationToken);
-            else
-                EnsureNoopBackupUnmarked();
-            return removed;
-        });
+        return _lease.RunStoreWrite(admission, () => RemoveThreadsCore(selected, cancellationToken));
+    }
+
+    private int RemoveThreadsCore(HashSet<ResourceId> selected, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Document document = Read().Document;
+        PrivateStoreBatchFiles.EnsureUnmarked(document.OperationMarker);
+        int removed = document.Entries.RemoveAll(entry => selected.Contains(entry.Key.Thread));
+        if (removed > 0)
+            Write(document, cancellationToken);
+        else
+            EnsureNoopBackupUnmarked();
+        return removed;
     }
 
     public static FavoriteEntry From(ResourceId thread, MediaAssetReference asset)

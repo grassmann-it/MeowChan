@@ -68,40 +68,57 @@ internal sealed partial class PostBookmarkStore
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     internal PostBookmarkStore(string profileDirectory, ProfileLease lease)
+        : this(profileDirectory, lease, passive: true)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        _lease.RunStoreWrite(admission, CleanupOrdinaryPendingCore);
+    }
+
+    private PostBookmarkStore(string profileDirectory, ProfileLease lease, bool passive)
     {
         lease.EnsureMatches(profileDirectory);
         _lease = lease;
         Path = System.IO.Path.Combine(lease.ProfileDirectory, "post-bookmarks.json");
         _pendingPrefix = "post-bookmarks.json.pending-";
+    }
+
+    internal PostBookmarkStore(string profileDirectory, ProfileLease lease, ProfileAdmissionToken admission)
+        : this(profileDirectory, lease, passive: true)
+    {
+        _lease.RunStoreWrite(admission, CleanupOrdinaryPendingCore);
+    }
+
+    internal static PostBookmarkStore OpenWithoutCleanup(string profileDirectory, ProfileLease lease)
+        => new(profileDirectory, lease, passive: true);
+
+    private bool CleanupOrdinaryPendingCore()
+    {
         // Only our own exact GUID temp names, and only while this profile is exclusively leased.
-        _lease.RunExclusive(() =>
+        string[] ownPending = Directory.EnumerateFiles(_lease.ProfileDirectory, _pendingPrefix + "*")
+            .Where(file => Guid.TryParseExact(
+                System.IO.Path.GetFileName(file)[_pendingPrefix.Length..], "N", out _))
+            .ToArray();
+        if (ownPending.Length == 0) return true;
+        if (HasPrivatePending()) return true;
+
+        // A marked/uncertain primary is recovery evidence. Never erase an exact
+        // pending artifact merely because this ordinary store constructor ran.
+        bool mayClean = true;
+        try
         {
-            string[] ownPending = Directory.EnumerateFiles(lease.ProfileDirectory, _pendingPrefix + "*")
-                .Where(file => Guid.TryParseExact(
-                    System.IO.Path.GetFileName(file)[_pendingPrefix.Length..], "N", out _))
-                .ToArray();
-            if (ownPending.Length == 0) return true;
-            if (HasPrivatePending()) return true;
+            ParsedFile current = ReadParsedFile(Path);
+            mayClean = current.OperationMarker is null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or InvalidDataException)
+        {
+            mayClean = false;
+        }
+        if (!mayClean) return true;
 
-            // A marked/uncertain primary is recovery evidence. Never erase an exact
-            // pending artifact merely because this ordinary store constructor ran.
-            bool mayClean = true;
-            try
-            {
-                ParsedFile current = ReadParsedFile(Path);
-                mayClean = current.OperationMarker is null;
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException
-                or InvalidDataException)
-            {
-                mayClean = false;
-            }
-            if (!mayClean) return true;
-
-            foreach (string file in ownPending)
-                File.Delete(file);
-            return true;
-        });
+        foreach (string file in ownPending)
+            File.Delete(file);
+        return true;
     }
 
     internal PostBookmarkSnapshot Read() => _lease.RunExclusive(ReadCore);
@@ -168,72 +185,88 @@ internal sealed partial class PostBookmarkStore
         bool expectedExists, CancellationToken token = default)
     {
         key.Validate();
+        _ = NormalizeNote(note);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return UpsertAdmitted(key, note, expectedRevision, expectedExists, admission, token);
+    }
+
+    internal PostBookmarkSnapshot UpsertAdmitted(PostBookmarkKey key, string note, long expectedRevision,
+        bool expectedExists, ProfileAdmissionToken admission, CancellationToken token = default)
+    {
+        key.Validate();
         string normalized = NormalizeNote(note);
-        return Mutate(expectedRevision, entries =>
+        return _lease.RunStoreWrite(admission, () => MutateCore(expectedRevision, entries =>
         {
             int index = entries.FindIndex(entry => entry.Key == key);
             if ((index >= 0) != expectedExists) throw new PostBookmarkConflictException();
             var entry = new PostBookmark(key, normalized);
             if (index >= 0) entries[index] = entry;
             else entries.Add(entry);
-        }, token);
+        }, token));
     }
 
     internal PostBookmarkSnapshot Remove(PostBookmarkKey key, long expectedRevision, CancellationToken token = default)
     {
         key.Validate();
-        return Mutate(expectedRevision, entries =>
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return RemoveAdmitted(key, expectedRevision, admission, token);
+    }
+
+    internal PostBookmarkSnapshot RemoveAdmitted(PostBookmarkKey key, long expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+    {
+        key.Validate();
+        return _lease.RunStoreWrite(admission, () => MutateCore(expectedRevision, entries =>
         {
             int index = entries.FindIndex(entry => entry.Key == key);
             if (index < 0) throw new PostBookmarkConflictException();
             entries.RemoveAt(index);
-        }, token);
+        }, token));
     }
 
-    private PostBookmarkSnapshot Mutate(long expectedRevision, Action<List<PostBookmark>> change, CancellationToken token)
-        => _lease.RunExclusive(() =>
+    private PostBookmarkSnapshot MutateCore(long expectedRevision, Action<List<PostBookmark>> change, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        // Preserve the existing mutation failure contract for an unusable
+        // destination; passive snapshot reads classify it as invalid data.
+        if (Directory.Exists(Path))
+            throw new IOException("The post-bookmark destination is not a file.");
+        EnsureNoPrivatePending();
+        ParsedFile parsed = ReadParsedFile(Path);
+        PrivateStoreBatchFiles.EnsureUnmarked(parsed.OperationMarker);
+        PostBookmarkSnapshot current = parsed.Snapshot;
+        if (current.Revision != expectedRevision) throw new PostBookmarkConflictException();
+        List<PostBookmark> entries = current.Bookmarks.ToList();
+        change(entries);
+        if (entries.Count > MaximumEntries) throw new InvalidDataException("At most 10,000 post bookmarks are supported.");
+        PostBookmarkSnapshot next = new(checked(current.Revision + 1), Array.AsReadOnly(entries.ToArray()));
+        byte[] bytes = Serialize(next);
+        if (bytes.Length > MaximumDocumentBytes) throw new InvalidDataException("Post bookmarks exceed 32 MiB.");
+        string pending = Path + ".pending-" + Guid.NewGuid().ToString("N");
+        try
         {
+            using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                file.Write(bytes);
+                file.Flush(flushToDisk: true);
+            }
             token.ThrowIfCancellationRequested();
-            // Preserve the existing mutation failure contract for an unusable
-            // destination; passive snapshot reads classify it as invalid data.
-            if (Directory.Exists(Path))
-                throw new IOException("The post-bookmark destination is not a file.");
-            EnsureNoPrivatePending();
-            ParsedFile parsed = ReadParsedFile(Path);
-            PrivateStoreBatchFiles.EnsureUnmarked(parsed.OperationMarker);
-            PostBookmarkSnapshot current = parsed.Snapshot;
-            if (current.Revision != expectedRevision) throw new PostBookmarkConflictException();
-            List<PostBookmark> entries = current.Bookmarks.ToList();
-            change(entries);
-            if (entries.Count > MaximumEntries) throw new InvalidDataException("At most 10,000 post bookmarks are supported.");
-            PostBookmarkSnapshot next = new(checked(current.Revision + 1), Array.AsReadOnly(entries.ToArray()));
-            byte[] bytes = Serialize(next);
-            if (bytes.Length > MaximumDocumentBytes) throw new InvalidDataException("Post bookmarks exceed 32 MiB.");
-            string pending = Path + ".pending-" + Guid.NewGuid().ToString("N");
-            try
+            // Commit point. Deliberately no .bak, .corrupt or previous-note history.
+            try { File.Move(pending, Path, overwrite: true); }
+            catch (IOException)
             {
-                using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    file.Write(bytes);
-                    file.Flush(flushToDisk: true);
-                }
-                token.ThrowIfCancellationRequested();
-                // Commit point. Deliberately no .bak, .corrupt or previous-note history.
-                try { File.Move(pending, Path, overwrite: true); }
-                catch (IOException)
-                {
-                    // An ambiguous replace outcome is resolved from disk before reporting failure.
-                    if (!File.ReadAllBytes(Path).AsSpan().SequenceEqual(bytes)) throw;
-                }
-                return next; // Never report cancellation after publication.
+                // An ambiguous replace outcome is resolved from disk before reporting failure.
+                if (!File.ReadAllBytes(Path).AsSpan().SequenceEqual(bytes)) throw;
             }
-            finally
-            {
-                try { File.Delete(pending); }
-                catch (IOException) { /* Retry cleanup of this exact own temp on next feature load. */ }
-                catch (UnauthorizedAccessException) { /* Never turn an already committed write into a failure. */ }
-            }
-        });
+            return next; // Never report cancellation after publication.
+        }
+        finally
+        {
+            try { File.Delete(pending); }
+            catch (IOException) { /* Retry cleanup of this exact own temp on next feature load. */ }
+            catch (UnauthorizedAccessException) { /* Never turn an already committed write into a failure. */ }
+        }
+    }
 
     private PostBookmarkSnapshot ReadCore() => ReadFile(Path);
 

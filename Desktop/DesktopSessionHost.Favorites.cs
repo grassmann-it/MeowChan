@@ -9,6 +9,7 @@ using MeowChan.Archive;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -59,10 +60,10 @@ internal sealed partial class DesktopSessionHost
     // Removing a missing original must not require resolving or touching its file.
     internal Task<bool> SetFavoriteAsync(FavoriteEntry candidate, bool favorite,
         CancellationToken token = default)
-        => RunInteractiveAsync(nameof(SetFavoriteAsync), candidate.Key.ToString(), () => SetFavoriteAdmittedCoreAsync(candidate, favorite, token));
+        => RunInteractiveWithAdmissionAsync(nameof(SetFavoriteAsync), candidate.Key.ToString(), admission => SetFavoriteAdmittedCoreAsync(candidate, favorite, admission, token));
 
     private async Task<bool> SetFavoriteAdmittedCoreAsync(FavoriteEntry candidate, bool favorite,
-        CancellationToken token = default, FavoriteWriteSequence? sequence = null)
+        ProfileAdmissionToken admission, CancellationToken token = default, FavoriteWriteSequence? sequence = null)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -74,7 +75,7 @@ internal sealed partial class DesktopSessionHost
             lock (_favoritesSync)
             {
                 LoadFavoritesIfNeeded();
-                changed = _favoritesStore!.SetFavorite(candidate, favorite, token);
+                changed = _favoritesStore!.SetFavoriteAdmitted(candidate, favorite, admission, token);
                 if (changed)
                 {
                     FavoriteEntry[] next = favorite

@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Favorites;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -52,10 +53,10 @@ internal sealed partial class DesktopSessionHost
 
     internal Task<ThreadFavoriteCommit> SetThreadFavoriteAsync(ResourceId thread, bool favorite,
         CancellationToken token = default)
-        => RunInteractiveAsync(nameof(SetThreadFavoriteAsync), thread.ToString(), () => SetThreadFavoriteAdmittedCoreAsync(thread, favorite, token));
+        => RunInteractiveWithAdmissionAsync(nameof(SetThreadFavoriteAsync), thread.ToString(), admission => SetThreadFavoriteAdmittedCoreAsync(thread, favorite, admission, token));
 
     private async Task<ThreadFavoriteCommit> SetThreadFavoriteAdmittedCoreAsync(ResourceId thread, bool favorite,
-        CancellationToken token = default)
+        ProfileAdmissionToken admission, CancellationToken token = default)
     {
         ThreadFavoriteStore.Validate(thread);
         await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -66,7 +67,7 @@ internal sealed partial class DesktopSessionHost
             lock (_threadFavoritesSync)
             {
                 _threadFavoritesStore ??= new(_profileLease.ProfileDirectory, _profileLease);
-                commit = _threadFavoritesStore.Set(thread, favorite, token);
+                commit = _threadFavoritesStore.SetAdmitted(thread, favorite, admission, token);
                 _threadFavorites = commit.Snapshot;
                 Volatile.Write(ref _publishedThreadFavorites, new(ThreadFavoriteLoadState.Ready, commit.Snapshot, null));
             }

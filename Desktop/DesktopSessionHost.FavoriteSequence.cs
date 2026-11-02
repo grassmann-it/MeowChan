@@ -91,9 +91,10 @@ internal sealed partial class DesktopSessionHost
 
     private Task<bool> SetFavoriteSequenceAsync(FavoriteWriteSequence sequence, bool favorite)
     {
+        ProfileAdmissionToken admission;
         lock (_admission)
         {
-            if (sequence.Closed || !_favoriteWriteSequences.ContainsKey(sequence))
+            if (sequence.Closed || !_favoriteWriteSequences.TryGetValue(sequence, out admission!))
                 return Task.FromException<bool>(new ObjectDisposedException(nameof(FavoriteWriteSequence)));
             // A lease cannot be used to queue unbounded parallel work behind one
             // slot. The caller awaits this task before draining its next intent.
@@ -109,7 +110,7 @@ internal sealed partial class DesktopSessionHost
             {
                 try
                 {
-                    bool changed = await SetFavoriteAdmittedCoreAsync(sequence.Candidate, favorite,
+                    bool changed = await SetFavoriteAdmittedCoreAsync(sequence.Candidate, favorite, admission,
                         sequence: sequence).ConfigureAwait(false);
                     await CaptureProjectionAsync().ConfigureAwait(false);
                     return changed;

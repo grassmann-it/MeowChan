@@ -30,6 +30,7 @@ internal sealed class ProfileAdmission : IDisposable
 {
     private readonly object _sync = new();
     private readonly HashSet<ProfileAdmissionToken> _active = new();
+    private readonly Dictionary<ProfileAdmissionToken, TokenUse> _uses = new();
     private ProfileAdmissionPhase _phase = ProfileAdmissionPhase.Starting;
     private bool _closed;
     private bool _exclusiveActive;
@@ -65,6 +66,42 @@ internal sealed class ProfileAdmission : IDisposable
                 throw new InvalidOperationException("Exclusive profile admission is reserved.");
             return AcceptToken(ProfileAdmissionKind.Ordinary);
         }
+    }
+
+    // Compatibility entry for individual standalone store calls. The phase
+    // choice and reservation are one operation, never a Phase/read-then-enter race.
+    internal ProfileAdmissionToken EnterStoreWriter(CancellationToken token = default)
+    {
+        lock (_sync)
+        {
+            EnsureOpen();
+            token.ThrowIfCancellationRequested();
+            if (_phase == ProfileAdmissionPhase.Starting)
+                return AcceptToken(ProfileAdmissionKind.Startup);
+            RequirePhase(ProfileAdmissionPhase.Ready);
+            if (_pending is not null || _exclusiveActive)
+                throw new InvalidOperationException("Exclusive profile admission is reserved.");
+            return AcceptToken(ProfileAdmissionKind.Ordinary);
+        }
+    }
+
+    // Pin an already accepted reservation through synchronous consumer I/O.
+    // No delegate runs under _sync, and pending Exclusive/shutdown do not revoke
+    // accepted work. A release request rejects new uses but drains existing ones.
+    internal T RunWithToken<T>(ProfileAdmissionToken admission, Func<T> operation,
+        params ProfileAdmissionKind[] allowedKinds)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        lock (_sync)
+        {
+            if (admission is null || !_uses.TryGetValue(admission, out TokenUse? use)
+                || use.ReleaseRequested || allowedKinds is null
+                || Array.IndexOf(allowedKinds, admission.Kind) < 0)
+                throw new InvalidOperationException("The profile admission token cannot be used for this operation.");
+            use.Count = checked(use.Count + 1);
+        }
+        try { return operation(); }
+        finally { EndUse(admission); }
     }
 
     /// <summary>
@@ -176,6 +213,7 @@ internal sealed class ProfileAdmission : IDisposable
     {
         ProfileAdmissionToken accepted = ProfileAdmissionToken.Create(this, kind);
         _active.Add(accepted);
+        _uses.Add(accepted, new TokenUse());
         if (kind == ProfileAdmissionKind.Exclusive)
             _exclusiveActive = true;
         return accepted;
@@ -183,34 +221,70 @@ internal sealed class ProfileAdmission : IDisposable
 
     internal void Release(ProfileAdmissionToken token)
     {
-        ExclusiveWaiter? waiter = null;
-        ProfileAdmissionToken? granted = null;
-        TaskCompletionSource<bool>? drained = null;
+        TokenCompletion completion = default;
         lock (_sync)
         {
-            // Exact token membership prevents foreign/unissued tokens from releasing
-            // another reservation, independently of the token's idempotent Dispose.
-            if (!_active.Remove(token))
+            // Dispose and use acceptance linearize under the same monitor.
+            // Foreign/unissued/retired tokens cannot release another reservation.
+            if (!_uses.TryGetValue(token, out TokenUse? use) || use.ReleaseRequested)
                 return;
-            if (token.Kind == ProfileAdmissionKind.Exclusive)
-                _exclusiveActive = false;
-            if (_active.Count == 0 && _pending is not null)
-            {
-                waiter = _pending;
-                _pending = null;
-                // Linearize cancellation vs grant here, not when the await resumes.
-                if (!waiter.Token.IsCancellationRequested)
-                    granted = AcceptToken(ProfileAdmissionKind.Exclusive);
-            }
-            if (_active.Count == 0)
-                drained = _drained;
+            use.ReleaseRequested = true;
+            if (use.Count == 0)
+                completion = RetireTokenUnderLock(token);
         }
+        completion.Complete();
+    }
 
-        if (granted is not null)
-            waiter!.Completion.TrySetResult(granted);
-        else if (waiter is not null)
-            waiter.Completion.TrySetCanceled(waiter.Token);
-        drained?.TrySetResult(true);
+    private void EndUse(ProfileAdmissionToken token)
+    {
+        TokenCompletion completion = default;
+        lock (_sync)
+        {
+            TokenUse use = _uses[token];
+            use.Count--;
+            if (use.Count == 0 && use.ReleaseRequested)
+                completion = RetireTokenUnderLock(token);
+        }
+        completion.Complete();
+    }
+
+    // Caller owns _sync. Only the last pin can retire a release-requested token.
+    private TokenCompletion RetireTokenUnderLock(ProfileAdmissionToken token)
+    {
+        _uses.Remove(token);
+        _active.Remove(token);
+        if (token.Kind == ProfileAdmissionKind.Exclusive)
+            _exclusiveActive = false;
+        ExclusiveWaiter? waiter = null;
+        ProfileAdmissionToken? granted = null;
+        if (_active.Count == 0 && _pending is not null)
+        {
+            waiter = _pending;
+            _pending = null;
+            // Linearize cancellation vs grant here, not when the await resumes.
+            if (!waiter.Token.IsCancellationRequested)
+                granted = AcceptToken(ProfileAdmissionKind.Exclusive);
+        }
+        return new TokenCompletion(waiter, granted, _active.Count == 0 ? _drained : null);
+    }
+
+    private sealed class TokenUse
+    {
+        internal int Count;
+        internal bool ReleaseRequested;
+    }
+
+    private readonly record struct TokenCompletion(ExclusiveWaiter? Waiter,
+        ProfileAdmissionToken? Granted, TaskCompletionSource<bool>? Drained)
+    {
+        internal void Complete()
+        {
+            if (Granted is not null)
+                Waiter!.Completion.TrySetResult(Granted);
+            else if (Waiter is not null)
+                Waiter.Completion.TrySetCanceled(Waiter.Token);
+            Drained?.TrySetResult(true);
+        }
     }
 
     private static async ValueTask<ProfileAdmissionToken> WaitForExclusiveAsync(ExclusiveWaiter waiter)
@@ -277,7 +351,7 @@ internal sealed class ProfileAdmission : IDisposable
 /// </summary>
 internal sealed class ProfileAdmissionToken : IDisposable
 {
-    private ProfileAdmission? _owner;
+    private readonly ProfileAdmission _owner;
 
     private ProfileAdmissionToken(ProfileAdmission owner, ProfileAdmissionKind kind)
     {
@@ -290,5 +364,5 @@ internal sealed class ProfileAdmissionToken : IDisposable
     // Allocation alone grants nothing; only ProfileAdmission's exact active set does.
     internal static ProfileAdmissionToken Create(ProfileAdmission owner, ProfileAdmissionKind kind) => new(owner, kind);
 
-    public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Release(this);
+    public void Dispose() => _owner.Release(this);
 }

@@ -95,55 +95,66 @@ public sealed partial class FavoriteStore
         });
 
     internal PrivateStoreBatchInspection InspectPreparedBatch(PrivateStoreBatch batch)
-        => _lease.RunExclusive(() =>
+        => _lease.RunExclusive(() => InspectPreparedBatchCore(batch));
+
+    private PrivateStoreBatchInspection InspectPreparedBatchCore(PrivateStoreBatch batch)
+    {
+        EnsureOwnBatch(batch);
+        try
         {
-            EnsureOwnBatch(batch);
-            try
-            {
-                var current = ReadBatchState();
-                if (batch.HasChanges && PrivateStoreBatchFiles.Same(current.Image, batch.Fence.ExpectedAfter)
-                    && current.Primary?.OperationMarker == batch.Marker
-                    && PrivateStoreBatchFiles.Same(current.BackupImage,
-                        batch.Fence.Before.Exists ? batch.Fence.Before : batch.Fence.BeforeBackup!))
-                    return PrivateStoreBatchInspection.ExactAfterWithMarker;
-                if (PrivateStoreBatchFiles.Same(current.Image, batch.Fence.Before)
-                    && PrivateStoreBatchFiles.Same(current.BackupImage, batch.Fence.BeforeBackup!))
-                    return batch.HasChanges ? PrivateStoreBatchInspection.ExactBefore : PrivateStoreBatchInspection.NoChange;
-                return PrivateStoreBatchInspection.Drifted;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-            { return PrivateStoreBatchInspection.Unreadable; }
-        });
+            var current = ReadBatchState();
+            if (batch.HasChanges && PrivateStoreBatchFiles.Same(current.Image, batch.Fence.ExpectedAfter)
+                && current.Primary?.OperationMarker == batch.Marker
+                && PrivateStoreBatchFiles.Same(current.BackupImage,
+                    batch.Fence.Before.Exists ? batch.Fence.Before : batch.Fence.BeforeBackup!))
+                return PrivateStoreBatchInspection.ExactAfterWithMarker;
+            if (PrivateStoreBatchFiles.Same(current.Image, batch.Fence.Before)
+                && PrivateStoreBatchFiles.Same(current.BackupImage, batch.Fence.BeforeBackup!))
+                return batch.HasChanges ? PrivateStoreBatchInspection.ExactBefore : PrivateStoreBatchInspection.NoChange;
+            return PrivateStoreBatchInspection.Drifted;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        { return PrivateStoreBatchInspection.Unreadable; }
+    }
 
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
-        => _lease.RunExclusive(() =>
-        {
-            EnsureOwnBatch(batch);
-            token.ThrowIfCancellationRequested();
-            PrivateStoreBatchInspection status = InspectPreparedBatch(batch);
-            if (status is PrivateStoreBatchInspection.ExactAfterWithMarker or PrivateStoreBatchInspection.NoChange)
-                return status;
-            if (status != PrivateStoreBatchInspection.ExactBefore) throw PrivateStoreBatchFiles.Invalid();
-            try
-            {
-                AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(batch.CopyAfterBytes()),
-                    backupCurrentFile: true, token);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-            {
-                // Publication may already have happened. Observe uncancelled; never
-                // replay a write or infer success from the setter returning/throwing.
-                if (InspectPreparedBatch(batch) == PrivateStoreBatchInspection.ExactAfterWithMarker)
-                    return PrivateStoreBatchInspection.ExactAfterWithMarker;
-                throw new IOException("The private store batch publication could not be verified.");
-            }
-            // No cancellation check after publication; strictly read primary+marker
-            // AND rotated backup, rather than reporting cached preparation evidence.
-            status = InspectPreparedBatch(batch);
-            if (status != PrivateStoreBatchInspection.ExactAfterWithMarker)
-                throw new IOException("The private store batch publication could not be verified.");
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);
+        return CommitPreparedBatchAdmitted(batch, admission, token);
+    }
+
+    internal PrivateStoreBatchInspection CommitPreparedBatchAdmitted(PrivateStoreBatch batch,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+        => _lease.RunPrivateStoreCommit(admission, () => CommitPreparedBatchCore(batch, token));
+
+    private PrivateStoreBatchInspection CommitPreparedBatchCore(PrivateStoreBatch batch, CancellationToken token)
+    {
+        EnsureOwnBatch(batch);
+        token.ThrowIfCancellationRequested();
+        PrivateStoreBatchInspection status = InspectPreparedBatchCore(batch);
+        if (status is PrivateStoreBatchInspection.ExactAfterWithMarker or PrivateStoreBatchInspection.NoChange)
             return status;
-        });
+        if (status != PrivateStoreBatchInspection.ExactBefore) throw PrivateStoreBatchFiles.Invalid();
+        try
+        {
+            AtomicJsonFile.WriteAllText(_path, StrictUtf8.GetString(batch.CopyAfterBytes()),
+                backupCurrentFile: true, token);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // Publication may already have happened. Observe uncancelled; never
+            // replay a write or infer success from the setter returning/throwing.
+            if (InspectPreparedBatchCore(batch) == PrivateStoreBatchInspection.ExactAfterWithMarker)
+                return PrivateStoreBatchInspection.ExactAfterWithMarker;
+            throw new IOException("The private store batch publication could not be verified.");
+        }
+        // No cancellation check after publication; strictly read primary+marker
+        // AND rotated backup, rather than reporting cached preparation evidence.
+        status = InspectPreparedBatchCore(batch);
+        if (status != PrivateStoreBatchInspection.ExactAfterWithMarker)
+            throw new IOException("The private store batch publication could not be verified.");
+        return status;
+    }
 
     private static void CountBatchText(string? text, ref long total)
     {

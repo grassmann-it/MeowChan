@@ -91,67 +91,76 @@ internal sealed partial class PostBookmarkStore
         });
 
     internal PrivateStoreBatchInspection CommitPreparedBatch(PrivateStoreBatch batch, CancellationToken token = default)
-        => _lease.RunExclusive(() =>
-        {
-            EnsureOwnBookmarkBatch(batch);
-            token.ThrowIfCancellationRequested();
-            PrivateStoreBatchInspection status = InspectBookmarkBatchCore(batch);
-            if (status is PrivateStoreBatchInspection.ExactAfterWithMarker or PrivateStoreBatchInspection.NoChange)
-                return status;
-            if (status != PrivateStoreBatchInspection.ExactBefore) throw PrivateStoreBatchFiles.Invalid();
-            EnsureNoPrivatePending();
-            PrivateStoreBatchFiles.EnsureUnmarked(ReadBookmarkBatchState().Document.OperationMarker);
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStartupWriter(token);
+        return CommitPreparedBatchAdmitted(batch, admission, token);
+    }
 
-            // Keep the established bookmark flush + single-file replacement path.
-            // No AtomicJsonFile (which could introduce note backups) is used.
-            string pending = System.IO.Path.Combine(_lease.ProfileDirectory,
-                PrivatePendingPrefix + Guid.NewGuid().ToString("N"));
-            bool created = false, publicationAttempted = false, publicationVerified = false;
-            try
+    internal PrivateStoreBatchInspection CommitPreparedBatchAdmitted(PrivateStoreBatch batch,
+        ProfileAdmissionToken admission, CancellationToken token = default)
+        => _lease.RunPrivateStoreCommit(admission, () => CommitPreparedBatchCore(batch, token));
+
+    private PrivateStoreBatchInspection CommitPreparedBatchCore(PrivateStoreBatch batch, CancellationToken token)
+    {
+        EnsureOwnBookmarkBatch(batch);
+        token.ThrowIfCancellationRequested();
+        PrivateStoreBatchInspection status = InspectBookmarkBatchCore(batch);
+        if (status is PrivateStoreBatchInspection.ExactAfterWithMarker or PrivateStoreBatchInspection.NoChange)
+            return status;
+        if (status != PrivateStoreBatchInspection.ExactBefore) throw PrivateStoreBatchFiles.Invalid();
+        EnsureNoPrivatePending();
+        PrivateStoreBatchFiles.EnsureUnmarked(ReadBookmarkBatchState().Document.OperationMarker);
+
+        // Keep the established bookmark flush + single-file replacement path.
+        // No AtomicJsonFile (which could introduce note backups) is used.
+        string pending = System.IO.Path.Combine(_lease.ProfileDirectory,
+            PrivatePendingPrefix + Guid.NewGuid().ToString("N"));
+        bool created = false, publicationAttempted = false, publicationVerified = false;
+        try
+        {
+            byte[] bytes = batch.CopyAfterBytes();
+            using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                byte[] bytes = batch.CopyAfterBytes();
-                using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    created = true;
-                    file.Write(bytes);
-                    file.Flush(flushToDisk: true);
-                }
-                token.ThrowIfCancellationRequested();
-                // Recheck exact primary immediately before the publication attempt,
-                // after writing our temp. This is a cooperative lease fence, not CAS
-                // against an arbitrary external editor or an old application.
-                if (InspectBookmarkBatchCore(batch) != PrivateStoreBatchInspection.ExactBefore)
-                    throw PrivateStoreBatchFiles.Invalid();
-                publicationAttempted = true;
-                File.Move(pending, Path, overwrite: true);
-                status = InspectBookmarkBatchCore(batch); // Deliberately uncancelled.
-                publicationVerified = status == PrivateStoreBatchInspection.ExactAfterWithMarker;
-                if (!publicationVerified) throw new IOException("Private bookmark publication could not be verified.");
-                return status;
+                created = true;
+                file.Write(bytes);
+                file.Flush(flushToDisk: true);
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            token.ThrowIfCancellationRequested();
+            // Recheck exact primary immediately before the publication attempt,
+            // after writing our temp. This is a cooperative lease fence, not CAS
+            // against an arbitrary external editor or an old application.
+            if (InspectBookmarkBatchCore(batch) != PrivateStoreBatchInspection.ExactBefore)
+                throw PrivateStoreBatchFiles.Invalid();
+            publicationAttempted = true;
+            File.Move(pending, Path, overwrite: true);
+            status = InspectBookmarkBatchCore(batch); // Deliberately uncancelled.
+            publicationVerified = status == PrivateStoreBatchInspection.ExactAfterWithMarker;
+            if (!publicationVerified) throw new IOException("Private bookmark publication could not be verified.");
+            return status;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // A possible publication is not failure/nonpublication merely
+            // because the replace acknowledgement/read was lost.
+            if (publicationAttempted && InspectBookmarkBatchCore(batch) == PrivateStoreBatchInspection.ExactAfterWithMarker)
             {
-                // A possible publication is not failure/nonpublication merely
-                // because the replace acknowledgement/read was lost.
-                if (publicationAttempted && InspectBookmarkBatchCore(batch) == PrivateStoreBatchInspection.ExactAfterWithMarker)
-                {
-                    publicationVerified = true;
-                    return PrivateStoreBatchInspection.ExactAfterWithMarker;
-                }
-                throw new IOException("Private bookmark publication could not be verified.");
+                publicationVerified = true;
+                return PrivateStoreBatchInspection.ExactAfterWithMarker;
             }
-            finally
+            throw new IOException("Private bookmark publication could not be verified.");
+        }
+        finally
+        {
+            // Delete only this invocation's temp, never unknown pending evidence.
+            // Unknown post-replace outcomes stay blocked for later integration.
+            if (created && (!publicationAttempted || publicationVerified))
             {
-                // Delete only this invocation's temp, never unknown pending evidence.
-                // Unknown post-replace outcomes stay blocked for later integration.
-                if (created && (!publicationAttempted || publicationVerified))
-                {
-                    try { File.Delete(pending); }
-                    catch (IOException) { }
-                    catch (UnauthorizedAccessException) { }
-                }
+                try { File.Delete(pending); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
-        });
+        }
+    }
 
     private PrivateStoreBatchInspection InspectBookmarkBatchCore(PrivateStoreBatch batch)
     {
