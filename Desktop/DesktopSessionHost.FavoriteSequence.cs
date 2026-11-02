@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -10,7 +11,7 @@ internal sealed partial class DesktopSessionHost
 {
     // Protected by _admission, together with the existing interactive slot/drain.
     // Membership is authority for this frozen favorite only, not a final-write lane.
-    private readonly HashSet<FavoriteWriteSequence> _favoriteWriteSequences = new();
+    private readonly Dictionary<FavoriteWriteSequence, ProfileAdmissionToken> _favoriteWriteSequences = new();
 
     /// <summary>
     /// Admit one complete logical favorite command before shutdown, including later
@@ -23,22 +24,47 @@ internal sealed partial class DesktopSessionHost
         FavoriteEntry candidate = FavoriteStore.From(entry.Key.Thread, entry.Asset);
         var key = (nameof(SetFavoriteAsync), candidate.Key.ToString());
         var sequence = new FavoriteWriteSequence(this, candidate, key);
-        // Match BeginShutdown's lifecycle -> admission order. Never acquire a
-        // product lock, validate Config, or execute a delegate under _admission.
-        lock (_lifecycle)
+        ProfileAdmissionToken? admission = null;
+        try
         {
-            EnsureReady();
-            lock (_admission)
+            // Match BeginShutdown's lifecycle -> admission order. Never acquire a
+            // product lock, validate Config, or execute a delegate under _admission.
+            lock (_lifecycle)
             {
-                if (_admissionClosed)
-                    throw new InvalidOperationException("The desktop session is stopping.");
-                if (_acceptedCommands.Count >= InteractiveCommandLimit || !_acceptedCommands.Add(key))
-                    throw new DesktopSessionBusyException(nameof(SetFavoriteAsync));
-                _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
-                _favoriteWriteSequences.Add(sequence);
+                EnsureReady();
+                lock (_admission)
+                {
+                    if (_admissionClosed)
+                        throw new InvalidOperationException("The desktop session is stopping.");
+                    if (_acceptedCommands.Count >= InteractiveCommandLimit || _acceptedCommands.Contains(key))
+                        throw new DesktopSessionBusyException(nameof(SetFavoriteAsync));
+                    // The whole sequence owns one token, including gaps between sets.
+                    // Refusal must precede all host command/sequence bookkeeping.
+                    admission = _profileLease.Admission.EnterOrdinaryWriter();
+                    _acceptedCommands.Add(key);
+                    _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _favoriteWriteSequences.Add(sequence, admission);
+                }
             }
+            return sequence;
         }
-        return sequence;
+        catch
+        {
+            if (admission != null)
+            {
+                try
+                {
+                    lock (_admission)
+                    {
+                        _favoriteWriteSequences.Remove(sequence);
+                        _acceptedCommands.Remove(key);
+                        CompleteCommandDrainIfEmpty();
+                    }
+                }
+                finally { admission.Dispose(); }
+            }
+            throw;
+        }
     }
 
     /// <summary>
@@ -67,7 +93,7 @@ internal sealed partial class DesktopSessionHost
     {
         lock (_admission)
         {
-            if (sequence.Closed || !_favoriteWriteSequences.Contains(sequence))
+            if (sequence.Closed || !_favoriteWriteSequences.ContainsKey(sequence))
                 return Task.FromException<bool>(new ObjectDisposedException(nameof(FavoriteWriteSequence)));
             // A lease cannot be used to queue unbounded parallel work behind one
             // slot. The caller awaits this task before draining its next intent.
@@ -77,24 +103,37 @@ internal sealed partial class DesktopSessionHost
         }
         // Even an immediately available _commands semaphore and synchronous store
         // must execute on a worker, never on the dispatcher/admitting caller.
-        return Task.Run(async () =>
+        try
         {
-            try
+            return Task.Run(async () =>
             {
-                bool changed = await SetFavoriteAdmittedCoreAsync(sequence.Candidate, favorite,
-                    sequence: sequence).ConfigureAwait(false);
-                await CaptureProjectionAsync().ConfigureAwait(false);
-                return changed;
-            }
-            finally
-            {
-                lock (_admission)
+                try
                 {
-                    sequence.Writing = false;
-                    ReleaseFavoriteSequenceIfClosed(sequence);
+                    bool changed = await SetFavoriteAdmittedCoreAsync(sequence.Candidate, favorite,
+                        sequence: sequence).ConfigureAwait(false);
+                    await CaptureProjectionAsync().ConfigureAwait(false);
+                    return changed;
                 }
-            }
-        });
+                finally { CompleteFavoriteSequenceWrite(sequence); }
+            });
+        }
+        catch
+        {
+            // No worker owns completion if dispatch itself fails.
+            CompleteFavoriteSequenceWrite(sequence);
+            throw;
+        }
+    }
+
+    private void CompleteFavoriteSequenceWrite(FavoriteWriteSequence sequence)
+    {
+        ProfileAdmissionToken? admission;
+        lock (_admission)
+        {
+            sequence.Writing = false;
+            admission = ReleaseFavoriteSequenceIfClosed(sequence);
+        }
+        admission?.Dispose();
     }
 
     private void EnsureFavoriteSequenceWriteAllowed(FavoriteWriteSequence sequence, FavoriteEntry candidate)
@@ -108,7 +147,7 @@ internal sealed partial class DesktopSessionHost
             {
                 // Closed leases remain active until their previously accepted
                 // write ends. Dispose must not revoke that write at the IO gate.
-                if (!_favoriteWriteSequences.Contains(sequence) || !sequence.Writing
+                if (!_favoriteWriteSequences.ContainsKey(sequence) || !sequence.Writing
                     || !ReferenceEquals(sequence.Owner, this) || !ReferenceEquals(sequence.Candidate, candidate))
                     throw new ObjectDisposedException(nameof(FavoriteWriteSequence));
             }
@@ -117,22 +156,22 @@ internal sealed partial class DesktopSessionHost
 
     private void CloseFavoriteSequence(FavoriteWriteSequence sequence)
     {
+        ProfileAdmissionToken? admission;
         lock (_admission)
         {
             sequence.Closed = true;
-            ReleaseFavoriteSequenceIfClosed(sequence);
+            admission = ReleaseFavoriteSequenceIfClosed(sequence);
         }
+        admission?.Dispose();
     }
 
-    // Caller holds _admission. Bookkeeping only; no product lock or callback here.
-    private void ReleaseFavoriteSequenceIfClosed(FavoriteWriteSequence sequence)
+    // Caller holds _admission. Detach ownership here, but release the token outside
+    // the lock only after both the caller closed the sequence and its last worker ended.
+    private ProfileAdmissionToken? ReleaseFavoriteSequenceIfClosed(FavoriteWriteSequence sequence)
     {
-        if (!sequence.Closed || sequence.Writing || !_favoriteWriteSequences.Remove(sequence)) return;
+        if (!sequence.Closed || sequence.Writing || !_favoriteWriteSequences.Remove(sequence, out var admission)) return null;
         _acceptedCommands.Remove(sequence.AdmissionKey);
-        if (_acceptedCommands.Count == 0 && _acceptedControls.Count == 0)
-        {
-            _commandsDrained?.TrySetResult();
-            _commandsDrained = null;
-        }
+        CompleteCommandDrainIfEmpty();
+        return admission;
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Diagnostics;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -16,7 +17,8 @@ internal sealed class DesktopSessionBusyException : InvalidOperationException
 internal sealed partial class DesktopSessionHost
 {
     internal const int InteractiveCommandLimit = 8;
-    // This lock protects admission bookkeeping only. Never acquire a product lock or run user work inside it.
+    // This lock protects admission bookkeeping and short, synchronous kernel acceptance only.
+    // Never acquire a product lock, dispose a token, or run user work inside it.
     private readonly object _admission = new();
     private readonly HashSet<(string Action, string Target)> _acceptedCommands = new();
     private readonly Dictionary<string, (string Target, Task Task)> _acceptedControls = new();
@@ -31,74 +33,122 @@ internal sealed partial class DesktopSessionHost
     {
         long request = PerformanceDiagnostics.NextId();
         var key = (action, target);
-        lock (_admission)
+        ProfileAdmissionToken? admission = null;
+        try
         {
-            if (_admissionClosed || _state is DesktopSessionState.Stopping or DesktopSessionState.Stopped) return Task.FromException<T>(new InvalidOperationException("The desktop session is stopping."));
-            if (_acceptedCommands.Count >= InteractiveCommandLimit || !_acceptedCommands.Add(key))
+            lock (_admission)
             {
-                PerformanceDiagnostics.Record("host.command.admission", "busy", request, target, epoch: _epoch);
-                return Task.FromException<T>(new DesktopSessionBusyException(action));
-            }
-            _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
-        }
-        onAccepted?.Invoke();
-        PerformanceDiagnostics.Record("host.command.admission", "accepted", request, target, epoch: _epoch);
-        // The first product instruction, including a synchronously satisfied semaphore and argument validation,
-        // executes on a worker. _commands in the existing implementations remains the sole mutation serializer.
-        return Task.Run(async () =>
-        {
-            using var measurement = PerformanceDiagnostics.Measure("host.command", request, target, epoch: _epoch);
-            try
-            {
-                T result = await operation().ConfigureAwait(false);
-                // All command completions observe the same bounded publication path, including forced reads.
-                if (captureAfter) await CaptureProjectionAsync().ConfigureAwait(false);
-                return result;
-            }
-            finally
-            {
-                lock (_admission)
+                if (_admissionClosed || _state is DesktopSessionState.Stopping or DesktopSessionState.Stopped) return Task.FromException<T>(new InvalidOperationException("The desktop session is stopping."));
+                if (_acceptedCommands.Count >= InteractiveCommandLimit || _acceptedCommands.Contains(key))
                 {
-                    _acceptedCommands.Remove(key);
-                    if (_acceptedCommands.Count == 0 && _acceptedControls.Count == 0)
-                    {
-                        _commandsDrained?.TrySetResult();
-                        _commandsDrained = null;
-                    }
+                    PerformanceDiagnostics.Record("host.command.admission", "busy", request, target, epoch: _epoch);
+                    return Task.FromException<T>(new DesktopSessionBusyException(action));
                 }
+                // Acquire before publishing bookkeeping. A kernel refusal leaves no
+                // host command/slot/drain behind, and returns the existing error type.
+                try { admission = _profileLease.Admission.EnterOrdinaryWriter(); }
+                catch (InvalidOperationException error) { return Task.FromException<T>(error); }
+                _acceptedCommands.Add(key);
+                _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
             }
-        });
+            ProfileAdmissionToken acceptedAdmission = admission!;
+            onAccepted?.Invoke();
+            PerformanceDiagnostics.Record("host.command.admission", "accepted", request, target, epoch: _epoch);
+            // The first product instruction, including a synchronously satisfied semaphore and argument validation,
+            // executes on a worker. _commands in the existing implementations remains the sole mutation serializer.
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    using var measurement = PerformanceDiagnostics.Measure("host.command", request, target, epoch: _epoch);
+                    T result = await operation().ConfigureAwait(false);
+                    // All command completions observe the same bounded publication path, including forced reads.
+                    if (captureAfter) await CaptureProjectionAsync().ConfigureAwait(false);
+                    return result;
+                }
+                finally { ReleaseInteractiveCommand(key, acceptedAdmission); }
+            });
+        }
+        catch
+        {
+            // onAccepted and dispatch can fail synchronously, before a worker owns cleanup.
+            if (admission != null) ReleaseInteractiveCommand(key, admission);
+            throw;
+        }
+    }
+
+    private void ReleaseInteractiveCommand((string Action, string Target) key, ProfileAdmissionToken admission)
+    {
+        try
+        {
+            lock (_admission)
+            {
+                _acceptedCommands.Remove(key);
+                CompleteCommandDrainIfEmpty();
+            }
+        }
+        finally { admission.Dispose(); }
     }
 
     // Separate finite lanes: duplicate controls share their actual completion, and a conflicting desired state
     // is refused visibly. Controls never consume or wait for an interactive admission slot.
     private Task RunControlAsync(string action, string target, Func<Task> operation)
     {
-        lock (_admission)
+        ProfileAdmissionToken? admission = null;
+        try
         {
-            if (_admissionClosed || _state is DesktopSessionState.Stopping or DesktopSessionState.Stopped) return Task.FromException(new InvalidOperationException("The desktop session is stopping."));
-            if (_acceptedControls.TryGetValue(action, out var accepted))
-                return accepted.Target == target ? accepted.Task : Task.FromException(new DesktopSessionBusyException(action));
-            _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
-            Task task = Task.Run(async () =>
+            lock (_admission)
             {
-                using var measurement = PerformanceDiagnostics.Measure("host.control." + action, epoch: _epoch);
-                try { await operation().ConfigureAwait(false); }
-                finally
+                if (_admissionClosed || _state is DesktopSessionState.Stopping or DesktopSessionState.Stopped) return Task.FromException(new InvalidOperationException("The desktop session is stopping."));
+                if (_acceptedControls.TryGetValue(action, out var accepted))
+                    return accepted.Target == target ? accepted.Task : Task.FromException(new DesktopSessionBusyException(action));
+                try { admission = _profileLease.Admission.EnterOrdinaryWriter(); }
+                catch (InvalidOperationException error) { return Task.FromException(error); }
+                _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+                ProfileAdmissionToken acceptedAdmission = admission!;
+                Task task = Task.Run(async () =>
                 {
-                    lock (_admission)
+                    try
                     {
-                        _acceptedControls.Remove(action);
-                        if (_acceptedControls.Count == 0 && _acceptedCommands.Count == 0)
-                        {
-                            _commandsDrained?.TrySetResult();
-                            _commandsDrained = null;
-                        }
+                        using var measurement = PerformanceDiagnostics.Measure("host.control." + action, epoch: _epoch);
+                        await operation().ConfigureAwait(false);
                     }
-                }
-            });
-            _acceptedControls.Add(action, (target, task));
-            return task;
+                    finally { ReleaseControlCommand(action, acceptedAdmission); }
+                });
+                // The worker's cleanup also takes _admission, so registration always
+                // precedes removal, even if the control completes synchronously.
+                _acceptedControls.Add(action, (target, task));
+                return task;
+            }
+        }
+        catch
+        {
+            if (admission != null) ReleaseControlCommand(action, admission);
+            throw;
+        }
+    }
+
+    private void ReleaseControlCommand(string action, ProfileAdmissionToken admission)
+    {
+        try
+        {
+            lock (_admission)
+            {
+                _acceptedControls.Remove(action);
+                CompleteCommandDrainIfEmpty();
+            }
+        }
+        finally { admission.Dispose(); }
+    }
+
+    // Caller holds _admission. Token release follows outside the lock, so shutdown
+    // also waits for ProfileAdmission.DrainAsync rather than trusting this alone.
+    private void CompleteCommandDrainIfEmpty()
+    {
+        if (_acceptedCommands.Count == 0 && _acceptedControls.Count == 0)
+        {
+            _commandsDrained?.TrySetResult();
+            _commandsDrained = null;
         }
     }
 

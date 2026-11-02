@@ -82,6 +82,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         DownloadQueue? queue = null;
         try
         {
+            _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
             Config.EnsureOrdinaryWritesAllowed();
             _confirmedConfig = Config.Clone();
@@ -110,9 +111,19 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
         catch
         {
-            // The registry has not started any watches before StartAsync.
-            queue?.StopAll();
-            _profileLease.Dispose();
+            // The registry has not started any watches before StartAsync. Even a
+            // cleanup failure must release startup admission and the profile lease.
+            try { queue?.StopAll(); }
+            finally
+            {
+                try
+                {
+                    FinishProfileStartup(succeeded: false);
+                    _profileLease.Admission.BeginShutdown();
+                    _profileLease.Admission.CompleteShutdown();
+                }
+                finally { _profileLease.Dispose(); }
+            }
             throw;
         }
     }
@@ -154,7 +165,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             InitializePassiveMetadata();
             lock (_lifecycle)
             {
-                if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
+                if (_state == DesktopSessionState.Starting)
+                {
+                    // Lifecycle serialization prevents a late Ready after shutdown.
+                    FinishProfileStartup(succeeded: true);
+                    _state = DesktopSessionState.Ready;
+                }
             }
             CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
             if (State == DesktopSessionState.Ready && Config.Origin == ProfileOrigin.ConfirmedNew)
@@ -167,11 +183,18 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             lock (_lifecycle)
             {
                 _startupError = exception.Message;
-                if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.RecoveryFailed;
+                if (_state == DesktopSessionState.Starting)
+                {
+                    FinishProfileStartup(succeeded: false);
+                    _state = DesktopSessionState.RecoveryFailed;
+                }
             }
         }
         finally
         {
+            // Shutdown may have failed/sealed startup while restoration was in flight.
+            // Its token still belongs to that work until it has actually returned.
+            lock (_lifecycle) ReleaseProfileStartupAdmission();
             CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
             SignalChanged();
             // Publish the final startup state before callers observe completion; the capture runs off the caller's thread.
@@ -585,9 +608,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     private Task _acceptedDrain = Task.CompletedTask;
 
     /// <summary>
-    /// Phase one: synchronously close admission, then request engine cancellation on a worker, independently
-    /// of gallery/native cleanup and of the profile command gate. The returned task is the actual engine drain.
-    /// Final view preferences and conscious reading-position writes remain accepted until StopAsync seals them.
+    /// Phase one: synchronously close host command admission and seal cooperative profile admission,
+    /// then request engine cancellation on a worker, independently of gallery/native cleanup and of the
+    /// profile command gate. The returned task is the actual engine drain. The separate final view/reading
+    /// writers remain accepted until StopAsync seals them; not all profile writers use admission tokens.
     /// </summary>
     internal Task BeginShutdown()
     {
@@ -598,6 +622,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             CompleteStartupFinalWrites(_state == DesktopSessionState.Ready);
             _state = DesktopSessionState.Stopping;
             _acceptedDrain = CloseInteractiveAdmission();
+            BeginProfileShutdown();
             Task restoration = _startTask ?? Task.CompletedTask;
             _engineStopTask = Task.Run(async () =>
             {
@@ -636,7 +661,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     private async Task StopCoreAsync(Task engineStopped)
     {
         using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.drain", epoch: _epoch);
-        // Seal only the final writers. Already accepted writes are drained even if the engine is still stopping.
+        // Command/profile admission is already sealed. Seal the separate final writers now;
+        // already accepted work is drained even if the engine is still stopping.
         Task finalWrites = SealFinalWritesAsync();
         List<Exception> errors = new();
         bool quiescent = true;
@@ -646,6 +672,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
         }
         await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
+        // No owner is disposed until accepted profile work has really returned. This
+        // drain is separate from the host bookkeeping/final-write drains above.
+        await _profileLease.Admission.DrainAsync().ConfigureAwait(false);
+        _profileLease.Admission.CompleteShutdown();
         quiescent &= _updatesQuiescent;
         await Observe(CloseProjectionAsync, ownsLifetime: true).ConfigureAwait(false);
         await Observe(() => _lifecycleNotification).ConfigureAwait(false);
