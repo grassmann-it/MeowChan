@@ -101,7 +101,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             IWorkStateStore workStore = workStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
-                ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease);
+                ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease, _profileStartupAdmission);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));

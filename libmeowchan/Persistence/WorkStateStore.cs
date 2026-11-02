@@ -85,19 +85,40 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
     private readonly string _databasePath;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public WorkStateStore(string profileDirectory, ProfileLease lease)
+    public WorkStateStore(string profileDirectory, ProfileLease lease) : this(lease)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        InitializeAdmitted(profileDirectory, admission);
+    }
+
+    // Borrow the caller's exact Startup/Ordinary reservation. Never cache or dispose it.
+    internal WorkStateStore(string profileDirectory, ProfileLease lease, ProfileAdmissionToken admission) : this(lease)
+    {
+        InitializeAdmitted(profileDirectory, admission);
+    }
+
+    private WorkStateStore(ProfileLease lease)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        lease.EnsureMatches(profileDirectory);
         _lease = lease;
         _databasePath = Path.Combine(lease.ProfileDirectory, "work-state.sqlite");
-        _lease.RunExclusive(() => { using SqliteConnection db = Open(); Initialize(db); return true; });
     }
+
+    private void InitializeAdmitted(string profileDirectory, ProfileAdmissionToken admission) =>
+        _lease.RunStoreWrite(admission, () =>
+        {
+            // Validate the path and live lease inside the use-pin, before opening SQLite.
+            // In particular no preliminary lease-monitor wait may precede the pin.
+            _lease.EnsureMatches(profileDirectory);
+            using SqliteConnection db = Open();
+            Initialize(db);
+            return true;
+        });
 
     public IReadOnlyList<WorkResource> LoadResources() => _lease.RunExclusive(() =>
     {
         Interlocked.Increment(ref _resourceBatchReads);
-        using SqliteConnection db = Open();
+        using SqliteConnection db = OpenReadOnly();
         using SqliteCommand command = db.CreateCommand();
         command.CommandText = "SELECT url,payload FROM work_resources ORDER BY url";
         using SqliteDataReader reader = command.ExecuteReader();
@@ -116,7 +137,7 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
     public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _lease.RunExclusive(() =>
     {
         Interlocked.Increment(ref _mediaBatchReads);
-        using SqliteConnection db = Open();
+        using SqliteConnection db = OpenReadOnly();
         using SqliteCommand command = db.CreateCommand();
         command.CommandText = "SELECT media_id,variant,target,payload FROM work_media WHERE resource_url=$url AND generation=$generation ORDER BY media_id,variant,target";
         command.Parameters.AddWithValue("$url", url);
@@ -137,15 +158,15 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 
     WorkResource? IConditionalWorkStateStore.FindResource(string url) => _lease.RunExclusive(() =>
     {
-        using SqliteConnection db = Open();
-        using SqliteTransaction transaction = db.BeginTransaction();
+        using SqliteConnection db = OpenReadOnly();
+        using SqliteTransaction transaction = db.BeginTransaction(deferred: true);
         return FindResource(db, transaction, url);
     });
 
     MediaWork? IConditionalWorkStateStore.FindMedia(MediaWorkKey key) => _lease.RunExclusive(() =>
     {
-        using SqliteConnection db = Open();
-        using SqliteTransaction transaction = db.BeginTransaction();
+        using SqliteConnection db = OpenReadOnly();
+        using SqliteTransaction transaction = db.BeginTransaction(deferred: true);
         return FindMedia(db, transaction, key);
     });
 
@@ -294,14 +315,28 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         command.ExecuteNonQuery();
     }
 
-    private SqliteConnection Open()
+    private SqliteConnection OpenReadOnly() => Open(SqliteOpenMode.ReadOnly);
+
+    // Runtime writers intentionally retain their existing access path until their
+    // producer tokens are wired; constructor admission is not an all-writer fence.
+    private SqliteConnection Open() => Open(SqliteOpenMode.ReadWriteCreate);
+
+    private SqliteConnection Open(SqliteOpenMode mode)
     {
         // Operations own short-lived native connections. Pooling would retain database
         // handles beyond the profile lease and prevent moving/deleting a closed profile on Windows.
         SqliteConnection db = new(new SqliteConnectionStringBuilder
-        { DataSource = _databasePath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
-        db.Open();
-        return db;
+        { DataSource = _databasePath, Mode = mode, Pooling = false }.ToString());
+        try
+        {
+            db.Open();
+            return db;
+        }
+        catch
+        {
+            db.Dispose();
+            throw;
+        }
     }
 
     private static void Initialize(SqliteConnection db)
