@@ -53,7 +53,7 @@ public partial class PluginsPage
         ShowFieldErrors(errors, focusFirstError: true);
         if (errors.Count > 0) return;
         PluginArtifact? artifact = entry.ConfigurationArtifact;
-        if (artifact == null) { Error(Texts.T("plugins.noArtifact")); FocusFirstSettingError(); return; }
+        if (artifact == null) { ErrorLocalized("plugins.noArtifact"); FocusFirstSettingError(); return; }
         (long generation, CancellationToken token) = BeginOperation();
         bool focusSaveError = false;
         try
@@ -118,7 +118,7 @@ public partial class PluginsPage
             if (!Current(generation)) return;
             RenderDiagnostics(result.Diagnostics, entry);
             if (!result.Succeeded)
-            { Error(Texts.T("plugins.buildFailed", result.Status)); SetTestStatus("plugins.buildFailed", result.Status); revealBuildErrors = true; return; }
+            { ErrorLocalized("plugins.buildFailed", result.Status); SetTestStatus("plugins.buildFailed", result.Status); revealBuildErrors = true; return; }
             SetTestStatus("plugins.testing", result.Artifact!.ExecutionRevision);
             PluginDescription description = await _services.DescribeTestAsync(result.Artifact, token);
             if (!Current(generation)) return;
@@ -179,7 +179,7 @@ public partial class PluginsPage
         if (_ended || _busy || _services == null || _tested is not { } tested || !IsCurrentTestedCandidate(tested)) return;
         string url = C<TextBox>("PluginProbeUrl").Text?.Trim() ?? string.Empty;
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) || parsed.Scheme is not ("https" or "http"))
-        { Error(Texts.T("plugins.invalidUrl")); return; }
+        { ErrorLocalized("plugins.invalidUrl"); return; }
         (long generation, CancellationToken token) = BeginOperation();
         SetTestStatus("plugins.probing");
         try
@@ -223,7 +223,7 @@ public partial class PluginsPage
         string? key = _selectedKey;
         try { await PluginEditorLauncher.OpenAsync(defaultApplication ? new(null, new[] { "{file}" }) : GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), path, cancellationToken: _lifetime.Token); }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (!_ended && key == _selectedKey) Error(Texts.T("plugins.editorFallback", exception.Message)); }
+        catch (Exception exception) { if (!_ended && key == _selectedKey) ErrorLocalized("plugins.editorFallback", exception.Message); }
     }
     private async void OnEditorSaveClick(object? sender, RoutedEventArgs e)
     {

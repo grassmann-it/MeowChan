@@ -55,33 +55,37 @@ public partial class PluginsPage
     internal string? PluginActionDisabledReason(string id) => CaptureSelectedPluginActionTarget() is { } target
         ? PluginActionUnavailableReason(CapturePluginActionInvocation(id, target)) : Texts.T("plugins.reason.noActivation");
 
-    private string? PluginActionUnavailableReason(PluginActionInvocation action)
+    private string? PluginActionUnavailableReason(PluginActionInvocation action) =>
+        PluginActionUnavailableReasonKey(action) is { } key ? Texts.T(key) : null;
+
+    // Resolve provenance before translating; never infer keys from menu text.
+    private string? PluginActionUnavailableReasonKey(PluginActionInvocation action)
     {
         if (_ended || !IsEffectivelyVisible || !IsEffectivelyEnabled || IsDiscardConfirmationOpen)
-            return Texts.T("plugins.unavailable");
+            return "plugins.unavailable";
         if (action.CommandId == "plugins.actions")
-            return PluginActionEntry(action.Target) is { } menuEntry && Included(menuEntry) ? null : Texts.T("plugins.reason.targetChanged");
-        if (_busy) return Texts.T("plugins.reason.busy");
+            return PluginActionEntry(action.Target) is { } menuEntry && Included(menuEntry) ? null : "plugins.reason.targetChanged";
+        if (_busy) return "plugins.reason.busy";
         if (action.OperationGeneration != _operationGeneration || _catalog == null || PluginActionEntry(action.Target) is not { } entry || !Included(entry)
             || _selectedKey != action.Target.Key || !action.Target.Matches(entry, _catalog.Profile.Revision))
-            return Texts.T("plugins.reason.targetChanged");
+            return "plugins.reason.targetChanged";
         PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry);
         return action.CommandId switch
         {
-            "plugins.enable" => _services == null || entry.PluginId == null || entry.Activation == null ? Texts.T("plugins.reason.noActivation") :
-                entry.Activation.Enabled ? Texts.T("plugins.reason.alreadyEnabled") : null,
-            "plugins.disable" => _services == null || entry.PluginId == null || entry.Activation == null ? Texts.T("plugins.reason.noActivation") :
-                !entry.Activation.Enabled ? Texts.T("plugins.reason.alreadyDisabled") : null,
-            "plugins.select-candidate" => _services == null || entry.PluginId == null || !presentation.CanSelectCandidate ? Texts.T("plugins.reason.noCandidate") :
-                !presentation.CandidateChoiceRequired ? Texts.T("plugins.reason.alreadySelected") : null,
-            "plugins.rollback" => _services == null || entry.PluginId == null || entry.Activation?.LastGood == null ? Texts.T("plugins.reason.noRollback") : null,
-            "plugins.show-settings" => HasPluginSettings(entry) ? null : Texts.T("plugins.reason.noSettings"),
+            "plugins.enable" => _services == null || entry.PluginId == null || entry.Activation == null ? "plugins.reason.noActivation" :
+                entry.Activation.Enabled ? "plugins.reason.alreadyEnabled" : null,
+            "plugins.disable" => _services == null || entry.PluginId == null || entry.Activation == null ? "plugins.reason.noActivation" :
+                !entry.Activation.Enabled ? "plugins.reason.alreadyDisabled" : null,
+            "plugins.select-candidate" => _services == null || entry.PluginId == null || !presentation.CanSelectCandidate ? "plugins.reason.noCandidate" :
+                !presentation.CandidateChoiceRequired ? "plugins.reason.alreadySelected" : null,
+            "plugins.rollback" => _services == null || entry.PluginId == null || entry.Activation?.LastGood == null ? "plugins.reason.noRollback" : null,
+            "plugins.show-settings" => HasPluginSettings(entry) ? null : "plugins.reason.noSettings",
             "plugins.watches" => OpenSourceWatches == null || presentation.Sources.Count == 0
                 || action.SourceId != null && !presentation.Sources.Any(source => source.SourceId == action.SourceId)
-                    ? Texts.T("plugins.reason.noWatches") : null,
-            "plugins.show-grants" => presentation.Filters.Count > 0 ? null : Texts.T("plugins.reason.noGrants"),
+                    ? "plugins.reason.noWatches" : null,
+            "plugins.show-grants" => presentation.Filters.Count > 0 ? null : "plugins.reason.noGrants",
             "plugins.show-developer-tools" or "plugins.details" => null,
-            _ => Texts.T("plugins.unavailable")
+            _ => "plugins.unavailable"
         };
     }
 
@@ -150,8 +154,8 @@ public partial class PluginsPage
 
     private async Task ExecutePluginActionAsync(PluginActionInvocation action, Control origin)
     {
-        string? reason = PluginActionUnavailableReason(action);
-        if (reason != null) { ClosePluginActionMenu(); Error(reason); return; }
+        string? reasonKey = PluginActionUnavailableReasonKey(action);
+        if (reasonKey != null) { ClosePluginActionMenu(); ErrorLocalized(reasonKey); return; }
         // Do not let a detached popup or a background window invoke a stale command.
         if (!CommandRouter.IsRoutingContextActive(this, this)) return;
         if (action.CommandId == "plugins.actions")

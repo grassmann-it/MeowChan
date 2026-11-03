@@ -27,7 +27,7 @@ public partial class PluginsPage
         if (_ended || _busy || _services is null || !IsEffectivelyVisible ||
             !CommandRouter.IsRoutingContextActive(this, this) || TopLevel.GetTopLevel(this) is not Window owner) return;
         if (_drafts.Values.Any(draft => draft.HasDiscardableChanges))
-        { Error(Texts.T("plugins.repair.finishDraft")); return; }
+        { ErrorLocalized("plugins.repair.finishDraft"); return; }
         var services = _services;
         string language = Texts.Language;
         var (generation, token) = BeginOperation();

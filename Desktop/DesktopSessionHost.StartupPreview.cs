@@ -16,13 +16,19 @@ internal sealed partial class DesktopSessionHost
     internal event Action? StartupPreviewChanged;
     internal Func<CancellationToken, Task>? AfterStartupPreviewForTests { get; set; }
 
+    // Test-only reader seam for platform/error-path coverage. The production path
+    // always uses StartupPreviewStore; this seam must never become an authority source.
+    internal Func<CancellationToken, StartupPreviewSnapshot?>? StartupPreviewReadForTests { get; set; }
+
     private async Task LoadStartupPreviewAsync(CancellationToken cancellationToken)
     {
         if (Config.SaveUrlsOnExit)
         {
             try
             {
-                StartupPreviewSnapshot? preview = new StartupPreviewStore(ProfileDirectory, _profileLease).Load(cancellationToken);
+                StartupPreviewSnapshot? preview = StartupPreviewReadForTests is { } read
+                    ? read(cancellationToken)
+                    : new StartupPreviewStore(ProfileDirectory, _profileLease).Load(cancellationToken);
                 lock (_lifecycle)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -33,7 +39,7 @@ internal sealed partial class DesktopSessionHost
                     foreach (Action observer in StartupPreviewChanged?.GetInvocationList() ?? Array.Empty<Delegate>())
                         try { observer(); } catch (Exception error) { _logger.Debug(error, "Startup preview observer failed."); }
             }
-            catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
+            catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.Text.Json.JsonException or ArgumentException)
             {
                 // A disposable display cache is never an authoritative recovery dependency.
                 _logger.Debug("Startup preview unavailable ({Kind}); normal restoration continues.", error.GetType().Name);

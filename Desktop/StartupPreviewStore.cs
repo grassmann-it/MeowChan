@@ -39,8 +39,7 @@ internal sealed class StartupPreviewStore
             byte[] bytes;
             try
             {
-                using FileStream file = new(_path, FileMode.Open, FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
+                using FileStream file = RegularProfileFile.OpenRead(_path);
                 bytes = ReadBounded(file, cancellationToken);
             }
             catch (FileNotFoundException) { return null; }

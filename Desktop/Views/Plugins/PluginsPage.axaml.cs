@@ -46,6 +46,25 @@ public partial class PluginsPage : UserControl
     private string? _renderedGrantsKey;
     private IReadOnlyList<PluginGrantSnapshot> _displayedGrants = Array.Empty<PluginGrantSnapshot>();
     private bool _busy;
+    private PluginErrorState? _errorState;
+
+    // Only host-owned messages carry translation keys. Worker/compiler/exception
+    // text remains opaque, even when it happens to look like a translation key.
+    internal sealed class PluginErrorState
+    {
+        private readonly object?[] _arguments;
+        internal string? Key { get; }
+        internal string? RawText { get; }
+
+        private PluginErrorState(string? key, string? rawText, object?[] arguments)
+        { Key = key; RawText = rawText; _arguments = (object?[])arguments.Clone(); }
+
+        internal static PluginErrorState Localized(string key, params object?[] arguments) =>
+            new(key, null, arguments);
+        internal static PluginErrorState Raw(string text) =>
+            new(null, text, Array.Empty<object?>());
+        internal string Render() => Key is null ? RawText! : Texts.T(Key, _arguments);
+    }
     private string? _operationKey;
     private long _operationGeneration;
     private CancellationTokenSource? _operation;
@@ -106,7 +125,7 @@ public partial class PluginsPage : UserControl
         // The menu contains materialized labels/reasons, so its language-code
         // guard alone cannot invalidate that old catalog snapshot.
         ClosePluginActionMenu();
-        Localize(); RenderList(); RenderDetails();
+        Localize(); RenderError(); RenderList(); RenderDetails();
     });
     private void Localize()
     {
@@ -155,7 +174,7 @@ public partial class PluginsPage : UserControl
     }
     internal async Task RefreshAsync()
     {
-        if (_ended || _services == null) { if (!_ended) Error(Texts.T("plugins.unavailable")); return; }
+        if (_ended || _services == null) { if (!_ended) ErrorLocalized("plugins.unavailable"); return; }
         long refreshGeneration = ++_refreshGeneration;
         try
         {
@@ -475,8 +494,21 @@ public partial class PluginsPage : UserControl
     }
     private void OnDiscardClick(object? sender, RoutedEventArgs e)
     { RequestDiscardSelectedDraft(); }
+    // Existing raw callers (including field-validation and probe failures) keep
+    // their original text. Null retains the existing explicit clear semantics.
     private void Error(string? text)
     {
+        _errorState = text is null ? null : PluginErrorState.Raw(text);
+        RenderError();
+    }
+    private void ErrorLocalized(string key, params object?[] arguments)
+    {
+        _errorState = PluginErrorState.Localized(key, arguments);
+        RenderError();
+    }
+    private void RenderError()
+    {
+        string? text = _errorState?.Render();
         TextBlock summary = C<TextBlock>("PluginPageError");
         summary.Text = text;
         summary.Focusable = !string.IsNullOrEmpty(text);
