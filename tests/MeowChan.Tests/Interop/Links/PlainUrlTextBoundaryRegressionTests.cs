@@ -452,6 +452,130 @@ public sealed class PlainUrlTextBoundaryRegressionTests
     }
 
     [Fact]
+    public void CanonicalChanSourceBoardAndThreadIdentitiesStaySeparateOriginalUrls()
+    {
+        // The same opaque spelling (g, x, 1) is not a global identity: it is meaningful
+        // only together with the exact source route and resource spelling.
+        string[] urls = [
+            "https://boards.4chan.org/g/", "https://boards.4chan.org/x/thread/1",
+            "https://8kun.top/g/res/1.html", "https://8kun.top/x/",
+            "https://boards.4chan.org/g/thread/1", "https://8kun.top/x/res/1.html"
+        ];
+        PlainUrlText core = PlainUrlText.ForSupportedChanPages();
+        byte[] input = Bytes(string.Join("\r\n", urls));
+        LinkTextResult parsed = core.Parse(input);
+        Assert.Equal(urls, parsed.Links.Select(link => link.Text));
+        Assert.Equal(Enumerable.Range(1, urls.Length), parsed.Links.Select(link => link.Line));
+        Assert.Equal(
+        [
+            PassiveLinkKind.Source, PassiveLinkKind.Post, PassiveLinkKind.Post,
+            PassiveLinkKind.Source, PassiveLinkKind.Post, PassiveLinkKind.Post
+        ], parsed.Links.Select(link => link.Kind));
+        Assert.All(parsed.Links, link => Assert.True(link.RequiresExplicitConfirmation));
+        Assert.Empty(parsed.Issues);
+        Assert.Equal(Bytes(string.Join("\n", urls) + "\n"), core.Export(input).Utf8);
+    }
+
+    [Fact]
+    public void DuplicateSeenStateIsBoundedToOneParseOrExportInvocation()
+    {
+        byte[] input = Bytes(First + "\n" + Second + "\r" + First + "\n" + Second + "\r\n");
+        LinkIssue[] expected = [new(3, LinkIssueCode.Duplicate), new(4, LinkIssueCode.Duplicate)];
+        PlainUrlText core = For(First, Second);
+
+        LinkTextResult parsed = core.Parse(input);
+        Assert.Equal(new[] { First, Second }, parsed.Links.Select(link => link.Text));
+        Assert.Equal(expected, parsed.Issues);
+
+        // Export must not inherit the first invocation's seen set, nor may its output
+        // become duplicate merely because Parse and Export each saw it once.
+        LinkTextExport exported = core.Export(input);
+        Assert.Equal(Bytes(First + "\n" + Second + "\n"), exported.Utf8);
+        Assert.Equal(expected, exported.Issues);
+
+        LinkTextResult reparsed = core.Parse(exported.Utf8);
+        Assert.Equal(new[] { First, Second }, reparsed.Links.Select(link => link.Text));
+        Assert.Empty(reparsed.Issues);
+        LinkTextExport reexported = core.Export(exported.Utf8);
+        Assert.Equal(exported.Utf8, reexported.Utf8);
+        Assert.Empty(reexported.Issues);
+    }
+
+    [Theory]
+    [InlineData("https://sig:SECRET@boards.4chan.org/g/thread/123", true)]
+    [InlineData("https://sig@boards.4chan.org/g/thread/123", true)]
+    [InlineData("https://:SECRET@8kun.top/test/res/123.html", true)]
+    [InlineData("https://boards.4chan.org/g/thread/123?Expires=1&Signature=SECRET", false)]
+    [InlineData("https://8kun.top/test/res/123.html?sig=SECRET", false)]
+    [InlineData("https://8kun.top/test/res/123.html?GoogleAccessId=public&Expires=1&Signature=SECRET", false)]
+    public void SignedAndUserinfoClaimsDoNotInheritCanonicalChanPageIdentity(string url, bool expectsCredentials)
+    {
+        LinkIssueCode code = expectsCredentials ? LinkIssueCode.Credentials : LinkIssueCode.SafetyUnknown;
+        PlainUrlText core = PlainUrlText.ForSupportedChanPages();
+        LinkTextResult parsed = core.Parse(Bytes(url));
+        Assert.Empty(parsed.Links);
+        Assert.Equal(new[] { new LinkIssue(1, code) }, parsed.Issues);
+        Assert.DoesNotContain("SECRET", parsed.ToString());
+        LinkTextExport exported = core.Export(Bytes(url));
+        Assert.Empty(exported.Utf8);
+        Assert.Equal(parsed.Issues, exported.Issues);
+    }
+
+    private static string[] FullByteBudgetMultibyteUrls(bool addOneUtf8ByteToLastLine = false) =>
+        Enumerable.Range(0, PlainUrlText.MaxBytes / 8192).Select(i =>
+        {
+            string prefix = "https://example.test/" + i.ToString("D3", System.Globalization.CultureInfo.InvariantCulture) + "/";
+            int fillerBytes = 8191 - Encoding.UTF8.GetByteCount(prefix) - Encoding.UTF8.GetByteCount("猫");
+            string value = "猫" + new string('x', fillerBytes);
+            if (addOneUtf8ByteToLastLine && i == PlainUrlText.MaxBytes / 8192 - 1)
+                value = "猫" + new string('x', fillerBytes - 1) + "é";
+            return prefix + value;
+        }).ToArray();
+
+    [Fact]
+    public void ExactMultibyteUtf8EntryBudgetAcceptsAndOneExportedByteRejects()
+    {
+        string[] urls = FullByteBudgetMultibyteUrls();
+        byte[] input = Bytes(string.Join("\n", urls) + "\n");
+        Assert.Equal(PlainUrlText.MaxBytes, input.Length);
+        Assert.All(urls, url => Assert.InRange(url.Length, 1, PlainUrlText.MaxLineCharacters));
+        PlainUrlText core = For(urls);
+        LinkTextResult parsed = core.Parse(input);
+        Assert.Equal(urls, parsed.Links.Select(link => link.Text));
+        Assert.Empty(parsed.Issues);
+        LinkTextExport exported = core.Export(input);
+        Assert.Equal(input, exported.Utf8);
+        Assert.Empty(exported.Issues);
+
+        string[] overflowUrls = FullByteBudgetMultibyteUrls(addOneUtf8ByteToLastLine: true);
+        byte[] overflow = Bytes(string.Join("\n", overflowUrls) + "\n");
+        Assert.Equal(PlainUrlText.MaxBytes + 1, overflow.Length);
+        AssertGlobalFailure(For(overflowUrls), overflow, 0, LinkIssueCode.ByteLimit);
+    }
+
+    [Fact]
+    public void BoundedPlainUrlTextSurfaceHasNoCancellationTokenOrPriorConsentState()
+    {
+        // The current supported contract is synchronous and takes only the selected span.
+        // Cooperative cancellation would require a deliberate API change, not an
+        // unrelated token smuggled through attestation or classification delegates.
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        MethodInfo parse = typeof(PlainUrlText).GetMethods(flags).Single(method => method.Name == nameof(PlainUrlText.Parse));
+        MethodInfo export = typeof(PlainUrlText).GetMethods(flags).Single(method => method.Name == nameof(PlainUrlText.Export));
+        Assert.Equal(new[] { typeof(ReadOnlySpan<byte>) }, parse.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.Equal(new[] { typeof(ReadOnlySpan<byte>) }, export.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.Equal(typeof(LinkTextResult), parse.ReturnType);
+        Assert.Equal(typeof(LinkTextExport), export.ReturnType);
+        Assert.DoesNotContain(typeof(System.Threading.CancellationToken), parse.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.DoesNotContain(typeof(System.Threading.CancellationToken), export.GetParameters().Select(parameter => parameter.ParameterType));
+
+        ConstructorInfo constructor = typeof(PlainUrlText).GetConstructors(flags).Single();
+        Assert.Equal(new[] { typeof(Func<string, bool>), typeof(Func<string, PassiveLinkKind>) },
+            constructor.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.DoesNotContain(typeof(System.Threading.CancellationToken), constructor.GetParameters().Select(parameter => parameter.ParameterType));
+    }
+
+    [Fact]
     public void InterchangeResultsExposeOnlyDataAndConfirmationRequirementNotAdmissionTokens()
     {
         // Pin the existing result surface, not a host/store admission or execution test.
