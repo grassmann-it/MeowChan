@@ -163,6 +163,8 @@ public partial class ArchivePage
     private void LocalizeExport()
     {
         if (_exportCard == null) return;
+        RenderExportStatusText();
+        RenderExportErrorText();
         UpdateExportSummary();
         Control<TextBlock>("ArchiveExportTargetLabel").Text = Texts.T("export.target");
         Control<TextBlock>("ArchiveExportOptionsLabel").Text = Texts.T("export.options");

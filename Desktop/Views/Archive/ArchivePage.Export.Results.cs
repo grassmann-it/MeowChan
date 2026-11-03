@@ -88,7 +88,7 @@ public partial class ArchivePage
             if (_ended || cancellation.IsCancellationRequested || request != _exportRequest
                 || !Control<Border>("ArchiveExportDialog").IsVisible) return;
             if (members.Length == 0)
-            { ExportStatus(Texts.T("export.resultsEmpty")); return; }
+            { ExportStatus(ArchiveExportStatusText.Localized("export.resultsEmpty")); return; }
             // The existing exporter snapshots each target's content after Start.
             // No later query, new match, or work-state change may rewrite these IDs.
             await OpenExportCoreAsync(members[0], origin, members.Length > 1 ? members : null,
@@ -98,7 +98,7 @@ public partial class ArchivePage
         catch (Exception exception)
         {
             if (!_ended && request == _exportRequest)
-                ExportError(Texts.T("export.resultsFailed", exception.Message));
+                ExportError(ArchiveExportStatusText.Localized("export.resultsFailed", exception.Message));
         }
         finally
         {
