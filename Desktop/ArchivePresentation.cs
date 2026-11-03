@@ -140,7 +140,7 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     private bool _ratingUnavailable;
     public int? Rating { get => _rating; set { _rating = value; PropertyChanged?.Invoke(this, new(nameof(RatingLabel))); } }
     public bool RatingUnavailable { get => _ratingUnavailable; set { _ratingUnavailable = value; PropertyChanged?.Invoke(this, new(nameof(RatingLabel))); } }
-    public string RatingLabel => RatingUnavailable ? MediaRatingText.Get("Unavailable", "Nicht verfügbar") : MediaRatingText.Value(Rating);
+    public string RatingLabel => RatingUnavailable ? MediaRatingText.LocalizedUnavailable : MediaRatingText.LocalizedValue(Rating);
     public Func<bool>? FavoriteAvailable { get; set; }
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }

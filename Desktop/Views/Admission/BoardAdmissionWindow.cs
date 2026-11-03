@@ -12,6 +12,8 @@ using Avalonia.Layout;
 using Avalonia.Data;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Admission;
 using MeowChan.Desktop.Localization;
 
@@ -21,7 +23,7 @@ internal sealed record BoardAdmissionSelection(IReadOnlyDictionary<string, Board
     IReadOnlyDictionary<string, string[]>? Reactivations = null);
 
 /// <summary>A detached draft. Only its caller may commit the returned selection.</summary>
-internal sealed class BoardAdmissionWindow : Window
+internal sealed class BoardAdmissionWindow : Window, IDisposable
 {
     private sealed record Choice<T>(T Value, string Label) { public override string ToString() => Label; }
     private sealed class Draft
@@ -39,28 +41,33 @@ internal sealed class BoardAdmissionWindow : Window
         public required TextBlock Status;
         public required ListBox List;
         public required Button Retry;
+        public string? Failure; // Provider/backend detail stays verbatim; only the host wrapper is localized.
         public bool Loaded;
         public bool Loading;
     }
-    private sealed record RuleEditor(ComboBox Field, ComboBox Action, TextBox Text, Control Control);
+    private sealed record RuleEditor(ComboBox Field, ComboBox Action, TextBox Text, Button Remove, Control Control);
     private sealed class PreviewRow : INotifyPropertyChanged
     {
         public required BoardCatalogThread Thread;
         public required Action<bool> Choose;
         public required Action Reset;
         private bool _included;
-        private string _reason = string.Empty;
+        private string _reasonKey = string.Empty;
         public bool Included { get => _included; set { if (_included != value) Choose(value); } }
         public string Title => "#" + Thread.Id + " · " + Thread.Title
             + (Thread.AlreadyWatching ? " · " + Texts.T(Thread.ManuallyWatching ? "wizard.manualWatch" : "wizard.existingWatch") : string.Empty);
         public string OpeningPost => Thread.OpeningPost.Length > 350 ? Thread.OpeningPost[..350] + "…" : Thread.OpeningPost;
-        public string Reason => _reason;
+        public string Reason => Texts.T(_reasonKey);
+        public string ResetLabel => Texts.T("wizard.resetChoice");
+        public string ResetName => Texts.T("wizard.resetChoiceForThread", Title);
+        public string ResetHint => Texts.T("wizard.resetChoiceHint");
+        public void RefreshTexts() => PropertyChanged?.Invoke(this, new(string.Empty));
         public event PropertyChangedEventHandler? PropertyChanged;
         public void Update(BoardAdmissionDecision decision)
         {
             _included = decision.Included;
-            _reason = Texts.T("wizard.reason." + decision.Reason);
-            PropertyChanged?.Invoke(this, new(string.Empty));
+            _reasonKey = "wizard.reason." + decision.Reason;
+            RefreshTexts();
         }
     }
     private readonly List<Draft> _drafts = new();
@@ -69,6 +76,9 @@ internal sealed class BoardAdmissionWindow : Window
     private readonly Button _apply;
     private readonly CheckBox _direct;
     private readonly TextBlock _total = new() { Name = "BoardAdmissionTotal", FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly List<Action> _textUpdates = new();
+    private bool _applyingTexts;
+    private bool _disposed;
     private bool _closing;
 
     public BoardAdmissionWindow(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
@@ -79,9 +89,9 @@ internal sealed class BoardAdmissionWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var shell = new Grid { Margin = new Thickness(20), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
         var intro = new StackPanel { Spacing = 8 };
-        intro.Children.Add(new TextBlock { Text = Title, Classes = { "page-title" } });
-        intro.Children.Add(Help(Texts.T("wizard.intro")));
-        intro.Children.Add(new Expander { Header = Texts.T("wizard.rulesHelp"), Content = Help(Texts.T("wizard.semantics")) });
+        intro.Children.Add(Localized(new TextBlock { Classes = { "page-title" } }, c => c.Text = Texts.T("wizard.title")));
+        intro.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro")));
+        intro.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
         shell.Children.Add(intro);
         var tabs = new TabControl { Name = "BoardAdmissionTabs" };
         var items = new List<TabItem>();
@@ -93,7 +103,7 @@ internal sealed class BoardAdmissionWindow : Window
             var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
             var status = Help(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
             var list = new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 };
-            var retry = new Button { Name = "BoardAdmissionRetry", Content = Texts.T("wizard.retry"), IsVisible = false };
+            var retry = Localized(new Button { Name = "BoardAdmissionRetry", IsVisible = false }, c => c.Content = Texts.T("wizard.retry"));
             var draft = new Draft { Url = url, Initial = readPolicy(url), RulePanel = rulePanel, Summary = summary,
                 Status = status, List = list, Matches = matches, Reinclude = reinclude, Retry = retry };
             reinclude.Click += (_, _) => ReincludeMatches(draft);
@@ -101,20 +111,27 @@ internal sealed class BoardAdmissionWindow : Window
             _drafts.Add(draft);
             var header = new StackPanel { Spacing = 8 };
             header.Children.Add(new SelectableTextBlock { Text = url, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap });
-            header.Children.Add(new TextBlock { Text = Texts.T("wizard.rulesTitle"), Classes = { "section-title" } });
-            var add = new Button { Name = "BoardAdmissionAddRule", Content = Texts.T("wizard.ruleAdd") };
+            header.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.rulesTitle")));
+            var add = Localized(new Button { Name = "BoardAdmissionAddRule" }, c =>
+            {
+                c.Content = Texts.T("wizard.ruleAdd");
+                RefreshCommandHelp(c, "admission.add-rule");
+            });
             add.Click += (_, _) => AddRule(draft, new(ThreadTextField.TitleAndOpeningPost, ThreadTextAction.Exclude, string.Empty));
-            var clear = new Button { Name = "BoardAdmissionClearTextRules", Content = Texts.T("wizard.clearTextRules") };
-            AutomationProperties.SetName(clear, Texts.T("wizard.clearTextRules"));
-            AutomationProperties.SetHelpText(clear, Texts.T("wizard.clearTextRulesHint"));
+            var clear = Localized(new Button { Name = "BoardAdmissionClearTextRules" }, c =>
+            {
+                c.Content = Texts.T("wizard.clearTextRules");
+                AutomationProperties.SetName(c, Texts.T("wizard.clearTextRules"));
+                AutomationProperties.SetHelpText(c, Texts.T("wizard.clearTextRulesHint"));
+            });
             clear.Click += (_, _) => ClearTextRules(draft);
             var ruleActions = new WrapPanel { Orientation = Orientation.Horizontal, Classes = { "workspace-toolbar" } };
             ruleActions.Children.Add(add); ruleActions.Children.Add(clear);
             header.Children.Add(ruleActions);
-            header.Children.Add(Help(Texts.T("wizard.clearTextRulesHint")));
+            header.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.clearTextRulesHint")));
             header.Children.Add(new ScrollViewer { Content = rulePanel, MaxHeight = 180 });
             var previewHeader = new StackPanel { Spacing = 8 };
-            previewHeader.Children.Add(new TextBlock { Text = Texts.T("wizard.previewTitle"), Classes = { "section-title" } });
+            previewHeader.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.previewTitle")));
             previewHeader.Children.Add(status); previewHeader.Children.Add(summary); previewHeader.Children.Add(matches); previewHeader.Children.Add(reinclude);
             retry.Click += async (_, _) => await LoadAsync(draft);
             previewHeader.Children.Add(retry);
@@ -129,21 +146,33 @@ internal sealed class BoardAdmissionWindow : Window
         tabs.ItemsSource = items; Grid.SetRow(tabs, 1); shell.Children.Add(tabs);
         var footer = new StackPanel { Spacing = 8 };
         footer.Children.Add(_total);
-        footer.Children.Add(Help(Texts.T("wizard.applyHint")));
-        _direct = new CheckBox { Name = "BoardAdmissionDirectFuture", Content = Wrapped(Texts.T("wizard.directFuture")), IsChecked = !showWizard };
-        AutomationProperties.SetName(_direct, Texts.T("wizard.directFuture"));
+        footer.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.applyHint")));
+        _direct = Localized(new CheckBox { Name = "BoardAdmissionDirectFuture", IsChecked = !showWizard }, c =>
+        {
+            c.Content = Wrapped(Texts.T("wizard.directFuture"));
+            AutomationProperties.SetName(c, Texts.T("wizard.directFuture"));
+        });
         footer.Children.Add(_direct);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        var cancel = new Button { Name = "BoardAdmissionCancel", Content = Texts.T("wizard.cancel") };
+        var cancel = Localized(new Button { Name = "BoardAdmissionCancel" }, c =>
+        {
+            c.Content = Texts.T("wizard.cancel");
+            RefreshCommandHelp(c, "admission.cancel");
+        });
         cancel.Click += (_, _) => Close();
-        _apply = new Button { Name = "BoardAdmissionApply", Content = Texts.T("wizard.apply"), IsEnabled = false };
-        AutomationProperties.SetName(_apply, Texts.T("wizard.apply"));
-        AutomationProperties.SetHelpText(_apply, Texts.T("wizard.applyHint"));
+        _apply = Localized(new Button { Name = "BoardAdmissionApply", IsEnabled = false }, c =>
+        {
+            c.Content = Texts.T("wizard.apply");
+            AutomationProperties.SetName(c, Texts.T("wizard.apply"));
+        });
         _apply.Classes.Add("primary"); _apply.Click += (_, _) => Accept();
         buttons.Children.Add(cancel); buttons.Children.Add(_apply);
         footer.Children.Add(buttons); Grid.SetRow(footer, 2); shell.Children.Add(footer); Content = shell;
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
-        Closing += (_, _) => { _closing = true; _cancel.Cancel(); };
+        Texts.Changed += OnTextsChanged;
+        ApplyTexts();
+        Closed += (_, _) => Dispose();
+        Closing += (_, _) => { if (!_disposed) { _closing = true; Texts.Changed -= OnTextsChanged; _cancel.Cancel(); } };
         KeyDown += (_, e) =>
         {
             if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
@@ -152,14 +181,81 @@ internal sealed class BoardAdmissionWindow : Window
         };
         Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
     }
+    private T Localized<T>(T control, Action<T> update) where T : Control
+    {
+        update(control);
+        _textUpdates.Add(() => update(control));
+        return control;
+    }
+
+    private static void RefreshCommandHelp(Control control, string id, bool preserveHelp = false)
+    {
+        // BindExisting (used by LegacyCommandAdapters) skips already registered
+        // controls. Reuse its tooltip formatter without registering another action
+        // or presentation observer; Localized reapplies this on language changes.
+        string tip = MeowChan.Desktop.Commands.CommandBindings.Tooltip(id);
+        ToolTip.SetTip(control, tip);
+        if (!preserveHelp) AutomationProperties.SetHelpText(control, tip);
+    }
+
+    private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        if (!_closing && !_disposed)
+            ApplyTexts();
+    });
+
+    private void ApplyTexts()
+    {
+        if (_closing || _disposed) return;
+        Title = Texts.T("wizard.title");
+        _applyingTexts = true;
+        try
+        {
+            foreach (var update in _textUpdates) update();
+            foreach (var draft in _drafts)
+            {
+                foreach (var editor in draft.Editors) ApplyEditorTexts(editor);
+                foreach (var row in draft.Rows) row.RefreshTexts();
+                RefreshCommandHelp(draft.Retry, "admission.retry-catalog");
+                RefreshCommandHelp(draft.Reinclude, "admission.reinclude");
+                draft.Status.Text = draft.Failure != null ? Texts.T("wizard.failed", draft.Failure)
+                    : !draft.Loaded ? Texts.T("wizard.loading")
+                    : draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.loaded", draft.Rows.Count);
+                // Refresh even hidden materialized action text.
+                draft.Reinclude.Content = Texts.T("wizard.reinclude", 0);
+            }
+        }
+        finally { _applyingTexts = false; }
+        foreach (var draft in _drafts) Refresh(draft);
+        RefreshCommandHelp(_apply, "admission.apply", preserveHelp: true);
+        // Reset controls are materialized by the list template, not owned by the
+        // static label callbacks. Never overwrite their per-thread name/help bindings.
+        foreach (var reset in this.GetVisualDescendants().OfType<Button>()
+            .Where(button => button.Name == "BoardAdmissionResetChoice"))
+            RefreshCommandHelp(reset, "admission.reset-choice", preserveHelp: true);
+        RefreshTotal();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _closing = true;
+        Texts.Changed -= OnTextsChanged;
+        _cancel.Cancel();
+        _cancel.Dispose();
+    }
+
     private static TextBlock Wrapped(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
     private static TextBlock Help(string text) => new() { Text = text, Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private static FuncDataTemplate<PreviewRow> MakeTemplate() => new((row, _) =>
     {
         if (row == null) return new TextBlock();
         var panel = new StackPanel { Spacing = 8, Margin = new Thickness(4, 8), DataContext = row };
-        var include = new CheckBox { Name = "BoardAdmissionInclude", Content = Wrapped(row.Title) };
-        AutomationProperties.SetName(include, row.Title);
+        var title = Wrapped(string.Empty);
+        title.Bind(TextBlock.TextProperty, new Binding(nameof(PreviewRow.Title)));
+        var include = new CheckBox { Name = "BoardAdmissionInclude", Content = title };
+        include.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.Title)));
         include.Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(PreviewRow.Included)) { Mode = BindingMode.TwoWay });
         var reason = Help(row.Reason);
         reason.Bind(TextBlock.TextProperty, new Binding(nameof(PreviewRow.Reason)));
@@ -168,12 +264,16 @@ internal sealed class BoardAdmissionWindow : Window
         decision.Children.Add(reason);
         var reset = new Button
         {
-            Name = "BoardAdmissionResetChoice", Content = Texts.T("wizard.resetChoice"),
+            Name = "BoardAdmissionResetChoice",
             FontSize = 11, Padding = new Thickness(8, 4), MinHeight = 32,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
         };
-        AutomationProperties.SetName(reset, Texts.T("wizard.resetChoiceForThread", row.Title));
-        AutomationProperties.SetHelpText(reset, Texts.T("wizard.resetChoiceHint"));
+        reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
+        reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
+        reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));
+        // Initialize the tooltip at materialization time. The richer Name/HelpText
+        // bindings remain owned by the row; the adapter only owns the tooltip.
+        MeowChan.Desktop.Commands.CommandBindings.BindExisting(reset, "admission.reset-choice", preserveHelp: true);
         reset.Click += (_, _) => row.Reset();
         Grid.SetColumn(reset, 1); decision.Children.Add(reset);
         panel.Children.Add(include); panel.Children.Add(decision);
@@ -195,14 +295,35 @@ internal sealed class BoardAdmissionWindow : Window
         AutomationProperties.SetName(action, Texts.T("wizard.ruleAction"));
         AutomationProperties.SetName(text, Texts.T("wizard.ruleText"));
         var remove = new Button { Name = "BoardAdmissionRemoveRule", Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
+        RefreshCommandHelp(remove, "admission.remove-rule");
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 8 };
         grid.Children.Add(field); Grid.SetColumn(action, 1); grid.Children.Add(action); Grid.SetColumn(text, 2); grid.Children.Add(text); Grid.SetColumn(remove, 3); grid.Children.Add(remove);
-        var editor = new RuleEditor(field, action, text, grid); draft.Editors.Add(editor); draft.RulePanel.Children.Add(grid);
+        var editor = new RuleEditor(field, action, text, remove, grid); draft.Editors.Add(editor); draft.RulePanel.Children.Add(grid);
         field.SelectionChanged += (_, _) => Refresh(draft); action.SelectionChanged += (_, _) => Refresh(draft);
         text.TextChanged += (_, _) => Refresh(draft);
         remove.Click += (_, _) => { draft.Editors.Remove(editor); draft.RulePanel.Children.Remove(grid); Refresh(draft); };
         if (_apply != null) Refresh(draft);
     }
+    private static void ApplyEditorTexts(RuleEditor editor)
+    {
+        // Capture semantic values before replacing choices; SelectionChanged must not
+        // evaluate a partially refreshed editor or change any user-authored text.
+        var field = ((Choice<ThreadTextField>)editor.Field.SelectedItem!).Value;
+        var action = ((Choice<ThreadTextAction>)editor.Action.SelectedItem!).Value;
+        var fields = new[] { new Choice<ThreadTextField>(ThreadTextField.Title, Texts.T("wizard.titleField")), new Choice<ThreadTextField>(ThreadTextField.OpeningPost, Texts.T("wizard.opField")), new Choice<ThreadTextField>(ThreadTextField.TitleAndOpeningPost, Texts.T("wizard.bothField")) };
+        var actions = new[] { new Choice<ThreadTextAction>(ThreadTextAction.Include, Texts.T("wizard.include")), new Choice<ThreadTextAction>(ThreadTextAction.Exclude, Texts.T("wizard.exclude")) };
+        editor.Field.ItemsSource = fields;
+        editor.Field.SelectedItem = fields.First(item => item.Value == field);
+        editor.Action.ItemsSource = actions;
+        editor.Action.SelectedItem = actions.First(item => item.Value == action);
+        editor.Text.PlaceholderText = Texts.T("wizard.contains");
+        AutomationProperties.SetName(editor.Field, Texts.T("wizard.ruleField"));
+        AutomationProperties.SetName(editor.Action, Texts.T("wizard.ruleAction"));
+        AutomationProperties.SetName(editor.Text, Texts.T("wizard.ruleText"));
+        AutomationProperties.SetName(editor.Remove, Texts.T("wizard.removeRule"));
+        RefreshCommandHelp(editor.Remove, "admission.remove-rule");
+    }
+
     private void ClearTextRules(Draft draft)
     {
         draft.Editors.Clear();
@@ -216,6 +337,7 @@ internal sealed class BoardAdmissionWindow : Window
             ((Choice<ThreadTextAction>)editor.Action.SelectedItem!).Value, editor.Text.Text ?? string.Empty)), draft.Exceptions);
     private void Refresh(Draft draft)
     {
+        if (_applyingTexts || _closing || _disposed) return;
         bool valid = RulesValid(draft);
         foreach (RuleEditor editor in draft.Editors)
         {
@@ -285,6 +407,7 @@ internal sealed class BoardAdmissionWindow : Window
     {
         if (draft.Loading || _closing) return;
         draft.Loading = true;
+        draft.Failure = null;
         draft.Loaded = false; draft.Status.Text = Texts.T("wizard.loading");
         draft.Status.Classes.Set("workspace-error", false);
         Refresh(draft);
@@ -309,13 +432,14 @@ internal sealed class BoardAdmissionWindow : Window
         {
             if (!_closing)
             {
-                draft.Status.Text = Texts.T("wizard.failed", exception.Message);
+                draft.Failure = exception.Message;
+                draft.Status.Text = Texts.T("wizard.failed", draft.Failure);
                 draft.Status.Classes.Set("workspace-error", true);
                 draft.Retry.IsVisible = true;
                 RefreshTotal();
             }
         }
-        finally { draft.Loading = false; draft.Retry.IsEnabled = true; }
+        finally { draft.Loading = false; if (!_closing && !_disposed) draft.Retry.IsEnabled = true; }
     }
     private void Accept()
     {

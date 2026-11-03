@@ -38,7 +38,7 @@ public partial class RulesPage
             if (_pluginProfile?.Revision != profile.Revision)
                 foreach (RuleDraft draft in _drafts.Values)
                     if (draft.TemplateUndo != null) { draft.TemplateUndo = null; draft.TemplateUndoInvalidated = true; }
-            _pluginProfile = profile; _filterRenderedDraft = null; RefreshFilterEditor();
+            _pluginProfile = profile; CacheTemplateCompatibility(); _filterRenderedDraft = null; RefreshFilterEditor();
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { if (!_ended) { _operationErrorKey = "rules.loadFailed"; _operationErrorDetail = exception.Message; RaiseAll(); } }
@@ -273,6 +273,7 @@ public partial class RulesPage
         {
             _pluginProfile = await _pluginServices.ProfileStore.SetGrantAsync(filter.PluginId, filter.Filter.Key, scope, access, _pluginProfile.Revision, _filterLifetime.Token);
             if (_ended) return;
+            CacheTemplateCompatibility();
             _filterRenderedDraft = null;
         }
         catch (OperationCanceledException) { }

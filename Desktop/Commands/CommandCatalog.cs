@@ -278,25 +278,22 @@ public static class CommandCatalog
 
     public static string? ScopeHint(string id, CommandScope context = CommandScope.None)
     {
-        bool german = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);
         if (context == CommandScope.Reader && id == "gallery.open")
-            return german ? "Beitragsbereich im großen Reader · aktuell gelesener Thread"
-                : "Large reader post area · current thread";
+            return Texts.T("command.scope.gallery-open.reader");
         if (context == CommandScope.Reader && id == "export.open-html-dialog")
-            return german ? "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen"
-                : "Current reader thread · outside inputs and dialogs";
+            return Texts.T("command.scope.export-open-html.reader");
         return id switch
         {
-            "archive.select-page" => german ? "Ergebnisliste · nur diese Seite" : "Results list · this page only",
-            "archive.previous-page" or "archive.next-page" => german ? "Fokus in der Ergebnisliste · innerhalb der Seitengrenzen" : "Results-list focus · within page boundaries",
-            "selection.select-all" => german ? "Fokussierte Downloadliste" : "Focused downloads list",
-            "menu.context-open" => german ? "Fokussierte Download-, Archiv- oder Pluginliste" : "Focused downloads, archive or plugin list",
-            "watch.import-clipboard" => german ? "Downloads · URL-Eingabe fügt Text ein" : "Downloads · URL input pastes text",
-            "input.focus-download-search" => german ? "Downloads · lokale Liste" : "Downloads · local list",
-            "input.focus-search" => german ? "Archiv · Treffer durchsuchen" : "Archive · search results",
-            "export.open-all-results-html-dialog" => german ? "Eigener Button · alle Treffer der aktuellen Suche" : "Separate button · all results of the current search",
+            "archive.select-page" => Texts.T("command.scope.archive.select-page"),
+            "archive.previous-page" or "archive.next-page" => Texts.T("command.scope.archive.page-navigation"),
+            "selection.select-all" => Texts.T("command.scope.selection.select-all"),
+            "menu.context-open" => Texts.T("command.scope.menu.context-open"),
+            "watch.import-clipboard" => Texts.T("command.scope.watch.import-clipboard"),
+            "input.focus-download-search" => Texts.T("command.scope.input.focus-download-search"),
+            "input.focus-search" => Texts.T("command.scope.input.focus-search"),
+            "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
             "navigation.downloads" or "navigation.archive" or "navigation.rules" or "navigation.sources" or "navigation.diagnostics" or "session.pause"
-                => german ? "Außerhalb von Eingaben und Overlays · bei verfügbarer Aktion" : "Outside inputs and overlays · when available",
+                => Texts.T("command.scope.navigation.generic"),
             _ => null
         };
     }

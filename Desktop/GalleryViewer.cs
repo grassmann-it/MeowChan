@@ -480,18 +480,21 @@ internal sealed partial class GalleryViewer : UserControl
         "GalleryMinus" or "GalleryPlus" or "GalleryHelp" or
         "GalleryToggleContext" or "GalleryFavorite";
 
+    internal static string? CompactLabelFor(string name) => name switch
+    {
+        "GalleryClose" => Texts.T("command.gallery.close.compact"),
+        "GalleryFit" => Texts.T("gallery.fit"),
+        "GalleryToggleContext" => Texts.T("gallery.context"),
+        "GalleryFavorite" => Texts.T("command.gallery.favorite.compact"),
+        "GalleryExportOriginal" => Texts.T("command.gallery.export-original.compact"),
+        // Reuse the already shared fullscreen compact label; the full command title remains unchanged.
+        "GalleryFullscreen" => Texts.T("command.window.fullscreen.compact"),
+        _ => null
+    };
+
     private void ApplyCompactLabel(Button button, string name)
     {
-        string? label = name switch
-        {
-            "GalleryClose" => GalleryViewerText.Get("Close", "Schließen"),
-            "GalleryFit" => Texts.T("gallery.fit"),
-            "GalleryToggleContext" => GalleryViewerText.Get("Post", "Beitrag"),
-            "GalleryFavorite" => GalleryViewerText.Get("Favorite", "Favorit"),
-            "GalleryExportOriginal" => "Export",
-            "GalleryFullscreen" => GalleryViewerText.Get("Full", "Vollbild"),
-            _ => null
-        };
+        string? label = CompactLabelFor(name);
         if (label == null || CommandId(name) is not { } id) return;
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
         Border icon = (Border)CommandBindings.Icon(id, 14);

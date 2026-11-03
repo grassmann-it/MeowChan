@@ -33,7 +33,7 @@ public partial class RulesPage
         internal bool SchemaAcknowledged;
         internal IReadOnlyList<FieldValidationError> ParameterErrors = Array.Empty<FieldValidationError>();
         internal PluginSettingsDraft? BoundParameters;
-        internal string? Error;
+        internal TemplateErrorState? Error;
         internal long ViewVersion;
         internal string Initial = string.Empty;
         internal string Fingerprint => Name + "\0" + IncludeTypes + IncludeSize + IncludeFilter + "\0" + TypesMode + Extensions.Fingerprint
@@ -70,11 +70,9 @@ public partial class RulesPage
     }
     private void ReformatTemplateEditor()
     {
-        if (_templateEditor is not { } editor) return;
-        bool clean = editor.Fingerprint == editor.Initial;
-        if (TryReadMegabytes(editor.Megabytes, editor.Culture, out long bytes))
-        { editor.Megabytes = FormatMegabytes(bytes, Texts.Culture); editor.Culture = Texts.Culture; }
-        if (clean) editor.Initial = editor.Fingerprint;
+        // A language refresh is presentation only. Keep the exact numeric raw text,
+        // its parsing culture and the initial/dirty fingerprint, even for valid input.
+        // The replacement TextBox renders this draft; only a user edit changes culture.
     }
     private void InitializeTemplateParameters(TemplateEditorDraft editor)
     {
@@ -107,7 +105,7 @@ public partial class RulesPage
     {
         if (_templateEditor is not { } editor || _templateEditorView == null) return;
         _templateEditorView.IsEnabled = IsEditable;
-        _templateEditorErrorView!.Text = editor.Error ?? string.Empty; _templateEditorErrorView.IsVisible = editor.Error != null;
+        _templateEditorErrorView!.Text = editor.Error?.Render() ?? string.Empty; _templateEditorErrorView.IsVisible = editor.Error != null;
         _templateEditorStaleView!.Text = Texts.T("templates.editorStale"); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         _templateEditorSaveButton!.IsEnabled = IsEditable && _templates?.Revision == editor.Revision;
     }
@@ -157,7 +155,12 @@ public partial class RulesPage
         AutomationProperties.SetName(sizes, SizeLabel); sizes.SelectionChanged += (_, _) => { if (sizes.SelectedIndex >= 0) editor.SizeMode = (MediaSizeLimitMode)sizes.SelectedIndex; }; panel.Children.Add(sizes);
         panel.Children.Add(RuleFieldLabel(MegabytesLabel));
         TextBox megabytes = new() { Name = "RuleTemplateMegabytes", Text = editor.Megabytes }; AutomationProperties.SetName(megabytes, MegabytesLabel);
-        megabytes.TextChanging += (_, _) => { editor.Megabytes = megabytes.Text ?? string.Empty; editor.Culture = Texts.Culture; }; panel.Children.Add(megabytes);
+        megabytes.TextChanging += (_, _) =>
+        {
+            string raw = megabytes.Text ?? string.Empty;
+            if (raw == editor.Megabytes) return; // Re-render is not an edit or a culture change.
+            editor.Megabytes = raw; editor.Culture = Texts.Culture;
+        }; panel.Children.Add(megabytes);
         TextBlock sizeHelp = TemplateText(MegabytesHint); sizeHelp.Classes.Add("workspace-help"); panel.Children.Add(sizeHelp);
         AddTemplateInclude(panel, "templates.includeFilter", editor.IncludeFilter, value => editor.IncludeFilter = value);
         panel.Children.Add(RuleFieldLabel(Texts.T("plugins.ruleFilter")));
@@ -171,7 +174,7 @@ public partial class RulesPage
             if (mode == MediaImageFilterMode.Plugin)
             {
                 FilterChoice? choice = FilterChoices().FirstOrDefault();
-                if (choice == null) { editor.Error = Texts.T("plugins.noFilters"); _templateEditorErrorField = "RuleTemplateFilterMode"; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return; }
+                if (choice == null) { editor.Error = LocalizedTemplateError("plugins.noFilters"); _templateEditorErrorField = "RuleTemplateFilterMode"; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return; }
                 editor.Filter = new(mode, choice.PluginId, choice.Filter.Key, choice.Filter.Settings.Version);
                 editor.Parameters = null; InitializeTemplateParameters(editor);
             }
@@ -210,7 +213,7 @@ public partial class RulesPage
             foreach (var pair in editor.Filter.Parameters) panel.Children.Add(TemplateText(pair.Key + " = " + pair.Value));
             panel.Children.Add(TemplateText(Texts.T("templates.noGrants")));
         }
-        _templateEditorErrorView = TemplateText(editor.Error ?? string.Empty); _templateEditorErrorView.Name = "RuleTemplateEditorError"; _templateEditorErrorView.Classes.Add("workspace-error");
+        _templateEditorErrorView = TemplateText(editor.Error?.Render() ?? string.Empty); _templateEditorErrorView.Name = "RuleTemplateEditorError"; _templateEditorErrorView.Classes.Add("workspace-error");
         _templateEditorErrorView.Focusable = true; _templateEditorErrorView.IsVisible = editor.Error != null; panel.Children.Add(_templateEditorErrorView);
         _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         panel.Children.Add(_templateEditorStaleView);
@@ -243,9 +246,11 @@ public partial class RulesPage
         {
             string trimmedName = editor.Name.Trim();
             if (trimmedName.Length is < 1 or > 120 || trimmedName.Any(char.IsControl))
-                throw new ArgumentException(Texts.T("templates.name"));
+                throw new RuleInputException("templates.name");
             _templateEditorErrorField = "RuleTemplateExtensions";
-            MediaTypeSelection? types = editor.IncludeTypes ? editor.Extensions.Build(editor.TypesMode) : null;
+            MediaTypeSelection? types;
+            try { types = editor.IncludeTypes ? editor.Extensions.Build(editor.TypesMode) : null; }
+            catch (ArgumentException) { throw new RuleInputException("rules.invalidTypes"); }
             _templateEditorErrorField = "RuleTemplateMegabytes";
             MediaSizeLimit? size = null;
             if (editor.IncludeSize)
@@ -253,7 +258,7 @@ public partial class RulesPage
                 long? bytes = null;
                 if (editor.SizeMode == MediaSizeLimitMode.Limited)
                 {
-                    if (!TryReadMegabytes(editor.Megabytes, editor.Culture, out long parsed)) throw new ArgumentException(Texts.T("rules.invalidSize"));
+                    if (!TryReadMegabytes(editor.Megabytes, editor.Culture, out long parsed)) throw new RuleInputException("rules.invalidSize");
                     bytes = parsed;
                 }
                 size = new(editor.SizeMode, bytes);
@@ -262,8 +267,8 @@ public partial class RulesPage
             MediaImageFilterRule? filter = editor.IncludeFilter ? editor.Filter : null;
             if (filter?.Mode == MediaImageFilterMode.Plugin)
             {
-                if (editor.Parameters == null) throw new ArgumentException(Texts.T("templates.incompatible"));
-                if (filter.SchemaVersion != editor.Parameters.Schema.Version && !editor.SchemaAcknowledged) throw new ArgumentException(Texts.T("plugins.invalidFilterSettings"));
+                if (editor.Parameters == null) throw new RuleInputException("templates.incompatible");
+                if (filter.SchemaVersion != editor.Parameters.Schema.Version && !editor.SchemaAcknowledged) throw new RuleInputException("plugins.invalidFilterSettings");
                 SettingsSnapshot settings = editor.Parameters.Snapshot(out var errors);
                 editor.ParameterErrors = errors;
                 _templateParameterEditor?.ShowErrors(errors);
@@ -274,6 +279,18 @@ public partial class RulesPage
             }
             _templateEditorErrorField = "RuleTemplateName";
             RuleTemplate value = new(editor.Id, editor.Name, types, size, filter);
+            if (_templates.Templates.Any(t => t.Id != value.Id
+                && string.Equals(t.Name, value.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new RuleInputException("templates.name");
+            // Preserve host-owned failures as state before crossing the worker boundary.
+            // Never classify a worker's text by comparing it with a translated message.
+            TemplateErrorState? compatibility = TemplateCompatibilityState(value);
+            if (compatibility != null)
+            {
+                editor.Error = compatibility; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return;
+            }
+            if (filter?.Mode == MediaImageFilterMode.Plugin && _pluginServices == null)
+                throw new RuleInputException("templates.incompatible");
             string fingerprint = editor.Fingerprint;
             long? pluginRevision = _pluginProfile?.Revision;
             PluginSettingsDraft? parameterDraft = editor.Parameters;
@@ -294,6 +311,7 @@ public partial class RulesPage
             else if (ReferenceEquals(editor, _templateEditor))
             { editor.Error = _templateError; _templateEditorErrorField = null; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); }
         }
-        catch (Exception exception) { if (Current()) { editor.Error = exception.Message; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); } }
+        catch (RuleInputException exception) { if (Current()) { editor.Error = LocalizedTemplateError(exception.Key); RefreshTemplatesPanel(); FocusTemplateEditorError(editor); } }
+        catch (Exception exception) { if (Current()) { editor.Error = RawTemplateError(exception.Message); RefreshTemplatesPanel(); FocusTemplateEditorError(editor); } }
     }
 }

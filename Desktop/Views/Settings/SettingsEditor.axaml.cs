@@ -48,6 +48,32 @@ namespace MeowChan
         private long _errorRevealRevision;
         private bool _refreshingLanguageLabels;
         private string? _errorMessage;
+        private LocalizedMessage? _errorMessageState;
+        private LocalizedMessage? _statusMessageState;
+
+        // Only app-owned wrappers are localized; provider/exception arguments stay verbatim.
+        private sealed record LocalizedMessage(string Key, object?[] Arguments)
+        {
+            public string Render() => Texts.T(Key, Arguments);
+        }
+
+        private void SetErrorMessage(string? key, params object?[] arguments)
+        {
+            _errorMessageState = key == null ? null : new LocalizedMessage(key, arguments);
+            ErrorMessage = _errorMessageState?.Render();
+        }
+
+        private void SetStatusMessage(string? key, params object?[] arguments)
+        {
+            _statusMessageState = key == null ? null : new LocalizedMessage(key, arguments);
+            StatusMessage = _statusMessageState?.Render();
+        }
+
+        private void RefreshLocalizedMessages()
+        {
+            if (_errorMessageState != null) ErrorMessage = _errorMessageState.Render();
+            if (_statusMessageState != null) StatusMessage = _statusMessageState.Render();
+        }
         private SettingsChoice? _selectedTheme;
         private SettingsChoice? _selectedWorkspaceMode;
         private LanguageInfo? _selectedLanguage;
@@ -583,8 +609,8 @@ namespace MeowChan
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
 
-            ErrorMessage = null;
-            StatusMessage = null;
+            SetErrorMessage(null);
+            SetStatusMessage(null);
         }
 
         private static void ResetNumber(NumericUpDown input, decimal value)
@@ -652,15 +678,7 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
-                bool hadFieldError = _firstInvalidInput != null;
-                bool pathError = _firstInvalidInput == DownloadPathInput;
-                DownloadDestinationStatus? destinationStatus = _destinationStatus;
-                string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
-                RefreshChoices(SelectedTheme?.Value ?? _config.Theme,
-                    SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode,
-                    SelectedLanguage?.Code ?? _config.Language);
-                SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == readingFontSize);
-                _destinationStatus = destinationStatus;
+                RefreshChoiceLabels();
                 // Refresh only labels/help; a language change is not a numeric Value change.
                 foreach (string property in new[]
                 {
@@ -688,30 +706,13 @@ namespace MeowChan
                     nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
                 })
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
-                if (hadFieldError)
+                _refreshingLanguageLabels = true;
+                try
                 {
-                    _refreshingLanguageLabels = true;
-                    try
-                    {
-                    ClearFieldErrors();
-                    ClearGalleryPlaybackError();
-                    if (pathError)
-                    {
-                        DownloadPathInputError.Text = destinationStatus.HasValue && destinationStatus != DownloadDestinationStatus.Ready
-                            ? DestinationStatusText : Texts.T("settings.pathInvalid");
-                        DownloadPathInputError.IsVisible = true;
-                        SetFieldErrorHelp(DownloadPathInput, DownloadPathInputError.Text!);
-                        _firstInvalidInput = DownloadPathInput;
-                        FinishFieldValidation(focusError: false);
-                    }
-                    else
-                    {
-                        ValidateNumericDraft(focusError: false);
-                        ValidateGalleryPlaybackDraft(focusError: false);
-                    }
-                    }
-                    finally { _refreshingLanguageLabels = false; }
+                    RefreshLocalizedMessages();
+                    RefreshFieldErrorMessages();
                 }
+                finally { _refreshingLanguageLabels = false; }
                 ApplyCommandIcons();
                 RefreshSectionNavigation();
             }
@@ -730,7 +731,21 @@ namespace MeowChan
             CommandBindings.ApplyLabeled(SaveSettingsButton, "settings.save", SaveLabel);
         }
 
-        private void RefreshChoices(string theme, string mode, string language)
+        private void RefreshChoiceLabels()
+        {
+            // Capture semantic values before ItemsSource notifications can transiently
+            // clear bound selections. Label rebinding must not invalidate pending work.
+            string theme = SelectedTheme?.Value ?? _config.Theme;
+            string mode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
+            string language = SelectedLanguage?.Code ?? _config.Language;
+            string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+            bool wasRefreshing = _refreshingLanguageLabels;
+            _refreshingLanguageLabels = true;
+            try { RefreshChoices(theme, mode, language, readingFontSize); }
+            finally { _refreshingLanguageLabels = wasRefreshing; }
+        }
+
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
@@ -768,7 +783,7 @@ namespace MeowChan
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
             SelectedTheme = ThemeChoices.First(item => item.Value == theme);
-            SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == _config.ReadingFontSize);
+            SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == (readingFontSize ?? _config.ReadingFontSize));
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
         }
@@ -784,14 +799,14 @@ namespace MeowChan
         {
             if (!CanForgetReadingPosition || _isClosed) return;
             IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = null;
+            SetErrorMessage(null);
+            SetStatusMessage(null);
             try
             {
                 await _forgetReadingPosition!();
-                StatusMessage = Texts.T("resume.forgotten");
+                SetStatusMessage("resume.forgotten");
             }
-            catch (Exception exception) { ErrorMessage = Texts.T("resume.forgetFailed", exception.Message); }
+            catch (Exception exception) { SetErrorMessage("resume.forgetFailed", exception.Message); }
             finally { IsBusy = false; }
         }
 
@@ -811,8 +826,8 @@ namespace MeowChan
             long pickerRevision = _draftRevision;
             bool restorePickerFocus = false;
             IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = null;
+            SetErrorMessage(null);
+            SetStatusMessage(null);
             try
             {
                 LocalFolderPickResult result = await LocalFolderPicker.PickAsync(
@@ -822,9 +837,9 @@ namespace MeowChan
                 switch (result.Status)
                 {
                     case LocalFolderPickStatus.Selected: DownloadPath = result.Path!; break;
-                    case LocalFolderPickStatus.Unavailable: ErrorMessage = Texts.T("settings.pickerUnavailable"); break;
-                    case LocalFolderPickStatus.NonLocal: ErrorMessage = Texts.T("settings.pickerLocalOnly"); break;
-                    case LocalFolderPickStatus.Failed: ErrorMessage = Texts.T("settings.pickerFailed", result.Error); break;
+                    case LocalFolderPickStatus.Unavailable: SetErrorMessage("settings.pickerUnavailable"); break;
+                    case LocalFolderPickStatus.NonLocal: SetErrorMessage("settings.pickerLocalOnly"); break;
+                    case LocalFolderPickStatus.Failed: SetErrorMessage("settings.pickerFailed", result.Error); break;
                 }
             }
             finally
@@ -843,8 +858,8 @@ namespace MeowChan
             }
 
             IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = null;
+            SetErrorMessage(null);
+            SetStatusMessage(null);
             try
             {
                 if (!ValidateDestinationSyntax(out string? normalizedPath) || !ValidateNumericDraft() || !ValidateGalleryPlaybackDraft())
@@ -905,9 +920,7 @@ namespace MeowChan
                 try { candidate.Validate(); }
                 catch (ArgumentException exception) when (exception.ParamName == nameof(Config.DownloadPath))
                 {
-                    DownloadPathInputError.Text = Texts.T("settings.pathInvalid");
-                    DownloadPathInputError.IsVisible = true;
-                    SetFieldErrorHelp(DownloadPathInput, DownloadPathInputError.Text!);
+                    SetDownloadPathError("settings.pathInvalid");
                     _firstInvalidInput = DownloadPathInput;
                     FinishFieldValidation();
                     return;
@@ -938,7 +951,7 @@ namespace MeowChan
                 if (!_isClosed)
                 {
                     CancelChangesAfterSave();
-                    StatusMessage = Texts.T("settings.saved");
+                    SetStatusMessage("settings.saved");
                     IsBusy = false;
                     Saved?.Invoke(this, EventArgs.Empty);
                 }
@@ -946,8 +959,8 @@ namespace MeowChan
             catch (Exception exception)
             {
                 ErrorDetails = exception.ToString();
-                ErrorMessage = Texts.T("settings.saveProblem");
-                StatusMessage = Texts.T("settings.unsaved");
+                SetErrorMessage("settings.saveProblem");
+                SetStatusMessage("settings.unsaved");
             }
             finally
             {
@@ -1060,7 +1073,10 @@ namespace MeowChan
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
                 field = value;
-                if (propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
+                bool rebindingChoice = _refreshingLanguageLabels && propertyName is
+                    nameof(SelectedTheme) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
+                    nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode);
+                if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;
                     _destinationWait?.Cancel();

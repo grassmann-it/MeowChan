@@ -1,15 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Data;
+using Avalonia.Threading;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Ratings;
 
 namespace MeowChan.Desktop;
@@ -17,9 +22,17 @@ namespace MeowChan.Desktop;
 /// <summary>Metadata only: no archive lookup, thumbnail, filesystem resolution or network.</summary>
 internal sealed class MediaRatingsManagerDialog : Window
 {
-    private sealed record Row(MediaRatingEntry Entry)
+    private sealed record Row(MediaRatingEntry Entry) : INotifyPropertyChanged
     {
-        public override string ToString() => MediaRatingText.Identity(Entry.Key) + " · " + MediaRatingText.Value(Entry.Value);
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public string ValueText => MediaRatingText.LocalizedValue(Entry.Value);
+        public string AccessibleText => ToString();
+        public void RefreshTexts()
+        {
+            PropertyChanged?.Invoke(this, new(nameof(ValueText)));
+            PropertyChanged?.Invoke(this, new(nameof(AccessibleText)));
+        }
+        public override string ToString() => MediaRatingText.Row(Entry);
     }
     private readonly DesktopSessionHost _host;
     private IReadOnlyList<MediaRatingEntry> _entries = Array.Empty<MediaRatingEntry>();
@@ -27,13 +40,16 @@ internal sealed class MediaRatingsManagerDialog : Window
     private readonly ListBox _list = new() { Name = "MediaRatingsList" };
     private readonly TextBox _identity = new() { Name = "MediaRatingsIdentity", IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "MediaRatingsSummary", TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Name = "MediaRatingsError", TextWrapping = TextWrapping.Wrap };
     private readonly Button _remove;
     private readonly Button _confirm = new() { Name = "MediaRatingsConfirmRemove", IsVisible = false };
     private readonly Button _cancel = new() { IsVisible = false };
     private readonly Button _close = new();
     private MediaRatingEntry? _frozen;
     private Control? _confirmationOrigin;
+    private bool _closed;
+    private Func<string>? _errorLabel;
+    private string? _errorDetails;
     private bool _busy;
     internal MediaRatingsManagerDialog(DesktopSessionHost host)
     {
@@ -42,20 +58,21 @@ internal sealed class MediaRatingsManagerDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _remove = CommandBindings.CreateButton("media.rating.remove-selected", BeginRemove, () => !_busy && _frozen == null && _list.SelectedItem is Row);
         _remove.Name = "MediaRatingsRemove"; _remove.IsEnabled = false;
-        _search.PlaceholderText = MediaRatingText.Get("Search identities", "Identitäten durchsuchen");
+        _search.PlaceholderText = MediaRatingText.Catalog("media.rating.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText);
         _search.TextChanged += (_, _) => Filter();
         _summary.Classes.Add("workspace-meta");
         _list.ItemTemplate = new FuncDataTemplate<Row>((row, _) =>
         {
             if (row == null) return new TextBlock();
-            TextBlock value = new() { Text = MediaRatingText.Value(row.Entry.Value) };
+            TextBlock value = new();
+            value.Bind(TextBlock.TextProperty, new Binding(nameof(Row.ValueText)) { Source = row });
             value.Classes.Add("section-title");
             var key = row.Entry.Key;
             TextBlock target = new() { Text = $"{key.Thread.Source} /{key.Thread.Board}/ {key.Thread.Thread} · {key.MediaIdentifier} · {key.Variant}", TextWrapping = TextWrapping.Wrap };
             target.Classes.Add("workspace-meta");
             StackPanel item = new() { Spacing = 4, Margin = new Thickness(4, 8), Children = { value, target } };
-            AutomationProperties.SetName(item, row.ToString());
+            item.Bind(AutomationProperties.NameProperty, new Binding(nameof(Row.AccessibleText)) { Source = row });
             return item;
         });
         _list.SelectionChanged += (_, _) =>
@@ -64,9 +81,9 @@ internal sealed class MediaRatingsManagerDialog : Window
             _identity.Text = (_list.SelectedItem as Row)?.ToString() ?? string.Empty;
             CommandBindings.Refresh(_remove);
         };
-        _confirm.Content = MediaRatingText.Get("Remove this rating", "Diese Bewertung entfernen");
-        _cancel.Content = MediaRatingText.Get("Cancel", "Abbrechen");
-        _close.Content = MediaRatingText.Get("Close", "Schließen");
+        _confirm.Content = MediaRatingText.Catalog("media.rating.removeThis");
+        _cancel.Content = MediaRatingText.Catalog("media.rating.cancel");
+        _close.Content = MediaRatingText.Catalog("media.rating.close");
         _confirm.Click += async (_, _) => await ConfirmAsync();
         _cancel.Click += (_, _) => EndConfirmation();
         _close.Click += (_, _) => Close();
@@ -87,15 +104,60 @@ internal sealed class MediaRatingsManagerDialog : Window
         CommandRouter router = new(this);
         router.Register(new("media.rating.remove-selected", this, () => IsVisible, () => !_busy && _frozen == null && _list.SelectedItem is Row, BeginRemove, Priority: 300));
         KeyDown += (_, e) => router.Route(e);
-        Closed += (_, _) => router.Dispose();
+        Closed += (_, _) => { Volatile.Write(ref _closed, true); Texts.Changed -= OnLanguageChanged; router.Dispose(); };
+        Texts.Changed += OnLanguageChanged;
+        ApplyTexts();
         Closing += (_, e) => e.Cancel = _busy;
         KeyDown += (_, e) => { if (e.Key != Key.Escape) return; e.Handled = true; if (_busy) return; if (_frozen != null) EndConfirmation(); else Close(); };
         Opened += (_, _) => { Reload(); _search.Focus(); };
     }
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        if (Volatile.Read(ref _closed)) return;
+        if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(ApplyTexts); return; }
+        ApplyTexts();
+    }
+
+    private void ApplyTexts()
+    {
+        if (Volatile.Read(ref _closed)) return;
+        Title = CommandCatalog.Label("media.rating.manage");
+        _search.PlaceholderText = MediaRatingText.Catalog("media.rating.search");
+        AutomationProperties.SetName(_search, _search.PlaceholderText);
+        CommandBindings.Apply(_remove, "media.rating.remove-selected");
+        _confirm.Content = MediaRatingText.Catalog("media.rating.removeThis");
+        _cancel.Content = MediaRatingText.Catalog("media.rating.cancel");
+        _close.Content = MediaRatingText.Catalog("media.rating.close");
+        // Refresh presentations in place: no refilter, reload, selection or focus changes.
+        foreach (Row row in _list.Items.OfType<Row>()) row.RefreshTexts();
+        RefreshSummary();
+        _identity.Text = _frozen is MediaRatingEntry entry
+            ? MediaRatingText.Catalog("media.rating.confirmRemove") + "\n" + new Row(entry)
+            : (_list.SelectedItem as Row)?.ToString() ?? string.Empty;
+        RefreshErrorText();
+    }
+
+    private void RefreshErrorText() =>
+        _error.Text = _errorLabel == null ? string.Empty : MediaRatingText.FormatError(_errorLabel(), _errorDetails);
+
+    private void RefreshSummary()
+    {
+        int count = _list.Items.Count;
+        bool emptyQuery = string.IsNullOrEmpty(_search.Text);
+        _summary.Text = count == 0
+            ? MediaRatingText.Catalog(emptyQuery ? "media.rating.noSaved" : "media.rating.noMatching")
+            : MediaRatingText.Catalog("media.rating.summary", count, _entries.Count);
+    }
+
     private void Reload()
     {
         try { _entries = _host.GetMediaRatings(); Filter(); }
-        catch (Exception error) { _error.Text = MediaRatingText.LoadError(error); _remove.IsEnabled = false; }
+        catch (Exception error)
+        {
+            _errorDetails = error.Message;
+            _errorLabel = () => MediaRatingText.Catalog("media.rating.error.load");
+            RefreshErrorText(); _remove.IsEnabled = false;
+        }
     }
     private void Filter()
     {
@@ -103,9 +165,7 @@ internal sealed class MediaRatingsManagerDialog : Window
         string query = _search.Text ?? string.Empty;
         Row[] visible = _entries.Select(entry => new Row(entry)).Where(row => row.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         _list.ItemsSource = visible;
-        _summary.Text = visible.Length == 0
-            ? MediaRatingText.Get(query.Length == 0 ? "No saved ratings." : "No matching ratings.", query.Length == 0 ? "Keine gespeicherten Bewertungen." : "Keine passenden Bewertungen.")
-            : MediaRatingText.Get($"{visible.Length} shown · {_entries.Count} saved ratings", $"{visible.Length} angezeigt · {_entries.Count} gespeicherte Bewertungen");
+        RefreshSummary();
         _list.SelectedItem = null; _identity.Text = string.Empty; _remove.IsEnabled = false;
     }
     private void BeginRemove()
@@ -113,7 +173,7 @@ internal sealed class MediaRatingsManagerDialog : Window
         if (_busy || _list.SelectedItem is not Row selected) return;
         _confirmationOrigin = FocusManager?.GetFocusedElement() as Control;
         _frozen = selected.Entry;
-        _identity.Text = MediaRatingText.Get("Remove rating for this exact identity?", "Bewertung für genau diese Identität entfernen?") + "\n" + selected;
+        _identity.Text = MediaRatingText.Catalog("media.rating.confirmRemove") + "\n" + selected;
         _list.IsEnabled = _search.IsEnabled = _remove.IsEnabled = false;
         _confirm.IsVisible = _cancel.IsVisible = true; _cancel.Focus();
     }
@@ -133,10 +193,15 @@ internal sealed class MediaRatingsManagerDialog : Window
     private async Task ConfirmAsync()
     {
         if (_busy || _frozen is not MediaRatingEntry entry) return;
-        _busy = true; _confirm.IsEnabled = _cancel.IsEnabled = _close.IsEnabled = false; _error.Text = string.Empty;
+        _busy = true; _confirm.IsEnabled = _cancel.IsEnabled = _close.IsEnabled = false; _errorLabel = null; _errorDetails = null; RefreshErrorText();
         bool success = false;
         try { await _host.SetMediaRatingAsync(entry.Key, null); success = true; }
-        catch (Exception error) { _error.Text = MediaRatingText.RemoveError(error); }
+        catch (Exception error)
+        {
+            _errorDetails = error.Message;
+            _errorLabel = () => MediaRatingText.Catalog("media.rating.error.remove");
+            RefreshErrorText();
+        }
         finally { _busy = false; _confirm.IsEnabled = _cancel.IsEnabled = _close.IsEnabled = true; }
         if (success) { EndConfirmation(restoreFocus: false); Reload(); if (IsVisible) _search.Focus(); }
     }

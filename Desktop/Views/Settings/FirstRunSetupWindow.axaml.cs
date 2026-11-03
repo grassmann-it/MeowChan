@@ -25,6 +25,10 @@ internal partial class FirstRunSetupWindow : Window
     private bool _hasAction;
     internal long DraftRevision => _revision;
     private DownloadDestinationStatus? _checkStatus;
+    // Retain host-owned message identities, never infer them from rendered text
+    // or another operation's status. Draft values and activation warnings are raw.
+    private string? _errorKey;
+    private string? _pathErrorKey;
     internal bool IsWorking => _busy;
     internal bool IsCommitting => _committing;
 
@@ -120,8 +124,8 @@ internal partial class FirstRunSetupWindow : Window
             : _checkWait != null ? Texts.T("setup.checking")
             : Texts.T("destination." + (_checkStatus?.ToString() ?? "NotChecked"));
         if (SetupLimitsError.IsVisible) SetupLimitsError.Text = Texts.T("setup.positiveLimits");
-        if (SetupPathError.IsVisible) SetupPathError.Text = _checkStatus.HasValue
-            ? Texts.T("destination." + _checkStatus.Value) : Texts.T("settings.pathInvalid");
+        if (SetupPathError.IsVisible && _pathErrorKey != null) SetupPathError.Text = Texts.T(_pathErrorKey);
+        if (SetupError.IsVisible && _errorKey != null) SetupError.Text = Texts.T(_errorKey);
         AutomationProperties.SetName(SetupFolderInput, SetupFolderLabel.Text);
         AutomationProperties.SetName(SetupBandwidthInput, SetupBandwidthLabel.Text);
         AutomationProperties.SetName(SetupParallelInput, SetupParallelLabel.Text);
@@ -156,8 +160,7 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(raw.Folder, _baseline.DownloadPathBaseDirectory);
         if (syntax.NormalizedPath == null)
         {
-            SetupPathError.Text = Texts.T("settings.pathInvalid");
-            SetupPathError.IsVisible = true;
+            ShowPathError("settings.pathInvalid");
             Reveal(SetupFolderInput);
             return false;
         }
@@ -207,9 +210,9 @@ internal partial class FirstRunSetupWindow : Window
                     SetupFolderInput.Text = result.Path;
                     SynchronizeDraft();
                     break;
-                case LocalFolderPickStatus.Unavailable: ShowError(Texts.T("settings.pickerUnavailable")); break;
-                case LocalFolderPickStatus.NonLocal: ShowError(Texts.T("settings.pickerLocalOnly")); break;
-                case LocalFolderPickStatus.Failed: ShowError(Texts.T("setup.pickerFailed")); break;
+                case LocalFolderPickStatus.Unavailable: ShowError("settings.pickerUnavailable"); break;
+                case LocalFolderPickStatus.NonLocal: ShowError("settings.pickerLocalOnly"); break;
+                case LocalFolderPickStatus.Failed: ShowError("setup.pickerFailed"); break;
             }
         }
         finally { SetWorking(false); }
@@ -234,8 +237,7 @@ internal partial class FirstRunSetupWindow : Window
             SetupStatus.Text = Texts.T("destination." + result.Status);
             if (!result.CanApply)
             {
-                SetupPathError.Text = SetupStatus.Text;
-                SetupPathError.IsVisible = true;
+                ShowPathError("destination." + result.Status);
                 Reveal(SetupFolderInput);
             }
             return result.CanApply;
@@ -274,7 +276,7 @@ internal partial class FirstRunSetupWindow : Window
             FirstRunSetupCommitResult completion = await _commitTask;
             if (!completion.Persisted)
             {
-                if (!_closed) ShowError(Texts.T("setup.saveUnconfirmed"));
+                if (!_closed) ShowError("setup.saveUnconfirmed");
                 return;
             }
             _result = new(FirstRunSetupOutcome.Completed, completion.ActivationWarning);
@@ -290,12 +292,24 @@ internal partial class FirstRunSetupWindow : Window
                 SetupStatus.Text = Texts.T("setup.savedWithWarning", completion.ActivationWarning);
             }
         }
-        catch (Exception) { if (!_closed) ShowError(Texts.T("setup.saveUnconfirmed")); }
+        catch (Exception) { if (!_closed) ShowError("setup.saveUnconfirmed"); }
         finally { _accepting = false; _committing = false; SetWorking(false); }
     }
 
     private void ClearActionErrors() => SetupError.IsVisible = SetupPathError.IsVisible = SetupLimitsError.IsVisible = false;
-    private void ShowError(string message) { SetupError.Text = message; SetupError.IsVisible = true; SetupError.BringIntoView(); }
+    private void ShowPathError(string key)
+    {
+        _pathErrorKey = key;
+        SetupPathError.Text = Texts.T(key);
+        SetupPathError.IsVisible = true;
+    }
+    private void ShowError(string key)
+    {
+        _errorKey = key;
+        SetupError.Text = Texts.T(key);
+        SetupError.IsVisible = true;
+        SetupError.BringIntoView();
+    }
     private void OnCancelCheckClick(object? sender, RoutedEventArgs e) => _checkWait?.Cancel();
     private void OnLaterClick(object? sender, RoutedEventArgs e) { if (!_committing) Close(); }
     protected override void OnClosing(WindowClosingEventArgs e)

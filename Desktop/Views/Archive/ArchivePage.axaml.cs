@@ -959,7 +959,7 @@ public partial class ArchivePage : UserControl
         {
             Control<ComboBox>("ArchiveVersionScope").ItemsSource = new[] { Texts.T("gallery.latestVersions"), Texts.T("gallery.allVersions") };
             Control<ComboBox>("ArchiveVersionScope").SelectedIndex = _allVersions ? 1 : 0;
-            Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion"), MediaRatingText.Get("Rating descending", "Bewertung absteigend") };
+            Control<ComboBox>("ArchiveMediaSort").ItemsSource = new[] { Texts.T("gallery.sortName"), Texts.T("gallery.sortSize"), Texts.T("gallery.sortVersion"), Texts.T("media.rating.filter.sortDescending") };
             Control<ComboBox>("ArchiveMediaSort").SelectedIndex = _mediaSort;
         }
         finally { _localizingMediaChoices = false; }

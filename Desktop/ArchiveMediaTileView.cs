@@ -95,7 +95,7 @@ public sealed class ArchiveMediaTileView : UserControl
 
     internal void RefreshRating()
     {
-        _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.Label + ": " + row.RatingLabel : string.Empty;
+        _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.AccessibleValue(row.RatingLabel) : string.Empty;
         UpdateDescription();
     }
 

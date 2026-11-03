@@ -32,9 +32,9 @@ public static class CommandBindings
     private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
     private sealed record RefreshCallback(Action Refresh);
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
-    private sealed record ActionPresentation(string Id);
-    private static void Track(Control control, string id)
-    { Actions.Remove(control); Actions.Add(control, new(id)); }
+    private sealed record ActionPresentation(string Id, bool PreserveHelp);
+    private static void Track(Control control, string id, bool preserveHelp = false)
+    { Actions.Remove(control); Actions.Add(control, new(id, preserveHelp)); }
     private static void Observe(object owner, Action refresh)
     {
         Action? guarded = null;
@@ -160,13 +160,12 @@ public static class CommandBindings
 
     private static string CompactLabel(string id)
     {
-        bool german = MeowChan.Desktop.Localization.Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase);
         return id switch
         {
-            "reader.close" => german ? "Schließen" : "Close",
-            "reader.expand" => german ? "Lesen" : "Read",
-            "gallery.open" => german ? "Galerie" : "Gallery",
-            "window.fullscreen" => german ? "Vollbild" : "Full screen",
+            "reader.close" => MeowChan.Desktop.Localization.Texts.T("command.reader.close.compact"),
+            "reader.expand" => MeowChan.Desktop.Localization.Texts.T("command.reader.expand.compact"),
+            "gallery.open" => MeowChan.Desktop.Localization.Texts.T("command.gallery.open.compact"),
+            "window.fullscreen" => MeowChan.Desktop.Localization.Texts.T("command.window.fullscreen.compact"),
             _ => CommandCatalog.Label(id)
         };
     }
@@ -265,15 +264,20 @@ public static class CommandBindings
         RefreshHint();
     }
 
-    internal static void BindExisting(Control control, string id)
+    internal static void BindExisting(Control control, string id, bool preserveHelp = false)
     {
-        if (Actions.TryGetValue(control, out var current) && current.Id == id) return;
-        Track(control, id);
+        if (Actions.TryGetValue(control, out var current) && current.Id == id)
+        {
+            if (!preserveHelp || current.PreserveHelp) return;
+            // A richer owner binding may be installed after a generic adapter. Rebind
+            // the observer policy without touching the existing Name/Help binding.
+        }
+        Track(control, id, preserveHelp);
         void RefreshHint()
         {
             string tip = Tooltip(id);
             ToolTip.SetTip(control, tip);
-            AutomationProperties.SetHelpText(control, tip);
+            if (!preserveHelp) AutomationProperties.SetHelpText(control, tip);
             Observe(control, RefreshHint);
         }
         RefreshHint();

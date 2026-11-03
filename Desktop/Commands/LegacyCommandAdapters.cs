@@ -32,6 +32,6 @@ internal static class LegacyCommandAdapters
     {
         foreach (var visual in root.GetVisualDescendants())
             if (visual is Control control && control.Name is string name && Names.TryGetValue(name, out var id))
-                CommandBindings.BindExisting(control, id);
+                CommandBindings.BindExisting(control, id, preserveHelp: name is "BoardAdmissionApply" or "BoardAdmissionResetChoice");
     }
 }

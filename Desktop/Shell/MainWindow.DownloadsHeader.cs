@@ -24,18 +24,29 @@ public partial class MainWindow
         WorkspaceControl<Button>("CopyAllUrlsButton").Command = new DelegateCommand(
             async () => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url))),
             () => !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0));
-        WorkspaceControl<ComboBox>("WorkspaceModeComboBox").SelectionBoxItemTemplate = new FuncDataTemplate<object>((value, _) => new TextBlock
-        {
-            Text = value is StackPanel panel ? panel.Children.OfType<TextBlock>().FirstOrDefault()?.Text
-                : value is ComboBoxItem item ? Texts.T("mode." + (item.Tag as string)?.ToLowerInvariant()) : value?.ToString()
-        });
-        WorkspaceControl<ComboBox>("WorkspaceModeComboBox").DropDownOpened += (_, _) => RefreshWorkspaceModeDescriptions();
-        WorkspaceControl<ComboBox>("WorkspaceModeComboBox").DropDownClosed += (_, _) => RefreshWorkspaceModeDescriptions();
+        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        RefreshWorkspaceModeSelectionPresentation(modes);
+        modes.DropDownOpened += (_, _) => RefreshWorkspaceModeDescriptions();
+        modes.DropDownClosed += (_, _) => RefreshWorkspaceModeDescriptions();
     }
+
+    internal static void RefreshWorkspaceModeSelectionPresentation(ComboBox modes) =>
+        modes.SelectionBoxItemTemplate = new FuncDataTemplate<object>((value, _) => new TextBlock
+        {
+            Text = WorkspaceModeSelectionText(value)
+        });
+
+    private static string? WorkspaceModeSelectionText(object? value) => value switch
+    {
+        StackPanel panel => panel.Children.OfType<TextBlock>().FirstOrDefault()?.Text,
+        ComboBoxItem { Tag: string mode } => Texts.T("mode." + mode.ToLowerInvariant()),
+        _ => value?.ToString()
+    };
 
     private void RefreshWorkspaceModeDescriptions()
     {
-        bool open = WorkspaceControl<ComboBox>("WorkspaceModeComboBox").IsDropDownOpen;
+        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        bool open = modes.IsDropDownOpen;
         foreach ((string name, string mode) in new[] { ("BarebonesModeItem", "barebones"), ("SimpleModeItem", "simple"), ("AdvancedModeItem", "advanced") })
         {
             ComboBoxItem item = WorkspaceControl<ComboBoxItem>(name);
@@ -52,6 +63,10 @@ public partial class MainWindow
             else item.Content = title;
             AutomationProperties.SetName(item, open ? title + ". " + Texts.T("mode." + mode + "Description") + ". " + Texts.T("mode.sameSession") : title);
         }
+        // The selected item object stays the same when its label is localized. Avalonia
+        // can keep the TextBlock built by SelectionBoxItemTemplate, so replace that
+        // template for both the open detail presentation and the closed title.
+        RefreshWorkspaceModeSelectionPresentation(modes);
     }
 
     private void UpdateDownloadsHeaderLayout()

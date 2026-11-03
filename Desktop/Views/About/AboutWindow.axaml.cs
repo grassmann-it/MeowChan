@@ -23,8 +23,7 @@ public partial class AboutWindow : Window
     private readonly string _version;
     private readonly OfflineLegalCatalog _legal;
     private bool _closed;
-    private string? _failedLink;
-    private string? _linkFailure;
+    private AboutActionError? _actionError;
 
     public AboutWindow() : this(null) { }
 
@@ -78,8 +77,7 @@ public partial class AboutWindow : Window
         LicenseMetadataExpander.Header = Texts.T("about.sources");
         LicenseHintText.Text = _legal.Error is null ? Texts.T("about.licenseHint") : Texts.T("about.licenseReadFailed", _legal.Error);
         CloseButton.Content = Texts.T("action.close");
-        if (_failedLink != null)
-            LinkErrorText.Text = Texts.T("about.linkFailed", _failedLink, _linkFailure);
+        LinkErrorText.Text = _actionError?.Render() ?? string.Empty;
         UpdateSelection();
         RefreshUpdates();
     }
@@ -137,15 +135,20 @@ public partial class AboutWindow : Window
 
     private async void OnCopyVersionClick(object? sender, RoutedEventArgs e)
     {
+        if (_closed || Clipboard is not { } clipboard) return;
         try
         {
-            if (Clipboard != null)
-                await Clipboard.SetTextAsync(_version);
+            await clipboard.SetTextAsync(_version);
+            if (_closed) return;
+            _actionError = null;
+            LinkErrorText.Text = string.Empty;
         }
         catch (Exception exception)
         {
             Log.Warning(exception, "Could not copy application version.");
-            LinkErrorText.Text = Texts.T("about.copyFailed", exception.Message);
+            if (_closed) return;
+            _actionError = new(null, exception.Message);
+            LinkErrorText.Text = _actionError.Render();
         }
     }
 
@@ -157,17 +160,15 @@ public partial class AboutWindow : Window
         {
             await ExternalLauncher.OpenAsync(uri);
             if (_closed) return;
-            _failedLink = null;
-            _linkFailure = null;
+            _actionError = null;
             LinkErrorText.Text = "";
         }
         catch (Exception exception)
         {
             Log.Warning(exception, "Could not open About link {Uri}.", uri);
             if (_closed) return;
-            _failedLink = uri;
-            _linkFailure = exception.Message;
-            LinkErrorText.Text = Texts.T("about.linkFailed", uri, exception.Message);
+            _actionError = new(uri, exception.Message);
+            LinkErrorText.Text = _actionError.Render();
         }
     }
 
@@ -218,17 +219,15 @@ public partial class AboutWindow : Window
         {
             await _openBrowser(uri);
             if (_closed) return;
-            _failedLink = null;
-            _linkFailure = null;
+            _actionError = null;
             LinkErrorText.Text = string.Empty;
         }
         catch (Exception error)
         {
             Log.Warning(error, "Could not open update page.");
             if (_closed) return;
-            _failedLink = uri;
-            _linkFailure = error.Message;
-            LinkErrorText.Text = Texts.T("about.linkFailed", uri, error.Message);
+            _actionError = new(uri, error.Message);
+            LinkErrorText.Text = _actionError.Render();
         }
     }
 

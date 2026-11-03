@@ -46,17 +46,26 @@ public partial class SettingsEditor
         DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(DownloadPath, _config.DownloadPathBaseDirectory);
         normalizedPath = syntax.NormalizedPath;
         if (normalizedPath != null) return true;
-        ShowDestinationError(Texts.T("settings.pathInvalid"));
+        ShowDestinationError("settings.pathInvalid");
         return false;
     }
 
-    private void ShowDestinationError(string message)
+    private void ShowDestinationError(string key, params object?[] arguments)
     {
-        DownloadPathInputError.Text = message;
-        DownloadPathInputError.IsVisible = true;
-        SetFieldErrorHelp(DownloadPathInput, message);
+        SetDownloadPathError(key, arguments);
         _firstInvalidInput = DownloadPathInput;
         FinishFieldValidation();
+    }
+
+    private void SetDownloadPathError(string key, params object?[] arguments)
+        => SetDownloadPathError(new LocalizedMessage(key, arguments));
+
+    private void SetDownloadPathError(LocalizedMessage message)
+    {
+        string rendered = message.Render();
+        DownloadPathInputError.Text = rendered;
+        DownloadPathInputError.IsVisible = true;
+        SetFieldErrorHelp(DownloadPathInput, message.Render);
     }
 
     private bool DestinationNeedsCheck(Config candidate)
@@ -81,7 +90,7 @@ public partial class SettingsEditor
             _destinationStatus = result.Status;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationStatusText)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationCleanupWarning)));
-            if (!result.CanApply) ShowDestinationError(DestinationStatusText);
+            if (!result.CanApply) ShowDestinationError("destination." + result.Status);
             return result.CanApply;
         }
         finally
@@ -96,8 +105,8 @@ public partial class SettingsEditor
     {
         if (IsBusy || !IsAvailable || _isClosed) return;
         IsBusy = true;
-        ErrorMessage = null;
-        StatusMessage = null;
+        SetErrorMessage(null);
+        SetStatusMessage(null);
         try
         {
             if (!ValidateDestinationSyntax(out string? path) || !ValidateNumericDraft()) return;
@@ -110,8 +119,8 @@ public partial class SettingsEditor
         => _destinationWait?.Cancel();
 
     private Control? _firstInvalidInput;
-    private readonly Dictionary<string, string> _fieldHelpErrors = new();
-    private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out string? error) ? error : baseline;
+    private readonly Dictionary<string, Func<string>> _fieldHelpErrors = new();
+    private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out Func<string>? error) ? error() : baseline;
     public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);
     public string RecheckTimerHelp => FieldHelp(nameof(RecheckTimerInput), SecondsHelp);
     public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp);
@@ -131,7 +140,7 @@ public partial class SettingsEditor
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
     }
 
-    private void SetFieldErrorHelp(Control input, string message)
+    private void SetFieldErrorHelp(Control input, Func<string> message)
     {
         _fieldHelpErrors[input.Name!] = message;
         NotifyFieldHelpChanged();
@@ -198,19 +207,21 @@ public partial class SettingsEditor
     {
         foreach (var field in NumericFields())
         {
-            string? message = null;
+            string? key = null;
             bool parsed = decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal raw);
             bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||
                 (field.Integer && decimal.Truncate(value.Value) != value.Value) || (!field.Integer && value <= 0);
             if (!parsed || DataValidationErrors.GetHasErrors(field.Input))
-                message = Texts.T("settings.fieldNumber", FieldLabelWithUnit(field.Label, field.Unit));
+                key = "settings.fieldNumber";
             else if (InvalidNumber(raw) || InvalidNumber(field.Value))
-                message = field.Integer
-                    ? Texts.T("settings.fieldInteger", FieldLabelWithUnit(field.Label, field.Unit), field.Min, field.Max)
-                    : Texts.T("settings.bandwidthRange", field.Label, decimal.Floor(field.Max));
-            if (message == null) continue;
+                key = field.Integer ? "settings.fieldInteger" : "settings.bandwidthRange";
+            if (key == null) continue;
+            // Keep the failure kind, but resolve the field label/unit in the current language.
+            string messageKey = key;
+            NumericUpDown input = field.Input;
+            Func<string> message = () => RenderNumericFieldError(input, messageKey);
             TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
-            error.Text = message;
+            error.Text = message();
             error.IsVisible = true;
             SetFieldErrorHelp(field.Input, message);
             _firstInvalidInput ??= field.Input;
@@ -218,11 +229,37 @@ public partial class SettingsEditor
         return FinishFieldValidation(focusError);
     }
 
+    private string RenderNumericFieldError(NumericUpDown input, string key)
+    {
+        var field = NumericFields().First(field => field.Input == input);
+        return key switch
+        {
+            "settings.fieldInteger" => Texts.T(key, FieldLabelWithUnit(field.Label, field.Unit), field.Min, field.Max),
+            "settings.bandwidthRange" => Texts.T(key, field.Label, decimal.Floor(field.Max)),
+            _ => Texts.T(key, FieldLabelWithUnit(field.Label, field.Unit))
+        };
+    }
+
+    private void RefreshFieldErrorMessages()
+    {
+        // Rendering only: preserve rejected drafts, first-error focus, probe results,
+        // technical details and the user's expander state. Do not validate again.
+        foreach (var field in _fieldHelpErrors)
+        {
+            TextBlock error = this.FindControl<TextBlock>(field.Key + "Error")!;
+            error.Text = field.Value();
+        }
+        if (GallerySlideshowSecondsInputError.IsVisible)
+            GallerySlideshowSecondsInputError.Text = Texts.T("settings.fieldInteger", GallerySlideshowSecondsLabel, 1, 300);
+        NotifyFieldHelpChanged();
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
+    }
+
     private bool FinishFieldValidation(bool focusError = true)
     {
         if (_firstInvalidInput == null) return true;
-        ErrorMessage = Texts.T("settings.notSaved");
-        StatusMessage = Texts.T("settings.unsaved");
+        SetErrorMessage("settings.notSaved");
+        SetStatusMessage("settings.unsaved");
         if (!focusError) return false;
         Control first = _firstInvalidInput;
         SelectCategoryContaining(first);

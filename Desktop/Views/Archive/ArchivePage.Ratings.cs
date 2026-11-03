@@ -53,7 +53,7 @@ public partial class ArchivePage
         {
             Control<DataGrid>("ArchiveMediaGrid").SelectedItem = null;
             Control<ListBox>("ArchiveMediaTiles").SelectedItem = null;
-            Message(MediaRatingText.Get("The media no longer matches the rating filter.", "Das Medium passt nicht mehr zum Bewertungsfilter."));
+            Message(MediaRatingText.LocalizedFilterNoLongerMatches);
             Control<ComboBox>("ArchiveRatingFilter").Focus();
         }
         foreach (ArchiveMediaTileView tile in this.GetVisualDescendants().OfType<ArchiveMediaTileView>()) tile.RefreshRating();
@@ -82,10 +82,10 @@ public partial class ArchivePage
     {
         MeowChan.Desktop.Commands.CommandBindings.Apply(Control<Button>("ArchiveEditRatingButton"), "media.rating.edit");
         ComboBox filter = Control<ComboBox>("ArchiveRatingFilter");
-        filter.ItemsSource = new[] { MediaRatingText.Get("All ratings", "Alle Bewertungen"), MediaRatingText.Value(null) }
-            .Concat(Enumerable.Range(1, 5).Select(value => MediaRatingText.Get($"At least {value}", $"Mindestens {value}"))).ToArray();
+        filter.ItemsSource = new[] { MediaRatingText.LocalizedFilterAll, MediaRatingText.LocalizedValue(null) }
+            .Concat(Enumerable.Range(1, 5).Select(value => MediaRatingText.LocalizedFilterAtLeast(value))).ToArray();
         filter.SelectedIndex = _mediaRatingFilter;
-        Avalonia.Automation.AutomationProperties.SetName(filter, MediaRatingText.Get("Rating filter", "Bewertungsfilter"));
-        Control<DataGrid>("ArchiveMediaGrid").Columns[3].Header = MediaRatingText.Label;
+        Avalonia.Automation.AutomationProperties.SetName(filter, MediaRatingText.LocalizedFilterLabel);
+        Control<DataGrid>("ArchiveMediaGrid").Columns[3].Header = MediaRatingText.LocalizedLabel;
     }
 }

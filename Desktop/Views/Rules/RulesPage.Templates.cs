@@ -22,7 +22,8 @@ public partial class RulesPage
     private Func<Task<RuleTemplateLoadResult>>? _loadTemplates;
     private Func<IEnumerable<RuleTemplate>, string, Task<RuleTemplateSet>>? _saveTemplates;
     private RuleTemplateSet? _templates;
-    private string? _templateError;
+    private TemplateErrorState? _templateError;
+    private readonly Dictionary<Guid, (RuleTemplate Template, long? PluginRevision, TemplateErrorState? Error)> _templateCompatibility = new();
     private string? _templateWarning;
     private bool _templateLoading;
     private bool _templateApplyBusy;
@@ -47,6 +48,16 @@ public partial class RulesPage
     private DraftDiscardConfirmation? _templateDeleteConfirmation;
     private DraftDiscardConfirmation? _templateEditorConfirmation;
     private sealed record TemplatePreview(Guid Id, string CatalogRevision, RuleDraft Target, long Generation, string RuleRevision, long? PluginRevision, RuleDraft After);
+    private sealed record TemplateErrorState(string? Key, string? Raw, IReadOnlyList<object?> Arguments)
+    {
+        internal string Render() => Key is null ? Raw ?? string.Empty : Texts.T(Key, Arguments.ToArray());
+    }
+
+    private static TemplateErrorState LocalizedTemplateError(string key, params object?[] arguments) =>
+        new(key, null, arguments);
+
+    private static TemplateErrorState RawTemplateError(string raw) =>
+        new(null, raw, Array.Empty<object?>());
 
     internal void AttachTemplateServices(Func<Task<RuleTemplateLoadResult>> load, Func<IEnumerable<RuleTemplate>, string, Task<RuleTemplateSet>> save)
     { _loadTemplates = load; _saveTemplates = save; RefreshTemplatesPanel(); if (IsEditable) _ = LoadTemplatesAsync(); }
@@ -115,10 +126,10 @@ public partial class RulesPage
         {
             RuleTemplateLoadResult loaded = await _loadTemplates();
             if (_ended) return;
-            _templates = loaded.Catalog; _templateWarning = loaded.Warning; _templateError = null;
+            _templates = loaded.Catalog; _templateWarning = loaded.Warning; _templateError = null; CacheTemplateCompatibility();
             if (_selectedTemplate != null && !_templates.Templates.Any(t => t.Id == _selectedTemplate)) _selectedTemplate = null;
         }
-        catch (Exception exception) { if (!_ended) { _templates = null; _templateError = exception.Message; } }
+        catch (Exception exception) { if (!_ended) { _templates = null; _templateError = RawTemplateError(exception.Message); } }
         finally { _templateLoading = false; if (!_ended) RefreshTemplatesPanel(); }
     }
     private void RefreshTemplatesPanel()
@@ -162,7 +173,8 @@ public partial class RulesPage
             _templateTitleView!.Text = Texts.T("templates.title"); _templateHintView!.Text = Texts.T("templates.hint");
             _templateReloadButton!.Content = Texts.T("templates.reload");
             _templateReloadButton.IsEnabled = !_templateLoading && IsEditable && _loadTemplates != null;
-            _templateCatalogErrorView!.Text = _templateError == null ? string.Empty : Texts.T("templates.failed", _templateError);
+            _templateCatalogErrorView!.Text = _templateError == null ? string.Empty
+                : Texts.T("templates.failed", _templateError.Render());
             _templateCatalogErrorView.IsVisible = _templateError != null;
             _templateCatalogWarningView!.Text = _templateWarning == null ? string.Empty : Texts.T("templates.warning", _templateWarning);
             _templateCatalogWarningView.IsVisible = _templateWarning != null;
@@ -174,7 +186,7 @@ public partial class RulesPage
             {
                 _templateListPresentation = presentation;
                 _templateList.ItemsSource = _templates?.Templates.Select(t => new TemplateChoice(t.Id, t.Name + " · " + TemplateGroups(t)
-                    + (TemplateCompatibilityError(t) == null ? "" : " · " + Texts.T("templates.incompatible")))).ToArray() ?? Array.Empty<TemplateChoice>();
+                    + (CachedTemplateError(t) == null ? "" : " · " + Texts.T("templates.incompatible")))).ToArray() ?? Array.Empty<TemplateChoice>();
             }
             _templateList.SelectedItem = (_templateList.ItemsSource as TemplateChoice[])?.FirstOrDefault(t => t.Id == _selectedTemplate);
             AutomationProperties.SetName(_templateList, Texts.T("templates.title"));
@@ -215,15 +227,38 @@ public partial class RulesPage
     }
     private string TemplateGroups(RuleTemplate template) => string.Join(", ", new[] { template.Types == null ? null : TypesLabel,
         template.SizeLimit == null ? null : SizeLabel, template.ImageFilter == null ? null : Texts.T("plugins.ruleFilter") }.Where(v => v != null));
-    private string? TemplateCompatibilityError(RuleTemplate template)
+    private string? TemplateCompatibilityError(RuleTemplate template) => TemplateCompatibilityState(template)?.Render();
+
+    // Only explicit catalog/validation actions populate this cache. A presentation
+    // refresh must never recreate schema drafts or recompute their raw error details.
+    private void CacheTemplateCompatibility()
+    {
+        _templateCompatibility.Clear();
+        _templateListPresentation = null;
+        if (_templates == null) return;
+        foreach (RuleTemplate template in _templates.Templates) TemplateCompatibilityState(template);
+    }
+    private TemplateErrorState? CachedTemplateError(RuleTemplate template) =>
+        _templateCompatibility.TryGetValue(template.Id, out var cached)
+        && ReferenceEquals(cached.Template, template) && cached.PluginRevision == _pluginProfile?.Revision
+            ? cached.Error : null;
+
+    private TemplateErrorState? TemplateCompatibilityState(RuleTemplate template)
+    {
+        TemplateErrorState? error = ComputeTemplateCompatibilityState(template);
+        _templateCompatibility[template.Id] = (template, _pluginProfile?.Revision, error);
+        _templateListPresentation = null;
+        return error;
+    }
+    private TemplateErrorState? ComputeTemplateCompatibilityState(RuleTemplate template)
     {
         if (template.ImageFilter is not { Mode: MediaImageFilterMode.Plugin } filter) return null;
         var plugin = _pluginProfile?.Plugins.FirstOrDefault(p => p.PluginId == filter.PluginId && p.Enabled && p.Active != null);
         FilterDescription? description = plugin?.Active?.Description.Filters.FirstOrDefault(f => f.Key == filter.FilterKey);
-        if (description == null || description.Settings.Version != filter.SchemaVersion) return Texts.T("templates.incompatible");
+        if (description == null || description.Settings.Version != filter.SchemaVersion) return LocalizedTemplateError("templates.incompatible");
         PluginSettingsDraft parameters = CreateRuleParametersDraft(description.Settings, filter.Parameters);
         parameters.Snapshot(out IReadOnlyList<FieldValidationError> errors);
-        return errors.Count == 0 ? null : string.Join("; ", errors.Select(e => e.Message));
+        return errors.Count == 0 ? null : RawTemplateError(string.Join("; ", errors.Select(e => e.Message)));
     }
     private async Task PreviewTemplateAsync()
     {
@@ -232,12 +267,18 @@ public partial class RulesPage
         RuleExtensionsInput.FlushPendingText();
         Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
         _templatePreviewReturnFocus = focused != null && focused.GetVisualAncestors().Contains(this) ? focused : TemplateAction("preview");
-        string? incompatible = TemplateCompatibilityError(template);
-        if (incompatible != null) { _templateError = incompatible; RefreshTemplatesPanel(); FocusTemplateControl(_templateCatalogErrorView); return; }
+        TemplateErrorState? incompatible = TemplateCompatibilityState(template);
+        if (incompatible == null && template.ImageFilter is { Mode: MediaImageFilterMode.Plugin } && _pluginServices == null)
+            incompatible = LocalizedTemplateError("templates.incompatible");
+        if (incompatible != null)
+        {
+            _templateError = incompatible;
+            RefreshTemplatesPanel(); FocusTemplateControl(_templateCatalogErrorView); return;
+        }
         RuleDraft target = _draft; long generation = target.Generation; string revision = _templates.Revision; long? plugins = _pluginProfile?.Revision;
         RuleDraft after = target.DeepClone(); ReplaceTemplateGroups(after, template);
         string? validation = await ValidateTemplateFilterAsync(template);
-        if (validation != null) { if (!_ended) { _templateError = validation; RefreshTemplatesPanel(); FocusTemplateControl(_templateCatalogErrorView); } return; }
+        if (validation != null) { if (!_ended) { _templateError = RawTemplateError(validation); RefreshTemplatesPanel(); FocusTemplateControl(_templateCatalogErrorView); } return; }
         if (_ended || !IsEditable || !ReferenceEquals(target, _draft) || target.Generation != generation || _templates?.Revision != revision || _pluginProfile?.Revision != plugins) return;
         _templateError = null; _templatePreview = new(template.Id, revision, target, generation, target.Baseline.Revision, plugins, after);
         RefreshTemplatesPanel();
@@ -323,17 +364,17 @@ public partial class RulesPage
                 RuleTemplateLoadResult loaded = await _loadTemplates();
                 if (_ended) return;
                 if (loaded.Catalog.Revision != preview.CatalogRevision)
-                { _templates = loaded.Catalog; _templateWarning = loaded.Warning; _templatePreview = null; _templateError = Texts.T("templates.previewStale"); return; }
+                { _templates = loaded.Catalog; _templateWarning = loaded.Warning; CacheTemplateCompatibility(); _templatePreview = null; _templateError = LocalizedTemplateError("templates.previewStale"); return; }
             }
             if (_pluginServices != null)
             {
                 var profile = await _pluginServices.ProfileStore.ReadAsync(_filterLifetime.Token);
                 if (_ended) return;
                 if (profile.Revision != preview.PluginRevision)
-                { _pluginProfile = profile; _templatePreview = null; _templateError = Texts.T("templates.previewStale"); return; }
+                { _pluginProfile = profile; CacheTemplateCompatibility(); _templatePreview = null; _templateError = LocalizedTemplateError("templates.previewStale"); return; }
             }
             RuleExtensionsInput.FlushPendingText(); RefreshConfirmedRules();
-            if (!PreviewIsCurrent()) { _templatePreview = null; _templateError = Texts.T("templates.previewStale"); return; }
+            if (!PreviewIsCurrent()) { _templatePreview = null; _templateError = LocalizedTemplateError("templates.previewStale"); return; }
             RuleDraft before = _draft.DeepClone();
             _draft.Restore(preview.After); _draft.Generation++; _draft.Dirty = true; _draft.TemplateUndo = before; _draft.TemplateUndoInvalidated = false;
             _templatePreview = null; _filterRenderedDraft = null; _statusKey = "templates.applied";
@@ -343,7 +384,7 @@ public partial class RulesPage
             else if (applied?.SizeLimit != null) { RuleSizeModeInput.Focus(); RuleSizeModeInput.BringIntoView(); }
             else FocusTemplateControl(RulePluginPanel.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Focusable && c.IsEnabled && c.IsEffectivelyVisible));
         }
-        catch (Exception exception) { if (!_ended) { _templateError = exception.Message; _templatePreview = null; } }
+        catch (Exception exception) { if (!_ended) { _templateError = RawTemplateError(exception.Message); _templatePreview = null; } }
         finally { _templateApplyBusy = false; if (!_ended) RefreshTemplatesPanel(); }
     }
     private void UndoTemplateApply()
@@ -368,8 +409,8 @@ public partial class RulesPage
     {
         if (_saveTemplates == null || !IsEditable) return false;
         SetBusy(true);
-        try { RuleTemplateSet saved = await _saveTemplates(templates.ToArray(), revision); if (_ended) return false; _templates = saved; _templateError = null; return true; }
-        catch (Exception exception) { if (!_ended) _templateError = exception.Message; return false; }
+        try { RuleTemplateSet saved = await _saveTemplates(templates.ToArray(), revision); if (_ended) return false; _templates = saved; _templateError = null; CacheTemplateCompatibility(); return true; }
+        catch (Exception exception) { if (!_ended) _templateError = RawTemplateError(exception.Message); return false; }
         finally { if (!_ended) { SetBusy(false); RefreshTemplatesPanel(); } }
     }
 }
