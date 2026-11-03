@@ -30,3 +30,5 @@ MeowChan.Storage.MediaPassiveImportRecord.OperationId.get -> string!
 MeowChan.Storage.MediaPassiveImportRecord.OperationId.init -> void
 MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.get -> string!
 MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.init -> void
+MeowChan.Archive.ArchiveHtmlExportOptions.Language.get -> string!
+MeowChan.Archive.ArchiveHtmlExportOptions.Language.init -> void

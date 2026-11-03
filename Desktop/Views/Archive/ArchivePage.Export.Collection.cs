@@ -108,7 +108,10 @@ public partial class ArchivePage
     {
         ResourceId[] members = _exportMembers!;
         string destination = Control<TextBox>("ArchiveExportDestination").Text ?? string.Empty;
-        ArchiveHtmlExportOptions options = new(Control<CheckBox>("ArchiveExportMedia").IsChecked == true);
+        ArchiveHtmlExportOptions options = new(Control<CheckBox>("ArchiveExportMedia").IsChecked == true)
+        {
+            Language = Texts.Language
+        };
         bool updating = UpdatingExport;
         PreviousCollectionExport? previous = SelectedCollectionExport;
         bool preserve = Control<CheckBox>("ArchiveExportBackup").IsChecked == true;

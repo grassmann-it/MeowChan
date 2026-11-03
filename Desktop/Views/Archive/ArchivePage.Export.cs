@@ -189,7 +189,10 @@ public partial class ArchivePage
         if (IsCollectionExport) { await StartCollectionExportAsync(); return; }
         ResourceId id = _exportThread;
         string destination = Control<TextBox>("ArchiveExportDestination").Text ?? string.Empty;
-        ArchiveHtmlExportOptions options = new(Control<CheckBox>("ArchiveExportMedia").IsChecked == true);
+        ArchiveHtmlExportOptions options = new(Control<CheckBox>("ArchiveExportMedia").IsChecked == true)
+        {
+            Language = Texts.Language
+        };
         bool updating = UpdatingExport;
         PreviousExport? previous = SelectedExport;
         bool preserve = Control<CheckBox>("ArchiveExportBackup").IsChecked == true;
