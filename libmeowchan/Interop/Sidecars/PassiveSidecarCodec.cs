@@ -58,7 +58,10 @@ internal static class PassiveSidecarCodec
         SidecarError error = CheckDirection(profile, direction);
         if (error != SidecarError.None) return Fail(error);
         if (utf8.Length > MaxPayloadBytes) return Fail(SidecarError.PayloadTooLarge);
-        ReadOnlySpan<byte> span = utf8.Span;
+        // Bound before allocating, then validate and materialize only this owned image.
+        // Copying is not an atomic observation of concurrently modified caller memory.
+        byte[] snapshot = utf8.ToArray();
+        ReadOnlySpan<byte> span = snapshot;
         if (span.StartsWith(new byte[] { 0xef, 0xbb, 0xbf })) return Fail(SidecarError.BomNotAllowed);
         try { _ = StrictUtf8.GetCharCount(span); }
         catch (DecoderFallbackException) { return Fail(SidecarError.InvalidUtf8); }
@@ -79,7 +82,7 @@ internal static class PassiveSidecarCodec
                         return Fail(SidecarError.DuplicateProperty);
                 }
             }
-            using JsonDocument document = JsonDocument.Parse(utf8, new JsonDocumentOptions { MaxDepth = MaxDepth });
+            using JsonDocument document = JsonDocument.Parse(snapshot, new JsonDocumentOptions { MaxDepth = MaxDepth });
             JsonElement root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return Fail(SidecarError.InvalidSchema);
             JsonElement tags;
