@@ -79,6 +79,9 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 {
     private readonly ProfileLease _lease;
     internal object CoordinationIdentity => _lease;
+    internal ProfileLease ProfileLease => _lease;
+    internal T RunAdmitted<T>(ProfileAdmissionToken admission, Func<T> operation) =>
+        _lease.Admission.RunWithToken(admission, operation, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
     private long _resourcePointReads, _mediaPointReads, _resourceBatchReads, _mediaBatchReads, _materializedRows;
     internal WorkStoreQueryCounts QueryCounts => new(Interlocked.Read(ref _resourcePointReads), Interlocked.Read(ref _mediaPointReads),
         Interlocked.Read(ref _resourceBatchReads), Interlocked.Read(ref _mediaBatchReads), Interlocked.Read(ref _materializedRows));
@@ -170,7 +173,25 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         return FindMedia(db, transaction, key);
     });
 
-    bool IConditionalWorkStateStore.TryCommitMedia(MediaWork next, MediaWork? expected) => _lease.RunExclusive(() =>
+    bool IConditionalWorkStateStore.TryCommitMedia(MediaWork next, MediaWork? expected)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return TryCommitMediaAdmitted(next, expected, admission);
+    }
+
+    internal bool TryCommitMediaAdmitted(MediaWork next, MediaWork? expected, ProfileAdmissionToken admission) =>
+        _lease.RunStoreWrite(admission, () =>
+        {
+            bool result = TryCommitMediaCore(next, expected);
+            if (result) WorkStateAccess.For(this).MarkDirty(next.ResourceUrl);
+            return result;
+        });
+
+    // Internal continuation only: the caller must already hold an accepted
+    // Startup/Ordinary use-pin. WorkStateAccess uses this after its outer
+    // RunAdmitted has pinned the borrowed token; reacquiring the token here
+    // would reject an already accepted operation after Dispose requests release.
+    internal bool TryCommitMediaCore(MediaWork next, MediaWork? expected) => _lease.RunExclusive(() =>
     {
         Validate(next);
         using SqliteConnection db = Open();
@@ -185,44 +206,93 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 
     public WorkResource CommitIntent(WorkResource resource)
     {
-        using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
-        WorkResource result = CommitIntentCore(resource);
-        WorkStateAccess.For(this).MarkDirty(resource.Url);
-        return result;
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitIntentAdmitted(resource, admission);
     }
-    WorkResource IConditionalWorkStateStore.CommitIntentUnderFence(WorkResource resource) => CommitIntentCore(resource);
+
+    internal WorkResource CommitIntentAdmitted(WorkResource resource, ProfileAdmissionToken admission) =>
+        RunAdmitted(admission, () =>
+        {
+            using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
+            WorkResource result = CommitIntentCore(resource);
+            WorkStateAccess.For(this).MarkDirty(resource.Url);
+            return result;
+        });
+    WorkResource IConditionalWorkStateStore.CommitIntentUnderFence(WorkResource resource)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitIntentUnderFence(resource, admission);
+    }
+    internal WorkResource CommitIntentUnderFence(WorkResource resource, ProfileAdmissionToken admission) =>
+        _lease.RunStoreWrite(admission, () => CommitIntentCore(resource));
 
     public WorkResource? CommitState(WorkResource resource)
     {
-        using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
-        WorkResource? result = CommitStateCore(resource);
-        if (result != null) WorkStateAccess.For(this).MarkDirty(resource.Url);
-        return result;
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitStateAdmitted(resource, admission);
     }
-    WorkResource? IConditionalWorkStateStore.CommitStateUnderFence(WorkResource resource) => CommitStateCore(resource);
+
+    internal WorkResource? CommitStateAdmitted(WorkResource resource, ProfileAdmissionToken admission) =>
+        RunAdmitted(admission, () =>
+        {
+            using IDisposable fence = WorkStateAccess.For(this).Enter(resource.Url);
+            WorkResource? result = CommitStateCore(resource);
+            if (result != null) WorkStateAccess.For(this).MarkDirty(resource.Url);
+            return result;
+        });
+    WorkResource? IConditionalWorkStateStore.CommitStateUnderFence(WorkResource resource)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitStateUnderFence(resource, admission);
+    }
+    internal WorkResource? CommitStateUnderFence(WorkResource resource, ProfileAdmissionToken admission) =>
+        _lease.RunStoreWrite(admission, () => CommitStateCore(resource));
 
     public WorkResource? CommitEnd(string url, long generation, ThreadSourceStateValue source,
         DateTimeOffset observedAt, string? finalSnapshotJson = null)
     {
-        using IDisposable fence = WorkStateAccess.For(this).Enter(url);
-        WorkResource? result = CommitEndCore(url, generation, source, observedAt, finalSnapshotJson);
-        if (result != null) WorkStateAccess.For(this).MarkDirty(url);
-        return result;
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitEndAdmitted(url, generation, source, observedAt, finalSnapshotJson, admission);
     }
+
+    internal WorkResource? CommitEndAdmitted(string url, long generation, ThreadSourceStateValue source,
+        DateTimeOffset observedAt, string? finalSnapshotJson, ProfileAdmissionToken admission) =>
+        RunAdmitted(admission, () =>
+        {
+            using IDisposable fence = WorkStateAccess.For(this).Enter(url);
+            WorkResource? result = CommitEndCore(url, generation, source, observedAt, finalSnapshotJson);
+            if (result != null) WorkStateAccess.For(this).MarkDirty(url);
+            return result;
+        });
 
     WorkResource? IConditionalWorkStateStore.CommitEndUnderFence(string url, long generation,
         ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson)
-        => CommitEndCore(url, generation, source, observedAt, finalSnapshotJson);
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitEndUnderFence(url, generation, source, observedAt, finalSnapshotJson, admission);
+    }
+    internal WorkResource? CommitEndUnderFence(string url, long generation, ThreadSourceStateValue source,
+        DateTimeOffset observedAt, string? finalSnapshotJson, ProfileAdmissionToken admission) =>
+        _lease.RunStoreWrite(admission, () => CommitEndCore(url, generation, source, observedAt, finalSnapshotJson));
 
     public bool CommitMedia(MediaWork media)
     {
-        using IDisposable fence = WorkStateAccess.For(this).Enter(media.ResourceUrl);
-        bool result = CommitMediaCore(media);
-        if (result) WorkStateAccess.For(this).MarkDirty(media.ResourceUrl);
-        return result;
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        return CommitMediaAdmitted(media, admission);
     }
 
-    private WorkResource CommitIntentCore(WorkResource resource) => _lease.RunExclusive(() =>
+    internal bool CommitMediaAdmitted(MediaWork media, ProfileAdmissionToken admission) =>
+        RunAdmitted(admission, () =>
+        {
+            using IDisposable fence = WorkStateAccess.For(this).Enter(media.ResourceUrl);
+            bool result = CommitMediaCore(media);
+            if (result) WorkStateAccess.For(this).MarkDirty(media.ResourceUrl);
+            return result;
+        });
+
+    // Internal continuation only; caller must already hold an accepted
+    // Startup/Ordinary use-pin and the resource fence.
+    internal WorkResource CommitIntentCore(WorkResource resource) => _lease.RunExclusive(() =>
     {
         Validate(resource);
         using SqliteConnection db = Open();
@@ -235,7 +305,11 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         return resource;
     });
 
-    private WorkResource? CommitEndCore(string url, long generation, ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson = null)
+    // Internal continuation only: caller must already hold a Startup/Ordinary use-pin
+    // and the resource fence. WorkStateAccess keeps that pin across its point read
+    // and this transaction; reacquiring the borrowed token here would reject an
+    // already accepted operation when Dispose requests release during the read.
+    internal WorkResource? CommitEndCore(string url, long generation, ThreadSourceStateValue source, DateTimeOffset observedAt, string? finalSnapshotJson = null)
         => _lease.RunExclusive(() =>
     {
         if (!Enum.IsDefined(source) || source == ThreadSourceStateValue.Active) throw new ArgumentOutOfRangeException(nameof(source));
@@ -255,7 +329,9 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
         return next;
     });
 
-    private WorkResource? CommitStateCore(WorkResource resource) => _lease.RunExclusive(() =>
+    // Internal continuation only; caller must already hold an accepted
+    // Startup/Ordinary use-pin and the resource fence.
+    internal WorkResource? CommitStateCore(WorkResource resource) => _lease.RunExclusive(() =>
     {
         Validate(resource);
         using SqliteConnection db = Open();
@@ -317,8 +393,7 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
 
     private SqliteConnection OpenReadOnly() => Open(SqliteOpenMode.ReadOnly);
 
-    // Runtime writers intentionally retain their existing access path until their
-    // producer tokens are wired; constructor admission is not an all-writer fence.
+    // Only admitted runtime/initialization cores open a writable connection.
     private SqliteConnection Open() => Open(SqliteOpenMode.ReadWriteCreate);
 
     private SqliteConnection Open(SqliteOpenMode mode)

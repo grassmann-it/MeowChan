@@ -81,7 +81,15 @@ internal sealed class WorkStateAccess
     }
 
     // Caller owns the URL fence, including in the compatibility case.
-    internal bool TryCommitMedia(MediaWork next, MediaWork? expected)
+    internal bool TryCommitMedia(MediaWork next, MediaWork? expected, ProfileAdmissionToken? admission = null)
+    {
+        if (_store is not WorkStateStore sqlite) return TryCommitMediaCore(next, expected, admission);
+        if (admission != null) return sqlite.RunAdmitted(admission, () => TryCommitMediaCore(next, expected, admission));
+        using ProfileAdmissionToken local = sqlite.ProfileLease.Admission.EnterStoreWriter();
+        return sqlite.RunAdmitted(local, () => TryCommitMediaCore(next, expected, local));
+    }
+
+    private bool TryCommitMediaCore(MediaWork next, MediaWork? expected, ProfileAdmissionToken? admission)
     {
         Interlocked.Increment(ref _conditionalWrites);
         if (expected != null && MediaWorkKey.Of(next) != MediaWorkKey.Of(expected))
@@ -91,7 +99,8 @@ internal sealed class WorkStateAccess
         {
             using (PerformanceDiagnostics.Measure("work.conditional", watch: next.ResourceUrl, asset: next.MediaIdentifier, epoch: next.Generation))
             {
-                if (_store is IConditionalWorkStateStore fast) committed = fast.TryCommitMedia(next, expected);
+                if (_store is WorkStateStore sqlite) committed = sqlite.TryCommitMediaCore(next, expected);
+                else if (_store is IConditionalWorkStateStore fast) committed = fast.TryCommitMedia(next, expected);
                 else
                 {
                     Interlocked.Increment(ref _fallbackWrites);
@@ -102,7 +111,7 @@ internal sealed class WorkStateAccess
                 }
             }
         }
-        catch
+        catch (Exception error) when (_store is not WorkStateStore || error is not InvalidOperationException)
         {
             // A write can throw after adopting its transaction. Do not retry or announce success
             // until an authoritative read confirms the exact row and its still-current owner.
@@ -148,11 +157,20 @@ internal sealed class WorkStateAccess
 
     // Caller owns the resource fence. These bypass the built-in public entry point's fence,
     // not its validation, transaction, generation rules or profile lease.
-    internal WorkResource CommitIntentUnderFence(WorkResource resource)
+    internal WorkResource CommitIntentUnderFence(WorkResource resource, ProfileAdmissionToken? admission = null)
+    {
+        if (_store is not WorkStateStore sqlite) return CommitIntentUnderFenceCore(resource, admission);
+        if (admission != null) return sqlite.RunAdmitted(admission, () => CommitIntentUnderFenceCore(resource, admission));
+        using ProfileAdmissionToken local = sqlite.ProfileLease.Admission.EnterStoreWriter();
+        return sqlite.RunAdmitted(local, () => CommitIntentUnderFenceCore(resource, local));
+    }
+
+    private WorkResource CommitIntentUnderFenceCore(WorkResource resource, ProfileAdmissionToken? admission)
     {
         WorkResource result;
-        try { result = _store is IConditionalWorkStateStore fast ? fast.CommitIntentUnderFence(resource) : _store.CommitIntent(resource); }
-        catch
+        try { result = _store is WorkStateStore sqlite ? sqlite.CommitIntentCore(resource)
+            : _store is IConditionalWorkStateStore fast ? fast.CommitIntentUnderFence(resource) : _store.CommitIntent(resource); }
+        catch (Exception error) when (_store is not WorkStateStore || error is not InvalidOperationException)
         {
             bool confirmed = false;
             try { confirmed = FindResource(resource.Url) == resource; } catch { }
@@ -162,11 +180,20 @@ internal sealed class WorkStateAccess
         MarkDirty(resource.Url);
         return result;
     }
-    internal WorkResource? CommitStateUnderFence(WorkResource resource)
+    internal WorkResource? CommitStateUnderFence(WorkResource resource, ProfileAdmissionToken? admission = null)
+    {
+        if (_store is not WorkStateStore sqlite) return CommitStateUnderFenceCore(resource, admission);
+        if (admission != null) return sqlite.RunAdmitted(admission, () => CommitStateUnderFenceCore(resource, admission));
+        using ProfileAdmissionToken local = sqlite.ProfileLease.Admission.EnterStoreWriter();
+        return sqlite.RunAdmitted(local, () => CommitStateUnderFenceCore(resource, local));
+    }
+
+    private WorkResource? CommitStateUnderFenceCore(WorkResource resource, ProfileAdmissionToken? admission)
     {
         WorkResource? result;
-        try { result = _store is IConditionalWorkStateStore fast ? fast.CommitStateUnderFence(resource) : _store.CommitState(resource); }
-        catch
+        try { result = _store is WorkStateStore sqlite ? sqlite.CommitStateCore(resource)
+            : _store is IConditionalWorkStateStore fast ? fast.CommitStateUnderFence(resource) : _store.CommitState(resource); }
+        catch (Exception error) when (_store is not WorkStateStore || error is not InvalidOperationException)
         {
             bool confirmed = false;
             try { confirmed = FindResource(resource.Url) == resource; } catch { }
@@ -178,7 +205,16 @@ internal sealed class WorkStateAccess
     }
 
     internal WorkResource? CommitEndUnderFence(string url, long generation, ThreadSourceStateValue source,
-        DateTimeOffset observedAt, string? finalSnapshotJson)
+        DateTimeOffset observedAt, string? finalSnapshotJson, ProfileAdmissionToken? admission = null)
+    {
+        if (_store is not WorkStateStore sqlite) return CommitEndUnderFenceCore(url, generation, source, observedAt, finalSnapshotJson, admission);
+        if (admission != null) return sqlite.RunAdmitted(admission, () => CommitEndUnderFenceCore(url, generation, source, observedAt, finalSnapshotJson, admission));
+        using ProfileAdmissionToken local = sqlite.ProfileLease.Admission.EnterStoreWriter();
+        return sqlite.RunAdmitted(local, () => CommitEndUnderFenceCore(url, generation, source, observedAt, finalSnapshotJson, local));
+    }
+
+    private WorkResource? CommitEndUnderFenceCore(string url, long generation, ThreadSourceStateValue source,
+        DateTimeOffset observedAt, string? finalSnapshotJson, ProfileAdmissionToken? admission)
     {
         WorkResource? before = FindResource(url);
         WorkResource? expected = before == null || before.Generation != generation || before.Intent != WorkIntent.Watching ? null
@@ -188,11 +224,12 @@ internal sealed class WorkStateAccess
         WorkResource? result;
         try
         {
-            result = _store is IConditionalWorkStateStore fast
+            result = _store is WorkStateStore sqlite ? sqlite.CommitEndCore(url, generation, source, observedAt, finalSnapshotJson)
+                : _store is IConditionalWorkStateStore fast
                 ? fast.CommitEndUnderFence(url, generation, source, observedAt, finalSnapshotJson)
                 : _store.CommitEnd(url, generation, source, observedAt, finalSnapshotJson);
         }
-        catch
+        catch (Exception error) when (_store is not WorkStateStore || error is not InvalidOperationException)
         {
             bool confirmed = false;
             try { confirmed = expected != null && FindResource(url) == expected; } catch { }
