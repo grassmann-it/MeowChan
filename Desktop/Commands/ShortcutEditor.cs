@@ -69,7 +69,19 @@ public sealed class ShortcutEditor : UserControl
     }
     private void OnLanguageChanged(object? sender, EventArgs e) => Localize();
     public void Load(ShortcutBindingsSection section)
-    { StopCapture(); Draft = section.Clone(); IsDirty = false; RefreshList(); Localize(); }
+    {
+        _validationFocusRequest++;
+        StopCapture();
+        // Reload discards the recording, independently of whether rebuilding the
+        // list produces SelectionChanged (there may be no selected item at all).
+        _pending = null;
+        _capture.Gesture = null;
+        SetPendingText(null);
+        Draft = section.Clone();
+        IsDirty = false;
+        RefreshList();
+        Localize();
+    }
     public bool ValidateDraft()
     {
         StopCapture();
@@ -212,12 +224,14 @@ public sealed class ShortcutEditor : UserControl
         }).Where(row => query.Length == 0 || row.Search.Contains(query, StringComparison.OrdinalIgnoreCase))
             .Select(row => { _rowTexts.Add(row.Refresh); return row.Item; }).ToArray();
         string? selected = _selected;
+        ListBoxItem? selectedItem = items.FirstOrDefault(i => (string)i.Tag! == selected);
         _actions.ItemsSource = items;
         // Rebuilt rows replace every previous container. Native Once navigation
-        // must not retain a removed row as its next tab destination.
+        // must not retain a removed row as its next tab destination. Only restore
+        // an identity that is still represented by a real item in this result.
         KeyboardNavigation.SetTabOnceActiveElement(_actions, null);
-        _selected = selected;
-        _actions.SelectedItem = items.FirstOrDefault(i => (string)i.Tag! == selected);
+        _selected = selectedItem?.Tag as string;
+        _actions.SelectedItem = selectedItem;
         ShowIssues(snapshot.Issues);
         RefreshDetail();
     }
@@ -271,7 +285,14 @@ public sealed class ShortcutEditor : UserControl
         if (e.Key == Key.Escape) { e.Handled = true; CancelCapture(); }
         else if (e.Key == Key.Tab) StopCapture();
         else if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt))
-        { e.Handled = true; _pending = null; SetPendingText(() => Texts.T("settings.shortcutsEditor.altGrText")); }
+        {
+            e.Handled = true;
+            _pending = null;
+            // Clear the source gesture as well: a later modifier-checkbox change
+            // must not read the rejected AltGr gesture back into _pending.
+            _capture.Gesture = null;
+            SetPendingText(() => Texts.T("settings.shortcutsEditor.altGrText"));
+        }
     }
     private void CancelCapture()
     {

@@ -69,6 +69,35 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         }
     }
 
+    [Fact]
+    public void FilteringOutTheSelectedCommandClearsSelectionAndDetailInsteadOfRestoringStaleIdentity()
+    {
+        using var fixture = new EditorFixture();
+        ShortcutEditor editor = fixture.Editor;
+        TextBox search = Get<TextBox>(editor, "_search");
+        ListBox actions = Get<ListBox>(editor, "_actions");
+        Select(editor, ActionId);
+        Assert.Equal(ActionId, Get<string>(editor, "_selected"));
+        Assert.True(Get<Border>(editor, "_detailFrame").IsVisible);
+
+        search.Text = "navigation.rules";
+
+        Assert.Null(actions.SelectedItem);
+        Assert.Null(Get<string?>(editor, "_selected"));
+        Assert.False(Get<Border>(editor, "_detailFrame").IsVisible);
+        Assert.Empty(Get<StackPanel>(editor, "_detail").Children);
+
+        // Clearing the filter must not implicitly resurrect the hidden command;
+        // a fresh real selection can still establish the detail state.
+        search.Text = "";
+        Assert.Null(actions.SelectedItem);
+        Assert.Null(Get<string?>(editor, "_selected"));
+        Assert.False(Get<Border>(editor, "_detailFrame").IsVisible);
+        Select(editor, ActionId);
+        Assert.Equal(ActionId, Get<string>(editor, "_selected"));
+        Assert.True(Get<Border>(editor, "_detailFrame").IsVisible);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -149,14 +178,23 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
             KeyModifiers = KeyModifiers.Control | KeyModifiers.Alt
         });
         Assert.Null(Get<ShortcutGesture?>(editor, "_pending"));
+        Assert.Null(capture.Gesture);
+        CheckBox explicitModifiers = Get<CheckBox>(editor, "_explicit");
         string raw = editor.Draft.Raw.GetRawText();
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
             Assert.Equal(Texts.T("settings.shortcutsEditor.altGrText"), Get<TextBlock>(editor, "_pendingLabel").Text);
             Assert.Null(Get<ShortcutGesture?>(editor, "_pending"));
+            Assert.Null(capture.Gesture);
             Assert.Same(lease, Get<object>(editor, "_captureLease"));
             Assert.True(ShortcutService.IsCapturing);
+            Assert.Equal(raw, editor.Draft.Raw.GetRawText());
+
+            // This used to re-read the rejected source gesture through ReadCapture.
+            explicitModifiers.IsChecked = explicitModifiers.IsChecked != true;
+            Assert.Null(Get<ShortcutGesture?>(editor, "_pending"));
+            Assert.Null(capture.Gesture);
             Assert.Equal(raw, editor.Draft.Raw.GetRawText());
         }
         Click(editor, "applyRecording");
@@ -216,6 +254,117 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         Assert.False(ShortcutService.IsCapturing);
         Assert.Equal(revision, ShortcutService.Revision);
         Assert.Same(live, ShortcutService.Current);
+    }
+
+    [Theory]
+    [InlineData("recording")]
+    [InlineData("pending")]
+    [InlineData("altgr")]
+    [InlineData("limit")]
+    public void LoadDiscardsEveryRecordingStateBeforeFurtherLanguageModifierOrApplyActions(string state)
+    {
+        using var fixture = new EditorFixture();
+        ShortcutEditor editor = fixture.Editor;
+        if (state == "limit")
+            editor.Load(editor.Draft.Set(ActionId, Enumerable.Range(1, 8)
+                .Select(number => ShortcutGesture.Parse("Shift+F" + number)).ToArray()));
+        Select(editor, "navigation.rules");
+        Click(editor, "clearBinding"); // An unrelated real edit must become clean on Load.
+        Select(editor, ActionId);
+        Click(editor, "recordAdditional");
+        KeyGestureInput capture = Get<KeyGestureInput>(editor, "_capture");
+        CheckBox explicitModifiers = Get<CheckBox>(editor, "_explicit");
+        explicitModifiers.IsChecked = true;
+        if (state != "recording") capture.Gesture = new KeyGesture(Key.F10, KeyModifiers.Shift);
+        if (state == "altgr")
+            capture.RaiseEvent(new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent, Key = Key.Q,
+                KeyModifiers = KeyModifiers.Control | KeyModifiers.Alt
+            });
+        if (state == "limit") Click(editor, "applyRecording");
+        Assert.True(editor.IsDirty);
+        Assert.Equal(state != "limit", ShortcutService.IsCapturing);
+        if (state is "pending" or "limit") Assert.NotNull(Get<ShortcutGesture?>(editor, "_pending"));
+        if (state != "recording") Assert.NotNull(Get<Func<string>?>(editor, "_pendingText"));
+        if (state is "altgr" or "limit")
+            Assert.Equal(Texts.T("settings.shortcutsEditor." + (state == "altgr" ? "altGrText" : "gestureLimit")),
+                Get<TextBlock>(editor, "_pendingLabel").Text);
+
+        var incoming = editor.Draft.Set(ActionId, new[] { ShortcutGesture.Parse("Shift+F12") });
+        string raw = incoming.Raw.GetRawText();
+        long revision = ShortcutService.Revision;
+        var live = ShortcutService.Current;
+        editor.Load(incoming);
+
+        Assert.NotSame(incoming, editor.Draft);
+        Assert.Equal(raw, editor.Draft.Raw.GetRawText());
+        AssertRecordingCleared(editor);
+        Assert.True(explicitModifiers.IsChecked == true); // Existing modifier-choice semantics stay intact.
+        Assert.Equal(ActionId, Get<string>(editor, "_selected"));
+        Assert.Equal(ActionId, ((ListBoxItem)Get<ListBox>(editor, "_actions").SelectedItem!).Tag);
+        Assert.True(Get<Border>(editor, "_detailFrame").IsVisible);
+        Assert.Contains(Controls(Get<StackPanel>(editor, "_detail")).OfType<TextBlock>(),
+            text => text.Text == ShortcutGesture.Parse("Shift+F12").Display(EffectiveShortcutBindings.CurrentPlatform));
+
+        foreach (string language in Languages)
+        {
+            Texts.SetLanguage(language);
+            explicitModifiers.IsChecked = explicitModifiers.IsChecked != true;
+            Click(editor, "applyRecording");
+            Click(editor, "takeOver");
+            AssertRecordingCleared(editor);
+            Assert.Equal(raw, editor.Draft.Raw.GetRawText());
+            Assert.Equal(revision, ShortcutService.Revision);
+            Assert.Same(live, ShortcutService.Current);
+        }
+    }
+
+    [Fact]
+    public void LoadClearsDormantGestureWithoutAnySelectionChangedReset()
+    {
+        using var fixture = new EditorFixture();
+        ShortcutEditor editor = fixture.Editor;
+        ListBox actions = Get<ListBox>(editor, "_actions");
+        KeyGestureInput capture = Get<KeyGestureInput>(editor, "_capture");
+        Assert.Null(actions.SelectedItem);
+        // Seed a latent input value through the real GestureProperty/ReadCapture
+        // path. No selection event can erase this state on behalf of Load.
+        capture.Gesture = new KeyGesture(Key.F9, KeyModifiers.Shift);
+        Assert.NotNull(Get<ShortcutGesture?>(editor, "_pending"));
+        Assert.NotNull(Get<Func<string>?>(editor, "_pendingText"));
+        int selectionChanges = 0;
+        actions.SelectionChanged += (_, _) => selectionChanges++;
+        var incoming = editor.Draft;
+        string raw = incoming.Raw.GetRawText();
+
+        editor.Load(incoming);
+
+        Assert.Equal(0, selectionChanges);
+        AssertRecordingCleared(editor);
+        Assert.Null(actions.SelectedItem);
+        Assert.Null(Get<string?>(editor, "_selected"));
+        Assert.False(Get<Border>(editor, "_detailFrame").IsVisible);
+        Assert.Empty(Get<StackPanel>(editor, "_detail").Children);
+        Get<CheckBox>(editor, "_explicit").IsChecked = true;
+        Texts.SetLanguage("de");
+        AssertRecordingCleared(editor);
+        Select(editor, ActionId);
+        Click(editor, "applyRecording");
+        Assert.Equal(raw, editor.Draft.Raw.GetRawText());
+        AssertRecordingCleared(editor);
+    }
+
+    private static void AssertRecordingCleared(ShortcutEditor editor)
+    {
+        Assert.False(ShortcutService.IsCapturing);
+        Assert.Null(Get<IDisposable?>(editor, "_captureLease"));
+        Assert.False(Get<KeyGestureInput>(editor, "_capture").IsEnabled);
+        Assert.Null(Get<KeyGestureInput>(editor, "_capture").Gesture);
+        Assert.Null(Get<ShortcutGesture?>(editor, "_pending"));
+        Assert.Null(Get<Func<string>?>(editor, "_pendingText"));
+        Assert.Equal("", Get<TextBlock>(editor, "_pendingLabel").Text);
+        Assert.False(editor.IsDirty);
     }
 
     [Theory]
