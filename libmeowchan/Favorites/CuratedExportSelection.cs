@@ -36,7 +36,21 @@ internal sealed record CuratedExportManifest(ResourceId Thread, MediaAssetSnapsh
 internal sealed record CuratedExportManifestFence(ResourceId Thread, string Directory,
     MediaManifestStatus Status, string? Generation);
 /// <summary>Inert provenance only; deliberately excludes acceptance grants and source permissions.</summary>
-internal sealed record CuratedExportOccurrence(AttachmentRevisionReference Reference, string AcquisitionRevisionKey);
+internal sealed record CuratedExportOccurrence(ResourceId Resource, string PostId, int Position,
+    string? RevisionKey, string? AcquisitionRevisionKey, bool IsLegacy, MediaAssetSnapshot Manifest, string AssetId)
+{
+    // Only bound rows expose the old revision-shaped view; legacy rows stay null.
+    internal AttachmentRevisionReference? Reference => IsLegacy || RevisionKey == null
+        ? null : new(Resource, PostId, Position, RevisionKey!);
+
+    internal static CuratedExportOccurrence Bound(MediaAttachmentBinding binding, MediaAssetSnapshot manifest) =>
+        new(binding.Reference.Resource, binding.Reference.PostId, binding.Reference.Position,
+            binding.Reference.RevisionKey, binding.AcquisitionRevisionKey, false, manifest, binding.AssetId);
+
+    internal static CuratedExportOccurrence Legacy(ResourceId resource, string postId, int position,
+        MediaAssetSnapshot manifest, string assetId) =>
+        new(resource, postId, position, null, null, true, manifest, assetId);
+}
 internal sealed record CuratedExportOriginal(FavoriteEntry Entry, string NameToken,
     CuratedExportStatus Status, FavoriteExportAsset? Asset, ImmutableArray<FavoriteExportAsset> Candidates,
     ImmutableArray<CuratedExportOccurrence> Occurrences);
@@ -144,7 +158,7 @@ internal sealed class CuratedExportSelection
         HashSet<ResourceId> corruptThreads = new();
         HashSet<(ResourceId, string)> manifestIds = new();
         Dictionary<FavoriteAssetKey, List<FavoriteExportAsset>> candidates = new();
-        Dictionary<(ResourceId, string, string), ImmutableArray<CuratedExportOccurrence>> occurrences = new();
+        Dictionary<(ResourceId, string, string), List<CuratedExportOccurrence>> occurrences = new();
         foreach (CuratedExportManifest input in budget.Read(manifests, MaximumManifests))
         {
             if (input == null || input.Snapshot == null) throw Invalid(CuratedExportValidationError.InvalidManifest);
@@ -193,17 +207,20 @@ internal sealed class CuratedExportSelection
                 if (binding.Reference.Resource != input.Thread) continue;
                 if (!perAsset.TryGetValue(binding.AssetId, out List<CuratedExportOccurrence>? rows))
                     perAsset.Add(binding.AssetId, rows = new());
-                rows.Add(new(binding.Reference, binding.AcquisitionRevisionKey));
+                rows.Add(CuratedExportOccurrence.Bound(binding, manifest));
             }
             foreach (var pair in perAsset)
-                occurrences.Add((input.Thread, manifest.Directory, pair.Key), pair.Value
-                    .OrderBy(row => row.Reference.PostId, StringComparer.Ordinal).ThenBy(row => row.Reference.Position)
-                    .ThenBy(row => row.Reference.RevisionKey, StringComparer.Ordinal).ToImmutableArray());
+            {
+                if (!occurrences.TryGetValue((input.Thread, manifest.Directory, pair.Key), out List<CuratedExportOccurrence>? rows))
+                    occurrences.Add((input.Thread, manifest.Directory, pair.Key), rows = new());
+                rows.AddRange(pair.Value);
+            }
         }
 
         ImmutableArray<CuratedExportThreadContext> frozenContexts = FreezeContexts(contexts, scopeThreads, budget);
         if (mode == CuratedExportMode.Files && !frozenContexts.IsEmpty)
             throw Invalid(CuratedExportValidationError.InvalidContext);
+        AddLegacyOccurrences(frozenContexts, frozenManifests, candidates, occurrences, budget);
         var originals = ImmutableArray.CreateBuilder<CuratedExportOriginal>();
         foreach (FavoriteAssetKey key in OrderKeys(keys))
         {
@@ -221,9 +238,11 @@ internal sealed class CuratedExportSelection
             ImmutableArray<FavoriteExportAsset> frozenCandidates = (matches ?? new List<FavoriteExportAsset>())
                 .OrderBy(value => value.Manifest.Directory, StringComparer.Ordinal).ThenBy(value => value.AssetId, StringComparer.Ordinal).ToImmutableArray();
             ImmutableArray<CuratedExportOccurrence> bindings = frozenCandidates.SelectMany(value =>
-                occurrences.GetValueOrDefault((key.Thread, value.Manifest.Directory, value.AssetId), ImmutableArray<CuratedExportOccurrence>.Empty))
-                .OrderBy(row => row.Reference.PostId, StringComparer.Ordinal).ThenBy(row => row.Reference.Position)
-                .ThenBy(row => row.Reference.RevisionKey, StringComparer.Ordinal).ToImmutableArray();
+                occurrences.TryGetValue((key.Thread, value.Manifest.Directory, value.AssetId), out List<CuratedExportOccurrence>? rows)
+                    ? rows : Enumerable.Empty<CuratedExportOccurrence>())
+                .OrderBy(row => row.PostId, StringComparer.Ordinal).ThenBy(row => row.Position)
+                .ThenBy(row => row.RevisionKey, StringComparer.Ordinal).ThenBy(row => row.IsLegacy)
+                .ThenBy(row => row.Manifest.Directory, StringComparer.Ordinal).ThenBy(row => row.AssetId, StringComparer.Ordinal).ToImmutableArray();
             originals.Add(new(entry, "original-" + (originals.Count + 1).ToString("D6", CultureInfo.InvariantCulture), status, chosen, frozenCandidates, bindings));
         }
         var omitted = ImmutableArray.CreateBuilder<CuratedExportLedgerItem>();
@@ -263,6 +282,47 @@ internal sealed class CuratedExportSelection
     }
 
     internal CuratedExportLedger CreateLedger() => CuratedExportLedger.Start(this);
+
+    private static void AddLegacyOccurrences(ImmutableArray<CuratedExportThreadContext> contexts,
+        IEnumerable<CuratedExportManifest> manifests,
+        Dictionary<FavoriteAssetKey, List<FavoriteExportAsset>> candidates,
+        Dictionary<(ResourceId, string, string), List<CuratedExportOccurrence>> occurrences, Budget budget)
+    {
+        Dictionary<ResourceId, CuratedExportManifest[]> byThread = manifests
+            .GroupBy(value => value.Thread).ToDictionary(group => group.Key, group => group.ToArray());
+        foreach (CuratedExportThreadContext context in contexts)
+        {
+            budget.Check();
+            if (!byThread.TryGetValue(context.Summary.Id, out CuratedExportManifest[]? available)) continue;
+            MediaAssetSnapshot[] snapshots = available.Select(value => value.Snapshot).ToArray();
+            foreach (CapturedPost post in context.Posts)
+            foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
+            {
+                budget.Check();
+                // Bound rows were inventoried from the manifest bindings above. Legacy is
+                // intentionally only the null-revision branch of the existing resolver.
+                if (attachment.AttachmentRevisionKey != null) continue;
+                // Resolve(IEnumerable<...>) scans these frozen manifests for this legacy row.
+                // Charge a conservative scan bound before entering the existing resolver.
+                budget.RowsForResolver(snapshots);
+                ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(snapshots,
+                    context.Summary.Id, post.PostId, attachment);
+                budget.Check();
+                if (resolved is not { IsLegacy: true } || resolved.Binding != null) continue;
+                // The multi-manifest resolver can consider identical asset replicas equivalent.
+                // Keep the selection's stricter concrete-location ambiguity unresolved as well.
+                FavoriteAssetKey key = FavoriteAssetKey.From(context.Summary.Id, resolved.Asset);
+                if (!candidates.TryGetValue(key, out List<FavoriteExportAsset>? matches) || matches.Count != 1) continue;
+                var occurrence = CuratedExportOccurrence.Legacy(context.Summary.Id, post.PostId, attachment.Position,
+                    resolved.Snapshot, resolved.Asset.AssetId);
+                var location = (context.Summary.Id, resolved.Snapshot.Directory, resolved.Asset.AssetId);
+                if (!occurrences.TryGetValue(location, out List<CuratedExportOccurrence>? rows))
+                    occurrences.Add(location, rows = new());
+                // Frozen contexts already enforce unique resource/post/position rows.
+                rows.Add(occurrence);
+            }
+        }
+    }
 
     private static ImmutableArray<CuratedExportThreadContext> FreezeContexts(IEnumerable<ArchivedThreadView> source,
         HashSet<ResourceId> threads, Budget budget)
@@ -335,6 +395,23 @@ internal sealed class CuratedExportSelection
         private int _text;
         internal Budget(CancellationToken token) => _token = token;
         internal void Check() => _token.ThrowIfCancellationRequested();
+        internal void Rows(int amount)
+        {
+            Check();
+            if (amount < 0 || amount > MaximumRows - _rows)
+                throw Invalid(CuratedExportValidationError.LimitExceeded);
+            _rows += amount;
+            Check();
+        }
+        internal void RowsForResolver(IEnumerable<MediaAssetSnapshot> snapshots)
+        {
+            foreach (MediaAssetSnapshot snapshot in snapshots)
+            {
+                if (snapshot == null) throw Invalid(CuratedExportValidationError.InvalidManifest);
+                Rows(1); // the resolver also visits/sorts empty manifest views
+                Rows(snapshot.Count);
+            }
+        }
         internal IEnumerable<T> Read<T>(IEnumerable<T> source, int limit)
         {
             Check();
@@ -343,7 +420,8 @@ internal sealed class CuratedExportSelection
             foreach (T item in source)
             {
                 Check();
-                if (++count > limit || ++_rows > MaximumRows) throw Invalid(CuratedExportValidationError.LimitExceeded);
+                if (++count > limit) throw Invalid(CuratedExportValidationError.LimitExceeded);
+                Rows(1);
                 yield return item;
             }
             Check();

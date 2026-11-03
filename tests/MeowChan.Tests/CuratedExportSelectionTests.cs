@@ -28,6 +28,22 @@ public sealed class CuratedExportSelectionTests
         char generation = 'd', IReadOnlyDictionary<string, MediaAttachmentBinding>? bindings = null)
         => new(thread ?? Thread, new MediaAssetSnapshot(directory, status, status == MediaManifestStatus.Available ? 2 : null,
             status == MediaManifestStatus.Available ? Hash(generation) : null, assets ?? [], attachmentBindings: bindings));
+    private static CapturedAttachment LegacyAttachment(MediaAssetReference asset, long? length = null, string? sha256 = null,
+        string? mediaId = null) => new(0, mediaId ?? asset.MediaIdentifier, asset.Variant,
+        asset.SourceUrl, asset.OriginalFileName, ExpectedSize: length ?? asset.Length)
+    { ExpectedSha256 = sha256 ?? asset.Sha256 };
+
+    private static ArchivedThreadView Context(CapturedPost post, ResourceId? thread = null, string directory = "/synthetic/root")
+    {
+        ResourceId id = thread ?? Thread;
+        ArchiveThreadSummary summary = new(id, "https://fixture.invalid/thread", "Synthetic", directory,
+            MeowChan.Interfaces.ThreadSourceState.NotFound, false, At, At, 1, 11);
+        return new ArchivedThreadView(summary, [post], [directory], decimalPostOrder: true);
+    }
+
+    private static ArchivedThreadView Context(params CapturedAttachment[] attachments)
+        => Context(new CapturedPost("101", 101, PostFieldPresence.All, At,
+            Html: "<p>synthetic</p>", Attachments: attachments));
     private static CuratedExportSelection Freeze(FavoriteStoreSnapshot? snapshot = null, IEnumerable<FavoriteAssetKey>? keys = null,
         IEnumerable<CuratedExportManifest>? manifests = null, bool previews = false, CancellationToken token = default)
         => CuratedExportSelection.Freeze(snapshot ?? Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Files,
@@ -167,7 +183,17 @@ public sealed class CuratedExportSelectionTests
         var plan = Freeze(manifests: [manifest]);
         bindings.Clear();
         var selected = Assert.Single(plan.Originals);
-        Assert.Equal(new[] { first.Reference, second.Reference }, selected.Occurrences.Select(row => row.Reference));
+        Assert.Equal(new[] { first.Reference, second.Reference }, selected.Occurrences.Select(row => row.Reference!));
+        Assert.Equal(new[] { first.Reference.PostId, second.Reference.PostId }, selected.Occurrences.Select(row => row.PostId));
+        Assert.Equal(new[] { first.Reference.RevisionKey, second.Reference.RevisionKey }, selected.Occurrences.Select(row => row.RevisionKey));
+        Assert.Equal(new[] { first.AcquisitionRevisionKey, second.AcquisitionRevisionKey },
+            selected.Occurrences.Select(row => row.AcquisitionRevisionKey));
+        Assert.All(selected.Occurrences, row =>
+        {
+            Assert.False(row.IsLegacy);
+            Assert.Same(manifest.Snapshot, row.Manifest);
+            Assert.Equal(asset.AssetId, row.AssetId);
+        });
         Assert.Single(selected.Candidates);
     }
 
@@ -179,7 +205,13 @@ public sealed class CuratedExportSelectionTests
         var foreign = Binding(asset, "201", Thread with { Thread = "200" });
         var manifest = Manifest(assets: [asset], bindings: new Dictionary<string, MediaAttachmentBinding>
             { [own.Reference.RevisionKey] = own, [foreign.Reference.RevisionKey] = foreign });
-        Assert.Equal(own.Reference, Assert.Single(Assert.Single(Freeze(manifests: [manifest]).Originals).Occurrences).Reference);
+        var occurrence = Assert.Single(Assert.Single(Freeze(manifests: [manifest]).Originals).Occurrences);
+        Assert.Equal(own.Reference, occurrence.Reference!);
+        Assert.Equal(own.Reference.Resource, occurrence.Resource);
+        Assert.Equal(own.Reference.PostId, occurrence.PostId);
+        Assert.Equal(own.Reference.Position, occurrence.Position);
+        Assert.Equal(own.Reference.RevisionKey, occurrence.RevisionKey);
+        Assert.False(occurrence.IsLegacy);
     }
 
     [Fact]
@@ -418,13 +450,151 @@ public sealed class CuratedExportSelectionTests
     }
 
     [Fact]
+    public void UniqueLegacyNullRevisionIsRecordedAgainstTheFrozenManifestAsset()
+    {
+        MediaAssetReference asset = Asset();
+        CapturedAttachment attachment = LegacyAttachment(asset);
+        var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], [Key()], [Manifest(assets: [asset])], [Context(attachment)]);
+        var occurrence = Assert.Single(Assert.Single(plan.Originals).Occurrences);
+        Assert.True(occurrence.IsLegacy);
+        Assert.Null(occurrence.RevisionKey);
+        Assert.Null(occurrence.AcquisitionRevisionKey);
+        Assert.Null(occurrence.Reference);
+        Assert.Equal(Thread, occurrence.Resource);
+        Assert.Equal("101", occurrence.PostId);
+        Assert.Equal(0, occurrence.Position);
+        Assert.Equal(asset.AssetId, occurrence.AssetId);
+        Assert.Equal("/synthetic/root", occurrence.Manifest.Directory);
+        Assert.Equal(Hash('d'), occurrence.Manifest.Generation);
+        Assert.Same(Assert.Single(plan.Originals).Asset!.Manifest, occurrence.Manifest);
+        Assert.Equal(CuratedOriginalVerification.Required, Assert.Single(plan.CreateLedger().Originals).Verification);
+    }
+
+    [Fact]
+    public void LegacyResolverAmbiguityRemainsUnresolvedAcrossFrozenManifests()
+    {
+        MediaAssetReference first = Asset(assetId: Hash('1'));
+        MediaAssetReference second = Asset(assetId: Hash('2'));
+        // Different asset IDs are ambiguous to the resolver; identical replicas are also
+        // ambiguous under the plan's stricter concrete-manifest selection contract.
+        foreach (MediaAssetReference competitor in new[] { second, first })
+        {
+            var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+                false, [Thread], [Key()], [Manifest("/synthetic/a", assets: [first]), Manifest("/synthetic/b", assets: [competitor])],
+                [Context(LegacyAttachment(first))]);
+            var original = Assert.Single(plan.Originals);
+            Assert.Equal(CuratedExportStatus.OriginalAmbiguous, original.Status);
+            Assert.Equal(2, original.Candidates.Length);
+            Assert.Empty(original.Occurrences);
+        }
+        // Ambiguous provider evidence must not gain an occurrence merely because the
+        // explicitly selected revision itself has only one exact-key candidate.
+        MediaAssetReference otherRevision = Asset(Key(hash: 'b'), Hash('2'), current: true);
+        CapturedAttachment sizeOnly = new(0, first.MediaIdentifier, ExpectedSize: first.Length);
+        var competing = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], [Key()], [Manifest(assets: [first, otherRevision])], [Context(sizeOnly)]);
+        Assert.Equal(CuratedExportStatus.OriginalIncluded, Assert.Single(competing.Originals).Status);
+        Assert.Empty(Assert.Single(competing.Originals).Occurrences);
+    }
+
+    [Fact]
+    public void LegacyMetadataMismatchDoesNotCreateAnOccurrenceOrInventARevision()
+    {
+        MediaAssetReference asset = Asset();
+        foreach (CapturedAttachment mismatch in new[] {
+            LegacyAttachment(asset, length: asset.Length + 1),
+            LegacyAttachment(asset, sha256: Hash('b')),
+            LegacyAttachment(asset, mediaId: "not-the-recorded-media") })
+        {
+            var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+                false, [Thread], [Key()], [Manifest(assets: [asset])], [Context(mismatch)]);
+            Assert.Equal(CuratedExportStatus.OriginalIncluded, Assert.Single(plan.Originals).Status);
+            Assert.Empty(Assert.Single(plan.Originals).Occurrences);
+        }
+    }
+
+    [Fact]
+    public void LegacyAttachmentWithoutResolverEvidenceRemainsUnbound()
+    {
+        MediaAssetReference asset = Asset();
+        CapturedAttachment unbound = new(0, asset.MediaIdentifier, asset.Variant);
+        var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], [Key()], [Manifest(assets: [asset])], [Context(unbound)]);
+        Assert.Empty(Assert.Single(plan.Originals).Occurrences);
+    }
+
+    [Fact]
+    public void LegacyOccurrenceUsesFrozenContextAfterCallerInputMutation()
+    {
+        MediaAssetReference asset = Asset();
+        List<CapturedAttachment> input = [LegacyAttachment(asset)];
+        CapturedPost post = new("101", 101, PostFieldPresence.All, At, Attachments: input);
+        List<CuratedExportManifest> manifests = [Manifest(assets: [asset])];
+        List<ArchivedThreadView> contexts = [Context(post)];
+        List<FavoriteAssetKey> selected = [Key()];
+        var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], selected, manifests, contexts);
+        var frozenManifest = manifests[0].Snapshot;
+        input.Clear();
+        input.Add(new CapturedAttachment(0, "different-media"));
+        selected.Clear(); contexts.Clear(); manifests.Clear();
+        manifests.Add(Manifest(assets: [Asset(Key(hash: 'b'), Hash('2'), current: true)]));
+        var occurrence = Assert.Single(Assert.Single(plan.Originals).Occurrences);
+        Assert.True(occurrence.IsLegacy);
+        Assert.Equal("101", occurrence.PostId);
+        Assert.Null(occurrence.RevisionKey);
+        Assert.Null(occurrence.AcquisitionRevisionKey);
+        Assert.Equal(Key(), Assert.Single(plan.Originals).Entry.Key);
+        Assert.Same(frozenManifest, occurrence.Manifest);
+        Assert.Equal(asset.AssetId, occurrence.AssetId);
+        Assert.Equal(asset.Sha256, Assert.Single(Assert.Single(plan.ThreadContexts).Posts).Attachments![0].ExpectedSha256);
+    }
+
+    [Fact]
+    public void GlobalRowsLimitCombinesSnapshotSelectionManifestAndContextRowsWithoutTruncation()
+    {
+        // Seven input rows before posts: favorite, scope thread, selected key,
+        // manifest, asset, context and context directory. No legacy attachments/scans.
+        int count = CuratedExportSelection.MaximumRows - 7;
+        var posts = Enumerable.Range(0, count).Select(number => new CapturedPost(
+            number.ToString(CultureInfo.InvariantCulture), number, PostFieldPresence.None));
+        ArchiveThreadSummary summary = new(Thread, "https://fixture.invalid/thread", "Synthetic", "/synthetic/root",
+            MeowChan.Interfaces.ThreadSourceState.NotFound, false, At, At, count, 11);
+        var context = new ArchivedThreadView(summary, posts, ["/synthetic/root"], decimalPostOrder: true);
+        var manifest = Manifest(assets: [Asset()]);
+        var exact = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], [Key()], [manifest], [context]);
+        Assert.Equal(count, Assert.Single(exact.ThreadContexts).Posts.Length);
+        Assert.Single(exact.Originals);
+        // One additional unselected favorite is still a full-snapshot input row.
+        // It must trigger the GLOBAL bound, not any individual collection limit.
+        Invalid(CuratedExportValidationError.LimitExceeded, () => CuratedExportSelection.Freeze(
+            Snapshot(Entry(), Entry(Key("unused"))), CuratedExportScope.Thread, CuratedExportMode.Html,
+            false, [Thread], [Key()], [manifest], [context]));
+    }
+
+    [Fact]
+    public void RepeatedLegacyResolverScansAreChargedToTheGlobalRowsBudget()
+    {
+        MediaAssetReference selected = Asset();
+        var assets = Enumerable.Range(1, 399).Select(number => Asset(Key("unused-" + number),
+            number.ToString("x64", CultureInfo.InvariantCulture))).Prepend(selected).ToArray();
+        CapturedAttachment[] attachments = Enumerable.Range(0, 500)
+            .Select(position => LegacyAttachment(selected) with { Position = position }).ToArray();
+        Invalid(CuratedExportValidationError.LimitExceeded, () => CuratedExportSelection.Freeze(
+            Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html, false,
+            [Thread], [Key()], [Manifest(assets: assets)], [Context(attachments)]));
+    }
+
+    [Fact]
     public void HtmlContextIsFrozenLocallyWithoutInventingPostsForUnboundFavorite()
     {
         CapturedAttachment attachment = new(0, "other-media", ExpectedSize: 3);
         List<CapturedAttachment> attachments = [attachment];
         CapturedPost post = new("101", 101, PostFieldPresence.All, At, Html: "<script>untrusted()</script>", Attachments: attachments);
         ArchiveThreadSummary summary = new(Thread, "https://fixture.invalid/thread", "Synthetic", "/synthetic/root",
-            ThreadSourceState.NotFound, false, At, At, 1, 11);
+            MeowChan.Interfaces.ThreadSourceState.NotFound, false, At, At, 1, 11);
         var view = new ArchivedThreadView(summary, [post], ["/synthetic/root"], decimalPostOrder: true);
         var plan = CuratedExportSelection.Freeze(Snapshot(Entry()), CuratedExportScope.Thread, CuratedExportMode.Html, false,
             [Thread], [Key()], [Manifest(assets: [Asset()])], [view]);
