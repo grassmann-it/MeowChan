@@ -18,19 +18,34 @@ public sealed class ProfileProducerOwnerCancellationTests
         WorkStateStore work = new(directory.Path, lease);
         WorkResource resource = Resource(directory.Path);
         work.CommitIntent(resource);
-        await using Registry registry = await StartedRegistry(directory, provider, lease, work);
-        using ProfileAdmissionToken blocker = lease.Admission.EnterOrdinaryWriter();
+        DownloadQueue queue = new(1, 1024 * 1024);
+        await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, workStore: work);
+        List<Task> started = [];
+        ProfileAdmissionToken? blocker = null;
         using CancellationTokenSource cancellation = new();
-        Task request = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask, cancellation.Token);
-        await WaitForExclusiveReservation(lease.Admission);
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Deadline));
-        blocker.Dispose();
-        using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
-            Assert.True(lease.Admission.RunWithToken(ordinary, () => true, ProfileAdmissionKind.Ordinary));
-        await registry.StopAsync().WaitAsync(Deadline);
-        lease.Admission.BeginShutdown();
-        await lease.Admission.DrainAsync().WaitAsync(Deadline);
+        Task request = Task.CompletedTask;
+        try
+        {
+            await InitializeRegistryAsync(registry, lease, started);
+            blocker = lease.Admission.EnterOrdinaryWriter();
+            request = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask, cancellation.Token);
+            await WaitForExclusiveReservation(lease.Admission);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Deadline));
+            blocker.Dispose();
+            using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
+                Assert.True(lease.Admission.RunWithToken(ordinary, () => true, ProfileAdmissionKind.Ordinary));
+            await registry.StopAsync().WaitAsync(Deadline);
+            lease.Admission.BeginShutdown();
+            await lease.Admission.DrainAsync().WaitAsync(Deadline);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            blocker?.Dispose();
+            await DrainRegistryAsync(registry, lease, started, request);
+        }
     }
 
     [Fact]
@@ -41,25 +56,39 @@ public sealed class ProfileProducerOwnerCancellationTests
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore work = new(directory.Path, lease);
         work.CommitIntent(Resource(directory.Path));
-        await using Registry registry = await StartedRegistry(directory, provider, lease, work);
+        DownloadQueue queue = new(1, 1024 * 1024);
+        await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, workStore: work);
+        List<Task> started = [];
         using CancellationTokenSource cancellation = new();
         TaskCompletionSource entered = Signal();
         TaskCompletionSource release = Signal();
-        Task request = registry.RunWithProfileExclusiveAsync(async admission =>
+        Task request = Task.CompletedTask;
+        try
         {
-            Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
-            entered.TrySetResult();
-            await release.Task.WaitAsync(Deadline);
-        }, cancellation.Token);
-        await entered.Task.WaitAsync(Deadline);
-        cancellation.Cancel();
-        release.TrySetResult();
-        await request.WaitAsync(Deadline);
-        using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
-            Assert.True(lease.Admission.RunWithToken(ordinary, () => true, ProfileAdmissionKind.Ordinary));
-        await registry.StopAsync().WaitAsync(Deadline);
-        lease.Admission.BeginShutdown();
-        await lease.Admission.DrainAsync().WaitAsync(Deadline);
+            await InitializeRegistryAsync(registry, lease, started);
+            request = registry.RunWithProfileExclusiveAsync(async admission =>
+            {
+                Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+                entered.TrySetResult();
+                await release.Task.WaitAsync(Deadline);
+            }, cancellation.Token);
+            await entered.Task.WaitAsync(Deadline);
+            cancellation.Cancel();
+            release.TrySetResult();
+            await request.WaitAsync(Deadline);
+            using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
+                Assert.True(lease.Admission.RunWithToken(ordinary, () => true, ProfileAdmissionKind.Ordinary));
+            await registry.StopAsync().WaitAsync(Deadline);
+            lease.Admission.BeginShutdown();
+            await lease.Admission.DrainAsync().WaitAsync(Deadline);
+        }
+        finally
+        {
+            release.TrySetResult();
+            cancellation.Cancel();
+            await DrainRegistryAsync(registry, lease, started, request);
+        }
     }
 
     [Fact]
@@ -70,37 +99,84 @@ public sealed class ProfileProducerOwnerCancellationTests
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore work = new(directory.Path, lease);
         work.CommitIntent(Resource(directory.Path));
-        await using Registry registry = await StartedRegistry(directory, provider, lease, work);
+        DownloadQueue queue = new(1, 1024 * 1024);
+        await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, workStore: work);
+        List<Task> started = [];
+        Task first = Task.CompletedTask;
+        Task retry = Task.CompletedTask;
         int failures = 0;
-        registry.BeforeProfileProducerResume = () =>
+        try
         {
-            if (Interlocked.Increment(ref failures) == 1)
-                throw new InvalidOperationException("synthetic resume failure");
-            return Task.CompletedTask;
-        };
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline));
-        registry.BeforeProfileProducerResume = null;
-        await registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline);
-        Assert.Equal(1, failures);
-        await registry.StopAsync().WaitAsync(Deadline);
-        lease.Admission.BeginShutdown();
-        await lease.Admission.DrainAsync().WaitAsync(Deadline);
+            await InitializeRegistryAsync(registry, lease, started);
+            registry.BeforeProfileProducerResume = () =>
+            {
+                if (Interlocked.Increment(ref failures) == 1)
+                    throw new InvalidOperationException("synthetic resume failure");
+                return Task.CompletedTask;
+            };
+            first = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Deadline));
+            registry.BeforeProfileProducerResume = null;
+            retry = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask);
+            await retry.WaitAsync(Deadline);
+            Assert.Equal(1, failures);
+            await registry.StopAsync().WaitAsync(Deadline);
+            lease.Admission.BeginShutdown();
+            await lease.Admission.DrainAsync().WaitAsync(Deadline);
+        }
+        finally
+        {
+            registry.BeforeProfileProducerResume = null;
+            await DrainRegistryAsync(registry, lease, started, first, retry);
+        }
     }
 
-    private static async Task<Registry> StartedRegistry(TempDirectory directory, StubImageBoard provider,
-        ProfileLease lease, WorkStateStore work)
+    // Registry is already owned by the caller, whose finally covers every setup await.
+    private static async Task InitializeRegistryAsync(Registry registry, ProfileLease lease, List<Task> started)
     {
-        DownloadQueue queue = new(1, 1024 * 1024);
-        Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
-            persistSession: false, workStore: work);
         registry.PrepareProfileProducers(lease);
-        using (ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter())
-            await registry.RestoreAdmittedAsync(startup).WaitAsync(Deadline);
+        await AwaitStartedAsync(RestoreWithStartupAsync(registry, lease), started);
         lease.Admission.CompleteStartup();
         registry.InstallReadyProfileEpoch();
-        await registry.ActivatePreparedProfileProducersAsync().WaitAsync(Deadline);
-        return registry;
+        await AwaitStartedAsync(registry.ActivatePreparedProfileProducersAsync(), started);
+    }
+
+    private static async Task RestoreWithStartupAsync(Registry registry, ProfileLease lease)
+    {
+        // The deadline belongs to the observer, not this token's lifetime. A timed-out
+        // restore still owns Startup until its actual operation has terminated.
+        using ProfileAdmissionToken startup = lease.Admission.EnterStartupWriter();
+        await registry.RestoreAdmittedAsync(startup);
+    }
+
+    private static Task AwaitStartedAsync(Task operation, List<Task> started)
+    {
+        started.Add(operation); // Retain the operation, never its timeout wrapper.
+        return operation.WaitAsync(Deadline);
+    }
+
+    private static async Task DrainRegistryAsync(Registry registry, ProfileLease lease, List<Task> started,
+        params Task[] owners)
+    {
+        // Caller has opened its synthetic gates, released blockers and reset seams.
+        // Seal/Stop prevent a late setup continuation or owner from reopening ingress.
+        lease.Admission.BeginShutdown();
+        Task stop = registry.StopAsync();
+        try
+        {
+            // WhenAll joins every actual operation even if another has faulted.
+            // No deadline observer is accepted as evidence of completed teardown.
+            await Task.WhenAll(Task.WhenAll(started), Task.WhenAll(owners.Select(ObserveStoppedOwnerAsync)), stop);
+        }
+        finally { await lease.Admission.DrainAsync(); }
+    }
+
+    private static async Task ObserveStoppedOwnerAsync(Task owner)
+    {
+        try { await owner; }
+        catch (OperationCanceledException) { } // Expected for a cancelled request; never a timeout-as-drain.
+        catch (InvalidOperationException) { } // Teardown only; normal-path result is asserted in the test.
     }
 
     private static async Task WaitForExclusiveReservation(ProfileAdmission admission)
