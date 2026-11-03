@@ -96,6 +96,10 @@ public partial class MainWindow
     private async void OnClipboardSuggestionAccept(object? sender, RoutedEventArgs e)
     {
         if (!_config.MonitorClipboardUrls || !CanShowClipboardSuggestion || RowCommandBusy) return;
+        // Native Button activation precedes the panel's bubbling KeyDown handler.
+        // Capturing a shortcut or a stale/hidden action is not clipboard consent.
+        if (ShortcutService.IsCapturing || sender is not Button accept
+            || !accept.IsEffectivelyVisible || !accept.IsEffectivelyEnabled) return;
         // Freeze the offered batch, not whatever is now on the clipboard. No read on confirmation.
         var urls = _clipboardUrlMonitor.TakePending();
         if (urls.Count == 0) return;

@@ -29,6 +29,12 @@ public sealed class ShortcutEditor : UserControl
     private readonly KeyGestureInput _capture = new() { MinHeight = 36, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _explicit = new();
     private readonly TextBlock _pendingLabel = new() { TextWrapping = TextWrapping.Wrap };
+    // Refresh presentation in place: removing a focused control releases capture.
+    private readonly List<Action> _frameTexts = new();
+    private readonly List<Action> _rowTexts = new();
+    private readonly List<Action> _detailTexts = new();
+    private Button _reset = null!;
+    private Func<string>? _pendingText;
     private IDisposable? _captureLease;
     private ShortcutGesture? _pending;
     private string? _selected;
@@ -47,7 +53,7 @@ public sealed class ShortcutEditor : UserControl
         // TextChanged is posted asynchronously. A validation search reset must
         // finish rebuilding selection before its guarded error-focus request.
         _search.TextChanging += (_, _) => RefreshList();
-        _actions.SelectionChanged += (_, _) => { _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; _pendingLabel.Text = ""; _selected = (_actions.SelectedItem as ListBoxItem)?.Tag as string; RefreshDetail(); };
+        _actions.SelectionChanged += (_, _) => { _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; SetPendingText(null); _selected = (_actions.SelectedItem as ListBoxItem)?.Tag as string; RefreshDetail(); };
         _capture.AcceptableKeys = Enum.GetValues<Key>().Where(k => k is not Key.Tab and not Key.Escape).ToList();
         _capture.AddHandler(KeyDownEvent, CaptureKey, RoutingStrategies.Tunnel);
         _capture.PropertyChanged += (_, e) => { if (e.Property == KeyGestureInput.GestureProperty) ReadCapture(); };
@@ -57,11 +63,13 @@ public sealed class ShortcutEditor : UserControl
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
         AutomationProperties.SetLiveSetting(_errors, AutomationLiveSetting.Assertive);
+        BuildFrame();
+        RefreshList();
         Localize();
     }
     private void OnLanguageChanged(object? sender, EventArgs e) => Localize();
     public void Load(ShortcutBindingsSection section)
-    { StopCapture(); Draft = section.Clone(); IsDirty = false; Localize(); }
+    { StopCapture(); Draft = section.Clone(); IsDirty = false; RefreshList(); Localize(); }
     public bool ValidateDraft()
     {
         StopCapture();
@@ -124,21 +132,33 @@ public sealed class ShortcutEditor : UserControl
     }
     private void Localize()
     {
+        // Do not rebuild/filter rows or detail here: even a remove/re-add of the
+        // same input can lose focus, selection and the existing capture lease.
         _validationFocusRequest++;
-        _root.Children.Clear();
         _heading.Text = Texts.T("shortcuts.title");
-        _root.Children.Add(_heading);
-        var hint = new TextBlock { Text = Texts.T("settings.shortcutsEditor.hint") };
-        hint.Classes.Add("workspace-help");
-        _root.Children.Add(hint);
         _search.PlaceholderText = Texts.T("settings.shortcutsEditor.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText?.ToString());
         AutomationProperties.SetName(_actions, Texts.T("settings.shortcutsEditor.actions"));
+        foreach (var refresh in _frameTexts) refresh();
+        foreach (var refresh in _rowTexts) refresh();
+        foreach (var refresh in _detailTexts) refresh();
+        _explicit.Content = Texts.T("settings.shortcutsEditor.keepExplicit");
+        _pendingLabel.Text = _pendingText?.Invoke() ?? "";
+        ShowIssues(EffectiveShortcutBindings.Build(Draft).Issues);
+        AutomationProperties.SetName(_capture, Texts.T("settings.shortcutsEditor.record"));
+        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.recordHelp"));
+    }
+    private void BuildFrame()
+    {
+        _root.Children.Add(_heading);
+        var hint = LocalizedText(() => Texts.T("settings.shortcutsEditor.hint"), _frameTexts);
+        hint.Classes.Add("workspace-help");
+        _root.Children.Add(hint);
         _root.Children.Add(_search);
         var tableHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0) };
-        foreach (var (label, column) in new[] { (Texts.T("settings.shortcutsEditor.action"), 0), (Texts.T("settings.shortcutsEditor.context"), 1), (Texts.T("settings.shortcutsEditor.effectiveBinding"), 2) })
+        foreach (var (label, column) in new (Func<string>, int)[] { (() => Texts.T("settings.shortcutsEditor.action"), 0), (() => Texts.T("settings.shortcutsEditor.context"), 1), (() => Texts.T("settings.shortcutsEditor.effectiveBinding"), 2) })
         {
-            var text = new TextBlock { Text = label };
+            var text = LocalizedText(label, _frameTexts);
             text.Classes.Add("workspace-field-label");
             Grid.SetColumn(text, column);
             tableHeader.Children.Add(text);
@@ -147,40 +167,50 @@ public sealed class ShortcutEditor : UserControl
         _root.Children.Add(_actions);
         _root.Children.Add(_detailFrame);
         _root.Children.Add(_errors);
-        var reset = Button(Texts.T("settings.shortcutsEditor.resetAll"), () => { Draft = Draft.ResetKnown(); Changed(); });
-        reset.IsEnabled = Draft.IsEditable;
-        _root.Children.Add(reset);
-        RefreshList();
+        _reset = Button(() => Texts.T("settings.shortcutsEditor.resetAll"), () => { Draft = Draft.ResetKnown(); Changed(); }, _frameTexts);
+        _root.Children.Add(_reset);
     }
     private void RefreshList()
     {
+        _rowTexts.Clear();
+        _reset.IsEnabled = Draft.IsEditable;
         string query = _search.Text?.Trim() ?? "";
         var snapshot = EffectiveShortcutBindings.Build(Draft);
         var items = CommandCatalog.All.Select(command =>
         {
             string context = string.Join(", ", command.ExecutionContexts);
-            string binding = snapshot.Display(command.Id) ?? Texts.T("settings.shortcutsEditor.unbound");
-            string state = !command.IsImplemented || command.Contexts.All(x => x.EndsWith(":planned", StringComparison.Ordinal))
+            string Binding() => snapshot.Display(command.Id) ?? Texts.T("settings.shortcutsEditor.unbound");
+            string State() => !command.IsImplemented || command.Contexts.All(x => x.EndsWith(":planned", StringComparison.Ordinal))
                 ? Texts.T("settings.shortcutsEditor.unavailable") : Draft.HasOverride(command.Id) ? Texts.T("settings.shortcutsEditor.custom") : Texts.T("settings.shortcutsEditor.default");
-            string accessible = command.Label + " · " + context + " · " + binding + " · " + state;
+            string Accessible() => command.Label + " · " + context + " · " + Binding() + " · " + State();
+            string accessible = Accessible();
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12 };
-            row.Children.Add(new TextBlock { Text = command.Label, TextWrapping = TextWrapping.Wrap });
+            var label = new TextBlock { Text = command.Label, TextWrapping = TextWrapping.Wrap };
+            row.Children.Add(label);
             var contextText = new TextBlock { Text = context };
             contextText.Classes.Add("workspace-meta");
             Grid.SetColumn(contextText, 1);
             row.Children.Add(contextText);
             var bindingColumn = new StackPanel { Spacing = 4 };
-            bindingColumn.Children.Add(new TextBlock { Text = binding, TextWrapping = TextWrapping.Wrap });
-            var stateText = new TextBlock { Text = state };
+            var binding = new TextBlock { Text = Binding(), TextWrapping = TextWrapping.Wrap };
+            bindingColumn.Children.Add(binding);
+            var stateText = new TextBlock { Text = State() };
             stateText.Classes.Add("workspace-status");
             bindingColumn.Children.Add(stateText);
             Grid.SetColumn(bindingColumn, 2);
             row.Children.Add(bindingColumn);
             var item = new ListBoxItem { Tag = command.Id, Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch };
             AutomationProperties.SetName(item, accessible);
-            return (Item: item, Search: accessible + " · " + command.Id);
+            void RefreshTexts()
+            {
+                label.Text = command.Label;
+                binding.Text = Binding();
+                stateText.Text = State();
+                AutomationProperties.SetName(item, Accessible());
+            }
+            return (Item: item, Search: accessible + " · " + command.Id, Refresh: (Action)RefreshTexts);
         }).Where(row => query.Length == 0 || row.Search.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Select(row => row.Item).ToArray();
+            .Select(row => { _rowTexts.Add(row.Refresh); return row.Item; }).ToArray();
         string? selected = _selected;
         _actions.ItemsSource = items;
         // Rebuilt rows replace every previous container. Native Once navigation
@@ -198,11 +228,12 @@ public sealed class ShortcutEditor : UserControl
 
     private void RefreshDetail()
     {
+        _detailTexts.Clear();
         _detail.Children.Clear();
         _detailFrame.IsVisible = _selected != null;
         if (_selected == null || !CommandCatalog.TryGet(_selected, out var command)) return;
         _detail.IsEnabled = Draft.IsEditable && command!.IsImplemented;
-        var title = new TextBlock { Text = command!.Label };
+        var title = LocalizedText(() => command!.Label, _detailTexts);
         title.Classes.Add("section-title");
         _detail.Children.Add(title);
         var context = new TextBlock { Text = string.Join(", ", command.ExecutionContexts) };
@@ -214,14 +245,14 @@ public sealed class ShortcutEditor : UserControl
             int index = i;
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             row.Children.Add(new TextBlock { Text = gestures[i].Display(EffectiveShortcutBindings.CurrentPlatform), VerticalAlignment = VerticalAlignment.Center });
-            row.Children.Add(Button(Texts.T("settings.shortcutsEditor.remove"), () => { Draft = Draft.Set(_selected!, gestures.Where((_, n) => n != index).ToArray()); Changed(); }));
+            row.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.remove"), () => { Draft = Draft.Set(_selected!, gestures.Where((_, n) => n != index).ToArray()); Changed(); }, _detailTexts));
             _detail.Children.Add(row);
         }
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.recordAdditional"), () =>
-        { _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; _captureLease = ShortcutService.BeginCapture(); _capture.IsEnabled = true; _capture.Focus(); }));
-        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.clearBinding"), () => { Draft = Draft.Set(_selected!, Array.Empty<ShortcutGesture>()); Changed(); }));
-        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.restoreDefault"), () => { Draft = Draft.Set(_selected!, null); Changed(); }));
+        actions.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.recordAdditional"), () =>
+        { _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; SetPendingText(null); _captureLease = ShortcutService.BeginCapture(); _capture.IsEnabled = true; _capture.Focus(); }, _detailTexts));
+        actions.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.clearBinding"), () => { Draft = Draft.Set(_selected!, Array.Empty<ShortcutGesture>()); Changed(); }, _detailTexts));
+        actions.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.restoreDefault"), () => { Draft = Draft.Set(_selected!, null); Changed(); }, _detailTexts));
         _detail.Children.Add(actions);
         _capture.IsEnabled = false;
         AutomationProperties.SetName(_capture, Texts.T("settings.shortcutsEditor.record"));
@@ -230,9 +261,9 @@ public sealed class ShortcutEditor : UserControl
         _explicit.Content = Texts.T("settings.shortcutsEditor.keepExplicit");
         _detail.Children.Add(_explicit); _detail.Children.Add(_pendingLabel);
         var commit = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.applyRecording"), () => ApplyCapture(false)));
-        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.takeOver"), () => ApplyCapture(true)));
-        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.cancelRecording"), CancelCapture));
+        commit.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.applyRecording"), () => ApplyCapture(false), _detailTexts));
+        commit.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.takeOver"), () => ApplyCapture(true), _detailTexts));
+        commit.Children.Add(Button(() => Texts.T("settings.shortcutsEditor.cancelRecording"), CancelCapture, _detailTexts));
         _detail.Children.Add(commit);
     }
     private void CaptureKey(object? sender, KeyEventArgs e)
@@ -240,12 +271,12 @@ public sealed class ShortcutEditor : UserControl
         if (e.Key == Key.Escape) { e.Handled = true; CancelCapture(); }
         else if (e.Key == Key.Tab) StopCapture();
         else if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt))
-        { e.Handled = true; _pending = null; _pendingLabel.Text = Texts.T("settings.shortcutsEditor.altGrText"); }
+        { e.Handled = true; _pending = null; SetPendingText(() => Texts.T("settings.shortcutsEditor.altGrText")); }
     }
     private void CancelCapture()
     {
         _validationFocusRequest++;
-        _pending = null; _capture.Gesture = null; _pendingLabel.Text = "";
+        _pending = null; _capture.Gesture = null; SetPendingText(null);
         // Transfer focus while capture still owns it. LostFocus also stops the
         // lease; the final call covers a detached/disabled editor with no target.
         FocusSelectedAction();
@@ -281,17 +312,18 @@ public sealed class ShortcutEditor : UserControl
         var primary = EffectiveShortcutBindings.CurrentPlatform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control;
         foreach (var m in new[] { KeyModifiers.Control, KeyModifiers.Meta, KeyModifiers.Alt, KeyModifiers.Shift })
             if (g.KeyModifiers.HasFlag(m)) modifiers.Add(m == primary && _explicit.IsChecked != true ? "Primary" : m.ToString());
-        _pending = new(g.Key.ToString(), modifiers.AsReadOnly());
-        _pendingLabel.Text = EffectiveShortcutBindings.InvalidReason(_pending, EffectiveShortcutBindings.CurrentPlatform) ?? _pending.Display(EffectiveShortcutBindings.CurrentPlatform);
+        var pending = new ShortcutGesture(g.Key.ToString(), modifiers.AsReadOnly());
+        _pending = pending;
+        SetPendingText(() => EffectiveShortcutBindings.InvalidReason(pending, EffectiveShortcutBindings.CurrentPlatform) ?? pending.Display(EffectiveShortcutBindings.CurrentPlatform));
     }
     private void ApplyCapture(bool takeOver)
     {
         StopCapture();
         if (_selected == null || _pending == null) return;
         if (EffectiveShortcutBindings.InvalidReason(_pending, EffectiveShortcutBindings.CurrentPlatform) is string error)
-        { _pendingLabel.Text = error; return; }
+        { SetPendingText(() => error); return; }
         var list = DraftGestures(_selected).ToList();
-        if (list.Count >= 8) { _pendingLabel.Text = Texts.T("settings.shortcutsEditor.gestureLimit"); return; }
+        if (list.Count >= 8) { SetPendingText(() => Texts.T("settings.shortcutsEditor.gestureLimit")); return; }
         if (!list.Any(g => EffectiveShortcutBindings.Equivalent(g, _pending, EffectiveShortcutBindings.CurrentPlatform))) list.Add(_pending);
         if (takeOver)
             foreach (var command in CommandCatalog.All.Where(c => c.Id != _selected && EffectiveShortcutBindings.ContextsOverlap(c.Id, _selected)))
@@ -310,6 +342,21 @@ public sealed class ShortcutEditor : UserControl
         _errors.Text = string.Join("\n", issues.Select(i => (CommandCatalog.TryGet(i.CommandId, out var c) ? c!.Label : i.CommandId) + (i.OtherCommandId != null ? " ↔ " + CommandCatalog.Label(i.OtherCommandId) : "") + ": " + i.Message));
         AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.issuesHelp") + _errors.Text);
     }
-    private static Button Button(string label, Action execute)
-    { var b = new Button { Content = label }; AutomationProperties.SetName(b, label); b.Click += (_, _) => execute(); return b; }
+    private void SetPendingText(Func<string>? text)
+    { _pendingText = text; _pendingLabel.Text = text?.Invoke() ?? ""; }
+    private static TextBlock LocalizedText(Func<string> label, List<Action> refreshers)
+    {
+        var text = new TextBlock();
+        void Refresh() => text.Text = label();
+        refreshers.Add(Refresh); Refresh();
+        return text;
+    }
+    private static Button Button(Func<string> label, Action execute, List<Action> refreshers)
+    {
+        var button = new Button();
+        void Refresh() { string text = label(); button.Content = text; AutomationProperties.SetName(button, text); }
+        refreshers.Add(Refresh); Refresh();
+        button.Click += (_, _) => execute();
+        return button;
+    }
 }

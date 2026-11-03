@@ -71,14 +71,19 @@ internal sealed class ClipboardUrlMonitor
             if (hash == _lastTextHash) return;
             // A newer clipboard never leaves an older suggestion actionable during classification.
             Pending = Array.Empty<string>(); _pendingHash = null;
+            HashSet<string> hosts = new(supportedHosts, StringComparer.OrdinalIgnoreCase);
             List<string> accepted = new();
-            foreach (string url in ExtractCandidates(text, supportedHosts))
+            foreach (string url in ExtractCandidates(text, hosts))
             {
                 if (!Current()) return;
                 BoardAdmissionTarget? target = await classify(url);
                 if (!Current()) return;
-                if (target is { AlreadyWatching: false } && !accepted.Contains(target.Url, StringComparer.Ordinal))
-                    accepted.Add(target.Url);
+                // A provider may canonicalize to a different URL. Its result must still be a
+                // single supported URL, never arbitrary text to display or submit on consent.
+                if (target is { AlreadyWatching: false }
+                    && TryNormalizeSupportedUrl(target.Url, hosts, out string normalized)
+                    && !accepted.Contains(normalized, StringComparer.Ordinal))
+                    accepted.Add(normalized);
             }
             _lastTextHash = hash;
             if (accepted.Count == 0) return;
@@ -100,11 +105,24 @@ internal sealed class ClipboardUrlMonitor
         {
             if (++visited > MaximumUrls) break;
             string value = match.Value.TrimEnd('.', ',', ';', ')', ']', '}');
-            if (value.Length > 4096 || !Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
-                || !string.IsNullOrEmpty(uri.UserInfo) || !hosts.Contains(uri.IdnHost)) continue;
-            if (distinct.Add(uri.AbsoluteUri)) result.Add(uri.AbsoluteUri);
+            if (!TryNormalizeSupportedUrl(value, hosts, out string normalized)) continue;
+            if (distinct.Add(normalized)) result.Add(normalized);
         }
         return Array.AsReadOnly(result.ToArray());
+    }
+
+    private static bool TryNormalizeSupportedUrl(string? value, HashSet<string> hosts, out string normalized)
+    {
+        normalized = string.Empty;
+        // Uri can normalize away control characters. Reject them before parsing so a
+        // classified target cannot smuggle a second input line into the frozen batch.
+        if (string.IsNullOrEmpty(value) || value.Length > 4096
+            || value.Any(character => char.IsWhiteSpace(character) || char.IsControl(character))
+            || !Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+            || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(uri.UserInfo) || !hosts.Contains(uri.IdnHost)) return false;
+        normalized = uri.AbsoluteUri;
+        return normalized.Length <= 4096;
     }
 
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
