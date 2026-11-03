@@ -63,12 +63,35 @@ localization: some legacy and vendor controls still use English. See the
 
 ### Clipboard URL monitor
 
-**Scan clipboard for URLs** in Settings is off by default. Enable it and Save to
-scan while the app is running. Supported board/thread URLs not already watched
-appear as a suggestion; choose **Add URLs (Enter)** to submit that offered batch
-through the normal Add flow, or **Dismiss** to ignore it. Detection alone adds no
-watches and starts no downloads. The monitor does not bring the app to the
-foreground or persist clipboard contents.
+**Scan clipboard for URLs** in Settings → **Behavior** is off by default. Enable it
+and Save to opt into passive checks, approximately every two seconds while the
+app is open, restored and ready. Blocking dialogs or imports defer scanning.
+Manual Add, tray import and paste actions remain available without this opt-in.
+When the setting was already on at startup, the first eligible read is only a
+baseline: unchanged startup text is not offered, even if sources finish loading
+later. Copy different text to start ordinary detection. Explicitly saving
+OFF → ON instead evaluates the current clipboard value.
+A hidden or tray-running app may continue checking. Suggestions are not shown
+while the main window is hidden or minimized; some reader/gallery views also
+suppress them. The monitor never forces the app to the foreground.
+
+Supported board/thread URLs that are not already watched appear in a passive
+banner, not an automatically opened popup. Texts longer than 65,536 UTF-16 code
+units (64 Ki characters, not bytes) are not evaluated. For shorter texts, only
+the first 32 HTTP(S) URL candidates are visited; invalid or unsupported candidates
+can use that budget. The platform clipboard read may already have materialized
+the full text before this length check. Detection alone adds no watches and
+starts no downloads. Click **Add URLs (Enter)**, or focus that button and press
+Enter/Space, to submit the offer through the normal Add flow. Enter in the preview
+or another field does not accept the suggestion. **Dismiss**, or Escape inside
+the suggestion panel, rejects it. The confirmed list is the displayed frozen
+batch, without a second clipboard read.
+
+The monitor does not keep a persistent clipboard history. This is not a blanket
+claim that no URL can occur in diagnostics: if optional performance diagnostics
+are active, classified URL targets may be retained in that bounded in-memory
+diagnostic run even before confirmation. This is not a blanket no-logging
+guarantee. See the [detailed clipboard and download limits guide (German)](user-guide/clipboard-and-download-limits.md).
 
 ### Close and minimize to tray
 
@@ -235,9 +258,11 @@ than 32 transfers. Higher values use more resources, and source limits and
 bandwidth still apply. The Downloads summary and its tooltip distinguish
 configured and effective values; the saved parallel-download setting is not
 rewritten. Reducing the limit lets existing transfers drain rather than restarting
-them. This cap bounds open media transfers, not watched threads or queued files.
-The pending queue remains bounded; it is not a count of all media still available
-in watched threads.
+them. This cap counts active/reserved media-transfer slots and indirectly limits
+transfer/buffer resource use; it is not a measured or hard byte/RAM budget, a
+file-size limit or a disk-space quota. It does not limit watched threads or count
+queued files. The pending queue remains bounded; it is not a count of all media
+still available in watched threads.
 
 Select one or more thread watches and use **High priority** in the context menu to
 favor their next runnable files. Multiple High watches share turns; ready Normal

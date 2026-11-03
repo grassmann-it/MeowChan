@@ -20,7 +20,8 @@ namespace MeowChan.DesktopSmoke;
 
 // Real native Avalonia windows + managed routed input, NOT physical/OS keyboard input.
 // Root hook, after the owner's Ready/empty barrier: MEOWCHAN_CLIPBOARD_MONITOR_ONLY=1.
-// Only the timer cadence is extended; production Poll/Settings/admission/shutdown are used.
+// Timer cadence is extended and the existing startup dependency seam is held;
+// production Poll/Settings/readiness/admission/shutdown are used without guard overrides.
 internal static class ClipboardMonitorChecks
 {
     private const string Host = "clipboard-monitor.invalid";
@@ -44,6 +45,8 @@ internal static class ClipboardMonitorChecks
         {
             // Separate journeys keep a red keyboard contract from hiding lifecycle evidence.
             await CaseAsync("settings-off-save-discard", false, SettingsAsync);
+            await CaseAsync("saved-on-startup-baseline", true, StartupBaselineAsync);
+            await CaseAsync("saved-on-changed-copy", true, StartupChangedCopyAsync);
             await CaseAsync("passive-dismiss-repeat", true, PassiveAsync);
             await CaseAsync("frozen-button-enter", true, FrozenAcceptAsync);
             await CaseAsync("dismiss-late-read", true, DismissLateReadAsync);
@@ -59,7 +62,7 @@ internal static class ClipboardMonitorChecks
             // Deliberately retain private fixture directories; no artifact cleanup.
         }
         if (failures.Count != 0) throw new AggregateException("Clipboard monitor integration failed.", failures);
-        Console.WriteLine("SMOKE clipboard monitor PASS: private host, settings Save/Discard, passive banner, frozen local-button Enter admission, dismissal/repeat, opt-out/modal/close lifetime. Native windows; managed routed input only; terminal fake HTTP, no live internet/media/profile.");
+        Console.WriteLine("SMOKE clipboard monitor PASS: private host, pre-Opened/non-Ready guards, saved ON baseline/changed-copy, explicit Settings OFF->ON, settings Save/Discard, passive banner, frozen local-button Enter admission, dismissal/repeat, opt-out/modal/close lifetime. Native windows; managed routed input only; terminal fake HTTP, no live internet/media/profile.");
 
         async Task CaseAsync(string name, bool enabled, Func<Fixture, Task> check)
         {
@@ -101,8 +104,11 @@ internal static class ClipboardMonitorChecks
         await DrainAsync();
         Require(toggle.IsChecked == false && !f.Shell.SettingsEditor.MonitorClipboardUrls,
             "Actual Discard retained the opt-in draft.");
+        int readsBeforeReenable = f.Clipboard.Reads;
         await f.SetEnabledAsync(true);
         await f.PollAsync();
+        Require(f.Clipboard.Reads == readsBeforeReenable + 1,
+            "Saved OFF -> ON did not read the current clipboard exactly once.");
         await f.RequireBannerAsync(First);
         f.RequirePassive("Saved ON, before confirmation");
         await f.OpenSettingsAsync();
@@ -122,6 +128,48 @@ internal static class ClipboardMonitorChecks
         Require(f.Clipboard.Reads == reads && !f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text),
             "Saved OFF retained actionable URLs or performed another read.");
         f.RequirePassive("Saved OFF");
+    }
+
+    private static async Task StartupBaselineAsync(Fixture f)
+    {
+        // OpenAsync already proved no reads before Opened/Ready and consumed First
+        // exactly once as baseline, using the real monitor and host readiness gates.
+        Require(f.Session.Config.MonitorClipboardUrls && Config.LoadConfig(f.Profile).MonitorClipboardUrls,
+            "Startup baseline case did not load saved ON.");
+        Require(f.Clipboard.Text == First && f.Clipboard.Reads == 1, "Unexpected startup baseline read history.");
+        await f.PollAsync();
+        Require(f.Clipboard.Reads == 2 && !f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text),
+            "Unchanged startup clipboard became actionable on the second poll.");
+        f.Accept.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await DrainAsync();
+        f.RequirePassive("Startup baseline hidden action guard");
+
+        // Explicit Settings OFF -> ON resets baseline suppression. Keep precisely the
+        // original text, so this cannot pass merely because the clipboard changed.
+        await f.SetEnabledAsync(false);
+        int reads = f.Clipboard.Reads;
+        await f.PollAsync();
+        Require(f.Clipboard.Reads == reads && !f.Panel.IsVisible, "Saved OFF scanned the startup value.");
+        await f.SetEnabledAsync(true);
+        await f.PollAsync();
+        await f.RequireBannerAsync(First);
+        Require(f.Clipboard.Reads == reads + 1, "Explicit opt-in did not read once.");
+        f.RequirePassive("Explicit Settings OFF -> ON offers the original startup value");
+    }
+
+    private static async Task StartupChangedCopyAsync(Fixture f)
+    {
+        f.Clipboard.Text = Second;
+        await f.PollAsync();
+        await f.RequireBannerAsync(Second);
+        Require(f.Clipboard.Reads == 2, "Changed copy was not the first post-baseline read.");
+        f.RequirePassive("Changed copy after saved ON baseline");
+        // Once a different bounded value was observed, the original startup text is
+        // ordinary copied input, not permanently blacklisted or remembered as consent.
+        f.Clipboard.Text = First;
+        await f.PollAsync();
+        await f.RequireBannerAsync(First);
+        f.RequirePassive("Original text recopied after a changed bounded value");
     }
 
     private static async Task PassiveAsync(Fixture f)
@@ -178,9 +226,11 @@ internal static class ClipboardMonitorChecks
 
     private static async Task DismissLateReadAsync(Fixture f)
     {
-        f.Clipboard.Text = First;
+        // Startup baseline already consumed the pre-Opened/Ready First value. A changed
+        // copy must be required before the delayed-read journey can offer anything.
+        f.Clipboard.Text = Second;
         await f.PollAsync();
-        await f.RequireBannerAsync(First);
+        await f.RequireBannerAsync(Second);
         TaskCompletionSource<IAsyncDataTransfer?> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Clipboard.Read = () => pending.Task;
         int beforeRead = f.Clipboard.Reads;
@@ -190,20 +240,21 @@ internal static class ClipboardMonitorChecks
             Require(f.Clipboard.Reads == beforeRead + 1 && !poll.IsCompleted,
                 "Dismiss-late-read fixture never reached its pending platform read.");
             Click(C<Button>(f.Shell, "ClipboardSuggestionDismiss"));
-            pending.SetResult(TextData(Second));
+            pending.SetResult(TextData(Newer));
             await poll.WaitAsync(Deadline);
             Require(!f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text), "Dismiss resurrected a late in-flight read.");
             f.RequirePassive("Dismiss during read");
             f.Clipboard.Read = null;
-            f.Clipboard.Text = Second;
+            f.Clipboard.Text = Newer;
             await f.PollAsync();
-            await f.RequireBannerAsync(Second);
+            await f.RequireBannerAsync(Newer);
         }
         finally { pending.TrySetResult(null); await poll.WaitAsync(Deadline); }
     }
 
     private static async Task DisableLateReadAsync(Fixture f)
     {
+        f.Clipboard.Text = Second;
         TaskCompletionSource<IAsyncDataTransfer?> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Clipboard.Read = () => pending.Task;
         int beforeRead = f.Clipboard.Reads;
@@ -239,7 +290,7 @@ internal static class ClipboardMonitorChecks
         {
             await Program.WaitUntilAsync(() => modal.IsVisible);
             int reads = f.Clipboard.Reads;
-            f.Clipboard.Text = First;
+            f.Clipboard.Text = Second;
             await f.PollAsync();
             Require(f.Clipboard.Reads == reads && !f.Panel.IsVisible, "Modal owner was scanned/offered URLs.");
             f.RequirePassive("Visible shell modal");
@@ -267,9 +318,9 @@ internal static class ClipboardMonitorChecks
 
     private static async Task TextboxEnterAsync(Fixture f)
     {
-        f.Clipboard.Text = First;
+        f.Clipboard.Text = Second;
         await f.PollAsync();
-        await f.RequireBannerAsync(First);
+        await f.RequireBannerAsync(Second);
         // UrlInput intentionally has its OWN explicit Add contract; do not confuse
         // that with accepting a clipboard suggestion. Use an unrelated search field.
         TextBox search = C<TextBox>(f.Shell, "DownloadSearchInput");
@@ -278,7 +329,7 @@ internal static class ClipboardMonitorChecks
         KeyPair(search, Key.Enter);
         await DrainAsync();
         f.RequirePassive("Enter in unrelated search TextBox");
-        await f.RequireBannerAsync(First);
+        await f.RequireBannerAsync(Second);
         // Strict user contract: even the preview is text, not the confirmation button.
         // A reachable preview-Enter acceptance branch is a regression here; do not weaken.
         f.Offered.Focus();
@@ -287,7 +338,7 @@ internal static class ClipboardMonitorChecks
         await DrainAsync();
         await Program.WaitUntilAsync(() => C<Button>(f.Shell, "AddUrlButton").IsEnabled);
         f.RequirePassive("Enter in URL preview TextBox must not accept (button-only contract)");
-        await f.RequireBannerAsync(First);
+        await f.RequireBannerAsync(Second);
     }
 
     private static void KeyPair(Control source, Key key)
@@ -343,6 +394,9 @@ internal static class ClipboardMonitorChecks
             try
             {
                 string media = Path.Combine(profile, "empty-output");
+                // This value exists before MainWindow.Opened and host Ready. The first
+                // eligible poll below must consume it as baseline-only, never offer it.
+                if (enabled) f.Clipboard.Text = First;
                 new Config { DownloadPath = media, MonitorClipboardUrls = enabled, FirstRunSetupVersion = 1,
                     AutomaticUpdateChecks = false, SaveUrlsOnExit = false, DownloadsPaused = false,
                     MinimumFreeSpaceGiB = 0, CloseToTray = false, MinimizeToTray = false,
@@ -350,18 +404,61 @@ internal static class ClipboardMonitorChecks
                 Directory.CreateDirectory(media);
                 f.Session = new DesktopSessionHost(profile, new IImageBoard[] { new FakeProvider(f._client) },
                     updateSessionFactory: (path, config) => new UpdateSession(path, config, f._client, disableEnvironment: () => "1"));
-                f.Shell = new MainWindow(f.Session);
-                // Assert before Show/start/poll; never read or write the real desktop clipboard.
-                Require(ReferenceEquals(f.Shell.Clipboard, f.Clipboard), "X11 clipboard isolation failed; refusing to show/poll fixture.");
-                ((DispatcherTimer)TimerField.GetValue(f.Shell)!).Interval = TimeSpan.FromHours(1);
-                f.Shell.Show(owner);
+                // Hold only the real startup dependency boundary. Do not set _hasOpened,
+                // _restoreCompleted, host Ready, monitor state or admission predicates.
+                TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                f.Session.AfterStartupPreviewForTests = async token =>
+                {
+                    entered.TrySetResult();
+                    await release.Task.WaitAsync(token);
+                };
+                try
+                {
+                    f.Shell = new MainWindow(f.Session);
+                    // Assert before Show/start/poll; never read/write the real desktop clipboard.
+                    Require(ReferenceEquals(f.Shell.Clipboard, f.Clipboard), "X11 clipboard isolation failed; refusing to show/poll fixture.");
+                    ((DispatcherTimer)TimerField.GetValue(f.Shell)!).Interval = TimeSpan.FromHours(1);
+                    Require(!f.Shell.IsVisible && f.Session.State == DesktopSessionState.Starting,
+                        "Fixture missed pre-Opened/pre-Ready startup boundary.");
+                    await f.PollAsync();
+                    Require(f.Clipboard.Reads == 0 && !f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text),
+                        "Pre-Opened startup read clipboard or exposed an offer.");
+                    f.Accept.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await DrainAsync();
+                    f.RequirePassive("Pre-Opened acceptance guard");
+                    f.Shell.Show(owner);
+                    await entered.Task.WaitAsync(Deadline);
+                    await Program.WaitUntilAsync(() => f.Shell.IsVisible);
+                    Require(f.Session.State == DesktopSessionState.Starting,
+                        "Startup barrier failed to hold real host readiness.");
+                    await f.PollAsync();
+                    Require(f.Clipboard.Reads == 0 && !f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text),
+                        "Opened but non-Ready shell read clipboard or exposed an offer.");
+                    f.Accept.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await DrainAsync();
+                    f.RequirePassive("Opened before Ready acceptance guard");
+                }
+                finally { release.TrySetResult(); }
                 await f.Session.StartAsync().WaitAsync(Deadline);
-                await Program.WaitUntilAsync(() => f.Shell.IsVisible && C<Button>(f.Shell, "AddUrlButton").IsEnabled);
+                await Program.WaitUntilAsync(() => f.Shell.IsVisible
+                    && f.Session.State == DesktopSessionState.Ready
+                    && C<Button>(f.Shell, "AddUrlButton").IsEnabled);
                 await DrainAsync();
                 Require(f.Shell.TryGetPlatformHandle()?.Handle is nint handle && handle != 0,
                     "Fixture has no genuine native window handle.");
                 Require(f.Session.GetProviderDescriptors().Any(p => p.SupportedHosts.Contains(Host)),
                     "Synthetic host was not published through the real provider projection.");
+                if (enabled)
+                {
+                    int readsBeforeBaseline = f.Clipboard.Reads;
+                    Require(readsBeforeBaseline == 0, "Clipboard was read before the first eligible startup poll.");
+                    await f.PollAsync();
+                    Require(f.Clipboard.Reads == readsBeforeBaseline + 1
+                        && !f.Panel.IsVisible && string.IsNullOrEmpty(f.Offered.Text),
+                        "Saved ON startup first poll did not remain baseline-only.");
+                    f.RequirePassive("Saved ON startup baseline");
+                }
                 f.RequirePassive("Private startup");
                 return f;
             }

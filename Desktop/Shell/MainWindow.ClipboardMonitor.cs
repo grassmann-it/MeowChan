@@ -15,6 +15,7 @@ public partial class MainWindow
 {
     private readonly ClipboardUrlMonitor _clipboardUrlMonitor = new();
     private DispatcherTimer? _clipboardUrlTimer;
+    private bool _clipboardMonitorInitialized;
 
     private bool CanScanClipboard => _hasOpened && _restoreCompleted && !_isClosing && !_importing
         && !WorkspaceCommandBusy && IsEnabled && _session.State == DesktopSessionState.Ready
@@ -32,7 +33,11 @@ public partial class MainWindow
     private void RefreshClipboardMonitor()
     {
         bool enabled = _config.MonitorClipboardUrls && !_isClosing;
-        _clipboardUrlMonitor.SetEnabled(enabled);
+        // Capture the loaded opt-in on the first refresh (which can precede Opened/Ready).
+        // Later OFF -> ON saves deliberately process existing text, even before the first poll.
+        _clipboardUrlMonitor.SetEnabled(enabled, baselineOnly: !_clipboardMonitorInitialized);
+        _clipboardMonitorInitialized = true;
+        if (enabled) _clipboardUrlMonitor.SetSupportedHosts(GetClipboardMonitorHosts());
         if (enabled && _hasOpened) _clipboardUrlTimer?.Start();
         else _clipboardUrlTimer?.Stop();
         var panel = this.FindControl<Border>("ClipboardSuggestionPanel");
@@ -46,17 +51,28 @@ public partial class MainWindow
         this.FindControl<Button>("ClipboardSuggestionAccept")!.IsEnabled = panel.IsVisible && !RowCommandBusy;
     }
 
+    private string[] GetClipboardMonitorHosts() => _session.GetProviderDescriptors()
+        .SelectMany(provider => provider.SupportedHosts.Prepend(provider.BaseUri.IdnHost))
+        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    private bool CanScanCurrentClipboard()
+    {
+        if (!_config.MonitorClipboardUrls || !CanScanClipboard) return false;
+        // Observe source changes at async completion too, not just on the next timer tick.
+        _clipboardUrlMonitor.SetSupportedHosts(GetClipboardMonitorHosts());
+        return true;
+    }
+
     private async void OnClipboardMonitorTick(object? sender, EventArgs e) => await PollClipboardMonitorAsync();
 
     internal async Task PollClipboardMonitorAsync()
     {
         RefreshClipboardMonitor();
         if (!_config.MonitorClipboardUrls || !CanScanClipboard) return;
-        var hosts = _session.GetProviderDescriptors().SelectMany(provider => provider.SupportedHosts.Prepend(provider.BaseUri.IdnHost))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var hosts = GetClipboardMonitorHosts();
         try
         {
-            await _clipboardUrlMonitor.PollAsync(() => _config.MonitorClipboardUrls && CanScanClipboard,
+            await _clipboardUrlMonitor.PollAsync(CanScanCurrentClipboard,
                 ReadClipboardAsync, hosts, _session.ClassifyAdmissionAsync);
         }
         catch (Exception)
