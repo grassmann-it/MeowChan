@@ -104,6 +104,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease, _profileStartupAdmission);
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
+            _registry.PrepareProfileProducers(_profileLease);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
@@ -161,7 +162,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
             Plugins?.AttachContent(_content);
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.registry", epoch: _epoch))
-                await _registry.RestoreAsync().ConfigureAwait(false);
+                await _registry.RestoreAdmittedAsync(_profileStartupAdmission).ConfigureAwait(false);
             InitializePassiveMetadata();
             lock (_lifecycle)
             {
@@ -169,9 +170,16 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 {
                     // Lifecycle serialization prevents a late Ready after shutdown.
                     FinishProfileStartup(succeeded: true);
-                    _state = DesktopSessionState.Ready;
+                    _registry.InstallReadyProfileEpoch();
                 }
             }
+            // No external/async activation under _lifecycle. Stop synchronously
+            // closes Registry ingress and wins before late Ready publication.
+            if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Ready)
+                await _registry.ActivatePreparedProfileProducersAsync(
+                    sealBeforeFailureDrain: _profileLease.Admission.BeginShutdown).ConfigureAwait(false);
+            lock (_lifecycle)
+                if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
             CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
             if (State == DesktopSessionState.Ready && Config.Origin == ProfileOrigin.ConfirmedNew)
                 await SaveViewPreferencesAsync(candidate => candidate.FirstRunSetupPending = true).ConfigureAwait(false);
@@ -182,10 +190,26 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _logger.Error(exception, "Failed to restore the desktop session.");
             lock (_lifecycle)
             {
+                if (_state == DesktopSessionState.Starting)
+                {
+                    if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
+                        FinishProfileStartup(succeeded: false);
+                    else if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Ready)
+                        // CompleteStartup already happened, but activation/installation
+                        // failed before Host Ready. Seal before draining the subtree;
+                        // FailStartup is deliberately not a valid Ready transition.
+                        _profileLease.Admission.BeginShutdown();
+                }
+            }
+            try { await _registry.StopAsync().ConfigureAwait(false); }
+            catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup producer subtree."); }
+            lock (_lifecycle)
+            {
                 _startupError = exception.Message;
                 if (_state == DesktopSessionState.Starting)
                 {
-                    FinishProfileStartup(succeeded: false);
+                    if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
+                        FinishProfileStartup(succeeded: false);
                     _state = DesktopSessionState.RecoveryFailed;
                 }
             }
@@ -263,15 +287,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     public Task<DesktopAdmissionResult> AddAsync(string url)
-        => RunInteractiveAsync(nameof(AddAsync), url.Trim(), () => AddAdmittedCoreAsync(url));
+        => RunInteractiveWithAdmissionAsync(nameof(AddAsync), url.Trim(), admission => AddAdmittedCoreAsync(url, admission));
 
-    private async Task<DesktopAdmissionResult> AddAdmittedCoreAsync(string url)
+    private async Task<DesktopAdmissionResult> AddAdmittedCoreAsync(string url, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            AdmissionResult result = await _registry.AddAsync(url).ConfigureAwait(false);
+            AdmissionResult result = await _registry.AddAdmittedAsync(url, admission).ConfigureAwait(false);
             await CaptureProjectionAsync().ConfigureAwait(false);
             long? watchId = null;
             lock (_projection)
@@ -326,9 +350,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     internal Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
-        => RunInteractiveAsync(nameof(RetryMissingMediaAsync), watchId.ToString(), () => RetryMissingMediaAdmittedCoreAsync(watchId, mediaIdentifier));
+        => RunInteractiveWithAdmissionAsync(nameof(RetryMissingMediaAsync), watchId.ToString(), admission => RetryMissingMediaAdmittedCoreAsync(watchId, mediaIdentifier, admission));
 
-    private async Task<int> RetryMissingMediaAdmittedCoreAsync(long watchId, string? mediaIdentifier = null)
+    private async Task<int> RetryMissingMediaAdmittedCoreAsync(long watchId, string? mediaIdentifier, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -344,25 +368,25 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 && media.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded))) return 0;
             // Registry/queue retain lifetime, cooldown, cleanup fences and final manual-attempt authority.
             // A manual retry may record intent while globally paused; it never unpauses transfer.
-            return _registry.RetryMissingMedia(thread, mediaIdentifier);
+            return _registry.RetryMissingMediaAdmitted(thread, mediaIdentifier, admission);
         }
         finally { _commands.Release(); }
     }
 
     internal Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
-        => RunInteractiveAsync(nameof(RetryCompletedMediaAsync), threadUrl, () => RetryCompletedMediaAdmittedCoreAsync(threadUrl, mediaIdentifier));
+        => RunInteractiveWithAdmissionAsync(nameof(RetryCompletedMediaAsync), threadUrl, admission => RetryCompletedMediaAdmittedCoreAsync(threadUrl, mediaIdentifier, admission));
 
-    private async Task<int> RetryCompletedMediaAdmittedCoreAsync(string threadUrl, string? mediaIdentifier = null)
+    private async Task<int> RetryCompletedMediaAdmittedCoreAsync(string threadUrl, string? mediaIdentifier, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
-        try { EnsureReady(); return await _registry.RetryCompletedMediaAsync(threadUrl, mediaIdentifier).ConfigureAwait(false); }
+        try { EnsureReady(); return await _registry.RetryCompletedMediaAdmittedAsync(threadUrl, mediaIdentifier, admission).ConfigureAwait(false); }
         finally { _commands.Release(); }
     }
 
     public Task RemoveThreadAsync(long watchId)
-        => RunInteractiveAsync(nameof(RemoveThreadAsync), watchId.ToString(), () => RemoveThreadAdmittedCoreAsync(watchId));
+        => RunInteractiveWithAdmissionAsync(nameof(RemoveThreadAsync), watchId.ToString(), admission => RemoveThreadAdmittedCoreAsync(watchId, admission));
 
-    private async Task RemoveThreadAdmittedCoreAsync(long watchId)
+    private async Task RemoveThreadAdmittedCoreAsync(long watchId, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -372,7 +396,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             lock (_projection) { _threadHandles.TryGetValue(watchId, out thread); }
             if (thread != null)
             {
-                await _registry.RemoveThreadAsync(thread).ConfigureAwait(false);
+                await _registry.RemoveThreadAdmittedAsync(thread, admission).ConfigureAwait(false);
                 lock (_projection)
                 {
                     _threadHandles.Remove(watchId);
@@ -384,9 +408,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     public Task RemoveBoardAsync(long watchId)
-        => RunInteractiveAsync(nameof(RemoveBoardAsync), watchId.ToString(), () => RemoveBoardAdmittedCoreAsync(watchId));
+        => RunInteractiveWithAdmissionAsync(nameof(RemoveBoardAsync), watchId.ToString(), admission => RemoveBoardAdmittedCoreAsync(watchId, admission));
 
-    private async Task RemoveBoardAdmittedCoreAsync(long watchId)
+    private async Task RemoveBoardAdmittedCoreAsync(long watchId, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -396,7 +420,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             lock (_projection) { _boardHandles.TryGetValue(watchId, out board); }
             if (board != null)
             {
-                await _registry.RemoveBoardAsync(board).ConfigureAwait(false);
+                await _registry.RemoveBoardAdmittedAsync(board, admission).ConfigureAwait(false);
                 lock (_projection)
                 {
                     _boardHandles.Remove(watchId);
@@ -422,11 +446,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         frozen.Validate();
         Commands.ShortcutService.ValidateForCommit(frozen.ShortcutBindings);
-        return RunInteractiveAsync(nameof(ApplySettingsAsync), "settings", () => ApplySettingsAdmittedCoreAsync(frozen),
+        return RunInteractiveWithAdmissionAsync(nameof(ApplySettingsAsync), "settings", admission => ApplySettingsAdmittedCoreAsync(frozen, admission),
             frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites);
     }
 
-    private async Task ApplySettingsAdmittedCoreAsync(Config settings)
+    private async Task ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission)
     {
         ArgumentNullException.ThrowIfNull(settings);
         await FlushPreferencesAsync().ConfigureAwait(false);
@@ -451,8 +475,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 ParallelDownloadsSafetyLimit = candidate.ParallelDownloadsSafetyLimit,
                 BandwidthBytesPerSecond = candidate.BandwidthLimiter
             };
-            await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit,
-                () => candidate.SaveConfig(_profileLease.ProfileDirectory)).ConfigureAwait(false);
+            await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit,
+                () => candidate.SaveConfig(_profileLease.ProfileDirectory), admission).ConfigureAwait(false);
             PublishConfig(candidate);
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
@@ -465,11 +489,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAsync(FirstRunSetupValues values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        return RunInteractiveAsync<FirstRunSetupCommitResult>(nameof(CompleteFirstRunSetupAsync), "first-run",
-            () => CompleteFirstRunSetupAdmittedCoreAsync(values));
+        return RunInteractiveWithAdmissionAsync<FirstRunSetupCommitResult>(nameof(CompleteFirstRunSetupAsync), "first-run",
+            admission => CompleteFirstRunSetupAdmittedCoreAsync(values, admission));
     }
 
-    private async Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAdmittedCoreAsync(FirstRunSetupValues values)
+    private async Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAdmittedCoreAsync(FirstRunSetupValues values, ProfileAdmissionToken admission)
     {
         await FlushPreferencesAsync().ConfigureAwait(false);
         await _commands.WaitAsync().ConfigureAwait(false);
@@ -494,12 +518,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 ParallelDownloadsSafetyLimit = candidate.ParallelDownloadsSafetyLimit,
                 BandwidthBytesPerSecond = candidate.BandwidthLimiter
             };
-            await _registry.ApplyOptionsAsync(options, candidate.SaveUrlsOnExit, () =>
+            await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit, () =>
             {
                 candidate.SaveConfig(_profileLease.ProfileDirectory);
                 persisted = true;
                 PublishConfig(candidate);
-            }).ConfigureAwait(false);
+            }, admission).ConfigureAwait(false);
             SignalChanged();
             return new(true);
         }
@@ -519,9 +543,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     /// Runs on the thread pool from the first instruction: even when the command gate is free, the synchronous
     /// configuration write must never execute on the dispatcher that accepted the click.
     /// </summary>
-    public Task SetPausedAsync(bool paused) => RunControlAsync("pause", paused.ToString(), () => SetPausedCoreAsync(paused));
+    public Task SetPausedAsync(bool paused) => RunControlWithAdmissionAsync("pause", paused.ToString(), admission => SetPausedCoreAsync(paused, admission));
 
-    private async Task SetPausedCoreAsync(bool paused)
+    private async Task SetPausedCoreAsync(bool paused, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -534,7 +558,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             SignalChanged();
             try
             {
-                await _registry.SetPausedAsync(paused).ConfigureAwait(false);
+                await _registry.SetPausedAdmittedAsync(paused, admission).ConfigureAwait(false);
                 PublishConfig(candidate);
             }
             finally { IsPauseTransitioning = false; SignalChanged(); }
@@ -622,6 +646,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             CompleteStartupFinalWrites(_state == DesktopSessionState.Ready);
             _state = DesktopSessionState.Stopping;
             _acceptedDrain = CloseInteractiveAdmission();
+            _registry.CloseProducerIngress();
             BeginProfileShutdown();
             Task restoration = _startTask ?? Task.CompletedTask;
             _engineStopTask = Task.Run(async () =>

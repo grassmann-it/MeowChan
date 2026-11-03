@@ -1,4 +1,7 @@
 using MeowChan.Persistence;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MeowChan.Desktop;
 
@@ -29,6 +32,15 @@ internal sealed partial class DesktopSessionHost
             try { _profileLease.Admission.FailStartup(); }
             finally { ReleaseProfileStartupAdmission(); }
         }
+    }
+
+    // Direct owner lane: deliberately not dispatched through an Ordinary command
+    // and never takes _commands while waiting for previously accepted commands.
+    internal Task RunWithProfileProducerExclusiveAsync(Func<ProfileAdmissionToken, Task> operation,
+        CancellationToken token = default)
+    {
+        EnsureReady();
+        return _registry.RunWithProfileExclusiveAsync(operation, token);
     }
 
     private void BeginProfileShutdown()

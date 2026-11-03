@@ -55,12 +55,24 @@ public sealed class SessionStore : ISessionStore
         return Task.Run(() => _lease.RunExclusive(() => LoadCore(cancellationToken)), cancellationToken);
     }
 
-    public Task SaveAsync(SessionSnapshot snapshot, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(SessionSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        SessionSnapshot captured = ValidateAndCopy(snapshot);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        await SaveAdmittedAsync(captured, admission, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal ProfileLease ProfileLease => _lease;
+
+    // The outer command/producer retains the borrowed reservation until this awaited
+    // task returns; the synchronous I/O pin covers lease wait, publication and cleanup.
+    internal Task SaveAdmittedAsync(SessionSnapshot snapshot, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // Capture the caller's mutable collections before scheduling any asynchronous work.
         SessionSnapshot captured = ValidateAndCopy(snapshot);
-        return Task.Run(() => _lease.RunExclusive(() =>
+        _lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        return Task.Run(() => _lease.RunStoreWrite(admission, () =>
         {
             SaveCore(captured, cancellationToken);
             return true;

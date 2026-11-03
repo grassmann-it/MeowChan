@@ -14,26 +14,26 @@ public sealed partial class Registry
     private sealed record WorkCacheEntry(WorkResource Resource, ThreadWorkSnapshot Snapshot);
     private Dictionary<string, WorkCacheEntry> _workCacheEntries = new(StringComparer.Ordinal);
 
-    private WorkResource CommitWorkIntent(WorkResource resource)
+    private WorkResource CommitWorkIntent(WorkResource resource, ProfileAdmissionToken? admission)
     {
         WorkStateAccess access = WorkStateAccess.For(_workStore!);
         using IDisposable fence = access.Enter(resource.Url);
-        return access.CommitIntentUnderFence(resource);
+        return access.CommitIntentUnderFence(resource, admission);
     }
 
-    private WorkResource? CommitWorkState(WorkResource resource)
+    private WorkResource? CommitWorkState(WorkResource resource, ProfileAdmissionToken? admission)
     {
         WorkStateAccess access = WorkStateAccess.For(_workStore!);
         using IDisposable fence = access.Enter(resource.Url);
-        return access.CommitStateUnderFence(resource);
+        return access.CommitStateUnderFence(resource, admission);
     }
 
     private WorkResource? CommitWorkEnd(string url, long generation, ThreadSourceStateValue source,
-        DateTimeOffset observedAt, string? finalSnapshotJson)
+        DateTimeOffset observedAt, string? finalSnapshotJson, ProfileAdmissionToken? admission)
     {
         WorkStateAccess access = WorkStateAccess.For(_workStore!);
         using IDisposable fence = access.Enter(url);
-        return access.CommitEndUnderFence(url, generation, source, observedAt, finalSnapshotJson);
+        return access.CommitEndUnderFence(url, generation, source, observedAt, finalSnapshotJson, admission);
     }
 
     private static WorkCacheEntry CreateWorkCacheEntry(WorkResource resource, IReadOnlyList<MediaWork> media)

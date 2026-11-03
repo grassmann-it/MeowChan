@@ -37,6 +37,7 @@ public sealed partial class Registry : IAsyncDisposable
         public IDisposable? OwnerRegistration { get; set; }
         public PropertyChangedEventHandler? StateHandler { get; set; }
         public int RemovalRequested;
+        public ProfileProducerEpoch.Use? ProducerLifetime;
     }
 
     private IImageBoard[] _providers;
@@ -190,6 +191,13 @@ public sealed partial class Registry : IAsyncDisposable
 
     public async Task SetPausedAsync(bool paused)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await SetPausedAdmittedAsync(paused, admission).ConfigureAwait(false);
+    }
+
+    internal async Task SetPausedAdmittedAsync(bool paused, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         await _pauseTransitions.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -205,8 +213,7 @@ public sealed partial class Registry : IAsyncDisposable
                 }
                 finally { _gate.Release(); }
                 // Provider callbacks may need _gate; never hold it while draining monitors.
-                await Task.WhenAll(active.Select(watch => watch.Thread != null
-                    ? watch.Thread.StopMonitoringAsync() : watch.Board!.StopMonitoringAsync()).Append(transfers)).ConfigureAwait(false);
+                await Task.WhenAll(active.Select(StopWatchProducerAsync).Append(transfers)).ConfigureAwait(false);
             }
             else
             {
@@ -216,12 +223,11 @@ public sealed partial class Registry : IAsyncDisposable
                     ObjectDisposedException.ThrowIf(_stopping, this);
                     Watch[] active;
                     lock (_state) active = _watches.Values.Where(watch => watch.Ready && !watch.Stopping).ToArray();
+                    await _queue.SetPausedAsync(false).ConfigureAwait(false);
                     foreach (Watch watch in active)
                     {
-                        if (watch.Thread != null) watch.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
-                        else watch.Board!.StartMonitoring((int)_boardInterval.TotalSeconds);
+                        if (ProducersMayRun) StartWatchProducer(watch.Thread != null ? Key(watch.Thread) : Key(watch.Board!), watch);
                     }
-                    await _queue.SetPausedAsync(false).ConfigureAwait(false);
                 }
                 finally { _gate.Release(); }
             }
@@ -243,6 +249,13 @@ public sealed partial class Registry : IAsyncDisposable
 
     public async Task<AdmissionResult> AddAsync(string url)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        return await AddAdmittedAsync(url, admission).ConfigureAwait(false);
+    }
+
+    internal async Task<AdmissionResult> AddAdmittedAsync(string url, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         while (true)
         {
             Task? oldLifetime = null;
@@ -269,7 +282,7 @@ public sealed partial class Registry : IAsyncDisposable
                             next.DiscoveredThreadUrls = next.DiscoveredThreadUrls.Where(value => value != resource.Url).ToArray();
                             if (next.DiscoveredThreadUrls.Length != _session.DiscoveredThreadUrls.Length)
                             {
-                                await SaveSessionAsync(next).ConfigureAwait(false);
+                                await SaveSessionAsync(next, admission).ConfigureAwait(false);
                                 _session = next;
                             }
                             _queue.SetThreadPriority(current.Thread, DownloadPriority.Manual);
@@ -284,7 +297,7 @@ public sealed partial class Registry : IAsyncDisposable
                             ?? _outputDirectory;
                     oldLifetime = ArchiveCleanupWait(resource, root);
                     if (oldLifetime == null)
-                        result = await AdmitAsync(resource, root, persist: true).ConfigureAwait(false);
+                        result = await AdmitAsync(resource, root, persist: true, admission: admission).ConfigureAwait(false);
                 }
             }
             finally { _gate.Release(); }
@@ -297,6 +310,13 @@ public sealed partial class Registry : IAsyncDisposable
     /// <summary>Explicitly restores before user admissions. No partial restore snapshot is saved.</summary>
     public async Task RestoreAsync()
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await RestoreAdmittedAsync(admission).ConfigureAwait(false);
+    }
+
+    internal async Task RestoreAdmittedAsync(ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         List<AdmissionResult> added = new List<AdmissionResult>();
         List<string> warnings = new List<string>();
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -391,7 +411,7 @@ public sealed partial class Registry : IAsyncDisposable
                     saved = CommitWorkIntent(new WorkResource { Url = resource.Url,
                         OutputRoot = roots[resource.Url], Generation = 1, Intent = WorkIntent.Watching,
                         IsThread = resource.Thread != null,
-                        Discovered = loaded.Snapshot.DiscoveredThreadUrls.Contains(resource.Url, StringComparer.Ordinal) });
+                        Discovered = loaded.Snapshot.DiscoveredThreadUrls.Contains(resource.Url, StringComparer.Ordinal) }, admission);
                 }
                 _workResources[resource.Key] = saved;
                 roots[resource.Url] = saved.OutputRoot;
@@ -415,7 +435,7 @@ public sealed partial class Registry : IAsyncDisposable
             {
                 // Migrate the entire valid legacy snapshot before activation, preserving
                 // unsupported entries and suppressions. Recovery documents remain untouched.
-                try { await SaveSessionAsync(normalized).ConfigureAwait(false); }
+                try { await SaveSessionAsync(normalized, admission).ConfigureAwait(false); }
                 catch (Exception exception) when (_durableWork)
                 { warnings.Add($"Session projection could not be saved: {exception.Message}"); }
             }
@@ -426,7 +446,7 @@ public sealed partial class Registry : IAsyncDisposable
             foreach (Resource resource in resources.Values)
             {
                 if (resource.Thread != null && _suppressed.Contains(resource.Key)) continue;
-                try { added.Add(await AdmitAsync(resource, roots[resource.Url], persist: false, discovered: discovered.Contains(resource.Url)).ConfigureAwait(false)); }
+                try { added.Add(await AdmitAsync(resource, roots[resource.Url], persist: false, discovered: discovered.Contains(resource.Url), admission: admission).ConfigureAwait(false)); }
                 catch (Exception exception) { warnings.Add($"Could not start restored watch '{resource.Url}': {exception.Message}. Its saved entry was retained."); }
             }
         }
@@ -437,6 +457,13 @@ public sealed partial class Registry : IAsyncDisposable
 
     public async Task ApplyOptionsAsync(SessionOptions options, bool persistSession, Action? commitSettings = null)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await ApplyOptionsAdmittedAsync(options, persistSession, commitSettings, admission).ConfigureAwait(false);
+    }
+
+    internal async Task ApplyOptionsAdmittedAsync(SessionOptions options, bool persistSession, Action? commitSettings, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
         string nextRoot = Path.GetFullPath(options.DownloadPath);
@@ -450,14 +477,14 @@ public sealed partial class Registry : IAsyncDisposable
             if (persistSession && _sessionStore != null)
             {
                 if (commitSettings != null) previousDurable = (await _sessionStore.LoadAsync().ConfigureAwait(false)).Snapshot;
-                await _sessionStore.SaveAsync(CopySnapshot(_session)).ConfigureAwait(false);
+                await SaveStoreSessionAsync(CopySnapshot(_session), admission).ConfigureAwait(false);
             }
             try { commitSettings?.Invoke(); }
             catch (Exception commitFailure)
             {
                 if (previousDurable != null)
                 {
-                    try { await _sessionStore!.SaveAsync(previousDurable).ConfigureAwait(false); }
+                    try { await SaveStoreSessionAsync(previousDurable, admission).ConfigureAwait(false); }
                     catch (Exception rollbackFailure)
                     {
                         throw new AggregateException("Settings could not be committed and session rollback also failed.", commitFailure, rollbackFailure);
@@ -484,25 +511,14 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     // Caller holds the gate. Reserve the exclusive owner before changing durable or watch state.
-    private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist, bool discovered = false)
+    private async Task<AdmissionResult> AdmitAsync(Resource resource, string outputRoot, bool persist, bool discovered = false, ProfileAdmissionToken? admission = null)
     {
         if (ArchiveCleanupWait(resource, outputRoot) != null)
             throw new InvalidOperationException("The archived resource is reserved for cleanup.");
         Watch watch = new Watch { Thread = resource.Thread, Board = resource.Board, OutputRoot = outputRoot };
-        IDisposable ownerRegistration = resource.Thread != null
-            ? resource.Thread.RegisterRemovalSink(removed =>
-            {
-                if (Interlocked.Exchange(ref watch.RemovalRequested, 1) == 0)
-                    Track(async () =>
-                    {
-                        try { await RemoveThreadAsync(removed).ConfigureAwait(false); }
-                        finally { Volatile.Write(ref watch.RemovalRequested, 0); }
-                    });
-            })
-            : resource.Board!.RegisterDiscoverySink((thread, token) =>
-                new ValueTask(AdmitDiscoveryAsync(watch, thread, token)));
+        IDisposable ownerRegistration = RegisterWatchOwner(resource, watch, _producerEpoch);
         watch.OwnerRegistration = ownerRegistration;
-        try { return await AdmitOwnedAsync(resource, watch, persist, discovered).ConfigureAwait(false); }
+        try { return await AdmitOwnedAsync(resource, watch, persist, discovered, admission).ConfigureAwait(false); }
         catch
         {
             // A pre-activation commit failure releases the reservation without cancelling the resource.
@@ -512,7 +528,7 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     // Ownership is reserved; durable intent still precedes activation and public success.
-    private async Task<AdmissionResult> AdmitOwnedAsync(Resource resource, Watch watch, bool persist, bool discovered)
+    private async Task<AdmissionResult> AdmitOwnedAsync(Resource resource, Watch watch, bool persist, bool discovered, ProfileAdmissionToken? admission)
     {
         string outputRoot = watch.OutputRoot;
         SessionSnapshot previous = _session;
@@ -522,19 +538,19 @@ public sealed partial class Registry : IAsyncDisposable
         {
             SessionSnapshot next = AdmissionSnapshot(resource, outputRoot, discovered);
             // Without a durable work authority, the session commit remains the admission barrier.
-            if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
+            if (!_durableWork) await SaveSessionAsync(next, admission).ConfigureAwait(false);
             if (_workStore != null)
             {
                 _workResources.TryGetValue(resource.Key, out WorkResource? old);
                 old ??= WorkStateAccess.For(_workStore).FindResource(resource.Url);
                 durable = CommitWorkIntent(new WorkResource { Url = resource.Url, OutputRoot = outputRoot,
                     Generation = (old?.Generation ?? 0) + 1, Intent = WorkIntent.Watching,
-                    IsThread = resource.Thread != null, Discovered = discovered });
+                    IsThread = resource.Thread != null, Discovered = discovered }, admission);
                 _workResources[resource.Key] = durable;
             }
             if (_durableWork)
             {
-                try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                try { await SaveSessionAsync(next, admission).ConfigureAwait(false); }
                 catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
             }
             _session = next;
@@ -553,8 +569,6 @@ public sealed partial class Registry : IAsyncDisposable
                     {
                         durableThread.SetTimeProvider(_queue.Clock);
                         durableThread.RestoreDurableState(durable);
-                        durableThread.SetLifecycleSinks((state, observed, finalSnapshot, token) => CommitSourceEndAsync(resource.Key, resource.Thread, state, observed, finalSnapshot, token),
-                            () => CommitCaptureSettledAsync(resource.Key, resource.Thread));
                     }
                 }
                 if (_contentRuntime != null && resource.Thread is BaseThread { SupportsContent: true } contentThread)
@@ -564,7 +578,7 @@ public sealed partial class Registry : IAsyncDisposable
                 watch.StateHandler = (_, _) => SignalChanged();
                 resource.Thread.PropertyChanged += watch.StateHandler;
                 _queue.SetThreadPriority(resource.Thread, discovered ? DownloadPriority.BoardDiscovery : DownloadPriority.Manual);
-                resource.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
+                if (ProducersMayRun) StartWatchProducer(resource.Key, watch);
             }
             else
             {
@@ -575,7 +589,7 @@ public sealed partial class Registry : IAsyncDisposable
                     baseBoard.AttachSessionQueue(_queue);
                     baseBoard.WatchGeneration = (durable ?? _workResources.GetValueOrDefault(resource.Key))?.Generation ?? 0;
                 }
-                resource.Board.StartMonitoring((int)_boardInterval.TotalSeconds);
+                if (ProducersMayRun) StartWatchProducer(resource.Key, watch);
                 resource.Board.UpdateMonitoringInterval(_boardInterval);
             }
             lock (_state) { watch.Ready = true; }
@@ -599,7 +613,7 @@ public sealed partial class Registry : IAsyncDisposable
             {
                 try
                 {
-                    await SaveSessionAsync(previous).ConfigureAwait(false);
+                    await SaveSessionAsync(previous, admission).ConfigureAwait(false);
                     _session = previous;
                     if (previouslySuppressed) _suppressed.Add(resource.Key);
                 }
@@ -610,7 +624,7 @@ public sealed partial class Registry : IAsyncDisposable
         }
     }
 
-    private async Task AdmitDiscoveryAsync(Watch parent, IThread thread, CancellationToken cancellationToken)
+    private async Task AdmitDiscoveryAsync(Watch parent, IThread thread, CancellationToken cancellationToken, ProfileAdmissionToken? admission)
     {
         AdmissionResult? result = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -630,7 +644,7 @@ public sealed partial class Registry : IAsyncDisposable
             if (_suppressed.Contains(threadKey)) return;
             if (_workResources.TryGetValue(threadKey, out WorkResource? prior)
                 && prior.Intent is WorkIntent.Completed or WorkIntent.Repairing or WorkIntent.Suppressed) return;
-            result = await AdmitAsync(resource, parent.OutputRoot, persist: true, discovered: true).ConfigureAwait(false);
+            result = await AdmitAsync(resource, parent.OutputRoot, persist: true, discovered: true, admission: admission).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -642,7 +656,7 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     private async Task CommitSourceEndAsync(ResourceKey key, IThread thread, ThreadSourceState state, DateTimeOffset observed,
-        CapturedThreadSnapshot? finalSnapshot, CancellationToken cancellationToken)
+        CapturedThreadSnapshot? finalSnapshot, CancellationToken cancellationToken, ProfileAdmissionToken? admission)
     {
         if (_workStore == null) return;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -653,7 +667,7 @@ public sealed partial class Registry : IAsyncDisposable
                 || !_workResources.TryGetValue(key, out WorkResource? current)) return;
             WorkResource? committed = CommitWorkEnd(current.Url, current.Generation,
                 state == ThreadSourceState.Archived ? ThreadSourceStateValue.Archived : ThreadSourceStateValue.NotFound,
-                observed, finalSnapshot == null ? null : JsonSerializer.Serialize(finalSnapshot));
+                observed, finalSnapshot == null ? null : JsonSerializer.Serialize(finalSnapshot), admission);
             if (committed == null) return;
             _workResources[key] = committed;
             _queue.UpdateWorkOwner(thread, committed);
@@ -662,7 +676,7 @@ public sealed partial class Registry : IAsyncDisposable
         SignalChanged();
     }
 
-    private async Task CommitCaptureSettledAsync(ResourceKey key, IThread thread)
+    private async Task CommitCaptureSettledAsync(ResourceKey key, IThread thread, ProfileAdmissionToken? admission)
     {
         if (_workStore == null) return;
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -670,7 +684,7 @@ public sealed partial class Registry : IAsyncDisposable
         {
             if (!_watches.TryGetValue(key, out Watch? watch) || !ReferenceEquals(watch.Thread, thread) || watch.Stopping
                 || !_workResources.TryGetValue(key, out WorkResource? current) || !current.CapturePending) return;
-            WorkResource? committed = CommitWorkState(current with { CapturePending = false });
+            WorkResource? committed = CommitWorkState(current with { CapturePending = false }, admission);
             if (committed != null) { _workResources[key] = committed; _queue.UpdateWorkOwner(thread, committed); }
         }
         finally { _gate.Release(); }
@@ -686,18 +700,32 @@ public sealed partial class Registry : IAsyncDisposable
     /// <summary>One explicit outer media attempt; it never starts a new source watch or end window.</summary>
     public int RetryMissingMedia(IThread thread, string? mediaIdentifier = null)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        return RetryMissingMediaAdmitted(thread, mediaIdentifier, admission);
+    }
+
+    internal int RetryMissingMediaAdmitted(IThread thread, string? mediaIdentifier, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         ArgumentNullException.ThrowIfNull(thread);
         lock (_state)
         {
             if (_stopping || !_watches.TryGetValue(Key(thread), out Watch? watch) || !ReferenceEquals(watch.Thread, thread)
                 || watch.Stopping || !watch.Ready) return 0;
         }
-        return _queue.RequestMediaRetry(thread, mediaIdentifier);
+        return _queue.RequestMediaRetryAdmitted(thread, mediaIdentifier, admission);
     }
 
     /// <summary>Repairs a completed thread from saved retrieval metadata without polling its endpoint.</summary>
     public async Task<int> RetryCompletedMediaAsync(string threadUrl, string? mediaIdentifier = null)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        return await RetryCompletedMediaAdmittedAsync(threadUrl, mediaIdentifier, admission).ConfigureAwait(false);
+    }
+
+    internal async Task<int> RetryCompletedMediaAdmittedAsync(string threadUrl, string? mediaIdentifier, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         if (_workStore == null) return 0;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
@@ -712,11 +740,11 @@ public sealed partial class Registry : IAsyncDisposable
                 _workResources[resource.Key] = state;
             }
             if (state.Intent != WorkIntent.Completed || ArchiveCleanupWait(resource, state.OutputRoot) != null) return 0;
-            WorkResource? repairing = CommitWorkState(state with { Intent = WorkIntent.Repairing });
+            WorkResource? repairing = CommitWorkState(state with { Intent = WorkIntent.Repairing }, admission);
             if (repairing == null) return 0;
             _workResources[resource.Key] = repairing;
-            await AdmitAsync(resource, repairing.OutputRoot, persist: false).ConfigureAwait(false);
-            return _queue.RequestMediaRetry(resource.Thread, mediaIdentifier);
+            await AdmitAsync(resource, repairing.OutputRoot, persist: false, admission: admission).ConfigureAwait(false);
+            return _queue.RequestMediaRetryAdmitted(resource.Thread, mediaIdentifier, admission);
         }
         finally { _gate.Release(); }
     }
@@ -734,25 +762,37 @@ public sealed partial class Registry : IAsyncDisposable
             if (_stopping) return CheckRequestStatus.Stopping;
             if (!_watches.TryGetValue(key, out Watch? watch) || !watch.Ready || watch.Stopping
                 || !ReferenceEquals(watch.Thread, thread) || !ReferenceEquals(watch.Board, board)) return CheckRequestStatus.Stale;
-            if (_queue.IsPaused) return CheckRequestStatus.Paused;
+            if (_queue.IsPaused || !ProducersMayRun) return CheckRequestStatus.Paused;
             // Optional contract only signals a lifetime; no provider work runs under this lock.
             ICheckRequestSource? checks = (object?)thread as ICheckRequestSource ?? board as ICheckRequestSource;
             return checks?.RequestCheck() ?? CheckRequestStatus.Unsupported;
         }
     }
 
-    public Task RemoveThreadAsync(IThread thread)
+    public async Task RemoveThreadAsync(IThread thread)
     {
-        ArgumentNullException.ThrowIfNull(thread);
-        return RemoveAsync(Key(thread), thread, null);
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await RemoveThreadAdmittedAsync(thread, admission).ConfigureAwait(false);
     }
-    public Task RemoveBoardAsync(IBoard board)
+    internal Task RemoveThreadAdmittedAsync(IThread thread, ProfileAdmissionToken? admission)
     {
+        ValidateRegistryAdmission(admission);
+        ArgumentNullException.ThrowIfNull(thread);
+        return RemoveAsync(Key(thread), thread, null, admission: admission);
+    }
+    public async Task RemoveBoardAsync(IBoard board)
+    {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await RemoveBoardAdmittedAsync(board, admission).ConfigureAwait(false);
+    }
+    internal Task RemoveBoardAdmittedAsync(IBoard board, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         ArgumentNullException.ThrowIfNull(board);
-        return RemoveAsync(Key(board), null, board);
+        return RemoveAsync(Key(board), null, board, admission: admission);
     }
 
-    private async Task RemoveAsync(ResourceKey key, IThread? thread, IBoard? board, bool shutdown = false)
+    private async Task RemoveAsync(ResourceKey key, IThread? thread, IBoard? board, bool shutdown = false, ProfileAdmissionToken? admission = null)
     {
         Watch? watch;
         Task? alreadyStopping = null;
@@ -771,14 +811,14 @@ public sealed partial class Registry : IAsyncDisposable
                 {
                     string url = thread?.ThreadUri.AbsoluteUri ?? board!.BoardUri.AbsoluteUri;
                     SessionSnapshot next = RemovalSnapshot(url, thread != null);
-                    if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
+                    if (!_durableWork) await SaveSessionAsync(next, admission).ConfigureAwait(false);
                     if (_workStore != null && _workResources.TryGetValue(key, out WorkResource? previous))
                     {
                         if (thread != null) _queue.RetireWorkOwner(thread);
                         try
                         {
                             WorkResource suppressed = CommitWorkIntent(previous with
-                            { Generation = previous.Generation + 1, Intent = WorkIntent.Suppressed });
+                            { Generation = previous.Generation + 1, Intent = WorkIntent.Suppressed }, admission);
                             _workResources[key] = suppressed;
                         }
                         catch
@@ -790,7 +830,7 @@ public sealed partial class Registry : IAsyncDisposable
                     }
                     if (_durableWork)
                     {
-                        try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                        try { await SaveSessionAsync(next, admission).ConfigureAwait(false); }
                         catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
                     }
                     _session = next;
@@ -820,10 +860,10 @@ public sealed partial class Registry : IAsyncDisposable
 
     private Task StopWatchAsync(Watch watch)
     {
-        if (watch.Thread == null) return watch.Board!.StopMonitoringAsync();
+        if (watch.Thread == null) return StopWatchProducerAsync(watch);
         Task cancelled = _queue.CancelDownloadsForThreadAsync(watch.Thread);
         Task stopped;
-        try { stopped = watch.Thread.StopMonitoringAsync(); }
+        try { stopped = StopWatchProducerAsync(watch); }
         catch (Exception exception) { stopped = Task.FromException(exception); }
         return Task.WhenAll(cancelled, stopped);
     }
@@ -856,8 +896,12 @@ public sealed partial class Registry : IAsyncDisposable
         return next;
     }
 
-    private Task SaveSessionAsync(SessionSnapshot snapshot)
-        => _persistSession && _sessionStore != null ? _sessionStore.SaveAsync(CopySnapshot(snapshot)) : Task.CompletedTask;
+    private Task SaveSessionAsync(SessionSnapshot snapshot, ProfileAdmissionToken? admission)
+        => _persistSession && _sessionStore != null ? SaveStoreSessionAsync(CopySnapshot(snapshot), admission) : Task.CompletedTask;
+
+    private Task SaveStoreSessionAsync(SessionSnapshot snapshot, ProfileAdmissionToken? admission)
+        => _sessionStore is SessionStore sqlite && admission != null
+            ? sqlite.SaveAdmittedAsync(snapshot, admission) : _sessionStore!.SaveAsync(snapshot);
 
     private void EnsureRestoredForPersistence()
     {
@@ -929,6 +973,7 @@ public sealed partial class Registry : IAsyncDisposable
 
     public Task StopAsync()
     {
+        CloseProducerIngress();
         lock (_shutdownLock) { return _shutdown ??= StopCoreAsync(); }
     }
 
@@ -949,18 +994,41 @@ public sealed partial class Registry : IAsyncDisposable
         Task[] background;
         lock (_state) { background = _backgroundTasks.ToArray(); }
         await Task.WhenAll(background).ConfigureAwait(false);
+        await ReleaseStoppedEpochAsync().ConfigureAwait(false);
     }
 
-    private void Track(Func<Task> operation)
+    private bool Track(Func<ProfileAdmissionToken?, Task> operation, ProfileProducerEpoch? expectedEpoch = null)
     {
-        Task task = Task.Run(async () =>
+        ProfileProducerEpoch.Use? use;
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_state)
         {
-            try { await operation().ConfigureAwait(false); }
-            catch (Exception exception) { _logger.Error(exception, "Session callback failed"); Warn($"Session change failed: {exception.Message}"); }
-        });
-        lock (_state) { _backgroundTasks.Add(task); }
-        _ = task.ContinueWith(completed => { lock (_state) { _backgroundTasks.Remove(completed); } },
-            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            if (!_producerIngress || _stopping || BoundProfileLease != null && _producerEpoch == null || expectedEpoch != null && !ReferenceEquals(expectedEpoch, _producerEpoch)) return false;
+            use = _producerEpoch?.Enter();
+            _backgroundTasks.Add(completion.Task); // Registration precedes dispatch and close.
+        }
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await operation(use?.Admission).ConfigureAwait(false); }
+                catch (Exception exception) { _logger.Error(exception, "Session callback failed"); Warn($"Session change failed: {exception.Message}", scheduleCompletion: false); }
+                finally
+                {
+                    use?.Dispose();
+                    lock (_state) _backgroundTasks.Remove(completion.Task);
+                    completion.TrySetResult();
+                }
+            });
+        }
+        catch
+        {
+            use?.Dispose();
+            lock (_state) _backgroundTasks.Remove(completion.Task);
+            completion.TrySetResult();
+            throw;
+        }
+        return true;
     }
 
     private void SignalChanged()
@@ -972,7 +1040,7 @@ public sealed partial class Registry : IAsyncDisposable
         }
         Interlocked.Increment(ref _completionScanVersion);
         if (Interlocked.Exchange(ref _completionScanQueued, 1) == 0)
-            Track(async () =>
+            if (!Track(async admission =>
             {
                 int scanned = 0;
                 try
@@ -980,7 +1048,7 @@ public sealed partial class Registry : IAsyncDisposable
                     do
                     {
                         scanned = Volatile.Read(ref _completionScanVersion);
-                        await TryCompleteAsync().ConfigureAwait(false);
+                        await TryCompleteAsync(admission).ConfigureAwait(false);
                     } while (!_stopping && scanned != Volatile.Read(ref _completionScanVersion));
                 }
                 catch (Exception exception)
@@ -995,10 +1063,10 @@ public sealed partial class Registry : IAsyncDisposable
                     // A completion arriving during the scan must not lose its only wakeup.
                     if (!_stopping && scanned != Volatile.Read(ref _completionScanVersion)) SignalChanged();
                 }
-            });
+            })) Volatile.Write(ref _completionScanQueued, 0);
     }
 
-    private async Task TryCompleteAsync()
+    private async Task TryCompleteAsync(ProfileAdmissionToken? admission)
     {
         if (BeforeCompletionScan is { } beforeScan) await beforeScan().ConfigureAwait(false);
         List<(ResourceKey Key, Watch Watch)> completed = new();
@@ -1035,7 +1103,7 @@ public sealed partial class Registry : IAsyncDisposable
                         if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
                             (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
                     }
-                    WorkResource? committed = WorkStateAccess.For(_workStore).CommitStateUnderFence(state with { Intent = WorkIntent.Completed });
+                    WorkResource? committed = WorkStateAccess.For(_workStore).CommitStateUnderFence(state with { Intent = WorkIntent.Completed }, admission);
                     if (committed == null) continue;
                     _workResources[entry.Key] = committed;
                     _workCacheEntries[state.Url] = CreateWorkCacheEntry(committed, media);
@@ -1043,7 +1111,7 @@ public sealed partial class Registry : IAsyncDisposable
                 }
                 SessionSnapshot next = RemovalSnapshot(state.Url, true);
                 next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != state.Url).ToArray();
-                try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                try { await SaveSessionAsync(next, admission).ConfigureAwait(false); }
                 catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
                 _session = next;
                 completed.Add((entry.Key, watch));

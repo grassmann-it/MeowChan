@@ -32,6 +32,11 @@ internal sealed partial class DesktopSessionHost
     private Task<T> RunInteractiveAsync<T>(string action, string target, Func<Task<T>> operation, Action? onAccepted = null, bool captureAfter = true)
         => RunInteractiveCoreAsync(action, target, _ => operation(), onAccepted, captureAfter);
 
+    private Task RunInteractiveWithAdmissionAsync(string action, string target,
+        Func<ProfileAdmissionToken, Task> operation, Action? onAccepted = null, bool captureAfter = true)
+        => RunInteractiveCoreAsync<object?>(action, target, async admission =>
+        { await operation(admission).ConfigureAwait(false); return null; }, onAccepted, captureAfter);
+
     private Task<T> RunInteractiveWithAdmissionAsync<T>(string action, string target,
         Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted = null, bool captureAfter = true)
         => RunInteractiveCoreAsync(action, target, operation, onAccepted, captureAfter);
@@ -101,6 +106,9 @@ internal sealed partial class DesktopSessionHost
     // Separate finite lanes: duplicate controls share their actual completion, and a conflicting desired state
     // is refused visibly. Controls never consume or wait for an interactive admission slot.
     private Task RunControlAsync(string action, string target, Func<Task> operation)
+        => RunControlWithAdmissionAsync(action, target, _ => operation());
+
+    private Task RunControlWithAdmissionAsync(string action, string target, Func<ProfileAdmissionToken, Task> operation)
     {
         ProfileAdmissionToken? admission = null;
         try
@@ -119,7 +127,7 @@ internal sealed partial class DesktopSessionHost
                     try
                     {
                         using var measurement = PerformanceDiagnostics.Measure("host.control." + action, epoch: _epoch);
-                        await operation().ConfigureAwait(false);
+                        await operation(acceptedAdmission).ConfigureAwait(false);
                     }
                     finally { ReleaseControlCommand(action, acceptedAdmission); }
                 });

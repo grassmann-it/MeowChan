@@ -24,6 +24,14 @@ public sealed partial class Registry
     /// <summary>Persists exclusion even when an archived thread has no active watch.</summary>
     public async Task SuppressArchivedThreadAsync(ResourceId id, string url, CancellationToken token = default)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        await SuppressArchivedThreadAdmittedAsync(id, url, admission, token).ConfigureAwait(false);
+    }
+
+    internal async Task SuppressArchivedThreadAdmittedAsync(ResourceId id, string url,
+        ProfileAdmissionToken? admission, CancellationToken token = default)
+    {
+        ValidateRegistryAdmission(admission);
         ArgumentNullException.ThrowIfNull(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
         await _gate.WaitAsync(token).ConfigureAwait(false);
@@ -33,7 +41,7 @@ public sealed partial class Registry
             EnsureRestoredForPersistence();
             ResourceKey key = new(id.Source, id.Board, id.Thread);
             SessionSnapshot next = RemovalSnapshot(url, thread: true);
-            if (!_durableWork) await SaveSessionAsync(next).ConfigureAwait(false);
+            if (!_durableWork) await SaveSessionAsync(next, admission).ConfigureAwait(false);
             if (_workStore != null)
             {
                 _workResources.TryGetValue(key, out WorkResource? previous);
@@ -46,12 +54,12 @@ public sealed partial class Registry
                     Intent = WorkIntent.Suppressed,
                     IsThread = true,
                     Discovered = previous?.Discovered ?? false
-                });
+                }, admission);
                 _workResources[key] = suppressed;
             }
             if (_durableWork)
             {
-                try { await SaveSessionAsync(next).ConfigureAwait(false); }
+                try { await SaveSessionAsync(next, admission).ConfigureAwait(false); }
                 catch (Exception exception) { Warn($"Session projection could not be saved: {exception.Message}"); }
             }
             _session = next;

@@ -50,6 +50,14 @@ public sealed partial class Registry
     /// <summary>Publishes a durable selection before starting monitoring. Explicit includes reactivate suppressed threads.</summary>
     public async Task<AdmissionResult> ApplyBoardAdmissionAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls = null)
     {
+        using ProfileAdmissionToken? admission = EnterRegistryWriter();
+        return await ApplyBoardAdmissionAdmittedAsync(url, policy, reactivateThreadUrls, admission).ConfigureAwait(false);
+    }
+
+    internal async Task<AdmissionResult> ApplyBoardAdmissionAdmittedAsync(string url, BoardAdmissionPolicy policy,
+        IReadOnlyCollection<string>? reactivateThreadUrls, ProfileAdmissionToken? admission)
+    {
+        ValidateRegistryAdmission(admission);
         ArgumentNullException.ThrowIfNull(policy);
         await _gate.WaitAsync().ConfigureAwait(false);
         try
@@ -64,16 +72,17 @@ public sealed partial class Registry
                     || candidate.Url != exception || Key(candidate.Thread.Board) != resource.Key) throw new ArgumentException("Thread choices must belong to this board.");
             }
             if (_boardAdmission == null) throw new InvalidOperationException("Durable board admission storage is not configured.");
-            _boardAdmission.Save(resource.Url, policy);
+            if (admission != null) _boardAdmission.SaveAdmitted(resource.Url, policy, admission);
+            else _boardAdmission.Save(resource.Url, policy);
 
         }
         finally { _gate.Release(); }
         foreach (var choice in policy.Exceptions.Where(pair => pair.Value == ThreadAdmissionException.Include
             && reactivateThreadUrls?.Contains(pair.Key, StringComparer.Ordinal) == true))
-            await AddAsync(choice.Key).ConfigureAwait(false);
+            await AddAdmittedAsync(choice.Key, admission).ConfigureAwait(false);
         SignalChanged();
         // Use normal admission so a previous stopping board lifetime is drained before replacement.
-        return await AddAsync(url).ConfigureAwait(false);
+        return await AddAdmittedAsync(url, admission).ConfigureAwait(false);
     }
 
     private bool AllowsBoardDiscovery(IBoard board, IThread thread)

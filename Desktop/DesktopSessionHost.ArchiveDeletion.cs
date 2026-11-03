@@ -61,7 +61,7 @@ internal sealed partial class DesktopSessionHost
             HashSet<string> evictedPosters = new(StringComparer.Ordinal);
             ArchiveFilesResult? files = null;
             bool wasPaused = _registry.IsPaused;
-            if (!wasPaused) await _registry.SetPausedAsync(true).ConfigureAwait(false);
+            if (!wasPaused) await _registry.SetPausedAdmittedAsync(true, admission).ConfigureAwait(false);
             try
             {
                 await _registry.DrainBackgroundTasksAsync(token).ConfigureAwait(false);
@@ -85,11 +85,11 @@ internal sealed partial class DesktopSessionHost
                     ResourceId id = thread.Summary.Id;
                     try
                     {
-                        await _registry.SuppressArchivedThreadAsync(id, thread.Summary.Url, token).ConfigureAwait(false);
+                        await _registry.SuppressArchivedThreadAdmittedAsync(id, thread.Summary.Url, admission, token).ConfigureAwait(false);
                         IThread[] active = _registry.GetView().Threads.Keys.Where(watch => Matches(watch, id)).ToArray();
                         foreach (IThread watch in active)
                         {
-                            await _registry.RemoveThreadAsync(watch).ConfigureAwait(false);
+                            await _registry.RemoveThreadAdmittedAsync(watch, admission).ConfigureAwait(false);
                             lock (_projection)
                             {
                                 if (_threads.Remove(watch, out WatchIdentity? identity))
@@ -207,7 +207,7 @@ internal sealed partial class DesktopSessionHost
             }
             finally
             {
-                if (!wasPaused) await _registry.SetPausedAsync(false).ConfigureAwait(false);
+                if (!wasPaused) await _registry.SetPausedAdmittedAsync(false, admission).ConfigureAwait(false);
                 SignalChanged();
             }
         }

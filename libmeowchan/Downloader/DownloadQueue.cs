@@ -78,6 +78,9 @@ public partial class DownloadQueue
     private long _receivedMediaBytes;
     private bool _stopping;
     private bool _paused;
+    // Internal owner suspension is distinct from the user pause preference.
+    // It parks logical work without retiring owners or descriptors.
+    
     private TaskCompletionSource _resumed = CreateCompletedSource();
 
     /// <summary>Coalesced asynchronous invalidation; read a fresh snapshot when notified.</summary>
@@ -153,8 +156,8 @@ public partial class DownloadQueue
             lock (_stateLock)
             {
                 if (_stopping) throw new QueueStoppingException(cancellationToken);
-                if (!_paused) return;
-                resumed = _resumed.Task;
+                if (!_paused && !_producerSuspended) return;
+                resumed = _producerSuspended ? _producerResumed.Task : _resumed.Task;
             }
             await resumed.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -192,7 +195,7 @@ public partial class DownloadQueue
             TaskCompletionSource old = _targetChanged;
             _targetChanged = CreateCompletionSource();
             old.TrySetResult();
-            if (_targetPolling == null && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
+            if (_targetPolling == null && !_producerSuspended && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
             if (_workStore != null) SignalScheduleLocked();
             ready = ReserveWorkersLocked();
         }
@@ -222,7 +225,15 @@ public partial class DownloadQueue
                     try { await changed.WaitAsync(delay, _timeProvider, _lifetime.Token).ConfigureAwait(false); }
                     catch (TimeoutException) { }
                 }
-                else await _targets.CheckBlockedAsync(false, _lifetime.Token).ConfigureAwait(false);
+                else
+                {
+                    try
+                    {
+                        using Transition execution = BeginTransition();
+                        await _targets.CheckBlockedAsync(false, _lifetime.Token).ConfigureAwait(false);
+                    }
+                    catch (ProducerSuspendedException) { }
+                }
             }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
@@ -239,8 +250,14 @@ public partial class DownloadQueue
                 if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
                 changed = _capacityChanged.Task;
             }
+            await WaitForProducerAsync(linked.Token).ConfigureAwait(false);
             Task targetChanged = _targets.ChangeTask;
-            if (await _targets.CheckAsync(TargetPath(item), item.ExpectedSize, linked.Token).ConfigureAwait(false)) return true;
+            try
+            {
+                using Transition execution = BeginTransition(item);
+                if (await _targets.CheckAsync(TargetPath(item), item.ExpectedSize, linked.Token).ConfigureAwait(false)) return true;
+            }
+            catch (ProducerSuspendedException) { continue; }
             await Task.WhenAny(changed, targetChanged).WaitAsync(linked.Token).ConfigureAwait(false);
         }
     }
@@ -383,9 +400,9 @@ public partial class DownloadQueue
             if (CleanupWaitLocked(item) != null)
                 throw new InvalidOperationException("The target is reserved for archive cleanup; use EnqueueAsync to wait.");
         }
-        using (EnterDurable(item))
+        using (Transition transition = EnterDurable(item))
         {
-            if (!PrepareDurableAdmission(ref item, prepared)) return;
+            if (!PrepareDurableAdmission(ref item, prepared, admission: transition.Admission)) return;
             TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: false);
             if (full) throw new InvalidOperationException("Download capacity is full; use EnqueueAsync to wait without losing work.");
         }
@@ -409,7 +426,7 @@ public partial class DownloadQueue
     {
         ArgumentNullException.ThrowIfNull(thread);
         IWorkStateStore store = _workStore ?? throw new InvalidOperationException("Configure durable work before binding watches.");
-        using IDisposable transition = BeginTransition();
+        using IDisposable transition = BeginTransition(executing: false);
         IReadOnlyList<MediaWork> saved;
         using (IDisposable fence = WorkStateAccess.For(store).Enter(resource.Url))
         {
@@ -441,11 +458,15 @@ public partial class DownloadQueue
     }
 
     public int RequestMediaRetry(IThread thread, string? mediaIdentifier = null)
+        => RequestMediaRetryAdmitted(thread, mediaIdentifier, null);
+
+    internal int RequestMediaRetryAdmitted(IThread thread, string? mediaIdentifier, ProfileAdmissionToken? admission)
     {
         ArgumentNullException.ThrowIfNull(thread);
         IWorkStateStore? store = _workStore;
         if (store == null) return 0;
-        using IDisposable retryTransition = BeginTransition();
+        using Transition retryTransition = BeginTransition(admission: admission);
+        admission = retryTransition.Admission;
         WorkResource owner;
         lock (_stateLock)
         {
@@ -463,14 +484,14 @@ public partial class DownloadQueue
                 if (current == null || !WorkStateComparison.Equal(current, media) || current.ManualAttempt
                     || current.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) continue;
                 DownloadItem item = RestoreItem(thread, current, explicitRetry: true);
-                using IDisposable retryItemTransition = BeginTransition(item);
+                using IDisposable retryItemTransition = BeginTransition(item, admission);
                 PreparedDownload prepared = Prepare(item);
                 lock (_stateLock)
                 {
                     if (!ItemOwnerCurrentLocked(item, owner) || CleanupWaitLocked(item) != null || _jobs.ContainsKey(prepared.Job)) continue;
                 }
                 MediaWork manual = current with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
-                if (!WorkStateAccess.For(store).TryCommitMedia(manual, current)) continue;
+                if (!WorkStateAccess.For(store).TryCommitMedia(manual, current, admission)) continue;
                 lock (_stateLock)
                 {
                     if (!ItemOwnerCurrentLocked(item, owner)) continue;
@@ -502,13 +523,16 @@ public partial class DownloadQueue
         TaskCompletionSource old = _scheduleChanged;
         _scheduleChanged = CreateCompletionSource();
         old.TrySetResult();
-        if (_scheduleTask == null && !_stopping) _scheduleTask = Task.Run(RunScheduleAsync);
+        if (_scheduleTask == null && !_stopping && !_producerSuspended) _scheduleTask = Task.Run(RunScheduleAsync);
     }
 
     private async Task RunScheduleAsync()
     {
         while (true)
         {
+            try { await WaitForProducerAsync(_lifetime.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested || _stopping) { return; }
+            Transition? pass = null;
             ScheduledWork? due = null;
             Task changed;
             TimeSpan? delay = null;
@@ -516,6 +540,8 @@ public partial class DownloadQueue
             lock (_stateLock)
             {
                 if (_stopping) return;
+                if (_producerSuspended) continue;
+                pass = BeginTransition();
                 DateTimeOffset now = _timeProvider.GetUtcNow();
                 List<JobIdentity> expiredKeys = new();
                 foreach (KeyValuePair<JobIdentity, ScheduledWork> entry in _scheduled)
@@ -546,12 +572,14 @@ public partial class DownloadQueue
                 }
                 changed = _scheduleChanged.Task;
             }
+            try
+            {
             foreach (ScheduledWork item in expired)
             {
                 try
                 {
                     Cleanup cleanup = new();
-                    using (EnterDurable(item.Item))
+                    using (EnterDurable(item.Item, pass.Admission, continuation: true))
                     {
                         lock (_stateLock)
                             if (!_workOwners.TryGetValue(item.Item.Thread, out WorkResource? owner)
@@ -559,7 +587,7 @@ public partial class DownloadQueue
                         // A manual request or new revision may have replaced this wait after the scan.
                         MediaWork? current = _workStore == null ? null : WorkStateAccess.For(_workStore).FindMedia(MediaWorkKey.Of(item.Work));
                         if (WorkStateComparison.Equal(current, item.Work) && _workStore != null
-                            && WorkStateAccess.For(_workStore).TryCommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }, current))
+                            && WorkStateAccess.For(_workStore).TryCommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }, current, pass.Admission))
                         {
                             lock (_stateLock)
                             {
@@ -594,6 +622,11 @@ public partial class DownloadQueue
                         lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
                         continue;
                     }
+                    // Due work becomes logical data again before capacity/target waits.
+                    // Its next execution obtains a fresh scope after any owner resume.
+                    lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
+                    pass.Dispose();
+                    pass = null;
                     // Admission rechecks the exact scheduled row under its own resource fence.
                     await EnqueueCoreAsync(due.Item, _lifetime.Token, due.Work).ConfigureAwait(false);
                 }
@@ -602,6 +635,8 @@ public partial class DownloadQueue
                 finally { lock (_stateLock) _cleanupTransits.Remove(due.Item); }
                 continue;
             }
+            pass?.Dispose();
+            pass = null;
             if (delay == null) await changed.ConfigureAwait(false);
             else
             {
@@ -609,6 +644,8 @@ public partial class DownloadQueue
                 Task elapsed = Task.Delay(delay.Value, _timeProvider, timer.Token);
                 if (await Task.WhenAny(changed, elapsed).ConfigureAwait(false) == changed) timer.Cancel();
             }
+            }
+            finally { pass?.Dispose(); }
         }
     }
 
@@ -647,11 +684,13 @@ public partial class DownloadQueue
         {
             if (CleanupWaitLocked(item) != null) return false;
         }
-        using (EnterDurable(item))
+        try
         {
-            if (!PrepareDurableAdmission(ref item, prepared)) return false;
+            using Transition transition = EnterDurable(item);
+            if (!PrepareDurableAdmission(ref item, prepared, admission: transition.Admission)) return false;
             return TryEnqueuePrepared(item, prepared, out _, fromWaiter: false);
         }
+        catch (ProducerSuspendedException) { return false; }
     }
 
     /// <summary>
@@ -663,7 +702,7 @@ public partial class DownloadQueue
 
     private async Task<bool> EnqueueCoreAsync(DownloadItem item, CancellationToken cancellationToken, MediaWork? expected = null)
     {
-        using IDisposable admissionTransition = BeginTransition(item);
+        using IDisposable admissionTransition = BeginTransition(item, executing: false);
         PreparedDownload prepared = Prepare(item);
         AdmissionWaiter waiter;
         LinkedListNode<AdmissionWaiter> node;
@@ -677,13 +716,16 @@ public partial class DownloadQueue
             }
             if (cleanup == null)
             {
+                if (!await WaitForProducerAsync(cancellationToken, item.Thread).ConfigureAwait(false)) return false;
                 bool admitted = false;
                 AdmissionWaiter? created = null;
                 LinkedListNode<AdmissionWaiter>? createdNode = null;
-                using (EnterDurable(item))
+                try
+                {
+                using (Transition transition = EnterDurable(item))
                 {
                     // Store I/O happens outside the state lock; ownership is re-validated before publication.
-                    if (!PrepareDurableAdmission(ref item, prepared, expected)) return false;
+                    if (!PrepareDurableAdmission(ref item, prepared, expected, transition.Admission)) return false;
                     lock (_stateLock)
                     {
                         if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)) return false;
@@ -697,6 +739,8 @@ public partial class DownloadQueue
                         }
                     }
                 }
+                }
+                catch (ProducerSuspendedException) { continue; }
                 if (admitted)
                 {
                     waiter = created!;
@@ -716,6 +760,7 @@ public partial class DownloadQueue
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                await WaitForProducerAsync(linked.Token).ConfigureAwait(false);
                 Task changed;
                 bool selected;
                 lock (_stateLock)
@@ -728,9 +773,11 @@ public partial class DownloadQueue
                 {
                     // The final boundary is resource fence -> store -> short state lock. An old
                     // waiter cannot overwrite a newer admitted descriptor while awaiting target/capacity.
-                    using (EnterDurable(item))
+                    try
                     {
-                        if (!CanRunDurableLocked(item)) return false;
+                    using (Transition transition = EnterDurable(item))
+                    {
+                        if (!CanRunDurableLocked(item, transition.Admission)) return false;
                         lock (_stateLock) changed = _capacityChanged.Task;
                         bool accepted = TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: true, expectedWaiter: waiter);
                         if (!full)
@@ -739,8 +786,10 @@ public partial class DownloadQueue
                             return accepted;
                         }
                     }
+                    }
+                    catch (ProducerSuspendedException) { continue; }
                 }
-                await changed.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await changed.WaitAsync(linked.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested &&
@@ -762,7 +811,7 @@ public partial class DownloadQueue
     }
 
     /// <summary>Caller holds the resource fence, never _stateLock during I/O.</summary>
-    private bool PrepareDurableAdmission(ref DownloadItem item, PreparedDownload prepared, MediaWork? expected = null)
+    private bool PrepareDurableAdmission(ref DownloadItem item, PreparedDownload prepared, MediaWork? expected = null, ProfileAdmissionToken? admission = null)
     {
         IWorkStateStore? store = _workStore;
         if (store == null) return true;
@@ -795,7 +844,7 @@ public partial class DownloadQueue
         };
         if (next.Status is MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired or MediaWorkStatus.Excluded) return false;
         if (!next.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && next.HttpStatus == 404 && now >= end.AddHours(12)) return false;
-        if (!WorkStateAccess.For(store).TryCommitMedia(next, previous)) return false;
+        if (!WorkStateAccess.For(store).TryCommitMedia(next, previous, admission)) return false;
         if (next.DueAt is DateTimeOffset due && due > now)
         {
             lock (_stateLock)
@@ -1002,10 +1051,12 @@ public partial class DownloadQueue
             }
 
             _stopping = true;
+            _producerClosed = true;
             _metadataAdmission.Close();
             waiters = _admissionWaiters.ToArray();
             _scheduleChanged.TrySetResult();
             _resumed.TrySetResult();
+            _producerResumed.TrySetResult();
             stopCompletion = CreateCompletionSource();
             _stopCompletion = stopCompletion;
             threads = new List<ThreadState>(_threads.Values);
@@ -1103,7 +1154,7 @@ public partial class DownloadQueue
     private List<QueuedDownload> ReserveWorkersLocked()
     {
         List<QueuedDownload> ready = new List<QueuedDownload>();
-        while (!_stopping && !_paused && _activeDownloads < EffectiveParallelDownloadsLocked && (_pendingDownloads.Count > 0 || _interruptedDownloads.Count > 0))
+        while (!_stopping && !_paused && !_producerSuspended && _activeDownloads < EffectiveParallelDownloadsLocked && (_pendingDownloads.Count > 0 || _interruptedDownloads.Count > 0))
         {
             DownloadPriority preferred = _preferManualDispatch ? DownloadPriority.Manual : DownloadPriority.BoardDiscovery;
             var eligible = new List<LinkedListNode<QueuedDownload>>();
@@ -1137,6 +1188,9 @@ public partial class DownloadQueue
             }
             if (chosen == null) break;
             QueuedDownload job = chosen.Value;
+            // Admission can refuse (e.g. a standalone queue's first execution).
+            // Acquire before altering logical reservations or active accounting.
+            ProfileProducerEpoch.Use? producerUse = EnterProducerLocked();
             chosen.List!.Remove(chosen);
             RecordUserReservationLocked(job.Item.Thread, admission: false);
             if (job.Item.Filter != null) _activeFilteredDownloads++;
@@ -1144,6 +1198,7 @@ public partial class DownloadQueue
             job.ThreadState.LastDispatch = ++_dispatchSequence;
             job.IsActive = true;
             job.EpochToken = _transferEpoch.Token;
+            job.ProducerUse = producerUse;
             if (_activeDownloads == 0) _workersDrained = CreateCompletionSource();
             _activeDownloads++;
             ready.Add(job);
@@ -1162,6 +1217,8 @@ public partial class DownloadQueue
 
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
+        using ProfileProducerEpoch.Use? producerUse = job.ProducerUse;
+        ProfileAdmissionToken? producerAdmission = producerUse?.Admission;
         using var measurement = PerformanceDiagnostics.Measure("queue.worker", request: job.Item.WorkOperationId,
             watch: job.Item.Thread.ThreadUri.AbsoluteUri, asset: job.Item.AcquisitionRevisionKey ?? job.Item.MediaIdentifier + ":" + job.Item.Variant,
             epoch: job.Item.WorkGeneration ?? 0);
@@ -1174,14 +1231,14 @@ public partial class DownloadQueue
         {
             job.EpochToken.ThrowIfCancellationRequested();
             cancellation.Token.ThrowIfCancellationRequested();
-            if (!CanRunDurable(job.Item)) return;
+            if (!CanRunDurable(job.Item, producerAdmission)) return;
             if (!await _targets.CheckAsync(TargetPath(job.Item), job.Item.ExpectedSize, cancellation.Token).ConfigureAwait(false))
             { targetBlocked = true; return; }
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
                 _logger, notifyThread: _workStore == null)
             {
                 BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes),
-                AcquirePublicationFence = token => AcquirePublicationAsync(job.Item, token)
+                AcquirePublicationFence = token => AcquirePublicationAsync(job.Item, token, producerAdmission)
             };
             await worker.ExecuteAsync(cancellation.Token).ConfigureAwait(false);
             committed = worker.CompletedResult ?? throw new InvalidDataException("Media worker returned without a committed asset receipt.");
@@ -1203,7 +1260,7 @@ public partial class DownloadQueue
         {
             try
             {
-                if (RecordFilterOmission(job.Item, omission))
+                if (RecordFilterOmission(job.Item, omission, producerAdmission))
                 {
                     if (job.Item.Thread is Boards.Base.BaseThread thread)
                         thread.PublishMediaFilterOmission(job.Item.MediaIdentifier, job.Item.DestinationPath, omission.IsNoMatch, omission.ReasonCode, job.Item.Variant);
@@ -1222,7 +1279,7 @@ public partial class DownloadQueue
         catch (Exception exception)
         {
             bool current = _workStore == null;
-            try { current |= RecordDurableResult(job.Item, exception); }
+            try { current |= RecordDurableResult(job.Item, exception, admission: producerAdmission); }
             catch (Exception persistenceFailure)
             {
                 Quarantine(job.Item, persistenceFailure);
@@ -1245,7 +1302,7 @@ public partial class DownloadQueue
             {
                 try
                 {
-                    if (RecordDurableResult(job.Item, null, committed))
+                    if (RecordDurableResult(job.Item, null, committed, admission: producerAdmission))
                     {
                         if (job.Item.Thread is Boards.Base.BaseThread thread)
                             thread.MarkMediaAsDownloaded(job.Item.MediaIdentifier, job.Item.DestinationPath, job.Item.Variant);
@@ -1260,7 +1317,7 @@ public partial class DownloadQueue
             Cleanup cleanup = new Cleanup();
             List<QueuedDownload> ready;
             // Read the durable 404 deadline before taking the state lock; it is only applied if still needed.
-            MediaWork? preservedDeadline = targetBlocked ? LoadBlockedDeadline(job.Item) : null;
+            MediaWork? preservedDeadline = targetBlocked ? LoadBlockedDeadline(job.Item, producerAdmission) : null;
             lock (_stateLock)
             {
                 _activeDownloads--;
@@ -1309,7 +1366,7 @@ public partial class DownloadQueue
         }
     }
 
-    private MediaWork? LoadBlockedDeadline(DownloadItem item)
+    private MediaWork? LoadBlockedDeadline(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
         IWorkStateStore? store = _workStore;
         WorkResource owner;
@@ -1320,7 +1377,7 @@ public partial class DownloadQueue
         }
         try
         {
-            using (EnterDurable(item))
+            using (EnterDurable(item, admission, continuation: true))
             {
                 MediaWork? work = FindMedia(store, owner, item);
                 return work is { HttpStatus: 404, ManualAttempt: false } && SameRetrieval(work, item) ? work : null;
@@ -1337,9 +1394,9 @@ public partial class DownloadQueue
         SignalScheduleLocked();
     }
 
-    private bool RecordFilterOmission(DownloadItem item, MediaFilterOmissionException omission)
+    private bool RecordFilterOmission(DownloadItem item, MediaFilterOmissionException omission, ProfileAdmissionToken? admission = null)
     {
-        using (EnterDurable(item))
+        using (EnterDurable(item, admission, continuation: true))
         {
             IWorkStateStore? store = _workStore;
             if (store == null) return true;
@@ -1354,7 +1411,7 @@ public partial class DownloadQueue
             {
                 Status = omission.IsNoMatch ? MediaWorkStatus.Excluded : MediaWorkStatus.NeedsIntervention,
                 Failure = omission.ReasonCode, DueAt = null, ManualAttempt = false
-            }, previous)) return false;
+            }, previous, admission)) return false;
             lock (_stateLock) if (!ItemOwnerCurrentLocked(item, owner)) return false;
         }
         _changes.Signal();
@@ -1375,12 +1432,12 @@ public partial class DownloadQueue
         _changes.Signal();
     }
 
-    private bool CanRunDurable(DownloadItem item)
+    private bool CanRunDurable(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
-        using (EnterDurable(item)) return CanRunDurableLocked(item);
+        using (EnterDurable(item, admission, continuation: true)) return CanRunDurableLocked(item, admission);
     }
 
-    private bool CanRunDurableLocked(DownloadItem item)
+    private bool CanRunDurableLocked(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
         IWorkStateStore? store = _workStore;
         if (store == null) return true;
@@ -1399,7 +1456,7 @@ public partial class DownloadQueue
         if (!media.ManualAttempt && media.HttpStatus == 404 && current.EndObservedAt is DateTimeOffset end
             && now >= end.AddHours(12))
         {
-            WorkStateAccess.For(store).TryCommitMedia(media with { Status = MediaWorkStatus.Expired, DueAt = null }, media);
+            WorkStateAccess.For(store).TryCommitMedia(media with { Status = MediaWorkStatus.Expired, DueAt = null }, media, admission);
             _changes.Signal();
             return false;
         }
@@ -1408,12 +1465,12 @@ public partial class DownloadQueue
             && (media.DueAt == null || media.DueAt <= now);
     }
 
-    private bool RecordDurableResult(DownloadItem item, Exception? failure, MediaCommitResult? committed = null)
+    private bool RecordDurableResult(DownloadItem item, Exception? failure, MediaCommitResult? committed = null, ProfileAdmissionToken? admission = null)
     {
-        using (EnterDurable(item)) return RecordDurableResultLocked(item, failure, committed);
+        using (EnterDurable(item, admission, continuation: true)) return RecordDurableResultLocked(item, failure, committed, admission);
     }
 
-    private bool RecordDurableResultLocked(DownloadItem item, Exception? failure, MediaCommitResult? committed)
+    private bool RecordDurableResultLocked(DownloadItem item, Exception? failure, MediaCommitResult? committed, ProfileAdmissionToken? admission = null)
     {
         IWorkStateStore? store = _workStore;
         if (store == null) return false;
@@ -1455,7 +1512,7 @@ public partial class DownloadQueue
                 Attempts = attempt, ConsecutiveNotFound = missing, LastAttemptAt = now,
                 DueAt = expired ? null : due, Failure = failure.Message, HttpStatus = status, ManualAttempt = false };
         }
-        if (!WorkStateAccess.For(store).TryCommitMedia(next, previous)) return false;
+        if (!WorkStateAccess.For(store).TryCommitMedia(next, previous, admission)) return false;
         PerformanceDiagnostics.Record("queue.worker.result", next.Status.ToString(), request: item.WorkOperationId,
             watch: owner.Url, asset: item.AcquisitionRevisionKey ?? item.MediaIdentifier + ":" + item.Variant, epoch: owner.Generation);
         if (next.Status == MediaWorkStatus.Waiting && next.DueAt != null)
@@ -1543,6 +1600,12 @@ public partial class DownloadQueue
             lock (_stateLock) durableDrained = _durableDrained.Task;
             await durableDrained.ConfigureAwait(false);
             if (_targetPolling != null) await _targetPolling.ConfigureAwait(false);
+            if (_ownsProducerEpoch && _producerEpoch is { } epoch)
+            {
+                await epoch.Close().ConfigureAwait(false);
+                epoch.Dispose();
+                _producerEpoch = null;
+            }
             completion.TrySetResult();
         }
         catch (Exception exception)
@@ -1657,6 +1720,8 @@ public partial class DownloadQueue
         public bool IsActive { get; set; }
         public IOriginalMediaFilter? SubscribedFilter { get; set; }
         public CancellationToken EpochToken { get; set; }
+        public ProfileProducerEpoch.Use? ProducerUse { get; set; }
+        public ProfileAdmissionToken? ProducerAdmission => ProducerUse?.Admission;
 
         public QueuedDownload(JobIdentity identity, string url, DownloadItem item, ThreadState threadState)
         {

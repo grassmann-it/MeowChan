@@ -26,7 +26,7 @@ public sealed class DesktopPrivateStoreAdmissionTests
         await using ProjectionBarrier projection = await ProjectionBarrier.HoldAsync(f.Host);
         using CancellationTokenSource cancellation = new();
         Task command = StartCommand(f, family);
-        Task<ProfileAdmissionToken>? exclusive = null;
+        OwnerExclusive? exclusive = null;
         try
         {
             Assert.Equal(1, f.Host.AcceptedCommandCount);
@@ -35,8 +35,8 @@ public sealed class DesktopPrivateStoreAdmissionTests
             // Bookmark is deliberately the first writer: its lazy cleanup constructor
             // must borrow the command token too, not enter a second Ordinary lane.
             if (family == "bookmark") Assert.Null(Field<PostBookmarkStore?>(f.Host, "_postBookmarks"));
-            exclusive = f.Admission.EnterExclusiveAsync(cancellation.Token).AsTask();
-            Assert.False(exclusive.IsCompleted);
+            exclusive = new OwnerExclusive(f.Host, cancellation.Token);
+            Assert.False(exclusive.Entered.IsCompleted);
             await Assert.ThrowsAsync<InvalidOperationException>(() => StartCommand(f, family, other: true).WaitAsync(Deadline));
             Assert.Equal(1, f.Host.AcceptedCommandCount); // Refusal did not register another slot.
 
@@ -47,11 +47,11 @@ public sealed class DesktopPrivateStoreAdmissionTests
             // cannot pass _viewCapture. Release at the file commit would grant too soon.
             Assert.False(command.IsCompleted);
             Assert.Equal(1, f.Host.AcceptedCommandCount);
-            Assert.False(exclusive.IsCompleted);
+            Assert.False(exclusive.Entered.IsCompleted);
 
             projection.Release();
             await command.WaitAsync(Deadline);
-            using ProfileAdmissionToken granted = await exclusive.WaitAsync(Deadline);
+            ProfileAdmissionToken granted = await exclusive.Entered.WaitAsync(Deadline);
             Assert.Equal(ProfileAdmissionKind.Exclusive, granted.Kind);
             Assert.Equal(0, f.Host.AcceptedCommandCount);
             AssertPersisted(f, family);
@@ -61,7 +61,7 @@ public sealed class DesktopPrivateStoreAdmissionTests
             f.ReleaseCommands();
             projection.Release();
             cancellation.Cancel();
-            if (exclusive is not null) await ReleaseExclusiveAsync(exclusive);
+            if (exclusive is not null) await exclusive.ReleaseAsync();
             await ObserveAsync(command);
         }
         // Repeat the exact previously refused target, detecting both leaked slots
@@ -91,16 +91,16 @@ public sealed class DesktopPrivateStoreAdmissionTests
         Assert.Equal(before, System.IO.Directory.GetFiles(f.Directory.Path).Order().ToArray());
         Assert.Equal(0, f.Host.AcceptedCommandCount);
         using CancellationTokenSource cancellation = new();
-        Task<ProfileAdmissionToken> exclusive = f.Admission.EnterExclusiveAsync(cancellation.Token).AsTask();
+        OwnerExclusive exclusive = new(f.Host, cancellation.Token);
         try
         {
-            using ProfileAdmissionToken granted = await exclusive.WaitAsync(Deadline);
+            ProfileAdmissionToken granted = await exclusive.Entered.WaitAsync(Deadline);
             Assert.Equal(ProfileAdmissionKind.Exclusive, granted.Kind);
         }
         finally
         {
             cancellation.Cancel();
-            await ReleaseExclusiveAsync(exclusive);
+            await exclusive.ReleaseAsync();
         }
     }
 
@@ -119,12 +119,12 @@ public sealed class DesktopPrivateStoreAdmissionTests
         await using ProjectionBarrier projection = await ProjectionBarrier.HoldAsync(f.Host);
         using CancellationTokenSource cancellation = new();
         Task<bool> mark = sequence.SetAsync(true);
-        Task<ProfileAdmissionToken> exclusive = f.Admission.EnterExclusiveAsync(cancellation.Token).AsTask();
+        OwnerExclusive exclusive = new(f.Host, cancellation.Token);
         try
         {
             if (disposeEarly) sequence.Dispose();
             Assert.Same(accepted, SequenceToken(f.Host, sequence));
-            Assert.False(exclusive.IsCompleted);
+            Assert.False(exclusive.Entered.IsCompleted);
             Assert.Equal(1, f.Host.AcceptedCommandCount);
             if (disposeEarly)
                 await Assert.ThrowsAsync<ObjectDisposedException>(() => sequence.SetAsync(false).WaitAsync(Deadline));
@@ -135,22 +135,22 @@ public sealed class DesktopPrivateStoreAdmissionTests
             Until(() => f.Host.IsFavorite(f.Entry), "Sequence did not publish its accepted mark.");
             AssertPersisted(f, "favorite");
             Assert.False(mark.IsCompleted);
-            Assert.False(exclusive.IsCompleted);
+            Assert.False(exclusive.Entered.IsCompleted);
             Assert.Same(accepted, SequenceToken(f.Host, sequence));
             projection.Release();
             Assert.True(await mark.WaitAsync(Deadline));
             if (!disposeEarly)
             {
-                Assert.False(exclusive.IsCompleted); // Idle gap still belongs to the sequence.
+                Assert.False(exclusive.Entered.IsCompleted); // Idle gap still belongs to the sequence.
                 Assert.Same(accepted, SequenceToken(f.Host, sequence));
                 Assert.True(await sequence.SetAsync(false).WaitAsync(Deadline));
                 Assert.Empty(new FavoriteStore(f.Directory.Path, f.Lease).List());
                 Assert.False(f.Host.IsFavorite(f.Entry));
                 Assert.Same(accepted, SequenceToken(f.Host, sequence));
-                Assert.False(exclusive.IsCompleted);
+                Assert.False(exclusive.Entered.IsCompleted);
                 sequence.Dispose();
             }
-            using ProfileAdmissionToken granted = await exclusive.WaitAsync(Deadline);
+            ProfileAdmissionToken granted = await exclusive.Entered.WaitAsync(Deadline);
             Assert.Equal(0, f.Host.AcceptedCommandCount);
         }
         finally
@@ -159,7 +159,7 @@ public sealed class DesktopPrivateStoreAdmissionTests
             projection.Release();
             sequence.Dispose();
             cancellation.Cancel();
-            await ReleaseExclusiveAsync(exclusive);
+            await exclusive.ReleaseAsync();
             await ObserveAsync(mark);
         }
     }
@@ -217,10 +217,32 @@ public sealed class DesktopPrivateStoreAdmissionTests
     private static void Until(Func<bool> condition, string message) =>
         Assert.True(SpinWait.SpinUntil(condition, Deadline), message);
 
-    private static async Task ReleaseExclusiveAsync(Task<ProfileAdmissionToken> exclusive)
+    // P08e adds a counted producer epoch even for a paused empty host. A raw
+    // Admission.EnterExclusiveAsync waits for that live epoch forever by design;
+    // use the real owner lane to suspend/drain it, then keep its borrowed token
+    // held until the same pending-command/projection assertions have completed.
+    private sealed class OwnerExclusive
     {
-        try { (await exclusive.WaitAsync(Deadline)).Dispose(); }
-        catch (OperationCanceledException) { }
+        private readonly TaskCompletionSource<ProfileAdmissionToken> _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Task _operation;
+        internal Task<ProfileAdmissionToken> Entered => _entered.Task;
+
+        internal OwnerExclusive(DesktopSessionHost host, CancellationToken token)
+        {
+            _operation = host.RunWithProfileProducerExclusiveAsync(async admission =>
+            {
+                _entered.TrySetResult(admission);
+                await _release.Task.WaitAsync(token);
+            }, token);
+        }
+
+        internal async Task ReleaseAsync()
+        {
+            _release.TrySetResult();
+            try { await _operation.WaitAsync(Deadline); }
+            catch (OperationCanceledException) { }
+        }
     }
 
     private static async Task ObserveAsync(Task command)

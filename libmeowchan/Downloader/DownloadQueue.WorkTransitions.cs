@@ -14,9 +14,9 @@ public partial class DownloadQueue
     internal Func<DownloadItem, Task>? BeforeFinalAdmission { get; set; }
     private readonly Dictionary<DownloadItem, int> _transitionItems = new(ReferenceEqualityComparer.Instance);
 
-    private IDisposable EnterDurable(DownloadItem item)
+    private Transition EnterDurable(DownloadItem item, ProfileAdmissionToken? admission = null, bool continuation = false)
     {
-        Transition transition = BeginTransition(item);
+        Transition transition = BeginTransition(item, admission, executing: !continuation);
         try
         {
             IWorkStateStore? store = _workStore;
@@ -50,18 +50,22 @@ public partial class DownloadQueue
         }
     }
 
-    private Transition BeginTransition(DownloadItem? item = null)
+    private Transition BeginTransition(DownloadItem? item = null, ProfileAdmissionToken? admission = null, bool executing = true)
     {
         lock (_stateLock)
         {
+            ProfileProducerEpoch.Use? use = executing && admission == null ? EnterProducerLocked() : null;
+            Transition transition = new(this, item, admission ?? use?.Admission, use);
             if (_durableTransitions++ == 0) _durableDrained = CreateCompletionSource();
             if (item != null) _transitionItems[item] = _transitionItems.GetValueOrDefault(item) + 1;
+            return transition;
         }
-        return new Transition(this, item);
     }
 
-    private sealed class Transition(DownloadQueue owner, DownloadItem? item) : IDisposable
+    private sealed class Transition(DownloadQueue owner, DownloadItem? item,
+        ProfileAdmissionToken? admission, ProfileProducerEpoch.Use? use) : IDisposable
     {
+        internal ProfileAdmissionToken? Admission => admission;
         internal IDisposable? Fence;
         internal PerformanceDiagnostics.Measurement Measurement;
         private int _released;
@@ -79,6 +83,7 @@ public partial class DownloadQueue
                 }
                 if (--owner._durableTransitions == 0) owner._durableDrained.TrySetResult();
             }
+            use?.Dispose();
         }
     }
 
@@ -105,9 +110,9 @@ public partial class DownloadQueue
         lock (_stateLock) _retiringThreads.Remove(thread);
     }
 
-    private async ValueTask<IDisposable> AcquirePublicationAsync(DownloadItem item, CancellationToken token)
+    private async ValueTask<IDisposable> AcquirePublicationAsync(DownloadItem item, CancellationToken token, ProfileAdmissionToken? admission)
     {
-        Transition transition = BeginTransition(item);
+        Transition transition = BeginTransition(item, admission, executing: false);
         try
         {
             if (_workStore != null)
@@ -120,7 +125,7 @@ public partial class DownloadQueue
             token.ThrowIfCancellationRequested();
             bool current;
             lock (_stateLock) current = !_stopping && !_cancelledThreads.TryGetValue(item.Thread, out _);
-            if (!current || !CanRunDurableLocked(item))
+            if (!current || !CanRunDurableLocked(item, transition.Admission))
                 throw new StaleMediaWorkException();
             token.ThrowIfCancellationRequested();
             transition.Measurement = PerformanceDiagnostics.Measure("queue.publication", request: item.WorkOperationId,

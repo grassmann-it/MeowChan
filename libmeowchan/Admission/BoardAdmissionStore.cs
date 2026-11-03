@@ -31,7 +31,13 @@ public sealed class BoardAdmissionStore
     public BoardAdmissionPolicy Get(string url) => Volatile.Read(ref _policies).GetValueOrDefault(url) ?? BoardAdmissionPolicy.All;
     public void Save(string url, BoardAdmissionPolicy policy)
     {
-        _lease.RunExclusive(() =>
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter();
+        SaveAdmitted(url, policy, admission);
+    }
+    internal ProfileLease ProfileLease => _lease;
+    internal void SaveAdmitted(string url, BoardAdmissionPolicy policy, ProfileAdmissionToken admission)
+    {
+        _lease.RunStoreWrite(admission, () =>
         {
             var next = new Dictionary<string, BoardAdmissionPolicy>(_policies, StringComparer.Ordinal) { [url] = policy };
             BoardAdmissionDocument document = new() { Boards = next.ToDictionary(pair => pair.Key, pair => new BoardPolicyDocument

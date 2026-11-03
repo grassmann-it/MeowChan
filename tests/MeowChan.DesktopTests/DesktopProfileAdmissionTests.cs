@@ -215,12 +215,22 @@ public sealed class DesktopProfileAdmissionTests
         await using HostFixture fixture = await HostFixture.StartedAsync();
         await fixture.HoldCommandsAsync();
         Task control = fixture.Host.SetPausedAsync(true);
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using CancellationTokenSource cancellation = new();
-        Task<ProfileAdmissionToken> exclusive = fixture.Admission.EnterExclusiveAsync(cancellation.Token).AsTask();
+        Task owner = fixture.Host.RunWithProfileProducerExclusiveAsync(async admission =>
+        {
+            Assert.Equal(ProfileAdmissionKind.Exclusive, admission.Kind);
+            Assert.True(fixture.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+            entered.TrySetResult();
+            await release.Task.WaitAsync(Deadline);
+            // Cancellation after grant cannot revoke this exact accepted token.
+            Assert.True(fixture.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+        }, cancellation.Token);
         try
         {
             Assert.False(control.IsCompleted);
-            Assert.False(exclusive.IsCompleted); // The accepted control really owns Ordinary.
+            Assert.False(owner.IsCompleted); // The accepted control keeps the producer-owner reservation pending.
             Assert.Same(control, fixture.Host.SetPausedAsync(true));
             await Assert.ThrowsAsync<DesktopSessionBusyException>(() => fixture.Host.SetPausedAsync(false));
             await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Host.RemoveThreadAsync(1));
@@ -229,18 +239,19 @@ public sealed class DesktopProfileAdmissionTests
 
             fixture.ReleaseCommands();
             await control.WaitAsync(Deadline);
-            using ProfileAdmissionToken granted = await exclusive.WaitAsync(Deadline);
-            Assert.Equal(ProfileAdmissionKind.Exclusive, granted.Kind);
+            await entered.Task.WaitAsync(Deadline);
+            Assert.False(owner.IsCompleted);
+            cancellation.Cancel();
+            release.TrySetResult();
+            await owner.WaitAsync(Deadline);
             Assert.Equal(ProfileAdmissionPhase.Ready, fixture.Admission.Phase);
         }
         finally
         {
             fixture.ReleaseCommands();
-            cancellation.Cancel();
-            // Cancellation after grant does not revoke the granted ownership.
-            try { (await exclusive.WaitAsync(Deadline)).Dispose(); }
-            catch (OperationCanceledException) { }
+            release.TrySetResult();
             await control.WaitAsync(Deadline);
+            await owner.WaitAsync(Deadline);
         }
         await fixture.Host.SetPausedAsync(true).WaitAsync(Deadline);
     }
@@ -249,12 +260,27 @@ public sealed class DesktopProfileAdmissionTests
     public async Task ActiveExclusiveRefusesOrdinaryHostBookkeepingAndLeavesEveryLaneReusable()
     {
         await using HostFixture fixture = await HostFixture.StartedAsync();
-        using (ProfileAdmissionToken exclusive = await fixture.Admission.EnterExclusiveAsync())
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task owner = fixture.Host.RunWithProfileProducerExclusiveAsync(async admission =>
         {
+            Assert.Equal(ProfileAdmissionKind.Exclusive, admission.Kind);
+            Assert.True(fixture.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+            entered.TrySetResult();
+            await release.Task.WaitAsync(Deadline);
+        });
+        try
+        {
+            await entered.Task.WaitAsync(Deadline);
             await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Host.RemoveThreadAsync(1));
             await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Host.SetPausedAsync(true));
             Assert.Throws<InvalidOperationException>(() => fixture.Host.AdmitFavoriteSequence(fixture.Entry));
             Assert.Equal(0, fixture.Host.AcceptedCommandCount);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await owner.WaitAsync(Deadline);
         }
         await fixture.Host.SetPausedAsync(true).WaitAsync(Deadline);
         DesktopSessionHost.FavoriteWriteSequence sequence = fixture.AdmitSequence();

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Admission;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -25,16 +26,16 @@ internal sealed partial class DesktopSessionHost
     internal Task<DesktopAdmissionResult> ApplyBoardAdmissionAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls = null)
     {
         string[]? frozen = reactivateThreadUrls?.ToArray();
-        return RunInteractiveAsync(nameof(ApplyBoardAdmissionAsync), url.Trim(), () => ApplyBoardAdmissionAdmittedCoreAsync(url, policy, frozen));
+        return RunInteractiveWithAdmissionAsync(nameof(ApplyBoardAdmissionAsync), url.Trim(), admission => ApplyBoardAdmissionAdmittedCoreAsync(url, policy, frozen, admission));
     }
 
-    private async Task<DesktopAdmissionResult> ApplyBoardAdmissionAdmittedCoreAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls = null)
+    private async Task<DesktopAdmissionResult> ApplyBoardAdmissionAdmittedCoreAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            AdmissionResult result = await _registry.ApplyBoardAdmissionAsync(url, policy, reactivateThreadUrls).ConfigureAwait(false);
+            AdmissionResult result = await _registry.ApplyBoardAdmissionAdmittedAsync(url, policy, reactivateThreadUrls, admission).ConfigureAwait(false);
             await CaptureProjectionAsync().ConfigureAwait(false);
             long? watchId = null;
             lock (_projection)
