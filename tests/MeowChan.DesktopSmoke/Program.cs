@@ -133,7 +133,8 @@ internal static class Program
                 config.Theme = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCH_THEME") ?? "Dark";
                 config.DownloadsPaused = true; config.SaveUrlsOnExit = false;
             }
-            if (_galleryCloseOnly) config.WorkspaceMode = "Advanced";
+            if (_galleryCloseOnly || Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1")
+                config.WorkspaceMode = "Advanced";
             if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_RATINGS_ONLY") == "1")
                 config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_RATINGS_MODE") ?? "Advanced";
             if ((!_readingPositionMode && !_savedSearchesOnly) || !File.Exists(Path.Combine(profile, "settings.json"))) config.SaveConfig();
@@ -220,15 +221,27 @@ internal static class Program
             }
 
             string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1"
-                ? "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE, recorded scale; managed input, no OCR or cross-platform claim"
+                ? "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1"
                 ? "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SAFETY_ONLY") == "1"
                 ? "download resource limit: real Settings Save/Discard/rejection and fresh host, managed input; no HTTP/load claim"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_CLIPBOARD_MONITOR_ONLY") == "1"
                 ? "clipboard monitor: isolated synthetic clipboard, Save/Discard, passive offer, local button confirmation and lifecycle; managed input"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY") == "1"
+                ? "board admission command-help refresh: UI-thread live accessibility bindings and all seven mapping hints; private controls, no catalog fetch or apply"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY") == "1"
+                ? "rating dialog/manager language refresh: private fixtures, rows/draft/selection/accessibility and provider-call counts; managed input"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY") == "1"
+                ? "settings/first-run language refresh: rejected drafts, focus and live pending destination check; managed input, private fixtures"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_MENU_LANGUAGE_ONLY") == "1"
+                ? "plugin menu language: passive real menu reload, transient status/discard cancellation and raw draft retention"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_SETTINGS_LANGUAGE_ONLY") == "1"
+                ? "plugin settings language: UI-thread editor reconstruction, raw drafts and provider messages retained; no provider activation"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1"
+                ? "language switch footer: passive EN/ES/FR/RU/EN mode selector and command-label refresh; no URL/source activation"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_PREVIEW_LANGUAGES_ONLY") == "1"
-                ? "optional ES/FR preview packs: profile load, settings commit/live switch, raw drafts and screenshots; no whole-UI/native linguistic claim"
+                ? "bundled ES/FR/RU preview packs: embedded load, settings commit/live switch, raw drafts and screenshots; no whole-UI/native linguistic claim"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_WINDOW_CHROME_ONLY") == "1"
                 ? "app chrome: isolated native geometry and right-edge pixels, own Settings/About captions, modal lifetime; platform/scales as recorded"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FAVORITES_ONLY") == "1"
@@ -369,6 +382,21 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_DOWNLOAD_SAFETY_ONLY") == "1")
             {
                 await DownloadSafetyLimitChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_BOARD_LANGUAGE_REFRESH_ONLY") == "1")
+            {
+                await BoardAdmissionLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY") == "1")
+            {
+                await RatingLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY") == "1")
+            {
+                await SettingsLanguageRefreshChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_SETTINGS_ONLY") == "1")
@@ -700,6 +728,21 @@ internal static class Program
                 _checksPassed = true;
                 mainWindow.Close();
                 return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_MENU_LANGUAGE_ONLY") == "1")
+            {
+                await PluginMenuLanguageSwitchChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_SETTINGS_LANGUAGE_ONLY") == "1")
+            {
+                PluginSettingsLanguageSwitchChecks.Run();
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_LANGUAGE_SWITCH_FOOTER_ONLY") == "1")
+            {
+                await LanguageSwitchFooterChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_PREVIEW_LANGUAGES_ONLY") == "1")
             {

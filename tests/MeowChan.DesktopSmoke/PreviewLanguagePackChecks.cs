@@ -24,15 +24,17 @@ internal static class PreviewLanguagePackChecks
         TextBox urls = window.FindControl<TextBox>("UrlInput")!;
         const string draft = "https://unsupported.invalid/été/mañana\npreview draft — not submitted";
         urls.Text = draft;
-        foreach (string code in new[] { "es", "fr" })
+        foreach (string code in new[] { "es", "fr", "ru" })
         {
             // A passive catalog switch is not a settings commit.
             Texts.SetLanguage(code);
+            Require(Texts.Language == code && Texts.Warnings.Count == 0,
+                code + ": bundled preview language was not effective without loader warnings.");
             await Program.WaitUntilAsync(() => AutomationProperties.GetName(window.FindControl<Button>("AddUrlButton")!) == Texts.T("action.add"));
             Require(initialSettings.SequenceEqual(File.ReadAllBytes(Path.Combine(profile, "settings.json"))), "Passive switch wrote preferences.");
         }
         Texts.SetLanguage("en");
-        foreach (string code in new[] { "es", "fr" })
+        foreach (string code in new[] { "es", "fr", "ru" })
         {
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => window.SettingsPageVisible);
@@ -96,7 +98,7 @@ internal static class PreviewLanguagePackChecks
         // Bundled catalog rediscovery emulates next startup only, not a process restart.
         Texts.Initialize(Path.Combine(profile, "LanguagePacks"));
         Texts.SetLanguage(Config.LoadConfig(profile).Language);
-        Require(Texts.Language == "fr" && Texts.Warnings.Count == 0, "Saved preview preference cannot be loaded again.");
+        Require(Texts.Language == "ru" && Texts.Warnings.Count == 0, "Saved preview preference cannot be loaded again.");
         Console.WriteLine("SMOKE preview limits: managed/routed input on this Linux desktop; screenshots for accents/layout; no native linguistic, whole-UI, Windows/macOS, process restart or CJK acceptance.");
     }
 

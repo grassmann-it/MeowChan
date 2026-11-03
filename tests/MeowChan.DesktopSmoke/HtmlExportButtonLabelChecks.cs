@@ -34,6 +34,7 @@ internal static class HtmlExportButtonLabelChecks
         bool inspectorWasVisible = owner.FindControl<Border>("WorkspaceInspector")!.IsVisible;
         try
         {
+            Require(Texts.Warnings.Count == 0, "Bundled catalog loader reported warnings before HTML label checks.");
             await PresentationChecks.SwitchModeAsync(owner, "Simple");
             SmokeActionClick.Execute(owner.FindControl<Button>("DownloadsNavigationButton")!);
             await using (SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(owner,
@@ -47,9 +48,13 @@ internal static class HtmlExportButtonLabelChecks
                 if (!owner.FindControl<Border>("WorkspaceInspector")!.IsVisible)
                     SmokeActionClick.Execute(owner.FindControl<Button>("DetailsToggleButton")!);
                 Button inspector = owner.FindControl<Button>("InspectorHtmlExport")!;
-                foreach (string code in new[] { "en", "de" })
+                foreach (string code in new[] { "en", "de", "es", "fr", "ru" })
                 {
                     Texts.SetLanguage(code);
+                    Require(Texts.Language == code, code + ": bundled language did not become effective.");
+                    if (code is "es" or "fr" or "ru")
+                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                            code + ": HTML export command silently fell back to English; bundled pack coverage is not exercised.");
                     await SettleAsync(owner);
                     inspector.BringIntoView();
                     await SettleAsync(owner);
@@ -76,9 +81,13 @@ internal static class HtmlExportButtonLabelChecks
             var resultCommand = results.Command;
             var readerCommand = readerExport.Command;
             ActionToolBar toolbar = page.FindControl<ActionToolBar>("ArchiveResultActions")!;
-            foreach (string code in new[] { "en", "de" })
+            foreach (string code in new[] { "en", "de", "es", "fr", "ru" })
             {
                 Texts.SetLanguage(code);
+                Require(Texts.Language == code, code + ": bundled language did not become effective for archive export.");
+                if (code is "es" or "fr" or "ru")
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                        code + ": archive export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await SettleAsync(host);
                 await Program.WaitUntilAsync(() => !page.IsBusy && results.IsEnabled);
@@ -105,10 +114,14 @@ internal static class HtmlExportButtonLabelChecks
             detached = page.DetachReader(); // Exact production large-reader pane, not a reconstructed toolbar.
             host.Content = detached;
             foreach (var size in new[] { (Width: 1440d, Height: 920d), (Width: 760d, Height: 500d), (Width: 640d, Height: 480d) })
-            foreach (string code in new[] { "en", "de" })
+            foreach (string code in new[] { "en", "de", "es", "fr", "ru" })
             {
                 host.Width = size.Width; host.Height = size.Height;
                 Texts.SetLanguage(code);
+                Require(Texts.Language == code, code + ": bundled language did not become effective for large reader.");
+                if (code is "es" or "fr" or "ru")
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                        code + ": large-reader export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(host, size.Width, size.Height));
                 await SettleAsync(host);
@@ -118,7 +131,7 @@ internal static class HtmlExportButtonLabelChecks
                 Require(posts.IsEffectivelyVisible && posts.Bounds.Height >= 100, "Full labels left no readable post viewport.");
                 Program.CaptureWindow(host, $"smoke-html-label-reader-{code}-{size.Width}.png");
             }
-            Console.WriteLine($"SMOKE HTML export labels: full production EN/DE content, text geometry, inspector, actual URSA overflow/menu and split/large reader; scale={host.RenderScaling}. Managed presentation checks, no native input/pixel OCR claim.");
+            Console.WriteLine($"SMOKE HTML export labels: full production EN/DE/ES/FR/RU content, text geometry, inspector, actual URSA overflow/menu and split/large reader; scale={host.RenderScaling}. Managed presentation checks, no native input/pixel OCR claim.");
         }
         finally
         {

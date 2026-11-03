@@ -11,8 +11,8 @@ remain supported built-ins. The saved language is not changed automatically.
 | `fr.json` | `fr` · Français (Untested) | French, no regional review claimed |
 | `ru.json` | `ru` · Русский (Untested) | Russian, no linguistic/native-UI review claimed |
 
-The current target is all **1,353 nonempty translatable catalog strings** in this
-working copy (1,355 keys total, including two startup-preview strings). Two
+The current packs cover all **nonempty translatable catalog strings** in this
+working copy, including the command, rating and startup-preview catalogs. Two
 intentionally empty saved-search sentinels are omitted because schema v1 rejects
 empty translations; their English fallback stays empty. Tests compare each pack
 with the compiled English catalog and validate exact formatting contracts through
@@ -45,10 +45,16 @@ installation into the user's actual profile was performed by this change.
 
 ## Known English surfaces
 
-- Several helpers still select EN/DE directly, including gallery/playback labels,
-  rating/cleanup strings, command labels (including footer navigation), some
-  thread-favorite and thread-row text. These bypass
-  the shared catalog. They remain English for ES/FR/RU even with full key coverage.
+Command labels, including footer navigation and the four compact command labels,
+now use the shared catalog. The footer mode selector also uses catalog strings and
+refreshes its selected-item template on language changes. Catalog coverage and
+source-level refresh wiring do not establish native rendering, layout,
+accessibility or linguistic acceptance for these surfaces.
+
+- Several other helpers still select EN/DE directly, including remaining playback
+  labels, cleanup strings, and some thread-favorite and thread-row text.
+  These bypass the shared catalog and remain English for ES/FR/RU even with full
+  key coverage.
 - Semi/Ursa controls currently use German for DE and English for other languages.
   Native OS dialogs, engine/plugin messages and source/user content are separate.
 - Startup failures before profile initialization use EN/DE OS-language guidance;

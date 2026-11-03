@@ -52,6 +52,24 @@ when the feature is enabled and a saved reading position is known; it is hidden
 while the reader or gallery is visible. When no icon is shown on Downloads or
 the archive list, use the app-menu entry to check the reading-position state.
 
+### Language packs
+
+In Settings, choose **Language** and Save. Alongside English and German, the app
+bundles **Español (Untested)**, **Français (Untested)** and **Русский (Untested)**;
+no separate pack download is needed. These preview translations are untested;
+missing translations fall back to English. Catalog coverage is not complete-UI
+localization: some legacy and vendor controls still use English. See the
+[bundled-pack limitations](../Desktop/Localization/Packs/README.md#known-english-surfaces).
+
+### Clipboard URL monitor
+
+**Scan clipboard for URLs** in Settings is off by default. Enable it and Save to
+scan while the app is running. Supported board/thread URLs not already watched
+appear as a suggestion; choose **Add URLs (Enter)** to submit that offered batch
+through the normal Add flow, or **Dismiss** to ignore it. Detection alone adds no
+watches and starts no downloads. The monitor does not bring the app to the
+foreground or persist clipboard contents.
+
 ### Close and minimize to tray
 
 Settings provides independent **Close to tray** and **Minimize to tray** checkboxes
@@ -210,12 +228,16 @@ is in bytes per second after the displayed MiB/s conversion; it is not a promise
 that a remote source can supply that speed. More concurrent requests do not bypass
 source admission, server cooldowns, disk work or media verification.
 
-For resource protection, at most **32 transfers** are started at once, even if the
-saved parallel-download setting is higher. The Downloads summary reports this
-safety limit; its tooltip distinguishes configured and effective values. The saved
-setting is not rewritten. Reducing the limit lets existing transfers drain rather
-than restarting them. The pending queue remains bounded; it is not a count of all
-media still available in watched threads.
+Settings → **Media transfer resource limit** configures the safety cap
+(**1–256**, default **32**). Save to apply it immediately. Effective parallelism
+is the smaller of **Parallel downloads** and this cap; raise both to allow more
+than 32 transfers. Higher values use more resources, and source limits and
+bandwidth still apply. The Downloads summary and its tooltip distinguish
+configured and effective values; the saved parallel-download setting is not
+rewritten. Reducing the limit lets existing transfers drain rather than restarting
+them. This cap bounds open media transfers, not watched threads or queued files.
+The pending queue remains bounded; it is not a count of all media still available
+in watched threads.
 
 Select one or more thread watches and use **High priority** in the context menu to
 favor their next runnable files. Multiple High watches share turns; ready Normal
@@ -347,7 +369,16 @@ start docked; later choices are remembered. F11 remains a separate window action
 Show context to read the associated saved post and available local references.
 A media-only item can have no captured post. In the gallery, **P** toggles saved-post
 context, **0** selects Fit, **1** selects 1:1, **F** toggles the current media favorite,
-and F1 or ? opens keyboard help. Space plays or pauses an active local video.
+and F1 or ? opens keyboard help. **M** picks the current medium (**Add favorite**);
+**U** unpicks it (**Remove favorite**). These set the mark explicitly rather than
+toggling it. The upper-right **★ / ☆** indicator shows favorite / not favorite;
+**…** indicates a pending save. These are default bindings; customized shortcuts
+still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
+available video volume without changing Playing/Paused; in the reader those keys
+still navigate posts. Manual mute/unmute survives media changes within the same
+open gallery. A user volume change to a positive value unmutes; reopening the
+gallery uses the saved **Start videos muted** preference, not the last manual mute choice.
+
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps exactly one deliberately opened reader position for this profile. After

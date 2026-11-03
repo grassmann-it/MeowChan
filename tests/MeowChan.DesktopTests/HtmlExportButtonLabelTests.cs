@@ -16,10 +16,9 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
     [Theory]
     [InlineData("en", "Export as HTML…")]
     [InlineData("de", "Als HTML exportieren…")]
-    // Bundles currently fall back to the command catalog's English title.
-    [InlineData("es", "Export as HTML…")]
-    [InlineData("fr", "Export as HTML…")]
-    [InlineData("ru", "Export as HTML…")]
+    [InlineData("es", "Exportar como HTML…")]
+    [InlineData("fr", "Exporter en HTML…")]
+    [InlineData("ru", "Экспортировать в HTML…")]
     public void ProductionCommandContentAndIconLabelUseTheWholeCatalogTitle(string language, string expected)
     {
         Texts.SetLanguage(language);
