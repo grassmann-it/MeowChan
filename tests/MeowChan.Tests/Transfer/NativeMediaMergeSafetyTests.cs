@@ -31,7 +31,7 @@ public sealed class NativeMediaMergeSafetyTests
         var result = await catalog.CommitNativeMediaMergeAsync(plan, new MediaStore(), checkpoint: point =>
         { if (point == phase) throw new IOException("synthetic-checkpoint"); });
         bool committed = phase == NativeMediaImportPhase.SqlCommitted;
-        Assert.Equal(committed ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.Inactive, result.Status);
+        Assert.Equal(committed ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
         NativeMediaMergeOperation operation = Assert.Single((await catalog.ReadNativeMediaMergeOperationsPageAsync()).Items);
         Assert.Equal(committed ? NativeMediaImportOperationState.Committed
             : phase >= NativeMediaImportPhase.PreparedSaved ? NativeMediaImportOperationState.Prepared

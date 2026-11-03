@@ -306,7 +306,7 @@ public sealed class NativeMediaMergeLegacyUnionTests
         NativeMediaMergePlan plan = (await catalog.PrepareNativeMediaMergeAsync(stage)).Plan!;
         NativeMediaMergeResult stopped = await catalog.CommitNativeMediaMergeAsync(plan, new MediaStore(), checkpoint: phase =>
         { if (phase == NativeMediaImportPhase.PreparingSaved) throw new IOException("synthetic stop"); });
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, stopped.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, stopped.Status);
         Assert.Equal(NativeMediaImportOperationState.Preparing,
             Assert.Single((await catalog.ReadNativeMediaMergeOperationsPageAsync()).Items).State);
         File.WriteAllBytes(asset.Path, [11, 13]);
@@ -331,7 +331,7 @@ public sealed class NativeMediaMergeLegacyUnionTests
         NativeMediaMergeResult stopped = await catalog.CommitNativeMediaMergeAsync(planA, new MediaStore(), checkpoint: phase =>
         { if (phase == (prepared ? NativeMediaImportPhase.PreparedSaved : NativeMediaImportPhase.PreparingSaved))
             throw new IOException("synthetic unresolved operation"); });
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, stopped.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, stopped.Status);
         NativeMediaMergeOperation operationA = Assert.Single((await catalog.ReadNativeMediaMergeOperationsPageAsync()).Items);
         Assert.Equal(prepared ? NativeMediaImportOperationState.Prepared : NativeMediaImportOperationState.Preparing, operationA.State);
 

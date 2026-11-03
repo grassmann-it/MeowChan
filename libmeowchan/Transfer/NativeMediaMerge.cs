@@ -128,6 +128,7 @@ public sealed partial class ArchiveCatalog
                     cancellationToken.ThrowIfCancellationRequested();
                     bool exists = targetPosts.TryGetValue(incoming.Metadata.PostId, out CapturedPost? previous);
                     var newAttachments = ImmutableArray.CreateBuilder<CapturedAttachment>();
+                    bool acceptedOrReusedAttachment = false;
                     foreach (TransferAttachment attachment in incoming.Attachments)
                     {
                         NativeMediaImportAttachment input = byKey[MediaRevisionKeys.CreateAttachmentKey(thread.Id,
@@ -142,6 +143,7 @@ public sealed partial class ArchiveCatalog
                                 return Task.FromResult(new NativeMediaMergePreparation(null, NativeMediaMergeError.TargetUnavailable));
                             if (!MediaIntegrityValidation.MatchesMeasured(resolved.Binding.Actual,
                                 new(measured.Length, measured.Md5, measured.Sha256) { Sha1 = measured.Sha1 })) conflicts++;
+                            else acceptedOrReusedAttachment = true;
                             continue; // Reuse old exact binding, never duplicate its provenance.
                         }
                         // A vacant SQL slot may refer to an EXACT existing historical binding.
@@ -154,6 +156,7 @@ public sealed partial class ArchiveCatalog
                             if (!MergeInputMatchesBytes(package, input, retained.Binding)) { conflicts++; continue; }
                         }
                         else safe.Add(input.RevisionKey);
+                        acceptedOrReusedAttachment = true;
                         if (exists) addedAttachments.Add(new(input.PostId, normalized));
                         else newAttachments.Add(normalized);
                     }
@@ -165,7 +168,10 @@ public sealed partial class ArchiveCatalog
                     CapturedPost merged = MergeNativeTextPost(previous!, incoming.Metadata with
                         { Fields = incoming.Metadata.Fields & ~PostFieldPresence.Attachments }, out bool changed, out bool conflict);
                     if (conflict) conflicts++;
-                    if ((incoming.Metadata.Fields & PostFieldPresence.Attachments) != 0
+                    // Rejected conflict inputs remain in the inactive full candidate; they
+                    // cannot promote the active post's attachment-presence assertion.
+                    if ((acceptedOrReusedAttachment || incoming.Attachments.IsEmpty)
+                        && (incoming.Metadata.Fields & PostFieldPresence.Attachments) != 0
                         && (previous!.Fields & PostFieldPresence.Attachments) == 0)
                     { merged = merged with { Fields = merged.Fields | PostFieldPresence.Attachments }; changed = true; }
                     if (incoming.Attachments.IsEmpty && (incoming.Metadata.Fields & PostFieldPresence.Attachments) != 0
@@ -375,9 +381,29 @@ public sealed partial class ArchiveCatalog
         {
             try
             {
-                NativeMediaMergeResult? receipt = await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false);
-                return receipt != null ? receipt with { Diagnostic = error.GetType().Name }
-                    : new(NativeMediaImportCommitStatus.Inactive, Diagnostic: error.GetType().Name);
+                // Receipt and unresolved claim must be observed in one independent read snapshot.
+                // No receipt alone does not prove inactivity: a durable Preparing/Prepared claim
+                // still blocks retries, even when this owner or its cancellation token is gone.
+                return await ReadMediaMergeRecoveryAsync(connection =>
+                {
+                    using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                    NativeMediaMergeResult? receipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction,
+                        plan.OperationId, plan.RequestSha256);
+                    if (receipt != null)
+                    {
+                        transaction.Commit();
+                        return receipt with { Diagnostic = error.GetType().Name };
+                    }
+                    NativeMediaMergeOperation? operation = ArchiveSql.ReadMediaMergeOperation(connection, transaction,
+                        plan.OperationId, plan.RequestSha256);
+                    NativeMediaImportCommitStatus status = operation?.State == NativeMediaImportOperationState.Committed
+                        ? NativeMediaImportCommitStatus.Unknown // Missing receipt is not historical success.
+                        : operation != null || ArchiveSql.HasUnresolvedMediaOperation(connection, transaction, plan.Resource)
+                            ? NativeMediaImportCommitStatus.ReconciliationRequired
+                            : NativeMediaImportCommitStatus.Inactive;
+                    transaction.Commit();
+                    return new NativeMediaMergeResult(status, Diagnostic: error.GetType().Name);
+                }, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception reconciliationError)
             { return new(NativeMediaImportCommitStatus.Unknown, Diagnostic: error.GetType().Name + "/receipt:" + reconciliationError.GetType().Name); }
