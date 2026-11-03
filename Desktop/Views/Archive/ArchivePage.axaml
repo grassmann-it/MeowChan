@@ -8,6 +8,7 @@
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>
             <WrapPanel Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
+                <Button x:Name="ArchiveTransferPreview" Click="OnTransferPreviewClick" />
                 <Button x:Name="ArchiveCleanupOpen" Click="OnArchiveCleanupClick" />
                 <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
             </WrapPanel>

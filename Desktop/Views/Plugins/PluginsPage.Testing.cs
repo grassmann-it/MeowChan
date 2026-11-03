@@ -109,7 +109,8 @@ public partial class PluginsPage
         (long generation, CancellationToken token) = BeginOperation();
         _tested = null;
         RenderDiagnostics(Array.Empty<PluginBuildDiagnostic>(), entry);
-        C<TextBox>("PluginProbeResult").Text = string.Empty;
+        ToolState(entry.Key).Result = null;
+        RenderPluginProbeResult();
         SetTestStatus("plugins.building");
         bool revealBuildErrors = false;
         try
@@ -188,8 +189,9 @@ public partial class PluginsPage
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(tested.Artifact, tested.Configuration, token))
                 result = await _services.ProbeAsync(tested.Description, url, worker, new("plugin-probe:" + tested.Key, generation), token);
             if (!Current(generation)) return;
-            string formatted = FormatProbe(result);
-            C<TextBox>("PluginProbeResult").Text = formatted;
+            ToolState(tested.Key).Result = PluginProbePresentation.Capture(result);
+            RenderPluginProbeResult();
+            string formatted = C<TextBox>("PluginProbeResult").Text ?? string.Empty;
             if (result is ThreadFailure or CatalogFailure) Error(formatted);
             SetTestStatus("plugins.probeFinished");
         }
@@ -197,22 +199,6 @@ public partial class PluginsPage
         catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
         finally { FinishOperation(generation); }
     }
-    private static string FormatProbe(object result) => result switch
-    {
-        MeowChan.PluginSdk.ThreadSnapshot thread => Texts.T("plugins.threadResult", thread.Snapshot.Posts.Count, thread.Snapshot.Posts.Sum(post => post.Attachments?.Count ?? 0))
-            + "\n" + string.Join("\n", thread.Snapshot.Posts.Take(100).Select(post => post.PostId + ": " + post.Subject + " " + post.Text
-                + "\n" + string.Join("\n", post.Attachments?.Select(asset => "  " + asset.MediaId + " · " + asset.OriginalFileName + " · " + asset.Url) ?? Array.Empty<string>())))
-            + (thread.Snapshot.Posts.Count > 100 ? "\n" + Texts.T("plugins.previewLimited") : string.Empty),
-        CatalogSnapshot catalog => Texts.T("plugins.catalogResult", catalog.Snapshot.Threads.Count) + "\n"
-            + string.Join("\n", catalog.Snapshot.Threads.Take(100).Select(thread => thread.Id.ThreadId + " · " + thread.Title + " · " + thread.Url)),
-        ThreadFailure failure => failure.Failure.Code + ": " + failure.Failure.Message,
-        CatalogFailure failure => failure.Failure.Code + ": " + failure.Failure.Message,
-        ThreadDeferred deferred => Texts.T("plugins.deferred", deferred.RetryAt, deferred.ReasonCode),
-        CatalogDeferred deferred => Texts.T("plugins.deferred", deferred.RetryAt, deferred.ReasonCode),
-        ThreadNotFound missing => Texts.T("plugins.notFound", missing.HttpStatusCode),
-        ThreadUnchanged or CatalogUnchanged => Texts.T("plugins.unchanged"),
-        _ => throw new InvalidOperationException("Unexpected plugin probe result.")
-    };
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     { CancelOperation(); SetTestStatus("plugins.cancelled"); RenderDetails(); BusyChanged?.Invoke(this, EventArgs.Empty); }
     private async void OnEditClick(object? sender, RoutedEventArgs e) => await EditAsync(false);

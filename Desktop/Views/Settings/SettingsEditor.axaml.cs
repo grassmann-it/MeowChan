@@ -340,7 +340,12 @@ namespace MeowChan
             set
             {
                 SetField(ref _selectedGalleryPlaybackMode, value, nameof(SelectedGalleryPlaybackMode));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+                // Replacing localized ItemsSource values can transiently clear the
+                // TwoWay ComboBox selection. Do not let that transient null hide
+                // the focused slideshow editor; publish the final semantic state
+                // once RefreshChoices has restored the selection.
+                if (!_refreshingLanguageLabels)
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
             }
         }
         public bool IsGallerySlideshow => SelectedGalleryPlaybackMode?.Value == "Slideshow";
@@ -768,6 +773,11 @@ namespace MeowChan
             };
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GalleryPlaybackModeChoices)));
             SelectedGalleryPlaybackMode = GalleryPlaybackModeChoices.FirstOrDefault(item => item.Value == galleryMode) ?? GalleryPlaybackModeChoices[0];
+            // Emit one stable visibility update after the semantic selection is back.
+            // During the replacement above the setter intentionally suppresses the
+            // transient null notification to preserve focus/raw input state.
+            if (_refreshingLanguageLabels)
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
             WorkspaceChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Barebones", Texts.T("mode.barebones")),

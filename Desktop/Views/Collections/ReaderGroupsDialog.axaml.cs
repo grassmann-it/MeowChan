@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -8,6 +9,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -42,23 +44,63 @@ public partial class ReaderGroupsDialog : Window
     private ReaderGroupsDialogOrigin? _pendingMemberOrigin;
     private readonly Dictionary<ResourceId, ReaderGroupCandidate> _memberInfo = new();
     private readonly List<ResourceId> _candidateSelectionOrder = new();
+    private IReadOnlyList<ReaderGroupCandidate> _candidateItems = Array.Empty<ReaderGroupCandidate>();
     private readonly Button _reload = new(), _recover = new(), _close = new();
-    private sealed record GroupRow(Guid Id, string Display) { public override string ToString() => Display; }
-    private sealed record MemberRow(ReaderGroupCandidate Item, string Display) { public override string ToString() => Display; }
+    internal abstract class DisplayRow : INotifyPropertyChanged
+    {
+        private string _display = "";
+        public string Display
+        {
+            get => _display;
+            protected set
+            {
+                if (_display == value) return;
+                _display = value; PropertyChanged?.Invoke(this, new(nameof(Display)));
+            }
+        }
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public override string ToString() => Display;
+    }
+    internal sealed class GroupRow(ReaderGroup group) : DisplayRow
+    {
+        private ReaderGroup _group = group;
+        public Guid Id => _group.Id;
+        internal void Refresh(ReaderGroup? current = null)
+        {
+            if (current != null) _group = current;
+            Display = $"{(_group.Name.Length == 0 ? Texts.T("readerGroups.newGroup") : _group.Name)} · {_group.Members.Count} · {_group.Id.ToString("N")[..8]}";
+        }
+    }
+    internal sealed class MemberRow(ReaderGroupCandidate item) : DisplayRow
+    {
+        public ReaderGroupCandidate Item { get; } = item;
+        internal void Refresh() => Display = $"{Identity(Item.Id)}{(string.IsNullOrWhiteSpace(Item.Title) ? "" : " · " + Item.Title)} · " +
+            Texts.T(Item.HasLocalPosts ? "readerGroups.localPosts" : Item.Watched ? "readerGroups.watchedNoPosts" : "readerGroups.unavailableLocally");
+    }
+    // Provenance is explicit. Raw diagnostics/return notices must never be reverse-mapped.
+    internal sealed class PresentationText
+    {
+        private readonly string? _key;
+        private readonly string? _raw;
+        private readonly object?[] _arguments;
+        private PresentationText(string? key, string? raw, object?[] arguments)
+        { _key = key; _raw = raw; _arguments = (object?[])arguments.Clone(); }
+        internal static PresentationText Localized(string key, params object?[] arguments) => new(key, null, arguments);
+        internal static PresentationText Raw(string raw) => new(null, raw, Array.Empty<object?>());
+        internal string Render() => _key == null ? _raw! : Texts.T(_key, _arguments);
+    }
+    private PresentationText? _message, _searchStatus;
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
     private ReaderGroup? SelectedGroup => _draft?.Groups.FirstOrDefault(group => group.Id == _selected);
     private ResourceId? SelectedMember => (C<ListBox>("GroupMembers").SelectedItem as MemberRow)?.Item.Id;
-    private static string L(string en, string de) => Texts.Language == "de" ? de : en;
 
     internal ReaderGroupsDialog(DesktopSessionHost host, ReaderGroupsDialogOrigin? origin = null)
     {
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
-        C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => new TextBlock
-            { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) });
+        C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => RowText(row));
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
-            C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => new TextBlock
-                { Text = row?.Display, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) });
+            C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => RowText(row));
         _router = new CommandRouter(this);
         foreach ((string action, string panel) in new[] { ("create", "GroupActions"), ("rename", "GroupActions"), ("delete", "GroupActions"),
             ("remove-member", "MemberActions"), ("move-up", "MemberActions"), ("move-down", "MemberActions"),
@@ -89,6 +131,7 @@ public partial class ReaderGroupsDialog : Window
         C<ListBox>("GroupMembers").SelectionChanged += (_, _) => RefreshActions();
         C<ListBox>("GroupCandidates").SelectionChanged += (_, _) =>
         {
+            if (_rendering) return;
             ResourceId[] selected = C<ListBox>("GroupCandidates").SelectedItems?.Cast<MemberRow>().Select(row => row.Item.Id).ToArray() ?? Array.Empty<ResourceId>();
             _candidateSelectionOrder.RemoveAll(id => !selected.Contains(id));
             foreach (ResourceId id in selected) if (!_candidateSelectionOrder.Contains(id)) _candidateSelectionOrder.Add(id);
@@ -146,21 +189,46 @@ public partial class ReaderGroupsDialog : Window
     {
         if (!_closed && _host.State != DesktopSessionState.Ready) { _allowClose = true; Close(); }
     });
-    private void LanguageChanged(object? sender, EventArgs e) => Localize();
+    internal static TextBlock RowText(DisplayRow? row)
+    {
+        TextBlock text = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(4, 8) };
+        text.Bind(TextBlock.TextProperty, new Binding(nameof(DisplayRow.Display)) { Source = row });
+        return text;
+    }
+    private void LanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_closed) return;
+        // Relabel only: do not recreate controls, replace ItemsSource, search or resolve.
+        // Keeping row identity also preserves multi-selection insertion order.
+        var scrolls = this.GetVisualDescendants().OfType<ScrollViewer>()
+            .Select(scroll => (Scroll: scroll, Offset: scroll.Offset)).ToArray();
+        Localize();
+        UpdateLayout();
+        foreach (var saved in scrolls) saved.Scroll.Offset = saved.Offset;
+    });
     private void Localize()
     {
-        Title = L("Reader groups", "Readergruppen");
-        C<TextBlock>("GroupNameLabel").Text = L("Name (1–120 characters)", "Name (1–120 Zeichen)");
-        C<TextBlock>("GroupMembersLabel").Text = L("Members · reading order", "Mitglieder · Lesereihenfolge");
-        C<TextBlock>("GroupSearchLabel").Text = L("Add local threads: title or source/board/thread", "Lokale Threads hinzufügen: Titel oder Quelle/Board/Thread");
+        Title = Texts.T("readerGroups.title");
+        C<TextBlock>("GroupNameLabel").Text = Texts.T("readerGroups.nameLabel");
+        C<TextBlock>("GroupMembersLabel").Text = Texts.T("readerGroups.membersLabel");
+        C<TextBlock>("GroupSearchLabel").Text = Texts.T("readerGroups.searchLabel");
         foreach (var pair in _buttons) CommandBindings.Apply(pair.Value, pair.Key);
-        _reload.Content = L("Reload", "Neu laden"); _recover.Content = L("Restore backup", "Sicherung wiederherstellen"); _close.Content = L("Close", "Schließen");
-        foreach ((string name, string label) in new[] { ("Groups", Title), ("GroupName", L("Group name", "Gruppenname")),
-            ("GroupMembers", L("Members in reading order", "Mitglieder in Lesereihenfolge")), ("GroupSearch", L("Find local threads", "Lokale Threads suchen")),
-            ("GroupCandidates", L("Matching threads; select and add", "Passende Threads; auswählen und hinzufügen")),
-            ("GroupSearchStatus", L("Search result status", "Suchergebnisstatus")), ("GroupMessage", L("Group status", "Gruppenstatus")) })
+        _reload.Content = Texts.T("readerGroups.reload"); _recover.Content = Texts.T("readerGroups.recover"); _close.Content = Texts.T("readerGroups.close");
+        foreach ((string name, string label) in new[] { ("Groups", Title), ("GroupName", Texts.T("readerGroups.nameAccessible")),
+            ("GroupMembers", Texts.T("readerGroups.membersAccessible")), ("GroupSearch", Texts.T("readerGroups.searchAccessible")),
+            ("GroupCandidates", Texts.T("readerGroups.candidatesAccessible")),
+            ("GroupSearchStatus", Texts.T("readerGroups.searchStatusAccessible")), ("GroupMessage", Texts.T("readerGroups.messageAccessible")) })
             AutomationProperties.SetName(C<Control>(name), label);
-        if (_draft != null) Render();
+        RefreshRows(C<ListBox>("Groups").Items.OfType<GroupRow>(),
+            new[] { "GroupMembers", "GroupCandidates" }.SelectMany(list => C<ListBox>(list).Items.OfType<MemberRow>()), _draft);
+        RenderPresentation();
+        RefreshActions();
+    }
+
+    internal static void RefreshRows(IEnumerable<GroupRow> groups, IEnumerable<MemberRow> members, ReaderGroupsDraft? draft)
+    {
+        foreach (GroupRow row in groups) row.Refresh(draft?.Groups.FirstOrDefault(group => group.Id == row.Id));
+        foreach (MemberRow row in members) row.Refresh();
     }
 
     internal bool CanExecute(string id)
@@ -200,14 +268,13 @@ public partial class ReaderGroupsDialog : Window
                 _selected = _draft!.Create().Id; Render(); C<TextBox>("GroupName").Focus(); break;
             case "reader-groups.rename": C<TextBox>("GroupName").Focus(); C<TextBox>("GroupName").SelectAll(); break;
             case "reader-groups.delete":
-                if (!await ConfirmAsync(L("Delete this group? Only its memberships are removed. Threads and downloads remain unchanged.",
-                    "Gruppe löschen? Nur ihre Zuordnungen werden entfernt. Threads und Downloads bleiben erhalten."), L("Delete group", "Gruppe löschen"))) return;
+                if (!await ConfirmAsync(PresentationText.Localized("readerGroups.deletePrompt"), PresentationText.Localized("readerGroups.delete"))) return;
                 _draft!.Groups.RemoveAll(item => item.Id == group!.Id); _selected = null; Render(); C<ListBox>("Groups").Focus(); break;
             case "reader-groups.add-members":
                 ResourceId[] additions = _candidateSelectionOrder.ToArray();
                 int added = additions.Except(group!.Members).Count(); _draft!.Add(group.Id, additions);
-                ShowMessage(added == 0 ? L("These threads already belong to the group; nothing changed.", "Diese Threads gehören bereits zur Gruppe; nichts geändert.")
-                    : L($"{added} threads added to the draft. Save to keep the membership.", $"{added} Threads zum Entwurf hinzugefügt. Zuordnung mit Speichern übernehmen."));
+                ShowMessage(added == 0 ? PresentationText.Localized("readerGroups.alreadyMembers")
+                    : PresentationText.Localized("readerGroups.added", added));
                 Render(additions.LastOrDefault()); C<ListBox>("GroupMembers").Focus(); break;
             case "reader-groups.remove-member":
                 int index = group!.Members.ToList().IndexOf(SelectedMember!); _draft!.Remove(group.Id, SelectedMember!);
@@ -233,14 +300,14 @@ public partial class ReaderGroupsDialog : Window
             _draft = loaded.Snapshot == null ? null : new(loaded.Snapshot);
             _selected = _origin?.GroupId ?? _selected;
             if (_draft?.Groups.Any(group => group.Id == _selected) != true) _selected = null;
-            ShowMessage(loaded.CanWrite ? _origin?.Notice ?? L("Groups only organise local reading. Changes require Save.", "Gruppen ordnen nur lokales Lesen. Änderungen mit Speichern übernehmen.")
-                : LoadError(loaded));
+            ShowMessage(loaded.CanWrite ? _origin?.Notice is string notice ? PresentationText.Raw(notice)
+                : PresentationText.Localized("readerGroups.hint") : LoadError(loaded));
             Render(_origin?.MemberId);
             _pendingMemberOrigin = _origin;
             _ = SearchAsync();
         }
         catch (OperationCanceledException) when (_closed || _lifetime.IsCancellationRequested) { }
-        catch (Exception exception) { ShowMessage(L("Cannot load groups: ", "Gruppen konnten nicht geladen werden: ") + exception.Message); }
+        catch (Exception exception) { ShowMessage(PresentationText.Localized("readerGroups.loadFailed", exception.Message)); }
         finally
         {
             _busy = false; RefreshActions();
@@ -267,12 +334,12 @@ public partial class ReaderGroupsDialog : Window
             }
         }
     }
-    private string LoadError(ReaderGroupsLoadResult loaded) => (loaded.State switch
+    private static PresentationText LoadError(ReaderGroupsLoadResult loaded) => PresentationText.Localized(loaded.State switch
     {
-        ReaderGroupsLoadState.FutureVersion => L("This groups file is from a newer app version and cannot be edited.", "Diese Gruppendatei stammt aus einer neueren Appversion und kann nicht bearbeitet werden."),
-        ReaderGroupsLoadState.RecoveryAvailable => L("The groups file is damaged or missing. A valid backup can be explicitly restored.", "Die Gruppendatei ist beschädigt oder fehlt. Eine gültige Sicherung kann ausdrücklich wiederhergestellt werden."),
-        _ => L("Groups are unavailable. Correct the file error and reload.", "Gruppen sind nicht verfügbar. Dateifehler beheben und neu laden.")
-    }) + "\n" + loaded.FilePath + "\n" + loaded.Error;
+        ReaderGroupsLoadState.FutureVersion => "readerGroups.futureVersion",
+        ReaderGroupsLoadState.RecoveryAvailable => "readerGroups.recoveryAvailable",
+        _ => "readerGroups.unavailable"
+    }, loaded.FilePath, loaded.Error);
 
     private async Task SaveAsync()
     {
@@ -282,23 +349,22 @@ public partial class ReaderGroupsDialog : Window
         {
             ReaderGroupsSnapshot saved = await _host.SaveReaderGroupsAsync(_draft!.Snapshot, _draft.Revision, _lifetime.Token);
             if (_closed) return;
-            _draft.Accept(saved); Render(); ShowMessage(L("Groups saved.", "Gruppen gespeichert."));
+            _draft.Accept(saved); Render(); ShowMessage(PresentationText.Localized("readerGroups.saved"));
         }
         catch (ReaderGroupsConflictException)
         {
             _conflict = true;
             try { _loaded = await _host.LoadReaderGroupsAsync(_lifetime.Token); } catch (Exception) { /* Retain draft even if reload fails. */ }
-            ShowMessage(L("Groups changed elsewhere. Your draft is retained. Reload to review the saved state before editing again.",
-                "Gruppen wurden zwischenzeitlich geändert. Dein Entwurf bleibt erhalten. Neu laden zeigt nach Rückfrage den gespeicherten Stand."));
+            ShowMessage(PresentationText.Localized("readerGroups.conflict"));
         }
         catch (OperationCanceledException) when (_closed || _lifetime.IsCancellationRequested) { }
-        catch (Exception exception) { failed = true; ShowMessage(L("Save failed; the draft is retained. Retry Save. ", "Speichern fehlgeschlagen; der Entwurf bleibt erhalten. Speichern wiederholen. ") + exception.Message); C<TextBox>("GroupName").Focus(); }
+        catch (Exception exception) { failed = true; ShowMessage(PresentationText.Localized("readerGroups.saveFailed", exception.Message)); C<TextBox>("GroupName").Focus(); }
         finally { _busy = false; RefreshActions(); if (failed && !_closed) C<TextBox>("GroupName").Focus(); }
     }
     private async Task RecoverAsync()
     {
         if (_busy || _loaded?.RecoveryToken is not string token || !await ConfirmAsync(
-            L("Restore the backup? The damaged original is preserved.", "Sicherung wiederherstellen? Das beschädigte Original bleibt erhalten."), L("Restore", "Wiederherstellen"))) return;
+            PresentationText.Localized("readerGroups.recoverPrompt"), PresentationText.Localized("readerGroups.restore"))) return;
         _busy = true; RefreshActions();
         try { await _host.RestoreReaderGroupsBackupAsync(token, _lifetime.Token); }
         catch (Exception exception) { ShowMessage(exception.Message); return; }
@@ -318,9 +384,9 @@ public partial class ReaderGroupsDialog : Window
             ReaderGroupCandidate[] missing = members.Where(item => !item.HasLocalPosts).ToArray();
             ResourceId[] available = members.Where(item => item.HasLocalPosts).Select(item => item.Id).ToArray();
             string detail = string.Join("\n", missing.Select(item => Identity(item.Id)));
-            if (available.Length == 0) { ShowMessage(L("No locally readable posts in this group.\n", "Keine lokal lesbaren Posts in dieser Gruppe.\n") + detail); return; }
-            if (missing.Length > 0 && !await ConfirmAsync(L($"{missing.Length} members have no local posts:\n", $"{missing.Length} Mitglieder haben keine lokalen Posts:\n") + detail,
-                L("Read available", "Verfügbare lesen"))) return;
+            if (available.Length == 0) { ShowMessage(PresentationText.Localized("readerGroups.noReadable", detail)); return; }
+            if (missing.Length > 0 && !await ConfirmAsync(PresentationText.Localized("readerGroups.missingMembers", missing.Length, detail),
+                PresentationText.Localized("readerGroups.readAvailable"))) return;
             if (_closed) return;
             ReaderGroupsDialogOrigin origin = new(group.Id, SelectedMember, C<ScrollViewer>("GroupEditorScroll").Offset,
                 (FocusManager?.GetFocusedElement() as Control)?.Name, ListOffset("Groups"), ListOffset("GroupMembers"));
@@ -344,8 +410,8 @@ public partial class ReaderGroupsDialog : Window
     private async Task<bool> DiscardAsync()
     {
         if (_draft?.IsDirty != true) return true;
-        if (!await ConfirmAsync(L("Discard unsaved changes? Choose Continue editing to keep the complete draft.", "Ungespeicherte Änderungen verwerfen? Weiter bearbeiten erhält den vollständigen Entwurf."),
-            L("Discard changes", "Änderungen verwerfen"), L("Continue editing", "Weiter bearbeiten"))) return false;
+        if (!await ConfirmAsync(PresentationText.Localized("readerGroups.discardPrompt"),
+            PresentationText.Localized("readerGroups.discard"), PresentationText.Localized("readerGroups.keepEditing"))) return false;
         _draft.Discard(); Render(); return true;
     }
     private async Task RequestCloseAsync()
@@ -353,11 +419,11 @@ public partial class ReaderGroupsDialog : Window
         if (_busy || _confirming || _closed || !await DiscardAsync()) return;
         _allowClose = true; Close();
     }
-    private async Task<bool> ConfirmAsync(string message, string confirm, string? cancel = null)
+    private async Task<bool> ConfirmAsync(PresentationText message, PresentationText confirm, PresentationText? cancel = null)
     {
         if (_confirming || _closed) return false;
         _confirming = true; RefreshActions();
-        try { return await ReaderGroupsPrompt.ShowAsync(this, message, confirm, cancel ?? L("Cancel", "Abbrechen")); }
+        try { return await ReaderGroupsPrompt.ShowAsync(this, message, confirm, cancel ?? PresentationText.Localized("readerGroups.cancel")); }
         finally { _confirming = false; RefreshActions(); }
     }
 
@@ -367,8 +433,7 @@ public partial class ReaderGroupsDialog : Window
         _rendering = true;
         try
         {
-            var rows = _draft?.Groups.Select(group => new GroupRow(group.Id,
-                $"{(group.Name.Length == 0 ? L("New group", "Neue Gruppe") : group.Name)} · {group.Members.Count} · {group.Id.ToString("N")[..8]}")).ToArray() ?? Array.Empty<GroupRow>();
+            var rows = _draft?.Groups.Select(group => { var row = new GroupRow(group); row.Refresh(); return row; }).ToArray() ?? Array.Empty<GroupRow>();
             C<ListBox>("Groups").ItemsSource = rows; C<ListBox>("Groups").SelectedItem = rows.FirstOrDefault(row => row.Id == _selected);
             C<TextBox>("GroupName").Text = SelectedGroup?.Name ?? "";
             var members = SelectedGroup?.Members.Select(id => Member(_memberInfo.GetValueOrDefault(id) ?? new(id, "", false))).ToArray() ?? Array.Empty<MemberRow>();
@@ -387,9 +452,9 @@ public partial class ReaderGroupsDialog : Window
     {
         string name = SelectedGroup?.Name.Trim() ?? "";
         string? nameError = SelectedGroup == null ? null : name.Length == 0
-            ? L("Enter a group name.", "Bitte einen Gruppennamen eingeben.")
+            ? Texts.T("readerGroups.nameRequired")
             : name.EnumerateRunes().Count() > 120 || name.Any(char.IsControl)
-                ? L("Use at most 120 characters, without control characters.", "Höchstens 120 Zeichen ohne Steuerzeichen verwenden.") : null;
+                ? Texts.T("readerGroups.nameInvalid") : null;
         C<TextBlock>("GroupNameError").Text = nameError;
         C<TextBlock>("GroupNameError").IsVisible = nameError != null;
         AutomationProperties.SetHelpText(C<TextBox>("GroupName"), nameError ?? C<TextBlock>("GroupNameLabel").Text);
@@ -432,7 +497,9 @@ public partial class ReaderGroupsDialog : Window
         _searchCancellation?.Cancel();
         if (_closed) return;
         C<ListBox>("GroupCandidates").ItemsSource = Array.Empty<MemberRow>();
-        _candidateSelectionOrder.Clear(); RefreshActions();
+        _candidateItems = Array.Empty<ReaderGroupCandidate>();
+        _candidateSelectionOrder.Clear();
+        _searchStatus = null; RenderPresentation(); RefreshActions();
         using CancellationTokenSource search = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _searchCancellation = search;
         string text = C<TextBox>("GroupSearch").Text ?? "";
@@ -442,41 +509,82 @@ public partial class ReaderGroupsDialog : Window
             ReaderGroupCandidatePage page = await _host.FindReaderGroupCandidatesAsync(text, 50, search.Token);
             if (_closed || request != _searchRequest) return;
             _candidateSelectionOrder.Clear();
-            C<ListBox>("GroupCandidates").ItemsSource = page.Items.Select(Member).ToArray();
+            _candidateItems = page.Items;
+            C<ListBox>("GroupCandidates").ItemsSource = _candidateItems.Select(Member).ToArray();
             C<ListBox>("GroupCandidates").IsVisible = true;
-            C<TextBlock>("GroupSearchStatus").Text = L($"{page.Items.Count} local matches", $"{page.Items.Count} lokale Treffer")
-                + (page.HasMore || text.Length == 0 ? L(" · Narrow the search to see other threads.", " · Suche eingrenzen, um weitere Threads zu finden.") : "");
+            _searchStatus = PresentationText.Localized(page.HasMore || text.Length == 0
+                ? "readerGroups.matchesNarrow" : "readerGroups.matches", page.Items.Count);
+            RenderPresentation();
             RefreshActions();
         }
         catch (OperationCanceledException) when (search.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_closed && request == _searchRequest) C<TextBlock>("GroupSearchStatus").Text = exception.Message; }
+        catch (Exception exception)
+        {
+            if (!_closed && request == _searchRequest)
+            { _searchStatus = PresentationText.Raw(exception.Message); RenderPresentation(); }
+        }
         finally { if (ReferenceEquals(_searchCancellation, search)) _searchCancellation = null; }
     }
     private static string Identity(ResourceId id) => $"{id.Source}/{id.Board}/{id.Thread}";
-    private static MemberRow Member(ReaderGroupCandidate item) => new(item,
-        $"{Identity(item.Id)}{(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)} · " +
-        (item.HasLocalPosts ? L("Local posts", "Lokale Posts") : item.Watched ? L("Watched, no local posts yet", "Beobachtet, noch keine lokalen Posts") : L("Not available locally", "Lokal nicht verfügbar")));
-    private void ShowMessage(string text) { if (!_closed) C<TextBlock>("GroupMessage").Text = text; }
+    private static MemberRow Member(ReaderGroupCandidate item)
+    { var row = new MemberRow(item); row.Refresh(); return row; }
+    private void ShowMessage(string text) => ShowMessage(PresentationText.Raw(text));
+    private void ShowMessage(PresentationText text)
+    { if (!_closed) { _message = text; RenderPresentation(); } }
+    private void RenderPresentation()
+    {
+        if (_closed) return;
+        C<TextBlock>("GroupMessage").Text = _message?.Render();
+        C<TextBlock>("GroupSearchStatus").Text = _searchStatus?.Render();
+    }
 }
 
 internal static class ReaderGroupsPrompt
 {
-    internal static async Task<bool> ShowAsync(Window owner, string message, string accept, string cancel)
+    internal static async Task<bool> ShowAsync(Window owner, ReaderGroupsDialog.PresentationText message,
+        ReaderGroupsDialog.PresentationText accept, ReaderGroupsDialog.PresentationText cancel)
     {
-        Window prompt = new() { Title = owner.Title, Width = 500, MaxWidth = Math.Max(400, owner.Bounds.Width), Height = 300,
+        Window prompt = new() { Title = Texts.T("readerGroups.title"), Width = 500, MaxWidth = Math.Max(400, owner.Bounds.Width), Height = 300,
             MinHeight = 180, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
-        Button yes = new() { Content = accept }, no = new() { Content = cancel };
-        yes.Click += (_, _) => prompt.Close(true); no.Click += (_, _) => prompt.Close(false);
+        bool closed = false;
+        // Invalidate before dispatch: a queued click cannot approve old-language prose.
+        using LanguageLifetime language = new(() =>
+            Dispatcher.UIThread.Post(() => { if (!closed) prompt.Close(false); }));
+        prompt.Title = Texts.T("readerGroups.title");
+        Button yes = new() { Content = accept.Render() }, no = new() { Content = cancel.Render() };
+        yes.Click += (_, _) => prompt.Close(language.IsCurrent);
+        no.Click += (_, _) => prompt.Close(false);
+        prompt.Closed += (_, _) => closed = true;
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(no); actions.Children.Add(yes);
         Grid content = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
-        content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
+        content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
         Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
         footer.Classes.Add("workspace-dialog-footer");
         Grid.SetRow(footer, 1); content.Children.Add(footer); prompt.Content = content;
         prompt.Opened += (_, _) => no.Focus();
         // Fixed dialog dismissal, independent of all freely assigned application gestures.
         prompt.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; prompt.Close(false); } };
-        return await prompt.ShowDialog<bool>(owner);
+        try
+        {
+            if (!language.IsCurrent) return false;
+            bool accepted = await prompt.ShowDialog<bool>(owner);
+            return accepted && language.IsCurrent;
+        }
+        finally { closed = true; }
+    }
+
+    internal sealed class LanguageLifetime : IDisposable
+    {
+        private readonly Action _dismiss;
+        private int _invalidated;
+        internal LanguageLifetime(Action dismiss) { _dismiss = dismiss; Texts.Changed += Changed; }
+        internal bool IsCurrent => Volatile.Read(ref _invalidated) == 0;
+        private void Changed(object? sender, EventArgs e)
+        {
+            Interlocked.Exchange(ref _invalidated, 1);
+            _dismiss();
+        }
+        public void Dispose() => Texts.Changed -= Changed;
     }
 }

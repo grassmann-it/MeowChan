@@ -50,6 +50,31 @@ internal static class Program
     private static int Main(string[] args)
     {
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
+        // These focused journeys have their own final PASS claims. Reject an
+        // ambiguous request BEFORE creating a profile/window: branch priority must
+        // never run one helper and report another helper's acceptance wording.
+        string[] focusedModes =
+        [
+            "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY",
+            "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY",
+            "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY"
+        ];
+        if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
+        {
+            StringComparison modeNameComparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            string[] enabledModes = Environment.GetEnvironmentVariables()
+                .Cast<System.Collections.DictionaryEntry>()
+                .Where(entry => entry.Key is string name && name.StartsWith("MEOWCHAN_", modeNameComparison)
+                    && name.EndsWith("_ONLY", modeNameComparison) && entry.Value is string value && value == "1")
+                .Select(entry => (string)entry.Key).Order(StringComparer.Ordinal).ToArray();
+            if (enabledModes.Length != 1 || args.Length != 0)
+            {
+                Console.Error.WriteLine("SMOKE CONFIGURATION ERROR: focused UI journeys require exactly one *_ONLY mode and no command-line scenario: "
+                    + string.Join(", ", enabledModes));
+                return 2;
+            }
+        }
         _savedSearchesOnly = Environment.GetEnvironmentVariable("MEOWCHAN_SAVED_SEARCHES_ONLY") == "1";
         if (args.Length > 1 || (args.Length == 1 && args[0] is not ("--locked-profile" or "--no-tray" or "--tray-failure" or "--download-session" or "--tray-lifecycle" or "--visual" or "--reader-ux" or "--selection" or "--tray-host" or "--about-links" or "--board-admission" or "--reading-position" or "--accessibility-probe" or "--window-geometry" or "--video-contrast" or "--plugins" or "--archive-cleanup" or "--shell-load")))
         {
@@ -220,7 +245,17 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1"
+                ? "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1"
+                ? "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY") == "1"
+                ? "HTML export language: actual single/collection Start actions, frozen press-time locale, persisted metadata and escaped source content; ES/FR/RU, managed input only"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY") == "1"
+                ? "secondary Settings language cell=" + (Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_CELL") ?? "all") + "; real controls, synthetic profile, managed input, no whole-UI/native-platform/linguistic acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY") == "1"
+                ? "hidden favorite controls: exact-key delayed save/navigation and separate idempotent pick/unpick, private PNG and managed input only"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1"
                 ? "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_MUTE_ONLY") == "1"
                 ? "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance"
@@ -363,6 +398,16 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1")
+            {
+                await ReaderGroupsBindingLanguageChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1")
+            {
+                await NativeTransferPreviewLifecycleChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1")
             {
                 await HtmlExportButtonLabelChecks.RunAsync(mainWindow);
@@ -392,6 +437,29 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_RATING_LANGUAGE_REFRESH_ONLY") == "1")
             {
                 await RatingLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY") == "1")
+            {
+                await HtmlExportLanguageChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY") == "1")
+            {
+                string cell = Environment.GetEnvironmentVariable("MEOWCHAN_SECONDARY_SETTINGS_CELL") ?? "all";
+                switch (cell)
+                {
+                    case "gallery": await SecondarySettingsLanguageRefreshChecks.RunGalleryPlaybackAsync(mainWindow); break;
+                    case "frame": await SecondarySettingsLanguageRefreshChecks.RunShortcutFrameAsync(mainWindow); break;
+                    case "capture": await SecondarySettingsLanguageRefreshChecks.RunShortcutCaptureAsync(mainWindow); break;
+                    case "all": await SecondarySettingsLanguageRefreshChecks.RunAsync(mainWindow); break;
+                    default: throw new InvalidOperationException("Unknown secondary Settings language cell: " + cell);
+                }
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY") == "1")
+            {
+                await GalleryHiddenFavoriteChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SETTINGS_LANGUAGE_REFRESH_ONLY") == "1")

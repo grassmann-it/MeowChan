@@ -20,9 +20,12 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
         // string model. No Avalonia controls, dispatcher, filesystem probe or Save runs.
         var editor = CreateEditor();
         var notifications = new List<string?>();
+        var slideshowVisibility = new List<bool>();
         editor.PropertyChanged += (_, e) =>
         {
             notifications.Add(e.PropertyName);
+            if (e.PropertyName == nameof(SettingsEditor.IsGallerySlideshow))
+                slideshowVisibility.Add(editor.IsGallerySlideshow);
             if (!simulateBindingClears) return;
             // ItemsSource replacement can cause synchronous two-way selection clears.
             switch (e.PropertyName)
@@ -43,8 +46,12 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
         foreach (string language in new[] { "de", "en", "en", "de" })
         {
             Texts.SetLanguage(language);
+            int visibilityStart = slideshowVisibility.Count;
             RefreshChoiceLabels(editor);
 
+            // A transient ComboBox clear must not publish a hidden slideshow
+            // field: that removes focus and collapses raw caret/selection in UI.
+            Assert.Equal(new[] { true }, slideshowVisibility.Skip(visibilityStart));
             Assert.Equal(37L, Get<long>(editor, "_draftRevision"));
             Assert.False(wait.IsCancellationRequested);
             Assert.Same(wait, Get<CancellationTokenSource>(editor, "_destinationWait"));
@@ -69,6 +76,13 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
         Assert.Equal(38L, Get<long>(editor, "_draftRevision"));
         Assert.True(wait.IsCancellationRequested);
         Assert.Null(Get<DownloadDestinationStatus?>(editor, "_destinationStatus"));
+
+        // A genuine later mode change must still update the conditional editor.
+        slideshowVisibility.Clear();
+        editor.SelectedGalleryPlaybackMode = editor.GalleryPlaybackModeChoices.Single(item => item.Value == "Repeat");
+        Assert.False(editor.IsGallerySlideshow);
+        Assert.Equal(new[] { false }, slideshowVisibility);
+        Assert.Equal(39L, Get<long>(editor, "_draftRevision"));
     }
 
     [Fact]

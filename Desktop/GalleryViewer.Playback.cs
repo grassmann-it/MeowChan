@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Commands;
 using Avalonia;
@@ -30,7 +31,6 @@ internal sealed partial class GalleryViewer
     private SlideshowStatus _shownSlideshowStatus;
     private readonly TextBlock _slideshowStatus = new() { Name = "GallerySlideshowStatus", TextWrapping = TextWrapping.Wrap,
         Margin = new Thickness(8, 0, 8, 0), IsVisible = false };
-    private string? _playbackLabelsLanguage;
     private long _slideshowGeneration;
     private Action? _videoEndedHandler, _videoSeekHandler, _videoFailedHandler;
     private Action<string>? _videoNoticeHandler;
@@ -162,21 +162,20 @@ internal sealed partial class GalleryViewer
 
     private string SlideshowStatusText(SlideshowStatus state)
     {
-        static string T(string en, string de) => GalleryViewerText.Get(en, de);
         return state switch
         {
-            SlideshowStatus.Ready => T("Ready — start slideshow explicitly", "Bereit — Diashow bewusst starten"),
-            SlideshowStatus.Running => T("Slideshow running", "Diashow läuft"),
-            SlideshowStatus.Loading => T("Waiting for the medium to load", "Wartet auf das Laden des Mediums"),
-            SlideshowStatus.Context => T("Paused — close post context to continue", "Pausiert — Beitragskontext zum Fortsetzen schließen"),
-            SlideshowStatus.Help => T("Paused — close help to continue", "Pausiert — Hilfe zum Fortsetzen schließen"),
-            SlideshowStatus.Menu => T("Paused — close the menu or dialog", "Pausiert — Menü oder Dialog schließen"),
-            SlideshowStatus.Inactive => T("Paused — gallery is not active", "Pausiert — Galerie ist nicht aktiv"),
-            SlideshowStatus.Ended => T("End of this sequence", "Ende dieser Medienfolge"),
-            SlideshowStatus.NoMedia => T("No playable medium selected", "Kein abspielbares Medium ausgewählt"),
-            SlideshowStatus.Failed => T("Playback failed — inspect the media error", "Wiedergabe fehlgeschlagen — Medienfehler prüfen"),
-            SlideshowStatus.SeekPaused => T("Paused after seeking — resume explicitly", "Nach Spulen pausiert — bewusst fortsetzen"),
-            SlideshowStatus.Paused => T("Paused — resume explicitly", "Pausiert — bewusst fortsetzen"),
+            SlideshowStatus.Ready => GalleryPlaybackCatalog.Get("viewer.playback.status.ready"),
+            SlideshowStatus.Running => GalleryPlaybackCatalog.Get("viewer.playback.status.running"),
+            SlideshowStatus.Loading => GalleryPlaybackCatalog.Get("viewer.playback.status.loading"),
+            SlideshowStatus.Context => GalleryPlaybackCatalog.Get("viewer.playback.status.context"),
+            SlideshowStatus.Help => GalleryPlaybackCatalog.Get("viewer.playback.status.help"),
+            SlideshowStatus.Menu => GalleryPlaybackCatalog.Get("viewer.playback.status.menu"),
+            SlideshowStatus.Inactive => GalleryPlaybackCatalog.Get("viewer.playback.status.inactive"),
+            SlideshowStatus.Ended => GalleryPlaybackCatalog.Get("viewer.playback.status.ended"),
+            SlideshowStatus.NoMedia => GalleryPlaybackCatalog.Get("viewer.playback.status.noMedia"),
+            SlideshowStatus.Failed => GalleryPlaybackCatalog.Get("viewer.playback.status.failed"),
+            SlideshowStatus.SeekPaused => GalleryPlaybackCatalog.Get("viewer.playback.status.seekPaused"),
+            SlideshowStatus.Paused => GalleryPlaybackCatalog.Get("viewer.playback.status.paused"),
             _ => string.Empty
         };
     }
@@ -204,36 +203,27 @@ internal sealed partial class GalleryViewer
         _updatingPlaybackControls = true;
         try
         {
-            string T(string en, string de) => GalleryViewerText.Get(en, de);
-            if (_playbackLabelsLanguage != Texts.Language)
-            {
-                _playbackLabelsLanguage = Texts.Language;
-                _playbackMode.ItemsSource = new[] { T("Manual", "Manuell"), T("Repeat video", "Video wiederholen"), T("Slideshow", "Diashow") };
-            }
-            if (_playbackMode.SelectedIndex != (int)_playbackPreferences.Mode)
-                _playbackMode.SelectedIndex = (int)_playbackPreferences.Mode;
-            AutomationProperties.SetName(_playbackMode, T("Playback mode", "Wiedergabemodus"));
-            ToolTip.SetTip(_playbackMode, T("Choosing Slideshow does not start it. Use Start slideshow.", "Diashow auswählen startet sie nicht. Mit Diashow starten beginnen."));
-            SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? T("Pause slideshow", "Diashow pausieren") : T("Start slideshow", "Diashow starten"));
+            RefreshPlaybackModeChoices(new[] { GalleryPlaybackCatalog.Get("viewer.playback.manual"), GalleryPlaybackCatalog.Get("viewer.playback.repeat"), GalleryPlaybackCatalog.Get("viewer.playback.slideshow") });
+            AutomationProperties.SetName(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.mode"));
+            ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
+            SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
-            SetToggleLabel(_overlayToggle, T("Auto-hide controls overlay", "Controls-Overlay automatisch ausblenden"));
-            SetToggleLabel(_autoHideToggle, T("Auto-hide", "Auto-Hide"));
-            ToolTip.SetTip(_autoHideToggle, T("Reveal controls at the bottom edge; leave the panel to hide it. Keyboard access remains available.",
-                "Controls am unteren Rand einblenden; beim Verlassen einklappen. Tastaturzugriff bleibt verfügbar."));
-            SetToggleLabel(_postOverlayToggle, T("Post overlay", "Beitrags-Overlay"));
+            SetToggleLabel(_overlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.controlsOverlay"));
+            SetToggleLabel(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHide"));
+            ToolTip.SetTip(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHideHelp"));
+            SetToggleLabel(_postOverlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.postOverlay"));
             _overlayToggle.IsChecked = _playbackPreferences.OverlayControls;
             _autoHideToggle.IsChecked = _playbackPreferences.AutoHideControls;
             _autoHideToggle.IsEnabled = _playbackPreferences.OverlayControls && !_nativeOverlayFallback;
             _postOverlayToggle.IsChecked = _playbackPreferences.OverlayPostContext;
-            _overlayFallbackNotice.Text = T("Overlay unavailable for this native video surface. Controls remain docked.",
-                "Overlay für diese native Videofläche nicht verfügbar. Controls bleiben angedockt.");
+            _overlayFallbackNotice.Text = GalleryPlaybackCatalog.Get("viewer.playback.overlayUnavailable");
             foreach (var (button, id) in PlaybackActions())
             {
                 button.IsEnabled = CanExecutePlaybackAction(id);
                 string? reason = id == "gallery.slideshow-toggle" && !button.IsEnabled ? SlideshowStatusText(CurrentSlideshowStatus)
                     : id == "gallery.overlay-autohide-toggle" && !button.IsEnabled
-                        ? T("Enable a supported controls overlay first", "Zuerst ein unterstütztes Controls-Overlay aktivieren") : null;
+                        ? GalleryPlaybackCatalog.Get("viewer.playback.enableOverlay") : null;
                 string label = button.Content?.ToString() ?? CommandCatalog.Label(id);
                 string tip = CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
@@ -244,6 +234,23 @@ internal sealed partial class GalleryViewer
         }
         finally { _updatingPlaybackControls = false; }
         UpdateViewerInteractionTimer();
+    }
+
+    // Compare resolved text rather than a language code: Texts.Changed also fires
+    // for a same-code pack reload. Keep the existing ItemsSource on no-op ticks.
+    // The semantic mode, not a transient ComboBox clear, owns the restored index.
+    internal void RefreshPlaybackModeChoices(string[] labels)
+    {
+        bool wasUpdating = _updatingPlaybackControls;
+        _updatingPlaybackControls = true;
+        try
+        {
+            if (_playbackMode.ItemsSource is not string[] current || !current.SequenceEqual(labels, StringComparer.Ordinal))
+                _playbackMode.ItemsSource = labels;
+            if (_playbackMode.SelectedIndex != (int)_playbackPreferences.Mode)
+                _playbackMode.SelectedIndex = (int)_playbackPreferences.Mode;
+        }
+        finally { _updatingPlaybackControls = wasUpdating; }
     }
 
     private static void SetToggleLabel(ToggleButton button, string label)

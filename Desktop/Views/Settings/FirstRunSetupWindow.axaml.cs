@@ -39,6 +39,7 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationValidator? validator = null)
     {
         InitializeComponent();
+        AppCaption.Attach(this);
         _baseline = baseline.Clone();
         _accept = accept;
         _validator = validator ?? DownloadDestinationValidator.Shared;
@@ -101,6 +102,24 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(SetupFolderInput.Text, _baseline.DownloadPathBaseDirectory);
         SetupNormalizedPath.Text = syntax.NormalizedPath == null ? Texts.T("destination.noPreview")
             : Texts.T("destination.normalized", syntax.NormalizedPath);
+        RefreshParallelLimitPreview();
+    }
+
+    private void RefreshParallelLimitPreview()
+    {
+        SetupEffectiveParallelLimit.Text = FormatParallelLimitPreview(SetupParallelInput.Text,
+            _baseline.ParallelDownloadsSafetyLimit, CultureInfo.CurrentCulture);
+        AutomationProperties.SetHelpText(SetupParallelInput, Texts.T("setup.positiveLimits") + " "
+            + SetupEffectiveParallelLimit.Text + " " + Texts.T("setup.parallelSafetyHint"));
+    }
+
+    // Presentation only: share the accept parser's parallel-number rules without
+    // depending on a valid bandwidth/path draft or changing either raw input.
+    internal static string FormatParallelLimitPreview(string? parallel, int safetyLimit, IFormatProvider inputCulture)
+    {
+        if (!FirstRunSetupCoordinator.TryParseLimits("1", parallel, inputCulture, out _, out int requested))
+            return Texts.T("setup.parallelEffectiveInvalid", safetyLimit);
+        return Texts.T("setup.parallelEffective", Math.Min(requested, safetyLimit), requested, safetyLimit);
     }
 
     private void RefreshLabels()
@@ -109,7 +128,8 @@ internal partial class FirstRunSetupWindow : Window
         SetupIntroduction.Text = Texts.T("setup.intro");
         SetupFolderLabel.Text = Texts.T("settings.downloadPath");
         SetupBandwidthLabel.Text = Texts.T("setup.bandwidth");
-        SetupParallelLabel.Text = Texts.T("setup.parallel");
+        SetupParallelLabel.Text = Texts.T("setup.parallelRequested");
+        SetupParallelSafetyHint.Text = Texts.T("setup.parallelSafetyHint");
         SetupBrowseButton.Content = Texts.T("settings.browse");
         SetupCheckButton.Content = Texts.T("destination.check");
         SetupAcceptButton.Content = Texts.T("setup.accept");
@@ -131,7 +151,6 @@ internal partial class FirstRunSetupWindow : Window
         AutomationProperties.SetName(SetupParallelInput, SetupParallelLabel.Text);
         AutomationProperties.SetHelpText(SetupFolderInput, SetupProbePolicy.Text);
         AutomationProperties.SetHelpText(SetupBandwidthInput, Texts.T("setup.positiveLimits"));
-        AutomationProperties.SetHelpText(SetupParallelInput, Texts.T("setup.positiveLimits"));
         RefreshCleanupWarning();
     }
 

@@ -125,7 +125,7 @@ public partial class PluginsPage : UserControl
         // The menu contains materialized labels/reasons, so its language-code
         // guard alone cannot invalidate that old catalog snapshot.
         ClosePluginActionMenu();
-        Localize(); RenderError(); RenderList(); RenderDetails();
+        Localize(); RenderError(); RenderList(); RenderDetails(); RenderPluginProbeResult();
     });
     private void Localize()
     {

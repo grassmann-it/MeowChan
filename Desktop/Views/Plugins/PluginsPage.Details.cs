@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Compilation;
+using MeowChan.PluginSdk;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -19,8 +20,71 @@ public partial class PluginsPage
     private sealed class PluginToolViewState
     {
         internal string Url = string.Empty;
-        internal string Result = string.Empty;
+        internal PluginProbePresentation? Result;
         internal IReadOnlyList<PluginBuildDiagnostic> Diagnostics = Array.Empty<PluginBuildDiagnostic>();
+    }
+
+    // Detached, display-only data: never retain a worker result, snapshot, source
+    // collection or test authorization. Raw preview text keeps the existing first
+    // 100-entry bound and the validated SDK metadata/text limits; it is not translated.
+    internal sealed class PluginProbePresentation
+    {
+        internal const int MaximumPreviewEntries = 100;
+        internal enum ResultKind { Thread, Catalog, Failure, Deferred, NotFound, Unchanged }
+
+        internal ResultKind Kind { get; }
+        internal int EntryCount { get; }
+        internal long AttachmentCount { get; }
+        internal DateTimeOffset? RetryAt { get; }
+        internal int? HttpStatusCode { get; }
+        internal string RawContent { get; }
+        internal bool PreviewLimited { get; }
+
+        private PluginProbePresentation(ResultKind kind, string rawContent = "", int entryCount = 0,
+            long attachmentCount = 0, DateTimeOffset? retryAt = null, int? httpStatusCode = null,
+            bool previewLimited = false)
+        {
+            Kind = kind; RawContent = rawContent; EntryCount = entryCount;
+            AttachmentCount = attachmentCount; RetryAt = retryAt; HttpStatusCode = httpStatusCode;
+            PreviewLimited = previewLimited;
+        }
+
+        // Called only for the already validated result of the captured probe.
+        // Materialize the bounded raw projection now, not a closure over result.
+        internal static PluginProbePresentation Capture(object result) => result switch
+        {
+            MeowChan.PluginSdk.ThreadSnapshot thread => new(ResultKind.Thread,
+                string.Join("\n", thread.Snapshot.Posts.Take(MaximumPreviewEntries).Select(post =>
+                    post.PostId + ": " + post.Subject + " " + post.Text + "\n"
+                    + string.Join("\n", post.Attachments?.Select(asset =>
+                        "  " + asset.MediaId + " · " + asset.OriginalFileName + " · " + asset.Url) ?? Array.Empty<string>()))),
+                entryCount: thread.Snapshot.Posts.Count,
+                attachmentCount: thread.Snapshot.Posts.Sum(post => (long)(post.Attachments?.Count ?? 0)),
+                previewLimited: thread.Snapshot.Posts.Count > MaximumPreviewEntries),
+            CatalogSnapshot catalog => new(ResultKind.Catalog,
+                string.Join("\n", catalog.Snapshot.Threads.Take(MaximumPreviewEntries).Select(thread =>
+                    thread.Id.ThreadId + " · " + thread.Title + " · " + thread.Url)),
+                entryCount: catalog.Snapshot.Threads.Count),
+            ThreadFailure failure => new(ResultKind.Failure, failure.Failure.Code + ": " + failure.Failure.Message),
+            CatalogFailure failure => new(ResultKind.Failure, failure.Failure.Code + ": " + failure.Failure.Message),
+            ThreadDeferred deferred => new(ResultKind.Deferred, deferred.ReasonCode, retryAt: deferred.RetryAt),
+            CatalogDeferred deferred => new(ResultKind.Deferred, deferred.ReasonCode, retryAt: deferred.RetryAt),
+            ThreadNotFound missing => new(ResultKind.NotFound, httpStatusCode: missing.HttpStatusCode),
+            ThreadUnchanged or CatalogUnchanged => new(ResultKind.Unchanged),
+            _ => throw new InvalidOperationException("Unexpected plugin probe result.")
+        };
+
+        internal string Render() => Kind switch
+        {
+            ResultKind.Thread => Texts.T("plugins.threadResult", EntryCount, AttachmentCount) + "\n" + RawContent
+                + (PreviewLimited ? "\n" + Texts.T("plugins.previewLimited") : string.Empty),
+            ResultKind.Catalog => Texts.T("plugins.catalogResult", EntryCount) + "\n" + RawContent,
+            ResultKind.Failure => RawContent,
+            ResultKind.Deferred => Texts.T("plugins.deferred", RetryAt, RawContent),
+            ResultKind.NotFound => Texts.T("plugins.notFound", HttpStatusCode),
+            ResultKind.Unchanged => Texts.T("plugins.unchanged"),
+            _ => throw new InvalidOperationException("Unexpected plugin probe presentation.")
+        };
     }
 
     private readonly Dictionary<string, Dictionary<string, bool>> _pluginExpansionStates = new(StringComparer.Ordinal);
@@ -36,7 +100,6 @@ public partial class PluginsPage
         TrackExpansion(C<Expander>("PluginGrantExpander"), "grants");
         TrackExpansion(C<Expander>("PluginEditorExpander"), "editor-options");
         C<TextBox>("PluginProbeUrl").TextChanging += (_, _) => CapturePluginProbeState();
-        C<TextBox>("PluginProbeResult").TextChanging += (_, _) => CapturePluginProbeState();
 
         void TrackExpansion(Expander expander, string id)
         {
@@ -68,7 +131,6 @@ public partial class PluginsPage
         if (_restoringPluginTools || _pluginToolKey is not { } key) return;
         PluginToolViewState state = ToolState(key);
         state.Url = C<TextBox>("PluginProbeUrl").Text ?? string.Empty;
-        state.Result = C<TextBox>("PluginProbeResult").Text ?? string.Empty;
     }
 
     // Selection and rebuild restore UI state, never an old test authorization or a configuration draft.
@@ -92,11 +154,24 @@ public partial class PluginsPage
                 C<Expander>(item.Item1).IsExpanded = expansion.GetValueOrDefault(item.Item2);
             PluginToolViewState state = ToolState(entry.Key);
             C<TextBox>("PluginProbeUrl").Text = state.Url;
-            C<TextBox>("PluginProbeResult").Text = state.Result;
+            RenderPluginProbeResult();
             RenderDiagnostics(state.Diagnostics, entry);
             C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
         }
         finally { _restoringPluginTools = false; }
+    }
+
+    private void RenderPluginProbeResult()
+    {
+        if (_ended || _pluginToolKey is not { } key || key != _selectedKey) return;
+        TextBox output = C<TextBox>("PluginProbeResult");
+        string text = ToolState(key).Result?.Render() ?? string.Empty;
+        if (output.Text == text) return;
+        int start = output.SelectionStart, end = output.SelectionEnd, caret = output.CaretIndex;
+        output.Text = text;
+        output.CaretIndex = Math.Clamp(caret, 0, text.Length);
+        output.SelectionStart = Math.Clamp(start, 0, text.Length);
+        output.SelectionEnd = Math.Clamp(end, 0, text.Length);
     }
 
     private void RenderTechnicalIdentity(PluginCatalogEntry entry)

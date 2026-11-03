@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
+        InitializeComponent(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
@@ -519,6 +519,7 @@ public partial class ArchivePage : UserControl
         UpdateMediaRatingAction();
         UpdateThreadFavoriteActions();
         UpdateArchiveCleanupAction();
+        UpdateTransferPreviewAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended;
@@ -980,6 +981,7 @@ public partial class ArchivePage : UserControl
         StopObservingReaderMediaKeys();
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();
+        EndTransferPreviewLifetime();
         ClearPaginationInput();
         _runningList = null; _retryList = null;
         SearchStateChanged?.Invoke();

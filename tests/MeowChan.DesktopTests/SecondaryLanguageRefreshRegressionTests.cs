@@ -140,17 +140,50 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
     }
 
     [Fact]
-    public void AttachedShortcutEditorRebuildsMaterializedRowsAndDetailLabels()
+    public void AttachedShortcutEditorRelocalizesMaterializedRowsAndDetailLabelsInPlace()
     {
         string source = ReadSource("Desktop/Commands/ShortcutEditor.cs");
         Assert.Contains("Texts.Changed += OnLanguageChanged;", source);
         Assert.Contains("Texts.Changed -= OnLanguageChanged;", source);
-        string localize = Between(source, "private void Localize()", "private void RefreshList()");
-        Assert.Contains("RefreshList();", localize);
+
+        string localize = Between(source, "private void Localize()", "private void BuildFrame()");
+        // Language changes must relabel the already-materialized presentation. A
+        // list rebuild would replace the focused row, selection, detail controls,
+        // and potentially the active capture lease.
+        Assert.Contains("foreach (var refresh in _rowTexts) refresh();", localize);
+        Assert.Contains("foreach (var refresh in _detailTexts) refresh();", localize);
+        Assert.DoesNotContain("RefreshList();", localize);
+        Assert.DoesNotContain("RefreshDetail();", localize);
+
         string list = Between(source, "private void RefreshList()", "private IReadOnlyList<ShortcutGesture> DraftGestures(");
         Assert.Contains("Text = command.Label", list);
         Assert.Contains("AutomationProperties.SetName(item, accessible)", list);
+        Assert.Contains("void RefreshTexts()", list);
+        Assert.Contains("label.Text = command.Label;", list);
+        Assert.Contains("binding.Text = Binding();", list);
+        Assert.Contains("stateText.Text = State();", list);
+        Assert.Contains("AutomationProperties.SetName(item, Accessible());", list);
         Assert.Contains("RefreshDetail();", list);
+
+        Assert.Contains("_rowTexts.Add(row.Refresh)", list);
+        string detail = Between(source, "private void RefreshDetail()", "private void CaptureKey(");
+        Assert.Contains("_detailTexts.Clear();", detail);
+        Assert.Contains("var title = LocalizedText(() => command!.Label, _detailTexts);", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.remove\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.recordAdditional\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.clearBinding\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.restoreDefault\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.applyRecording\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.takeOver\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.cancelRecording\")", detail);
+        Assert.Equal(7, Regex.Matches(detail, @", _detailTexts\)\);").Count);
+
+        string textHelper = Between(source, "private static TextBlock LocalizedText(", "private static Button Button(");
+        Assert.Contains("void Refresh() => text.Text = label();", textHelper);
+        Assert.Contains("refreshers.Add(Refresh);", textHelper);
+        string buttonHelper = source[source.IndexOf("private static Button Button(", StringComparison.Ordinal)..];
+        Assert.Contains("button.Content = text; AutomationProperties.SetName(button, text);", buttonHelper);
+        Assert.Contains("refreshers.Add(Refresh);", buttonHelper);
     }
 
     [Theory]
