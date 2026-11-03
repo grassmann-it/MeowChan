@@ -35,7 +35,6 @@ public sealed class ShortcutEditor : UserControl
     private long _validationFocusRequest;
     public ShortcutBindingsSection Draft { get; private set; } = new();
     public bool IsDirty { get; private set; }
-    private static string T(string en, string de) => Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase) ? de : en;
     public ShortcutEditor()
     {
         Name = "ShortcutEditor";
@@ -129,15 +128,15 @@ public sealed class ShortcutEditor : UserControl
         _root.Children.Clear();
         _heading.Text = Texts.T("shortcuts.title");
         _root.Children.Add(_heading);
-        var hint = new TextBlock { Text = T("Bindings apply after Save in every view. Text editing, Tab and Escape remain available. System shortcuts may intercept keys.", "Belegungen gelten nach Speichern in jeder Ansicht. Texteingabe, Tab und Escape bleiben verfügbar. Systemkürzel können Tasten abfangen.") };
+        var hint = new TextBlock { Text = Texts.T("settings.shortcutsEditor.hint") };
         hint.Classes.Add("workspace-help");
         _root.Children.Add(hint);
-        _search.PlaceholderText = T("Search action, context or shortcut", "Aktion, Bereich oder Kürzel suchen");
+        _search.PlaceholderText = Texts.T("settings.shortcutsEditor.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText?.ToString());
-        AutomationProperties.SetName(_actions, T("Actions and shortcuts", "Aktionen und Tastenkürzel"));
+        AutomationProperties.SetName(_actions, Texts.T("settings.shortcutsEditor.actions"));
         _root.Children.Add(_search);
         var tableHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0) };
-        foreach (var (label, column) in new[] { (T("Action", "Aktion"), 0), (T("Context", "Bereich"), 1), (T("Effective binding", "Wirksame Belegung"), 2) })
+        foreach (var (label, column) in new[] { (Texts.T("settings.shortcutsEditor.action"), 0), (Texts.T("settings.shortcutsEditor.context"), 1), (Texts.T("settings.shortcutsEditor.effectiveBinding"), 2) })
         {
             var text = new TextBlock { Text = label };
             text.Classes.Add("workspace-field-label");
@@ -148,7 +147,7 @@ public sealed class ShortcutEditor : UserControl
         _root.Children.Add(_actions);
         _root.Children.Add(_detailFrame);
         _root.Children.Add(_errors);
-        var reset = Button(T("Reset all known actions", "Alle bekannten Aktionen zurücksetzen"), () => { Draft = Draft.ResetKnown(); Changed(); });
+        var reset = Button(Texts.T("settings.shortcutsEditor.resetAll"), () => { Draft = Draft.ResetKnown(); Changed(); });
         reset.IsEnabled = Draft.IsEditable;
         _root.Children.Add(reset);
         RefreshList();
@@ -160,9 +159,9 @@ public sealed class ShortcutEditor : UserControl
         var items = CommandCatalog.All.Select(command =>
         {
             string context = string.Join(", ", command.ExecutionContexts);
-            string binding = snapshot.Display(command.Id) ?? T("Unbound", "Unbelegt");
+            string binding = snapshot.Display(command.Id) ?? Texts.T("settings.shortcutsEditor.unbound");
             string state = !command.IsImplemented || command.Contexts.All(x => x.EndsWith(":planned", StringComparison.Ordinal))
-                ? T("Unavailable", "Nicht verfügbar") : Draft.HasOverride(command.Id) ? T("Custom", "Benutzer") : T("Default", "Standard");
+                ? Texts.T("settings.shortcutsEditor.unavailable") : Draft.HasOverride(command.Id) ? Texts.T("settings.shortcutsEditor.custom") : Texts.T("settings.shortcutsEditor.default");
             string accessible = command.Label + " · " + context + " · " + binding + " · " + state;
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12 };
             row.Children.Add(new TextBlock { Text = command.Label, TextWrapping = TextWrapping.Wrap });
@@ -215,25 +214,25 @@ public sealed class ShortcutEditor : UserControl
             int index = i;
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             row.Children.Add(new TextBlock { Text = gestures[i].Display(EffectiveShortcutBindings.CurrentPlatform), VerticalAlignment = VerticalAlignment.Center });
-            row.Children.Add(Button(T("Remove", "Entfernen"), () => { Draft = Draft.Set(_selected!, gestures.Where((_, n) => n != index).ToArray()); Changed(); }));
+            row.Children.Add(Button(Texts.T("settings.shortcutsEditor.remove"), () => { Draft = Draft.Set(_selected!, gestures.Where((_, n) => n != index).ToArray()); Changed(); }));
             _detail.Children.Add(row);
         }
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        actions.Children.Add(Button(T("Record additional shortcut", "Weiteres Kürzel aufnehmen"), () =>
+        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.recordAdditional"), () =>
         { _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; _captureLease = ShortcutService.BeginCapture(); _capture.IsEnabled = true; _capture.Focus(); }));
-        actions.Children.Add(Button(T("Clear binding", "Belegung entfernen"), () => { Draft = Draft.Set(_selected!, Array.Empty<ShortcutGesture>()); Changed(); }));
-        actions.Children.Add(Button(T("Restore default", "Standard wiederherstellen"), () => { Draft = Draft.Set(_selected!, null); Changed(); }));
+        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.clearBinding"), () => { Draft = Draft.Set(_selected!, Array.Empty<ShortcutGesture>()); Changed(); }));
+        actions.Children.Add(Button(Texts.T("settings.shortcutsEditor.restoreDefault"), () => { Draft = Draft.Set(_selected!, null); Changed(); }));
         _detail.Children.Add(actions);
         _capture.IsEnabled = false;
-        AutomationProperties.SetName(_capture, T("Record shortcut", "Tastenkürzel aufnehmen"));
-        AutomationProperties.SetHelpText(_capture, T("Escape cancels. Tab moves focus. Apply adds the recorded gesture to the draft.", "Escape bricht ab. Tab wechselt den Fokus. Übernehmen ergänzt die Geste im Entwurf."));
+        AutomationProperties.SetName(_capture, Texts.T("settings.shortcutsEditor.record"));
+        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.recordHelp"));
         _detail.Children.Add(_capture);
-        _explicit.Content = T("Keep explicit Ctrl/Meta instead of Primary", "Ctrl/Meta ausdrücklich statt Primärtaste speichern");
+        _explicit.Content = Texts.T("settings.shortcutsEditor.keepExplicit");
         _detail.Children.Add(_explicit); _detail.Children.Add(_pendingLabel);
         var commit = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        commit.Children.Add(Button(T("Apply recording", "Aufnahme übernehmen"), () => ApplyCapture(false)));
-        commit.Children.Add(Button(T("Take over conflicting gesture", "Kollidierende Geste übernehmen"), () => ApplyCapture(true)));
-        commit.Children.Add(Button(T("Cancel recording", "Aufnahme abbrechen"), CancelCapture));
+        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.applyRecording"), () => ApplyCapture(false)));
+        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.takeOver"), () => ApplyCapture(true)));
+        commit.Children.Add(Button(Texts.T("settings.shortcutsEditor.cancelRecording"), CancelCapture));
         _detail.Children.Add(commit);
     }
     private void CaptureKey(object? sender, KeyEventArgs e)
@@ -241,7 +240,7 @@ public sealed class ShortcutEditor : UserControl
         if (e.Key == Key.Escape) { e.Handled = true; CancelCapture(); }
         else if (e.Key == Key.Tab) StopCapture();
         else if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt))
-        { e.Handled = true; _pending = null; _pendingLabel.Text = T("AltGr / Ctrl+Alt text is not a shortcut.", "AltGr-/Ctrl+Alt-Text ist kein Tastenkürzel."); }
+        { e.Handled = true; _pending = null; _pendingLabel.Text = Texts.T("settings.shortcutsEditor.altGrText"); }
     }
     private void CancelCapture()
     {
@@ -292,7 +291,7 @@ public sealed class ShortcutEditor : UserControl
         if (EffectiveShortcutBindings.InvalidReason(_pending, EffectiveShortcutBindings.CurrentPlatform) is string error)
         { _pendingLabel.Text = error; return; }
         var list = DraftGestures(_selected).ToList();
-        if (list.Count >= 8) { _pendingLabel.Text = T("At most eight gestures per action.", "Höchstens acht Gesten pro Aktion."); return; }
+        if (list.Count >= 8) { _pendingLabel.Text = Texts.T("settings.shortcutsEditor.gestureLimit"); return; }
         if (!list.Any(g => EffectiveShortcutBindings.Equivalent(g, _pending, EffectiveShortcutBindings.CurrentPlatform))) list.Add(_pending);
         if (takeOver)
             foreach (var command in CommandCatalog.All.Where(c => c.Id != _selected && EffectiveShortcutBindings.ContextsOverlap(c.Id, _selected)))
@@ -309,7 +308,7 @@ public sealed class ShortcutEditor : UserControl
     {
         _errors.Focusable = issues.Any(issue => issue.BlocksSave);
         _errors.Text = string.Join("\n", issues.Select(i => (CommandCatalog.TryGet(i.CommandId, out var c) ? c!.Label : i.CommandId) + (i.OtherCommandId != null ? " ↔ " + CommandCatalog.Label(i.OtherCommandId) : "") + ": " + i.Message));
-        AutomationProperties.SetHelpText(_capture, T("Escape cancels recording. Tab moves focus. ", "Escape bricht die Aufnahme ab. Tab wechselt den Fokus. ") + _errors.Text);
+        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.issuesHelp") + _errors.Text);
     }
     private static Button Button(string label, Action execute)
     { var b = new Button { Content = label }; AutomationProperties.SetName(b, label); b.Click += (_, _) => execute(); return b; }
