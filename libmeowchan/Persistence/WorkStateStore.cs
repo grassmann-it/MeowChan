@@ -80,8 +80,15 @@ public sealed class WorkStateStore : IWorkStateStore, IConditionalWorkStateStore
     private readonly ProfileLease _lease;
     internal object CoordinationIdentity => _lease;
     internal ProfileLease ProfileLease => _lease;
+    // Instance-scoped deterministic test observer. Unset in production; invoked
+    // only after a use has been accepted, and conveys no token or write authority.
+    internal Action? AdmittedWriteObserver { get; set; }
     internal T RunAdmitted<T>(ProfileAdmissionToken admission, Func<T> operation) =>
-        _lease.Admission.RunWithToken(admission, operation, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        _lease.Admission.RunWithToken(admission, () =>
+        {
+            AdmittedWriteObserver?.Invoke();
+            return operation();
+        }, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
     private long _resourcePointReads, _mediaPointReads, _resourceBatchReads, _mediaBatchReads, _materializedRows;
     internal WorkStoreQueryCounts QueryCounts => new(Interlocked.Read(ref _resourcePointReads), Interlocked.Read(ref _mediaPointReads),
         Interlocked.Read(ref _resourceBatchReads), Interlocked.Read(ref _mediaBatchReads), Interlocked.Read(ref _materializedRows));
