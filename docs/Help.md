@@ -5,6 +5,12 @@ and optionally captures posts for local reading and search. This guide describes
 **MeowChan 1.0.2**. See the [1.0.2 release notes](releases/v1.0.2.md) for
 packages and upgrade details.
 
+For the unreleased development checkout, see the current collection-workflow
+preview ([English](user-guide/collection-workflow-preview.en.md) /
+[Deutsch](user-guide/collection-workflow-preview.md)). Its inventory-only transfer
+preview is not an import or merge workflow; the guide distinguishes implemented
+controls from planned Booru, tagging, relocation and transfer work.
+
 The supplied source plugins support 4chan, 8kun, Lainchan, Kohlchan,
 Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Open **Plugins**
 from the app menu or footer (under **Tools** in compact views), then select a
