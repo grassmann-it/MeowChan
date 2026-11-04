@@ -353,9 +353,31 @@ public static class CommandBindings
     {
         if (e.Handled || ShortcutService.IsCapturing) return false;
         bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down";
-        bool ownSlider = e.Source is Visual visual && visual.GetSelfAndVisualAncestors()
-            .Any(parent => ReferenceEquals(parent, seek) || ReferenceEquals(parent, volume));
-        return transportAction && ownSlider ? ShortcutService.Current.Matches(e, id) : Matches(e, id);
+        if (transportAction && e.Source is Visual visual)
+        {
+            foreach (var parent in visual.GetSelfAndVisualAncestors())
+            {
+                // Stop at the actual owned slider before applying native-input policy:
+                // the slider itself intentionally reserves these keys from generic routing.
+                if (ReferenceEquals(parent, seek) || ReferenceEquals(parent, volume))
+                    return ShortcutService.Current.Matches(e, id);
+                // Check each nearer node, not IsNativeInput(source): that predicate also
+                // sees the owned slider above decorative template children.
+                if (parent is TextBox or ComboBox or NumericUpDown or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox)
+                    return false;
+                if (parent is Slider && (e.Key is Key.Left or Key.Right or Key.Up or Key.Down
+                    or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Enter or Key.Escape))
+                    return false;
+                if (parent is SelectableTextBlock text && text.SelectionStart != text.SelectionEnd)
+                    return false;
+                if ((e.Key is Key.Enter or Key.Space) && (parent is Button or Ursa.Controls.ClosableTag or Ursa.Controls.Rating or Expander))
+                    return false;
+                if ((e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown)
+                    && (parent is SelectingItemsControl or DataGrid))
+                    return false;
+            }
+        }
+        return Matches(e, id);
     }
 
     private static bool AllowsInputShortcut(string id, KeyEventArgs e)
