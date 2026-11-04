@@ -73,7 +73,9 @@ public partial class ArchivePage
         fresh.IsCheckedChanged += (_, _) => UpdateExportMode();
         update.IsCheckedChanged += (_, _) => UpdateExportMode();
         modes.Children.Add(fresh); modes.Children.Add(update); content.Children.Add(modes);
-        WrapPanel historyActions = new() { ItemSpacing = 8, LineSpacing = 6 };
+        // Vertical actions inherit the finite scroll-content width; wrapping a
+        // row of buttons would not constrain an individual long label.
+        StackPanel historyActions = new() { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
         Button prior = ExportName(new Button(), "ArchiveExportPrevious"); prior.Click += OnExportPrevious;
         Button associate = ExportName(new Button(), "ArchiveExportAssociate"); associate.Click += OnExportAssociate;
         historyActions.Children.Add(prior); historyActions.Children.Add(associate); content.Children.Add(historyActions);
@@ -82,7 +84,7 @@ public partial class ArchivePage
         ComboBox legacy = ExportName(new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportLegacy");
         legacy.SelectionChanged += (_, _) => UpdateExportActions(); legacyContent.Children.Add(legacy);
         Button legacyAssociate = ExportName(new Button(), "ArchiveExportLegacyAssociate"); legacyAssociate.Click += OnExportLegacyAssociate; legacyContent.Children.Add(legacyAssociate);
-        content.Children.Add(ExportName(new Expander { Content = legacyContent, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportLegacySection"));
+        content.Children.Add(ExportName(new Expander { Content = legacyContent, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch }, "ArchiveExportLegacySection"));
         content.Children.Add(ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportBackupHint"));
         CheckBox backup = ExportName(new CheckBox(), "ArchiveExportBackup"); content.Children.Add(backup);
         TextBox destination = ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination");
@@ -160,6 +162,22 @@ public partial class ArchivePage
         if (e.Source is Control control && !IsExportChild(control))
         { e.Handled = true; Control<Button>("ArchiveExportClose").Focus(); }
     }
+    // Keep the same text presenter on language refresh. Stretch through the
+    // vertical parent and button presenter, leaving height free for every line.
+    internal static void ApplyExportActionLabel(Button button, string label)
+    {
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        if (button.Content is not TextBlock text)
+        {
+            text = new TextBlock();
+            button.Content = text;
+        }
+        text.Text = label;
+        text.TextWrapping = TextWrapping.Wrap;
+        text.TextTrimming = TextTrimming.None;
+        Avalonia.Automation.AutomationProperties.SetName(button, label);
+    }
     private void LocalizeExport()
     {
         if (_exportCard == null) return;
@@ -175,10 +193,10 @@ public partial class ArchivePage
         Control<RadioButton>("ArchiveExportNew").Content = Texts.T("export.new");
         Control<RadioButton>("ArchiveExportUpdate").Content = Texts.T("export.update");
         Control<Expander>("ArchiveExportLegacySection").Header = Texts.T("export.older");
-        Control<Button>("ArchiveExportLegacyFind").Content = Texts.T("export.legacyFind");
-        Control<Button>("ArchiveExportLegacyAssociate").Content = Texts.T("export.legacyAssociate");
-        Control<Button>("ArchiveExportPrevious").Content = Texts.T("export.previous");
-        Control<Button>("ArchiveExportAssociate").Content = Texts.T("export.associate");
+        ApplyExportActionLabel(Control<Button>("ArchiveExportLegacyFind"), Texts.T("export.legacyFind"));
+        ApplyExportActionLabel(Control<Button>("ArchiveExportLegacyAssociate"), Texts.T("export.legacyAssociate"));
+        ApplyExportActionLabel(Control<Button>("ArchiveExportPrevious"), Texts.T("export.previous"));
+        ApplyExportActionLabel(Control<Button>("ArchiveExportAssociate"), Texts.T("export.associate"));
         Control<CheckBox>("ArchiveExportBackup").Content = Texts.T("export.preserve");
         Control<TextBlock>("ArchiveExportBackupHint").Text = Texts.T("export.backupHint");
         Control<CheckBox>("ArchiveExportMedia").Content = Texts.T("archive.exportMedia");
