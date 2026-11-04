@@ -119,9 +119,11 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
             Assert.Empty(registry.Threads);
             Assert.Empty(registry.Boards);
             blocker = lease.Admission.EnterOrdinaryWriter();
-            // Queue stop publishes a state change; settle that background scan before
-            // installing the seam so only the owner's direct final pass is held.
+            // Queue stop publishes an asynchronous state change. First join its
+            // Registry delivery, then the work it registered, before installing
+            // the seam intended only for the owner's direct final pass.
             await AwaitStartedAsync(queue.StopAllAsync(), started);
+            await AwaitStartedAsync(AwaitQueueRegistryDeliveryIdleAsync(queue, registry), started);
             await AwaitStartedAsync(registry.DrainBackgroundTasksAsync(), started);
             registry.BeforeCompletionScan = async () =>
             {
@@ -344,6 +346,40 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
     }
 
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private static async Task AwaitQueueRegistryDeliveryIdleAsync(DownloadQueue queue, Registry registry)
+    {
+        // StopAllAsync does not join CoalescedEvent delivery. With this empty,
+        // stopped queue no further signals are produced: observe the actual
+        // Registry subscription becoming idle, not a timer or a different subscriber.
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        object Field(object target, string name) => target.GetType().GetField(name, flags)?.GetValue(target)
+            ?? throw new InvalidOperationException($"Required delivery observation field {name} is missing.");
+        object changes = Field(queue, "_changes");
+        object subscription;
+        lock (Field(changes, "_gate"))
+        {
+            subscription = Assert.Single(((System.Collections.IEnumerable)Field(changes, "_subscriptions"))
+                .Cast<object>().Where(candidate =>
+                {
+                    Delegate handler = Assert.IsAssignableFrom<Delegate>(candidate.GetType()
+                        .GetProperty("Handler")!.GetValue(candidate));
+                    return ReferenceEquals(handler.Target, registry) && handler.Method.Name == "SignalChanged";
+                }));
+        }
+        using CancellationTokenSource timeout = new(Deadline);
+        while (true)
+        {
+            lock (Field(subscription, "_gate"))
+            {
+                Assert.False((bool)Field(subscription, "_disposed"));
+                if (!(bool)Field(subscription, "_running") && !(bool)Field(subscription, "_pending")) return;
+            }
+            if (timeout.IsCancellationRequested)
+                throw new TimeoutException("The stopped queue's Registry notification did not become idle.");
+            await Task.Yield();
+        }
+    }
 
     private static async Task AssertPostScanOwnerStillPendingAsync(Registry registry, ProfileAdmission admission,
         ProfileAdmissionToken blocker, Task owner, Task stop)
