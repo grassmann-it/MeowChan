@@ -118,7 +118,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
+        InitializeComponent(); InitializeThreadFind(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeThreadFavoriteCommands();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         Control<ListBox>("ArchivePosts").AutoScrollToSelectedItem = false;
         Control<ListBox>("ArchiveMediaTiles").AutoScrollToSelectedItem = false;
@@ -289,6 +289,7 @@ public partial class ArchivePage : UserControl
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         _selectedThread = id;
+        CloseThreadFind();
         _thread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _busy = true;
@@ -318,6 +319,7 @@ public partial class ArchivePage : UserControl
                 thread = await reader.ReadThreadAsync(id, cancellationToken);
             }
             if (_ended || request != _contentRequest) return;
+            CloseThreadFind();
             _thread = thread;
             if (thread == null) _mediaProjectionPending = false;
             ReaderSnapshotLoaded();
@@ -424,6 +426,7 @@ public partial class ArchivePage : UserControl
 
     private void RenderThread()
     {
+        Control<Button>("ReaderFindOpen").IsEnabled = !_ended && !_busy && _thread != null;
         Control<TextBlock>("ArchiveSelectHint").IsVisible = _thread == null && !_busy;
         Control<TabControl>("ArchiveContentTabs").IsVisible = _thread != null;
         Control<TextBlock>("ArchiveReaderTitle").Text = _thread?.Summary.Title ?? string.Empty;
@@ -785,7 +788,7 @@ public partial class ArchivePage : UserControl
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
-    private void OnBackClick(object? sender, RoutedEventArgs e) { _showReader = false; UpdateLayoutMode(); }
+    private void OnBackClick(object? sender, RoutedEventArgs e) { CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (_rebindingMedia) return;
@@ -919,6 +922,7 @@ public partial class ArchivePage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button) button.Content = Texts.T(key);
         }
+        LocalizeThreadFind();
         LocalizeExport();
         LocalizeSearch();
         UpdateArchiveEmptyState();
@@ -977,6 +981,7 @@ public partial class ArchivePage : UserControl
     internal void EndLifetime()
     {
         if (_ended) return;
+        CloseThreadFind();
         _ended = true;
         StopObservingReaderMediaKeys();
         CancelArchiveMediaCounts();

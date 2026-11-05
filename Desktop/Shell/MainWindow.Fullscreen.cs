@@ -755,7 +755,7 @@ public partial class MainWindow
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
-                (_archivePage?.TryDismissOverlay() ?? false))
+                (_archivePage?.TryDismissOverlay(e.Source) ?? false))
             { e.Handled = true; return; }
             if (_archivePage?.IsReaderDialogOpen == true) return;
             if (_selectedPage == WorkspacePage.Rules && _rulesPage?.TryDismissRuleDecision() == true)

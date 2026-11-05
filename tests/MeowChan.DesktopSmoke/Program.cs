@@ -61,7 +61,7 @@ internal static class Program
             "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY",
             "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY",
             "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "MEOWCHAN_URLTEXT_EXPORT_ONLY",
-            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY"
+            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -249,7 +249,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
+                ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1"
                 ? "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1"
                 ? "URLtext page boundary: real native owner/page with synthetic summaries and causal lifecycle/modal guards; no OS picker or client interoperability acceptance"
@@ -416,6 +418,11 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")
+            {
+                await ReaderThreadFindChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1")
             {
                 await UrlTextExportWorkflowChecks.RunAsync(mainWindow);

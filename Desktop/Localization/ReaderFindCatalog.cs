@@ -1,0 +1,23 @@
+namespace MeowChan.Desktop.Localization;
+
+internal static class ReaderFindCatalog
+{
+    public static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("readerFind.open", "Find in saved thread", "Im gespeicherten Thread suchen"),
+        ("readerFind.query", "Find text (up to 512 characters)", "Text suchen (bis 512 Zeichen)"),
+        ("readerFind.previous", "Previous hit", "Voriger Treffer"),
+        ("readerFind.next", "Next hit", "Nächster Treffer"),
+        ("readerFind.close", "Close find", "Suche schließen"),
+        ("readerFind.ready", "Search the saved thread. Enter: next · Shift+Enter: previous · Escape: close", "Gespeicherten Thread durchsuchen. Eingabe: weiter · Umschalt+Eingabe: zurück · Escape: schließen"),
+        ("readerFind.invalid", "Use at most 512 UTF-16 code units; NUL is not supported.", "Höchstens 512 UTF-16-Codeeinheiten verwenden; NUL wird nicht unterstützt."),
+        ("readerFind.searching", "Searching saved posts…", "Gespeicherte Beiträge werden durchsucht…"),
+        ("readerFind.count", "Selected {0} · {1} hits", "Ausgewählt {0} · {1} Treffer"),
+        ("readerFind.truncated", "Search limit reached; results are incomplete", "Suchgrenze erreicht; Ergebnisse sind unvollständig"),
+        ("readerFind.body", "body", "Beitragstext"),
+        ("readerFind.subject", "subject", "Betreff"),
+        ("readerFind.location", "Post {0} · {1} · UTF-16 position {2}, length {3}. Navigation selects the post; exact hit shown below.", "Beitrag {0} · {1} · UTF-16-Position {2}, Länge {3}. Navigation wählt den Beitrag; genaue Fundstelle unten."),
+        ("readerFind.beyondDisplay", "This hit extends beyond the reader body display limit. The full saved-text hit is shown here, not marked in the post.", "Dieser Treffer reicht über das Anzeigelimit des Beitragstexts hinaus. Die Fundstelle im vollständigen gespeicherten Text steht hier, nicht als Markierung im Beitrag."),
+        ("readerFind.failed", "Saved thread search failed. Change the query to retry.", "Suche im gespeicherten Thread fehlgeschlagen. Suchtext ändern, um erneut zu suchen.")
+    };
+}

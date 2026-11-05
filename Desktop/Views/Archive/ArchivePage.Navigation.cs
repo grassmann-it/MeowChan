@@ -158,6 +158,7 @@ public partial class ArchivePage
         CancelMediaLoad();
         ClosePreview();
         _selectedThread = view.Summary.Id;
+        CloseThreadFind();
         _thread = view;
         ReaderSnapshotLoaded();
         _postOffset = offset;

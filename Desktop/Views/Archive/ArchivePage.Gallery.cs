@@ -136,6 +136,7 @@ public partial class ArchivePage
             Control<TextBlock>("ArchiveReferencesPage").Text = referencePage;
             Control<Button>("PreviousReferences").IsEnabled = backlinkPost != null && referenceOffset > 0;
             Control<Button>("NextReferences").IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
+            CloseThreadFind();
             _thread = thread; _selectedThread = selected; _assets = assets;
             ReaderSnapshotLoaded();
             _postOffset = offset; _showReader = reader;

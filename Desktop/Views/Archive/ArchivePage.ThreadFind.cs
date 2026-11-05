@@ -1,0 +1,192 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Media;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using System.Linq;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
+
+namespace MeowChan;
+
+public partial class ArchivePage
+{
+    private CancellationTokenSource? _threadFindCancellation;
+    private long _threadFindRequest;
+    private ReaderThreadFindIndex? _threadFindResult;
+    private int _threadFindCursor = -1;
+    private string _threadFindStatus = "readerFind.ready";
+    internal Task ThreadFindTask { get; private set; } = Task.CompletedTask;
+
+    private void InitializeThreadFind()
+    {
+        // One local tunnel registration, before native Button.Enter click handling.
+        // No XAML bubble registration and no handledEventsToo replay after a click.
+        Control<StackPanel>("ReaderFindBar").AddHandler(KeyDownEvent,
+            OnThreadFindKeyDown, RoutingStrategies.Tunnel);
+        LocalizeThreadFind();
+    }
+
+    private bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
+        && visual.GetSelfAndVisualAncestors().Contains(Control<StackPanel>("ReaderFindBar"));
+
+    private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || _busy || _thread == null) return;
+        Control<StackPanel>("ReaderFindBar").IsVisible = true;
+        // Opening is explicit; asynchronous completion and hit navigation never take focus.
+        Control<TextBox>("ReaderFindQuery").Focus();
+        ThreadFindTask = SearchThreadFindAsync();
+    }
+
+    private void OnThreadFindQueryChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (this.FindControl<StackPanel>("ReaderFindBar")?.IsVisible == true)
+            ThreadFindTask = SearchThreadFindAsync();
+    }
+
+    private void CloseThreadFind()
+    {
+        ++_threadFindRequest;
+        _threadFindCancellation?.Cancel();
+        _threadFindResult = null;
+        _threadFindCursor = -1;
+        _threadFindStatus = "readerFind.ready";
+        Control<StackPanel>("ReaderFindBar").IsVisible = false;
+        LocalizeThreadFind();
+    }
+
+    private bool AcceptThreadFind(long request, ReaderThreadFindIndex result) => !_ended
+        && request == _threadFindRequest && Control<StackPanel>("ReaderFindBar").IsVisible
+        && _thread != null && result.Matches(_thread.Summary.Id, _thread.Summary.Revision);
+
+    // Validate the original input, not a prefix truncated by TextBox.MaxLength.
+    // Length is UTF-16 code units; do not trim, normalize or alter query semantics.
+    internal static string ThreadFindQueryStatus(string query) => query.Length > 512 || query.IndexOf('\0') >= 0
+        ? "readerFind.invalid" : query.Length == 0 ? "readerFind.ready" : "readerFind.searching";
+
+    private async Task SearchThreadFindAsync()
+    {
+        long request = ++_threadFindRequest;
+        _threadFindCancellation?.Cancel();
+        _threadFindResult = null;
+        _threadFindCursor = -1;
+        var thread = _thread;
+        string query = Control<TextBox>("ReaderFindQuery").Text ?? "";
+        _threadFindStatus = ThreadFindQueryStatus(query);
+        LocalizeThreadFind();
+        if (_ended || thread == null || _threadFindStatus != "readerFind.searching") return;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _threadFindCancellation = cancellation;
+        try
+        {
+            var result = await Task.Run(() => ReaderThreadFindIndex.Create(thread, query,
+                cancellationToken: cancellation.Token), cancellation.Token);
+            if (!AcceptThreadFind(request, result) || cancellation.IsCancellationRequested) return;
+            _threadFindResult = result;
+            _threadFindStatus = "readerFind.count";
+            LocalizeThreadFind();
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!_ended && request == _threadFindRequest)
+            { _threadFindStatus = "readerFind.failed"; LocalizeThreadFind(); }
+        }
+        finally
+        {
+            if (ReferenceEquals(_threadFindCancellation, cancellation)) _threadFindCancellation = null;
+        }
+    }
+
+    private void MoveThreadFind(bool forward)
+    {
+        var result = _threadFindResult;
+        if (result == null || !AcceptThreadFind(_threadFindRequest, result)) return;
+        _threadFindCursor = forward ? ReaderThreadFindIndex.Next(_threadFindCursor, result.Hits.Count)
+            : ReaderThreadFindIndex.Previous(_threadFindCursor, result.Hits.Count);
+        if (_threadFindCursor >= 0)
+            ShowPost(result.Texts[result.Hits[_threadFindCursor].TextIndex].PostId);
+        LocalizeThreadFind();
+    }
+    private void OnNextThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(true);
+    private void OnPreviousThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(false);
+    private void OnCloseThreadFind(object? sender, RoutedEventArgs e) => CloseThreadFind();
+    internal static int ThreadFindGesture(Key key, KeyModifiers modifiers) => (key, modifiers) switch
+    {
+        (Key.Escape, KeyModifiers.None) => 2,
+        (Key.Enter, KeyModifiers.None) => 1,
+        (Key.Enter, KeyModifiers.Shift) => -1,
+        _ => 0
+    };
+
+    private void OnThreadFindKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
+            || !Control<StackPanel>("ReaderFindBar").IsVisible || !IsThreadFindSource(e.Source)) return;
+        int gesture = ThreadFindGesture(e.Key, e.KeyModifiers);
+        if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
+        e.Handled = true;
+        if (gesture == 2) CloseThreadFind();
+        else MoveThreadFind(gesture == 1);
+    }
+
+    private void LocalizeThreadFind()
+    {
+        Control<Button>("ReaderFindOpen").Content = Texts.T("readerFind.open");
+        Control<TextBox>("ReaderFindQuery").Watermark = Texts.T("readerFind.query");
+        Control<Button>("ReaderFindPrevious").Content = Texts.T("readerFind.previous");
+        Control<Button>("ReaderFindNext").Content = Texts.T("readerFind.next");
+        Control<Button>("ReaderFindClose").Content = Texts.T("readerFind.close");
+        var result = _threadFindResult;
+        bool hits = result?.Hits.Count > 0;
+        Control<Button>("ReaderFindPrevious").IsEnabled = hits;
+        Control<Button>("ReaderFindNext").IsEnabled = hits;
+        Control<TextBlock>("ReaderFindStatus").Text = result == null ? Texts.T(_threadFindStatus)
+            : string.Format(Texts.T("readerFind.count"), _threadFindCursor + 1, result.Hits.Count)
+                + (result.Truncation == ReaderFindTruncation.None ? "" : " · " + Texts.T("readerFind.truncated"));
+        TextBlock excerpt = Control<TextBlock>("ReaderFindExcerpt");
+        excerpt.Inlines!.Clear();
+        if (result != null && _threadFindCursor >= 0)
+        {
+            var hit = result.Hits[_threadFindCursor];
+            var text = result.Texts[hit.TextIndex];
+            var snippet = ThreadFindSnippet(text.Text, hit.Offset, hit.Length);
+            // Offsets address the index's full plaintext, NEVER the truncated reader body.
+            // ShowPost selects only the containing post; this inert run shows the exact hit.
+            string field = Texts.T(text.Field == ReaderFindField.Body ? "readerFind.body" : "readerFind.subject");
+            excerpt.Inlines.Add(new Run { Text = Texts.T("readerFind.location", text.PostId,
+                field, hit.Offset + 1, hit.Length) + "\n" });
+            excerpt.Inlines.Add(new Run { Text = snippet.Before });
+            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.Bold });
+            excerpt.Inlines.Add(new Run { Text = snippet.After });
+            if (text.Field == ReaderFindField.Body && hit.Offset + hit.Length > 65536)
+                excerpt.Inlines.Add(new Run { Text = "\n" + Texts.T("readerFind.beyondDisplay") });
+        }
+    }
+
+    internal static (string Before, string Match, string After) ThreadFindSnippet(string text, int offset, int length)
+    {
+        // Keep the exact UTF-16 hit intact, including overlaps and supplementary characters.
+        if (offset < 0 || length < 1 || offset > text.Length - length)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        int start = Math.Max(0, offset - 60);
+        int end = Math.Min(text.Length, offset + length + 60);
+        // Only expand the outer context by at most one UTF-16 unit per side.
+        // Match offset/length and the index's literal query semantics stay untouched.
+        if (start > 0 && start < text.Length
+            && char.IsLowSurrogate(text[start]) && char.IsHighSurrogate(text[start - 1]))
+            start--;
+        if (end > 0 && end < text.Length
+            && char.IsHighSurrogate(text[end - 1]) && char.IsLowSurrogate(text[end]))
+            end++;
+        return ((start > 0 ? "…" : "") + text.Substring(start, offset - start),
+            text.Substring(offset, length),
+            text.Substring(offset + length, end - offset - length) + (end < text.Length ? "…" : ""));
+    }
+}

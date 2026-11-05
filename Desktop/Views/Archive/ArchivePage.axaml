@@ -185,6 +185,7 @@
                     <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
                     <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
                     <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
@@ -194,6 +195,16 @@
                     <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
                     </WrapPanel>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
+                    <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
+                        <WrapPanel ItemSpacing="6" LineSpacing="4">
+                            <TextBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
+                            <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
+                            <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            <Button x:Name="ReaderFindClose" Click="OnCloseThreadFind" />
+                        </WrapPanel>
+                        <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
+                    </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
                         <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <CheckBox x:Name="ReaderFollowLive" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />

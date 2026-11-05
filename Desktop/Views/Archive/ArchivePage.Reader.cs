@@ -26,13 +26,23 @@ public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
     internal bool IsReaderDialogOpen => _urlTextExportBusy || Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
-    internal bool TryDismissOverlay()
+    internal bool TryDismissOverlay(object? source = null)
     {
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
-        if (!IsReaderDialogOpen) return false;
-        OnExportClose(this, new RoutedEventArgs());
-        return true;
+        if (IsReaderDialogOpen)
+        {
+            OnExportClose(this, new RoutedEventArgs());
+            return true;
+        }
+        // Shell tunnel reaches this before local handlers. Keep modal priority above
+        // this strictly source-scoped dismissal; never treat Find as a global Escape.
+        if (!_ended && Control<StackPanel>("ReaderFindBar").IsVisible && IsThreadFindSource(source))
+        {
+            CloseThreadFind();
+            return true;
+        }
+        return false;
     }
     private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) => FullscreenRequested?.Invoke();
     private double _readingFontSizePreference = 15;
@@ -197,7 +207,7 @@ public partial class ArchivePage
         };
         Grid pane = Control<Grid>("ArchiveReaderPane");
         pane.AttachedToVisualTree += (_, _) => ObserveReaderMediaKeys(pane);
-        pane.DetachedFromVisualTree += (_, _) => StopObservingReaderMediaKeys();
+        pane.DetachedFromVisualTree += (_, _) => { CloseThreadFind(); StopObservingReaderMediaKeys(); };
         pane.PropertyChanged += (_, e) =>
         {
             if (e.Property == Visual.IsVisibleProperty || e.Property == InputElement.IsEnabledProperty)
@@ -219,7 +229,7 @@ public partial class ArchivePage
     internal bool ReaderShowsPosts => _showReader && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
     internal Action? CloseReaderRequested { get; set; }
-    private void OnCloseReaderClick(object? sender, RoutedEventArgs e) => CloseReaderRequested?.Invoke();
+    private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { CloseThreadFind(); CloseReaderRequested?.Invoke(); }
 
     internal Control DetachReader()
     {
@@ -249,6 +259,7 @@ public partial class ArchivePage
 
     internal void AttachReader(Control pane)
     {
+        CloseThreadFind();
         StopObservingReaderMediaKeys();
         ++_readerFocusRequest;
         _largeReader = false;
@@ -436,6 +447,7 @@ public partial class ArchivePage
 
     private async void OnReaderKeyDown(object? sender, KeyEventArgs e)
     {
+        if (IsThreadFindSource(e.Source)) return;
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || IsReaderDialogOpen) return;
         if (e.Source is Visual source)
         {
