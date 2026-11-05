@@ -224,7 +224,7 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog migrated = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
         {
-            Assert.Equal(8, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(9, ArchiveSql.GetPragma(connection, "user_version"));
             var fence = ArchiveSql.ReadImportFence(connection, null);
             Assert.Equal(before, new[] { fence.Instance, fence.Generation.ToString() });
         }
@@ -463,8 +463,22 @@ public sealed class NativeMediaImportTests
             Assert.Equal(1L, (long)command.ExecuteScalar()!); // Existing malformed table was not repaired/replaced.
             command.CommandText = "SELECT title FROM archive_threads";
             Assert.Equal("rollback sentinel", command.ExecuteScalar());
-            command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'import_fence_%'";
-            Assert.Equal(21L, (long)command.ExecuteScalar()!);
+            // This fixture starts at current schema, then removes only the media-import pair.
+            // A failed v6 migration must retain the exact old 21 AND the already seeded local 9.
+            command.CommandText = "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'import_fence_*' ORDER BY name";
+            List<string> triggerNames = new();
+            using (SqliteDataReader triggers = command.ExecuteReader())
+                while (triggers.Read()) triggerNames.Add(triggers.GetString(0));
+            string[] oldTables = ["archive_threads", "archive_posts", "archive_attachments",
+                "archive_media_directories", "archive_source_contracts", "media_decisions", "archive_import_candidates"];
+            string[] localTables = ["local_collections", "local_items", "local_media_revisions"];
+            string[] operations = ["INSERT", "UPDATE", "DELETE"];
+            Assert.Equal(oldTables.SelectMany(t => operations.Select(op => $"import_fence_{t}_{op}"))
+                .OrderBy(n => n, StringComparer.Ordinal),
+                triggerNames.Where(n => !n.StartsWith("import_fence_local_", StringComparison.Ordinal)));
+            Assert.Equal(localTables.SelectMany(t => operations.Select(op => $"import_fence_{t}_{op}"))
+                .OrderBy(n => n, StringComparer.Ordinal),
+                triggerNames.Where(n => n.StartsWith("import_fence_local_", StringComparison.Ordinal)));
         }
     }
 

@@ -153,7 +153,7 @@ public sealed class NativeTextImportFenceTests
         string db = Path.Combine(profile.Path, "archive.db");
         string before = Snapshot(db);
         await using ArchiveCatalog upgraded = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        Assert.Equal(8L, Scalar(db, "PRAGMA user_version"));
+        Assert.Equal(9L, Scalar(db, "PRAGMA user_version"));
         Assert.Equal(before, Snapshot(db, excludeImport: true));
         Assert.Equal(1L, Scalar(db, "SELECT count(*) FROM archive_import_fence"));
         NativeTextImportPlan plan = await Prepare(upgraded);

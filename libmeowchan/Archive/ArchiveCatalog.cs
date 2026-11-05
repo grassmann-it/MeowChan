@@ -33,44 +33,56 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             lease.EnsureMatches(directory);
             string path = Path.Combine(directory, "archive.db");
             using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadWriteCreate);
-            int version = ArchiveSql.GetPragma(connection, "user_version");
-            int application = ArchiveSql.GetPragma(connection, "application_id");
-            if (version == 0 && application == 0)
+            using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
             {
-                using SqliteCommand existing = connection.CreateCommand();
-                existing.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1";
-                if (existing.ExecuteScalar() != null) throw new InvalidDataException("The archive path contains an unrelated database.");
-                using SqliteTransaction transaction = connection.BeginTransaction();
-                ArchiveSql.CreateContentSchema(connection, transaction);
-                CreateDecisionSchema(connection, transaction);
-                ArchiveSql.CreateSearchSchema(connection, transaction);
-                ArchiveSql.CreateSourceContractSchema(connection, transaction);
-                ArchiveSql.CreateIntegritySchema(connection, transaction);
-                ArchiveSql.CreateNativeImportSchema(connection, transaction);
-                ArchiveSql.CreateMediaImportSchema(connection, transaction);
-                ArchiveSql.CreateMediaMergeSchema(connection, transaction);
-                using SqliteCommand schema = ArchiveSql.Command(connection, transaction,
-                    $"PRAGMA application_id={ArchiveSql.ApplicationId}; PRAGMA user_version={ArchiveSql.SchemaVersion};");
-                schema.ExecuteNonQuery();
+                int version = ArchiveSql.GetPragma(connection, "user_version", transaction);
+                int application = ArchiveSql.GetPragma(connection, "application_id", transaction);
+                bool fresh = version == 0 && application == 0;
+                if (fresh)
+                {
+                    using SqliteCommand existing = ArchiveSql.Command(connection, transaction,
+                        "SELECT name FROM sqlite_master WHERE substr(name,1,7)<>'sqlite_' LIMIT 1");
+                    if (existing.ExecuteScalar() != null)
+                        throw new InvalidDataException("The archive path contains an unrelated database.");
+                    ArchiveSql.CreateContentSchema(connection, transaction);
+                    CreateDecisionSchema(connection, transaction);
+                    ArchiveSql.CreateSearchSchema(connection, transaction);
+                    ArchiveSql.CreateSourceContractSchema(connection, transaction);
+                    ArchiveSql.CreateIntegritySchema(connection, transaction);
+                    ArchiveSql.CreateNativeImportSchema(connection, transaction);
+                    ArchiveSql.CreateMediaImportSchema(connection, transaction);
+                    ArchiveSql.CreateMediaMergeSchema(connection, transaction);
+                }
+                else
+                {
+                    ArchiveSql.ValidateSchema(connection, transaction);
+                    if (version < 8)
+                    {
+                        if (version == 1) ArchiveSql.MigrateSearchSchema(connection, transaction, cancellationToken);
+                        if (version <= 2) ArchiveSql.CreateSourceContractSchema(connection, transaction);
+                        ArchiveSql.CreateIntegritySchema(connection, transaction);
+                        if (version < 6) ArchiveSql.CreateNativeImportSchema(connection, transaction);
+                        if (version < 7) ArchiveSql.CreateMediaImportSchema(connection, transaction);
+                        ArchiveSql.CreateMediaMergeSchema(connection, transaction);
+                    }
+                }
+                if (fresh || version < 9)
+                {
+                    ArchiveSql.CreateLocalCollectionSchema(connection, transaction);
+                    ArchiveSql.ValidateTargetSchema(connection, transaction, 9);
+                    if (fresh)
+                    {
+                        using SqliteCommand app = ArchiveSql.Command(connection, transaction,
+                            $"PRAGMA application_id={ArchiveSql.ApplicationId}");
+                        app.ExecuteNonQuery();
+                    }
+                    // Last schema mutation. Cancellation or any fault still rolls back the DDL and stamp.
+                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=9");
+                    stamp.ExecuteNonQuery();
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
-            if ((version is 1 or 2 or 3 or 4 or 5 or 6 or 7) && application == ArchiveSql.ApplicationId)
-            {
-                ArchiveSql.ValidateSchema(connection);
-                using SqliteTransaction migration = connection.BeginTransaction();
-                if (version == 1) ArchiveSql.MigrateSearchSchema(connection, migration, cancellationToken);
-                if (version <= 2) ArchiveSql.CreateSourceContractSchema(connection, migration);
-                ArchiveSql.CreateIntegritySchema(connection, migration);
-                ArchiveSql.CreateNativeImportSchema(connection, migration);
-                ArchiveSql.CreateMediaImportSchema(connection, migration);
-                ArchiveSql.CreateMediaMergeSchema(connection, migration);
-                using SqliteCommand schema = ArchiveSql.Command(connection, migration, $"PRAGMA user_version={ArchiveSql.SchemaVersion};");
-                schema.ExecuteNonQuery();
-                cancellationToken.ThrowIfCancellationRequested();
-                migration.Commit();
-            }
-            ArchiveSql.ValidateSchema(connection);
             return new ArchiveCatalog(path, lease);
         }), cancellationToken);
     }
@@ -198,8 +210,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             cancellationToken.ThrowIfCancellationRequested();
             using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadWrite);
-            ArchiveSql.ValidateSchema(connection);
             using SqliteTransaction transaction = connection.BeginTransaction();
+            ArchiveSql.ValidateSchema(connection, transaction);
             T result = operation(connection, transaction);
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();

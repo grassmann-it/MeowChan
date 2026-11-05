@@ -19,7 +19,7 @@ internal static partial class ArchiveSql
             cancellationToken.ThrowIfCancellationRequested();
             return value != null && value.Contains(text, StringComparison.OrdinalIgnoreCase);
         });
-        string revision = GetPragma(connection, "user_version") >= 4 ? "a.attachment_revision_key" : "NULL";
+        string revision = GetPragma(connection, "user_version", transaction) >= 4 ? "a.attachment_revision_key" : "NULL";
         const string from = """
              FROM archive_attachments a
              JOIN archive_posts p ON p.source=a.source AND p.board=a.board AND p.thread=a.thread AND p.post=a.post

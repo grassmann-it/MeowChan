@@ -34,7 +34,7 @@ internal static partial class ArchiveSql
         SqliteTransaction transaction, ResourceId thread, IReadOnlyList<string> postIds, CancellationToken token)
     {
         Dictionary<string, int> result = postIds.ToDictionary(id => id, _ => 0, StringComparer.Ordinal);
-        if (GetPragma(connection, "user_version") == 1)
+        if (GetPragma(connection, "user_version", transaction) == 1)
         {
             // One legacy scan for the entire visible page, never one scan per post.
             int total = ReadPage(connection, transaction, 0, 1).TotalCount;

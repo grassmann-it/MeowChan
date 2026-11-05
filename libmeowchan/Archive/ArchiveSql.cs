@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 8;
+    internal const int SchemaVersion = 9;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -35,22 +35,38 @@ internal static partial class ArchiveSql
         catch { connection.Dispose(); throw; }
     }
 
-    internal static int GetPragma(SqliteConnection connection, string name)
+    internal static int GetPragma(SqliteConnection connection, string name, SqliteTransaction? transaction = null)
     {
-        using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "PRAGMA " + name;
+        using SqliteCommand command = Command(connection, transaction, "PRAGMA " + name);
         return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
-    internal static void ValidateSchema(SqliteConnection connection)
+    internal static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null)
     {
-        if (GetPragma(connection, "user_version") is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or SchemaVersion) || GetPragma(connection, "application_id") != ApplicationId)
+        if (transaction == null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            ValidateSchema(connection, snapshot);
+            snapshot.Commit();
+            return;
+        }
+        int version = GetPragma(connection, "user_version", transaction);
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9)
+            || GetPragma(connection, "application_id", transaction) != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
-        using SqliteCommand journal = connection.CreateCommand();
+        ValidateTargetSchema(connection, transaction, version);
+    }
+
+    // Target version is explicit: migration validates its un-stamped target in its own transaction.
+    internal static void ValidateTargetSchema(SqliteConnection connection, SqliteTransaction? transaction, int version)
+    {
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9))
+            throw new InvalidDataException("Unsupported archive target schema.");
+        using SqliteCommand journal = Command(connection, transaction, "");
         journal.CommandText = "PRAGMA journal_mode";
         if (!string.Equals(Convert.ToString(journal.ExecuteScalar(), CultureInfo.InvariantCulture), "delete", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The archive database must use its supported local rollback-journal mode.");
-        using SqliteCommand columns = connection.CreateCommand();
+        using SqliteCommand columns = Command(connection, transaction, "");
         columns.CommandText = """
             SELECT source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,last_captured_at,revision FROM archive_threads LIMIT 0;
             SELECT source,board,thread,post,ordinal,fields,posted_at,subject,author,html,is_deleted FROM archive_posts LIMIT 0;
@@ -61,12 +77,13 @@ internal static partial class ArchiveSql
         using SqliteDataReader reader = columns.ExecuteReader();
         while (reader.NextResult()) { }
         reader.Close();
-        if (GetPragma(connection, "user_version") >= 6) ValidateNativeImportSchema(connection);
-        if (GetPragma(connection, "user_version") >= 7) ValidateMediaImportSchema(connection);
-        if (GetPragma(connection, "user_version") >= 8) ValidateMediaMergeSchema(connection);
-        if (GetPragma(connection, "user_version") >= 2)
+        if (version >= 9) ValidateLocalCollectionSchema(connection, transaction);
+        if (version >= 6) ValidateNativeImportSchema(connection, transaction);
+        if (version >= 7) ValidateMediaImportSchema(connection, transaction);
+        if (version >= 8) ValidateMediaMergeSchema(connection, transaction);
+        if (version >= 2)
         {
-            using SqliteCommand indexed = connection.CreateCommand();
+            using SqliteCommand indexed = Command(connection, transaction, "");
             indexed.CommandText = """
                 SELECT search_text FROM archive_threads LIMIT 0;
                 SELECT search_text FROM archive_posts LIMIT 0;
@@ -77,22 +94,22 @@ internal static partial class ArchiveSql
             using SqliteDataReader indexReader = indexed.ExecuteReader();
             while (indexReader.NextResult()) { }
         }
-        if (GetPragma(connection, "user_version") >= 3)
+        if (version >= 3)
         {
-            using SqliteCommand sourceContract = connection.CreateCommand();
+            using SqliteCommand sourceContract = Command(connection, transaction, "");
             sourceContract.CommandText = "SELECT source,board,thread,decimal_post_order FROM archive_source_contracts LIMIT 0";
             using SqliteDataReader sourceContractReader = sourceContract.ExecuteReader();
         }
-        if (GetPragma(connection, "user_version") >= 5)
+        if (version >= 5)
         {
-            using SqliteCommand extended = connection.CreateCommand();
+            using SqliteCommand extended = Command(connection, transaction, "");
             extended.CommandText = "SELECT expected_sha1,provider_size_hint_json FROM archive_attachments LIMIT 0; "
                 + "SELECT expected_sha1,provider_size_hint_json FROM media_decisions LIMIT 0;";
             extended.ExecuteNonQuery();
         }
-        if (GetPragma(connection, "user_version") >= 4)
+        if (version >= 4)
         {
-            using SqliteCommand integrity = connection.CreateCommand();
+            using SqliteCommand integrity = Command(connection, transaction, "");
             integrity.CommandText = "SELECT expected_sha256,attachment_revision_key FROM archive_attachments LIMIT 0; "
                 + "SELECT expected_sha256,acquisition_revision_key,attachment_references_json FROM media_decisions LIMIT 0;";
             using SqliteDataReader integrityReader = integrity.ExecuteReader();
@@ -201,7 +218,7 @@ internal static partial class ArchiveSql
         Dictionary<string, List<CapturedAttachment>> attachments = new Dictionary<string, List<CapturedAttachment>>(StringComparer.Ordinal);
         using (SqliteCommand command = Command(connection, transaction, """
             SELECT post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted
-            """ + AttachmentIntegrityColumns(connection) + "\n" + """
+            """ + AttachmentIntegrityColumns(connection, transaction) + "\n" + """
             FROM archive_attachments WHERE source=$source AND board=$board AND thread=$thread ORDER BY post,position
             """))
         {

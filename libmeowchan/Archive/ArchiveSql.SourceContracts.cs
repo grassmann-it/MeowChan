@@ -33,7 +33,7 @@ internal static partial class ArchiveSql
     private static bool? ReadPostOrder(SqliteConnection connection, SqliteTransaction transaction, ResourceId id)
     {
         // Read-only library consumers can still inspect older catalogs without upgrading or plugins.
-        if (GetPragma(connection, "user_version") < 3) return null;
+        if (GetPragma(connection, "user_version", transaction) < 3) return null;
         using SqliteCommand command = Command(connection, transaction, """
             SELECT decimal_post_order FROM archive_source_contracts WHERE source=$source AND board=$board AND thread=$thread;
             """);

@@ -12,7 +12,7 @@ internal static partial class ArchiveSql
     internal static ArchiveQuotePage ReadQuotes(SqliteConnection connection, SqliteTransaction transaction,
         ArchivePostId post, bool backlinks, int offset, int limit, CancellationToken cancellationToken)
     {
-        if (GetPragma(connection, "user_version") == 1)
+        if (GetPragma(connection, "user_version", transaction) == 1)
         {
             // A passive legacy reader neither migrates nor creates an index. This compatibility
             // path scans retained local posts; the active catalog writer upgrades it transactionally.

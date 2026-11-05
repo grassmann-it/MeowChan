@@ -55,15 +55,15 @@ internal static partial class ArchiveSql
         return (reader.GetString(0), reader.GetInt64(1));
     }
 
-    internal static void ValidateNativeImportSchema(SqliteConnection connection)
+    internal static void ValidateNativeImportSchema(SqliteConnection connection, SqliteTransaction? transaction = null)
     {
-        _ = ReadImportFence(connection, null);
-        using SqliteCommand columns = Command(connection, null,
+        _ = ReadImportFence(connection, transaction);
+        using SqliteCommand columns = Command(connection, transaction,
             "SELECT source,board,thread,sha256,imported_at,exported_at,has_conflicts,catalog_bytes FROM archive_import_candidates LIMIT 0; "
                 + "SELECT operation_id,request_sha256,new_threads,new_posts,updated_posts,conflicting_threads FROM archive_import_receipts LIMIT 0");
         columns.ExecuteNonQuery();
         // A missing fence trigger must fail closed rather than admit a stale/delete-recreate plan.
-        using SqliteCommand triggers = Command(connection, null, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name IN ("
+        using SqliteCommand triggers = Command(connection, transaction, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name IN ("
             + string.Join(",", System.Linq.Enumerable.Select(System.Linq.Enumerable.Range(0, 21), i => "$n" + i)) + ")");
         int index = 0;
         foreach (string table in new[] { "archive_threads", "archive_posts", "archive_attachments",

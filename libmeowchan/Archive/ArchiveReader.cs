@@ -27,7 +27,9 @@ public sealed partial class ArchiveReader : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (!File.Exists(path)) throw new FileNotFoundException("The profile has no archive catalog.", path);
             using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
-            ArchiveSql.ValidateSchema(connection);
+            using SqliteTransaction validation = connection.BeginTransaction(deferred: true);
+            ArchiveSql.ValidateSchema(connection, validation);
+            validation.Commit();
             cancellationToken.ThrowIfCancellationRequested();
             return new ArchiveReader(path);
         }, cancellationToken);
@@ -156,8 +158,8 @@ public sealed partial class ArchiveReader : IAsyncDisposable
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             cancellationToken.ThrowIfCancellationRequested();
             using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
-            ArchiveSql.ValidateSchema(connection);
             using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+            ArchiveSql.ValidateSchema(connection, transaction);
             T value;
             try { value = read(connection, transaction); }
             catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }

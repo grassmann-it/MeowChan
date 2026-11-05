@@ -33,17 +33,17 @@ internal static partial class ArchiveSql
         }
     }
 
-    internal static string AttachmentIntegrityColumns(SqliteConnection connection)
-        => (GetPragma(connection, "user_version") >= 4 ? ",expected_sha256,attachment_revision_key" : ",NULL,NULL")
-            + ExtensionIntegrityColumns(connection);
+    internal static string AttachmentIntegrityColumns(SqliteConnection connection, SqliteTransaction? transaction)
+        => (GetPragma(connection, "user_version", transaction) >= 4 ? ",expected_sha256,attachment_revision_key" : ",NULL,NULL")
+            + ExtensionIntegrityColumns(connection, transaction);
 
-    internal static string CandidateIntegrityColumns(SqliteConnection connection)
-        => (GetPragma(connection, "user_version") >= 4
+    internal static string CandidateIntegrityColumns(SqliteConnection connection, SqliteTransaction? transaction)
+        => (GetPragma(connection, "user_version", transaction) >= 4
             ? ",expected_sha256,acquisition_revision_key,attachment_references_json" : ",NULL,NULL,NULL")
-            + ExtensionIntegrityColumns(connection);
+            + ExtensionIntegrityColumns(connection, transaction);
 
-    private static string ExtensionIntegrityColumns(SqliteConnection connection)
-        => GetPragma(connection, "user_version") >= 5 ? ",expected_sha1,provider_size_hint_json" : ",NULL,NULL";
+    private static string ExtensionIntegrityColumns(SqliteConnection connection, SqliteTransaction? transaction)
+        => GetPragma(connection, "user_version", transaction) >= 5 ? ",expected_sha1,provider_size_hint_json" : ",NULL,NULL";
 
     internal static string? WriteSizeHint(MediaProviderSizeHint? hint)
     {

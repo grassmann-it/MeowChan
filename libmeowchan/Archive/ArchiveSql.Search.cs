@@ -23,7 +23,7 @@ internal static partial class ArchiveSql
         // A full result is a single ordered stream in the caller's read snapshot. Reusing
         // SearchPage here would repeat COUNT and sort/discard every preceding OFFSET for each
         // 500 rows. ID consumers also do not need titles, dates or correlated post counts.
-        ArchiveSearchCompiler compiled = PrepareSearch(connection, request, cancellationToken);
+        ArchiveSearchCompiler compiled = PrepareSearch(connection, transaction, request, cancellationToken);
         using SqliteCommand command = Command(connection, transaction,
             $"SELECT {columns} FROM archive_threads t {compiled.Where} ORDER BY {compiled.Order}");
         compiled.Bind(command);
@@ -39,11 +39,11 @@ internal static partial class ArchiveSql
         return Array.AsReadOnly(items.ToArray());
     }
 
-    private static ArchiveSearchCompiler PrepareSearch(SqliteConnection connection,
+    private static ArchiveSearchCompiler PrepareSearch(SqliteConnection connection, SqliteTransaction transaction,
         ArchiveSearchRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        bool indexed = GetPragma(connection, "user_version") >= 2;
+        bool indexed = GetPragma(connection, "user_version", transaction) >= 2;
         string text = request.Spec.Text.Trim();
         // FTS trigram has no matches for one/two-character terms. Those terms, and passive
         // schema-1 reads, use a cancellable literal scan instead of inventing empty results.
@@ -77,7 +77,7 @@ internal static partial class ArchiveSql
     internal static ArchiveThreadPage SearchPage(SqliteConnection connection, SqliteTransaction transaction,
         ArchiveSearchRequest request, int offset, int limit, CancellationToken cancellationToken)
     {
-        ArchiveSearchCompiler compiled = PrepareSearch(connection, request, cancellationToken);
+        ArchiveSearchCompiler compiled = PrepareSearch(connection, transaction, request, cancellationToken);
         string where = compiled.Where;
         string order = compiled.Order;
         using SqliteCommand total = Command(connection, transaction, "SELECT count(*) FROM archive_threads t " + where);

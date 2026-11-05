@@ -114,7 +114,7 @@ public sealed partial class ArchiveCatalog
         command.CommandText = """
             SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
                 original_filename,legacy_path,extension,selection_json,decided_at_utc
-            """ + ArchiveSql.CandidateIntegrityColumns(connection) + "\n" + """
+            """ + ArchiveSql.CandidateIntegrityColumns(connection, transaction) + "\n" + """
             FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
             ORDER BY media_id,variant;
             """;
@@ -151,7 +151,7 @@ public sealed partial class ArchiveCatalog
         command.CommandText = """
             SELECT media_id,variant,download_uri,destination_path,expected_size,expected_md5,
                 original_filename,legacy_path,extension,selection_json,decided_at_utc
-            """ + ArchiveSql.CandidateIntegrityColumns(connection) + "\n" + """
+            """ + ArchiveSql.CandidateIntegrityColumns(connection, transaction) + "\n" + """
             FROM media_decisions WHERE source_id=$source AND board_id=$board AND thread_id=$thread
                 AND media_id=$media AND variant=$variant;
             """;

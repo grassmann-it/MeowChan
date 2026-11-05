@@ -47,7 +47,7 @@ public sealed partial class ArchiveReader
         postCommand.Parameters.AddWithValue("$thread", "");
         using SqliteCommand attachmentCommand = ArchiveSql.Command(connection, transaction, """
             SELECT position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted
-            """ + ArchiveSql.AttachmentIntegrityColumns(connection) + "\n" + """
+            """ + ArchiveSql.AttachmentIntegrityColumns(connection, transaction) + "\n" + """
             FROM archive_attachments
             WHERE source=$source AND board=$board AND thread=$thread AND post=$post
             ORDER BY position LIMIT 1
