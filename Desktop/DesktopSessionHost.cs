@@ -105,6 +105,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.PrepareProfileProducers(_profileLease);
+            _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
+            _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
@@ -145,6 +147,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         return completion.Task;
     }
 
+    // Deterministic startup/stop race seams, all outside product monitors.
+    // They observe existing ownership only, never grant authority or complete work.
+    internal Func<Task>? BeforeStartupInitialSaveForTests { get; set; }
+    internal Action<bool>? AfterStartupFinalWriteCleanupClaimForTests { get; set; }
+    internal Action? AfterFinalWriteSealForTests { get; set; }
+
     private async Task StartCoreAsync(TaskCompletionSource completion)
     {
         try
@@ -170,6 +178,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 {
                     // Lifecycle serialization prevents a late Ready after shutdown.
                     FinishProfileStartup(succeeded: true);
+                    InstallReadyFinalWriteEpoch();
                     _registry.InstallReadyProfileEpoch();
                 }
             }
@@ -177,12 +186,24 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             // closes Registry ingress and wins before late Ready publication.
             if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Ready)
                 await _registry.ActivatePreparedProfileProducersAsync(
-                    sealBeforeFailureDrain: _profileLease.Admission.BeginShutdown).ConfigureAwait(false);
+                    sealBeforeFailureDrain: _profileLease.Admission.BeginShutdown,
+                    notifyBeforeFailureDrain: _hostFinalWriteParticipant.FailTransition).ConfigureAwait(false);
             lock (_lifecycle)
-                if (_state == DesktopSessionState.Starting) _state = DesktopSessionState.Ready;
+                if (_state == DesktopSessionState.Starting)
+                {
+                    OpenFinalWriteEpoch();
+                    _state = DesktopSessionState.Ready;
+                    // Startup drafts now own real uses. Publish their worker-ready
+                    // state before shutdown can win; never reject/drop these uses
+                    // in the small Ready-to-CompleteStartup continuation gap.
+                    CompleteStartupFinalWrites(permittedReady: true);
+                }
             CompleteStartupFinalWrites(State == DesktopSessionState.Ready);
             if (State == DesktopSessionState.Ready && Config.Origin == ProfileOrigin.ConfirmedNew)
+            {
+                if (BeforeStartupInitialSaveForTests is { } beforeSave) await beforeSave().ConfigureAwait(false);
                 await SaveViewPreferencesAsync(candidate => candidate.FirstRunSetupPending = true).ConfigureAwait(false);
+            }
             if (State == DesktopSessionState.Ready) Updates.Start();
         }
         catch (Exception exception)
@@ -201,7 +222,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                         _profileLease.Admission.BeginShutdown();
                 }
             }
-            try { await _registry.StopAsync().ConfigureAwait(false); }
+            FailFinalWriteTransition(exception); // Notify drafts BEFORE any potentially blocking rollback.
+            try
+            {
+                await _registry.StopAsync().ConfigureAwait(false);
+                await DrainFailedStartupFinalWritesAsync().ConfigureAwait(false);
+            }
             catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup producer subtree."); }
             lock (_lifecycle)
             {
@@ -446,14 +472,15 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         frozen.Validate();
         Commands.ShortcutService.ValidateForCommit(frozen.ShortcutBindings);
-        return RunInteractiveWithAdmissionAsync(nameof(ApplySettingsAsync), "settings", admission => ApplySettingsAdmittedCoreAsync(frozen, admission),
-            frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites);
+        var flush = new FinalWriteFlushRegistration(0);
+        return RunInteractiveWithAdmissionAsync(nameof(ApplySettingsAsync), "settings", admission => ApplySettingsAdmittedCoreAsync(frozen, admission, flush),
+            frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites, finalWriteFlush: flush);
     }
 
-    private async Task ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission)
+    private async Task ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        await FlushPreferencesAsync().ConfigureAwait(false);
+        await FlushCommandPreferencesAsync(flush).ConfigureAwait(false);
         settings.Validate();
         Commands.ShortcutService.ValidateForCommit(settings.ShortcutBindings);
         await _commands.WaitAsync().ConfigureAwait(false);
@@ -489,13 +516,14 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAsync(FirstRunSetupValues values)
     {
         ArgumentNullException.ThrowIfNull(values);
+        var flush = new FinalWriteFlushRegistration(1);
         return RunInteractiveWithAdmissionAsync<FirstRunSetupCommitResult>(nameof(CompleteFirstRunSetupAsync), "first-run",
-            admission => CompleteFirstRunSetupAdmittedCoreAsync(values, admission));
+            admission => CompleteFirstRunSetupAdmittedCoreAsync(values, admission, flush), finalWriteFlush: flush);
     }
 
-    private async Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAdmittedCoreAsync(FirstRunSetupValues values, ProfileAdmissionToken admission)
+    private async Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAdmittedCoreAsync(FirstRunSetupValues values, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
     {
-        await FlushPreferencesAsync().ConfigureAwait(false);
+        await FlushCommandPreferencesAsync(flush).ConfigureAwait(false);
         await _commands.WaitAsync().ConfigureAwait(false);
         bool persisted = false;
         try
@@ -629,58 +657,92 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     private Task? _engineStopTask;
+    private TaskCompletionSource? _engineStopCompletion, _stopCompletion;
+    private FinalWriteShutdownPlan? _finalWriteShutdownPlan;
+    private int _engineStopLaunchClaimed, _stopLaunchClaimed;
     private Task _acceptedDrain = Task.CompletedTask;
 
-    /// <summary>
-    /// Phase one: synchronously close host command admission and seal cooperative profile admission,
-    /// then request engine cancellation on a worker, independently of gallery/native cleanup and of the
-    /// profile command gate. The returned task is the actual engine drain. The separate final view/reading
-    /// writers remain accepted until StopAsync seals them; not all profile writers use admission tokens.
-    /// </summary>
+    // Every caller settles the same immutable plan outside ALL outer monitors.
+    // A published promise/launch claim is deliberately not a settlement claim.
     internal Task BeginShutdown()
     {
+        FinalWriteShutdownPlan plan;
         lock (_lifecycle)
         {
-            if (_engineStopTask != null) return _engineStopTask;
-            CaptureStartupPreviewCheckpoint();
-            CompleteStartupFinalWrites(_state == DesktopSessionState.Ready);
-            _state = DesktopSessionState.Stopping;
-            _acceptedDrain = CloseInteractiveAdmission();
-            _registry.CloseProducerIngress();
-            BeginProfileShutdown();
-            Task restoration = _startTask ?? Task.CompletedTask;
-            _engineStopTask = Task.Run(async () =>
+            if (_finalWriteShutdownPlan == null)
             {
-                using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.engine", epoch: _epoch);
-                // CancelAsync does not execute arbitrary cancellation callbacks on the dispatcher.
-                Task startupCanceled = _startupCancellation.CancelAsync();
-                // Queue admission/cancellation must not wait for restoration, profile writes or native cleanup.
-                Task queueStopped = _downloadQueue.StopAllAsync();
-                RetireSourceMediaIntegrityPolicies();
-                List<Exception> errors = new();
-                async Task Drain(Task task)
-                { try { await task.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
-                await Drain(startupCanceled).ConfigureAwait(false);
-                await Drain(restoration).ConfigureAwait(false);
-                Task registryStopped = _registry.StopAsync();
-                await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
-                try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
-                if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
+                CaptureStartupPreviewCheckpoint();
+                plan = BeginFinalWriteShutdown(_startTask ?? Task.CompletedTask);
+                _state = DesktopSessionState.Stopping;
+                _acceptedDrain = CloseInteractiveAdmission();
+                _registry.CloseProducerIngress();
+                BeginProfileShutdown();
+                _engineStopCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _engineStopTask = _engineStopCompletion.Task;
+                _finalWriteShutdownPlan = plan;
+            }
+            plan = _finalWriteShutdownPlan;
+        }
+        SettleTerminalFinalWriteObservers(plan);
+        StartEngineShutdownOnce(plan);
+        return _engineStopTask!;
+    }
+    private void StartEngineShutdownOnce(FinalWriteShutdownPlan plan)
+    {
+        if (Interlocked.CompareExchange(ref _engineStopLaunchClaimed, 1, 0) != 0) return;
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await RunEngineShutdownAsync(plan.Restoration).ConfigureAwait(false); _engineStopCompletion!.TrySetResult(); }
+                catch (Exception error) { _engineStopCompletion!.TrySetException(error); }
             });
             PublishLifecycleState(notifyOnWorker: true);
-            return _engineStopTask;
         }
+        catch (Exception error) { _engineStopCompletion!.TrySetException(error); }
     }
-
+    private async Task RunEngineShutdownAsync(Task restoration)
+    {
+        using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.engine", epoch: _epoch);
+        Task startupCanceled = _startupCancellation.CancelAsync();
+        Task queueStopped = _downloadQueue.StopAllAsync();
+        RetireSourceMediaIntegrityPolicies();
+        List<Exception> errors = new();
+        async Task Drain(Task task)
+        { try { await task.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
+        await Drain(startupCanceled).ConfigureAwait(false);
+        await Drain(restoration).ConfigureAwait(false);
+        Task registryStopped = _registry.StopAsync();
+        await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
+        try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
+        if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
+    }
     public Task StopAsync()
     {
+        Task engineStopped = BeginShutdown(); // Never inside StopAsync's reentrant lifecycle lock.
         lock (_lifecycle)
         {
-            if (_stopTask != null) return _stopTask;
-            Task engineStopped = BeginShutdown();
-            _stopTask = Task.Run(() => StopCoreAsync(engineStopped));
-            return _stopTask;
+            if (_stopTask == null)
+            {
+                _stopCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _stopTask = _stopCompletion.Task;
+            }
         }
+        StartStopCoreOnce(engineStopped);
+        return _stopTask;
+    }
+    private void StartStopCoreOnce(Task engineStopped)
+    {
+        if (Interlocked.CompareExchange(ref _stopLaunchClaimed, 1, 0) != 0) return;
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await StopCoreAsync(engineStopped).ConfigureAwait(false); _stopCompletion!.TrySetResult(); }
+                catch (Exception error) { _stopCompletion!.TrySetException(error); }
+            });
+        }
+        catch (Exception error) { _stopCompletion!.TrySetException(error); }
     }
 
     private async Task StopCoreAsync(Task engineStopped)
@@ -697,14 +759,29 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
         }
         await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
-        // No owner is disposed until accepted profile work has really returned. This
-        // drain is separate from the host bookkeeping/final-write drains above.
+        // The optional cache belongs to the existing TerminalOpen authority, before
+        // releasing the host family and BEFORE the kernel's final admission drain.
+        ProfileProducerEpoch.Use? terminalUse;
+        lock (_finalWrites) { terminalUse = _terminalFinalWriteUse; _terminalFinalWriteUse = null; }
+        try
+        {
+            if (terminalUse != null)
+            {
+                await _commands.WaitAsync().ConfigureAwait(false);
+                try { SaveStartupPreviewCheckpoint(terminalUse.Admission!); }
+                finally { _commands.Release(); }
+            }
+        }
+        catch (Exception error) { errors.Add(error); }
+        finally { terminalUse?.Dispose(); }
+        await CloseFinalWriteEpochAsync().ConfigureAwait(false);
+        await _registry.ReleaseStoppedHostFinalWritesAsync().ConfigureAwait(false);
+        // Observer faults never substitute for the real use/engine/command drain.
         await _profileLease.Admission.DrainAsync().ConfigureAwait(false);
         _profileLease.Admission.CompleteShutdown();
         quiescent &= _updatesQuiescent;
         await Observe(CloseProjectionAsync, ownsLifetime: true).ConfigureAwait(false);
         await Observe(() => _lifecycleNotification).ConfigureAwait(false);
-        SaveStartupPreviewCheckpoint();
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {

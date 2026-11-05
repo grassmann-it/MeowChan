@@ -24,6 +24,37 @@ internal sealed partial class DesktopSessionHost
     private readonly Dictionary<string, (string Target, Task Task)> _acceptedControls = new();
     private TaskCompletionSource? _commandsDrained;
     private bool _admissionClosed;
+    private readonly FinalWriteFlushRegistration?[] _acceptedFinalWriteFlushes = new FinalWriteFlushRegistration?[2];
+    private bool _finalWriteFlushCommandsClosed;
+
+    private void ReleaseFinalWriteFlushSlotIfEnded(FinalWriteFlushRegistration registration)
+    {
+        if (registration.CommandEnded && registration.SegmentsEnded
+            && ReferenceEquals(_acceptedFinalWriteFlushes[registration.Slot], registration))
+            _acceptedFinalWriteFlushes[registration.Slot] = null;
+    }
+    private void CompleteFinalWriteFlushCommand(FinalWriteFlushRegistration registration)
+    {
+        // A synchronous onAccepted/dispatch failure may precede any binding. Do not
+        // release a bound segment's slot merely because its command token ended.
+        lock (_finalWrites) registration.Watermark ??= new(Array.Empty<(long, Task)>());
+        ObserveCommandFinalWriteFence(registration);
+        lock (_admission) { registration.CommandEnded = true; ReleaseFinalWriteFlushSlotIfEnded(registration); }
+    }
+    private void CloseTransitionCommandIngress()
+    {
+        lock (_admission)
+        {
+            if (_admissionClosed) throw new InvalidOperationException("The desktop session is stopping.");
+            _finalWriteFlushCommandsClosed = true;
+            var markers = new List<FinalWriteFlushRegistration>(2);
+            foreach (var marker in _acceptedFinalWriteFlushes) if (marker != null) markers.Add(marker);
+            _cutFlushRegistrations = markers.ToArray();
+        }
+    }
+    private void ReopenTransitionCommandIngress()
+    { lock (_admission) { if (!_admissionClosed) _finalWriteFlushCommandsClosed = false; } }
+
     internal int AcceptedCommandCount { get { lock (_admission) return _acceptedCommands.Count; } }
 
     private Task RunInteractiveAsync(string action, string target, Func<Task> operation, Action? onAccepted = null, bool captureAfter = true)
@@ -33,16 +64,19 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveCoreAsync(action, target, _ => operation(), onAccepted, captureAfter);
 
     private Task RunInteractiveWithAdmissionAsync(string action, string target,
-        Func<ProfileAdmissionToken, Task> operation, Action? onAccepted = null, bool captureAfter = true)
+        Func<ProfileAdmissionToken, Task> operation, Action? onAccepted = null, bool captureAfter = true,
+        FinalWriteFlushRegistration? finalWriteFlush = null)
         => RunInteractiveCoreAsync<object?>(action, target, async admission =>
-        { await operation(admission).ConfigureAwait(false); return null; }, onAccepted, captureAfter);
+        { await operation(admission).ConfigureAwait(false); return null; }, onAccepted, captureAfter, finalWriteFlush);
 
     private Task<T> RunInteractiveWithAdmissionAsync<T>(string action, string target,
-        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted = null, bool captureAfter = true)
-        => RunInteractiveCoreAsync(action, target, operation, onAccepted, captureAfter);
+        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted = null, bool captureAfter = true,
+        FinalWriteFlushRegistration? finalWriteFlush = null)
+        => RunInteractiveCoreAsync(action, target, operation, onAccepted, captureAfter, finalWriteFlush);
 
     private Task<T> RunInteractiveCoreAsync<T>(string action, string target,
-        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted, bool captureAfter)
+        Func<ProfileAdmissionToken, Task<T>> operation, Action? onAccepted, bool captureAfter,
+        FinalWriteFlushRegistration? finalWriteFlush = null)
     {
         long request = PerformanceDiagnostics.NextId();
         var key = (action, target);
@@ -52,7 +86,12 @@ internal sealed partial class DesktopSessionHost
             lock (_admission)
             {
                 if (_admissionClosed || _state is DesktopSessionState.Stopping or DesktopSessionState.Stopped) return Task.FromException<T>(new InvalidOperationException("The desktop session is stopping."));
-                if (_acceptedCommands.Count >= InteractiveCommandLimit || _acceptedCommands.Contains(key))
+                // A failed startup is not a retryable transition. Its closed flush gate
+                // must not mask RecoveryFailed as Busy; Ready rollback keeps that gate.
+                if (_state == DesktopSessionState.RecoveryFailed)
+                    return Task.FromException<T>(new InvalidOperationException("The desktop session is not ready to change watches or settings."));
+                if (_acceptedCommands.Count >= InteractiveCommandLimit || _acceptedCommands.Contains(key)
+                    || finalWriteFlush != null && (_finalWriteFlushCommandsClosed || _acceptedFinalWriteFlushes[finalWriteFlush.Slot] != null))
                 {
                     PerformanceDiagnostics.Record("host.command.admission", "busy", request, target, epoch: _epoch);
                     return Task.FromException<T>(new DesktopSessionBusyException(action));
@@ -62,10 +101,17 @@ internal sealed partial class DesktopSessionHost
                 try { admission = _profileLease.Admission.EnterOrdinaryWriter(); }
                 catch (InvalidOperationException error) { return Task.FromException<T>(error); }
                 _acceptedCommands.Add(key);
+                if (finalWriteFlush != null) _acceptedFinalWriteFlushes[finalWriteFlush.Slot] = finalWriteFlush;
                 _commandsDrained ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
             }
             ProfileAdmissionToken acceptedAdmission = admission!;
             onAccepted?.Invoke();
+            if (finalWriteFlush != null)
+            {
+                BeforeCommandFinalWriteBindForTests?.Invoke();
+                BindCommandFinalWriteFlush(finalWriteFlush);
+                AfterCommandFinalWriteBindForTests?.Invoke();
+            }
             PerformanceDiagnostics.Record("host.command.admission", "accepted", request, target, epoch: _epoch);
             // The first product instruction, including a synchronously satisfied semaphore and argument validation,
             // executes on a worker. _commands in the existing implementations remains the sole mutation serializer.
@@ -79,18 +125,19 @@ internal sealed partial class DesktopSessionHost
                     if (captureAfter) await CaptureProjectionAsync().ConfigureAwait(false);
                     return result;
                 }
-                finally { ReleaseInteractiveCommand(key, acceptedAdmission); }
+                finally { ReleaseInteractiveCommand(key, acceptedAdmission, finalWriteFlush); }
             });
         }
         catch
         {
             // onAccepted and dispatch can fail synchronously, before a worker owns cleanup.
-            if (admission != null) ReleaseInteractiveCommand(key, admission);
+            if (admission != null) ReleaseInteractiveCommand(key, admission, finalWriteFlush);
             throw;
         }
     }
 
-    private void ReleaseInteractiveCommand((string Action, string Target) key, ProfileAdmissionToken admission)
+    private void ReleaseInteractiveCommand((string Action, string Target) key, ProfileAdmissionToken admission,
+        FinalWriteFlushRegistration? finalWriteFlush = null)
     {
         try
         {
@@ -100,7 +147,11 @@ internal sealed partial class DesktopSessionHost
                 CompleteCommandDrainIfEmpty();
             }
         }
-        finally { admission.Dispose(); }
+        finally
+        {
+            try { if (finalWriteFlush != null) CompleteFinalWriteFlushCommand(finalWriteFlush); }
+            finally { admission.Dispose(); }
+        }
     }
 
     // Separate finite lanes: duplicate controls share their actual completion, and a conflicting desired state

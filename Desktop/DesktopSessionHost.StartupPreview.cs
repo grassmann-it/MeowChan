@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -76,18 +77,18 @@ internal sealed partial class DesktopSessionHost
         _startupPreviewCheckpoint = new(DateTimeOffset.UtcNow, projection.View.Threads.Count, projection.View.Boards.Count, rows.AsReadOnly());
     }
 
-    // Runs on the shutdown worker, before owner disposal; failure must not stop real persistence/cleanup.
-    private void SaveStartupPreviewCheckpoint()
+    // The Terminal-Use owns this complete synchronous operation. Validation is
+    // outside the non-authoritative cache catch; missing authority is not a cache warning.
+    private void SaveStartupPreviewCheckpoint(ProfileAdmissionToken admission)
     {
-        if (!Config.SaveUrlsOnExit || _startupPreviewCheckpoint is not { } snapshot) return;
-        try
+        Config.EnsureOrdinaryWritesAllowed();
+        _profileLease.Admission.RunWithToken(admission, () =>
         {
-            Config.EnsureOrdinaryWritesAllowed();
-            new StartupPreviewStore(ProfileDirectory, _profileLease).Save(snapshot);
-        }
-        catch (Exception error)
-        {
-            _logger.Debug("Startup preview checkpoint not saved ({Kind}).", error.GetType().Name);
-        }
+            if (!Config.SaveUrlsOnExit || _startupPreviewCheckpoint is not { } snapshot) return false;
+            try { new StartupPreviewStore(ProfileDirectory, _profileLease).Save(snapshot); }
+            catch (Exception error)
+            { _logger.Debug("Startup preview checkpoint not saved ({Kind}).", error.GetType().Name); }
+            return true;
+        }, ProfileAdmissionKind.Ordinary);
     }
 }

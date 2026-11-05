@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -25,32 +26,37 @@ internal sealed partial class DesktopSessionHost
             // Recheck after taking the staging lock: an older caller cannot replace a newer
             // pending anchor if forget/disable advanced the generation while this caller waited.
             if (generation != ReadingPositionGeneration) return Task.CompletedTask;
-            if (_finalWritesSealed) return Task.FromException(new InvalidOperationException("Final reading-position writes are closed."));
+            if (_finalWritesSealed || _finalWriteFamilyState is FinalWriteFamilyState.TerminalNoAuthority or FinalWriteFamilyState.Released)
+                return Task.FromException(new FinalWriteUnavailableException("Reading-position family closed."));
             FinalWriteBatch batch = PendingFinalWrite("reading");
-            batch.Position = position; batch.Generation = generation;
+            batch.Position = position; batch.Generation = generation; batch.Revision = ++_finalWriteRevision;
             StartFinalWriteLoop("reading");
-            return batch.Completion.Task;
+            return _finalWriteSuspensionError != null ? Task.FromException(_finalWriteSuspensionError) : batch.Completion.Task;
         }
     }
 
     // The final-writer loop owns _commands. Generation protects forget/disable against every older batch.
-    private Task WriteReadingPositionCoreAsync(LocalReadingPosition position, long generation)
+    private Task WriteReadingPositionCoreAsync(LocalReadingPosition position, long generation, ProfileAdmissionToken admission)
     {
-        if (generation != ReadingPositionGeneration || !Config.RememberReadingPosition) return Task.CompletedTask;
-        string destination = ReadingPositionPath;
-        string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
-        try
+        _profileLease.Admission.RunWithToken(admission, () =>
         {
-            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(position, ReadingPositionJsonContext.Default.LocalReadingPosition);
-            using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            if (generation != ReadingPositionGeneration || !Config.RememberReadingPosition) return true;
+            string destination = ReadingPositionPath;
+            string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
+            try
             {
-                file.Write(bytes);
-                file.Flush(flushToDisk: true);
+                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(position, ReadingPositionJsonContext.Default.LocalReadingPosition);
+                using (FileStream file = new(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    file.Write(bytes);
+                    file.Flush(flushToDisk: true);
+                }
+                if (generation == ReadingPositionGeneration && Config.RememberReadingPosition)
+                    File.Move(pending, destination, overwrite: true);
             }
-            if (generation == ReadingPositionGeneration && Config.RememberReadingPosition)
-                File.Move(pending, destination, overwrite: true);
-        }
-        finally { File.Delete(pending); }
+            finally { File.Delete(pending); }
+            return true;
+        }, ProfileAdmissionKind.Ordinary);
         return Task.CompletedTask;
     }
 

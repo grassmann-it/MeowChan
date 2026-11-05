@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,17 @@ public sealed partial class Registry
     private ProfileLease? _producerLease;
     private ProfileProducerEpoch? _producerEpoch;
     private readonly SemaphoreSlim _producerTransitions = new(1, 1);
+    private IProfileFinalWriteParticipant? _finalWriteParticipant;
+    internal void RegisterProfileFinalWriteParticipant(IProfileFinalWriteParticipant participant)
+    {
+        ArgumentNullException.ThrowIfNull(participant);
+        lock (_state)
+        {
+            if (!_producerPrepared || _restored || _finalWriteParticipant != null)
+                throw new InvalidOperationException("Final-write participant must be registered once before startup.");
+            _finalWriteParticipant = participant;
+        }
+    }
     private bool _producerPrepared;
     private bool _producerSuspended;
     private bool _producerIngress = true;
@@ -78,8 +90,10 @@ public sealed partial class Registry
 
     // Deterministic lifecycle seams, invoked outside the lifecycle/state monitors.
     internal Func<Task>? BeforeProfileProducerResume { get; set; }
+    internal Func<Task>? BeforeProfileProducerFailureDrain { get; set; }
 
-    internal async Task ActivatePreparedProfileProducersAsync(Action? sealBeforeFailureDrain = null)
+    internal async Task ActivatePreparedProfileProducersAsync(Action? sealBeforeFailureDrain = null,
+        Action<Exception>? notifyBeforeFailureDrain = null)
     {
         Watch[] failedWatches = Array.Empty<Watch>();
         try
@@ -124,16 +138,27 @@ public sealed partial class Registry
             }
             finally { _gate.Release(); }
         }
-        catch
+        catch (Exception activationError)
         {
-            // Startup's host must seal new profile writers before any rollback
-            // cancellation/drain can block. Owner-resume deliberately supplies no
-            // seal: its temporarily suspended family remains retryable.
-            sealBeforeFailureDrain?.Invoke();
-            // Provider callbacks can need _gate: cancellation/drain is outside it.
-            await _queue.SuspendProfileProducersAsync().ConfigureAwait(false);
-            await Task.WhenAll(failedWatches.Select(StopWatchProducerAsync)).ConfigureAwait(false);
-            throw;
+            // B2: observers must learn about a known failure BEFORE any rollback
+            // await. Both hooks run outside _gate/_state; errors cannot skip drain.
+            List<Exception> errors = new() { activationError };
+            try { sealBeforeFailureDrain?.Invoke(); } catch (Exception error) { errors.Add(error); }
+            try { notifyBeforeFailureDrain?.Invoke(activationError); } catch (Exception error) { errors.Add(error); }
+            try
+            {
+                if (BeforeProfileProducerFailureDrain is { } beforeDrain) await beforeDrain().ConfigureAwait(false);
+            }
+            catch (Exception error) { errors.Add(error); }
+            try { await _queue.SuspendProfileProducersAsync().ConfigureAwait(false); }
+            catch (Exception error) { errors.Add(error); }
+            // Start every stop even if another stop faults synchronously.
+            Task[] stops = failedWatches.Select(async watch =>
+            { await StopWatchProducerAsync(watch).ConfigureAwait(false); }).ToArray();
+            try { await Task.WhenAll(stops).ConfigureAwait(false); }
+            catch (Exception error) { errors.Add(error); }
+            if (errors.Count == 1) throw;
+            throw new AggregateException("Producer activation and rollback reported failures.", errors);
         }
         SignalChanged();
     }
@@ -229,9 +254,81 @@ public sealed partial class Registry
         finally { _producerTransitions.Release(); }
     }
 
-    // Owner-only test/coordinator entry. Never invoke from an ordinary command or
-    // while holding Host._commands: the reservation waits for earlier commands.
-    // This is not a private Apply API or a consent capability.
+    internal async Task ReleaseStoppedHostFinalWritesAsync()
+    {
+        await _producerTransitions.WaitAsync().ConfigureAwait(false);
+        try { _finalWriteParticipant?.ReleaseStoppedEpoch(); }
+        finally { _producerTransitions.Release(); }
+    }
+
+    // This drain NEVER waits for Registry.StopAsync: its final epoch release needs
+    // this same lane. A save failure is not a producer-lifetime completion.
+    private async Task DrainProfileEpochAsync(ProfileProducerEpoch? epoch)
+    {
+        if (epoch == null) return;
+        await _queue.SuspendProfileProducersAsync().ConfigureAwait(false);
+        Watch[] watches;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { lock (_state) watches = _watches.Values.Where(watch => !watch.Stopping).ToArray(); }
+        finally { _gate.Release(); }
+        await Task.WhenAll(watches.Select(StopWatchProducerAsync)).ConfigureAwait(false);
+        await epoch.Close().ConfigureAwait(false);
+        await DrainBackgroundTasksAsync().ConfigureAwait(false);
+        await TryCompleteAsync(epoch.Admission).ConfigureAwait(false);
+    }
+    private void ReleaseDrainedProfileEpoch(ProfileProducerEpoch? epoch)
+    {
+        if (epoch == null) return;
+        lock (_state)
+        {
+            if (!ReferenceEquals(_producerEpoch, epoch)) throw new InvalidOperationException("Registry epoch changed during drain.");
+        }
+        _queue.DetachProfileEpoch(epoch);
+        epoch.Dispose();
+        lock (_state) _producerEpoch = null;
+    }
+
+    private async Task ResumeProfileFamiliesAsync()
+    {
+        try
+        {
+            if (BeforeProfileProducerResume is { } beforeResume) await beforeResume().ConfigureAwait(false);
+            _finalWriteParticipant?.InstallReadyEpoch();
+            InstallReadyProfileEpoch();
+            await ActivatePreparedProfileProducersAsync(notifyBeforeFailureDrain: _finalWriteParticipant is { } participant ? participant.FailTransition : null).ConfigureAwait(false);
+            _finalWriteParticipant?.OpenAfterProducerActivation();
+        }
+        catch (Exception resumeError)
+        {
+            // Installation failures do not enter Activate's pre-rollback catch.
+            // Notify here before our own cleanup too; repeat notification is harmless.
+            List<Exception> errors = new() { resumeError };
+            try { _finalWriteParticipant?.FailTransition(resumeError); } catch (Exception error) { errors.Add(error); }
+            Task hostDrain = Task.CompletedTask;
+            bool hostCut = false;
+            if (!_producerStopRequested && _finalWriteParticipant != null)
+            {
+                try { hostDrain = _finalWriteParticipant.CutAndDrainAsync(); hostCut = true; }
+                catch (Exception error) { errors.Add(error); }
+            }
+            ProfileProducerEpoch? fresh;
+            lock (_state) { fresh = _producerEpoch; _producerIngress = false; _producerSuspended = true; }
+            bool drained = false;
+            try { await Task.WhenAll(hostDrain, DrainProfileEpochAsync(fresh)).ConfigureAwait(false); drained = true; }
+            catch (Exception error) { errors.Add(error); }
+            if (drained)
+            {
+                if (hostCut) _finalWriteParticipant!.ReleaseDrainedEpoch();
+                ReleaseDrainedProfileEpoch(fresh);
+            }
+            try { _finalWriteParticipant?.FailTransition(resumeError); } catch (Exception error) { errors.Add(error); }
+            if (errors.Count == 1) throw;
+            throw new AggregateException("Profile family resume failed.", errors);
+        }
+    }
+
+    // One existing lane, ONE reservation for both families. No host Ordinary or
+    // _commands wrapper. Every granted token is observed and disposed exactly once.
     internal async Task RunWithProfileExclusiveAsync(Func<ProfileAdmissionToken, Task> operation,
         CancellationToken token = default)
     {
@@ -241,48 +338,39 @@ public sealed partial class Registry
         Task<ProfileAdmissionToken>? reservation = null;
         ProfileAdmissionToken? exclusive = null;
         ProfileProducerEpoch? epoch = null;
-        bool quiescent = false;
+        bool cut = false, quiescent = false;
         try
         {
+            _finalWriteParticipant?.CloseTransitionCommandIngress();
             lock (_state)
             {
                 if (_producerStopRequested || _stopping) throw new InvalidOperationException("Registry is stopping.");
                 epoch = _producerEpoch;
-                // A failed fresh-Ordinary acquisition leaves a genuinely quiescent,
-                // retained family. Retrying this same owner lane must be possible.
-                if (epoch == null && !_producerSuspended)
-                    throw new InvalidOperationException("No live producer epoch.");
+                if (epoch == null && !_producerSuspended) throw new InvalidOperationException("No live producer epoch.");
                 _producerLease ??= BoundProfileLease;
-                // Reservation refusal leaves the live generation completely intact.
-                reservation = (_producerLease ?? BoundProfileLease ?? throw new InvalidOperationException("No profile."))
+                reservation = (_producerLease ?? throw new InvalidOperationException("No profile."))
                     .Admission.EnterExclusiveAsync(reservationCancellation.Token).AsTask();
-                _producerIngress = false;
-                _producerSuspended = true;
             }
-            if (epoch != null)
-            {
-                await _queue.SuspendProfileProducersAsync().ConfigureAwait(false);
-                Watch[] watches;
-                await _gate.WaitAsync().ConfigureAwait(false);
-                try { lock (_state) watches = _watches.Values.Where(watch => !watch.Stopping).ToArray(); }
-                finally { _gate.Release(); }
-                await Task.WhenAll(watches.Select(StopWatchProducerAsync)).ConfigureAwait(false);
-                await epoch.Close().ConfigureAwait(false);
-                await DrainBackgroundTasksAsync().ConfigureAwait(false);
-                // Registration is sealed, queue callbacks drained. One final pass owns
-                // the old reservation; late invalidations remain dirty for resumption.
-                await TryCompleteAsync(epoch.Admission).ConfigureAwait(false);
-                _queue.DetachProfileEpoch(epoch);
-                epoch.Dispose();
-                lock (_state) _producerEpoch = null;
-            }
+            // The hook's synchronous cut can refuse Stop-before-cut without closing
+            // TerminalOpen. No registry family is changed on a pre-cut refusal.
+            Task hostDrain = _finalWriteParticipant?.CutAndDrainAsync() ?? Task.CompletedTask;
+            cut = true;
+            lock (_state) { _producerIngress = false; _producerSuspended = true; }
+            await Task.WhenAll(hostDrain, DrainProfileEpochAsync(epoch)).ConfigureAwait(false);
+            _finalWriteParticipant?.ReleaseDrainedEpoch();
+            ReleaseDrainedProfileEpoch(epoch);
             quiescent = true;
             Task<ProfileAdmissionToken> acceptedReservation = reservation;
             reservation = null;
-            exclusive = await acceptedReservation.ConfigureAwait(false); // Exactly one observation.
+            exclusive = await acceptedReservation.ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (_producerStopRequested) throw new InvalidOperationException("Registry is stopping.");
             await operation(exclusive).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            if (cut && !quiescent) _finalWriteParticipant?.FailTransition(error);
+            throw;
         }
         finally
         {
@@ -290,8 +378,6 @@ public sealed partial class Registry
             {
                 try
                 {
-                    // On drain failure retain the old epoch; no false Exclusive success.
-                    // Observe the pending reservation even if cancellation/shutdown itself fails.
                     if (reservation != null)
                     {
                         try { await reservationCancellation.CancelAsync().ConfigureAwait(false); }
@@ -304,13 +390,9 @@ public sealed partial class Registry
                     }
                 }
                 finally { exclusive?.Dispose(); }
+                if (!cut) _finalWriteParticipant?.AbortBeforeCut();
                 if (quiescent && !_producerStopRequested && _producerLease?.Admission.Phase == ProfileAdmissionPhase.Ready)
-                {
-                    if (BeforeProfileProducerResume is { } beforeResume)
-                        await beforeResume().ConfigureAwait(false);
-                    InstallReadyProfileEpoch(); // Losing to another Exclusive stays suspended, and retryable.
-                    await ActivatePreparedProfileProducersAsync().ConfigureAwait(false);
-                }
+                    await ResumeProfileFamiliesAsync().ConfigureAwait(false);
             }
             finally { _producerTransitions.Release(); }
         }
