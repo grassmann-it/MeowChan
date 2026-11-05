@@ -503,7 +503,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 BandwidthBytesPerSecond = candidate.BandwidthLimiter
             };
             await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit,
-                () => candidate.SaveConfig(_profileLease.ProfileDirectory), admission).ConfigureAwait(false);
+                () => candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission), admission).ConfigureAwait(false);
             PublishConfig(candidate);
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
@@ -548,7 +548,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             };
             await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit, () =>
             {
-                candidate.SaveConfig(_profileLease.ProfileDirectory);
+                candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission);
                 persisted = true;
                 PublishConfig(candidate);
             }, admission).ConfigureAwait(false);
@@ -581,7 +581,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             EnsureReady();
             Config candidate = Config.Clone();
             candidate.DownloadsPaused = paused;
-            candidate.SaveConfig(_profileLease.ProfileDirectory);
+            candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission);
             IsPauseTransitioning = true;
             SignalChanged();
             try

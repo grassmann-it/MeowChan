@@ -245,7 +245,7 @@ internal sealed partial class DesktopSessionHost
                         _profileLease.Admission.RunWithToken(admission, () =>
                         {
                             Config candidate = Config.Clone(); ApplyPreferenceValues(candidate, batch.Preferences); candidate.Validate();
-                            candidate.SaveConfig(_profileLease.ProfileDirectory); PublishConfig(candidate); return true;
+                            candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission); PublishConfig(candidate); return true;
                         }, ProfileAdmissionKind.Ordinary);
                     else await WriteReadingPositionCoreAsync(batch.Position!, batch.Generation, admission).ConfigureAwait(false);
                 }

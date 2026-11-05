@@ -586,7 +586,10 @@ namespace MeowChan
                 _profileDirectory = _profileDirectory,
                 _writeLease = _writeLease,
                 _relativePathBaseDirectory = _relativePathBaseDirectory,
-                Origin = Origin
+                Origin = Origin,
+                // Null-default instance observers only; never copy a token or grant authority.
+                BeforeAdmittedSaveMutationForTests = BeforeAdmittedSaveMutationForTests,
+                AfterAdmittedSaveMutationForTests = AfterAdmittedSaveMutationForTests
             };
         }
 
@@ -724,11 +727,30 @@ namespace MeowChan
         /// <summary>Atomically saves settings; validation and write errors reach the caller.</summary>
         public void SaveConfig(string profileDirectory)
         {
-            if (_writeLease != null) _writeLease.RunExclusive(() => { SaveConfigCore(profileDirectory); return true; });
-            else SaveConfigCore(profileDirectory);
+            if (_writeLease is { } lease)
+            {
+                using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter();
+                SaveConfigAdmitted(profileDirectory, admission);
+            }
+            else SaveConfigCore(profileDirectory); // Offline compatibility, outside the bound domain.
         }
 
-        private void SaveConfigCore(string profileDirectory)
+        [JsonIgnore] internal Action<ProfileAdmissionToken>? BeforeAdmittedSaveMutationForTests { get; set; }
+        [JsonIgnore] internal Action<ProfileAdmissionToken>? AfterAdmittedSaveMutationForTests { get; set; }
+
+        // Borrow the caller's exact Startup/Ordinary token; never enter or release its owner.
+        internal void SaveConfigAdmitted(string profileDirectory, ProfileAdmissionToken admission)
+        {
+            ProfileLease lease = _writeLease ?? throw new InvalidOperationException("Admitted settings writes require a bound profile lease.");
+            lease.RunStoreWrite(admission, () =>
+            {
+                SaveConfigCore(profileDirectory, () => BeforeAdmittedSaveMutationForTests?.Invoke(admission));
+                AfterAdmittedSaveMutationForTests?.Invoke(admission);
+                return true;
+            });
+        }
+
+        private void SaveConfigCore(string profileDirectory, Action? beforeMutation = null)
         {
             EnsureOrdinaryWritesAllowed();
             Validate();
@@ -751,6 +773,7 @@ namespace MeowChan
                 || currentStatus == LoadStatus.Missing && !IsEmptyProfile(directory)
                     && !(sameProfile && (Origin == ProfileOrigin.ExistingValid || Origin == ProfileOrigin.ConfirmedNew && _writeLease != null)))
                 throw new InvalidOperationException("Settings destination requires an explicit recovery decision; existing files were preserved.");
+            beforeMutation?.Invoke(); // Inside the real store pin, before Preserve/atomic I/O.
             if (currentStatus == LoadStatus.Valid && backupStatus == LoadStatus.Invalid)
                 AtomicJsonFile.PreserveFile(backupPath);
 

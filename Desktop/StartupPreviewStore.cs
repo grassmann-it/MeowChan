@@ -74,50 +74,68 @@ internal sealed class StartupPreviewStore
             catch (JsonException error) { throw new InvalidDataException("Invalid startup preview JSON.", error); }
         });
 
-    internal void Save(StartupPreviewSnapshot snapshot, CancellationToken cancellationToken = default) =>
-        _lease.RunExclusive(() =>
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedSaveMutationForTests { get; set; }
+
+    internal void Save(StartupPreviewSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        SaveAdmitted(snapshot, admission, cancellationToken);
+    }
+
+    // Pin before the lease monitor and retain the caller's owner through real I/O/cleanup.
+    internal void SaveAdmitted(StartupPreviewSnapshot snapshot, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default) =>
+        _lease.RunStoreWrite(admission, () =>
         {
-            _lease.EnsureMatches(Path.GetDirectoryName(_path)!);
-            cancellationToken.ThrowIfCancellationRequested();
-            StartupPreviewSnapshot captured = CopyAndValidate(snapshot, cancellationToken);
-            byte[] bytes = Encode(captured, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            RejectLinks();
-            string temporary = Path.Combine(_lease.ProfileDirectory, ".startup-preview-" + Guid.NewGuid().ToString("N") + ".tmp");
-            bool ownsTemporary = false;
-            try
-            {
-                FileStreamOptions options = new()
-                {
-                    Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None
-                };
-                if (!OperatingSystem.IsWindows())
-                    options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-                using (FileStream file = new(temporary, options))
-                {
-                    ownsTemporary = true;
-                    cancellationToken.ThrowIfCancellationRequested();
-                    file.Write(bytes);
-                    file.Flush(flushToDisk: true);
-                }
-                // Unlike authoritative stores, a malformed/future cache can be replaced.
-                cancellationToken.ThrowIfCancellationRequested();
-                RejectLinks();
-                cancellationToken.ThrowIfCancellationRequested();
-                File.Move(temporary, _path, overwrite: true);
-                ownsTemporary = false;
-            }
-            finally
-            {
-                if (ownsTemporary)
-                {
-                    try { File.Delete(temporary); }
-                    catch (IOException) { }
-                    catch (UnauthorizedAccessException) { }
-                }
-            }
+            SaveCore(snapshot, admission, cancellationToken);
+            AfterAdmittedSaveMutationForTests?.Invoke(admission);
             return true;
         });
+
+    private void SaveCore(StartupPreviewSnapshot snapshot, ProfileAdmissionToken admission, CancellationToken cancellationToken)
+    {
+        _lease.EnsureMatches(Path.GetDirectoryName(_path)!);
+        cancellationToken.ThrowIfCancellationRequested();
+        StartupPreviewSnapshot captured = CopyAndValidate(snapshot, cancellationToken);
+        byte[] bytes = Encode(captured, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        RejectLinks();
+        BeforeAdmittedSaveMutationForTests?.Invoke(admission);
+        string temporary = Path.Combine(_lease.ProfileDirectory, ".startup-preview-" + Guid.NewGuid().ToString("N") + ".tmp");
+        bool ownsTemporary = false;
+        try
+        {
+            FileStreamOptions options = new()
+            {
+                Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None
+            };
+            if (!OperatingSystem.IsWindows())
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            using (FileStream file = new(temporary, options))
+            {
+                ownsTemporary = true;
+                cancellationToken.ThrowIfCancellationRequested();
+                file.Write(bytes);
+                file.Flush(flushToDisk: true);
+            }
+            // Unlike authoritative stores, a malformed/future cache can be replaced.
+            cancellationToken.ThrowIfCancellationRequested();
+            RejectLinks();
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(temporary, _path, overwrite: true);
+            ownsTemporary = false;
+        }
+        finally
+        {
+            if (ownsTemporary)
+            {
+                try { File.Delete(temporary); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
 
     private static byte[] ReadBounded(Stream stream, CancellationToken cancellationToken)
     {

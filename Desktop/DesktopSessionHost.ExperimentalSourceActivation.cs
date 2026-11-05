@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -27,9 +28,9 @@ internal sealed partial class DesktopSessionHost
     }
 
     internal Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAsync(ExperimentalSourceActivationTarget target)
-        => RunInteractiveAsync(nameof(ActivateAndAllowExperimentalSourceAsync), target.PluginOwnerId + "/" + target.SourceId, () => ActivateAndAllowExperimentalSourceAdmittedCoreAsync(target));
+        => RunInteractiveWithAdmissionAsync(nameof(ActivateAndAllowExperimentalSourceAsync), target.PluginOwnerId + "/" + target.SourceId, admission => ActivateAndAllowExperimentalSourceAdmittedCoreAsync(target, admission));
 
-    private async Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAdmittedCoreAsync(ExperimentalSourceActivationTarget target)
+    private async Task<ExperimentalSourceActivationResult> ActivateAndAllowExperimentalSourceAdmittedCoreAsync(ExperimentalSourceActivationTarget target, ProfileAdmissionToken admission)
     {
         ArgumentNullException.ThrowIfNull(target);
         await _commands.WaitAsync().ConfigureAwait(false);
@@ -53,7 +54,7 @@ internal sealed partial class DesktopSessionHost
                     if (!verified.IsReady || verified.Target != current) throw new ExperimentalSourceActivationChangedException();
                     // Do not reacquire _commands through the public permission entry point.
                     await SetSourceMediaIntegrityPermissionCoreAsync(current.PluginOwnerId, current.SourceId, true,
-                        current.PolicyRevision).ConfigureAwait(false);
+                        current.PolicyRevision, admission).ConfigureAwait(false);
                 }).ConfigureAwait(false);
         }
         catch (Exception error)

@@ -77,6 +77,10 @@ internal sealed partial class DesktopSessionHost
         _startupPreviewCheckpoint = new(DateTimeOffset.UtcNow, projection.View.Threads.Count, projection.View.Boards.Count, rows.AsReadOnly());
     }
 
+    // Instance-local observers forwarded to the real checkpoint store, inside its pin.
+    internal Action<ProfileAdmissionToken>? BeforeStartupPreviewAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterStartupPreviewAdmittedSaveMutationForTests { get; set; }
+
     // The Terminal-Use owns this complete synchronous operation. Validation is
     // outside the non-authoritative cache catch; missing authority is not a cache warning.
     private void SaveStartupPreviewCheckpoint(ProfileAdmissionToken admission)
@@ -85,8 +89,16 @@ internal sealed partial class DesktopSessionHost
         _profileLease.Admission.RunWithToken(admission, () =>
         {
             if (!Config.SaveUrlsOnExit || _startupPreviewCheckpoint is not { } snapshot) return false;
-            try { new StartupPreviewStore(ProfileDirectory, _profileLease).Save(snapshot); }
-            catch (Exception error)
+            try
+            {
+                var store = new StartupPreviewStore(ProfileDirectory, _profileLease)
+                {
+                    BeforeAdmittedSaveMutationForTests = BeforeStartupPreviewAdmittedSaveMutationForTests,
+                    AfterAdmittedSaveMutationForTests = AfterStartupPreviewAdmittedSaveMutationForTests
+                };
+                store.SaveAdmitted(snapshot, admission);
+            }
+            catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.Text.Json.JsonException or ArgumentException)
             { _logger.Debug("Startup preview checkpoint not saved ({Kind}).", error.GetType().Name); }
             return true;
         }, ProfileAdmissionKind.Ordinary);

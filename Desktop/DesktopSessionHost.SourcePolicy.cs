@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -39,22 +40,22 @@ internal sealed partial class DesktopSessionHost
     }
 
     internal Task SetSourceMediaIntegrityPermissionAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
-        => RunInteractiveAsync(nameof(SetSourceMediaIntegrityPermissionAsync), pluginOwnerId + "/" + sourceId, () => SetSourceMediaIntegrityPermissionAdmittedCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision));
+        => RunInteractiveWithAdmissionAsync(nameof(SetSourceMediaIntegrityPermissionAsync), pluginOwnerId + "/" + sourceId, admission => SetSourceMediaIntegrityPermissionAdmittedCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision, admission));
 
-    private async Task SetSourceMediaIntegrityPermissionAdmittedCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
+    private async Task SetSourceMediaIntegrityPermissionAdmittedCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            await SetSourceMediaIntegrityPermissionCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision).ConfigureAwait(false);
+            await SetSourceMediaIntegrityPermissionCoreAsync(pluginOwnerId, sourceId, allow, expectedRevision, admission).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
         SignalChanged();
     }
 
     // Caller already holds _commands. Keep the existing authority and persistence path.
-    private Task SetSourceMediaIntegrityPermissionCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision)
+    private Task SetSourceMediaIntegrityPermissionCoreAsync(string pluginOwnerId, string sourceId, bool allow, long expectedRevision, ProfileAdmissionToken admission)
     {
         if (allow && ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(pluginOwnerId, sourceId))
             throw new InvalidOperationException("This experimental source retains strict provider-integrity checks.");
@@ -64,7 +65,7 @@ internal sealed partial class DesktopSessionHost
             Config candidate = Config.Clone();
             candidate.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(pluginOwnerId, sourceId)] = permission;
             candidate.Validate();
-            candidate.SaveConfig(_profileLease.ProfileDirectory);
+            candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission);
             PublishConfig(candidate);
         });
     }
