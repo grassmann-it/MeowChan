@@ -122,7 +122,7 @@ public partial class ArchivePage
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
         List<MenuItem> commands = new();
         List<Func<string?>> disabledReasons = new();
-        bool Ready() => _available && !_ended && !_busy;
+        bool Ready() => _available && !_ended && !_busy && !_urlTextExportBusy;
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
             Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
         {
@@ -160,6 +160,8 @@ public partial class ArchivePage
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
         menu.Items.Add(new Separator());
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
+        Add("export.open-urltext-dialog", async () => await OpenUrlTextExportForThreadAsync(ids[0], origin),
+            () => ids.Length == 1 && CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
         Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);
         Add("location.open-folder", () => RunArchiveLeadAction(lead, "folder"),
             () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"), leadAction: true);

@@ -53,7 +53,7 @@ public partial class ArchivePage
 
     internal async Task OpenExportForAllResultsAsync(Control? origin)
     {
-        if (_ended || !_available || _busy || _openReader == null || _appliedSearch == null) return;
+        if (_ended || _urlTextExportBusy || !_available || _busy || _openReader == null || _appliedSearch == null) return;
         EnsureExportDialog();
         if (Control<Border>("ArchiveExportDialog").IsVisible)
         { Control<Button>("ArchiveExportClose").Focus(); return; }

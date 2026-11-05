@@ -25,9 +25,10 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
-    internal bool IsReaderDialogOpen => Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
+    internal bool IsReaderDialogOpen => _urlTextExportBusy || Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay()
     {
+        if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (!IsReaderDialogOpen) return false;
         OnExportClose(this, new RoutedEventArgs());
@@ -658,7 +659,7 @@ public partial class ArchivePage
 
     internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
     {
-        if (!_largeReader || _busy || _ended) return;
+        if (!_largeReader || _busy || _ended || _urlTextExportBusy) return;
         ++_readerInteractionRevision;
         if (threadDelta != 0)
         {

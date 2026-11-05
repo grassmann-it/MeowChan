@@ -39,6 +39,8 @@ public sealed class ShortcutEditor : UserControl
     private ShortcutGesture? _pending;
     private string? _selected;
     private long _validationFocusRequest;
+    private long _validationViewportRequest;
+    private Action? _cancelValidationViewportReveal;
     public ShortcutBindingsSection Draft { get; private set; } = new();
     public bool IsDirty { get; private set; }
     public ShortcutEditor()
@@ -58,8 +60,9 @@ public sealed class ShortcutEditor : UserControl
         _capture.AddHandler(KeyDownEvent, CaptureKey, RoutingStrategies.Tunnel);
         _capture.PropertyChanged += (_, e) => { if (e.Property == KeyGestureInput.GestureProperty) ReadCapture(); };
         _capture.LostFocus += (_, _) => StopCapture();
+        _errors.LostFocus += (_, _) => CancelValidationViewportReveal();
         _explicit.IsCheckedChanged += (_, _) => ReadCapture();
-        DetachedFromVisualTree += (_, _) => { _validationFocusRequest++; StopCapture(); };
+        DetachedFromVisualTree += (_, _) => { _validationFocusRequest++; CancelValidationViewportReveal(); StopCapture(); };
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
         AutomationProperties.SetLiveSetting(_errors, AutomationLiveSetting.Assertive);
@@ -146,7 +149,12 @@ public sealed class ShortcutEditor : UserControl
     {
         // Do not rebuild/filter rows or detail here: even a remove/re-add of the
         // same input can lose focus, selection and the existing capture lease.
-        _validationFocusRequest++;
+        CancelValidationViewportReveal();
+        long request = ++_validationFocusRequest;
+        // Record ownership/visibility BEFORE changing text. A translated earlier
+        // row can move the still-focused error or the active capture's invalid
+        // pending explanation below the viewport without changing focus.
+        QueueValidationViewportReveal(request);
         _heading.Text = Texts.T("shortcuts.title");
         _search.PlaceholderText = Texts.T("settings.shortcutsEditor.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText?.ToString());
@@ -156,10 +164,132 @@ public sealed class ShortcutEditor : UserControl
         foreach (var refresh in _detailTexts) refresh();
         _explicit.Content = Texts.T("settings.shortcutsEditor.keepExplicit");
         _pendingLabel.Text = _pendingText?.Invoke() ?? "";
+        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.recordHelp"));
+        // Keep the freshly localized issue help; generic recorder help must not overwrite it.
         ShowIssues(EffectiveShortcutBindings.Build(Draft).Issues);
         AutomationProperties.SetName(_capture, Texts.T("settings.shortcutsEditor.record"));
-        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.recordHelp"));
     }
+    private void CancelValidationViewportReveal()
+    {
+        ++_validationViewportRequest;
+        Action? cleanup = _cancelValidationViewportReveal;
+        _cancelValidationViewportReveal = null;
+        cleanup?.Invoke();
+    }
+
+    private void QueueValidationViewportReveal(long validationRequest)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window top
+            || top.FocusManager?.GetFocusedElement() is not Control focus) return;
+        bool pendingCapture = !OwnsValidationFocus(top);
+        Control message = pendingCapture ? _pendingLabel : _errors;
+        if (pendingCapture && (!OwnsInvalidCaptureFocus(top, focus) || !ControlInViewport(top, _capture))) return;
+        if (!ControlInViewport(top, message)) return;
+        IDisposable? captureLease = _captureLease;
+        ShortcutGesture? pending = _pending;
+        KeyGesture? gesture = _capture.Gesture;
+        Func<string>? pendingText = _pendingText;
+        bool OwnsFocus() => pendingCapture
+            ? OwnsInvalidCaptureFocus(top, focus) && ReferenceEquals(_captureLease, captureLease)
+                && ReferenceEquals(_pending, pending) && ReferenceEquals(_capture.Gesture, gesture)
+                && ReferenceEquals(_pendingText, pendingText)
+            : OwnsValidationFocus(top);
+        long viewportRequest = _validationViewportRequest;
+        ShortcutBindingsSection draft = Draft;
+        string? selected = _selected;
+        object? selectedItem = _actions.SelectedItem;
+        ScrollViewer[] scrolls = message.GetVisualAncestors().OfType<ScrollViewer>().ToArray();
+        Vector[] offsets = scrolls.Select(scroll => scroll.Offset).ToArray();
+        // Deactivation revokes the request even if this window reactivates before
+        // dispatch. LostFocus/detach cancel too, including focus-away-and-back.
+        void Deactivated(object? sender, EventArgs e) => CancelValidationViewportReveal();
+        void FocusLost(object? sender, RoutedEventArgs e) => CancelValidationViewportReveal();
+        Action cleanup = () => { top.Deactivated -= Deactivated; focus.LostFocus -= FocusLost; };
+        top.Deactivated += Deactivated;
+        focus.LostFocus += FocusLost;
+        _cancelValidationViewportReveal = cleanup;
+        bool StillOwned()
+        {
+            if (validationRequest != _validationFocusRequest || viewportRequest != _validationViewportRequest
+                || !ReferenceEquals(Draft, draft) || _selected != selected
+                || !ReferenceEquals(_actions.SelectedItem, selectedItem) || !OwnsFocus()) return false;
+            var currentScrolls = message.GetVisualAncestors().OfType<ScrollViewer>().ToArray();
+            // A user scroll while keeping error focus also supersedes the reveal.
+            return currentScrolls.Length == scrolls.Length && currentScrolls.Select((scroll, index) =>
+                ReferenceEquals(scroll, scrolls[index]) && scroll.Offset == offsets[index]).All(same => same);
+        }
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (!StillOwned()) return;
+                // All synchronous Texts.Changed subscribers have finished. Arrange
+                // their translated labels, then recheck ownership against reentry.
+                top.UpdateLayout();
+                if (!StillOwned()) return;
+                if (pendingCapture)
+                {
+                    if (!ControlInViewport(top, _pendingLabel) || !ControlInViewport(top, _capture))
+                    {
+                        // Preserve BOTH the focused recorder and its invalid reason;
+                        // never scroll the focus out merely to reveal its explanation.
+                        if (_pendingLabel.TranslatePoint(default, _capture) is not Point origin
+                            || VisibleViewport(top, _pendingLabel) is not Rect viewport) return;
+                        Rect area = new Rect(_capture.Bounds.Size).Union(new Rect(origin, _pendingLabel.Bounds.Size));
+                        if (area.Width <= viewport.Width && area.Height <= viewport.Height)
+                            _capture.BringIntoView(area);
+                    }
+                }
+                else if (!ControlInViewport(top, _errors)) _errors.BringIntoView();
+                // No Focus(), recapture, retry loop or persistent LayoutUpdated hook.
+            }
+            finally
+            {
+                cleanup();
+                if (ReferenceEquals(_cancelValidationViewportReveal, cleanup)) _cancelValidationViewportReveal = null;
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private bool OwnsValidationFocus(Window top) => top.IsVisible && top.IsActive
+        && ReferenceEquals(TopLevel.GetTopLevel(this), top) && ReferenceEquals(TopLevel.GetTopLevel(_errors), top)
+        && IsEffectivelyVisible && IsEffectivelyEnabled && _errors.IsEffectivelyVisible && _errors.IsEffectivelyEnabled
+        && _errors.Focusable && _errors.IsFocused && ReferenceEquals(top.FocusManager?.GetFocusedElement(), _errors)
+        && _captureLease == null && !ShortcutService.IsCapturing;
+
+    private bool OwnsInvalidCaptureFocus(Window top, Control focus) => top.IsVisible && top.IsActive
+        && ReferenceEquals(TopLevel.GetTopLevel(this), top) && ReferenceEquals(TopLevel.GetTopLevel(_capture), top)
+        && ReferenceEquals(TopLevel.GetTopLevel(_pendingLabel), top) && ReferenceEquals(TopLevel.GetTopLevel(focus), top)
+        && ReferenceEquals(_capture.Parent, _detail) && ReferenceEquals(_pendingLabel.Parent, _detail)
+        && IsEffectivelyVisible && IsEffectivelyEnabled && _capture.IsEffectivelyVisible && _capture.IsEffectivelyEnabled
+        && _pendingLabel.IsEffectivelyVisible && focus.IsEffectivelyVisible && focus.IsEffectivelyEnabled
+        && focus.IsFocused && ReferenceEquals(top.FocusManager?.GetFocusedElement(), focus)
+        && (ReferenceEquals(focus, _capture) || focus.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, _capture)))
+        && _capture.IsKeyboardFocusWithin && _captureLease != null && ShortcutService.IsCapturing
+        && _pendingText != null && _pending != null
+        && EffectiveShortcutBindings.InvalidIssueReason(_pending, EffectiveShortcutBindings.CurrentPlatform) != null;
+
+    private static bool ControlInViewport(Window top, Control target)
+    {
+        if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0
+            || target.TranslatePoint(default, top) is not Point origin
+            || VisibleViewport(top, target) is not Rect viewport) return false;
+        Rect bounds = new(origin, target.Bounds.Size);
+        return bounds.Left >= viewport.Left - 1 && bounds.Top >= viewport.Top - 1
+            && bounds.Right <= viewport.Right + 1 && bounds.Bottom <= viewport.Bottom + 1;
+    }
+
+    private static Rect? VisibleViewport(Window top, Control target)
+    {
+        Rect viewport = new(default(Point), top.ClientSize);
+        foreach (ScrollViewer scroll in target.GetVisualAncestors().OfType<ScrollViewer>())
+        {
+            if (scroll.TranslatePoint(default, top) is not Point point) return null;
+            viewport = viewport.Intersect(new Rect(point, scroll.Bounds.Size));
+        }
+        return viewport;
+    }
+
     private void BuildFrame()
     {
         _root.Children.Add(_heading);
@@ -245,9 +375,9 @@ public sealed class ShortcutEditor : UserControl
         _detailTexts.Clear();
         _detail.Children.Clear();
         _detailFrame.IsVisible = _selected != null;
-        if (_selected == null || !CommandCatalog.TryGet(_selected, out var command)) return;
-        _detail.IsEnabled = Draft.IsEditable && command!.IsImplemented;
-        var title = LocalizedText(() => command!.Label, _detailTexts);
+        if (_selected == null || !CommandCatalog.TryGet(_selected, out var command) || command is null) return;
+        _detail.IsEnabled = Draft.IsEditable && command.IsImplemented;
+        var title = LocalizedText(() => command.Label, _detailTexts);
         title.Classes.Add("section-title");
         _detail.Children.Add(title);
         var context = new TextBlock { Text = string.Join(", ", command.ExecutionContexts) };
@@ -335,14 +465,15 @@ public sealed class ShortcutEditor : UserControl
             if (g.KeyModifiers.HasFlag(m)) modifiers.Add(m == primary && _explicit.IsChecked != true ? "Primary" : m.ToString());
         var pending = new ShortcutGesture(g.Key.ToString(), modifiers.AsReadOnly());
         _pending = pending;
-        SetPendingText(() => EffectiveShortcutBindings.InvalidReason(pending, EffectiveShortcutBindings.CurrentPlatform) ?? pending.Display(EffectiveShortcutBindings.CurrentPlatform));
+        var reason = EffectiveShortcutBindings.InvalidIssueReason(pending, EffectiveShortcutBindings.CurrentPlatform);
+        SetPendingText(() => reason != null ? ShortcutIssueCatalog.Render(reason) : pending.Display(EffectiveShortcutBindings.CurrentPlatform));
     }
     private void ApplyCapture(bool takeOver)
     {
         StopCapture();
         if (_selected == null || _pending == null) return;
-        if (EffectiveShortcutBindings.InvalidReason(_pending, EffectiveShortcutBindings.CurrentPlatform) is string error)
-        { SetPendingText(() => error); return; }
+        if (EffectiveShortcutBindings.InvalidIssueReason(_pending, EffectiveShortcutBindings.CurrentPlatform) is { } reason)
+        { SetPendingText(() => ShortcutIssueCatalog.Render(reason)); return; }
         var list = DraftGestures(_selected).ToList();
         if (list.Count >= 8) { SetPendingText(() => Texts.T("settings.shortcutsEditor.gestureLimit")); return; }
         if (!list.Any(g => EffectiveShortcutBindings.Equivalent(g, _pending, EffectiveShortcutBindings.CurrentPlatform))) list.Add(_pending);
@@ -360,8 +491,11 @@ public sealed class ShortcutEditor : UserControl
     private void ShowIssues(IReadOnlyList<ShortcutIssue> issues)
     {
         _errors.Focusable = issues.Any(issue => issue.BlocksSave);
-        _errors.Text = string.Join("\n", issues.Select(i => (CommandCatalog.TryGet(i.CommandId, out var c) ? c!.Label : i.CommandId) + (i.OtherCommandId != null ? " ↔ " + CommandCatalog.Label(i.OtherCommandId) : "") + ": " + i.Message));
-        AutomationProperties.SetHelpText(_capture, Texts.T("settings.shortcutsEditor.issuesHelp") + _errors.Text);
+        _errors.Text = string.Join("\n", issues.Select(i => (CommandCatalog.TryGet(i.CommandId, out var c) ? c!.Label : i.CommandId) + (i.OtherCommandId != null ? " ↔ " + CommandCatalog.Label(i.OtherCommandId) : "") + ": " + ShortcutIssueCatalog.Render(i)));
+        // Advisory warnings stay visible without replacing recorder instructions.
+        AutomationProperties.SetHelpText(_capture, issues.Any(issue => issue.BlocksSave)
+            ? Texts.T("settings.shortcutsEditor.issuesHelp") + _errors.Text
+            : Texts.T("settings.shortcutsEditor.recordHelp"));
     }
     private void SetPendingText(Func<string>? text)
     { _pendingText = text; _pendingLabel.Text = text?.Invoke() ?? ""; }

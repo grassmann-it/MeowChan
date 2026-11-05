@@ -168,7 +168,8 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
         Assert.Contains("_rowTexts.Add(row.Refresh)", list);
         string detail = Between(source, "private void RefreshDetail()", "private void CaptureKey(");
         Assert.Contains("_detailTexts.Clear();", detail);
-        Assert.Contains("var title = LocalizedText(() => command!.Label, _detailTexts);", detail);
+        Assert.Contains("!CommandCatalog.TryGet(_selected, out var command) || command is null", detail);
+        Assert.Contains("var title = LocalizedText(() => command.Label, _detailTexts);", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.remove\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.recordAdditional\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.clearBinding\")", detail);

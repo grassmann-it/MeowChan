@@ -93,7 +93,7 @@ public partial class MainWindow
             // A target can disappear between the dialog's availability snapshot and opening.
             // Returning to the saved dialog is explicit and does not choose another archive row.
             _readerGroupReturn = request with { Origin = request.Origin with
-                { Notice = Desktop.Localization.Texts.Language == "de" ? "Der erste Thread ist inzwischen lokal nicht verfügbar. Bitte Mitglieder prüfen und erneut lesen." : "The first thread is no longer available locally. Review the members and read again." } };
+                { Notice = null, NoticeReason = ReaderGroupsNoticeReason.FirstMemberUnavailable } };
             CloseLargeReader();
         }
     }

@@ -20,6 +20,7 @@ internal static class ReaderGroupsCatalog
         ("readerGroups.deletePrompt", "Delete this group? Only its memberships are removed. Threads and downloads remain unchanged.", "Gruppe löschen? Nur ihre Zuordnungen werden entfernt. Threads und Downloads bleiben erhalten."),
         ("readerGroups.delete", "Delete group", "Gruppe löschen"),
         ("readerGroups.alreadyMembers", "These threads already belong to the group; nothing changed.", "Diese Threads gehören bereits zur Gruppe; nichts geändert."),
+        ("readerGroups.firstMemberUnavailable", "The first thread is no longer available locally. Review the members and read again.", "Der erste Thread ist inzwischen lokal nicht verfügbar. Bitte Mitglieder prüfen und erneut lesen."),
         ("readerGroups.hint", "Groups only organise local reading. Changes require Save.", "Gruppen ordnen nur lokales Lesen. Änderungen mit Speichern übernehmen."),
         ("readerGroups.loadFailed", "Cannot load groups: {0}", "Gruppen konnten nicht geladen werden: {0}"),
         ("readerGroups.futureVersion", "This groups file is from a newer app version and cannot be edited.\n{0}\n{1}", "Diese Gruppendatei stammt aus einer neueren Appversion und kann nicht bearbeitet werden.\n{0}\n{1}"),

@@ -170,6 +170,7 @@ public static class CommandCatalog
         new("admission.apply", "command.admission.apply", "Apply selection and monitor", "Auswahl übernehmen und beobachten", "check", null, CommandScope.Application, new[] { "board-admission-footer" }),
         new("admission.reset-choice", "command.admission.reset-choice", "Use rules again", "Wieder Regeln verwenden", "rotate-ccw", null, CommandScope.Application, new[] { "board-admission-thread-row" }),
         new("admission.remove-rule", "command.admission.remove-rule", "Remove rule", "Regel entfernen", "x", null, CommandScope.Application, new[] { "board-admission-rule-row" }),
+        new("export.open-urltext-dialog", "urltext.export.open", "Export page link as text…", "Seitenlink als Text exportieren…", "download", null, CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
         new("export.open-html-dialog", "command.export.open-html-dialog", "Export as HTML…", "Als HTML exportieren…", "download", "Primary+E", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar" }),
         new("export.open-previous", "command.export.open-previous", "Open previous export", "Früheren Export öffnen", "folder", null, CommandScope.Dialog, new[] { "html-export-dialog" }),
         new("export.associate", "command.export.associate", "Associate export folder…", "Exportordner zuordnen…", "link", null, CommandScope.Dialog, new[] { "html-export-dialog" }),

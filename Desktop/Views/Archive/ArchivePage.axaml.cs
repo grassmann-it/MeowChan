@@ -982,6 +982,7 @@ public partial class ArchivePage : UserControl
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();
         EndTransferPreviewLifetime();
+        EndUrlTextExportLifetime();
         ClearPaginationInput();
         _runningList = null; _retryList = null;
         SearchStateChanged?.Invoke();

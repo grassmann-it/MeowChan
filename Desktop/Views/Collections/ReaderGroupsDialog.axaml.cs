@@ -24,8 +24,10 @@ using MeowChan.Persistence;
 
 namespace MeowChan;
 
+internal enum ReaderGroupsNoticeReason { FirstMemberUnavailable }
 internal sealed record ReaderGroupsDialogOrigin(Guid? GroupId, ResourceId? MemberId, Vector Scroll, string? FocusName,
-    Vector GroupsScroll = default, Vector MembersScroll = default, string? Notice = null);
+    Vector GroupsScroll = default, Vector MembersScroll = default, string? Notice = null,
+    ReaderGroupsNoticeReason? NoticeReason = null);
 internal sealed record ReaderGroupReadRequest(Guid GroupId, IReadOnlyList<ResourceId> Threads, ReaderGroupsDialogOrigin Origin);
 
 public partial class ReaderGroupsDialog : Window
@@ -89,6 +91,13 @@ public partial class ReaderGroupsDialog : Window
         internal static PresentationText Raw(string raw) => new(null, raw, Array.Empty<object?>());
         internal string Render() => _key == null ? _raw! : Texts.T(_key, _arguments);
     }
+    // Only explicit host provenance is localized; legacy/raw text is never inferred from its contents.
+    internal static PresentationText OriginNoticePresentation(ReaderGroupsDialogOrigin? origin) =>
+        origin?.NoticeReason == ReaderGroupsNoticeReason.FirstMemberUnavailable
+            ? PresentationText.Localized("readerGroups.firstMemberUnavailable")
+            : origin?.Notice is string notice ? PresentationText.Raw(notice)
+            : PresentationText.Localized("readerGroups.hint");
+
     private PresentationText? _message, _searchStatus;
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
     private ReaderGroup? SelectedGroup => _draft?.Groups.FirstOrDefault(group => group.Id == _selected);
@@ -300,8 +309,7 @@ public partial class ReaderGroupsDialog : Window
             _draft = loaded.Snapshot == null ? null : new(loaded.Snapshot);
             _selected = _origin?.GroupId ?? _selected;
             if (_draft?.Groups.Any(group => group.Id == _selected) != true) _selected = null;
-            ShowMessage(loaded.CanWrite ? _origin?.Notice is string notice ? PresentationText.Raw(notice)
-                : PresentationText.Localized("readerGroups.hint") : LoadError(loaded));
+            ShowMessage(loaded.CanWrite ? OriginNoticePresentation(_origin) : LoadError(loaded));
             Render(_origin?.MemberId);
             _pendingMemberOrigin = _origin;
             _ = SearchAsync();

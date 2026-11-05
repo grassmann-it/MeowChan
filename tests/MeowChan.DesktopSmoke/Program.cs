@@ -57,7 +57,11 @@ internal static class Program
         [
             "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY",
             "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY",
-            "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY"
+            "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY",
+            "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY",
+            "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY",
+            "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "MEOWCHAN_URLTEXT_EXPORT_ONLY",
+            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -245,7 +249,21 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1"
+                ? "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1"
+                ? "URLtext page boundary: real native owner/page with synthetic summaries and causal lifecycle/modal guards; no OS picker or client interoperability acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY") == "1"
+                ? "gallery volume routed boundary: synthetic owner adapter, actual Avalonia Slider/TextBox events; no playback continuity or OS keyboard acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_REOPEN_ONLY") == "1"
+                ? "First-run Settings reopen: actual constructors/path controls, abandoned unsaved draft and fresh disk/runtime cap; two synthetic profiles, managed UI, no native Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY") == "1"
+                ? "HTML export dialog action labels: actual single/collection controls, 640/480 DIP, ES/FR/RU; managed input, no Windows/macOS or language-quality acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY") == "1"
+                ? "shortcut issue refresh: real Settings controls and retained validation in five languages; managed input, synthetic profile, no OS keyboard or language-quality acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY") == "1"
+                ? "export status refresh: actual single/collection export, backup, failure and cancellation in five languages; offline synthetic profile, managed input, no native Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1"
                 ? "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1"
                 ? "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"
@@ -398,6 +416,41 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1")
+            {
+                await UrlTextExportWorkflowChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1")
+            {
+                await UrlTextExportPageBoundaryChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY") == "1")
+            {
+                await GalleryVolumeNativeEditingChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FIRST_RUN_REOPEN_ONLY") == "1")
+            {
+                await FirstRunSettingsReopenChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY") == "1")
+            {
+                await HtmlExportActionLayoutChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY") == "1")
+            {
+                await ShortcutIssueLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY") == "1")
+            {
+                await ArchiveExportStatusLanguageRefreshChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_GROUPS_BINDING_ONLY") == "1")
             {
                 await ReaderGroupsBindingLanguageChecks.RunAsync(mainWindow);

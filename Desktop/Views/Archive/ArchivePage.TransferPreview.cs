@@ -36,7 +36,7 @@ public partial class ArchivePage
 
     private void RouteTransferPreviewCommand(object? sender, KeyEventArgs e) => _transferPreviewRouter?.Route(e);
 
-    private bool CanOpenTransferPreview => !_ended && !_busy && _available
+    private bool CanOpenTransferPreview => !_ended && !_busy && _available && !_urlTextExportBusy
         && !_transferPreviewOpening && _transferPreviewDialog == null && !IsArchiveCleanupOpen
         && !IsReaderDialogOpen && !_exportRunning;
 

@@ -23,10 +23,10 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         foreach (var m in Modifiers) mods |= m switch
         { "Primary" => platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control,
           "Control" or "Ctrl" => KeyModifiers.Control, "Meta" => KeyModifiers.Meta,
-          "Alt" => KeyModifiers.Alt, "Shift" => KeyModifiers.Shift, _ => throw new FormatException("Unknown modifier: " + m) };
-        if (Key is "ImeProcessed" or "DeadCharProcessed" or "System") throw new FormatException("IME keys cannot be shortcuts / IME-Tasten sind keine Kürzel");
+          "Alt" => KeyModifiers.Alt, "Shift" => KeyModifiers.Shift, _ => throw new ShortcutIssueReason("unknownModifier", "Unknown modifier: " + m, m).ToException() };
+        if (Key is "ImeProcessed" or "DeadCharProcessed" or "System") throw new ShortcutIssueReason("imeKey", "IME keys cannot be shortcuts / IME-Tasten sind keine Kürzel").ToException();
         if (string.IsNullOrEmpty(Key) || !Enum.TryParse<Avalonia.Input.Key>(Key, out var key) || !Enum.IsDefined(key) || char.IsDigit(Key[0]) || key is Avalonia.Input.Key.None or Avalonia.Input.Key.LeftCtrl or Avalonia.Input.Key.RightCtrl or Avalonia.Input.Key.LeftAlt or Avalonia.Input.Key.RightAlt or Avalonia.Input.Key.LeftShift or Avalonia.Input.Key.RightShift or Avalonia.Input.Key.LWin or Avalonia.Input.Key.RWin)
-            throw new FormatException("Unknown key or modifier-only gesture: " + Key);
+            throw new ShortcutIssueReason("unknownKey", "Unknown key or modifier-only gesture: " + Key, Key).ToException();
         return new(key, mods);
     }
     public string Display(ShortcutPlatform platform)
@@ -38,7 +38,40 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
     }
 }
-public sealed record ShortcutIssue(string CommandId, string Message, string? OtherCommandId = null, bool BlocksSave = true);
+public sealed record ShortcutIssue(string CommandId, string Message, string? OtherCommandId = null, bool BlocksSave = true)
+{
+    // Message remains the legacy public diagnostic; presentation uses this retained
+    // reason instead. Caller-created issues without a reason stay raw diagnostics.
+    internal ShortcutIssueReason? Reason { get; init; }
+    // Presentation provenance must not change the public record's value identity.
+    public bool Equals(ShortcutIssue? other) => other is not null && CommandId == other.CommandId
+        && Message == other.Message && OtherCommandId == other.OtherCommandId && BlocksSave == other.BlocksSave;
+    public override int GetHashCode() => HashCode.Combine(CommandId, Message, OtherCommandId, BlocksSave);
+    internal static ShortcutIssue FromReason(string commandId, ShortcutIssueReason reason,
+        string? otherCommandId = null, bool blocksSave = true)
+        => new(commandId, reason.LegacyMessage, otherCommandId, blocksSave) { Reason = reason };
+}
+
+// No translated strings or language state in validation. Preserve the original
+// FormatException type/message and arbitrary framework diagnostics; never infer a
+// host reason by parsing exception prose. Arguments are copied, read-only raw data.
+internal sealed class ShortcutIssueReason
+{
+    private static readonly object ExceptionKey = new();
+    internal ShortcutIssueReason(string? code, string legacyMessage, params string?[] arguments)
+    { Code = code; LegacyMessage = legacyMessage; Arguments = Array.AsReadOnly(arguments.ToArray()); }
+    internal string? Code { get; }
+    internal string LegacyMessage { get; }
+    internal IReadOnlyList<string?> Arguments { get; }
+    internal FormatException ToException()
+    {
+        var exception = new FormatException(LegacyMessage);
+        exception.Data[ExceptionKey] = this;
+        return exception;
+    }
+    internal static ShortcutIssueReason FromException(Exception exception)
+        => exception.Data[ExceptionKey] as ShortcutIssueReason ?? new(null, exception.Message);
+}
 
 /// <summary>Immutable validated view. No conflicting gesture has an arbitrary winner.</summary>
 public sealed class EffectiveShortcutBindings
@@ -78,22 +111,24 @@ public sealed class EffectiveShortcutBindings
         return list.AsReadOnly();
     }
     public static string? InvalidReason(ShortcutGesture gesture, ShortcutPlatform platform)
+        => InvalidIssueReason(gesture, platform)?.LegacyMessage;
+    internal static ShortcutIssueReason? InvalidIssueReason(ShortcutGesture gesture, ShortcutPlatform platform)
     {
         try
         {
-            if (gesture.Modifiers.Count != gesture.Modifiers.Distinct(StringComparer.Ordinal).Count()) return "Duplicate modifiers / Doppelte Modifikatoren";
+            if (gesture.Modifiers.Count != gesture.Modifiers.Distinct(StringComparer.Ordinal).Count()) return new("duplicateModifiers", "Duplicate modifiers / Doppelte Modifikatoren");
             var g = gesture.Resolve(platform);
-            if (gesture.Modifiers.Contains("Primary") && gesture.Modifiers.Contains(platform == ShortcutPlatform.MacOS ? "Meta" : "Control")) return "Repeated platform modifier / Doppelte Plattformtaste";
-            if (g.Key is Key.Tab or Key.Escape) return "Tab and Escape are fixed navigation / Tab und Escape bleiben feste Navigation";
-            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return "Ctrl+Alt can produce AltGr text / Ctrl+Alt kann AltGr-Text erzeugen";
+            if (gesture.Modifiers.Contains("Primary") && gesture.Modifiers.Contains(platform == ShortcutPlatform.MacOS ? "Meta" : "Control")) return new("repeatedPlatformModifier", "Repeated platform modifier / Doppelte Plattformtaste");
+            if (g.Key is Key.Tab or Key.Escape) return new("fixedNavigation", "Tab and Escape are fixed navigation / Tab und Escape bleiben feste Navigation");
+            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Ctrl+Alt kann AltGr-Text erzeugen");
             if (platform != ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) ||
                 platform == ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) && g.Key == Key.Space ||
                 g.KeyModifiers.HasFlag(KeyModifiers.Alt) && g.Key == Key.F4)
-                return "Reserved system shortcut / Reserviertes Systemkürzel";
-            if (gesture.Symbol != null && gesture.Symbol is not "?" and not "+") return "Unsupported symbol / Nicht unterstütztes Symbol";
+                return new("reservedSystem", "Reserved system shortcut / Reserviertes Systemkürzel");
+            if (gesture.Symbol != null && gesture.Symbol is not "?" and not "+") return new("unsupportedSymbol", "Unsupported symbol / Nicht unterstütztes Symbol");
             return null;
         }
-        catch (Exception ex) when (ex is FormatException or ArgumentException or IndexOutOfRangeException) { return ex.Message; }
+        catch (Exception ex) when (ex is FormatException or ArgumentException or IndexOutOfRangeException) { return ShortcutIssueReason.FromException(ex); }
     }
     public static EffectiveShortcutBindings Build(ShortcutBindingsSection? section = null, ShortcutPlatform? platform = null)
     {
@@ -101,32 +136,32 @@ public sealed class EffectiveShortcutBindings
         var values = CommandCatalog.All.ToDictionary(c => c.Id, Defaults, StringComparer.Ordinal);
         var issues = new List<ShortcutIssue>();
         section ??= new();
-        if (!section.IsEditable) issues.Add(new("", "Unsupported shortcut schema; defaults active / Unbekanntes Kürzelschema; Standards aktiv", BlocksSave: false));
+        if (!section.IsEditable) issues.Add(ShortcutIssue.FromReason("", new("unsupportedSchema", "Unsupported shortcut schema; defaults active / Unbekanntes Kürzelschema; Standards aktiv"), blocksSave: false));
         else
         {
             var entries = section.Overrides.ToArray();
             foreach (var entry in entries)
             {
-                if (!values.ContainsKey(entry.Name)) { issues.Add(new(entry.Name, "Unknown action retained / Unbekannte Aktion erhalten", BlocksSave: false)); continue; }
+                if (!values.ContainsKey(entry.Name)) { issues.Add(ShortcutIssue.FromReason(entry.Name, new("unknownAction", "Unknown action retained / Unbekannte Aktion erhalten"), blocksSave: false)); continue; }
                 values[entry.Name] = Array.Empty<ShortcutGesture>();
                 try
                 {
-                    if (entries.Length > 512 || entry.Name.Length > 128) throw new FormatException("Shortcut limits exceeded / Kürzelgrenzen überschritten");
+                    if (entries.Length > 512 || entry.Name.Length > 128) throw new ShortcutIssueReason("limitsExceeded", "Shortcut limits exceeded / Kürzelgrenzen überschritten").ToException();
                     var raw = entry.Value;
                     var mode = raw.GetProperty("Mode").GetString();
                     var array = raw.GetProperty("Gestures");
-                    if (array.GetArrayLength() > 8 || mode is not "Replace" and not "Unbound" || mode == "Unbound" && array.GetArrayLength() != 0 || mode == "Replace" && array.GetArrayLength() == 0) throw new FormatException("Invalid binding mode / Ungültiger Belegungsmodus");
+                    if (array.GetArrayLength() > 8 || mode is not "Replace" and not "Unbound" || mode == "Unbound" && array.GetArrayLength() != 0 || mode == "Replace" && array.GetArrayLength() == 0) throw new ShortcutIssueReason("invalidMode", "Invalid binding mode / Ungültiger Belegungsmodus").ToException();
                     var gestures = new List<ShortcutGesture>();
                     foreach (var g in array.EnumerateArray())
                     {
                         var gesture = new ShortcutGesture(g.GetProperty("Key").GetString()!, Array.AsReadOnly(g.GetProperty("Modifiers").EnumerateArray().Select(m => m.GetString()!).ToArray()), g.TryGetProperty("Symbol", out var symbol) ? symbol.GetString() : null);
-                        if (InvalidReason(gesture, os) is string reason) throw new FormatException(reason);
+                        if (InvalidIssueReason(gesture, os) is { } reason) throw reason.ToException();
                         gestures.Add(gesture);
                     }
                     values[entry.Name] = gestures.AsReadOnly();
                 }
                 catch (Exception ex) when (ex is FormatException or InvalidOperationException or KeyNotFoundException or ArgumentException or NullReferenceException)
-                { issues.Add(new(entry.Name, ex.Message)); }
+                { issues.Add(ShortcutIssue.FromReason(entry.Name, ShortcutIssueReason.FromException(ex))); }
             }
         }
         // These new defaults did not exist in older profiles. They must not disable an
@@ -144,9 +179,9 @@ public sealed class EffectiveShortcutBindings
                     && section.HasOverride(c.Id) && ContextsOverlap(id, c.Id))
                     .Select(c => c.Id).FirstOrDefault(other => values[other].Any(g => Equivalent(gesture, g, os)));
                 if (owner is null) retained.Add(gesture);
-                else issues.Add(new(id,
-                    "New default yields to your saved binding / Neuer Standard lässt deine gespeicherte Belegung unverändert",
-                    owner, BlocksSave: false));
+                else issues.Add(ShortcutIssue.FromReason(id,
+                    new("defaultYields", "New default yields to your saved binding / Neuer Standard lässt deine gespeicherte Belegung unverändert"),
+                    owner, blocksSave: false));
             }
             values[id] = retained.AsReadOnly();
         }
@@ -155,7 +190,7 @@ public sealed class EffectiveShortcutBindings
         foreach (var command in CommandCatalog.All.Where(command => !command.IsImplemented))
         {
             if (values[command.Id].Count > 0)
-                issues.Add(new(command.Id, "Action not implemented; binding retained but inactive / Aktion nicht implementiert; Belegung erhalten, aber inaktiv", BlocksSave: false));
+                issues.Add(ShortcutIssue.FromReason(command.Id, new("notImplemented", "Action not implemented; binding retained but inactive / Aktion nicht implementiert; Belegung erhalten, aber inaktiv"), blocksSave: false));
             values[command.Id] = Array.Empty<ShortcutGesture>();
         }
         var rejected = new Dictionary<string, HashSet<ShortcutGesture>>(StringComparer.Ordinal);
@@ -166,7 +201,7 @@ public sealed class EffectiveShortcutBindings
             foreach (var first in values[ids[a]]) foreach (var second in values[ids[b]])
                 if (Equivalent(first, second, os))
                 {
-                    issues.Add(new(ids[a], "Conflicting actions / Kollidierende Aktionen", ids[b]));
+                    issues.Add(ShortcutIssue.FromReason(ids[a], new("conflictingActions", "Conflicting actions / Kollidierende Aktionen"), ids[b]));
                     if (!rejected.ContainsKey(ids[a])) rejected[ids[a]] = new();
                     if (!rejected.ContainsKey(ids[b])) rejected[ids[b]] = new();
                     rejected[ids[a]].Add(first); rejected[ids[b]].Add(second);

@@ -14,7 +14,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private bool ResultActionsReady => _available && !_busy && !_ended;
-    private bool CanExportResults => ResultActionsReady && _openReader != null && _listTotal > 0
+    private bool CanExportResults => ResultActionsReady && !_urlTextExportBusy && _openReader != null && _listTotal > 0
         && !Control<Border>("ArchiveExportDialog").IsVisible;
 
     private void InitializeArchiveResultActions()
