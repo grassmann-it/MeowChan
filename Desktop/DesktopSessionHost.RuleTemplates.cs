@@ -1,11 +1,15 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using MeowChan.Persistence;
 using MeowChan.Rules;
 
 namespace MeowChan.Desktop;
 internal sealed partial class DesktopSessionHost
 {
     private RuleTemplateStore? _ruleTemplates;
+    internal Action<ProfileAdmissionToken>? BeforeRuleTemplateAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterRuleTemplateAdmittedSaveMutationForTests { get; set; }
     internal Task<RuleTemplateLoadResult> LoadRuleTemplatesAsync()
         => RunInteractiveAsync(nameof(LoadRuleTemplatesAsync), "profile", () => LoadRuleTemplatesAdmittedCoreAsync(), captureAfter: false);
 
@@ -22,10 +26,12 @@ internal sealed partial class DesktopSessionHost
     internal Task<RuleTemplateSet> SaveRuleTemplatesAsync(IEnumerable<RuleTemplate> templates, string expectedRevision)
     {
         RuleTemplateSet frozen = new(expectedRevision, templates);
-        return RunInteractiveAsync(nameof(SaveRuleTemplatesAsync), "profile", () => SaveRuleTemplatesAdmittedCoreAsync(frozen.Templates, expectedRevision));
+        return RunInteractiveWithAdmissionAsync(nameof(SaveRuleTemplatesAsync), "profile",
+            admission => SaveRuleTemplatesAdmittedCoreAsync(frozen.Templates, expectedRevision, admission));
     }
 
-    private async Task<RuleTemplateSet> SaveRuleTemplatesAdmittedCoreAsync(IEnumerable<RuleTemplate> templates, string expectedRevision)
+    private async Task<RuleTemplateSet> SaveRuleTemplatesAdmittedCoreAsync(IEnumerable<RuleTemplate> templates, string expectedRevision,
+        ProfileAdmissionToken admission)
     {
         RuleTemplateSet captured = new(expectedRevision, templates);
         await _commands.WaitAsync().ConfigureAwait(false);
@@ -33,7 +39,9 @@ internal sealed partial class DesktopSessionHost
         {
             EnsureReady();
             if (_ruleTemplates == null) throw new System.InvalidOperationException("Load rule templates first.");
-            return await _ruleTemplates.SaveAsync(captured.Templates, expectedRevision).ConfigureAwait(false);
+            _ruleTemplates.BeforeAdmittedSaveMutationForTests = BeforeRuleTemplateAdmittedSaveMutationForTests;
+            _ruleTemplates.AfterAdmittedSaveMutationForTests = AfterRuleTemplateAdmittedSaveMutationForTests;
+            return await _ruleTemplates.SaveAdmittedAsync(captured.Templates, expectedRevision, admission).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
     }

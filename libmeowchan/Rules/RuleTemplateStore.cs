@@ -18,6 +18,9 @@ public sealed class RuleTemplateStore
     private readonly ProfileLease _lease;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private RuleTemplateSet? _current;
+    // Instance-local observation only; the caller retains ownership of the borrowed token.
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedSaveMutationForTests { get; set; }
     public RuleTemplateSet Current => Volatile.Read(ref _current) ?? throw new InvalidOperationException("Load rule templates first.");
     public RuleTemplateStore(string profileDirectory, ProfileLease lease)
     {
@@ -29,23 +32,44 @@ public sealed class RuleTemplateStore
     {
         RuleTemplateLoadResult result = LoadCore(cancellationToken); Volatile.Write(ref _current, result.Catalog); return result;
     }), cancellationToken);
-    public Task<RuleTemplateSet> SaveAsync(IEnumerable<RuleTemplate> templates, string expectedRevision, CancellationToken cancellationToken = default)
+    public async Task<RuleTemplateSet> SaveAsync(IEnumerable<RuleTemplate> templates, string expectedRevision, CancellationToken cancellationToken = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return await SaveAdmittedAsync(templates, expectedRevision, admission, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The outer command/standalone caller keeps this accepted owner until the actual task ends.
+    // Only the synchronous consumer inside the worker is pinned, including its lease-monitor wait.
+    internal Task<RuleTemplateSet> SaveAdmittedAsync(IEnumerable<RuleTemplate> templates, string expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RuleTemplateSet captured = new(Guid.NewGuid().ToString("N"), templates);
-        return Task.Run(() => _lease.RunExclusive(() =>
+        _lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        return Task.Run(() => _lease.RunStoreWrite(admission, () =>
         {
-            RuleTemplateSet active = Current;
-            if (active.Revision != expectedRevision || LoadCore(cancellationToken).Catalog.Revision != active.Revision)
-                throw new InvalidOperationException("Rule templates changed. Reload before saving this draft.");
-            TemplateDocument document = new() { SchemaVersion = 1, Revision = captured.Revision, Templates = captured.Templates.Select(ToDocument).ToArray() };
-            string json = JsonSerializer.Serialize(document, RuleTemplateJsonContext.Default.TemplateDocument);
-            ReadResult primary = Read(_path);
-            if (primary.Catalog != null && Read(_path + ".bak").Invalid) AtomicJsonFile.PreserveFile(_path + ".bak");
-            AtomicJsonFile.WriteAllText(_path, json, primary.Catalog != null, cancellationToken);
-            // Publication is durable; do not observe cancellation after replacement.
-            Volatile.Write(ref _current, captured); return captured;
+            RuleTemplateSet saved = SaveCore(captured, expectedRevision, admission, cancellationToken);
+            AfterAdmittedSaveMutationForTests?.Invoke(admission);
+            return saved;
         }), cancellationToken);
+    }
+
+    private RuleTemplateSet SaveCore(RuleTemplateSet captured, string expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken)
+    {
+        RuleTemplateSet active = Current;
+        if (active.Revision != expectedRevision || LoadCore(cancellationToken).Catalog.Revision != active.Revision)
+            throw new InvalidOperationException("Rule templates changed. Reload before saving this draft.");
+        TemplateDocument document = new() { SchemaVersion = 1, Revision = captured.Revision, Templates = captured.Templates.Select(ToDocument).ToArray() };
+        string json = JsonSerializer.Serialize(document, RuleTemplateJsonContext.Default.TemplateDocument);
+        ReadResult primary = Read(_path);
+        bool preserveBackup = primary.Catalog != null && Read(_path + ".bak").Invalid;
+        BeforeAdmittedSaveMutationForTests?.Invoke(admission);
+        if (preserveBackup) AtomicJsonFile.PreserveFile(_path + ".bak");
+        AtomicJsonFile.WriteAllText(_path, json, primary.Catalog != null, cancellationToken);
+        // Publication is durable; do not observe cancellation after replacement.
+        Volatile.Write(ref _current, captured);
+        return captured;
     }
     private RuleTemplateLoadResult LoadCore(CancellationToken token)
     {
