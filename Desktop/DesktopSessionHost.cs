@@ -607,19 +607,25 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Task<ArchiveReader> OpenArchiveReaderAsync(CancellationToken cancellationToken = default) =>
         Task.Run(() => _content.OpenReaderAsync(cancellationToken), cancellationToken);
 
+    internal Action<ProfileAdmissionToken>? BeforeMediaRuleAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterMediaRuleAdmittedSaveMutationForTests { get; set; }
     internal Task<MediaRuleSet> SaveRulesAsync(IEnumerable<MediaRule> rules, string expectedRevision)
     {
         MediaRuleSet frozen = new(expectedRevision, rules);
-        return RunInteractiveAsync(nameof(SaveRulesAsync), "rules", () => SaveRulesAdmittedCoreAsync(frozen.Rules, expectedRevision));
+        return RunInteractiveWithAdmissionAsync(nameof(SaveRulesAsync), "rules",
+            admission => SaveRulesAdmittedCoreAsync(frozen.Rules, expectedRevision, admission));
     }
 
-    private async Task<MediaRuleSet> SaveRulesAdmittedCoreAsync(IEnumerable<MediaRule> rules, string expectedRevision)
+    private async Task<MediaRuleSet> SaveRulesAdmittedCoreAsync(IEnumerable<MediaRule> rules, string expectedRevision,
+        ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            MediaRuleSet result = await _content.Rules.SaveAsync(rules, expectedRevision).ConfigureAwait(false);
+            _content.Rules.BeforeAdmittedSaveMutationForTests = BeforeMediaRuleAdmittedSaveMutationForTests;
+            _content.Rules.AfterAdmittedSaveMutationForTests = AfterMediaRuleAdmittedSaveMutationForTests;
+            MediaRuleSet result = await _content.Rules.SaveAdmittedAsync(rules, expectedRevision, admission).ConfigureAwait(false);
             SignalChanged();
             return result;
         }

@@ -43,7 +43,15 @@ internal sealed class SavedArchiveSearchStore
         _path = Path.Combine(lease.ProfileDirectory, "archive-searches.json");
     }
 
-    public SavedArchiveSearchSnapshot Load() => _lease.RunExclusive(() =>
+    // Instance-only observers: inside the synchronous consumer pin, immediately
+    // before real Atomic I/O and after its finally plus snapshot publication.
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedMutationForTests { get; set; }
+
+    // Passive load never enters writer admission, including recovery discovery.
+    public SavedArchiveSearchSnapshot Load() => _lease.RunExclusive(LoadCore);
+
+    private SavedArchiveSearchSnapshot LoadCore()
     {
         _recoverySource = null; _recoveryIdentity = null;
         try { return _current = Read(_path, missingIsEmpty: true); }
@@ -62,51 +70,86 @@ internal sealed class SavedArchiveSearchStore
             catch (Exception backupError) when (IsReadError(backupError)) { }
             return _current = new(0, Array.Empty<SavedArchiveSearch>(), SavedSearchStoreState.Failed, error.Message);
         }
-    });
+    }
 
-    public SavedArchiveSearchSnapshot Recover(long expectedRevision, CancellationToken token = default) => _lease.RunExclusive(() =>
+    public SavedArchiveSearchSnapshot Recover(long expectedRevision, CancellationToken token = default)
     {
-        SavedArchiveSearchSnapshot current = _current ?? Load();
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return RecoverAdmitted(expectedRevision, admission, token);
+    }
+
+    internal SavedArchiveSearchSnapshot RecoverAdmitted(long expectedRevision, ProfileAdmissionToken admission, CancellationToken token = default) => _lease.RunStoreWrite(admission, () =>
+    {
+        token.ThrowIfCancellationRequested();
+        SavedArchiveSearchSnapshot current = _current ?? LoadCore();
         if (current.Revision != expectedRevision) throw new SavedSearchRevisionException(current);
         if (current.State != SavedSearchStoreState.RecoveryAvailable || _recoverySource == null)
             throw new InvalidOperationException("No supported recovery snapshot is available.");
         // A changed primary or backup requires another review, never an implicit restore.
         string reviewed = _recoverySource;
         string? identity = _recoveryIdentity;
-        SavedArchiveSearchSnapshot disk = Load();
+        SavedArchiveSearchSnapshot disk = LoadCore();
         if (disk.State != SavedSearchStoreState.RecoveryAvailable || _recoverySource != reviewed || _recoveryIdentity != identity)
             throw new SavedSearchRevisionException(disk);
         long revision = checked(disk.Revision + 1);
         string json = SerializeForCommit(revision, disk.Searches);
+        BeforeAdmittedMutationForTests?.Invoke(admission);
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: false, token);
-        _recoverySource = null;
-        return _current = new(revision, disk.Searches, SavedSearchStoreState.Ready);
+        _recoverySource = null; _recoveryIdentity = null;
+        _current = new(revision, disk.Searches, SavedSearchStoreState.Ready);
+        AfterAdmittedMutationForTests?.Invoke(admission);
+        return _current;
     });
 
     public SavedArchiveSearchSnapshot Create(Guid id, string name, ArchiveSearchSpec definition, long expectedRevision, CancellationToken token = default)
     {
-        SavedArchiveSearch frozen = Entry(id, name, definition);
-        return Mutate(expectedRevision, list => { if (list.Any(x => x.Id == id)) throw new ArgumentException("Duplicate saved search ID."); list.Add(frozen); }, token);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return CreateAdmitted(id, name, definition, expectedRevision, admission, token);
     }
+
+    internal SavedArchiveSearchSnapshot CreateAdmitted(Guid id, string name, ArchiveSearchSpec definition, long expectedRevision, ProfileAdmissionToken admission, CancellationToken token = default) => _lease.RunStoreWrite(admission, () =>
+    {
+        SavedArchiveSearch frozen = Entry(id, name, definition);
+        return Mutate(expectedRevision, list => { if (list.Any(x => x.Id == id)) throw new ArgumentException("Duplicate saved search ID."); list.Add(frozen); }, admission, token);
+    });
     public SavedArchiveSearchSnapshot Rename(Guid id, string name, long expectedRevision, CancellationToken token = default)
     {
-        string frozen = ValidateName(name);
-        return Mutate(expectedRevision, list => { int index = Find(list, id); list[index] = list[index] with { Name = frozen }; }, token);
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return RenameAdmitted(id, name, expectedRevision, admission, token);
     }
+
+    internal SavedArchiveSearchSnapshot RenameAdmitted(Guid id, string name, long expectedRevision, ProfileAdmissionToken admission, CancellationToken token = default) => _lease.RunStoreWrite(admission, () =>
+    {
+        string frozen = ValidateName(name);
+        return Mutate(expectedRevision, list => { int index = Find(list, id); list[index] = list[index] with { Name = frozen }; }, admission, token);
+    });
     public SavedArchiveSearchSnapshot Replace(Guid id, ArchiveSearchSpec definition, long expectedRevision, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return ReplaceAdmitted(id, definition, expectedRevision, admission, token);
+    }
+
+    internal SavedArchiveSearchSnapshot ReplaceAdmitted(Guid id, ArchiveSearchSpec definition, long expectedRevision, ProfileAdmissionToken admission, CancellationToken token = default) => _lease.RunStoreWrite(admission, () =>
     {
         string json = ArchiveSearchSpecJson.Serialize(definition);
         ArchiveSearchSpec frozen = ArchiveSearchSpecJson.Deserialize(json);
-        return Mutate(expectedRevision, list => { int index = Find(list, id); list[index] = list[index] with { Definition = frozen, RawDefinition = json }; }, token);
+        return Mutate(expectedRevision, list => { int index = Find(list, id); list[index] = list[index] with { Definition = frozen, RawDefinition = json }; }, admission, token);
+    });
+    public SavedArchiveSearchSnapshot Delete(Guid id, long expectedRevision, CancellationToken token = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return DeleteAdmitted(id, expectedRevision, admission, token);
     }
-    public SavedArchiveSearchSnapshot Delete(Guid id, long expectedRevision, CancellationToken token = default) =>
-        Mutate(expectedRevision, list => list.RemoveAt(Find(list, id)), token);
 
-    private SavedArchiveSearchSnapshot Mutate(long revision, Action<List<SavedArchiveSearch>> change, CancellationToken token) => _lease.RunExclusive(() =>
+    internal SavedArchiveSearchSnapshot DeleteAdmitted(Guid id, long expectedRevision, ProfileAdmissionToken admission, CancellationToken token = default) =>
+        _lease.RunStoreWrite(admission, () => Mutate(expectedRevision, list => list.RemoveAt(Find(list, id)), admission, token));
+
+    // Called only by the four admitted wrappers while RunStoreWrite is pinned.
+    private SavedArchiveSearchSnapshot Mutate(long revision, Action<List<SavedArchiveSearch>> change, ProfileAdmissionToken admission, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        SavedArchiveSearchSnapshot current = _current ?? Load();
-        SavedArchiveSearchSnapshot disk = Load();
+        SavedArchiveSearchSnapshot current = _current ?? LoadCore();
+        SavedArchiveSearchSnapshot disk = LoadCore();
         // Compare content too: an external writer must not reuse an existing revision.
         if (current.Revision != revision || disk.Revision != revision ||
             !disk.CanWrite || !current.CanWrite || Serialize(current.Revision, current.Searches) != Serialize(disk.Revision, disk.Searches))
@@ -118,9 +161,12 @@ internal sealed class SavedArchiveSearchStore
         string json = SerializeForCommit(next, candidate);
         if (File.Exists(_path) && !Read(_path + ".bak", missingIsEmpty: true).CanWrite)
             throw new InvalidOperationException("The saved searches backup contains unsupported data. No files were changed.");
+        BeforeAdmittedMutationForTests?.Invoke(admission);
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
-        return _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
-    });
+        _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
+        AfterAdmittedMutationForTests?.Invoke(admission);
+        return _current;
+    }
 
     internal static string ValidateName(string name)
     {

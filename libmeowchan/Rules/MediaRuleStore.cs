@@ -22,6 +22,9 @@ public sealed class MediaRuleStore
     private readonly string _filePath;
     private readonly ProfileLease _lease;
     private ActiveRules? _active;
+    // Observation only; ownership stays with the standalone/command caller.
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedSaveMutationForTests { get; set; }
 
     private ActiveRules Active => Volatile.Read(ref _active)
         ?? throw new InvalidOperationException("Load the media rules before reading or changing them.");
@@ -49,29 +52,48 @@ public sealed class MediaRuleStore
     /// Replaces the rule catalog. Pass the editor's revision to reject stale drafts.
     /// Input collections are captured before this method returns its task.
     /// </summary>
-    public Task<MediaRuleSet> SaveAsync(IEnumerable<MediaRule> rules, string? expectedRevision = null,
+    public async Task<MediaRuleSet> SaveAsync(IEnumerable<MediaRule> rules, string? expectedRevision = null,
         CancellationToken cancellationToken = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return await SaveAdmittedAsync(rules, expectedRevision, admission, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The caller retains its accepted owner through the actual task's completion.
+    // Pin the synchronous consumer inside the worker, not the task's scheduling.
+    internal Task<MediaRuleSet> SaveAdmittedAsync(IEnumerable<MediaRule> rules, string? expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         MediaRuleSet captured = new MediaRuleSet(Guid.NewGuid().ToString("N"), rules);
-        return Task.Run(() => _lease.RunExclusive(() =>
+        _lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        return Task.Run(() => _lease.RunStoreWrite(admission, () =>
         {
-            MediaRuleSet active = Current;
-            if (expectedRevision != null && !string.Equals(expectedRevision, active.Revision, StringComparison.Ordinal))
-                throw new InvalidOperationException("The media rules changed since this draft was created.");
-            MediaRuleLoadResult disk = LoadCore(cancellationToken);
-            if (!string.Equals(active.Revision, disk.RuleSet.Revision, StringComparison.Ordinal))
-                throw new InvalidOperationException("The saved media rules changed. Reload before saving this draft.");
-            ActiveRules next = new ActiveRules(captured, new MediaRuleResolver(captured));
-            string json = JsonSerializer.Serialize(ToDocument(captured), MediaRulesJsonContext.Default.MediaRulesDocument);
-            ReadResult primary = TryRead(_filePath);
-            if (primary.Status == ReadStatus.Valid && TryRead(_filePath + ".bak").Status == ReadStatus.Invalid)
-                AtomicJsonFile.PreserveFile(_filePath + ".bak");
-            AtomicJsonFile.WriteAllText(_filePath, json, primary.Status == ReadStatus.Valid, cancellationToken);
-            // Never observe cancellation after a successful replacement: the new rules are now durable.
-            Volatile.Write(ref _active, next);
-            return captured;
+            MediaRuleSet saved = SaveCore(captured, expectedRevision, admission, cancellationToken);
+            AfterAdmittedSaveMutationForTests?.Invoke(admission);
+            return saved;
         }), cancellationToken);
+    }
+
+    private MediaRuleSet SaveCore(MediaRuleSet captured, string? expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken)
+    {
+        MediaRuleSet active = Current;
+        if (expectedRevision != null && !string.Equals(expectedRevision, active.Revision, StringComparison.Ordinal))
+            throw new InvalidOperationException("The media rules changed since this draft was created.");
+        MediaRuleLoadResult disk = LoadCore(cancellationToken);
+        if (!string.Equals(active.Revision, disk.RuleSet.Revision, StringComparison.Ordinal))
+            throw new InvalidOperationException("The saved media rules changed. Reload before saving this draft.");
+        ActiveRules next = new ActiveRules(captured, new MediaRuleResolver(captured));
+        string json = JsonSerializer.Serialize(ToDocument(captured), MediaRulesJsonContext.Default.MediaRulesDocument);
+        ReadResult primary = TryRead(_filePath);
+        bool preserveBackup = primary.Status == ReadStatus.Valid && TryRead(_filePath + ".bak").Status == ReadStatus.Invalid;
+        BeforeAdmittedSaveMutationForTests?.Invoke(admission);
+        if (preserveBackup) AtomicJsonFile.PreserveFile(_filePath + ".bak");
+        AtomicJsonFile.WriteAllText(_filePath, json, primary.Status == ReadStatus.Valid, cancellationToken);
+        // Never observe cancellation after a successful replacement: the new rules are now durable.
+        Volatile.Write(ref _active, next);
+        return captured;
     }
 
     public EffectiveMediaRule Resolve(ResourceId resource) => Active.Resolver.Resolve(resource);

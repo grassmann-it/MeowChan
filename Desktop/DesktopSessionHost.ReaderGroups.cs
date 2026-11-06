@@ -13,6 +13,10 @@ internal sealed partial class DesktopSessionHost
 {
     private ReaderGroupStore ReaderGroups => _readerGroupStore ??= new(ProfileDirectory, _profileLease);
     private ReaderGroupStore? _readerGroupStore; // Access only while holding _commands; shares existing owner.
+    internal Action<ProfileAdmissionToken>? BeforeReaderGroupAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterReaderGroupAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? BeforeReaderGroupAdmittedRestoreMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterReaderGroupAdmittedRestoreMutationForTests { get; set; }
     internal Task<ReaderGroupsLoadResult> LoadReaderGroupsAsync(CancellationToken token = default)
         => RunInteractiveAsync(nameof(LoadReaderGroupsAsync), "profile", () => LoadReaderGroupsAdmittedCoreAsync(token), captureAfter: false);
 
@@ -21,25 +25,45 @@ internal sealed partial class DesktopSessionHost
     internal Task<ReaderGroupsSnapshot> SaveReaderGroupsAsync(ReaderGroupsSnapshot draft, long expectedRevision, CancellationToken token = default)
     {
         ReaderGroupsSnapshot frozen = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
-        return RunInteractiveAsync(nameof(SaveReaderGroupsAsync), "profile", () => SaveReaderGroupsAdmittedCoreAsync(frozen, expectedRevision, token));
+        return RunInteractiveWithAdmissionAsync(nameof(SaveReaderGroupsAsync), "profile", admission => SaveReaderGroupsAdmittedCoreAsync(frozen, expectedRevision, admission, token));
     }
 
-    private Task<ReaderGroupsSnapshot> SaveReaderGroupsAdmittedCoreAsync(ReaderGroupsSnapshot draft, long expectedRevision, CancellationToken token = default)
+    private Task<ReaderGroupsSnapshot> SaveReaderGroupsAdmittedCoreAsync(ReaderGroupsSnapshot draft, long expectedRevision, ProfileAdmissionToken admission, CancellationToken token)
     {
         ReaderGroupsSnapshot frozen = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
-        return ReaderGroupsCommandAsync(ct => ReaderGroups.SaveAsync(frozen, expectedRevision, ct), token);
+        return ReaderGroupsCommandAsync(ct =>
+        {
+            ReaderGroupStore store = ReaderGroups;
+            store.BeforeAdmittedSaveMutationForTests = BeforeReaderGroupAdmittedSaveMutationForTests;
+            store.AfterAdmittedSaveMutationForTests = AfterReaderGroupAdmittedSaveMutationForTests;
+            return store.SaveAdmittedAsync(frozen, expectedRevision, admission, ct);
+        }, token);
     }
     internal Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAsync(string recoveryToken, CancellationToken token = default)
-        => RunInteractiveAsync(nameof(RestoreReaderGroupsBackupAsync), "profile", () => RestoreReaderGroupsBackupAdmittedCoreAsync(recoveryToken, token));
+        => RunInteractiveWithAdmissionAsync(nameof(RestoreReaderGroupsBackupAsync), "profile", admission => RestoreReaderGroupsBackupAdmittedCoreAsync(recoveryToken, admission, token));
 
-    private Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAdmittedCoreAsync(string recoveryToken, CancellationToken token = default) =>
-        ReaderGroupsCommandAsync(ct => ReaderGroups.RestoreBackupAsync(recoveryToken, ct), token);
+    private Task<ReaderGroupsSnapshot> RestoreReaderGroupsBackupAdmittedCoreAsync(string recoveryToken, ProfileAdmissionToken admission, CancellationToken token) =>
+        ReaderGroupsCommandAsync(ct =>
+        {
+            ReaderGroupStore store = ReaderGroups;
+            store.BeforeAdmittedRestoreMutationForTests = BeforeReaderGroupAdmittedRestoreMutationForTests;
+            store.AfterAdmittedRestoreMutationForTests = AfterReaderGroupAdmittedRestoreMutationForTests;
+            return store.RestoreBackupAdmittedAsync(recoveryToken, admission, ct);
+        }, token);
 
     private async Task<T> ReaderGroupsCommandAsync<T>(Func<CancellationToken, Task<T>> command, CancellationToken token)
     {
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _startupCancellation.Token);
         await _commands.WaitAsync(lifetime.Token).ConfigureAwait(false);
-        try { EnsureReady(); return await command(lifetime.Token).ConfigureAwait(false); }
+        try
+        {
+            // Observe the original sources too: Cancel invokes linked-token callbacks
+            // sequentially, so a queued waiter may resume before propagation finishes.
+            token.ThrowIfCancellationRequested();
+            _startupCancellation.Token.ThrowIfCancellationRequested();
+            EnsureReady();
+            return await command(lifetime.Token).ConfigureAwait(false);
+        }
         finally { _commands.Release(); }
     }
 

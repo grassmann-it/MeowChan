@@ -13,6 +13,11 @@ internal sealed class ReaderGroupStore
 {
     private readonly ProfileLease _lease;
     private readonly string _path;
+    // Instance-local observers; neither hook creates or owns admission authority.
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedSaveMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? BeforeAdmittedRestoreMutationForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterAdmittedRestoreMutationForTests { get; set; }
     public ReaderGroupStore(string profileDirectory, ProfileLease lease)
     {
         lease.EnsureMatches(profileDirectory);
@@ -25,32 +30,63 @@ internal sealed class ReaderGroupStore
 
     public Task<ReaderGroupsSnapshot> SaveAsync(ReaderGroupsSnapshot draft, long expectedRevision, CancellationToken cancellationToken = default)
     {
+        // Retain synchronous defensive capture before returning the task to the caller.
         ReaderGroupsSnapshot captured = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
-        return Task.Run(() => _lease.RunExclusive(() =>
+        return SaveStandaloneAsync();
+
+        async Task<ReaderGroupsSnapshot> SaveStandaloneAsync()
+        {
+            using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+            return await SaveAdmittedAsync(captured, expectedRevision, admission, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    // The caller keeps the exact accepted owner through actual task completion.
+    // The worker pins synchronous work before its wait on the physical lease monitor.
+    internal Task<ReaderGroupsSnapshot> SaveAdmittedAsync(ReaderGroupsSnapshot draft, long expectedRevision,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
+    {
+        ReaderGroupsSnapshot captured = ReaderGroupsValidation.Copy(draft, normalizeNames: true);
+        _lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        return Task.Run(() => _lease.RunStoreWrite(admission, () =>
         {
             ReaderGroupsLoadResult current = LoadCore(cancellationToken);
             if (!current.CanWrite) throw new InvalidOperationException(current.Error);
             if (current.Snapshot!.Revision != expectedRevision) throw new ReaderGroupsConflictException();
+            // Even an unchanged draft is an admitted mutation request, not a passive read.
             if (ReaderGroupsValidation.SameGroups(current.Snapshot.Groups, captured.Groups)) return current.Snapshot;
             ReaderGroupsSnapshot next = captured with { Revision = checked(expectedRevision + 1) };
-            Publish(next, backup: true, cancellationToken);
+            Publish(next, backup: true, admission, cancellationToken);
+            AfterAdmittedSaveMutationForTests?.Invoke(admission);
             return next;
         }), cancellationToken);
     }
 
-    public Task<ReaderGroupsSnapshot> RestoreBackupAsync(string recoveryToken, CancellationToken cancellationToken = default) =>
-        Task.Run(() => _lease.RunExclusive(() =>
+    public async Task<ReaderGroupsSnapshot> RestoreBackupAsync(string recoveryToken, CancellationToken cancellationToken = default)
+    {
+        using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return await RestoreBackupAdmittedAsync(recoveryToken, admission, cancellationToken).ConfigureAwait(false);
+    }
+
+    // recoveryToken is only content freshness confirmation, never write authority.
+    internal Task<ReaderGroupsSnapshot> RestoreBackupAdmittedAsync(string recoveryToken, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default)
+    {
+        _lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Startup, ProfileAdmissionKind.Ordinary);
+        return Task.Run(() => _lease.RunStoreWrite(admission, () =>
         {
             ReaderGroupsLoadResult current = LoadCore(cancellationToken);
             if (current.State != ReaderGroupsLoadState.RecoveryAvailable || current.RecoveryToken != recoveryToken)
                 throw new ReaderGroupsConflictException();
             ReaderGroupsSnapshot recovered = current.Snapshot! with { Revision = checked(current.Snapshot!.Revision + 1) };
             // AtomicJsonFile preserves the corrupt primary and leaves the valid backup intact.
-            Publish(recovered, backup: false, cancellationToken);
+            Publish(recovered, backup: false, admission, cancellationToken);
+            AfterAdmittedRestoreMutationForTests?.Invoke(admission);
             return recovered;
         }), cancellationToken);
+    }
 
-    private void Publish(ReaderGroupsSnapshot snapshot, bool backup, CancellationToken cancellationToken)
+    private void Publish(ReaderGroupsSnapshot snapshot, bool backup, ProfileAdmissionToken admission, CancellationToken cancellationToken)
     {
         ReaderGroupsValidation.Copy(snapshot);
         string json = JsonSerializer.Serialize(snapshot, ReaderGroupsJsonContext.Default.ReaderGroupsSnapshot);
@@ -62,6 +98,8 @@ internal sealed class ReaderGroupStore
             if (futureBackup) throw new InvalidOperationException(
                 "The available backup uses a newer reader groups schema. No files were changed.");
         }
+        if (backup) BeforeAdmittedSaveMutationForTests?.Invoke(admission);
+        else BeforeAdmittedRestoreMutationForTests?.Invoke(admission);
         try { AtomicJsonFile.WriteAllText(_path, json, backup, cancellationToken); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
