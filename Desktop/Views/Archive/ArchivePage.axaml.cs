@@ -143,7 +143,7 @@ public partial class ArchivePage : UserControl
         Control<Button>("ArchiveMediaColumnsButton").IsVisible = false;
         Control<ComboBox>("ArchiveVersionScope").SelectedIndex = 1;
     }
-    internal bool IsAvailable { set { if (_available != value) CancelReaderMediaActivation(); _available = value; UpdateActions(); } }
+    internal bool IsAvailable { set { if (!value) InvalidateFilenameSearch(); if (_available != value) CancelReaderMediaActivation(); _available = value; UpdateActions(); } }
     internal bool IsBusy => _busy;
     internal bool IsMediaLoading => _mediaLoading;
     internal Task MediaLoadTask { get; private set; } = Task.CompletedTask;
@@ -151,7 +151,7 @@ public partial class ArchivePage : UserControl
 
     internal async Task ActivateAsync()
     {
-        if (_ended || !_available || _openReader == null || _busy) return;
+        if (_ended || IsFilenameSearchOpen || !_available || _openReader == null || _busy) return;
         InvalidateSuggestions();
         ClosePreview();
         await LoadListAsync();
@@ -159,6 +159,7 @@ public partial class ArchivePage : UserControl
 
     private async Task<bool> LoadListAsync(ListLoad? pending = null, CancellationToken applicationToken = default)
     {
+        InvalidateFilenameSearch();
         if (_ended || !_available || _openReader == null || _busy || applicationToken.IsCancellationRequested) return false;
         pending ??= NewListLoad(_appliedSearch ?? ArchiveSearchRequest.Create(new ArchiveSearchSpec()), _listOffset);
         // Everything needed for membership and SQL is captured before opening the reader.
@@ -271,8 +272,9 @@ public partial class ArchivePage : UserControl
         LoadThreadAsync(id, resetPage, preparedThread, null);
 
     private async Task LoadThreadAsync(ResourceId id, bool resetPage, ArchivedThreadView? preparedThread,
-        ReaderFocusIntent? focusIntent)
+        ReaderFocusIntent? focusIntent, FilenameSearchOwner? filenameNavigation = null)
     {
+        if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_ended || !_available || _openReader == null) return;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
         CancelReferences();
@@ -331,10 +333,10 @@ public partial class ArchivePage : UserControl
             {
                 MediaLoadTask = LoadMediaAsync(thread);
                 if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
-                else if (_largeReader && thread.PostCount > 0)
+                else if (filenameNavigation == null && _largeReader && thread.PostCount > 0)
                     await FocusPostAsync(thread.GetPosts(_postOffset, 1).First().PostId,
                         resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent);
-                else if (_largeReader)
+                else if (filenameNavigation == null && _largeReader)
                 {
                     if (focusIntent != null) focusIntent.Restore(Control<Button>("ArchiveCloseReader"));
                     else Control<Button>("ArchiveCloseReader").Focus();
@@ -518,6 +520,7 @@ public partial class ArchivePage : UserControl
 
     private void UpdateActions()
     {
+        UpdateFilenameSearchActions();
         UpdateFeedbackVisuals();
         UpdateMediaRatingAction();
         UpdateThreadFavoriteActions();
@@ -525,7 +528,7 @@ public partial class ArchivePage : UserControl
         UpdateTransferPreviewAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
-        bool ready = _available && !_busy && !_ended;
+        bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
         Control<Button>("SearchArchiveButton").IsEnabled = ready;
         UpdateSearchActions(ready);
         RefreshArchiveSearchContext();
@@ -618,7 +621,7 @@ public partial class ArchivePage : UserControl
             },
             OpenPreview = async () =>
             {
-                if (_ended || _busy || !_available || !ready.IsCompletedSuccessfully) return;
+                if (_ended || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;
                 ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, ready.Result);
                 if (match != null && _selectedThread == resource && OpenGallery != null)
                     await OpenGallery(resource, new GalleryEntryKey(
@@ -639,7 +642,7 @@ public partial class ArchivePage : UserControl
             LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
             OpenPreview = async () =>
             {
-                if (OpenGallery != null) await OpenGallery(summary.Id, null, this);
+                if (!IsReaderDialogOpen && OpenGallery != null) await OpenGallery(summary.Id, null, this);
             }
         };
         return row;
@@ -770,7 +773,7 @@ public partial class ArchivePage : UserControl
     private async void OnNextThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize + 2);
     private void OnPreviousPosts(object? sender, RoutedEventArgs e)
     {
-        if (_busy || _postOffset == 0) return;
+        if (IsFilenameSearchOpen || _busy || _postOffset == 0) return;
         ++_readerInteractionRevision;
         _postOffset = Math.Max(0, _postOffset - PageSize);
         ++_readerFocusRequest;
@@ -780,7 +783,7 @@ public partial class ArchivePage : UserControl
     }
     private void OnNextPosts(object? sender, RoutedEventArgs e)
     {
-        if (_busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
+        if (IsFilenameSearchOpen || _busy || _thread == null || _postOffset + PageSize >= _thread.PostCount) return;
         ++_readerInteractionRevision;
         _postOffset += PageSize;
         ++_readerFocusRequest;
@@ -788,7 +791,7 @@ public partial class ArchivePage : UserControl
         RenderThread();
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
-    private void OnBackClick(object? sender, RoutedEventArgs e) { CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }
+    private void OnBackClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (_rebindingMedia) return;
@@ -981,6 +984,7 @@ public partial class ArchivePage : UserControl
     internal void EndLifetime()
     {
         if (_ended) return;
+        InvalidateFilenameSearch();
         CloseThreadFind();
         _ended = true;
         StopObservingReaderMediaKeys();

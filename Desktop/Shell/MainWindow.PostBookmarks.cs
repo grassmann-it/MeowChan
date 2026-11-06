@@ -17,7 +17,7 @@ public partial class MainWindow
     private Action? _postBookmarkReaderReturn;
     private readonly List<IDisposable> _postBookmarkRegistrations = new();
     private MenuItem? _postBookmarksMenu;
-    private bool CanOpenPostBookmarks => !_isClosing && _session.State == DesktopSessionState.Ready
+    private bool CanOpenPostBookmarks => _archivePage?.IsFilenameSearchOpen != true && !_isClosing && _session.State == DesktopSessionState.Ready
         && !_largeReaderOpen && _gallery == null && _postBookmarkEditor == null;
 
     private void InitializePostBookmarks()
@@ -52,7 +52,7 @@ public partial class MainWindow
 
     private async Task EditPostBookmarkAsync(PostBookmarkKey key, Control? origin)
     {
-        if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+        if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _session.State != DesktopSessionState.Ready) return;
         if (_postBookmarkEditor != null) { _postBookmarkEditor.Activate(); return; }
         PostBookmarksDialog editor = new(_session, (_, _) => Task.FromResult(false));
         _postBookmarkEditor = editor;
@@ -93,7 +93,7 @@ public partial class MainWindow
 
     private async Task<bool> OpenBookmarkedPostAsync(PostBookmarkKey key, CancellationToken token)
     {
-        if (_isClosing || _largeReaderOpen || _gallery != null) return false;
+        if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _largeReaderOpen || _gallery != null) return false;
         return await ArchivePage.OpenPostBookmarkAsync(key, () =>
         {
             OpenLargeReader();

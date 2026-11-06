@@ -25,8 +25,8 @@ public partial class ArchivePage
 
     private void InitializePostBookmarks()
     {
-        Button manager = CommandBindings.CreateButton("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),
-            () => !_ended && _available && OpenPostBookmarks != null, iconWithLabel: true);
+        Button manager = CommandBindings.CreateButton("post-bookmarks.open-manager", () => { if (!IsFilenameSearchOpen) OpenPostBookmarks?.Invoke(); },
+            () => !_ended && !IsFilenameSearchOpen && _available && OpenPostBookmarks != null, iconWithLabel: true);
         manager.Name = "ArchivePostBookmarks";
         Control<ActionToolBar>("ArchiveResultActions").Items.Add(manager);
         // Installed on the pane itself: the same handler survives reader detach/reattach.
@@ -36,7 +36,7 @@ public partial class ArchivePage
 
     private void OnPostBookmarkContext(object? sender, ContextRequestedEventArgs e)
     {
-        if (e.Handled || _ended || !_available || _thread == null || EditPostBookmark == null || e.Source is not Control source) return;
+        if (e.Handled || _ended || IsFilenameSearchOpen || !_available || _thread == null || EditPostBookmark == null || e.Source is not Control source) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.OfType<ArchiveAttachmentView>().Any()) return; // Existing media menu carries the same action.
         ArchivePostRow? row = ancestors.Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault();
@@ -51,22 +51,22 @@ public partial class ArchivePage
     private MenuItem CreatePostBookmarkMenuItem(PostBookmarkKey frozen, Control origin)
         => CommandBindings.CreateMenuItem("post-bookmarks.edit-post", async () =>
         {
-            try { if (EditPostBookmark != null) await EditPostBookmark(frozen, origin); }
+            try { if (!IsFilenameSearchOpen && EditPostBookmark != null) await EditPostBookmark(frozen, origin); }
             catch (Exception error) { if (!_ended) Message(Texts.T("bookmarks.failed", error.Message), true); }
-        }, () => !_ended && EditPostBookmark != null);
+        }, () => !_ended && !IsFilenameSearchOpen && EditPostBookmark != null);
 
     /// <summary>Reads one local immutable view and refuses any missing-post fallback.</summary>
     internal async Task<bool> OpenPostBookmarkAsync(PostBookmarkKey key, Action beforeShow,
         CancellationToken token = default)
     {
         key.Validate();
-        if (_ended || _busy || !_available || _openReader == null) return false;
+        if (_ended || IsFilenameSearchOpen || _busy || !_available || _openReader == null) return false;
         int request = _contentRequest;
         using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
         await using ArchiveReader reader = await _openReader(operation.Token);
         PostBookmarkTarget? target = await PostBookmarkTarget.ResolveAsync(reader, key, operation.Token);
         operation.Token.ThrowIfCancellationRequested();
-        if (_ended || request != _contentRequest) return false;
+        if (_ended || IsFilenameSearchOpen || request != _contentRequest) return false;
         if (target == null) return false;
         // Capture the previous archive state before publishing the exact target view.
         beforeShow();

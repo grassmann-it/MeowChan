@@ -87,7 +87,7 @@ public partial class ArchivePage
     }
     internal async Task ApplySearchAsync()
     {
-        if (_busy || _ended || !_available) return;
+        if (IsFilenameSearchOpen || _busy || _ended || !_available) return;
         long validation = ++_searchValidationGeneration;
         try
         {
@@ -118,7 +118,7 @@ public partial class ArchivePage
     }
     internal async Task NavigateQuoteAsync(ArchiveQuoteRow row)
     {
-        if (_ended || _busy || !_available || _openReader == null) return;
+        if (_ended || IsFilenameSearchOpen || _busy || !_available || _openReader == null) return;
         ReaderAnchor? originAnchor = row.Backlink && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 2
             ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
@@ -152,6 +152,7 @@ public partial class ArchivePage
     }
     private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
     {
+        InvalidateFilenameSearch();
         ++_contentRequest;
         BeginContentFeedback();
         _contentCancellation?.Cancel();
@@ -178,6 +179,7 @@ public partial class ArchivePage
     }
     private async void OnHistoryBack(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (_busy || _ended || _history.Last == null) return;
         ReaderHistoryEntry previous = _history.Last.Value;
         _history.RemoveLast();

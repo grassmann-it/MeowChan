@@ -37,7 +37,7 @@ public partial class ArchivePage
 
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
     {
-        if (_ended || _busy || _thread == null) return;
+        if (_ended || _busy || IsReaderDialogOpen || _thread == null) return;
         Control<StackPanel>("ReaderFindBar").IsVisible = true;
         // Opening is explicit; asynchronous completion and hit navigation never take focus.
         Control<TextBox>("ReaderFindQuery").Focus();

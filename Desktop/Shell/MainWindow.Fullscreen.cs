@@ -154,7 +154,8 @@ public partial class MainWindow
     internal void ToggleFullscreen()
     {
         TraceFullscreen("toggle requested");
-        if (_isClosing || _restoringFullscreen || !IsEnabled || HasVisibleShellDialog())
+        if (_isClosing || _restoringFullscreen || !IsEnabled || HasVisibleShellDialog()
+            || _archivePage?.IsFilenameSearchOpen == true)
         {
             TraceFullscreen("toggle blocked");
             return;

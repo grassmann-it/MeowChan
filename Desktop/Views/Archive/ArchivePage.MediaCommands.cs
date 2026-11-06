@@ -157,10 +157,10 @@ public partial class ArchivePage
         {
             var item = CommandBindings.CreateMenuItem(id, async () =>
             {
-                try { await action(); }
+                try { if (!IsFilenameSearchOpen) await action(); }
                 catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
                 catch (Exception error) { reportError(error.Message); }
-            }, () => available && !_ended, () => available ? null : reason);
+            }, () => available && !_ended && !IsFilenameSearchOpen, () => available ? null : reason);
             item.Tag = id;
             if (!available && reason != null) unavailable.Add(CommandCatalog.Label(id) + ": " + reason);
             menu.Items.Add(item);

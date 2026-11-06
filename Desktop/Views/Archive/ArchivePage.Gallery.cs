@@ -22,6 +22,9 @@ public partial class ArchivePage
     private CancellationTokenSource? _gallerySelectionCancellation;
     internal void CancelPendingGalleryOpen()
     {
+        // Also the existing shell workspace-leave/forced gallery-close hook, including
+        // a detached reader whose hidden ArchivePage has no new visibility transition.
+        InvalidateFilenameSearch();
         ++_gallerySelectionRequest;
         _gallerySelectionCancellation?.Cancel();
     }
@@ -54,7 +57,7 @@ public partial class ArchivePage
 
     private async Task OpenAssetGalleryAsync(ArchiveAssetRow row, Control? origin)
     {
-        if (IsArchiveCleanupOpen || _selectedThread == null || OpenMediaGallery == null || _thread == null) return;
+        if (IsReaderDialogOpen || _selectedThread == null || OpenMediaGallery == null || _thread == null) return;
         CancelPendingGalleryOpen();
         int request = _gallerySelectionRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -69,7 +72,7 @@ public partial class ArchivePage
         try
         {
             GalleryEntry[] entries = await Task.Run(() => BuildVisibleGalleryEntries(thread, assets, visible), token);
-            if (_ended || IsArchiveCleanupOpen || token.IsCancellationRequested || request != _gallerySelectionRequest
+            if (_ended || IsReaderDialogOpen || token.IsCancellationRequested || request != _gallerySelectionRequest
                 || _selectedThread != threadId || !ReferenceEquals(_thread, thread) || !_showReader) return;
             GalleryEntry? selected = entries.FirstOrDefault(entry => entry.Key == key);
             if (selected != null) await OpenMediaGallery(entries, selected.EntryKey, origin);
@@ -115,6 +118,7 @@ public partial class ArchivePage
             .Select(view => (View: view, Offset: view.Offset)).ToArray();
         return () =>
         {
+            InvalidateFilenameSearch();
             InvalidatePendingReaderGroupRead();
             ++_contentRequest;
             _contentCancellation?.Cancel();
@@ -181,6 +185,7 @@ public partial class ArchivePage
 
     private async void OnThreadDoubleTapped(object? sender, TappedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (e.Source is Avalonia.Visual tapped &&
             (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         ArchiveThreadRow? row = EventThread(sender, e.Source);
@@ -195,6 +200,7 @@ public partial class ArchivePage
 
     private async void OnThreadTableDoubleTapped(object? sender, TappedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (e.Source is Avalonia.Visual tapped &&
             (tapped is Button or TextBox || tapped.FindAncestorOfType<Button>() != null)) return;
         DataGridRow? target = (e.Source as Avalonia.Visual)?.FindAncestorOfType<DataGridRow>();
@@ -216,12 +222,14 @@ public partial class ArchivePage
 
     private async void OnThreadGalleryMenu(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (EventThread(sender, e.Source) is ArchiveThreadRow row && OpenGallery != null)
             await OpenGallery(row.Summary.Id, null, ThreadOrigin(row));
     }
 
     private async void OnThreadReadMenu(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (EventThread(sender, e.Source) is ArchiveThreadRow row)
         {
             OpenReaderRequested?.Invoke(ThreadOrigin(row));
@@ -242,12 +250,14 @@ public partial class ArchivePage
 
     private async void OnCurrentGalleryClick(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (_selectedThread != null && OpenGallery != null)
             await OpenGallery(_selectedThread, null, sender as Control);
     }
 
     private async void OnResultsGalleryClick(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (OpenResultsGallery != null) await OpenResultsGallery(_appliedSearch ?? ArchiveSearchRequest.Create(_query), _workFilter, sender as Control);
     }
 
@@ -275,6 +285,7 @@ public partial class ArchivePage
 
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (_selectedThread == null || FrozenArchiveSelection().Length != 1) return;
         OpenReaderRequested?.Invoke(sender as Control);
         await LoadThreadAsync(_selectedThread);
@@ -313,8 +324,11 @@ public partial class ArchivePage
         RenderMedia();
     }
 
-    internal void ShowPost(string postId)
+    internal void ShowPost(string postId) => ShowPost(postId, null);
+
+    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation)
     {
+        if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_thread == null) return;
         int index = _thread.FindPostIndex(postId);
         if (index < 0) return;

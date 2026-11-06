@@ -13,7 +13,7 @@ public partial class MainWindow
     private ReaderGroupReadRequest? _readerGroupReturn;
     private long _readerGroupReadGeneration;
     private Control? _readerGroupsOrigin;
-    internal bool CanOpenReaderGroups => !_isClosing && !_largeReaderOpen && _gallery == null
+    internal bool CanOpenReaderGroups => _archivePage?.IsFilenameSearchOpen != true && !_isClosing && !_largeReaderOpen && _gallery == null
         && _readerGroupsDialog == null && _session.State == DesktopSessionState.Ready;
 
     private void InitializeReaderGroups()
@@ -22,6 +22,7 @@ public partial class MainWindow
         CommandBindings.Apply(item, "reader-groups.open-manager");
         item.Click += async (_, _) => await OpenReaderGroupsAsync(item);
         ArchivePage.OpenReaderGroupsRequested = async origin => await OpenReaderGroupsAsync(origin);
+        ArchivePage.SearchStateChanged += RefreshReaderGroupsEntry;
         RefreshReaderGroupsEntry();
     }
 
@@ -61,20 +62,20 @@ public partial class MainWindow
 
     private async Task ShowReaderGroupsAsync(ReaderGroupsDialogOrigin? restore)
     {
-        if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+        if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _session.State != DesktopSessionState.Ready) return;
         ReaderGroupsDialog dialog = new(_session, restore);
         _readerGroupsDialog = dialog;
         ReaderGroupReadRequest? request;
         try { request = await dialog.ShowDialog<ReaderGroupReadRequest?>(this); }
         finally { if (ReferenceEquals(_readerGroupsDialog, dialog)) _readerGroupsDialog = null; }
-        if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+        if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _session.State != DesktopSessionState.Ready) return;
         if (request == null) { _readerGroupsOrigin?.Focus(); _readerGroupsOrigin = null; return; }
         await OpenReaderGroupAsync(request);
     }
 
     internal async Task OpenReaderGroupAsync(ReaderGroupReadRequest request)
     {
-        if (_isClosing || _largeReaderOpen || _readerGroupsDialog != null
+        if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _largeReaderOpen || _readerGroupsDialog != null
             || _session.State != DesktopSessionState.Ready || request.Threads.Count == 0) return;
         long generation = ++_readerGroupReadGeneration;
         _readerGroupReturn = request;

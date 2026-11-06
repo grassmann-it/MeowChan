@@ -21,7 +21,10 @@ public partial class ArchivePage
     private readonly HashSet<ResourceId> _readerGroupSkipped = new();
     private ResourceId? _readerGroupFailed;
     private int _readerGroupFailedDirection;
-    private void OnReaderGroupsClick(object? sender, RoutedEventArgs e) => _ = OpenReaderGroupsRequested?.Invoke(sender as Control);
+    private void OnReaderGroupsClick(object? sender, RoutedEventArgs e)
+    {
+        if (!IsFilenameSearchOpen) _ = OpenReaderGroupsRequested?.Invoke(sender as Control);
+    }
     internal void BeginReaderGroupScope(IReadOnlyList<ResourceId> ids)
     {
         _readerGroupCancellation?.Cancel();
@@ -55,7 +58,7 @@ public partial class ArchivePage
     }
     internal async Task<bool> LoadReaderGroupThreadAsync(ResourceId target)
     {
-        if (_busy || _ended || !_largeReader || !_readerGroupScope || _openReader == null) return false;
+        if (IsFilenameSearchOpen || _busy || _ended || !_largeReader || !_readerGroupScope || _openReader == null) return false;
         int request = _readerScopeRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _readerGroupCancellation = loading; _readerGroupLoading = true;
@@ -65,7 +68,7 @@ public partial class ArchivePage
             // Preflight the immutable local view before changing any visible thread, post or anchor.
             await using ArchiveReader reader = await _openReader(loading.Token);
             ArchivedThreadView? view = await reader.ReadThreadAsync(target, loading.Token);
-            if (_ended || request != _readerScopeRequest || !_readerGroupScope) return false;
+            if (_ended || IsFilenameSearchOpen || request != _readerScopeRequest || !_readerGroupScope) return false;
             if (view == null || view.PostCount == 0)
             {
                 ShowUnavailableGroupMember(target); return false;
@@ -102,7 +105,7 @@ public partial class ArchivePage
         skip.IsVisible = _readerGroupFailedDirection != 0;
         skip.IsEnabled = true;
     }
-    internal bool CanSkipUnavailableGroupMember => !_busy && !_ended && _largeReader && _readerGroupScope && _readerGroupFailed != null;
+    internal bool CanSkipUnavailableGroupMember => !IsFilenameSearchOpen && !_busy && !_ended && _largeReader && _readerGroupScope && _readerGroupFailed != null;
     private async void OnSkipUnavailableGroupMember(object? sender, RoutedEventArgs e) => await SkipUnavailableGroupMemberAsync();
     internal async Task SkipUnavailableGroupMemberAsync()
     {

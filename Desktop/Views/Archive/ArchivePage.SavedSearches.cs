@@ -20,7 +20,7 @@ public partial class ArchivePage
     private bool _savedSearchLifecycleHooked;
     private CommandRouter? _savedSearchRouter;
     private readonly List<IDisposable> _savedSearchRegistrations = new();
-    internal bool CanSaveCurrentSearch => _savedSearchHost?.State == DesktopSessionState.Ready && _available && !_ended && !_busy && AppliedSearchSpec != null;
+    internal bool CanSaveCurrentSearch => _savedSearchHost?.State == DesktopSessionState.Ready && _available && !_ended && !IsFilenameSearchOpen && !_busy && AppliedSearchSpec != null;
     internal ArchiveSearchSpec? CaptureAppliedSearch() => CanSaveCurrentSearch && AppliedSearchSpec is { } spec
         ? ArchiveSearchSpecJson.Deserialize(ArchiveSearchSpecJson.Serialize(spec)) : null;
 
@@ -56,7 +56,7 @@ public partial class ArchivePage
         SearchStateChanged -= RefreshSavedSearchActions;
         RemoveHandler(KeyDownEvent, RouteSavedSearchCommand);
     }
-    private bool CanOpenSavedSearches() => _savedSearchHost?.State == DesktopSessionState.Ready && _available && !_ended && !_savedSearchDialogOpen;
+    private bool CanOpenSavedSearches() => _savedSearchHost?.State == DesktopSessionState.Ready && _available && !_ended && !IsFilenameSearchOpen && !_savedSearchDialogOpen;
     private void RouteSavedSearchCommand(object? sender, KeyEventArgs e) => _savedSearchRouter?.Route(e);
     private void OnSaveCurrentSearchClick(object? sender, RoutedEventArgs e) => _ = OpenSavedSearchesAsync(true);
     private void OnSavedSearchesClick(object? sender, RoutedEventArgs e) => _ = OpenSavedSearchesAsync(false);
@@ -88,6 +88,7 @@ public partial class ArchivePage
     }
     private void RefreshSavedSearchActions()
     {
+        UpdateFilenameSearchActions();
         foreach (var item in new[] { ("ArchiveSaveSearch", "save-current"), ("ArchiveSavedSearches", "open-manager") })
         {
             Button button = Control<Button>(item.Item1);

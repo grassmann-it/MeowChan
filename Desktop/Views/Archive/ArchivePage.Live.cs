@@ -85,7 +85,7 @@ public partial class ArchivePage
         if (!_obscuredByGallery && !_checkingReaderUpdate) _ = CheckReaderUpdatesAsync();
     }
 
-    private bool CanCheckReaderUpdate => !_ended && _available && !_busy && !_obscuredByGallery
+    private bool CanCheckReaderUpdate => !_ended && !IsFilenameSearchOpen && _available && !_busy && !_obscuredByGallery
         && _thread != null && _openReader != null && (_largeReader || IsEffectivelyVisible) && _showReader;
 
     // One summary query at a time. Ordinary timer ticks do not pile up follow-up queries.
@@ -109,7 +109,7 @@ public partial class ArchivePage
                 int interaction = _readerInteractionRevision;
                 long coverage = _readerCoverageRevision;
                 long diagnostic = PerformanceDiagnostics.NextId();
-                bool Current() => !_ended && !_obscuredByGallery && coverage == _readerCoverageRevision
+                bool Current() => !_ended && !IsFilenameSearchOpen && !_obscuredByGallery && coverage == _readerCoverageRevision
                     && request == _contentRequest && _thread?.Summary.Id == id;
                 using var measurement = PerformanceDiagnostics.Measure("archive.reader.summary", diagnostic,
                     revision: coverage);

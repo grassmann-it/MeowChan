@@ -72,6 +72,7 @@
                         <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveFilenameSearchOpen" Click="OnFilenameSearchClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveReaderGroups" Content="Reader groups" Click="OnReaderGroupsClick" />
                         <Button x:Name="ArchiveSaveSearch" Click="OnSaveCurrentSearchClick" />
@@ -185,6 +186,7 @@
                     <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" />
                     <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderFilenameSearchOpen" Click="OnFilenameSearchClick" />
                     <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
                     <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />

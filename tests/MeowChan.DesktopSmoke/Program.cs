@@ -61,7 +61,9 @@ internal static class Program
             "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY",
             "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY",
             "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "MEOWCHAN_URLTEXT_EXPORT_ONLY",
-            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY"
+            "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "MEOWCHAN_READER_FIND_ONLY",
+            "MEOWCHAN_FILENAME_SEARCH_ONLY", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY",
+            "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY"
         ];
         if (focusedModes.Any(name => Environment.GetEnvironmentVariable(name) == "1"))
         {
@@ -251,6 +253,12 @@ internal static class Program
 
             string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
                 ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1"
+                ? "filename search standalone dialog: captured metadata paging, literal Unicode input and explicit selection; no product host navigation or current-byte/platform acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_HASH_SEARCH_ONLY") == "1"
+                ? "SHA-256 search standalone dialog: one captured inventory, exact reference selection and native controls; no global-library search, rehash or product host navigation acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_HOST_ONLY") == "1"
+                ? "filename search host: actual native page/modal, exact offscreen post navigation and causal lifetime drains; managed input, no OS keyboard, detached-reader/fullscreen or Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1"
                 ? "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY") == "1"
@@ -421,6 +429,22 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")
             {
                 await ReaderThreadFindChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1")
+            {
+                await FilenameSearchChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_HASH_SEARCH_ONLY") == "1")
+            {
+                await MediaHashSearchChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_HOST_ONLY") == "1")
+            {
+                await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);
+                await FilenameSearchHostLifetimeChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_URLTEXT_EXPORT_ONLY") == "1")

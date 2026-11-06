@@ -103,7 +103,7 @@ public partial class ArchivePage
 
     private async void ArchiveSelectionChanged(object? sender)
     {
-        if (_updatingList || _ended || !_available) return;
+        if (_updatingList || IsFilenameSearchOpen || _ended || !_available) return;
         IEnumerable<ArchiveThreadRow> selected = sender is DataGrid table ? table.SelectedItems.Cast<ArchiveThreadRow>()
             : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItems!.Cast<ArchiveThreadRow>();
         _archiveSelectionIds.Clear();
@@ -232,6 +232,7 @@ public partial class ArchivePage
 
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
     {
+        if (IsFilenameSearchOpen) return;
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
             || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
         if (MatchesArchiveCommand(e, "menu.context-open"))
@@ -259,6 +260,7 @@ public partial class ArchivePage
         {
             Dispatcher.UIThread.Post(async () =>
             {
+                if (IsFilenameSearchOpen) return;
                 ArchiveThreadRow? row = list is DataGrid table ? table.CollectionView?.CurrentItem as ArchiveThreadRow
                     : (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext as ArchiveThreadRow;
                 if (row != null && _archiveSelectionIds.Contains(row.Summary.Id))

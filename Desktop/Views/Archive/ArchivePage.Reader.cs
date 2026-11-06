@@ -25,9 +25,10 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Action? FullscreenRequested { get; set; }
-    internal bool IsReaderDialogOpen => _urlTextExportBusy || Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
+    internal bool IsReaderDialogOpen => IsFilenameSearchOpen || _urlTextExportBusy || Control<Border>("ArchiveExportDialog").IsVisible || _cleanupDialog != null;
     internal bool TryDismissOverlay(object? source = null)
     {
+        if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
@@ -44,7 +45,7 @@ public partial class ArchivePage
         }
         return false;
     }
-    private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) => FullscreenRequested?.Invoke();
+    private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) { if (!IsFilenameSearchOpen) FullscreenRequested?.Invoke(); }
     private double _readingFontSizePreference = 15;
     internal double ReadingFontSizePreference
     {
@@ -229,10 +230,11 @@ public partial class ArchivePage
     internal bool ReaderShowsPosts => _showReader && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
     internal Action? CloseReaderRequested { get; set; }
-    private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { CloseThreadFind(); CloseReaderRequested?.Invoke(); }
+    private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); CloseReaderRequested?.Invoke(); }
 
     internal Control DetachReader()
     {
+        InvalidateFilenameSearch();
         ++_readerFocusRequest;
         Grid pane = Control<Grid>("ArchiveReaderPane");
         Control<Grid>("ArchiveSplit").Children.Remove(pane);
@@ -259,6 +261,7 @@ public partial class ArchivePage
 
     internal void AttachReader(Control pane)
     {
+        InvalidateFilenameSearch();
         CloseThreadFind();
         StopObservingReaderMediaKeys();
         ++_readerFocusRequest;
@@ -289,7 +292,7 @@ public partial class ArchivePage
     {
         // A live continuation can already be stale before its first dispatcher
         // yield. Validate before ShowPost changes the page or selection.
-        if (_ended || _thread?.FindPostIndex(postId) is not >= 0
+        if (_ended || IsFilenameSearchOpen || _thread?.FindPostIndex(postId) is not >= 0
             || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         int focusRequest = ++_readerFocusRequest;
         focusIntent?.BeginFocus(focusRequest);
@@ -386,10 +389,10 @@ public partial class ArchivePage
         if (!IsInitialized && !_largeReader) return;
         int post = ReaderPostIndex;
         int thread = ReaderThreadIndex;
-        Control<Button>("ReaderPreviousPost").IsEnabled = !_busy && post > 0;
-        Control<Button>("ReaderNextPost").IsEnabled = !_busy && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
-        Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
-        Control<Button>("ReaderNextThread").IsEnabled = !_busy && thread >= 0 && thread + 1 < _readerThreads.Count
+        Control<Button>("ReaderPreviousPost").IsEnabled = !_busy && !IsFilenameSearchOpen && post > 0;
+        Control<Button>("ReaderNextPost").IsEnabled = !_busy && !IsFilenameSearchOpen && post >= 0 && post + 1 < (_thread?.PostCount ?? 0);
+        Control<Button>("ReaderPreviousThread").IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
+        Control<Button>("ReaderNextThread").IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
         Control<WrapPanel>("ReaderNavigation").IsVisible = _largeReader;
         UpdateReaderNavigationLayout();
@@ -671,7 +674,7 @@ public partial class ArchivePage
 
     internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
     {
-        if (!_largeReader || _busy || _ended || _urlTextExportBusy) return;
+        if (!_largeReader || _busy || _ended || IsReaderDialogOpen) return;
         ++_readerInteractionRevision;
         if (threadDelta != 0)
         {

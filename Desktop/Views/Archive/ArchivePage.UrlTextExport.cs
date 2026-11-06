@@ -20,7 +20,7 @@ public partial class ArchivePage
     internal Func<Task<string?>>? UrlTextChooseForTests { get; set; }
     internal Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>>? UrlTextWriteForTests { get; set; }
 
-    private bool UrlTextOtherModalOpen => IsArchiveCleanupOpen
+    private bool UrlTextOtherModalOpen => IsFilenameSearchOpen || IsArchiveCleanupOpen
         || Control<Border>("ArchiveExportDialog").IsVisible || _exportRunning
         || _transferPreviewOpening || _transferPreviewDialog != null;
     private bool CanOpenUrlTextExport => !_ended && !_busy && _available

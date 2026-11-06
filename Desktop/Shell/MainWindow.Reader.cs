@@ -18,7 +18,7 @@ public partial class MainWindow
 
     private void OpenLargeReader(Control? origin, IReadOnlyList<ResourceId>? frozenThreads)
     {
-        if (_largeReaderOpen || _isClosing || _archivePage?.IsArchiveCleanupOpen == true) return;
+        if (_largeReaderOpen || _isClosing || _archivePage?.IsReaderDialogOpen == true) return;
         // The outer close path chooses the original control's focus after
         // reattaching. Delayed anchor work restores geometry without taking it.
         _readerRestoreOrigin = ArchivePage.CaptureGalleryOrigin(restoreReaderFocus: false);
@@ -35,7 +35,7 @@ public partial class MainWindow
 
     private void CloseLargeReader(bool restoreOrigin = true)
     {
-        if (!_largeReaderOpen) return;
+        if (!_largeReaderOpen || (restoreOrigin && _archivePage?.IsFilenameSearchOpen == true)) return;
         if (_gallery != null && restoreOrigin) CloseGallery(restoreOrigin: false);
         ContentControl host = this.FindControl<ContentControl>("ReaderHost")!;
         Control pane = (Control)host.Content!;

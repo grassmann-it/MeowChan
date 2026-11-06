@@ -57,6 +57,7 @@ public partial class ArchivePage
 
     private async Task ShowArchiveMetadataAsync(string title, string content)
     {
+        if (IsFilenameSearchOpen) return;
         if (TopLevel.GetTopLevel(this) is not Window owner) { Message(content); return; }
         Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 220,
             WindowStartupLocation = WindowStartupLocation.CenterOwner };
@@ -122,7 +123,7 @@ public partial class ArchivePage
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
         List<MenuItem> commands = new();
         List<Func<string?>> disabledReasons = new();
-        bool Ready() => _available && !_ended && !_busy && !_urlTextExportBusy;
+        bool Ready() => _available && !_ended && !_busy && !IsReaderDialogOpen;
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
             Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
         {
