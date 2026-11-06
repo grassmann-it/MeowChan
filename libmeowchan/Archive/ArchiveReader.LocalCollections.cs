@@ -78,4 +78,49 @@ public sealed partial class ArchiveReader
         catch (UnauthorizedAccessException) { throw new LocalImportReadException(LocalImportError.IoFailure); }
         catch (SecurityException) { throw new LocalImportReadException(LocalImportError.IoFailure); }
     }
+
+    // R1 metadata reads have their own narrow worker: the strict bounded v9 fence must
+    // precede the shared schema validator, unlike the older generic ReadAsync callback.
+    internal Task<LocalCollectionPage> ListLocalCollectionsAsync(int offset, int limit, CancellationToken ct)
+    {
+        LocalImportCodec.ValidatePage(offset, limit);
+        return ReadLocalMetadataAsync((c, tx) => ArchiveSql.ReadLocalCollectionPage(c, tx, offset, limit, ct), ct);
+    }
+
+    internal Task<LocalCollectionSnapshot?> ReadLocalCollectionAsync(LocalCollectionId id, CancellationToken ct)
+    {
+        if (id.Value == Guid.Empty) throw new ArgumentException("A nonempty local collection is required.", nameof(id));
+        return ReadLocalMetadataAsync((c, tx) => ArchiveSql.ReadLocalCollection(c, tx, id,
+            Path.GetDirectoryName(DatabasePath)!, new LocalImportCodec(), ct), ct);
+    }
+
+    private Task<T> ReadLocalMetadataAsync<T>(Func<SqliteConnection, SqliteTransaction, T> read, CancellationToken ct)
+        => Task.Run(() =>
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
+                using SqliteTransaction tx = connection.BeginTransaction(deferred: true);
+                // Both SQL helpers validate in this tx, including the legacy empty-result arm.
+                T value = read(connection, tx);
+                ct.ThrowIfCancellationRequested();
+                tx.Commit();
+                ct.ThrowIfCancellationRequested();
+                return value;
+            }
+            catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
+            catch (LocalImportReadException) { throw; }
+            catch (SqliteException e)
+            {
+                if (e.SqliteErrorCode == 14) RequireLocalDatabaseNotMissing(DatabasePath);
+                throw new LocalImportReadException(e.SqliteErrorCode is 5 or 6 ? LocalImportError.Busy : LocalImportError.IoFailure);
+            }
+            catch (FileNotFoundException) { throw new FileNotFoundException("The local collection database was not found."); }
+            catch (DirectoryNotFoundException) { throw new FileNotFoundException("The local collection database was not found."); }
+            catch (IOException) { throw new LocalImportReadException(LocalImportError.IoFailure); }
+            catch (UnauthorizedAccessException) { throw new LocalImportReadException(LocalImportError.IoFailure); }
+            catch (SecurityException) { throw new LocalImportReadException(LocalImportError.IoFailure); }
+        }, ct);
 }
