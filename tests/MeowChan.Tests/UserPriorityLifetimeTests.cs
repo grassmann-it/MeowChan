@@ -20,6 +20,8 @@ public sealed class UserPriorityLifetimeTests
             queue.ConfigureWorkState(store);
             WorkResource owner = store.CommitIntent(new WorkResource { Url = thread.Url, OutputRoot = directory.Path,
                 Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
+            // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+            lease.Admission.CompleteStartup();
             queue.BindWork(thread, owner);
             Assert.True(queue.SetUserPriority(thread, owner, UserDownloadPriority.High));
             Assert.Equal(UserDownloadPriority.High, queue.GetUserPriority(thread));
@@ -46,6 +48,8 @@ public sealed class UserPriorityLifetimeTests
             queue.ConfigureWorkState(store);
             WorkResource owner = store.CommitIntent(new WorkResource { Url = thread.Url, OutputRoot = directory.Path,
                 Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
+            // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+            lease.Admission.CompleteStartup();
             queue.BindWork(thread, owner);
             Assert.False(queue.SetUserPriority(thread, owner with { Generation = 99 }, UserDownloadPriority.High));
             Assert.True(queue.SetUserPriority(thread, owner, UserDownloadPriority.High));

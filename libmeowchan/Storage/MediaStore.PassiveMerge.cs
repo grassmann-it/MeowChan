@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Transfer;
+using MeowChan.Persistence;
 
 namespace MeowChan.Storage;
 
@@ -23,10 +24,12 @@ public sealed partial class MediaStore
     /// Ready roots are immutable; this method grants no catalog or publication authority.
     /// Empty safe selections have no root: the coordinator must skip this call for them.
     /// </summary>
-    internal async Task<PassiveMediaImportCandidate> MaterializePassiveMergeCandidateAsync(
-        NativeMediaMergePlan plan, bool safeSubset, CancellationToken token = default,
+    internal async Task<PassiveMediaImportCandidate> MaterializePassiveMergeCandidateAdmittedAsync(
+        ProfileAdmissionToken admission, NativeMediaMergePlan plan, bool safeSubset, CancellationToken token = default,
         Action<string>? childDirectoryCreated = null)
     {
+        ArgumentNullException.ThrowIfNull(plan);
+        plan.Owner.EnsureTransferAdmission(admission);
         Dictionary<string, MediaAttachmentBinding> bindings = ValidatePassiveMergePlan(plan);
         ImmutableArray<string> keys = safeSubset ? plan.SafeKeys : plan.FullKeys;
         if (keys.IsEmpty) throw new InvalidDataException("An empty safe selection must not create a candidate.");
@@ -41,6 +44,16 @@ public sealed partial class MediaStore
         try { ValidatePassiveMergeCandidate(plan, candidate, keys, bindings); }
         catch (InvalidDataException error) { throw new PassiveMediaCandidateWriteException(candidate.Directory, error); }
         return candidate;
+    }
+
+    // Separate Apply boundary: preparation keeps using the raw read-only root helper.
+    internal Task<T> WithPassiveMergeTargetRootsAdmittedAsync<T>(ProfileAdmissionToken admission,
+        NativeMediaMergePlan plan, Func<ImmutableArray<MediaAssetSnapshot>, Task<T>> callback,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        plan.Owner.EnsureTransferAdmission(admission);
+        return WithPassiveMergeTargetRootsAsync(plan.Roots.Select(root => root.Directory).ToArray(), callback, token);
     }
 
     /// <summary>
@@ -116,10 +129,12 @@ public sealed partial class MediaStore
     /// tier, in deterministic path order (not full/safe argument order). Keeps every candidate
     /// handle across the awaited callback; performs no writes and never manufactures owner authority.
     /// </summary>
-    internal async Task<T> WithVerifiedPassiveMergeCandidatesAsync<T>(NativeMediaMergePlan plan,
+    internal async Task<T> WithVerifiedPassiveMergeCandidatesAdmittedAsync<T>(ProfileAdmissionToken admission, NativeMediaMergePlan plan,
         PassiveMediaImportCandidate full, PassiveMediaImportCandidate? safe, Func<Task<T>> callback,
         CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(plan);
+        plan.Owner.EnsureTransferAdmission(admission);
         ArgumentNullException.ThrowIfNull(callback);
         token.ThrowIfCancellationRequested();
         Dictionary<string, MediaAttachmentBinding> bindings = ValidatePassiveMergePlan(plan);

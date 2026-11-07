@@ -37,7 +37,12 @@ public sealed partial class Registry
     {
         lock (_state)
         {
-            if (_producerEpoch != null || _restored) throw new InvalidOperationException("Registry already activated.");
+            if (_producerPrepared || _producerEpoch != null || _restored || _producerStopRequested || _stopping)
+                throw new InvalidOperationException("Registry already prepared, activated or stopping.");
+            ValidateStartupComposition(lease);
+            _queue.ValidateProfileLeaseBinding(lease);
+            lease.ClaimStartupOwner(this);
+            _queue.BindProfileLease(lease);
             _producerLease = lease;
             _producerPrepared = true;
             _producerSuspended = true;
@@ -47,7 +52,8 @@ public sealed partial class Registry
     }
 
     private ProfileLease? BoundProfileLease => _producerLease ?? (_workStore as WorkStateStore)?.ProfileLease
-        ?? (_sessionStore as SessionStore)?.ProfileLease ?? _boardAdmission?.ProfileLease;
+        ?? (_sessionStore as SessionStore)?.ProfileLease ?? _boardAdmission?.ProfileLease
+        ?? _contentRuntime?.ProfileLease;
 
     private void ValidateRegistryAdmission(ProfileAdmissionToken? admission)
     {
@@ -61,10 +67,15 @@ public sealed partial class Registry
         lock (_state)
         {
             ObjectDisposedException.ThrowIf(_producerStopRequested || _stopping, this);
+            if (_standaloneStartup != null && !_standaloneStartupSucceeded)
+                throw new InvalidOperationException("Await Registry.StartAsync before writing to this session.");
             _producerLease ??= BoundProfileLease;
+            if (_producerLease != null) _queue.BindProfileLease(_producerLease);
             if (!_producerPrepared && !_producerSuspended && _producerEpoch == null)
             {
-                ProfileProducerEpoch epoch = new(_producerLease?.Admission.EnterStoreWriter());
+                // Lazy standalone producers also require Ready; a Startup command
+                // must never lend its role to a monitor or physical media job.
+                ProfileProducerEpoch epoch = new(_producerLease?.Admission.EnterOrdinaryWriter());
                 try { _queue.InstallProfileEpoch(epoch); _producerEpoch = epoch; }
                 catch { epoch.Close(); epoch.Dispose(); throw; }
             }
@@ -212,7 +223,12 @@ public sealed partial class Registry
                 thread.SetLifecycleSinks((state, observed, snapshot, token) =>
                     CommitSourceEndAsync(key, thread, state, observed, snapshot, token, use?.Admission),
                     () => CommitCaptureSettledAsync(key, thread, use?.Admission));
-            if (watch.Thread != null) watch.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
+            // Only bound content threads need the admitted BaseThread entry.
+            // Preserve IThread lifecycle dispatch for non-content providers.
+            if (_contentRuntime != null && watch.Thread is BaseThread { SupportsContent: true } contentThread
+                && use?.Admission is { } admission)
+                contentThread.StartMonitoringAdmitted(admission, _queue, watch.OutputRoot, _threadInterval);
+            else if (watch.Thread != null) watch.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
             else watch.Board!.StartMonitoring((int)_boardInterval.TotalSeconds);
         }
         catch { throw; }

@@ -396,6 +396,7 @@ public sealed class ConsumerContractTests
         DownloadQueue secondQueue = new DownloadQueue(1, UnthrottledBandwidth);
         await using Registry second = new Registry([provider], secondQueue, secondRoot, TimeSpan.FromMinutes(1), 60,
             workStore: secondStore);
+        if (!memory) await second.StartAsync(lease).WaitAsync(TestWait.Timeout);
 
         try
         {

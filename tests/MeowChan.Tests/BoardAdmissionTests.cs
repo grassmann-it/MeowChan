@@ -64,6 +64,7 @@ public sealed class BoardAdmissionTests
         IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
         await using Registry registry = new([provider], new DownloadQueue(1, 1024), directory.Path, TimeSpan.FromMinutes(1), 60);
         registry.ConfigureBoardAdmission(new(directory.Path, lease));
+        await registry.StartAsync(lease);
         string url = eightKun ? "https://8kun.top/g/" : "https://boards.4chan.org/g/";
         var target = registry.ClassifyAdmission(url);
         Assert.True(target!.IsBoard); Assert.Empty(requests);
@@ -86,6 +87,7 @@ public sealed class BoardAdmissionTests
             new ProbeThread(provider.Board, new("https://stub.test/g/thread/2")) { Title = "dog" }]);
         await using Registry registry = new([provider], new DownloadQueue(1, 1024), directory.Path, TimeSpan.FromMinutes(1), 60, persistSession: false);
         registry.ConfigureBoardAdmission(new(directory.Path, lease));
+        await registry.StartAsync(lease);
         await registry.AddAsync("https://stub.test/g/thread/2");
         BoardAdmissionPolicy policy = new([new(ThreadTextField.Title, ThreadTextAction.Include, "cat")]);
         await registry.ApplyBoardAdmissionAsync("https://stub.test/g/", policy);
@@ -106,6 +108,7 @@ public sealed class BoardAdmissionTests
         provider.Board.OnCheck = () => Task.FromResult<IEnumerable<IThread>>([provider.GetThread(new(url))]);
         await using Registry registry = new([provider], new DownloadQueue(1, 1024), directory.Path, TimeSpan.FromMinutes(1), 60);
         registry.ConfigureBoardAdmission(new(directory.Path, lease));
+        await registry.StartAsync(lease);
         BoardAdmissionPolicy policy = new([], new Dictionary<string, ThreadAdmissionException> { [url] = ThreadAdmissionException.Include });
         await registry.ApplyBoardAdmissionAsync("https://stub.test/g/", policy);
         await TestWait.UntilAsync(() => registry.Threads.Count == 1 && provider.Board.Clock.Waits == 1);

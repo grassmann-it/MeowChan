@@ -572,7 +572,9 @@ public sealed partial class Registry : IAsyncDisposable
                     }
                 }
                 if (_contentRuntime != null && resource.Thread is BaseThread { SupportsContent: true } contentThread)
-                    await _contentRuntime.BindAsync(contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
+                    await _contentRuntime.BindAdmittedAsync(admission
+                        ?? throw new InvalidOperationException("Profile content requires its accepted command admission."),
+                        contentThread, outputRoot, restored: !persist).ConfigureAwait(false);
                 // Bind captured decisions before restoring media work; resumed transfers use the same rule path.
                 if (durable != null) _queue.BindWork(resource.Thread, durable);
                 watch.StateHandler = (_, _) => SignalChanged();
@@ -762,7 +764,8 @@ public sealed partial class Registry : IAsyncDisposable
             if (_stopping) return CheckRequestStatus.Stopping;
             if (!_watches.TryGetValue(key, out Watch? watch) || !watch.Ready || watch.Stopping
                 || !ReferenceEquals(watch.Thread, thread) || !ReferenceEquals(watch.Board, board)) return CheckRequestStatus.Stale;
-            if (_queue.IsPaused || !ProducersMayRun) return CheckRequestStatus.Paused;
+            if (_queue.IsPaused || !ProducersMayRun
+                || _standaloneStartup != null && !_standaloneStartupSucceeded) return CheckRequestStatus.Paused;
             // Optional contract only signals a lifetime; no provider work runs under this lock.
             ICheckRequestSource? checks = (object?)thread as ICheckRequestSource ?? board as ICheckRequestSource;
             return checks?.RequestCheck() ?? CheckRequestStatus.Unsupported;
@@ -974,11 +977,13 @@ public sealed partial class Registry : IAsyncDisposable
     public Task StopAsync()
     {
         CloseProducerIngress();
+        RequestStandaloneStartupStop();
         lock (_shutdownLock) { return _shutdown ??= StopCoreAsync(); }
     }
 
     private async Task StopCoreAsync()
     {
+        await WaitForStandaloneStartupWorkAsync().ConfigureAwait(false);
         Watch[] watches;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
@@ -1148,6 +1153,13 @@ public sealed partial class Registry : IAsyncDisposable
         try { await StopAsync().ConfigureAwait(false); }
         finally
         {
+            CancellationTokenSource? startupCancellation;
+            lock (_state)
+            {
+                startupCancellation = _standaloneStartupCancellation;
+                _standaloneStartupCancellation = null;
+            }
+            startupCancellation?.Dispose();
             _queue.StateChanged -= SignalChanged;
             _queue.PersistenceFailed -= Warn;
             _stateChanges.Dispose();

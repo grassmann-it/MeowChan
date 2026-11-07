@@ -23,6 +23,7 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
     private bool _disposed;
     public bool IsInitialized => _catalog != null && !_disposed;
     public MediaRuleStore Rules { get; }
+    internal ProfileLease ProfileLease => _lease;
     internal IOriginalMediaFilterFactory? OriginalFilters { get; set; }
     public ArchiveCatalog Catalog => _catalog ?? throw new InvalidOperationException("Initialize content services before starting watches.");
     public string? LoadWarning { get; private set; }
@@ -34,26 +35,68 @@ public sealed class ThreadContentRuntime : IAsyncDisposable
         Rules = new MediaRuleStore(profileDirectory, lease);
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    // Compatibility ownership is accepted before any asynchronous child is started.
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
+        => WithStoreWriterAsync(admission => InitializeAdmittedAsync(admission, cancellationToken), cancellationToken);
+
+    internal async Task InitializeAdmittedAsync(ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ValidateAdmission(admission);
+        cancellationToken.ThrowIfCancellationRequested();
         if (_catalog != null) return;
         MediaRuleLoadResult rules = await Rules.LoadAsync(cancellationToken).ConfigureAwait(false);
         LoadWarning = rules.Warning;
-        _catalog = await ArchiveCatalog.OpenAsync(_profileDirectory, _lease, cancellationToken).ConfigureAwait(false);
+        _catalog = await ArchiveCatalog.OpenAdmittedAsync(_profileDirectory, _lease, admission, cancellationToken).ConfigureAwait(false);
     }
 
-    internal async Task BindAsync(BaseThread thread, string outputRoot, bool restored, CancellationToken cancellationToken = default)
+    internal Task BindAsync(BaseThread thread, string outputRoot, bool restored, CancellationToken cancellationToken = default)
+        => WithStoreWriterAsync(admission => BindAdmittedAsync(admission, thread, outputRoot, restored, cancellationToken), cancellationToken);
+
+    internal async Task BindAdmittedAsync(ProfileAdmissionToken admission, BaseThread thread, string outputRoot,
+        bool restored, CancellationToken cancellationToken = default)
     {
+        ValidateAdmission(admission);
         ResourceId id = new ResourceId(thread.Board.ImageBoard.Name, thread.Board.BoardCode, thread.ThreadId);
         string directory = StorageLayout.GetThreadDirectory(outputRoot, thread);
-        ArchiveThreadSummary summary = await Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(id, thread.Url,
+        ArchiveThreadSummary summary = await Catalog.RegisterThreadAdmittedAsync(admission, new ArchiveThreadRegistration(id, thread.Url,
             thread.SourceTitle, directory, !restored), cancellationToken).ConfigureAwait(false);
         ThreadContentContext context = new ThreadContentContext(this, summary);
         await context.InitializeFiltersAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        ValidateAdmission(admission);
         thread.RestoreTitleMetadata(summary.Title, context.OpeningTitle);
         thread.AttachContent(context);
+    }
+
+    // Up-front domain/live-role check also protects cached/no-op paths and in-memory
+    // context publication. Actual SQL is pinned separately by each Catalog consumer.
+    internal void ValidateAdmission(ProfileAdmissionToken admission)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(admission);
+        _lease.RunStoreWrite(admission, () => true);
+    }
+
+    internal Task WithStoreWriterAsync(Func<ProfileAdmissionToken, Task> operation, CancellationToken cancellationToken)
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteAsync();
+        async Task CompleteAsync()
+        {
+            try { await operation(admission).ConfigureAwait(false); }
+            finally { admission.Dispose(); }
+        }
+    }
+
+    internal Task<T> WithStoreWriterAsync<T>(Func<ProfileAdmissionToken, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteAsync();
+        async Task<T> CompleteAsync()
+        {
+            try { return await operation(admission).ConfigureAwait(false); }
+            finally { admission.Dispose(); }
+        }
     }
 
     public Task<ArchiveReader> OpenReaderAsync(CancellationToken cancellationToken = default) =>
@@ -104,30 +147,41 @@ internal sealed class ThreadContentContext
         _savedTitle = summary.Title;
     }
 
+    internal ProfileLease ProfileLease => _runtime.ProfileLease;
+    internal void ValidateAdmission(ProfileAdmissionToken admission) => _runtime.ValidateAdmission(admission);
+    internal Task WithStoreWriterAsync(Func<ProfileAdmissionToken, Task> operation, CancellationToken cancellationToken)
+        => _runtime.WithStoreWriterAsync(operation, cancellationToken);
+
     internal ThreadContentStatus Snapshot
     {
         get { lock (_state) return new ThreadContentStatus(_enabled, _capturedAt, _captureFailure ?? _titleFailure ?? _sourceFailure, _selectionFailure ?? _filterFailure, _excluded); }
     }
     internal bool NeedsRetry { get { lock (_state) return _captureFailure != null || _titleFailure != null || _sourceFailure != null || _selectionFailure != null; } }
 
-    internal async Task RecordSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
+    internal Task RecordSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
+        => _runtime.WithStoreWriterAsync(admission => RecordSourceStateAdmittedAsync(admission, state, cancellationToken), cancellationToken);
+
+    internal async Task RecordSourceStateAdmittedAsync(ProfileAdmissionToken admission, ThreadSourceState state,
+        CancellationToken cancellationToken)
     {
+        ValidateAdmission(admission);
         await _captureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ValidateAdmission(admission);
             _lastObservedSourceState = state;
             _sourceStateToSave = state;
-            await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false);
+            await SaveSourceStateAdmittedAsync(admission, cancellationToken).ConfigureAwait(false);
         }
         finally { _captureGate.Release(); }
     }
 
-    private async Task SaveSourceStateAsync(CancellationToken cancellationToken)
+    private async Task SaveSourceStateAdmittedAsync(ProfileAdmissionToken admission, CancellationToken cancellationToken)
     {
         if (_sourceStateToSave is not ThreadSourceState state) return;
         try
         {
-            await _runtime.Catalog.UpdateSourceStateAsync(_id, state, cancellationToken).ConfigureAwait(false);
+            await _runtime.Catalog.UpdateSourceStateAdmittedAsync(admission, _id, state, cancellationToken).ConfigureAwait(false);
             _sourceStateToSave = null;
             lock (_state) _sourceFailure = null;
         }
@@ -135,19 +189,30 @@ internal sealed class ThreadContentContext
         catch (Exception exception) { lock (_state) _sourceFailure = new FailureInfo(FailureKind.Storage, exception.Message); }
     }
 
-    internal async Task SetCaptureEnabledAsync(bool enabled, CancellationToken cancellationToken)
+    internal Task SetCaptureEnabledAsync(bool enabled, CancellationToken cancellationToken)
+        => _runtime.WithStoreWriterAsync(admission => SetCaptureEnabledAdmittedAsync(admission, enabled, cancellationToken), cancellationToken);
+
+    internal async Task SetCaptureEnabledAdmittedAsync(ProfileAdmissionToken admission, bool enabled, CancellationToken cancellationToken)
     {
-        await _runtime.Catalog.SetCaptureEnabledAsync(_id, enabled, cancellationToken).ConfigureAwait(false);
+        ValidateAdmission(admission);
+        await _runtime.Catalog.SetCaptureEnabledAdmittedAsync(admission, _id, enabled, cancellationToken).ConfigureAwait(false);
         lock (_state) { _enabled = enabled; }
-        if (enabled) await CaptureAsync(null, cancellationToken, forceLatest: true).ConfigureAwait(false);
+        if (enabled) await CaptureAdmittedAsync(admission, null, cancellationToken, forceLatest: true).ConfigureAwait(false);
     }
 
-    internal async Task CaptureAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken, bool forceLatest = false,
+    internal Task CaptureAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken, bool forceLatest = false,
         bool restoredObservation = false)
+        => _runtime.WithStoreWriterAsync(admission => CaptureAdmittedAsync(admission, observed, cancellationToken, forceLatest,
+            restoredObservation), cancellationToken);
+
+    internal async Task CaptureAdmittedAsync(ProfileAdmissionToken admission, CapturedThreadSnapshot? observed,
+        CancellationToken cancellationToken, bool forceLatest = false, bool restoredObservation = false)
     {
+        ValidateAdmission(admission);
         await _captureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+        ValidateAdmission(admission);
         bool enabled;
         lock (_state) enabled = _enabled;
         if (observed != null)
@@ -168,15 +233,15 @@ internal sealed class ThreadContentContext
             _pending = _pending == null ? observed : ArchiveCaptureMerge.Merge(_pending, observed);
         if (_pending == null)
         {
-            await SaveTitleAsync(cancellationToken).ConfigureAwait(false);
-            await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false);
+            await SaveTitleAdmittedAsync(admission, cancellationToken).ConfigureAwait(false);
+            await SaveSourceStateAdmittedAsync(admission, cancellationToken).ConfigureAwait(false);
             return;
         }
         try
         {
             // Pending post captures can predate later metadata-only observations.
             string title = _pendingTitle ?? _savedTitle;
-            await _runtime.Catalog.CapturePreservingRevisionsAsync(_pending with {
+            await _runtime.Catalog.CapturePreservingRevisionsAdmittedAsync(admission, _pending with {
                 Title = title, SourceState = _lastObservedSourceState ?? _pending.SourceState
             }, cancellationToken).ConfigureAwait(false);
             _savedTitle = title;
@@ -189,18 +254,18 @@ internal sealed class ThreadContentContext
         {
             lock (_state) _captureFailure = new FailureInfo(FailureKind.Storage, exception.Message);
         }
-        await SaveTitleAsync(cancellationToken).ConfigureAwait(false);
-        await SaveSourceStateAsync(cancellationToken).ConfigureAwait(false);
+        await SaveTitleAdmittedAsync(admission, cancellationToken).ConfigureAwait(false);
+        await SaveSourceStateAdmittedAsync(admission, cancellationToken).ConfigureAwait(false);
         }
         finally { _captureGate.Release(); }
     }
 
-    private async Task SaveTitleAsync(CancellationToken cancellationToken)
+    private async Task SaveTitleAdmittedAsync(ProfileAdmissionToken admission, CancellationToken cancellationToken)
     {
         if (_pendingTitle == null) return;
         try
         {
-            await _runtime.Catalog.UpdateObservedTitleAsync(_id, _pendingTitle, cancellationToken).ConfigureAwait(false);
+            await _runtime.Catalog.UpdateObservedTitleAdmittedAsync(admission, _id, _pendingTitle, cancellationToken).ConfigureAwait(false);
             _savedTitle = _pendingTitle;
             _pendingTitle = null;
             lock (_state) _titleFailure = null;
@@ -216,9 +281,15 @@ internal sealed class ThreadContentContext
         return Array.AsReadOnly(decisions.Select(decision => ToItem(decision.Metadata, owner)).ToArray());
     }
 
-    internal async Task<IReadOnlyList<DownloadItem>?> SelectAsync(BaseThread owner, IEnumerable<DownloadItem> candidates,
+    internal Task<IReadOnlyList<DownloadItem>?> SelectAsync(BaseThread owner, IEnumerable<DownloadItem> candidates,
         CancellationToken cancellationToken)
+        => _runtime.WithStoreWriterAsync(admission => SelectAdmittedAsync(admission, owner, candidates, cancellationToken), cancellationToken);
+
+    internal async Task<IReadOnlyList<DownloadItem>?> SelectAdmittedAsync(ProfileAdmissionToken admission, BaseThread owner,
+        IEnumerable<DownloadItem> candidates, CancellationToken cancellationToken)
     {
+        ValidateAdmission(admission);
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             if (_previouslySaved == null)
@@ -244,7 +315,7 @@ internal sealed class ThreadContentContext
                 if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)
                     || !SameMetadata(decision.Metadata, metadata))
                 {
-                    decision = await _runtime.Catalog.GetOrCreateDecisionAsync(metadata, _runtime.Rules,
+                    decision = await _runtime.Catalog.GetOrCreateDecisionAdmittedAsync(admission, metadata, _runtime.Rules,
                         _previouslySaved.Contains((item.MediaIdentifier, item.Variant)) || owner.IsMediaDownloaded(item.MediaIdentifier, item.Variant), cancellationToken).ConfigureAwait(false);
                     _decisions[(item.MediaIdentifier, item.Variant)] = decision;
                 }
@@ -269,7 +340,8 @@ internal sealed class ThreadContentContext
             metadata.Key.MediaId, metadata.ExpectedSize, metadata.ExpectedMd5, metadata.OriginalFileName, metadata.LegacyPath, metadata.Key.Variant)
         {
             ExpectedSha256 = metadata.ExpectedSha256, ExpectedSha1 = metadata.ExpectedSha1, ProviderSizeHint = metadata.ProviderSizeHint, AcquisitionRevisionKey = metadata.AcquisitionRevisionKey,
-            AttachmentReferences = metadata.AttachmentReferences
+            AttachmentReferences = metadata.AttachmentReferences,
+            ContentProfileLease = _runtime.ProfileLease
         };
         AttachmentRevisionReference? frozenPost = item.AttachmentReferences.FirstOrDefault();
         if (frozenPost != null) { item.FilterPostId = frozenPost.PostId; item.FilterPosition = frozenPost.Position; }
@@ -286,10 +358,14 @@ internal sealed class ThreadContentContext
             bool Current() => _runtime.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision
                 && _decisions.TryGetValue((metadata.Key.MediaId, metadata.Key.Variant), out CandidateDecision? current)
                 && ReferenceEquals(current, decision) && SameMetadata(current.Metadata, metadata);
-            async Task Record(bool? noMatch, string reason, CancellationToken token)
+            // The execution job lends its exact authority. The descriptor and this
+            // closure retain the domain, never the monitor's admission or a new owner.
+            async Task Record(DownloadItem executionItem, bool? noMatch, string reason, CancellationToken token)
             {
+                ProfileAdmissionToken admission = executionItem.RequireProfileWriteAdmission(_runtime.ProfileLease);
+                ValidateAdmission(admission);
                 if (noMatch != null && !Current()) return;
-                CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token).ConfigureAwait(false);
+                CandidateDecision? saved = await _runtime.Catalog.RecordFilterOmissionAdmittedAsync(admission, decision, noMatch, reason, token).ConfigureAwait(false);
                 if (saved != null)
                 {
                     lock (_state)
@@ -356,19 +432,19 @@ internal sealed class ThreadContentContext
         return ToItem(metadata, owner, explicitRetry);
     }
 
-    private sealed class MissingFilter(Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
+    private sealed class MissingFilter(Func<DownloadItem, bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
     {
         public bool CanStart => true;
         public event Action? CapacityChanged { add { } remove { } }
         public async Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken cancellationToken)
         {
-            await record(false, "filter_host_unavailable", cancellationToken).ConfigureAwait(false);
+            await record(item, false, "filter_host_unavailable", cancellationToken).ConfigureAwait(false);
             throw new MediaFilterOmissionException(false, "filter_host_unavailable");
         }
     }
 
     private sealed class RuleBypassFilter(CandidateDecision decision, Func<bool> current,
-        Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter, IOriginalMediaFilterLease
+        Func<DownloadItem, bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter, IOriginalMediaFilterLease
     {
         public bool CanStart => true;
         public event Action? CapacityChanged { add { } remove { } }
@@ -379,7 +455,7 @@ internal sealed class ThreadContentContext
             if (rule.Types.Mode == MediaTypeSelectionMode.Selected && !rule.Types.Extensions.Contains(decision.Metadata.Extension)
                 || rule.SizeLimit.Mode == MediaSizeLimitMode.Limited && item.ExpectedSize > rule.SizeLimit.Bytes)
             {
-                await record(true, "filter_metadata_excluded", cancellationToken).ConfigureAwait(false);
+                await record(item, true, "filter_metadata_excluded", cancellationToken).ConfigureAwait(false);
                 throw new MediaFilterOmissionException(true, "filter_metadata_excluded");
             }
             return this;
@@ -391,7 +467,7 @@ internal sealed class ThreadContentContext
             MediaCommitResult result = await store.CommitAuthorizedAsync(item, source, () => {
                 if (!current()) throw new MediaFilterOmissionException(false, "filter_rule_changed");
             }, cancellationToken, throttle).ConfigureAwait(false);
-            await record(null, "filter_removed_by_explicit_retry", CancellationToken.None).ConfigureAwait(false);
+            await record(item, null, "filter_removed_by_explicit_retry", CancellationToken.None).ConfigureAwait(false);
             return result;
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

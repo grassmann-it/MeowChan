@@ -34,6 +34,7 @@ public sealed class ContentRevisionTests
         IImageBoard provider = eightKun ? new ControlledEightKunProvider(client) : new ControlledProvider(client);
         await using Registry registry = new Registry(new[] { provider }, queue,
             Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 60, persistSession: false, contentRuntime: runtime);
+        await registry.StartAsync(lease);
         BaseThread thread = Assert.IsAssignableFrom<BaseThread>((await registry.AddAsync(eightKun
             ? "https://8kun.top/g/res/123.html" : ThreadUrl)).Thread);
         IControlledThread controlled = Assert.IsAssignableFrom<IControlledThread>(thread);
@@ -218,6 +219,7 @@ public sealed class ContentRevisionTests
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = new Registry(new IImageBoard[] { new ControlledProvider(client) }, queue,
             Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 60, persistSession: false, contentRuntime: runtime);
+        await registry.StartAsync(lease);
         ControlledThread thread = Assert.IsType<ControlledThread>((await registry.AddAsync(ThreadUrl)).Thread);
         await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
         await thread.SetCaptureEnabledAsync(false);
@@ -248,6 +250,7 @@ public sealed class ContentRevisionTests
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = new Registry(new IImageBoard[] { new ControlledProvider(client) }, queue,
             Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 60, persistSession: false, contentRuntime: runtime);
+        await registry.StartAsync(lease);
         ControlledThread thread = Assert.IsType<ControlledThread>((await registry.AddAsync(ThreadUrl)).Thread);
         await TestWait.UntilAsync(() => thread.Clock.Waits == 1);
         Assert.NotNull(thread.GetSnapshot(new DownloadCounts()).Content!.CaptureFailure);

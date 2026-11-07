@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -39,6 +40,10 @@ internal sealed record ArchiveCleanupExecutionResult(IReadOnlyList<ResourceId> D
 
 internal sealed partial class DesktopSessionHost
 {
+    // Observation seams only; never replace resource ownership or manufacture admission.
+    internal Action<ProfileAdmissionToken>? AfterArchiveCleanupFileDeletedForTests { get; set; }
+    internal Func<ProfileAdmissionToken, Task>? AfterArchiveCleanupDisposalForTests { get; set; }
+
     internal Task<ArchiveCleanupExecutionPlan> PrepareArchiveCleanupExecutionAsync(ArchiveCleanupPreview preview,
         IReadOnlyCollection<ResourceId> selectedIds, CancellationToken token = default,
         IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
@@ -99,11 +104,12 @@ internal sealed partial class DesktopSessionHost
         CancellationToken token = default, IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
     {
         ResourceId[] frozen = (currentOpenThreadIds ?? Array.Empty<ResourceId>()).ToArray();
-        return RunInteractiveAsync(nameof(ExecuteArchiveCleanupAsync), "profile", () => ExecuteArchiveCleanupAdmittedCoreAsync(plan, token, frozen));
+        return RunInteractiveWithAdmissionAsync(nameof(ExecuteArchiveCleanupAsync), "profile",
+            admission => ExecuteArchiveCleanupAdmittedCoreAsync(plan, admission, token, frozen));
     }
 
     private async Task<ArchiveCleanupExecutionResult> ExecuteArchiveCleanupAdmittedCoreAsync(ArchiveCleanupExecutionPlan plan,
-        CancellationToken token = default, IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
+        ProfileAdmissionToken admission, CancellationToken token = default, IReadOnlyCollection<ResourceId>? currentOpenThreadIds = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ResourceId[] currentOpen = (currentOpenThreadIds ?? Array.Empty<ResourceId>()).ToArray();
@@ -160,7 +166,11 @@ internal sealed partial class DesktopSessionHost
                         throw new InvalidDataException("Archive ownership changed during cleanup.");
                 }
                 await ArchiveCleanupExecutionFiles.DeleteAsync(currentFiles, ProfileDirectory, RevalidateGuard,
-                    bytes => { deletedFiles++; deletedBytes += bytes; }, token).ConfigureAwait(false);
+                    bytes =>
+                    {
+                        deletedFiles++; deletedBytes += bytes;
+                        AfterArchiveCleanupFileDeletedForTests?.Invoke(admission);
+                    }, token).ConfigureAwait(false);
                 if (currentFiles.All(directory => directory.Files.Count == 0))
                 {
                     // A zero-file candidate still needs its storage/anchor evidence immediately before loss of catalog data.
@@ -170,7 +180,7 @@ internal sealed partial class DesktopSessionHost
                 }
                 await RevalidateGuard().ConfigureAwait(false);
                 ArchiveCleanupExecutionFiles.ValidateCompleted(currentFiles, ProfileDirectory);
-                await _content.Catalog.DeleteCleanupThreadAsync(expected, token).ConfigureAwait(false);
+                await _content.Catalog.DeleteCleanupThreadAdmittedAsync(admission, expected, token).ConfigureAwait(false);
                 deleted.Add(row.Id);
             }
         }
@@ -179,7 +189,18 @@ internal sealed partial class DesktopSessionHost
         catch (Exception error) { errors.Add(error.Message); }
         finally
         {
-            if (commandHeld) { SignalChanged(); _commands.Release(); }
+            if (commandHeld)
+            {
+                // Both await-using scopes above have ended (directory leases, then the
+                // Registry/queue reservation), also on cancellation/failure. The outer
+                // interactive owner must not release its token before this awaited tail.
+                try
+                {
+                    if (AfterArchiveCleanupDisposalForTests is { } afterDisposal)
+                        await afterDisposal(admission).ConfigureAwait(false);
+                }
+                finally { SignalChanged(); _commands.Release(); }
+            }
         }
         return new(Array.AsReadOnly(deleted.ToArray()), Array.AsReadOnly(plan.SelectedIds.Except(deleted).ToArray()),
             true, canceled, Array.AsReadOnly(errors.ToArray()), deletedFiles, deletedBytes);

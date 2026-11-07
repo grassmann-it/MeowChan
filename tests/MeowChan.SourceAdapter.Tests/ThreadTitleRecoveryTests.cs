@@ -120,11 +120,8 @@ public sealed class ThreadTitleRecoveryTests
         const string title = "Metadata survives without full text";
         using SourceAdapterTests.TemporaryProfile profile = new();
         FixtureSource online = new("title-a", request => Observe(request, title, SourceThreadState.Active, Opening("Private fixture OP")));
-        await using (Session first = await Session.OpenAsync(profile.Path, online))
+        await using (Session first = await Session.OpenAsync(profile.Path, captureInitially, online))
         {
-            if (!captureInitially)
-                await first.Content.Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(online.Id,
-                    online.Url, "", Path.Combine(profile.Path, "media"), false));
             IThread thread = await first.AddAndSettleAsync(online);
             if (captureInitially) await Assert.IsAssignableFrom<BaseThread>(thread).SetCaptureEnabledAsync(false);
             AssertTitle(first, thread, title);
@@ -294,13 +291,19 @@ public sealed class ThreadTitleRecoveryTests
             Registry = new Registry(_adapters, Queue, Path.Combine(profile, "media"), TimeSpan.FromHours(1), 3600,
                 new SessionStore(profile, _lease), true, contentRuntime: Content, workStore: new WorkStateStore(profile, _lease));
         }
-        public static async Task<Session> OpenAsync(string profile, params FixtureSource[] sources)
+        public static Task<Session> OpenAsync(string profile, params FixtureSource[] sources)
+            => OpenAsync(profile, true, sources);
+        public static async Task<Session> OpenAsync(string profile, bool captureEnabled, params FixtureSource[] sources)
         {
             Session session = new(profile, sources);
             try
             {
                 await session.Content.InitializeAsync();
-                await session.Registry.RestoreAsync();
+                if (!captureEnabled)
+                    foreach (FixtureSource source in sources)
+                        await session.Content.Catalog.RegisterThreadAsync(new ArchiveThreadRegistration(source.Id,
+                            source.Url, "", Path.Combine(profile, "media"), false));
+                await session.Registry.StartAsync(session._lease);
                 return session;
             }
             catch { await session.DisposeAsync(); throw; }

@@ -54,10 +54,13 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             return;
         }
         using CancellationTokenSource lifetime = Source.LinkLifetime(token);
+        // Keep the original monitor generation while source disable/cancel uses
+        // its linked child. Retire this explicit scope before lifetime is disposed.
+        using ContentCancellationScope contentScope = BindContentCancellationScope(token, lifetime.Token);
         token = lifetime.Token;
         // Previously captured, still eligible media need not wait for fresh metadata admission.
         if (_knownMedia.Count > 0)
-            await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
+            await EnqueueKnownMediaAsync(queue, _knownMedia, token, contentScope).ConfigureAwait(false);
         if (_retryAt is DateTimeOffset due && due > _clock.GetUtcNow())
             throw _deferredHistory ?? new SourceCheckDeferredException(due, "source_failure_retry", false, _retryFailure);
         using var history = new Http.PluginHostHttp.MetadataHistory();
@@ -73,19 +76,19 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         switch (result)
         {
             case PluginSdk.ThreadSnapshot observed:
-                await ApplyAsync(observed.Snapshot, queue, token).ConfigureAwait(false);
+                await ApplyAsync(observed.Snapshot, queue, token, contentScope).ConfigureAwait(false);
                 return;
             case ThreadUnchanged unchanged:
                 _retryAt = null;
                 _deferredHistory = null;
                 _retryFailure = null;
                 _validators = unchanged.Validators;
-                await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, token, contentScope).ConfigureAwait(false);
                 return;
             case ThreadNotFound:
                 await ObserveSourceEndWithCancellationAsync(ThreadSourceState.NotFound, null, token).ConfigureAwait(false);
-                await CaptureSourceStateAsync(ThreadSourceState.NotFound, token).ConfigureAwait(false);
-                await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
+                await CaptureSourceStateAsync(ThreadSourceState.NotFound, token, contentScope).ConfigureAwait(false);
+                await EnqueueKnownMediaAsync(queue, _knownMedia, token, contentScope).ConfigureAwait(false);
                 await SettleTerminalWorkAsync().ConfigureAwait(false);
                 return;
             case ThreadDeferred deferred:
@@ -104,7 +107,8 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     private static MediaProviderSizeHint? Hint(SourceSizeHint? hint) => hint == null ? null
         : new(hint.RawValue, hint.UnitLabel, (MediaSizePrecision)(int)hint.Precision);
 
-    private async Task ApplyAsync(SourceThreadSnapshot snapshot, DownloadQueue queue, CancellationToken token)
+    private async Task ApplyAsync(SourceThreadSnapshot snapshot, DownloadQueue queue, CancellationToken token,
+        ContentCancellationScope contentScope)
     {
         if (!Source.Router.TryResolve(snapshot.Url, out SourceResourceKind kind, out string boardId, out string? id, out _)
             || kind != SourceResourceKind.Thread || boardId != Board.BoardCode || id != ThreadId)
@@ -180,13 +184,13 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
         if (state == ThreadSourceState.Archived) await ObserveSourceEndWithCancellationAsync(state, capture, token).ConfigureAwait(false);
         Title = title;
         foreach (KeyValuePair<string, DownloadItem> item in observedMedia) _knownMedia[item.Key] = item.Value;
-        await CaptureContentAsync(capture, token).ConfigureAwait(false);
+        await CaptureContentAsync(capture, token, contentScope).ConfigureAwait(false);
         _validators = snapshot.Validators;
         _hasSnapshot = true;
         _retryAt = null;
                 _deferredHistory = null;
                 _retryFailure = null;
-        await EnqueueKnownMediaAsync(queue, _knownMedia, token).ConfigureAwait(false);
+        await EnqueueKnownMediaAsync(queue, _knownMedia, token, contentScope).ConfigureAwait(false);
         if (state != ThreadSourceState.Active) await SettleTerminalWorkAsync().ConfigureAwait(false);
     }
 

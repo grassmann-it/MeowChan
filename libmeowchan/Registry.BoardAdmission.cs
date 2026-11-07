@@ -14,8 +14,16 @@ public sealed partial class Registry
     private BoardAdmissionStore? _boardAdmission;
     public void ConfigureBoardAdmission(BoardAdmissionStore store)
     {
-        if (_restored) throw new InvalidOperationException("Configure admission before restoring watches.");
-        _boardAdmission = store;
+        ArgumentNullException.ThrowIfNull(store);
+        lock (_state)
+        {
+            if (_restored || _standaloneStartup != null || _producerStopRequested || _stopping)
+                throw new InvalidOperationException("Configure admission before starting or restoring watches.");
+            ProfileLease? lease = BoundProfileLease;
+            if (lease != null && !ReferenceEquals(lease, store.ProfileLease))
+                throw new InvalidOperationException("Admission storage belongs to a different profile lease.");
+            _boardAdmission = store;
+        }
         if (store.LoadWarning != null) Warn(store.LoadWarning);
     }
 

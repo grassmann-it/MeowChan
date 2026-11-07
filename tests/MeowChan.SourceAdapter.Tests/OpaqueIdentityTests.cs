@@ -46,7 +46,7 @@ public sealed class OpaqueIdentityTests
             DownloadQueue queue = new(2, 1048576);
             await using Registry registry = new(new[] { source }, queue, mediaRoot, TimeSpan.FromHours(1), 3600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             AdmissionResult admitted = await registry.AddAsync(canonical.AbsoluteUri);
             Assert.Equal(AdmissionStatus.Added, admitted.Status);
             await SourceAdapterTests.WaitUntilAsync(() => admitted.Thread!.DownloadedMediaCount == attachments.Length);
@@ -65,7 +65,7 @@ public sealed class OpaqueIdentityTests
             WorkStateStore work = new(profile.Path, lease);
             await using Registry registry = new(new[] { source }, queue, mediaRoot, TimeSpan.FromHours(1), 3600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: work);
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             WorkResource resource = Assert.Single(work.LoadResources());
             Assert.Equal(canonical.AbsoluteUri, resource.Url);
             IReadOnlyList<MediaWork> saved = work.LoadMedia(resource.Url, resource.Generation);

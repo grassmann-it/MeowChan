@@ -23,6 +23,7 @@ public sealed class ProfileLease : IDisposable
     private FileStream? _lockStream;
     private readonly ProfileDirectoryIdentity? _directoryIdentity;
     private readonly ProfileAdmission _admission;
+    private object? _startupOwner;
 
     public string ProfileDirectory { get; }
     // Captured under the exclusive lease, before this acquisition publishes protocol traces.
@@ -162,6 +163,22 @@ public sealed class ProfileLease : IDisposable
                 // The pending file was already removed; the published marker stays intact.
             }
         }
+    }
+
+    // Single coordinator per lease lifetime; a claim supplies no writer authority.
+    // Keep failed claims owned so another Registry cannot resume partial startup.
+    internal void ClaimStartupOwner(object owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        RunExclusive(() =>
+        {
+            if (_admission.Phase != ProfileAdmissionPhase.Starting)
+                throw new InvalidOperationException("The profile is not starting.");
+            if (_startupOwner != null && !ReferenceEquals(_startupOwner, owner))
+                throw new InvalidOperationException("A different session owns profile startup.");
+            _startupOwner = owner;
+            return true;
+        });
     }
 
     internal void EnsureMatches(string profileDirectory)

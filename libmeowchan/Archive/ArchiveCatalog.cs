@@ -26,8 +26,18 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(lease);
+        ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission,
+            () => OpenAdmittedAsync(profileDirectory, lease, admission, cancellationToken));
+    }
+
+    internal static Task<ArchiveCatalog> OpenAdmittedAsync(string profileDirectory, ProfileLease lease,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(admission);
         string directory = ProfileLease.NormalizeDirectory(profileDirectory);
-        return Task.Run(() => lease.RunExclusive(() =>
+        return Task.Run(() => lease.RunStoreWrite(admission, () =>
         {
             cancellationToken.ThrowIfCancellationRequested();
             lease.EnsureMatches(directory);
@@ -91,8 +101,15 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     public Task<ArchiveThreadSummary> RegisterThreadAsync(ArchiveThreadRegistration registration,
         CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => RegisterThreadAdmittedAsync(admission, registration, cancellationToken));
+    }
+
+    internal Task<ArchiveThreadSummary> RegisterThreadAdmittedAsync(ProfileAdmissionToken admission,
+        ArchiveThreadRegistration registration, CancellationToken cancellationToken = default)
+    {
         ArchiveValidation.ValidateRegistration(registration);
-        return WriteAsync((connection, transaction) =>
+        return WriteAdmittedAsync(admission, (connection, transaction) =>
         {
             Register(connection, transaction, registration, DateTimeOffset.UtcNow);
             return ArchiveSql.ReadSummary(connection, transaction, registration.Id)!;
@@ -103,10 +120,17 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     // content capture timestamp. Registration/startup is deliberately not observation.
     internal Task UpdateObservedTitleAsync(ResourceId id, string title, CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => UpdateObservedTitleAdmittedAsync(admission, id, title, cancellationToken));
+    }
+
+    internal Task UpdateObservedTitleAdmittedAsync(ProfileAdmissionToken admission, ResourceId id, string title,
+        CancellationToken cancellationToken = default)
+    {
         ArchiveValidation.ValidateId(id);
-        if (string.IsNullOrWhiteSpace(title)) return Task.CompletedTask;
-        return WriteAsync((connection, transaction) =>
+        return WriteAdmittedAsync(admission, (connection, transaction) =>
         {
+            if (string.IsNullOrWhiteSpace(title)) return true;
             using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
                 UPDATE archive_threads SET title=$title,search_text=$search,revision=revision+1
                 WHERE source=$source AND board=$board AND thread=$thread AND title<>$title
@@ -127,8 +151,15 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
 
     public Task SetCaptureEnabledAsync(ResourceId id, bool enabled, CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => SetCaptureEnabledAdmittedAsync(admission, id, enabled, cancellationToken));
+    }
+
+    internal Task SetCaptureEnabledAdmittedAsync(ProfileAdmissionToken admission, ResourceId id, bool enabled,
+        CancellationToken cancellationToken = default)
+    {
         ArchiveValidation.ValidateId(id);
-        return WriteAsync((connection, transaction) =>
+        return WriteAdmittedAsync(admission, (connection, transaction) =>
         {
             using SqliteCommand command = ArchiveSql.Command(connection, transaction,
                 "UPDATE archive_threads SET capture_enabled=$enabled, revision=revision+1 WHERE source=$source AND board=$board AND thread=$thread");
@@ -142,9 +173,16 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     /// <summary>Records observed source availability without claiming a new content capture or changing posts.</summary>
     public Task UpdateSourceStateAsync(ResourceId id, ThreadSourceState sourceState, CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => UpdateSourceStateAdmittedAsync(admission, id, sourceState, cancellationToken));
+    }
+
+    internal Task UpdateSourceStateAdmittedAsync(ProfileAdmissionToken admission, ResourceId id, ThreadSourceState sourceState,
+        CancellationToken cancellationToken = default)
+    {
         ArchiveValidation.ValidateId(id);
         if (!Enum.IsDefined(sourceState)) throw new ArgumentOutOfRangeException(nameof(sourceState));
-        return WriteAsync((connection, transaction) =>
+        return WriteAdmittedAsync(admission, (connection, transaction) =>
         {
             using SqliteCommand command = ArchiveSql.Command(connection, transaction,
                 "UPDATE archive_threads SET source_state=$state, revision=revision+1 WHERE source=$source AND board=$board AND thread=$thread");
@@ -160,14 +198,28 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
     /// not this explicit operation. Posts and missing fields are retained; this never commits media bytes.
     /// </summary>
     public Task CaptureAsync(CapturedThreadSnapshot snapshot, CancellationToken cancellationToken = default)
-        => CapturePreservingRevisionsAsync(StampObservedAttachments(snapshot), cancellationToken);
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => CaptureAdmittedAsync(admission, snapshot, cancellationToken));
+    }
+
+    internal Task CaptureAdmittedAsync(ProfileAdmissionToken admission, CapturedThreadSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+        => CapturePreservingRevisionsAdmittedAsync(admission, StampObservedAttachments(snapshot), cancellationToken);
 
     // Runtime restores/replays are not new observations. Their explicit legacy null keys
     // and previously frozen revisions must survive persistence without reclassification.
     internal Task CapturePreservingRevisionsAsync(CapturedThreadSnapshot snapshot, CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => CapturePreservingRevisionsAdmittedAsync(admission, snapshot, cancellationToken));
+    }
+
+    internal Task CapturePreservingRevisionsAdmittedAsync(ProfileAdmissionToken admission, CapturedThreadSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
         CapturedThreadSnapshot captured = ArchiveValidation.CopySnapshot(snapshot);
-        return WriteAsync((connection, transaction) =>
+        return WriteAdmittedAsync(admission, (connection, transaction) =>
         {
             ArchiveThreadSummary? before = ArchiveSql.ReadSummary(connection, transaction, captured.Id);
             bool urlChanged = before != null && before.Url != captured.Url;
@@ -203,20 +255,71 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         }, cancellationToken);
     }
 
+    // Narrow compatibility owner: acquire synchronously before scheduling, release only
+    // after the task (including cancelled-before-dispatch and fault paths) has settled.
     internal Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> operation,
         CancellationToken cancellationToken = default)
-        => Task.Run(() => _lease.RunExclusive(() =>
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            cancellationToken.ThrowIfCancellationRequested();
-            using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadWrite);
-            using SqliteTransaction transaction = connection.BeginTransaction();
-            ArchiveSql.ValidateSchema(connection, transaction);
-            T result = operation(connection, transaction);
-            cancellationToken.ThrowIfCancellationRequested();
-            transaction.Commit();
-            return result;
-        }), cancellationToken);
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission, () => WriteAdmittedAsync(admission, operation, cancellationToken));
+    }
+
+    // Observation seams for deterministic scheduling/commit lifetime tests; no authority.
+    internal Action<ProfileAdmissionToken>? BeforeWriteDispatchForTests { get; set; }
+    internal Action<ProfileAdmissionToken>? AfterWriteCommitForTests { get; set; }
+
+    internal Task<T> WriteAdmittedAsync<T>(ProfileAdmissionToken admission,
+        Func<SqliteConnection, SqliteTransaction, T> operation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(operation);
+        BeforeWriteDispatchForTests?.Invoke(admission);
+        return Task.Run(() => _lease.RunStoreWrite(admission,
+            () => WriteTransaction(admission, operation, cancellationToken)), cancellationToken);
+    }
+
+    // Only live Apply owns Exclusive. Startup is deliberately NOT an alternative,
+    // even though RunPrivateStoreCommit also supports explicitly startup-owned work.
+    internal Task<T> WriteTransferAdmittedAsync<T>(ProfileAdmissionToken admission,
+        Func<SqliteConnection, SqliteTransaction, T> operation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(operation);
+        if (admission.Kind != ProfileAdmissionKind.Exclusive)
+            throw new InvalidOperationException("Catalog transfer writes require exclusive profile admission.");
+        BeforeWriteDispatchForTests?.Invoke(admission);
+        return Task.Run(() => _lease.RunPrivateStoreCommit(admission,
+            () => WriteTransaction(admission, operation, cancellationToken)), cancellationToken);
+    }
+
+    // Entire synchronous SQL lifetime, including rollback/disposal on faults and
+    // commit on success, stays inside the lease's real consumer pin.
+    private T WriteTransaction<T>(ProfileAdmissionToken admission,
+        Func<SqliteConnection, SqliteTransaction, T> operation, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadWrite);
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        ArchiveSql.ValidateSchema(connection, transaction);
+        T result = operation(connection, transaction);
+        cancellationToken.ThrowIfCancellationRequested();
+        transaction.Commit();
+        AfterWriteCommitForTests?.Invoke(admission);
+        return result;
+    }
+
+    private static async Task<T> CompleteOwnedWriteAsync<T>(ProfileAdmissionToken admission, Func<Task<T>> operation)
+    {
+        try { return await operation().ConfigureAwait(false); }
+        finally { admission.Dispose(); }
+    }
+
+    private static async Task CompleteOwnedWriteAsync(ProfileAdmissionToken admission, Func<Task> operation)
+    {
+        try { await operation().ConfigureAwait(false); }
+        finally { admission.Dispose(); }
+    }
 
     internal Task<T> ReadAsync<T>(Func<SqliteConnection, T> operation, CancellationToken cancellationToken = default)
         => Task.Run(() => _lease.RunExclusive(() =>

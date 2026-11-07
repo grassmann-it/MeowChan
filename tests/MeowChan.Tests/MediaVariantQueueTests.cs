@@ -18,6 +18,7 @@ public sealed class MediaVariantQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         IWorkStateStore store = memory ? new MemoryWorkStateStore() : new WorkStateStore(directory.Path, lease);
+        if (!memory) lease.Admission.CompleteStartup(); // SQLite producers require Ready/Ordinary admission.
         using StubImageBoard board = new();
         BaseThread thread = (BaseThread)board.GetThread(new Uri(Url));
         WorkResource owner = Owner(directory, store);
@@ -48,6 +49,7 @@ public sealed class MediaVariantQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore store = new(directory.Path, lease);
+        lease.Admission.CompleteStartup(); // Queue binding/restoration may dispatch only after Ready.
         int requests = 0;
         using StubImageBoard board = new(new DelegateHandler((request, _) =>
         {
@@ -98,6 +100,7 @@ public sealed class MediaVariantQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore durable = new(directory.Path, lease);
+        lease.Admission.CompleteStartup(); // Queue binding/restoration may dispatch only after Ready.
         using StubImageBoard board = new();
         BaseThread thread = (BaseThread)board.GetThread(new Uri(Url));
         WorkResource owner = Owner(directory, durable);

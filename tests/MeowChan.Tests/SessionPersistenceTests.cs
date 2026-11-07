@@ -238,7 +238,7 @@ public sealed class SessionPersistenceTests
         SessionStore store = new SessionStore(directory.Path, lease);
         string root = Path.Combine(directory.Path, "downloads");
         await using Registry registry = CreateRegistry(provider, root, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
 
         await registry.AddAsync("https://stub.test/g/catalog");
         await registry.AddAsync(ThreadUrl + "/a-title#p234");
@@ -354,7 +354,7 @@ public sealed class SessionPersistenceTests
         using StubImageBoard provider = new StubImageBoard();
         SessionStore store = new SessionStore(directory.Path, lease);
         await using Registry registry = CreateRegistry(provider, directory.Path, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         IThread thread = (await registry.AddAsync(ThreadUrl)).Thread!;
 
         await registry.RemoveThreadAsync(thread);
@@ -397,7 +397,7 @@ public sealed class SessionPersistenceTests
         using StubImageBoard firstProvider = new StubImageBoard();
         await using (Registry first = CreateRegistry(firstProvider, directory.Path, new SessionStore(directory.Path, lease)))
         {
-            await first.RestoreAsync();
+            await first.StartAsync(lease);
             await first.AddAsync(BoardUrl);
             IThread removed = (await first.AddAsync(ThreadUrl)).Thread!;
             await first.RemoveThreadAsync(removed);
@@ -433,7 +433,7 @@ public sealed class SessionPersistenceTests
         using StubImageBoard provider = new StubImageBoard();
         SessionStore store = new SessionStore(directory.Path, lease);
         await using Registry registry = CreateRegistry(provider, directory.Path, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         await registry.AddAsync(BoardUrl);
         await registry.AddAsync(ThreadUrl);
         IThread removed = (await registry.AddAsync(SuppressedThreadUrl)).Thread!;
@@ -492,7 +492,7 @@ public sealed class SessionPersistenceTests
         };
         provider.ThreadFactory = _ => thread;
         await using Registry registry = CreateRegistry(provider, directory.Path, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         Task? shutdown = null;
         try
         {
@@ -602,7 +602,7 @@ public sealed class SessionPersistenceTests
         using ProfileLease lease = ProfileLease.Acquire(profile);
         using StubImageBoard provider = new StubImageBoard();
         await using Registry registry = CreateRegistry(provider, root, new SessionStore(profile, lease));
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         Assert.Equal(AdmissionStatus.Added, (await registry.AddAsync(BoardUrl)).Status);
         Assert.Equal(AdmissionStatus.Added, (await registry.AddAsync(ThreadUrl)).Status);
         AdmissionResult removable = await registry.AddAsync(SuppressedThreadUrl);
@@ -1019,7 +1019,7 @@ public sealed class SessionPersistenceTests
         string newRoot = Path.Combine(directory.Path, "second-root");
         SessionStore store = new SessionStore(directory.Path, lease);
         await using Registry registry = CreateRegistry(provider, oldRoot, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         await registry.AddAsync(BoardUrl);
         IThread existing = (await registry.AddAsync(ThreadUrl)).Thread!;
         await TestWait.UntilAsync(() => provider.Board.Clock.Waits == 1);
@@ -1194,7 +1194,7 @@ public sealed class SessionPersistenceTests
         using StubImageBoard provider = new StubImageBoard();
         SessionStore store = new SessionStore(directory.Path, lease);
         await using Registry registry = CreateRegistry(provider, directory.Path, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         IThread thread = (await registry.AddAsync(ThreadUrl)).Thread!;
         string filePath = Path.Combine(directory.Path, "saved_urls.json");
         string saved = File.ReadAllText(filePath);
@@ -1218,7 +1218,7 @@ public sealed class SessionPersistenceTests
         using StubImageBoard provider = new StubImageBoard();
         SessionStore store = new SessionStore(directory.Path, lease);
         await using Registry registry = CreateRegistry(provider, directory.Path, store);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         string[] urls = Enumerable.Range(100, 16).Select(id => $"https://stub.test/g/thread/{id}").ToArray();
 
         AdmissionResult[] admitted = await Task.WhenAll(urls.Select(url => registry.AddAsync(url)));

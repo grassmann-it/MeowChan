@@ -87,6 +87,8 @@ public sealed class WorkStateLifecycleTests
         DownloadItem firstItem = new(new Uri("https://stub.test/media.bin"), Path.Combine(directory.Path, "media.bin"),
             provider, firstThread, "media");
         DownloadQueue firstQueue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         firstQueue.ConfigureWorkState(store);
         firstQueue.BindWork(firstThread, resource);
         try
@@ -140,6 +142,8 @@ public sealed class WorkStateLifecycleTests
         }));
         ProbeThread thread = new(provider.Board, new Uri(ThreadUrl));
         DownloadQueue queue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store);
         queue.BindWork(thread, owner);
         DownloadItem item = new(new Uri("https://stub.test/media.bin"), Path.Combine(directory.Path, "media.bin"), provider, thread, "media");
@@ -174,6 +178,7 @@ public sealed class WorkStateLifecycleTests
         DownloadQueue queue = new(1, 1L << 30);
         await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
             workStore: store);
+        await registry.StartAsync(lease);
         await registry.AddAsync(ThreadUrl);
         await TestWait.UntilAsync(() => observed?.Checks == 1);
         await TestWait.UntilAsync(() => store.LoadResources().Single().Intent == WorkIntent.Completed);
@@ -214,6 +219,8 @@ public sealed class WorkStateLifecycleTests
         DownloadItem old = new(new Uri("https://stub.test/old.bin"), target, provider, firstThread, "media", expectedSize: 3);
         DownloadItem latest = new(new Uri("https://stub.test/new.bin"), target, provider, firstThread, "media", expectedSize: 4);
         DownloadQueue firstQueue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         firstQueue.ConfigureWorkState(store);
         firstQueue.BindWork(firstThread, resource);
         try
@@ -286,7 +293,7 @@ public sealed class WorkStateLifecycleTests
         DownloadQueue queue = new(1, 1L << 30);
         await using Registry registry = new([provider], queue, directory.Path, TimeSpan.FromMinutes(1), 60,
             sessions, workStore: work);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         await TestWait.UntilAsync(() => work.LoadMedia(url, 1).SingleOrDefault()?.Status == MediaWorkStatus.Succeeded);
         await TestWait.UntilAsync(() => work.LoadResources().Single().Intent == WorkIntent.Completed);
         Assert.Equal(0, Volatile.Read(ref endpoints));
@@ -334,7 +341,7 @@ public sealed class WorkStateLifecycleTests
         }));
         await using Registry registry = new([provider], new DownloadQueue(1, 1L << 30),
             directory.Path, TimeSpan.FromMinutes(1), 60, sessions, workStore: work);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         Assert.Equal(1, await registry.RetryCompletedMediaAsync(ThreadUrl));
         await TestWait.UntilAsync(() => work.LoadResources().Single().Intent == WorkIntent.Completed
             && work.LoadMedia(ThreadUrl, 1).Single().Status == MediaWorkStatus.NeedsIntervention);
@@ -365,7 +372,7 @@ public sealed class WorkStateLifecycleTests
         await using (Registry first = new([provider], pausedQueue, directory.Path,
             TimeSpan.FromMinutes(1), 60, sessions, workStore: work))
         {
-            await first.RestoreAsync();
+            await first.StartAsync(lease);
             Assert.Equal(1, await first.RetryCompletedMediaAsync(ThreadUrl));
             Assert.Equal(0, Volatile.Read(ref requests));
             Assert.Equal(WorkIntent.Repairing, work.LoadResources().Single().Intent);
@@ -373,6 +380,7 @@ public sealed class WorkStateLifecycleTests
         await using (Registry second = new([provider], new DownloadQueue(1, 1L << 30),
             directory.Path, TimeSpan.FromMinutes(1), 60, sessions, workStore: work))
         {
+            // The successful first Registry leaves this caller-owned lease Ready.
             await second.RestoreAsync();
             await TestWait.UntilAsync(() => work.LoadMedia(ThreadUrl, 1).Single().Status == MediaWorkStatus.Succeeded);
             await TestWait.UntilAsync(() => work.LoadResources().Single().Intent == WorkIntent.Completed);
@@ -407,7 +415,7 @@ public sealed class WorkStateLifecycleTests
         }));
         await using Registry registry = new([provider], new DownloadQueue(1, 1L << 30),
             directory.Path, TimeSpan.FromMinutes(1), 60, sessions, workStore: work);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         await TestWait.UntilAsync(() => work.LoadResources().Single().Intent == WorkIntent.Completed);
         Assert.Equal(0, Volatile.Read(ref requests));
         Assert.Equal(ended, work.LoadResources().Single().EndObservedAt);
@@ -434,6 +442,8 @@ public sealed class WorkStateLifecycleTests
         ProbeThread thread = new(provider.Board, new Uri(ThreadUrl));
         DownloadItem item = new(new Uri("https://stub.test/media.bin"), Path.Combine(directory.Path, "missing.bin"), provider, thread, "missing");
         DownloadQueue queue = new(1, 1L << 30, timeProvider: clock);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        if (durable) lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store);
         queue.BindWork(thread, owner);
         try

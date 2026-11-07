@@ -32,6 +32,7 @@ public sealed class LegacySourceMigrationTests
         DownloadQueue queue = new(1, 1048576);
         await using Registry registry = new(new[] { source }, queue, root, TimeSpan.FromHours(1), 3600,
             contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
+        await registry.StartAsync(lease);
         AdmissionResult result = await registry.AddAsync("https://8kun.top/g/res/123.html");
         await SourceAdapterTests.WaitUntilAsync(() => result.Thread!.DownloadedMediaCount == 1);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(root, "8kun", "g", "123", "456.jpg")));

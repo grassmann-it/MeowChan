@@ -6,10 +6,10 @@ namespace MeowChan.Transfer;
 
 // INTERNAL technical slice: no media import, no Desktop offer, no active download capability.
 internal enum NativeTextImportError { None, InvalidPackage, MediaNotSupported, MissingPageUrl, TargetBudgetExceeded }
-internal enum NativeTextImportCommitStatus { Committed, StalePlan }
+internal enum NativeTextImportCommitStatus { Committed, StalePlan, Inactive, Unknown }
 internal sealed record NativeTextImportPreparation(NativeTextImportPlan? Plan, NativeTextImportError Error);
 internal sealed record NativeTextImportCommitResult(NativeTextImportCommitStatus Status,
-    int NewThreads = 0, int NewPosts = 0, int UpdatedPosts = 0, int ConflictingThreads = 0, bool IsReplay = false);
+    int NewThreads = 0, int NewPosts = 0, int UpdatedPosts = 0, int ConflictingThreads = 0, bool IsReplay = false, string? Diagnostic = null);
 internal sealed record NativeTextImportCandidate(string Sha256, DateTimeOffset ImportedAtUtc,
     DateTimeOffset ExportedAtUtc, bool HasConflicts, ImmutableArray<byte> CatalogBytes);
 internal sealed record NativeTextImportCandidatePage(ImmutableArray<NativeTextImportCandidate> Items, string? NextSha256);

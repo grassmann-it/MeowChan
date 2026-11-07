@@ -33,9 +33,10 @@ public sealed class NativeTransfer404RoundTripRegressionTests
             {
                 NativeMediaImportPreparation prepared = await catalog.PrepareNativeMediaImportAsync(seed);
                 Assert.Equal(NativeMediaImportError.None, prepared.Error);
+                using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
                 Assert.Equal(NativeMediaImportCommitStatus.Committed,
-                    (await catalog.CommitNativeMediaImportAsync(
-                        Assert.IsType<NativeMediaImportPlan>(prepared.Plan), new MediaStore())).Status);
+                    (await CommitSeedWithExclusiveAsync(admission, catalog,
+                        Assert.IsType<NativeMediaImportPlan>(prepared.Plan))).Status);
             }
 
             // Establish one genuinely historical target binding via the real passive producer;
@@ -46,9 +47,10 @@ public sealed class NativeTransfer404RoundTripRegressionTests
             {
                 NativeMediaMergePreparation prepared = await catalog.PrepareNativeMediaMergeAsync(stage);
                 Assert.Equal(NativeMediaMergeError.None, prepared.Error);
+                using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
                 Assert.Equal(NativeMediaImportCommitStatus.Committed,
-                    (await catalog.CommitNativeMediaMergeAsync(
-                        Assert.IsType<NativeMediaMergePlan>(prepared.Plan), new MediaStore())).Status);
+                    (await CommitMergeWithExclusiveAsync(admission, catalog,
+                        Assert.IsType<NativeMediaMergePlan>(prepared.Plan), ProfileExclusiveDisposition.SafeToResume)).Status);
             }
             await catalog.SetCaptureEnabledAsync(Id, captureEnabled);
             await using (ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile))
@@ -77,7 +79,8 @@ public sealed class NativeTransfer404RoundTripRegressionTests
             Assert.Equal(NativeMediaMergeError.None, preparation.Error);
             NativeMediaMergePlan plan = Assert.IsType<NativeMediaMergePlan>(preparation.Plan);
             budget = plan.ExportBudget;
-            NativeMediaMergeResult result = await catalog.CommitNativeMediaMergeAsync(plan, new MediaStore());
+            using ProfileAdmissionToken mergeAdmission = await EnterExclusiveAsync(lease);
+            NativeMediaMergeResult result = await CommitMergeWithExclusiveAsync(mergeAdmission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
             Assert.Equal(NativeMediaImportCommitStatus.Committed, result.Status);
             Assert.Equal(10, result.NewPosts);
             Assert.Equal(0, result.UpdatedPosts);
@@ -154,6 +157,35 @@ public sealed class NativeTransfer404RoundTripRegressionTests
 
     private static Task<MediaAssetSnapshot[]> Snapshots(ArchivedThreadView view)
         => Task.WhenAll(view.MediaDirectories.Select(root => MediaAssetReader.OpenAsync(root)));
+
+    // Direct synthetic storage owner via existing Core IVT, not public Registry startup.
+    // Await initial store setup before Ready; retain the real token through reconciliation.
+    private static ValueTask<ProfileAdmissionToken> EnterExclusiveAsync(ProfileLease lease)
+    {
+        if (lease.Admission.Phase == ProfileAdmissionPhase.Starting) lease.Admission.CompleteStartup();
+        return lease.Admission.EnterExclusiveAsync();
+    }
+
+    private static async Task<NativeMediaMergeResult> CommitMergeWithExclusiveAsync(
+        ProfileAdmissionToken admission, ArchiveCatalog catalog, NativeMediaMergePlan plan,
+        ProfileExclusiveDisposition expectedDisposition, Action<NativeMediaImportPhase>? checkpoint = null)
+    {
+        ProfileExclusiveOutcome<NativeMediaMergeResult> outcome =
+            await catalog.CommitNativeMediaMergeAdmittedAsync(admission, plan, new MediaStore(), checkpoint: checkpoint);
+        Assert.Equal(expectedDisposition, outcome.Disposition);
+        catalog.EnsureTransferAdmission(admission); // Borrowed authority survives all work and reconciliation.
+        return outcome.Result;
+    }
+
+    private static async Task<NativeMediaImportCommitResult> CommitSeedWithExclusiveAsync(
+        ProfileAdmissionToken admission, ArchiveCatalog catalog, NativeMediaImportPlan plan)
+    {
+        ProfileExclusiveOutcome<NativeMediaImportCommitResult> outcome =
+            await catalog.CommitNativeMediaImportAdmittedAsync(admission, plan, new MediaStore());
+        Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+        catalog.EnsureTransferAdmission(admission); // The consumer must leave its borrowed owner live.
+        return outcome.Result;
+    }
 
     private static async Task<ResolvedMediaAttachment> Resolve(IReadOnlyList<MediaAssetSnapshot> snapshots,
         string postId, CapturedAttachment metadata)

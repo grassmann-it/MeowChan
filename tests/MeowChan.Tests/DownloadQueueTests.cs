@@ -773,7 +773,7 @@ public sealed partial class DownloadQueueTests
         await using Registry registry = new Registry([board], queue, directory.Path, TimeSpan.FromSeconds(60), 60, store);
         try
         {
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             IThread automatic = registry.Threads.Single(thread => thread.ThreadId == "1");
             IThread manual = registry.Threads.Single(thread => thread.ThreadId == "2");
             Assert.True(queue.TryEnqueue(CreateItem(board, automatic, directory, "active.bin", "active")));

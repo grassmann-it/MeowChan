@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using MeowChan.Persistence;
 
 namespace MeowChan.Archive;
 
@@ -13,7 +14,15 @@ public sealed partial class ArchiveCatalog
     // Only the cleanup host calls this while holding its resource/target reservation.
     // Recheck summary, historical paths and every other owner in the deletion transaction.
     internal Task<bool> DeleteCleanupThreadAsync(ArchiveDeletedThread expected, CancellationToken token = default)
-        => WriteAsync((connection, transaction) =>
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
+        return CompleteOwnedWriteAsync(admission,
+            () => DeleteCleanupThreadAdmittedAsync(admission, expected, token));
+    }
+
+    internal Task<bool> DeleteCleanupThreadAdmittedAsync(ProfileAdmissionToken admission,
+        ArchiveDeletedThread expected, CancellationToken token = default)
+        => WriteAdmittedAsync(admission, (connection, transaction) =>
         {
             ResourceId id = expected.Summary.Id;
             IReadOnlyList<ArchiveDeletedThread> current = ReadSelected(connection, transaction, new[] { id }, token);

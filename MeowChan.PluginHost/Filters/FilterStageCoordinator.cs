@@ -73,7 +73,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     }
 
     IOriginalMediaFilter IOriginalMediaFilterFactory.Create(DownloadItem item, CandidateDecision decision,
-        Func<bool> isCurrent, Func<bool?, string, CancellationToken, Task> recordOmission)
+        Func<bool> isCurrent, Func<DownloadItem, bool?, string, CancellationToken, Task> recordOmission)
         => new Candidate(this, decision, isCurrent, recordOmission);
 
     public async Task<ImageAssetChunk> ReadImageAsync(string pluginId, string assetToken, long offset, int count,
@@ -168,12 +168,13 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
     }
 
     private sealed class Candidate(FilterStageCoordinator owner, CandidateDecision decision, Func<bool> current,
-        Func<bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
+        Func<DownloadItem, bool?, string, CancellationToken, Task> record) : IOriginalMediaFilter
     {
         public bool CanStart => owner.CanStart;
         public event Action? CapacityChanged { add => owner.CapacityChanged += value; remove => owner.CapacityChanged -= value; }
         public async Task<IOriginalMediaFilterLease> AcquireAsync(DownloadItem item, CancellationToken token)
         {
+            if (item.ContentProfileLease != null) item.RequireProfileWriteAdmission(owner._profileLease);
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, owner._shutdown.Token);
             lock (owner._state) owner._waiting++;
             try { await owner._slots.WaitAsync(linked.Token).ConfigureAwait(false); }
@@ -199,13 +200,13 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
             }
             catch (MediaFilterOmissionException exception)
             {
-                try { await record(exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); }
+                try { await record(item, exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); }
                 finally { Release(); }
                 throw;
             }
             catch (IOException exception)
             {
-                try { await record(false, "filter_stage_io", token).ConfigureAwait(false); }
+                try { await record(item, false, "filter_stage_io", token).ConfigureAwait(false); }
                 finally { Release(); }
                 throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message);
             }
@@ -219,7 +220,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         private readonly FilterStageCoordinator _owner;
         private readonly CandidateDecision _decision;
         private readonly Func<bool> _current;
-        private readonly Func<bool?, string, CancellationToken, Task> _record;
+        private readonly Func<DownloadItem, bool?, string, CancellationToken, Task> _record;
         private readonly CancellationTokenSource _lifetime;
         private readonly string _id = Guid.NewGuid().ToString("N");
         private readonly string _token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -236,7 +237,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         private string JournalPath => Path.Combine(_owner._directory, "stage-" + _id + ".json");
 
         internal Lease(FilterStageCoordinator owner, CandidateDecision decision, FilterPluginBinding binding, Func<bool> current,
-            Func<bool?, string, CancellationToken, Task> record, CancellationToken token)
+            Func<DownloadItem, bool?, string, CancellationToken, Task> record, CancellationToken token)
         {
             _owner = owner; _decision = decision; Binding = binding; _current = current; _record = record;
             _lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, owner._shutdown.Token);
@@ -259,6 +260,7 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
         public async Task<MediaCommitResult> CommitAsync(DownloadItem item, Stream source, MediaStore store,
             Func<int, CancellationToken, Task> throttle, CancellationToken token)
         {
+            if (item.ContentProfileLease != null) item.RequireProfileWriteAdmission(_owner._profileLease);
             using var measurement = PerformanceDiagnostics.Measure("filter.stage", _request,
                 watch: _decision.Metadata.Key.Resource.ToString(), asset: _id, epoch: Binding.Operation.Generation);
             bool committingToStore = false;
@@ -351,17 +353,17 @@ public sealed class FilterStageCoordinator : IAsyncDisposable, IOriginalMediaFil
                         _owner._ledger.Deleted(_targetTemporary); _targetTemporary = null;
                     }
                 }
-                await _record(null, result.ReasonCode, CancellationToken.None).ConfigureAwait(false);
+                await _record(item, null, result.ReasonCode, CancellationToken.None).ConfigureAwait(false);
                 return committed;
             }
             catch (IOException exception) when (!committingToStore)
             {
-                await _record(false, "filter_stage_io", token).ConfigureAwait(false);
+                await _record(item, false, "filter_stage_io", token).ConfigureAwait(false);
                 throw new MediaFilterOmissionException(false, "filter_stage_io", exception.Message);
             }
             catch (MediaFilterOmissionException exception)
             {
-                await _record(exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); throw;
+                await _record(item, exception.IsNoMatch, exception.ReasonCode, token).ConfigureAwait(false); throw;
             }
         }
 

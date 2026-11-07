@@ -37,7 +37,7 @@ public sealed class VariantArchiveTests
             DownloadQueue queue = new(2, 1048576);
             await using Registry registry = new(new[] { source }, queue, mediaRoot, TimeSpan.FromHours(1), 3600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             AdmissionResult admitted = await registry.AddAsync("https://variants.test/b/thread/1");
             await SourceAdapterTests.WaitUntilAsync(() => admitted.Thread!.DownloadedMediaCount == 2);
             Assert.Equal(2, admitted.Thread!.TotalMediaCount);
@@ -52,7 +52,7 @@ public sealed class VariantArchiveTests
             WorkStateStore work = new(profile.Path, lease);
             await using Registry registry = new(new[] { source }, queue, mediaRoot, TimeSpan.FromHours(1), 3600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: work);
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             WorkResource thread = work.LoadResources().Single();
             IReadOnlyList<MediaWork> saved = work.LoadMedia(thread.Url, thread.Generation);
             Assert.Equal(2, saved.Count);

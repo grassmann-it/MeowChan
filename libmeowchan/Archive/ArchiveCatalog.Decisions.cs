@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using MeowChan.Rules;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 
 namespace MeowChan.Archive;
@@ -25,10 +26,19 @@ public sealed partial class ArchiveCatalog
     public Task<CandidateDecision> GetOrCreateDecisionAsync(CandidateMetadata candidate, MediaRuleStore rules,
         bool previouslySaved = false, CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission,
+            () => GetOrCreateDecisionAdmittedAsync(admission, candidate, rules, previouslySaved, cancellationToken));
+    }
+
+    internal Task<CandidateDecision> GetOrCreateDecisionAdmittedAsync(ProfileAdmissionToken admission,
+        CandidateMetadata candidate, MediaRuleStore rules, bool previouslySaved = false,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(rules);
         candidate = CopyCandidateIntegrity(candidate);
-        return WriteAsync((SqliteConnection connection, SqliteTransaction transaction) =>
+        return WriteAdmittedAsync(admission, (SqliteConnection connection, SqliteTransaction transaction) =>
         {
             CandidateDecision? existing = FindDecision(connection, transaction, candidate.Key);
             if (existing != null)
@@ -90,7 +100,15 @@ public sealed partial class ArchiveCatalog
 
     internal Task<CandidateDecision?> RecordFilterOmissionAsync(CandidateDecision expected, bool? noMatch,
         string reason, CancellationToken cancellationToken)
-        => WriteAsync((SqliteConnection connection, SqliteTransaction transaction) =>
+    {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission,
+            () => RecordFilterOmissionAdmittedAsync(admission, expected, noMatch, reason, cancellationToken));
+    }
+
+    internal Task<CandidateDecision?> RecordFilterOmissionAdmittedAsync(ProfileAdmissionToken admission,
+        CandidateDecision expected, bool? noMatch, string reason, CancellationToken cancellationToken)
+        => WriteAdmittedAsync(admission, (SqliteConnection connection, SqliteTransaction transaction) =>
         {
             CandidateDecision? current = FindDecision(connection, transaction, expected.Metadata.Key);
             if (current == null || current.Metadata != expected.Metadata) return null;

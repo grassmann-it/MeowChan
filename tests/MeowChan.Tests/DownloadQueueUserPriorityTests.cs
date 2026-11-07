@@ -26,6 +26,7 @@ public sealed partial class DownloadQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore store = new(directory.Path, lease);
+        lease.Admission.CompleteStartup(); // Queue producers require Ready/Ordinary admission.
         using GatedMediaHandler handler = new();
         using StubImageBoard board = new(handler);
         DownloadQueue queue = new(1, UnthrottledBandwidth, maxPendingDownloads: 32);
@@ -72,6 +73,7 @@ public sealed partial class DownloadQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore store = new(directory.Path, lease);
+        lease.Admission.CompleteStartup(); // Queue producers require Ready/Ordinary admission.
         using GatedMediaHandler handler = new();
         using StubImageBoard board = new(handler);
         DownloadQueue queue = new(1, UnthrottledBandwidth, maxPendingDownloads: 4);
@@ -117,6 +119,7 @@ public sealed partial class DownloadQueueTests
         using TempDirectory directory = new();
         using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         WorkStateStore store = new(directory.Path, lease);
+        lease.Admission.CompleteStartup(); // Queue producers require Ready/Ordinary admission.
         using GatedMediaHandler handler = new();
         using StubImageBoard board = new(handler);
         DownloadQueue queue = new(1, UnthrottledBandwidth, maxPendingDownloads: 1);

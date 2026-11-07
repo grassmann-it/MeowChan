@@ -9,11 +9,67 @@ namespace MeowChan.Downloader;
 
 public partial class DownloadQueue
 {
+    // Independent consumer identity, not an epoch/token-derived identity. Never
+    // clear it when a producer generation is detached, replaced or drained.
+    private ProfileLease? _boundProfileLease;
+    private bool _profileBindingClosed;
     private ProfileProducerEpoch? _producerEpoch;
     private bool _ownsProducerEpoch;
     private bool _producerSuspended;
     private bool _producerClosed;
     private TaskCompletionSource _producerResumed = CreateCompletedSource();
+
+    // Preflight has no binding effects. A competing startup claim must leave a
+    // previously unbound queue available to its Registry's later valid startup.
+    internal void ValidateProfileLeaseBinding(ProfileLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        lease.RunExclusive(() => true);
+        lock (_stateLock) ValidateProfileLeaseBindingLocked(lease);
+    }
+
+    internal void BindProfileLease(ProfileLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        // Live lease check outside the queue lock. Binding itself performs only
+        // reference checks under _stateLock, never a token pin or consumer I/O.
+        lease.RunExclusive(() => true);
+        lock (_stateLock)
+        {
+            ValidateProfileLeaseBindingLocked(lease);
+            _boundProfileLease ??= lease;
+        }
+    }
+
+    private void ValidateProfileLeaseBindingLocked(ProfileLease lease)
+    {
+        if (_workStore is WorkStateStore sqlite && !ReferenceEquals(sqlite.ProfileLease, lease))
+            throw new InvalidOperationException("The queue work store belongs to a different profile lease.");
+        if (_boundProfileLease != null)
+        {
+            if (!ReferenceEquals(_boundProfileLease, lease))
+                throw new InvalidOperationException("The queue profile lease cannot be rebound.");
+            return;
+        }
+        if (_profileBindingClosed || _stopping || _producerClosed)
+            throw new InvalidOperationException("Bind the queue profile lease before its first producer epoch or job.");
+    }
+
+    private ProfileLease? ResolveExecutionProfileLease(DownloadItem item)
+    {
+        ProfileLease? bound, store;
+        lock (_stateLock)
+        {
+            bound = _boundProfileLease;
+            store = (_workStore as WorkStateStore)?.ProfileLease;
+        }
+        ProfileLease? expected = bound ?? store ?? item.ContentProfileLease;
+        if (store != null && !ReferenceEquals(store, expected))
+            throw new InvalidOperationException("The queue work store belongs to a different profile lease.");
+        if (item.ContentProfileLease != null && !ReferenceEquals(item.ContentProfileLease, expected))
+            throw new InvalidOperationException("The queue media item belongs to a different profile lease.");
+        return expected;
+    }
 
     internal void PrepareProfileProducers()
     {
@@ -28,11 +84,13 @@ public partial class DownloadQueue
 
     internal void InstallProfileEpoch(ProfileProducerEpoch epoch)
     {
+        ArgumentNullException.ThrowIfNull(epoch);
         lock (_stateLock)
         {
             if (_stopping || _producerClosed) throw new InvalidOperationException("Queue is stopping.");
             if (_producerEpoch != null && !ReferenceEquals(_producerEpoch, epoch))
                 throw new InvalidOperationException("The old queue epoch must drain first.");
+            _profileBindingClosed = true;
             _producerEpoch = epoch;
         }
     }
@@ -112,10 +170,12 @@ public partial class DownloadQueue
         if (_producerSuspended || _producerClosed || _stopping) throw new ProducerSuspendedException();
         if (_producerEpoch == null && _workStore is WorkStateStore sqlite)
         {
-            _producerEpoch = new(sqlite.ProfileLease.Admission.EnterStoreWriter());
+            _producerEpoch = new(sqlite.ProfileLease.Admission.EnterOrdinaryWriter());
             _ownsProducerEpoch = true;
         }
-        return _producerEpoch?.Enter();
+        ProfileProducerEpoch.Use? use = _producerEpoch?.Enter();
+        _profileBindingClosed = true;
+        return use;
     }
 
     // Deterministic park observations; never invoked under the queue state lock.

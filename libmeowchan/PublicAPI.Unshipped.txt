@@ -44,3 +44,4 @@ MeowChan.FailureNetworkStage.NameResolution = 0 -> MeowChan.FailureNetworkStage
 MeowChan.FailureNetworkStage.SecureConnection = 2 -> MeowChan.FailureNetworkStage
 MeowChan.IFailureInfoProvider
 MeowChan.IFailureInfoProvider.FailureInfo.get -> MeowChan.FailureInfo!
+MeowChan.Registry.StartAsync(MeowChan.Persistence.ProfileLease! lease, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

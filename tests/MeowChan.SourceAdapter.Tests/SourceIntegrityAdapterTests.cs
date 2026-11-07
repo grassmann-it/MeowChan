@@ -52,6 +52,7 @@ public sealed class SourceIntegrityAdapterTests
         DownloadQueue queue = new(1, 1048576);
         await using Registry registry = new(new[] { source }, queue, Path.Combine(profile.Path, "media"),
             TimeSpan.FromHours(1), 3600, contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
+        await registry.StartAsync(lease);
         AdmissionResult admission = await registry.AddAsync("https://boards.4chan.org/g/thread/123");
         await SourceAdapterTests.WaitUntilAsync(() => admission.Thread!.DownloadedMediaCount == 1 || admission.Thread.MediaFailures.Count > 0);
 

@@ -32,7 +32,9 @@ public sealed class NativeTextImportFenceTests
             Url = unrelated ? "https://boards.4chan.org/b/thread/9001" : Url,
             Title = "intervening capture", CapturedAt = At.AddMinutes(1)
         });
-        await AssertStaleWithoutMutation(profile.Path, catalog, plan);
+        lease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            await AssertStaleWithoutMutation(profile.Path, catalog, owner, plan);
     }
 
     [Fact]
@@ -46,7 +48,9 @@ public sealed class NativeTextImportFenceTests
         ArchiveThreadSummary changed = await catalog.RegisterThreadAsync(registration with { MediaDirectory = Path.Combine(profile.Path, "inert-reregistered") });
         Assert.Equal(first.Revision, changed.Revision); // Tripwire: revision-only freshness is insufficient.
         Assert.NotEqual(first.MediaDirectory, changed.MediaDirectory);
-        await AssertStaleWithoutMutation(profile.Path, catalog, plan);
+        lease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            await AssertStaleWithoutMutation(profile.Path, catalog, owner, plan);
     }
 
     [Fact]
@@ -65,7 +69,9 @@ public sealed class NativeTextImportFenceTests
         Assert.Equal(before.Summary.Revision, recreated.Summary.Revision);
         Assert.Equal(before.Summary.Title, recreated.Summary.Title);
         Assert.Equal(before.Posts.Select(p => p.Html), recreated.Posts.Select(p => p.Html));
-        await AssertStaleWithoutMutation(profile.Path, catalog, plan);
+        lease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            await AssertStaleWithoutMutation(profile.Path, catalog, owner, plan);
     }
 
     [Fact]
@@ -79,9 +85,18 @@ public sealed class NativeTextImportFenceTests
         // Both empty, with equal generations, but distinct durable identities and owners.
         NativeTextImportPlan plan = await Prepare(a);
         string sourceBefore = Snapshot(a.DatabasePath);
-        await AssertStaleWithoutMutation(right.Path, b, plan);
+        rightLease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken rightOwner = await rightLease.Admission.EnterExclusiveAsync())
+            await AssertStaleWithoutMutation(right.Path, b, rightOwner, plan);
         Assert.Equal(sourceBefore, Snapshot(a.DatabasePath));
-        NativeTextImportCommitResult accepted = await a.CommitNativeTextImportAsync(plan);
+        leftLease.Admission.CompleteStartup();
+        NativeTextImportCommitResult accepted;
+        using (ProfileAdmissionToken leftOwner = await leftLease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await a.CommitNativeTextImportAdmittedAsync(leftOwner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            accepted = outcome.Result;
+        }
         Assert.Equal(NativeTextImportCommitStatus.Committed, accepted.Status);
         Assert.Equal(1, accepted.NewThreads); // Foreign rejection must not consume the owner's plan.
     }
@@ -96,7 +111,16 @@ public sealed class NativeTextImportFenceTests
         string before = Snapshot(catalog.DatabasePath);
         string[] directories = Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories);
         using CancellationTokenSource cancellation = new(); cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => catalog.CommitNativeTextImportAsync(plan, cancellation.Token));
+        lease.Admission.CompleteStartup();
+        // Cancellation belongs to the admitted operation, not acquisition of its owner.
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan, cancellation.Token);
+            Assert.Equal(NativeTextImportCommitStatus.Inactive, outcome.Result.Status);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            Assert.Contains(outcome.Result.Diagnostic,
+                new[] { nameof(OperationCanceledException), nameof(TaskCanceledException) });
+        }
         Assert.Equal(before, Snapshot(catalog.DatabasePath));
         Assert.Equal(directories, Directory.GetDirectories(profile.Path, "*", SearchOption.AllDirectories));
         await AssertNoIncomingPost(profile.Path);
@@ -158,7 +182,9 @@ public sealed class NativeTextImportFenceTests
         Assert.Equal(1L, Scalar(db, "SELECT count(*) FROM archive_import_fence"));
         NativeTextImportPlan plan = await Prepare(upgraded);
         await upgraded.RegisterThreadAsync(new(Id, Url, "migration intervening registration", Path.Combine(profile.Path, "inert"), false));
-        await AssertStaleWithoutMutation(profile.Path, upgraded, plan);
+        lease.Admission.CompleteStartup();
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            await AssertStaleWithoutMutation(profile.Path, upgraded, owner, plan);
     }
 
     [Fact]
@@ -203,7 +229,13 @@ public sealed class NativeTextImportFenceTests
         {
             plan = await Prepare(catalog);
             Assert.Null(await catalog.ReadNativeTextImportReceiptAsync(plan.OperationId, plan.RequestSha256));
-            committed = await catalog.CommitNativeTextImportAsync(plan);
+            lease.Admission.CompleteStartup();
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                committed = outcome.Result;
+            }
             Assert.Equal(NativeTextImportCommitStatus.Committed, committed.Status);
             Assert.False(committed.IsReplay);
             Assert.Equal(1, committed.NewThreads); Assert.Equal(1, committed.NewPosts);
@@ -217,7 +249,13 @@ public sealed class NativeTextImportFenceTests
                 Posts = Incoming().Posts.Select(p => p.Metadata).ToArray()
             });
             string beforeReplay = Snapshot(catalog.DatabasePath);
-            NativeTextImportCommitResult replay = await catalog.CommitNativeTextImportAsync(plan);
+            NativeTextImportCommitResult replay;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                replay = outcome.Result;
+            }
             Assert.Equal(committed with { IsReplay = true }, replay);
             Assert.Equal(beforeReplay, Snapshot(catalog.DatabasePath));
             Assert.Empty(await catalog.ReadNativeTextImportCandidatesAsync(Id));
@@ -264,10 +302,13 @@ public sealed class NativeTextImportFenceTests
         return Assert.IsType<NativeTextImportPlan>(prepared.Plan);
     }
 
-    private static async Task AssertStaleWithoutMutation(string profile, ArchiveCatalog catalog, NativeTextImportPlan plan)
+    private static async Task AssertStaleWithoutMutation(string profile, ArchiveCatalog catalog,
+        ProfileAdmissionToken owner, NativeTextImportPlan plan)
     {
         string before = Snapshot(catalog.DatabasePath);
-        NativeTextImportCommitResult rejected = await catalog.CommitNativeTextImportAsync(plan);
+        var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+        Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+        NativeTextImportCommitResult rejected = outcome.Result;
         Assert.Equal(NativeTextImportCommitStatus.StalePlan, rejected.Status);
         Assert.Equal(0, rejected.NewThreads); Assert.Equal(0, rejected.NewPosts);
         Assert.Equal(0, rejected.UpdatedPosts); Assert.Equal(0, rejected.ConflictingThreads);

@@ -42,7 +42,7 @@ public sealed class WorkerArchiveTests
             DownloadQueue queue = new(1, 1048576);
             await using Registry registry = new(new[] { source }, queue, mediaRoot, TimeSpan.FromMinutes(10), 600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             AdmissionResult admitted = await registry.AddAsync("https://boards.4channel.org/g/thread/123/title#p124");
             Assert.Equal(AdmissionStatus.Added, admitted.Status);
             await SourceAdapterTests.WaitUntilAsync(() => admitted.Thread!.DownloadedMediaCount == 1);
@@ -69,7 +69,7 @@ public sealed class WorkerArchiveTests
             WorkStateStore work = new(profile.Path, lease);
             await using Registry registry = new(new[] { offline }, queue, mediaRoot, TimeSpan.FromMinutes(10), 600,
                 new SessionStore(profile.Path, lease), true, contentRuntime: content, workStore: work);
-            await registry.RestoreAsync();
+            await registry.StartAsync(lease);
             WorkResource state = work.LoadResources().Single(resource => resource.IsThread);
             firstEnd ??= state.EndObservedAt;
             Assert.Equal(firstEnd, state.EndObservedAt);

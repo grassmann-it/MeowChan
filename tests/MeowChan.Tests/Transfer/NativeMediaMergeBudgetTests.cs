@@ -98,7 +98,13 @@ public sealed class NativeMediaMergeBudgetTests
         await using (NativeTransferImportStage seed = await Stage(files, initial))
         {
             NativeMediaImportPlan seedPlan = Assert.IsType<NativeMediaImportPlan>((await catalog.PrepareNativeMediaImportAsync(seed)).Plan);
-            Assert.Equal(NativeMediaImportCommitStatus.Committed, (await catalog.CommitNativeMediaImportAsync(seedPlan, new MediaStore())).Status);
+            // Release the seed's real Exclusive before the ordinary capture mutations below.
+            if (lease.Admission.Phase == ProfileAdmissionPhase.Starting) lease.Admission.CompleteStartup();
+            using ProfileAdmissionToken admission = await lease.Admission.EnterExclusiveAsync();
+            var outcome = await catalog.CommitNativeMediaImportAdmittedAsync(admission, seedPlan, new MediaStore());
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            catalog.EnsureTransferAdmission(admission);
+            Assert.Equal(NativeMediaImportCommitStatus.Committed, outcome.Result.Status);
         }
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
         ArchivedThreadView old = (await reader.ReadThreadAsync(Id))!;

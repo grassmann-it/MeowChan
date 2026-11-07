@@ -40,7 +40,14 @@ public sealed class NativeTextImportTests
         {
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
             var plan = await Prepare(catalog, Thread([Post(1), Post(2, "newneedle <a href=\"#p1\">&gt;&gt;1</a>")]));
-            var result = await catalog.CommitNativeTextImportAsync(plan);
+            lease.Admission.CompleteStartup();
+            NativeTextImportCommitResult result;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                result = outcome.Result;
+            }
             Assert.Equal(new(NativeTextImportCommitStatus.Committed, 1, 2), result);
         }
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
@@ -62,14 +69,28 @@ public sealed class NativeTextImportTests
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         var before = (await reader.ReadThreadAsync(Id))!.Summary;
         var plan = await Prepare(catalog, Thread(Enumerable.Range(1, 20).Select(i => Post(i))));
-        var result = await catalog.CommitNativeTextImportAsync(plan);
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult result;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            result = outcome.Result;
+        }
         Assert.Equal(14, result.NewPosts); Assert.Equal(0, result.UpdatedPosts);
         var after = (await reader.ReadThreadAsync(Id))!;
         Assert.Equal(Enumerable.Range(1, 30).Select(i => i.ToString()), after.GetPosts().Select(p => p.PostId));
         Assert.Equal(before with { PostCount = 30, Revision = before.Revision + 1 }, after.Summary);
         using var sameBytes = await Package(Thread(Enumerable.Range(1, 20).Select(i => Post(i))));
         var again = (await catalog.PrepareNativeTextImportAsync(sameBytes)).Plan!;
-        Assert.Equal(0, (await catalog.CommitNativeTextImportAsync(again)).NewPosts);
+        NativeTextImportCommitResult repeated;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, again);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            repeated = outcome.Result;
+        }
+        Assert.Equal(0, repeated.NewPosts);
         Assert.Equal(after.Summary, (await reader.ReadThreadAsync(Id))!.Summary);
         Assert.Single(await catalog.ReadNativeTextImportCandidatesAsync(Id));
     }
@@ -86,7 +107,14 @@ public sealed class NativeTextImportTests
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
             await catalog.CaptureAsync(Snapshot(directory, new CapturedPost("1", 1, PostFieldPresence.Author, Author: author)));
             var plan = await Prepare(catalog, Thread([Post(1, "added-html")])); operation = plan.OperationId; request = plan.RequestSha256;
-            var result = await catalog.CommitNativeTextImportAsync(plan);
+            lease.Admission.CompleteStartup();
+            NativeTextImportCommitResult result;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                result = outcome.Result;
+            }
             Assert.Equal(1, result.UpdatedPosts); Assert.Equal(author == "" ? 0 : 1, result.ConflictingThreads);
         }
         using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
@@ -109,7 +137,15 @@ public sealed class NativeTextImportTests
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
         await catalog.CaptureAsync(Snapshot(directory, Post(1, "local-wins") with { Fields = PostFieldPresence.Html | PostFieldPresence.IsDeleted, Author = null, IsDeleted = true }));
         var incoming = Thread([Post(1, "incoming-loses") with { Fields = PostFieldPresence.All & ~PostFieldPresence.Attachments, Subject = "fill", IsDeleted = false }, Post(2)]);
-        var plan = await Prepare(catalog, incoming); var result = await catalog.CommitNativeTextImportAsync(plan);
+        var plan = await Prepare(catalog, incoming);
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult result;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            result = outcome.Result;
+        }
         Assert.Equal(1, result.NewPosts); Assert.Equal(1, result.UpdatedPosts); Assert.Equal(1, result.ConflictingThreads);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         var post = (await reader.ReadThreadAsync(Id))!.GetPosts().Single(p => p.PostId == "1");
@@ -133,7 +169,15 @@ public sealed class NativeTextImportTests
         using (var connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadWrite))
         using (var command = connection.CreateCommand())
         { command.CommandText = "CREATE TRIGGER protect_test_attachment BEFORE DELETE ON archive_attachments BEGIN SELECT RAISE(ABORT,'attachment deletion'); END"; command.ExecuteNonQuery(); }
-        var result = await catalog.CommitNativeTextImportAsync(await Prepare(catalog, Thread([Post(1)])));
+        var plan = await Prepare(catalog, Thread([Post(1)]));
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult result;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            result = outcome.Result;
+        }
         Assert.Equal(1, result.UpdatedPosts);
         Assert.Equal(before, Assert.Single((await reader.ReadThreadAsync(Id))!.GetPosts()).Attachments);
     }
@@ -143,10 +187,26 @@ public sealed class NativeTextImportTests
     {
         using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
-        var plan = await Prepare(catalog, Thread([Post(1)])); await catalog.CommitNativeTextImportAsync(plan);
+        var plan = await Prepare(catalog, Thread([Post(1)]));
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult result;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            result = outcome.Result;
+        }
+        Assert.Equal(NativeTextImportCommitStatus.Committed, result.Status);
         await catalog.DeleteThreadsAsync([Id]);
         Assert.Empty(await catalog.ReadNativeTextImportCandidatesAsync(Id));
-        Assert.True((await catalog.CommitNativeTextImportAsync(plan)).IsReplay);
+        NativeTextImportCommitResult replay;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            replay = outcome.Result;
+        }
+        Assert.True(replay.IsReplay);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Null(await reader.ReadThreadAsync(Id));
     }
@@ -160,14 +220,30 @@ public sealed class NativeTextImportTests
         using (var connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadWrite))
         using (var command = connection.CreateCommand())
         { command.CommandText = "CREATE TRIGGER fail_test_receipt BEFORE INSERT ON archive_import_receipts BEGIN SELECT RAISE(ABORT,'injected receipt failure'); END"; command.ExecuteNonQuery(); }
-        await Assert.ThrowsAsync<SqliteException>(() => catalog.CommitNativeTextImportAsync(plan));
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult failed;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            failed = outcome.Result;
+        }
+        Assert.Equal(NativeTextImportCommitStatus.Inactive, failed.Status);
+        Assert.Equal(nameof(SqliteException), failed.Diagnostic);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Null(await reader.ReadThreadAsync(Id)); Assert.Empty(await catalog.ReadNativeTextImportCandidatesAsync(Id));
         Assert.Null(await catalog.ReadNativeTextImportReceiptAsync(plan.OperationId, plan.RequestSha256));
         using (var connection = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadWrite))
         using (var command = connection.CreateCommand())
         { command.CommandText = "DROP TRIGGER fail_test_receipt"; command.ExecuteNonQuery(); }
-        Assert.Equal(NativeTextImportCommitStatus.Committed, (await catalog.CommitNativeTextImportAsync(plan)).Status);
+        NativeTextImportCommitResult retried;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            retried = outcome.Result;
+        }
+        Assert.Equal(NativeTextImportCommitStatus.Committed, retried.Status);
     }
     [Fact]
     public async Task InventedDeltaCannotUseAnIssuedPlansOwnerAndFenceAsCommitAuthority()
@@ -178,12 +254,26 @@ public sealed class NativeTextImportTests
         var original = valid.Deltas[0];
         var invented = original with { Added = [Post(2, "<script>invented</script>")], CatalogBytes = [1, 2, 3] };
         var forged = new NativeTextImportPlan(catalog, valid.Instance, valid.Generation, valid.ExportedAtUtc, [invented], valid.RequestSha256);
-        var rejected = await catalog.CommitNativeTextImportAsync(forged);
+        lease.Admission.CompleteStartup();
+        NativeTextImportCommitResult rejected;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, forged);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            rejected = outcome.Result;
+        }
         Assert.Equal(NativeTextImportCommitStatus.StalePlan, rejected.Status);
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Null(await reader.ReadThreadAsync(Id));
         Assert.Empty(await catalog.ReadNativeTextImportCandidatesAsync(Id));
-        Assert.Equal(1, (await catalog.CommitNativeTextImportAsync(valid)).NewPosts);
+        NativeTextImportCommitResult accepted;
+        using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+        {
+            var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, valid);
+            Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+            accepted = outcome.Result;
+        }
+        Assert.Equal(1, accepted.NewPosts);
     }
 
     [Fact]
@@ -193,10 +283,26 @@ public sealed class NativeTextImportTests
         using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
         {
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
-            await catalog.CommitNativeTextImportAsync(await Prepare(catalog, Thread([Post(1, "first")])));
+            var firstPlan = await Prepare(catalog, Thread([Post(1, "first")]));
+            lease.Admission.CompleteStartup();
+            NativeTextImportCommitResult initial;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, firstPlan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                initial = outcome.Result;
+            }
+            Assert.Equal(NativeTextImportCommitStatus.Committed, initial.Status);
             var first = Assert.Single(await catalog.ReadNativeTextImportCandidatesAsync(Id)); Assert.False(first.HasConflicts);
             await catalog.CaptureAsync(Snapshot(directory, Post(1, "local-later")));
-            var result = await catalog.CommitNativeTextImportAsync(await Prepare(catalog, Thread([Post(1, "first")])));
+            var laterPlan = await Prepare(catalog, Thread([Post(1, "first")]));
+            NativeTextImportCommitResult result;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, laterPlan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                result = outcome.Result;
+            }
             Assert.Equal(1, result.ConflictingThreads); Assert.Equal(0, result.UpdatedPosts);
             var promoted = Assert.Single(await catalog.ReadNativeTextImportCandidatesAsync(Id));
             Assert.True(promoted.HasConflicts); Assert.Equal(first.ImportedAtUtc, promoted.ImportedAtUtc);
@@ -216,9 +322,18 @@ public sealed class NativeTextImportTests
     {
         using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+        lease.Admission.CompleteStartup();
         for (int i = 0; i < 33; i++)
         {
-            await catalog.CommitNativeTextImportAsync(await Prepare(catalog, Thread([Post(1, "variant-" + i)])));
+            var plan = await Prepare(catalog, Thread([Post(1, "variant-" + i)]));
+            NativeTextImportCommitResult result;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                result = outcome.Result;
+            }
+            Assert.Equal(NativeTextImportCommitStatus.Committed, result.Status);
             if (i == 31) Assert.Equal(32, (await catalog.ReadNativeTextImportCandidatesAsync(Id)).Length);
         }
         await Assert.ThrowsAsync<InvalidDataException>(() => catalog.ReadNativeTextImportCandidatesAsync(Id));
@@ -235,9 +350,19 @@ public sealed class NativeTextImportTests
         using TempDirectory directory = new(); using ProfileLease lease = ProfileLease.Acquire(directory.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
         string text = new('x', 500_000);
+        lease.Admission.CompleteStartup();
         for (int variant = 0; variant < 3; variant++)
-            await catalog.CommitNativeTextImportAsync(await Prepare(catalog,
-                Thread(Enumerable.Range(1, 23).Select(i => Post(i, text + variant)))));
+        {
+            var plan = await Prepare(catalog, Thread(Enumerable.Range(1, 23).Select(i => Post(i, text + variant))));
+            NativeTextImportCommitResult result;
+            using (ProfileAdmissionToken owner = await lease.Admission.EnterExclusiveAsync())
+            {
+                var outcome = await catalog.CommitNativeTextImportAdmittedAsync(owner, plan);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                result = outcome.Result;
+            }
+            Assert.Equal(NativeTextImportCommitStatus.Committed, result.Status);
+        }
         var first = await catalog.ReadNativeTextImportCandidatesPageAsync(Id);
         Assert.Equal(2, first.Items.Length); Assert.NotNull(first.NextSha256);
         Assert.InRange(first.Items.Sum(i => (long)i.CatalogBytes.Length), 22L * 1024 * 1024 - 1024 * 1024, 32L * 1024 * 1024);

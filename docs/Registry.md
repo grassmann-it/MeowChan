@@ -43,7 +43,7 @@ Use the exact objects returned by admission or `GetView()` when removing resourc
 
 ## Persistence ownership
 
-Persistence is optional. A host that wants durable session intent **and** retry/lifecycle state acquires a profile lease, constructs `SessionStore` and `WorkStateStore`, passes both to `Registry`, and calls `RestoreAsync` before admitting new persistent watches:
+Persistence is optional. A host that wants durable session intent **and** retry/lifecycle state acquires a profile lease, constructs `SessionStore` and `WorkStateStore`, passes both to `Registry`, and calls `StartAsync(lease)` before admitting new persistent watches:
 
 ```csharp
 using MeowChan.Persistence;
@@ -55,8 +55,35 @@ WorkStateStore work = new WorkStateStore(profileRoot, lease);
 await using Registry session = new Registry(
     providers, queue, outputRoot, TimeSpan.FromSeconds(60), 60,
     sessionStore: store, persistSession: true, workStore: work);
-await session.RestoreAsync();
+await session.StartAsync(lease);
 ```
+
+`StartAsync` is the explicit startup entry for a newly acquired profile. Finish
+store seeding, board-admission configuration and plugin provider registration
+before calling it. It suspends producers, initializes the optional content runtime,
+checks both import and merge recovery journals, restores the session, and only
+then enters Ready and activates producers. A user-paused queue remains paused;
+resume with `await session.SetPausedAsync(false)` to resume monitors and downloads.
+`RestoreAsync` and `AddAsync` do not implicitly promote a newly acquired lease.
+Unbound in-memory Registry usage is unchanged.
+
+All built-in stores and the optional content runtime must share the **same lease
+instance**. The profile permits one startup coordinator; a competing Registry or
+Desktop host cannot claim it again. A media-only composition still opens/migrates
+`archive.db` temporarily to check interrupted transfers, then closes that catalog;
+this does not attach post capture. Recovery errors block startup before restoration
+and do not delete journals, receipts or candidate media.
+
+The first accepted call owns cancellation; repeats on the same Registry/lease
+return that same task, ignoring later cancellation tokens. A pre-cancelled first
+call performs no startup claim. After claim, failure/cancellation is terminal for
+that instance and seals the profile; reopen it only after disposing owners and
+handling any unresolved recovery state. Start/Stop wait for actual in-flight work,
+including a store that ignores cancellation. Stop during startup prevents late
+activation. After successful startup, normal Stop remains Registry-local: the
+caller still owns its lease, runtime and stores. Public writes and configuration
+changes are rejected while startup is pending. Snapshot reads may show partial
+restoration and are not proof that startup succeeded.
 
 `SessionStore` persists the watch-list projection; it does not by itself persist
 media retry history or source-end deadlines. Pass `workStore: new WorkStateStore(profileRoot, lease)`

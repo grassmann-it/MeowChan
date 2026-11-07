@@ -5,6 +5,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using MeowChan.Storage;
+using MeowChan.Persistence;
 using MeowChan.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,38 @@ using MeowChan.Interfaces;
 
 public class DownloadItem
 {
+    // Runtime identity only. A descriptor never owns an admission; only a private
+    // execution clone borrows its caller's counted token for that execution.
+    private ProfileLease? _contentProfileLease;
+    internal ProfileLease? ContentProfileLease { get => _contentProfileLease; init => _contentProfileLease = value; }
+    private ProfileAdmissionToken? _profileWriteAdmission;
+
+    internal DownloadItem WithProfileWriteAdmission(ProfileAdmissionToken admission, ProfileLease? expected = null)
+    {
+        ArgumentNullException.ThrowIfNull(admission);
+        if (expected != null && ContentProfileLease != null && !ReferenceEquals(ContentProfileLease, expected))
+            throw new InvalidOperationException("The media execution belongs to a different profile lease.");
+        DownloadItem copy = (DownloadItem)MemberwiseClone();
+        // Keep the actual consumer identity on an execution exposed to filters,
+        // even when its original standalone descriptor had no content binding.
+        copy._contentProfileLease = expected ?? ContentProfileLease;
+        copy._profileWriteAdmission = admission;
+        return copy;
+    }
+
+    internal ProfileAdmissionToken RequireProfileWriteAdmission(ProfileLease expected)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        if (ContentProfileLease != null && !ReferenceEquals(ContentProfileLease, expected))
+            throw new InvalidOperationException("The media execution belongs to a different profile lease.");
+        ProfileAdmissionToken admission = _profileWriteAdmission
+            ?? throw new InvalidOperationException("The media execution has no job-owned profile admission.");
+        // Validate exact membership and active Ordinary role against the consumer's
+        // actual lease. Neither a path nor the token's own owner is authority here.
+        return expected.Admission.RunWithToken(admission,
+            () => expected.RunExclusive(() => admission), ProfileAdmissionKind.Ordinary);
+    }
+
     public Uri DownloadUri { get; }
     public string DestinationPath { get; }
     public IImageBoard ImageBoard { get; }

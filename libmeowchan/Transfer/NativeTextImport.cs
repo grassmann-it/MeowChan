@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using MeowChan.Transfer;
+using MeowChan.Persistence;
 
 namespace MeowChan.Archive;
 
@@ -98,19 +99,43 @@ public sealed partial class ArchiveCatalog
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    internal Task<NativeTextImportCommitResult> CommitNativeTextImportAsync(NativeTextImportPlan plan,
-        CancellationToken cancellationToken = default)
+    // Borrows the lane's one Exclusive owner across SQL AND independent reconciliation.
+    // No Ordinary fallback or second reservation; the caller releases only after this task.
+    internal async Task<ProfileExclusiveOutcome<NativeTextImportCommitResult>> CommitNativeTextImportAdmittedAsync(
+        ProfileAdmissionToken admission, NativeTextImportPlan plan, CancellationToken cancellationToken = default)
     {
+        EnsureTransferAdmission(admission);
         ArgumentNullException.ThrowIfNull(plan);
-        return WriteAsync((connection, transaction) =>
+        bool issued = ReferenceEquals(plan.Owner, this) && _issuedNativeTextPlans.TryGetValue(plan, out _);
+        NativeTextImportCommitResult? completed = null;
+        Exception? failure = null;
+        try
         {
-            if (!ReferenceEquals(plan.Owner, this) || !_issuedNativeTextPlans.TryGetValue(plan, out _))
-                return new NativeTextImportCommitResult(NativeTextImportCommitStatus.StalePlan);
+            completed = issued
+                ? await CommitNativeTextImportTransactionAsync(admission, plan, cancellationToken).ConfigureAwait(false)
+                : new(NativeTextImportCommitStatus.StalePlan);
+        }
+        catch (Exception error)
+        {
+            // WriteTransferAdmittedAsync has settled its real transaction/connection disposal.
+            // Cancellation and a lost return are not rollback evidence.
+            failure = error;
+        }
+        return await ReconcileNativeTextImportAsync(plan, issued, completed, failure).ConfigureAwait(false);
+    }
+
+    private Task<NativeTextImportCommitResult> CommitNativeTextImportTransactionAsync(ProfileAdmissionToken admission,
+        NativeTextImportPlan plan, CancellationToken cancellationToken)
+        => WriteTransferAdmittedAsync(admission, (connection, transaction) =>
+        {
             NativeTextImportCommitResult? replay = ReadNativeTextImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
             if (replay != null) return replay;
             (string instance, long generation) = ArchiveSql.ReadImportFence(connection, transaction);
             if (plan.Instance != instance || plan.Generation != generation)
                 return new NativeTextImportCommitResult(NativeTextImportCommitStatus.StalePlan);
+            if (HasNativeTextRecoveryBlocker(connection, transaction))
+                return new NativeTextImportCommitResult(NativeTextImportCommitStatus.Unknown,
+                    Diagnostic: "Unresolved media transfer blocks text import.");
             // Exact replay was reconciled before freshness checks: it reports history without
             // mutating or resurrecting even a subsequently deleted/recreated target.
             int newThreads = 0, newPosts = 0, updatedPosts = 0, conflicts = 0;
@@ -178,13 +203,116 @@ public sealed partial class ArchiveCatalog
             receipt.ExecuteNonQuery();
             return new NativeTextImportCommitResult(NativeTextImportCommitStatus.Committed, newThreads, newPosts, updatedPosts, conflicts);
         }, cancellationToken);
+
+    private async Task<ProfileExclusiveOutcome<NativeTextImportCommitResult>> ReconcileNativeTextImportAsync(
+        NativeTextImportPlan plan, bool issued, NativeTextImportCommitResult? completed, Exception? failure)
+    {
+        NativeTextImportCommitResult? historicalReceipt = null;
+        try
+        {
+            return await ReadNativeTextIndependentAsync((connection, transaction) =>
+            {
+                (string instance, long generation) = ArchiveSql.ReadImportFence(connection, transaction);
+                // An unissued plan never gains authority to look up/replay an invented receipt.
+                // A replaced database is not evidence about the original issued operation.
+                if (issued && instance != plan.Instance)
+                    return ProfileExclusiveOutcome<NativeTextImportCommitResult>.RecoveryRequired(
+                        new(NativeTextImportCommitStatus.Unknown, Diagnostic: "Catalog instance changed."));
+                if (issued)
+                    historicalReceipt = ReadNativeTextImportReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                bool blocked = HasNativeTextRecoveryBlocker(connection, transaction);
+                if (historicalReceipt != null)
+                {
+                    NativeTextImportCommitResult result = historicalReceipt with
+                    {
+                        IsReplay = completed?.Status == NativeTextImportCommitStatus.Committed ? completed.IsReplay : true,
+                        Diagnostic = failure?.GetType().Name ?? (blocked ? "Unresolved media transfer." : null)
+                    };
+                    return blocked ? ProfileExclusiveOutcome<NativeTextImportCommitResult>.RecoveryRequired(result)
+                        : ProfileExclusiveOutcome<NativeTextImportCommitResult>.SafeToResume(result);
+                }
+                NativeTextImportCommitStatus status;
+                if (blocked || completed?.Status == NativeTextImportCommitStatus.Committed)
+                    status = NativeTextImportCommitStatus.Unknown;
+                else if (completed?.Status == NativeTextImportCommitStatus.StalePlan)
+                    // Explicit no-effect rejection is safe despite generation drift; unlike a
+                    // failed write it need not prove that the original fence is still unchanged.
+                    status = NativeTextImportCommitStatus.StalePlan;
+                else if (issued && generation == plan.Generation)
+                    // Text has no FS claim: same-instance/fence + no receipt/blocker after SQL
+                    // disposal proves complete rollback, including posts/candidates/quotes.
+                    status = NativeTextImportCommitStatus.Inactive;
+                else
+                    status = NativeTextImportCommitStatus.Unknown;
+                NativeTextImportCommitResult reconciled = new(status,
+                    Diagnostic: failure?.GetType().Name ?? completed?.Diagnostic);
+                return status is NativeTextImportCommitStatus.Inactive or NativeTextImportCommitStatus.StalePlan
+                    ? ProfileExclusiveOutcome<NativeTextImportCommitResult>.SafeToResume(reconciled)
+                    : ProfileExclusiveOutcome<NativeTextImportCommitResult>.RecoveryRequired(reconciled);
+            }, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            string diagnostic = (failure?.GetType().Name ?? "Reconciliation") + "/" + error.GetType().Name;
+            // Historical success and permission to resume are distinct. Even the read/disposal
+            // tail must finish successfully before asserting a complete negative blocker proof.
+            return ProfileExclusiveOutcome<NativeTextImportCommitResult>.RecoveryRequired(historicalReceipt == null
+                ? new(NativeTextImportCommitStatus.Unknown, Diagnostic: diagnostic)
+                : historicalReceipt with { Diagnostic = diagnostic });
+        }
+    }
+
+    private Task<T> ReadNativeTextIndependentAsync<T>(Func<SqliteConnection, SqliteTransaction, T> read,
+        CancellationToken cancellationToken)
+        => Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Fresh read-only connection; no catalog/lease lifetime dependency, no repair/DDL.
+            // OpenConnection supplies the existing bounded SQLite busy timeout.
+            using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
+            using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+            ArchiveSql.ValidateSchema(connection, transaction);
+            T result = read(connection, transaction);
+            cancellationToken.ThrowIfCancellationRequested();
+            transaction.Commit();
+            return result;
+        }, cancellationToken);
+
+    // One bounded scalar in the SAME evidence snapshot. Includes both operation families,
+    // selected resources and separate profile blockers, matching the startup consistency gate.
+    // No text journal or filesystem absence inference is introduced.
+    private static bool HasNativeTextRecoveryBlocker(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
+            SELECT EXISTS (
+                SELECT 1 FROM archive_media_import_operations AS o
+                WHERE o.state IS NOT 'Committed' OR NOT EXISTS (
+                    SELECT 1 FROM archive_media_import_receipts AS r
+                    WHERE r.operation_id = o.operation_id COLLATE BINARY
+                      AND r.request_sha256 = o.request_sha256 COLLATE BINARY
+                      AND r.post_count = o.post_count AND r.attachment_count = o.attachment_count
+                )
+            ) OR EXISTS (
+                SELECT 1 FROM archive_media_merge_operations AS o
+                WHERE o.state IS NOT 'Committed' OR NOT EXISTS (
+                    SELECT 1 FROM archive_media_merge_receipts AS r
+                    WHERE r.operation_id = o.operation_id COLLATE BINARY
+                      AND r.request_sha256 = o.request_sha256 COLLATE BINARY
+                      AND r.new_posts = o.new_posts AND r.updated_posts = o.updated_posts
+                      AND r.new_attachments = o.new_attachments AND r.new_bindings = o.new_bindings
+                      AND r.conflicts = o.conflicts
+                )
+            );
+            """);
+        return (long)command.ExecuteScalar()! != 0;
     }
 
     // A durable lookup after restart; the caller must retain BOTH values, not infer success from
     // package ID or filesystem state. Receipts contain only counts, no deleted thread identities.
     internal Task<NativeTextImportCommitResult?> ReadNativeTextImportReceiptAsync(Guid operationId, string requestSha256,
         CancellationToken cancellationToken = default)
-        => ReadAsync(connection => ReadNativeTextImportReceipt(connection, null, operationId, requestSha256), cancellationToken);
+        => ReadNativeTextIndependentAsync((connection, transaction) =>
+            ReadNativeTextImportReceipt(connection, transaction, operationId, requestSha256), cancellationToken);
 
     private static NativeTextImportCommitResult? ReadNativeTextImportReceipt(SqliteConnection connection,
         SqliteTransaction? transaction, Guid operationId, string requestSha256)
@@ -199,7 +327,10 @@ public sealed partial class ArchiveCatalog
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
         if (reader.GetString(0) != requestSha256) throw new InvalidDataException("The import operation identity has different input.");
-        return new(NativeTextImportCommitStatus.Committed, reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4), true);
+        int threads = reader.GetInt32(1), posts = reader.GetInt32(2), updated = reader.GetInt32(3), conflicts = reader.GetInt32(4);
+        if (threads < 0 || posts < 0 || updated < 0 || conflicts < 0)
+            throw new InvalidDataException("The import receipt has invalid counts.");
+        return new(NativeTextImportCommitStatus.Committed, threads, posts, updated, conflicts, true);
     }
 
     // Convenience for small internal selections; never silently clips. Larger selections use

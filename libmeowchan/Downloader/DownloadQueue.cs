@@ -417,6 +417,8 @@ public partial class DownloadQueue
         lock (_stateLock)
         {
             if (_workStore != null && !ReferenceEquals(_workStore, store)) throw new InvalidOperationException("The work store is already configured.");
+            if (_boundProfileLease != null && store is WorkStateStore sqlite && !ReferenceEquals(sqlite.ProfileLease, _boundProfileLease))
+                throw new InvalidOperationException("The queue work store belongs to a different profile lease.");
             _workStore = store;
         }
     }
@@ -1231,6 +1233,15 @@ public partial class DownloadQueue
         {
             job.EpochToken.ThrowIfCancellationRequested();
             cancellation.Token.ThrowIfCancellationRequested();
+            // Freeze the consumer identity alongside the already-owned job Use,
+            // before durable eligibility can itself finalize expired work.
+            ProfileLease? expectedLease = ResolveExecutionProfileLease(job.Item);
+            if (expectedLease != null)
+                job.Item.WithProfileWriteAdmission(producerAdmission
+                    ?? throw new InvalidOperationException("Profile media execution requires the queue job's producer admission."), expectedLease)
+                    .RequireProfileWriteAdmission(expectedLease);
+            else if (producerAdmission != null)
+                throw new InvalidOperationException("Profile queue execution has no expected lease. Root must call BindProfileLease before installing the first producer epoch.");
             if (!CanRunDurable(job.Item, producerAdmission)) return;
             if (!await _targets.CheckAsync(TargetPath(job.Item), job.Item.ExpectedSize, cancellation.Token).ConfigureAwait(false))
             { targetBlocked = true; return; }
@@ -1240,7 +1251,9 @@ public partial class DownloadQueue
                 BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes),
                 AcquirePublicationFence = token => AcquirePublicationAsync(job.Item, token, producerAdmission)
             };
-            await worker.ExecuteAsync(cancellation.Token).ConfigureAwait(false);
+            // Use only an actual consumer/runtime lease, never a token-self check
+            // or a lookup of whichever producer epoch happens to be installed now.
+            await worker.ExecuteAdmittedAsync(expectedLease, producerAdmission, cancellation.Token).ConfigureAwait(false);
             committed = worker.CompletedResult ?? throw new InvalidDataException("Media worker returned without a committed asset receipt.");
             succeeded = true;
         }

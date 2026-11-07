@@ -31,6 +31,10 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private readonly object _stateLock = new object();
     private CancellationTokenSource? _monitoringCancellation;
     private Task? _monitoringTask;
+    // CancellationToken is only the exact invocation key, never authority. Values
+    // are immutable borrowed admissions installed before that monitor is scheduled.
+    // No ambient token, epoch lookup, or DownloadItem carries this binding.
+    private readonly Dictionary<CancellationToken, ProfileAdmissionToken> _contentMonitorAdmissions = new();
     private TimeSpan _monitoringInterval = TimeSpan.FromSeconds(60);
     private HashSet<string> _downloadedMedia = new HashSet<string>(StringComparer.Ordinal);
     private readonly HashSet<(string MediaId, string Variant)> _downloadedVariants = new();
@@ -353,6 +357,20 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     }
 
     public void StartMonitoring(DownloadQueue queue, string outputDirectory, TimeSpan interval)
+        => StartMonitoringCore(null, queue, outputDirectory, interval);
+
+    // Registry.StartWatchProducer passes its exact Use.Admission. Registry retains
+    // that Use until StopMonitoringAsync has awaited this complete monitor lifetime.
+    internal void StartMonitoringAdmitted(ProfileAdmissionToken admission, DownloadQueue queue,
+        string outputDirectory, TimeSpan interval)
+    {
+        ArgumentNullException.ThrowIfNull(admission);
+        _content?.ValidateAdmission(admission);
+        StartMonitoringCore(admission, queue, outputDirectory, interval);
+    }
+
+    private void StartMonitoringCore(ProfileAdmissionToken? admission, DownloadQueue queue,
+        string outputDirectory, TimeSpan interval)
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
@@ -369,6 +387,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             CancellationTokenSource cancellation = new CancellationTokenSource();
             CancellationToken token = cancellation.Token;
             _monitoringCancellation = cancellation;
+            if (admission != null) _contentMonitorAdmissions.Add(token, admission);
             _monitoringTask = Task.Run(() => MonitorAsync(queue, token));
         }
     }
@@ -409,10 +428,72 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             {
                 _monitoringTask = null;
                 _monitoringCancellation = null;
+                if (cancellation != null) _contentMonitorAdmissions.Remove(cancellation.Token);
                 cancellation?.Dispose();
             }
         }
     }
+
+    private ProfileAdmissionToken? ContentAdmissionFor(CancellationToken cancellationToken)
+    {
+        // A saved callback from a drained/cancelled monitor must fail, never fall
+        // back to standalone ownership or pick up a successor's current admission.
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_monitoringLock)
+            return _contentMonitorAdmissions.GetValueOrDefault(cancellationToken);
+    }
+
+    // Explicit provider child-cancellation bridge. Only a known original monitor
+    // token can lend monitor authority; an ordinary direct check stays standalone.
+    // The scope is passed explicitly, never installed as ambient/current state.
+    internal ContentCancellationScope BindContentCancellationScope(CancellationToken monitorToken,
+        CancellationToken childToken)
+    {
+        ProfileAdmissionToken? admission = ContentAdmissionFor(monitorToken);
+        childToken.ThrowIfCancellationRequested();
+        if (admission != null) _content?.ValidateAdmission(admission);
+        return new ContentCancellationScope(this, monitorToken, childToken, admission);
+    }
+
+    internal sealed class ContentCancellationScope : IDisposable
+    {
+        private readonly BaseThread _owner;
+        private readonly ThreadContentContext? _content;
+        private readonly CancellationToken _monitorToken;
+        private readonly CancellationToken _childToken;
+        private readonly ProfileAdmissionToken? _admission;
+        private int _retired;
+
+        internal ContentCancellationScope(BaseThread owner, CancellationToken monitorToken,
+            CancellationToken childToken, ProfileAdmissionToken? admission)
+        {
+            _owner = owner;
+            _content = owner._content;
+            _monitorToken = monitorToken;
+            _childToken = childToken;
+            _admission = admission;
+        }
+
+        internal ProfileAdmissionToken? Resolve(BaseThread owner, CancellationToken childToken)
+        {
+            if (!ReferenceEquals(owner, _owner) || !ReferenceEquals(owner._content, _content)
+                || childToken != _childToken || Volatile.Read(ref _retired) != 0)
+                throw new InvalidOperationException("Content cancellation scope is retired or belongs to another invocation.");
+            childToken.ThrowIfCancellationRequested();
+            ProfileAdmissionToken? bound = owner.ContentAdmissionFor(_monitorToken);
+            if (!ReferenceEquals(bound, _admission))
+                throw new InvalidOperationException("Content monitor generation is no longer bound.");
+            return _admission;
+        }
+
+        // Borrowed authority only: no admission is acquired or disposed here. A
+        // saved scope rejects even when its disposed linked CTS was never cancelled.
+        public void Dispose() => Interlocked.Exchange(ref _retired, 1);
+    }
+
+    private ProfileAdmissionToken? ContentAdmissionFor(CancellationToken cancellationToken,
+        ContentCancellationScope? scope) => scope == null ? ContentAdmissionFor(cancellationToken)
+            : scope.Resolve(this, cancellationToken);
 
     private async Task MonitorAsync(DownloadQueue queue, CancellationToken cancellationToken)
     {
@@ -549,10 +630,25 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     }
 
     /// <summary>Explicitly opts a current watch in/out; previously captured content remains available.</summary>
-    public async Task SetCaptureEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    public Task SetCaptureEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
     {
-        if (_content == null) throw new NotSupportedException("This watch has no content services.");
-        await _content.SetCaptureEnabledAsync(enabled, cancellationToken).ConfigureAwait(false);
+        ThreadContentContext content = _content ?? throw new NotSupportedException("This watch has no content services.");
+        // A direct user call owns Ordinary/Startup independently of any monitor.
+        return content.WithStoreWriterAsync(admission => SetCaptureEnabledCoreAsync(admission, content, enabled,
+            cancellationToken), cancellationToken);
+    }
+
+    internal Task SetCaptureEnabledAdmittedAsync(ProfileAdmissionToken admission, bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        ThreadContentContext content = _content ?? throw new NotSupportedException("This watch has no content services.");
+        return SetCaptureEnabledCoreAsync(admission, content, enabled, cancellationToken);
+    }
+
+    private async Task SetCaptureEnabledCoreAsync(ProfileAdmissionToken admission, ThreadContentContext content,
+        bool enabled, CancellationToken cancellationToken)
+    {
+        await content.SetCaptureEnabledAdmittedAsync(admission, enabled, cancellationToken).ConfigureAwait(false);
         OnPropertyChanged();
     }
 
@@ -574,6 +670,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                         Board.ImageBoard, this, attachment.MediaId, attachment.ExpectedSize, attachment.ExpectedMd5,
                         attachment.OriginalFileName, null, attachment.Variant)
                     {
+                        ContentProfileLease = _content?.ProfileLease,
                         ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint,
                         AcquisitionRevisionKey = MediaRevisionKeys.CreateAcquisitionKey(_restoredFinalSnapshot.Id, new MediaProviderMetadata(
                             attachment.MediaId, attachment.Variant, attachment.Url, attachment.OriginalFileName, attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256) { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint }),
@@ -594,8 +691,23 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     internal static string MediaKey(string id, string variant) => JsonSerializer.Serialize(new[] { id, variant });
 
-    protected async Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
+    protected Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
+        => CaptureContentAsync(observed, cancellationToken, null);
+
+    internal Task CaptureContentAsync(CapturedThreadSnapshot? observed, CancellationToken cancellationToken,
+        ContentCancellationScope? scope)
     {
+        ThreadContentContext? content = _content;
+        ProfileAdmissionToken? admission = ContentAdmissionFor(cancellationToken, scope);
+        if (content == null) return CaptureContentCoreAsync(null, null, observed, cancellationToken);
+        if (admission != null) return CaptureContentCoreAsync(admission, content, observed, cancellationToken);
+        return content.WithStoreWriterAsync(owner => CaptureContentCoreAsync(owner, content, observed, cancellationToken), cancellationToken);
+    }
+
+    private async Task CaptureContentCoreAsync(ProfileAdmissionToken? admission, ThreadContentContext? content,
+        CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
+    {
+        if (content != null) content.ValidateAdmission(admission!);
         bool restoredObservation = observed == null;
         observed ??= _restoredFinalSnapshot;
         if (observed != null)
@@ -614,13 +726,24 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                 if (opening != null) SetOpeningTitle(ArchiveText.PlainText(opening.Html));
             }
         }
-        if (_content != null) await _content.CaptureAsync(observed, cancellationToken, restoredObservation: restoredObservation).ConfigureAwait(false);
+        if (content != null) await content.CaptureAdmittedAsync(admission!, observed, cancellationToken,
+            restoredObservation: restoredObservation).ConfigureAwait(false);
         OnPropertyChanged();
     }
 
-    protected async Task CaptureSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
+    protected Task CaptureSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken)
+        => CaptureSourceStateAsync(state, cancellationToken, null);
+
+    internal async Task CaptureSourceStateAsync(ThreadSourceState state, CancellationToken cancellationToken,
+        ContentCancellationScope? scope)
     {
-        if (_content != null) await _content.RecordSourceStateAsync(state, cancellationToken).ConfigureAwait(false);
+        ProfileAdmissionToken? admission = ContentAdmissionFor(cancellationToken, scope);
+        ThreadContentContext? content = _content;
+        if (content != null)
+        {
+            if (admission != null) await content.RecordSourceStateAdmittedAsync(admission, state, cancellationToken).ConfigureAwait(false);
+            else await content.RecordSourceStateAsync(state, cancellationToken).ConfigureAwait(false);
+        }
         OnPropertyChanged();
     }
 
@@ -632,9 +755,13 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         if (_captureSettledSink != null) await _captureSettledSink().ConfigureAwait(false);
     }
 
-    protected async Task EnqueueKnownMediaAsync(DownloadQueue queue, IReadOnlyDictionary<string, DownloadItem> media,
-        CancellationToken cancellationToken)
+    protected Task EnqueueKnownMediaAsync(DownloadQueue queue, IReadOnlyDictionary<string, DownloadItem> media,
+        CancellationToken cancellationToken) => EnqueueKnownMediaAsync(queue, media, cancellationToken, null);
+
+    internal async Task EnqueueKnownMediaAsync(DownloadQueue queue, IReadOnlyDictionary<string, DownloadItem> media,
+        CancellationToken cancellationToken, ContentCancellationScope? scope)
     {
+        ProfileAdmissionToken? admission = ContentAdmissionFor(cancellationToken, scope);
         cancellationToken.ThrowIfCancellationRequested();
         HashSet<(string MediaId, string Variant)> known = media.Values.Select(item => (item.MediaIdentifier, item.Variant)).ToHashSet();
         lock (_stateLock)
@@ -643,8 +770,10 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             known.UnionWith(_downloadedVariants);
         }
         TotalMediaCount = known.Count;
-        IReadOnlyList<DownloadItem>? selected = _content == null ? media.Values.ToArray()
-            : await _content.SelectAsync(this, media.Values, cancellationToken).ConfigureAwait(false);
+        ThreadContentContext? content = _content;
+        IReadOnlyList<DownloadItem>? selected = content == null ? media.Values.ToArray()
+            : admission != null ? await content.SelectAdmittedAsync(admission, this, media.Values, cancellationToken).ConfigureAwait(false)
+            : await content.SelectAsync(this, media.Values, cancellationToken).ConfigureAwait(false);
         if (selected == null) { Activity = ThreadActivity.Error; OnPropertyChanged(); return; }
         int selectedCount = TotalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0);
         Activity = MediaFailures.Count > 0 ? ThreadActivity.Error : TotalMediaCount == 0

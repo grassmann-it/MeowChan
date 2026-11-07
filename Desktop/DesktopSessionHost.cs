@@ -167,7 +167,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
             }
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.content", epoch: _epoch))
-                await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
+                await _content.InitializeAdmittedAsync(_profileStartupAdmission
+                    ?? throw new InvalidOperationException("No profile startup admission."), _startupCancellation.Token).ConfigureAwait(false);
             // Startup ownership is still held. An interrupted transfer must not be
             // bypassed by restarting the ordinary producer/queue epoch.
             await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
@@ -636,9 +637,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
 
     internal Task SetCaptureEnabledAsync(ResourceId id, bool enabled)
-        => RunInteractiveAsync(nameof(SetCaptureEnabledAsync), id.ToString(), () => SetCaptureEnabledAdmittedCoreAsync(id, enabled));
+        => RunInteractiveWithAdmissionAsync(nameof(SetCaptureEnabledAsync), id.ToString(),
+            admission => SetCaptureEnabledAdmittedCoreAsync(id, enabled, admission));
 
-    private async Task SetCaptureEnabledAdmittedCoreAsync(ResourceId id, bool enabled)
+    private async Task SetCaptureEnabledAdmittedCoreAsync(ResourceId id, bool enabled, ProfileAdmissionToken admission)
     {
         await _commands.WaitAsync().ConfigureAwait(false);
         try
@@ -648,8 +650,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             lock (_projection)
                 active = _threadHandles.Values.OfType<BaseThread>().FirstOrDefault(thread => thread.SupportsContent
                     && thread.Board.ImageBoard.Name == id.Source && thread.Board.BoardCode == id.Board && thread.ThreadId == id.Thread);
-            if (active != null) await active.SetCaptureEnabledAsync(enabled).ConfigureAwait(false);
-            else await _content.Catalog.SetCaptureEnabledAsync(id, enabled).ConfigureAwait(false);
+            if (active != null) await active.SetCaptureEnabledAdmittedAsync(admission, enabled).ConfigureAwait(false);
+            else await _content.Catalog.SetCaptureEnabledAdmittedAsync(admission, id, enabled).ConfigureAwait(false);
             SignalChanged();
         }
         finally { _commands.Release(); }

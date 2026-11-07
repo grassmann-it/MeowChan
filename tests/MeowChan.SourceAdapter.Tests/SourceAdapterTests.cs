@@ -59,6 +59,7 @@ public sealed class SourceAdapterTests
         DownloadQueue queue = new(1, 1048576);
         await using Registry registry = new(new[] { source }, queue, profile.Path + "/media", TimeSpan.FromHours(1), 3600,
             contentRuntime: content, workStore: new WorkStateStore(profile.Path, lease));
+        await registry.StartAsync(lease);
         AdmissionResult admitted = await registry.AddAsync("https://boards.4chan.org/g/thread/123");
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Task removal = registry.RemoveThreadAsync(admitted.Thread!);
@@ -127,7 +128,7 @@ public sealed class SourceAdapterTests
         DownloadQueue queue = new(1, 1048576);
         queue.SetPaused(true);
         await using Registry registry = new(new[] { source }, queue, profile.Path, TimeSpan.FromSeconds(60), 3600, workStore: work);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         Assert.Empty(calls);
         Assert.Equal(count, registry.Threads.Count());
         Assert.True(registry.IsPaused);

@@ -35,7 +35,8 @@ public sealed class NativeMediaImportTests
             Assert.Equal(NativeMediaImportError.None, prepared.Error);
             NativeMediaImportPlan plan = Assert.IsType<NativeMediaImportPlan>(prepared.Plan);
             operation = plan.OperationId; request = plan.RequestSha256;
-            var committed = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore());
+            using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+            var committed = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
             Assert.Equal(NativeMediaImportCommitStatus.Committed, committed.Status);
             Assert.False(committed.IsReplay);
         }
@@ -93,14 +94,16 @@ public sealed class NativeMediaImportTests
         await using (NativeTransferImportStage stage = await Stage(files, Content()))
         {
             plan = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
-            Assert.Equal(NativeMediaImportCommitStatus.Committed, (await catalog.CommitNativeMediaImportAsync(plan, new MediaStore())).Status);
+            using ProfileAdmissionToken initialAdmission = await EnterExclusiveAsync(lease);
+            Assert.Equal(NativeMediaImportCommitStatus.Committed, (await CommitWithExclusiveAsync(initialAdmission, catalog, plan, ProfileExclusiveDisposition.SafeToResume)).Status);
         }
         var deleted = Assert.Single(await catalog.DeleteThreadsAsync([Id]));
         // Deletion of generated synthetic payload is deliberately after a proven commit: its
         // absence must not demote history, trigger re-copy, or require the disposed input stage.
         foreach (string file in Directory.GetFiles(deleted.Summary.MediaDirectory, "*.original.bin")) File.Delete(file);
         Dictionary<string, string> before = Files(files.Profile);
-        var replay = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore());
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        var replay = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
         Assert.Equal(NativeMediaImportCommitStatus.Committed, replay.Status); Assert.True(replay.IsReplay);
         Assert.Equal(before, Files(files.Profile));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -121,7 +124,8 @@ public sealed class NativeMediaImportTests
         await catalog.RegisterThreadAsync(new(Id, Url, "intervening", Path.Combine(files.Profile, "inert-existing"), false));
         if (deleteAgain) await catalog.DeleteThreadsAsync([Id]);
         Dictionary<string, string> before = Files(files.Profile);
-        var result = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore());
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        var result = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
         Assert.Equal(NativeMediaImportCommitStatus.StalePlan, result.Status);
         Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -140,7 +144,8 @@ public sealed class NativeMediaImportTests
         await using NativeTransferImportStage stage = await Stage(files, Content());
         NativeMediaImportPlan plan = (await owner.PrepareNativeMediaImportAsync(stage)).Plan!;
         Dictionary<string, string> before = Files(files.Profile);
-        Assert.Equal(NativeMediaImportCommitStatus.StalePlan, (await other.CommitNativeMediaImportAsync(plan, new MediaStore())).Status);
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        Assert.Equal(NativeMediaImportCommitStatus.StalePlan, (await CommitWithExclusiveAsync(admission, other, plan, ProfileExclusiveDisposition.SafeToResume)).Status);
         Assert.Equal(before, Files(files.Profile));
     }
 
@@ -152,12 +157,13 @@ public sealed class NativeMediaImportTests
         await using NativeTransferImportStage stage = await Stage(files, Content());
         var first = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
         var second = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
-        var interrupted = await catalog.CommitNativeMediaImportAsync(first, new MediaStore(), checkpoint: phase =>
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        var interrupted = await CommitWithExclusiveAsync(admission, catalog, first, ProfileExclusiveDisposition.RecoveryRequired, checkpoint: phase =>
         { if (phase == NativeMediaImportPhase.PreparingSaved) throw new IOException("synthetic interruption before mkdir"); });
         Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, interrupted.Status);
         Assert.False(Directory.Exists(first.OperationsParent));
         Dictionary<string, string> before = Files(files.Profile);
-        var rejected = await catalog.CommitNativeMediaImportAsync(second, new MediaStore());
+        var rejected = await CommitWithExclusiveAsync(admission, catalog, second, ProfileExclusiveDisposition.RecoveryRequired);
         Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, rejected.Status);
         Assert.False(Directory.Exists(second.OperationsParent));
         Assert.Equal(before, Files(files.Profile));
@@ -236,7 +242,8 @@ public sealed class NativeMediaImportTests
         Assert.Empty((await migrated.ReadNativeMediaImportOperationsPageAsync()).Items);
         await using NativeTransferImportStage stage = await Stage(files, Content());
         var plan = (await migrated.PrepareNativeMediaImportAsync(stage)).Plan!;
-        Assert.Equal(NativeMediaImportCommitStatus.Committed, (await migrated.CommitNativeMediaImportAsync(plan, new MediaStore())).Status);
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        Assert.Equal(NativeMediaImportCommitStatus.Committed, (await CommitWithExclusiveAsync(admission, migrated, plan, ProfileExclusiveDisposition.SafeToResume)).Status);
     }
 
     [Theory]
@@ -252,10 +259,12 @@ public sealed class NativeMediaImportTests
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(files.Profile, lease);
             await using NativeTransferImportStage stage = await Stage(files, Content());
             plan = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
-            var commit = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore());
+            using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+            var commit = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
             Assert.Equal(NativeMediaImportCommitStatus.Committed, commit.Status);
             Assert.Single((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
             payloadBefore = Files(plan.OperationsParent);
+            admission.Dispose(); // Apply and reconciliation have completely returned.
             if (cleanup)
             {
                 ArchiveDeletedThread selected = Assert.Single((await catalog.PrepareDeletionAsync([Id])).Threads);
@@ -276,10 +285,10 @@ public sealed class NativeMediaImportTests
             Assert.Null(inspection.Operation); Assert.Empty(inspection.Children);
             Assert.Equal(receipt, inspection.Receipt);
             // Recreated content must survive replay unchanged. The disposed Stage and deleted
-            // operations metadata are not needed, even through the original disposed owner.
+            // operations metadata are not needed. A retired owner cannot authorize Apply.
             await reopened.RegisterThreadAsync(new(Id, Url, "deliberate replacement", Path.Combine(files.Profile, "replacement"), false));
             Dictionary<string, string> before = Files(files.Profile);
-            var replay = await plan.Owner.CommitNativeMediaImportAsync(plan, new MediaStore());
+            var replay = await reopened.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256);
             Assert.Equal(receipt, replay);
             Assert.Equal(before, Files(files.Profile));
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -306,7 +315,8 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         await using NativeTransferImportStage stage = await Stage(files, Content());
         NativeMediaImportPlan plan = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
-        var interrupted = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore(), checkpoint: phase =>
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        var interrupted = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.RecoveryRequired, checkpoint: phase =>
         { if (phase.ToString() == interruption) throw new IOException("synthetic unresolved operation"); });
         Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, interrupted.Status);
         NativeMediaImportOperation before = Assert.Single((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
@@ -315,6 +325,7 @@ public sealed class NativeMediaImportTests
         Assert.Equal(interruption == "PreparingSaved" ? NativeMediaImportOperationState.Preparing
             : NativeMediaImportOperationState.Prepared, before.State);
         Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
+        admission.Dispose(); // The following ordinary writes are outside the Apply scope.
         await catalog.RegisterThreadAsync(new(Id, Url, "intervening owner", Path.Combine(files.Profile, "inert"), false));
         if (cleanup)
         {
@@ -325,8 +336,9 @@ public sealed class NativeMediaImportTests
         Assert.Equal(before, Assert.Single((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items));
         Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
         NativeMediaImportPlan replacement = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
+        using ProfileAdmissionToken replacementAdmission = await EnterExclusiveAsync(lease);
         Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired,
-            (await catalog.CommitNativeMediaImportAsync(replacement, new MediaStore())).Status);
+            (await CommitWithExclusiveAsync(replacementAdmission, catalog, replacement, ProfileExclusiveDisposition.RecoveryRequired)).Status);
         Assert.False(Directory.Exists(replacement.OperationsParent));
     }
 
@@ -340,14 +352,44 @@ public sealed class NativeMediaImportTests
         await using NativeTransferImportStage stage = await Stage(files, Content());
         NativeMediaImportPlan plan = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
         int verified = 0;
-        var result = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore(), checkpoint: phase =>
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        var result = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.RecoveryRequired, checkpoint: phase =>
         {
             if (phase != NativeMediaImportPhase.CandidateVerified) return;
             verified++;
-            // This hook is outside the SQL writer/ProfileLease monitor, while the candidate
-            // lease is held. Registration must be able to win before the final transaction.
-            catalog.RegisterThreadAsync(new(Id, Url, "won final fence", Path.Combine(files.Profile, "inert"), false)).GetAwaiter().GetResult();
-            if (deleteAgain) catalog.DeleteThreadsAsync([Id]).GetAwaiter().GetResult();
+            // Ordinary registration is now correctly excluded by the live Apply owner.
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                _ = catalog.RegisterThreadAsync(new(Id, Url, "won final fence", Path.Combine(files.Profile, "inert"), false));
+            });
+            // Deliberately inject the same registered/deleted target shape through the
+            // genuine owner's SQL pin. This tests final-fence defense, not permission for
+            // a concurrent ordinary writer, and never seeds imported content or receipts.
+            catalog.WriteTransferAdmittedAsync(admission, (connection, transaction) =>
+            {
+                using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
+                    INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,
+                        capture_enabled,first_seen_at,revision,search_text)
+                    VALUES($source,$board,$thread,$url,'won final fence',$directory,$state,0,$first,0,'won final fence');
+                    INSERT INTO archive_media_directories(source,board,thread,directory)
+                    VALUES($source,$board,$thread,$directory);
+                    """);
+                ArchiveSql.AddId(command, Id);
+                command.Parameters.AddWithValue("$url", Url);
+                command.Parameters.AddWithValue("$directory", Path.Combine(files.Profile, "inert"));
+                command.Parameters.AddWithValue("$state", (int)ThreadSourceState.Active);
+                command.Parameters.AddWithValue("$first", ArchiveSql.Date(At));
+                command.ExecuteNonQuery();
+                if (deleteAgain)
+                {
+                    command.CommandText = """
+                        DELETE FROM archive_media_directories WHERE source=$source AND board=$board AND thread=$thread;
+                        DELETE FROM archive_threads WHERE source=$source AND board=$board AND thread=$thread;
+                        """;
+                    command.ExecuteNonQuery();
+                }
+                return true;
+            }).GetAwaiter().GetResult();
         });
         Assert.Equal(1, verified);
         Assert.Equal(NativeMediaImportCommitStatus.StalePlan, result.Status);
@@ -379,13 +421,17 @@ public sealed class NativeMediaImportTests
         using ManualResetEventSlim release = new();
         TaskCompletionSource negativeRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int admissions = 0, materializationCallbacks = 0;
-        Task<NativeMediaImportCommitResult> pending = Task.Run(() => catalog.CommitNativeMediaImportAsync(plan, new MediaStore(),
-            checkpoint: _ => Interlocked.Increment(ref materializationCallbacks), beforeAdmission: () =>
-            {
-                Interlocked.Increment(ref admissions);
-                negativeRead.TrySetResult();
-                if (!release.Wait(deadline)) throw new TimeoutException("test did not release the post-negative-receipt admission barrier");
-            }));
+        using ProfileAdmissionToken admission = await EnterExclusiveAsync(lease);
+        // Both calls borrow the same live owner. A second Exclusive reservation or
+        // ordinary deletion beneath that owner would be invalid, not a SQL race.
+        Task<ProfileExclusiveOutcome<NativeMediaImportCommitResult>> pending = Task.Run(() =>
+            catalog.CommitNativeMediaImportAdmittedAsync(admission, plan, new MediaStore(),
+                checkpoint: _ => Interlocked.Increment(ref materializationCallbacks), beforeAdmission: () =>
+                {
+                    Interlocked.Increment(ref admissions);
+                    negativeRead.TrySetResult();
+                    if (!release.Wait(deadline)) throw new TimeoutException("test did not release the post-negative-receipt admission barrier");
+                }));
         NativeMediaImportCommitResult? historical = null;
         Dictionary<string, string>? before = null;
         try
@@ -394,25 +440,31 @@ public sealed class NativeMediaImportTests
             Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
             Assert.Empty((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
             Assert.False(Directory.Exists(plan.OperationsParent));
-            var winningCall = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore()).WaitAsync(deadline);
+            var winningCall = await CommitWithExclusiveAsync(admission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
             Assert.Equal(NativeMediaImportCommitStatus.Committed, winningCall.Status); Assert.False(winningCall.IsReplay);
             historical = await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256);
             Assert.NotNull(historical);
-            if (cleanup)
+            // Keep the negative-read/metadata-disappearance race without forging an
+            // ordinary writer. Remove only committed metadata using the actual helper;
+            // the real Delete/Cleanup API is exercised after both borrowed calls finish.
+            await catalog.WriteTransferAdmittedAsync(admission, (connection, transaction) =>
             {
-                ArchiveDeletedThread selected = Assert.Single((await catalog.PrepareDeletionAsync([Id])).Threads);
-                Assert.True(await catalog.DeleteCleanupThreadAsync(selected));
-            }
-            else Assert.Single(await catalog.DeleteThreadsAsync([Id]));
+                ArchiveSql.DeleteCommittedMediaImportOperations(connection, transaction, Id);
+                return true;
+            });
             Assert.Empty((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
             before = Files(files.Profile);
         }
         finally
         {
             release.Set();
-            await pending.WaitAsync(deadline);
+            // Join the complete task even on an assertion/watchdog failure before the
+            // using scope can retire its borrowed owner or dispose the stage/catalog.
+            await pending;
         }
-        var replay = await pending;
+        var replayOutcome = await pending;
+        Assert.Equal(ProfileExclusiveDisposition.SafeToResume, replayOutcome.Disposition);
+        var replay = replayOutcome.Result;
         Assert.Equal(historical, replay);
         Assert.Equal(NativeMediaImportCommitStatus.Committed, replay.Status); Assert.True(replay.IsReplay);
         Assert.Equal((1, 2, 1), (replay.NewThreads, replay.NewPosts, replay.NewAttachments));
@@ -420,6 +472,21 @@ public sealed class NativeMediaImportTests
         Assert.Equal(before, Files(files.Profile));
         Assert.Empty((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
         Assert.Single(Directory.GetDirectories(plan.OperationsParent));
+        catalog.EnsureTransferAdmission(admission);
+        admission.Dispose();
+
+        if (cleanup)
+        {
+            ArchiveDeletedThread selected = Assert.Single((await catalog.PrepareDeletionAsync([Id])).Threads);
+            Assert.True(await catalog.DeleteCleanupThreadAsync(selected));
+        }
+        else Assert.Single(await catalog.DeleteThreadsAsync([Id]));
+        Assert.Empty((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
+        before = Files(files.Profile);
+        using ProfileAdmissionToken replayAdmission = await EnterExclusiveAsync(lease);
+        var afterDeletion = await CommitWithExclusiveAsync(replayAdmission, catalog, plan, ProfileExclusiveDisposition.SafeToResume);
+        Assert.Equal(historical, afterDeletion);
+        Assert.Equal(before, Files(files.Profile));
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile);
         Assert.Null(await reader.ReadThreadAsync(Id));
     }
@@ -488,6 +555,25 @@ public sealed class NativeMediaImportTests
                 .OrderBy(n => n, StringComparer.Ordinal),
                 triggerNames.Where(n => n.StartsWith("import_fence_local_", StringComparison.Ordinal)));
         }
+    }
+
+    // Direct storage-owner tests, not a public Registry startup shortcut. Setup/prepare
+    // completes before Starting -> Ready, and the genuine owner is kept through reconciliation.
+    private static ValueTask<ProfileAdmissionToken> EnterExclusiveAsync(ProfileLease lease)
+    {
+        if (lease.Admission.Phase == ProfileAdmissionPhase.Starting) lease.Admission.CompleteStartup();
+        return lease.Admission.EnterExclusiveAsync();
+    }
+
+    private static async Task<NativeMediaImportCommitResult> CommitWithExclusiveAsync(
+        ProfileAdmissionToken admission, ArchiveCatalog catalog, NativeMediaImportPlan plan,
+        ProfileExclusiveDisposition expectedDisposition, Action<NativeMediaImportPhase>? checkpoint = null)
+    {
+        var outcome = await catalog.CommitNativeMediaImportAdmittedAsync(admission, plan, new MediaStore(),
+            checkpoint: checkpoint);
+        Assert.Equal(expectedDisposition, outcome.Disposition);
+        catalog.EnsureTransferAdmission(admission); // Consumer borrows, never retires, the owner.
+        return outcome.Result;
     }
 
     internal static NativeTransferCatalog Content(bool legacy = false, bool mismatch = false)

@@ -37,6 +37,7 @@ public sealed class ContentRuntimeTests
             types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { ".png" })) });
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = Registry(client, queue, Path.Combine(profile.Path, "media"), runtime);
+        await registry.StartAsync(lease);
         IThread thread = (await registry.AddAsync(Url)).Thread!;
         await TestWait.UntilAsync(() => thread.MediaFailures.Count == 1);
         Assert.Equal(ThreadSourceState.Archived, thread.SourceState);
@@ -66,6 +67,7 @@ public sealed class ContentRuntimeTests
             await runtime.Rules.SaveAsync(new[] { new MediaRule(MediaRuleScope.Global, types: new MediaTypeSelection(MediaTypeSelectionMode.Selected)) });
             DownloadQueue queue = new DownloadQueue(2, 1L << 30);
             await using Registry registry = Registry(client, queue, output, runtime);
+            await registry.StartAsync(lease);
             IThread thread = (await registry.AddAsync(Url)).Thread!;
             await TestWait.UntilAsync(() => thread.GetSnapshot(new DownloadCounts()).Content?.ExcludedMedia == 1);
             await thread.StopMonitoringAsync();
@@ -89,6 +91,7 @@ public sealed class ContentRuntimeTests
             await runtime.InitializeAsync();
             DownloadQueue queue = new DownloadQueue(2, 1L << 30);
             await using Registry registry = Registry(client, queue, output, runtime);
+            await registry.StartAsync(lease);
             IThread restored = (await registry.AddAsync(Url)).Thread!;
             await TestWait.UntilAsync(() => restored.SourceState == ThreadSourceState.NotFound && restored.DownloadedMediaCount == 1);
             await queue.WaitForIdleAsync().WaitAsync(TestWait.Timeout);
@@ -117,6 +120,7 @@ public sealed class ContentRuntimeTests
         using HttpClient client = new HttpClient(transport);
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = Registry(client, queue, Path.Combine(profile.Path, "media"), runtime);
+        await registry.StartAsync(lease);
         IThread thread = (await registry.AddAsync(Url)).Thread!;
         await TestWait.UntilAsync(() => thread.GetSnapshot(new DownloadCounts()).Content?.CaptureFailure != null);
         // Capture failure is published before durable selection/admission. Stopping at that point
@@ -152,7 +156,7 @@ public sealed class ContentRuntimeTests
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = new Registry(new IImageBoard[] { new FourChanImageBoard(client) }, queue,
             Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 60, sessions, contentRuntime: runtime);
-        await registry.RestoreAsync();
+        await registry.StartAsync(lease);
         IThread thread = registry.Threads.Single();
         await TestWait.UntilAsync(() => thread.TotalMediaCount == 1);
         await thread.StopMonitoringAsync();
@@ -183,6 +187,7 @@ public sealed class ContentRuntimeTests
         DownloadQueue queue = new DownloadQueue(1, 1L << 30);
         await using Registry registry = new Registry(new IImageBoard[] { new EightKunImageBoard(client) }, queue,
             Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 60, persistSession: false, contentRuntime: runtime);
+        await registry.StartAsync(lease);
         IThread thread = (await registry.AddAsync("https://8kun.top/test/res/123.html")).Thread!;
         await TestWait.UntilAsync(() => thread.GetSnapshot(new DownloadCounts()).Content?.ExcludedMedia == 2
             || thread.LastCheckFailure != null || thread.GetSnapshot(new DownloadCounts()).Content?.SelectionFailure != null);

@@ -38,6 +38,7 @@ public sealed class ArchiveSourceContractTests
             WorkStateStore work = new(profile.Path, lease);
             await using Registry registry = new(new[] { adapter }, queue, Path.Combine(profile.Path, "media"), TimeSpan.FromHours(1), 3600,
                 contentRuntime: content, workStore: work);
+            await registry.StartAsync(lease);
             AdmissionResult admitted = await registry.AddAsync("https://numeric.test/b/thread/1");
             await SourceAdapterTests.WaitUntilAsync(() => admitted.Thread!.SourceState == ThreadSourceState.Archived);
             await SourceAdapterTests.WaitUntilAsync(() => admitted.Thread!.GetSnapshot(default!).Content!.LastCapturedAt != null);

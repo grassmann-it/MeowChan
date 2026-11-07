@@ -179,6 +179,8 @@ public sealed class TargetBudgetTests
         MediaStore failingStore = new((_, _, _) => throw new IOException("Controlled disk full at publication", unchecked((int)0x80070070)));
         DownloadQueue firstQueue = new(1, 1L << 30, mediaStore: failingStore);
         firstQueue.TargetGate.ProbeOverride = (_, _, _, _) => Task.FromResult<string?>(null);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         firstQueue.ConfigureWorkState(store);
         firstQueue.BindWork(first.Thread, owner);
         await TestWait.UntilAsync(() => firstQueue.TargetWaitStates.Count == 1);
@@ -222,6 +224,8 @@ public sealed class TargetBudgetTests
         store.CommitMedia(previous);
         DownloadQueue queue = new(1, 1L << 30, timeProvider: clock);
         queue.TargetGate.ProbeOverride = (_, _, _, _) => Task.FromResult<string?>("target-unavailable");
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store);
         try
         {
@@ -254,6 +258,8 @@ public sealed class TargetBudgetTests
         WorkResource owner = store.CommitIntent(new WorkResource { Url = item.Thread.Url, OutputRoot = directory.Path,
             Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
         DownloadQueue queue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(item.Thread, owner);
         try
         {

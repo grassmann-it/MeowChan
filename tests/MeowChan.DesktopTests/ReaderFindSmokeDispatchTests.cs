@@ -47,8 +47,10 @@ public sealed class ReaderFindSmokeDispatchTests
     public void FinalScenarioWordingBelongsExclusivelyToReaderFindMode()
     {
         string program = Source("tests/MeowChan.DesktopSmoke/Program.cs");
+        // Other focused modes may precede reader-find in the final expression.
+        // Its wording must still belong exclusively to the exact reader branch.
         string scenario = Between(program,
-            "string scenario = Environment.GetEnvironmentVariable(\"" + Mode + "\") == \"1\"",
+            "string scenario = ",
             "Console.WriteLine(\"SMOKE PASS: \" + scenario");
         string readerClaim = Between(scenario,
             "Environment.GetEnvironmentVariable(\"" + Mode + "\") == \"1\"",

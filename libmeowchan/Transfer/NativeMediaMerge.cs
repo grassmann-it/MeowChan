@@ -13,6 +13,7 @@ using MeowChan.Archive;
 using MeowChan.Transfer;
 using MeowChan.Interfaces;
 using MeowChan.Storage;
+using MeowChan.Persistence;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Archive;
@@ -302,14 +303,57 @@ public sealed partial class ArchiveCatalog
             attachment.ExpectedSize, attachment.ExpectedMd5, attachment.ExpectedSha256)
         { ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = attachment.ProviderSizeHint };
 
-    internal async Task<NativeMediaMergeResult> CommitNativeMediaMergeAsync(NativeMediaMergePlan plan, MediaStore store,
+    // The caller retains this borrowed Exclusive through all SQL, filesystem scopes and
+    // independent reconciliation. No tokenless profile mutation entry is available.
+    internal Task<ProfileExclusiveOutcome<NativeMediaMergeResult>> CommitNativeMediaMergeAdmittedAsync(
+        ProfileAdmissionToken admission, NativeMediaMergePlan plan, MediaStore store,
         CancellationToken cancellationToken = default, Action? beforeAdmission = null,
         Action<NativeMediaImportPhase>? checkpoint = null)
     {
+        EnsureTransferAdmission(admission);
         ArgumentNullException.ThrowIfNull(plan); ArgumentNullException.ThrowIfNull(store);
         if (!ReferenceEquals(plan.Owner, this) || !_issuedNativeMediaMergePlans.TryGetValue(plan, out _))
-            return new(NativeMediaImportCommitStatus.StalePlan);
+            return RejectUnissuedNativeMediaMergePlanAsync();
+        return CommitNativeMediaMergeAdmittedCoreAsync(admission, plan, store, cancellationToken, beforeAdmission, checkpoint);
+    }
+
+    private async Task<ProfileExclusiveOutcome<NativeMediaMergeResult>> RejectUnissuedNativeMediaMergePlanAsync()
+    {
+        // Do not use unissued operation identities or paths as recovery evidence.
         try
+        {
+            bool blocked = await ReadMediaMergeRecoveryAsync(connection =>
+            {
+                using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                bool result = HasNativeMediaImportRecoveryBlocker(connection, transaction);
+                transaction.Commit();
+                return result;
+            }, CancellationToken.None).ConfigureAwait(false);
+            NativeMediaMergeResult stale = new(NativeMediaImportCommitStatus.StalePlan);
+            return blocked ? ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(stale)
+                : ProfileExclusiveOutcome<NativeMediaMergeResult>.SafeToResume(stale);
+        }
+        catch (Exception error)
+        {
+            return ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(
+                new(NativeMediaImportCommitStatus.Unknown, Diagnostic: error.GetType().Name));
+        }
+    }
+
+    private async Task<ProfileExclusiveOutcome<NativeMediaMergeResult>> CommitNativeMediaMergeAdmittedCoreAsync(
+        ProfileAdmissionToken admission, NativeMediaMergePlan plan, MediaStore store,
+        CancellationToken cancellationToken, Action? beforeAdmission, Action<NativeMediaImportPhase>? checkpoint)
+    {
+        bool claimAttempted = false, durableOperationObserved = false;
+        NativeMediaMergeResult? completed = null;
+        Exception? failure = null;
+        try { completed = await ExecuteAsync().ConfigureAwait(false); }
+        catch (Exception error) { failure = error; }
+        // All awaited target/candidate callbacks and handle disposal have unwound here.
+        return await ReconcileNativeMediaMergeOutcomeAsync(plan, completed, failure,
+            claimAttempted || durableOperationObserved).ConfigureAwait(false);
+
+        async Task<NativeMediaMergeResult> ExecuteAsync()
         {
             NativeMediaMergeResult? replay = await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false);
             if (replay != null) return replay;
@@ -319,14 +363,13 @@ public sealed partial class ArchiveCatalog
             beforeAdmission?.Invoke();
             // Resolve replay/unresolved/stale SQL state before touching target paths, then
             // repeat the same transaction check under the verified root leases before Claim.
-            NativeMediaImportCommitStatus preliminary = await WriteAsync((connection, transaction) =>
+            NativeMediaImportCommitStatus preliminary = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                 Admit(connection, transaction, claim: false), cancellationToken).ConfigureAwait(false);
             if (preliminary == NativeMediaImportCommitStatus.Committed)
                 return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false)
                     ?? new(NativeMediaImportCommitStatus.Unknown);
             if (preliminary != NativeMediaImportCommitStatus.Inactive) return new(preliminary);
-            string[] targetDirectories = plan.Roots.Select(root => root.Directory).ToArray();
-            return await store.WithPassiveMergeTargetRootsAsync(targetDirectories, async snapshots =>
+            return await store.WithPassiveMergeTargetRootsAdmittedAsync(admission, plan, async snapshots =>
             {
                 if (snapshots.Length != plan.Roots.Length
                     || snapshots.Select(snapshot => (snapshot.Directory, snapshot.Generation))
@@ -339,32 +382,32 @@ public sealed partial class ArchiveCatalog
                 // Receipt/recovery and freshness remain first inside the SQL admission. The
                 // target leases are held from this check through final SQL, so a cooperative
                 // manifest change cannot turn into a claimed-but-never-startable operation.
-                NativeMediaImportCommitStatus admission = await WriteAsync((connection, transaction) =>
+                NativeMediaImportCommitStatus claimStatus = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                     Admit(connection, transaction, claim: true), cancellationToken).ConfigureAwait(false);
-                if (admission == NativeMediaImportCommitStatus.Committed)
+                if (claimStatus == NativeMediaImportCommitStatus.Committed)
                     return await ReadNativeMediaMergeReceiptAsync(plan.OperationId, plan.RequestSha256, CancellationToken.None).ConfigureAwait(false)
                         ?? new(NativeMediaImportCommitStatus.Unknown);
-                if (admission != NativeMediaImportCommitStatus.Inactive) return new(admission);
+                if (claimStatus != NativeMediaImportCommitStatus.Inactive) return new(claimStatus);
 
                 checkpoint?.Invoke(NativeMediaImportPhase.PreparingSaved);
                 cancellationToken.ThrowIfCancellationRequested();
                 CreateMergeOperationsParent(plan.OperationsParent);
                 checkpoint?.Invoke(NativeMediaImportPhase.OperationsParentCreated);
-                PassiveMediaImportCandidate full = await store.MaterializePassiveMergeCandidateAsync(plan, false, cancellationToken,
+                PassiveMediaImportCandidate full = await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, false, cancellationToken,
                     _ => checkpoint?.Invoke(NativeMediaImportPhase.CandidateDirectoryCreated)).ConfigureAwait(false);
                 checkpoint?.Invoke(NativeMediaImportPhase.CandidateReady);
                 PassiveMediaImportCandidate? safe = null;
                 if (!plan.SafeKeys.IsEmpty)
                     safe = plan.ReuseFullAsSafe ? full
-                        : await store.MaterializePassiveMergeCandidateAsync(plan, true, cancellationToken).ConfigureAwait(false);
-                await WriteAsync((connection, transaction) =>
+                        : await store.MaterializePassiveMergeCandidateAdmittedAsync(admission, plan, true, cancellationToken).ConfigureAwait(false);
+                await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                 { ArchiveSql.MarkMediaMergePrepared(connection, transaction, plan, full, safe); return true; }, cancellationToken)
                     .ConfigureAwait(false);
                 checkpoint?.Invoke(NativeMediaImportPhase.PreparedSaved);
-                return await store.WithVerifiedPassiveMergeCandidatesAsync(plan, full, safe, async () =>
+                return await store.WithVerifiedPassiveMergeCandidatesAdmittedAsync(admission, plan, full, safe, async () =>
                 {
                     checkpoint?.Invoke(NativeMediaImportPhase.CandidateVerified);
-                    NativeMediaMergeResult result = await WriteAsync((connection, transaction) =>
+                    NativeMediaMergeResult result = await WriteTransferAdmittedAsync(admission, (connection, transaction) =>
                     {
                         NativeMediaMergeResult? receipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
                         if (receipt != null) return receipt;
@@ -381,51 +424,105 @@ public sealed partial class ArchiveCatalog
                 }, cancellationToken).ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception error)
-        {
-            try
-            {
-                // Receipt and unresolved claim must be observed in one independent read snapshot.
-                // No receipt alone does not prove inactivity: a durable Preparing/Prepared claim
-                // still blocks retries, even when this owner or its cancellation token is gone.
-                return await ReadMediaMergeRecoveryAsync(connection =>
-                {
-                    using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-                    NativeMediaMergeResult? receipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction,
-                        plan.OperationId, plan.RequestSha256);
-                    if (receipt != null)
-                    {
-                        transaction.Commit();
-                        return receipt with { Diagnostic = error.GetType().Name };
-                    }
-                    NativeMediaMergeOperation? operation = ArchiveSql.ReadMediaMergeOperation(connection, transaction,
-                        plan.OperationId, plan.RequestSha256);
-                    NativeMediaImportCommitStatus status = operation?.State == NativeMediaImportOperationState.Committed
-                        ? NativeMediaImportCommitStatus.Unknown // Missing receipt is not historical success.
-                        : operation != null || ArchiveSql.HasUnresolvedMediaOperation(connection, transaction, plan.Resource)
-                            ? NativeMediaImportCommitStatus.ReconciliationRequired
-                            : NativeMediaImportCommitStatus.Inactive;
-                    transaction.Commit();
-                    return new NativeMediaMergeResult(status, Diagnostic: error.GetType().Name);
-                }, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception reconciliationError)
-            { return new(NativeMediaImportCommitStatus.Unknown, Diagnostic: error.GetType().Name + "/receipt:" + reconciliationError.GetType().Name); }
-        }
 
         NativeMediaImportCommitStatus Admit(SqliteConnection connection, SqliteTransaction transaction, bool claim)
         {
             if (ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256) != null)
                 return NativeMediaImportCommitStatus.Committed;
             NativeMediaMergeOperation? existing = ArchiveSql.ReadMediaMergeOperation(connection, transaction, plan.OperationId, plan.RequestSha256);
-            if (existing != null) return existing.State == NativeMediaImportOperationState.Committed
-                ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.ReconciliationRequired;
+            if (existing != null)
+            {
+                durableOperationObserved = true;
+                return existing.State == NativeMediaImportOperationState.Committed
+                    ? NativeMediaImportCommitStatus.Committed : NativeMediaImportCommitStatus.ReconciliationRequired;
+            }
             if (ArchiveSql.HasUnresolvedMediaOperation(connection, transaction, plan.Resource))
                 return NativeMediaImportCommitStatus.ReconciliationRequired;
             if (!MediaMergeFresh(connection, transaction, plan)) return NativeMediaImportCommitStatus.StalePlan;
             if (!claim) return NativeMediaImportCommitStatus.Inactive;
+            // Record uncertainty BEFORE INSERT/Commit/return, including commit-return loss.
+            claimAttempted = true;
             return ArchiveSql.ClaimMediaMerge(connection, transaction, plan)
                 ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.ReconciliationRequired;
+        }
+    }
+
+    private async Task<ProfileExclusiveOutcome<NativeMediaMergeResult>> ReconcileNativeMediaMergeOutcomeAsync(
+        NativeMediaMergePlan plan, NativeMediaMergeResult? completed, Exception? failure, bool claimMayHavePersisted)
+    {
+        NativeMediaMergeResult? historicalReceipt = null;
+        try
+        {
+            return await ReadMediaMergeRecoveryAsync(connection =>
+            {
+                using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                historicalReceipt = ArchiveSql.ReadMediaMergeReceipt(connection, transaction, plan.OperationId, plan.RequestSha256);
+                // Same snapshot, both families, whole profile: a historical success does not
+                // authorize resuming over a separate unfinished or receipt-inconsistent operation.
+                bool blocked = HasNativeMediaImportRecoveryBlocker(connection, transaction);
+                var fence = ArchiveSql.ReadImportFence(connection, transaction);
+                if (historicalReceipt != null)
+                {
+                    NativeMediaMergeResult success = historicalReceipt with
+                    {
+                        IsReplay = completed?.Status == NativeMediaImportCommitStatus.Committed
+                            ? completed.IsReplay : true,
+                        Diagnostic = failure?.GetType().Name ?? completed?.Diagnostic
+                    };
+                    transaction.Commit();
+                    // Generation may legitimately advance after a historical receipt; an
+                    // entirely different catalog instance cannot attest this owner's resume.
+                    return blocked || fence.Item1 != plan.Instance
+                        ? ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(success)
+                        : ProfileExclusiveOutcome<NativeMediaMergeResult>.SafeToResume(success);
+                }
+                NativeMediaMergeOperation? operation = ArchiveSql.ReadMediaMergeOperation(connection, transaction,
+                    plan.OperationId, plan.RequestSha256);
+                NativeMediaImportCommitStatus status;
+                bool safeToResume = false;
+                if (operation?.State == NativeMediaImportOperationState.Committed)
+                    status = NativeMediaImportCommitStatus.Unknown;
+                else if (fence.Item1 != plan.Instance)
+                    // A completed freshness rejection is still the truthful attempt result.
+                    // Replaced identity defeats resume evidence, not that observed StalePlan;
+                    // faults without a completed rejection remain Unknown. Never mark safe here.
+                    status = completed?.Status == NativeMediaImportCommitStatus.StalePlan
+                        ? NativeMediaImportCommitStatus.StalePlan : NativeMediaImportCommitStatus.Unknown;
+                else if (operation != null || blocked)
+                    status = completed?.Status == NativeMediaImportCommitStatus.StalePlan
+                        ? NativeMediaImportCommitStatus.StalePlan : NativeMediaImportCommitStatus.ReconciliationRequired;
+                else if (claimMayHavePersisted || completed?.Status is NativeMediaImportCommitStatus.Committed
+                    or NativeMediaImportCommitStatus.Unknown or NativeMediaImportCommitStatus.ReconciliationRequired)
+                    // Even absent metadata cannot prove rollback after a possibly committed claim.
+                    // The filesystem may already contain children whose SQL row disappeared.
+                    status = NativeMediaImportCommitStatus.Unknown;
+                else if (completed?.Status == NativeMediaImportCommitStatus.StalePlan)
+                {
+                    status = NativeMediaImportCommitStatus.StalePlan; // explicit pre-effect rejection
+                    safeToResume = true;
+                }
+                else
+                {
+                    safeToResume = MediaMergeFresh(connection, transaction, plan);
+                    status = safeToResume ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.Unknown;
+                }
+                transaction.Commit();
+                NativeMediaMergeResult result = new(status, Diagnostic: failure?.GetType().Name ?? completed?.Diagnostic);
+                return safeToResume
+                    ? ProfileExclusiveOutcome<NativeMediaMergeResult>.SafeToResume(result)
+                    : ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(result);
+            }, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception reconciliationError)
+        {
+            // A receipt already read is historical success even if the blocker/read tail fails;
+            // without a complete negative blocker proof the lane must nevertheless remain sealed.
+            string diagnostic = (failure?.GetType().Name ?? completed?.Diagnostic ?? "reconciliation")
+                + "/receipt:" + reconciliationError.GetType().Name;
+            return ProfileExclusiveOutcome<NativeMediaMergeResult>.RecoveryRequired(
+                historicalReceipt is null
+                    ? new(NativeMediaImportCommitStatus.Unknown, Diagnostic: diagnostic)
+                    : historicalReceipt with { Diagnostic = diagnostic });
         }
     }
 

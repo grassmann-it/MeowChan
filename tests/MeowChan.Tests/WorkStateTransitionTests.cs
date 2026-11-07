@@ -92,6 +92,8 @@ public sealed class WorkStateTransitionTests
         }));
         ProbeThread thread = new(board.Board, new Uri(Url));
         DownloadQueue queue = new(1, 1L << 30, 4);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        if (!memory) lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(thread, owner);
         await queue.SetPausedAsync(true);
         DownloadItem a = Item(board, thread, directory.Path, "a");
@@ -146,6 +148,8 @@ public sealed class WorkStateTransitionTests
         DownloadItem a = Item(board, thread, directory.Path, "a");
         DownloadItem b = Item(board, thread, directory.Path, "b");
         DownloadQueue queue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        if (!memory) lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(thread, owner);
         try
         {
@@ -196,6 +200,8 @@ public sealed class WorkStateTransitionTests
             File.Move(from, to, overwrite);
         });
         DownloadQueue queue = new(1, 1L << 30, mediaStore: mediaStore);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        if (!memory) lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(thread, owner);
         Task? suppress = null;
         try
@@ -260,6 +266,8 @@ public sealed class WorkStateTransitionTests
         ProbeThread old = new(board.Board, new Uri(Url));
         ProbeThread next = new(board.Board, new Uri(Url));
         DownloadQueue queue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        if (!memory) lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(old, first);
         Task? cancelled = null;
         try
@@ -323,6 +331,7 @@ public sealed class WorkStateTransitionTests
         Task? removal = null;
         try
         {
+            if (!memory) await registry.StartAsync(lease);
             ProbeThread thread = Assert.IsType<ProbeThread>((await registry.AddAsync(Url)).Thread);
             await scanWaiting.Task.WaitAsync(TestWait.Timeout);
             Assert.True(queue.TryEnqueue(Item(board, thread, directory.Path, "a")));
@@ -491,6 +500,8 @@ public sealed class WorkStateTransitionTests
             store.CommitMedia(Work(Item(board, thread, directory.Path, "a")) with { ResourceUrl = other.Url });
         }
         DownloadQueue queue = new(1, 1L << 30);
+        // Core-IVT queue fixture: synchronous seeding is complete; producers require Ready.
+        lease.Admission.CompleteStartup();
         queue.ConfigureWorkState(store); queue.BindWork(thread, owner);
         WorkStoreQueryCounts before = store.QueryCounts;
         try

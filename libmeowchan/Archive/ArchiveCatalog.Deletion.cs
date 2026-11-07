@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 
 namespace MeowChan.Archive;
 
@@ -51,8 +52,16 @@ public sealed partial class ArchiveCatalog
     public Task<IReadOnlyList<ArchiveDeletedThread>> DeleteThreadsAsync(IReadOnlyCollection<ResourceId> ids,
         CancellationToken cancellationToken = default)
     {
+        ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
+        return CompleteOwnedWriteAsync(admission,
+            () => DeleteThreadsAdmittedAsync(admission, ids, cancellationToken));
+    }
+
+    internal Task<IReadOnlyList<ArchiveDeletedThread>> DeleteThreadsAdmittedAsync(ProfileAdmissionToken admission,
+        IReadOnlyCollection<ResourceId> ids, CancellationToken cancellationToken = default)
+    {
         ResourceId[] selected = CopySelection(ids);
-        return WriteAsync<IReadOnlyList<ArchiveDeletedThread>>((connection, transaction) =>
+        return WriteAdmittedAsync<IReadOnlyList<ArchiveDeletedThread>>(admission, (connection, transaction) =>
         {
             IReadOnlyList<ArchiveDeletedThread> deleted = ReadSelected(connection, transaction, selected, cancellationToken);
             foreach (ResourceId id in selected)

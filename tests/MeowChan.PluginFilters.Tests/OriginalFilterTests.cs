@@ -752,7 +752,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         DownloadItem item = await h.ItemAsync(new());
         CandidateDecision decision = (await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Single();
         item.Filter = ((IOriginalMediaFilterFactory)h.Stage).Create(item, decision, () => true,
-            (_, _, _) => Task.FromException(cancelled ? new OperationCanceledException("fixture cancelled write") : new IOException("fixture failed decision write")));
+            (_, _, _, _) => Task.FromException(cancelled ? new OperationCanceledException("fixture cancelled write") : new IOException("fixture failed decision write")));
         if (cancelled) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => item.Filter.AcquireAsync(item, CancellationToken.None));
         else await Assert.ThrowsAsync<IOException>(() => item.Filter.AcquireAsync(item, CancellationToken.None));
         Assert.Equal(0, h.Stage.Snapshot.ActiveChecks); Assert.True(item.Filter.CanStart);
@@ -801,8 +801,14 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         DownloadItem item = await h.ItemAsync(new() { ["orientation"] = "portrait" });
         await h.Content.BindAsync(h.Thread, h.Root.Path, restored: false);
         WorkStateStore work = new(h.Root.Path, h.Profile);
+        DownloadQueue queue = new(2, long.MaxValue); queue.ConfigureWorkState(work);
+        await using Registry registry = new(Array.Empty<IImageBoard>(), queue, h.Root.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, contentRuntime: h.Content, workStore: work);
+        // Start the actual queue/runtime composition before any profile-bound producer work.
+        // Seed the intent afterwards: this test owns the explicit thread/queue schedule, not a Registry watch.
+        await registry.StartAsync(h.Profile);
         WorkResource resource = work.CommitIntent(new() { Url = h.Thread.Url, OutputRoot = h.Root.Path, Generation = 1, Intent = WorkIntent.Watching, IsThread = true });
-        DownloadQueue queue = new(2, long.MaxValue); queue.ConfigureWorkState(work); queue.BindWork(h.Thread, resource);
+        queue.BindWork(h.Thread, resource);
         try
         {
             await h.Thread.CaptureAndEnqueueAsync(queue, item);
@@ -813,7 +819,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             await h.Thread.CaptureAndEnqueueAsync(queue, item); await queue.WaitForIdleAsync();
             Assert.Equal(1, h.Transfers);
         }
-        finally { await queue.StopAllAsync(); }
+        finally { await queue.StopAllAsync(); await registry.StopAsync(); }
         ContentThread restored = new(h.Thread.Board, h.Thread.ThreadUri);
         await h.Content.BindAsync(restored, h.Root.Path, restored: true);
         DownloadQueue restarted = new(2, long.MaxValue); restarted.ConfigureWorkState(new WorkStateStore(h.Root.Path, h.Profile)); restarted.BindWork(restored, resource);
@@ -828,9 +834,14 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
         DownloadItem item = await h.ItemAsync(new());
         await h.Content.BindAsync(h.Thread, h.Root.Path, restored: false);
         WorkStateStore work = new(h.Root.Path, h.Profile); DateTimeOffset end = DateTimeOffset.UtcNow.AddHours(-2);
+        DownloadQueue queue = new(2, long.MaxValue); queue.ConfigureWorkState(work);
+        await using Registry registry = new(Array.Empty<IImageBoard>(), queue, h.Root.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, contentRuntime: h.Content, workStore: work);
+        // Finish real startup before installing the archived repair intent; do not activate a Registry watch.
+        await registry.StartAsync(h.Profile);
         WorkResource resource = work.CommitIntent(new() { Url = h.Thread.Url, OutputRoot = h.Root.Path, Generation = 1, Intent = WorkIntent.Repairing, IsThread = true, Source = ThreadSourceStateValue.Archived, EndObservedAt = end });
         h.Thread.RestoreDurableState(resource);
-        DownloadQueue queue = new(2, long.MaxValue); queue.ConfigureWorkState(work); queue.BindWork(h.Thread, resource);
+        queue.BindWork(h.Thread, resource);
         try
         {
             h.Current = false;
@@ -844,7 +855,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             Assert.Equal(ThreadSourceState.Archived, h.Thread.SourceState); Assert.Equal(1, h.Thread.DownloadedMediaCount);
             Assert.Equal(MediaSelectionOutcome.Selected, (await h.Content.Catalog.GetDecisionsAsync(h.Resource)).Single().Selection.Outcome);
         }
-        finally { await queue.StopAllAsync(); }
+        finally { await queue.StopAllAsync(); await registry.StopAsync(); }
     }
 
     private sealed class ContentThread(IBoard board, Uri uri) : ProbeThread(board, uri)
@@ -1065,7 +1076,7 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             CandidateDecision decision = await Content.Catalog.GetOrCreateDecisionAsync(new(new(Resource, "456"), item.DownloadUri, path, item.ExpectedSize, item.ExpectedMd5, originalName, extension: ".png")
                 { ExpectedSha1 = expectedSha1, AcquisitionRevisionKey = item.AcquisitionRevisionKey, AttachmentReferences = references }, Content.Rules);
             item.Filter = ((IOriginalMediaFilterFactory)Stage).Create(item, decision, () => Current && Content.Rules.Current.Revision == decision.Selection.EffectiveRule.Revision,
-                async (noMatch, reason, token) => { await Content.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token); });
+                async (_, noMatch, reason, token) => { await Content.Catalog.RecordFilterOmissionAsync(decision, noMatch, reason, token); });
             return item;
         }
         public Task RunAsync(DownloadItem item, MediaStore? store = null) => new DownloadWorker(item, new BandwidthLimiter(long.MaxValue), store ?? new MediaStore()).ExecuteAsync(CancellationToken.None);

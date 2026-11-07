@@ -18,6 +18,9 @@ internal sealed record ArchivePermanentDeletionResult(IReadOnlyList<ResourceId> 
 
 internal sealed partial class DesktopSessionHost
 {
+    // Observation only: the accepted command still owns admission after physical deletion.
+    internal Action<ProfileAdmissionToken>? AfterArchiveDeletionFilesForTests { get; set; }
+
     internal Task<ArchivePermanentDeletionPlan> PrepareArchiveDeletionAsync(
         IReadOnlyCollection<ResourceId> ids, CancellationToken token = default)
     {
@@ -123,6 +126,7 @@ internal sealed partial class DesktopSessionHost
                     Array.AsReadOnly(plan.Files.Directories.Where(directory =>
                         eligibleDirectories.Contains(DeletionPath(directory.Directory), DeletionPathComparer)).ToArray()));
                 files = await ArchiveDeletionFiles.DeleteAsync(eligibleFiles, token).ConfigureAwait(false);
+                AfterArchiveDeletionFilesForTests?.Invoke(admission);
                 Dictionary<string, ArchiveDirectoryResult> fileResults = files.Directories.ToDictionary(
                     directory => DeletionPath(directory.Directory), DeletionPathComparer);
                 const string canceledAfterCommit = "Archive deletion was canceled. Remaining catalog entries were not deleted.";
@@ -147,8 +151,8 @@ internal sealed partial class DesktopSessionHost
                     }
                     try
                     {
-                        IReadOnlyList<ArchiveDeletedThread> removed = await _content.Catalog.DeleteThreadsAsync(
-                            new[] { thread.Summary.Id }, token).ConfigureAwait(false);
+                        IReadOnlyList<ArchiveDeletedThread> removed = await _content.Catalog.DeleteThreadsAdmittedAsync(
+                            admission, new[] { thread.Summary.Id }, token).ConfigureAwait(false);
                         if (removed.Count == 1)
                         {
                             deleted.Add(thread.Summary.Id);

@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Persistence;
 using MeowChan.Transfer;
 
 namespace MeowChan.Storage;
@@ -50,11 +51,16 @@ public sealed partial class MediaStore
 
     // The coordinator supplies the exact immutable metadata captured at plan issuance. Only
     // payload copies consult the owned stage handle; no package/source reinspection occurs.
-    internal Task<PassiveMediaImportCandidate> MaterializePassiveImportCandidateAsync(NativeMediaImportPlan plan,
+    internal Task<PassiveMediaImportCandidate> MaterializePassiveImportCandidateAdmittedAsync(
+        ProfileAdmissionToken admission, NativeMediaImportPlan plan,
         CancellationToken cancellationToken = default, Action<string>? childDirectoryCreated = null)
-        => MaterializePassiveImportCandidateCoreAsync(plan.Stage, plan.Package, plan.Resource,
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        plan.Owner.EnsureTransferAdmission(admission);
+        return MaterializePassiveImportCandidateCoreAsync(plan.Stage, plan.Package, plan.Resource,
             plan.Attachments.Select(item => item.RevisionKey).ToHashSet(StringComparer.Ordinal),
             plan.OperationsParent, plan.OperationId, plan.ImportedAtUtc, cancellationToken, null, childDirectoryCreated);
+    }
 
     private async Task<PassiveMediaImportCandidate> MaterializePassiveImportCandidateCoreAsync(
         NativeTransferImportStage stage, NativeTransferPackage package, ResourceId resource, IReadOnlySet<string> revisionKeys,
@@ -221,9 +227,14 @@ public sealed partial class MediaStore
 
     // A Ready DTO is not a lease. Verify under the EXISTING child lock and keep that very
     // handle alive across the short asynchronous SQL callback. No ProfileLease monitor here.
-    internal async Task<T> WithVerifiedPassiveImportCandidateAsync<T>(NativeMediaImportPlan plan,
+    internal async Task<T> WithVerifiedPassiveImportCandidateAdmittedAsync<T>(
+        ProfileAdmissionToken admission, NativeMediaImportPlan plan,
         PassiveMediaImportCandidate expected, Func<Task<T>> callback, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(plan);
+        plan.Owner.EnsureTransferAdmission(admission);
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(callback);
         string directory = ValidateCandidateDirectory(expected.Directory, requireCandidateName: true);
         if (!PathsEqual(Path.GetDirectoryName(directory)!, plan.OperationsParent)
             || expected.OperationId != plan.OperationId || expected.Resource != plan.Resource
