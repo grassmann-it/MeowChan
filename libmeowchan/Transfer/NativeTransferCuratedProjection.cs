@@ -72,6 +72,15 @@ internal static class NativeTransferCuratedProjection
 
         TransferAttachment ProjectAttachment(ResourceId resource, string post, TransferAttachment attachment)
         {
+            // This original-only selection does not select derived bytes. Preserve
+            // their exact source linkage and kind, but deliberately omit payloads;
+            // unavailable remains unavailable rather than claiming successful output.
+            attachment = attachment with
+            {
+                DerivedRepresentations = attachment.DerivedRepresentations.Select(d =>
+                    d.Status == TransferContentStatus.Contained
+                        ? d with { Status = TransferContentStatus.Omitted, PayloadSha256 = null } : d).ToImmutableArray()
+            };
             var metadata = attachment.Metadata;
             var identity = (resource, post, metadata.Position, metadata.AttachmentRevisionKey ?? "");
             if (!chosen.TryGetValue(identity, out FavoriteAssetKey? key))
@@ -80,7 +89,8 @@ internal static class NativeTransferCuratedProjection
                 return attachment with { Status = TransferContentStatus.Omitted, PayloadSha256 = null, History = null };
             if (!found.Add(identity) || attachment.Role != TransferMediaRole.Original
                 || metadata.MediaId != key.MediaIdentifier || metadata.Variant != key.Variant
-                || attachment.Status == TransferContentStatus.Contained && attachment.PayloadSha256 != key.Sha256)
+                || attachment.Status == TransferContentStatus.Contained && attachment.PayloadSha256 != key.Sha256
+                || attachment.OriginalByteVersion is { } version && version.Sha256 != key.Sha256)
                 throw Invalid();
             return attachment;
         }
@@ -93,8 +103,15 @@ internal static class NativeTransferCuratedProjection
     private static void ValidateDescriptors(NativeTransferCatalog catalog)
     {
         _ = NativeTransferCatalogSerializer.Serialize(catalog);
-        TransferAttachment Descriptor(TransferAttachment a) => a.Status == TransferContentStatus.Contained
-            ? a with { Status = TransferContentStatus.Unavailable, PayloadSha256 = null, History = null } : a;
+        TransferAttachment Descriptor(TransferAttachment a) => a with
+        {
+            Status = a.Status == TransferContentStatus.Contained ? TransferContentStatus.Unavailable : a.Status,
+            PayloadSha256 = a.Status == TransferContentStatus.Contained ? null : a.PayloadSha256,
+            History = a.Status == TransferContentStatus.Contained ? null : a.History,
+            DerivedRepresentations = a.DerivedRepresentations.Select(d =>
+                d.Status == TransferContentStatus.Contained
+                    ? d with { Status = TransferContentStatus.Unavailable, PayloadSha256 = null } : d).ToImmutableArray()
+        };
         NativeTransferCatalog descriptors = catalog with
         {
             Threads = catalog.Threads.Select(t => t with
