@@ -62,7 +62,12 @@ internal sealed record PrivateMediaTagTarget
 }
 
 /// <summary>Caller-supplied local identity. Not a portable tag reference or a profile authority.</summary>
-internal readonly record struct PrivateMediaTagId(Guid Value);
+// Compatibility adapter only: no category-local vocabulary is stored.
+internal readonly record struct PrivateMediaTagId(Guid Value)
+{
+    public static implicit operator TagId(PrivateMediaTagId id) => new(id.Value);
+    public static implicit operator PrivateMediaTagId(TagId id) => new(id.Value);
+}
 
 internal sealed record PrivateMediaTagDefinition(PrivateMediaTagId Id, PrivateTagName Name);
 internal sealed record PrivateMediaTagAssignment(PrivateMediaTagId TagId, PrivateMediaTagTarget Target);
@@ -110,8 +115,7 @@ internal sealed class MediaTagSnapshot
 /// Pure immutable media-private-tag reducer for keyed occurrences only. It knows supplied
 /// identities, not archive existence, byte freshness or provider authority. No store, admission token,
 /// source tags, favorite semantics, import, or deletion of definitions. Admission order is stable;
-/// rename retains the caller-supplied local ID. Definition IDs are category-local in this slice;
-/// this does not automatically equate a media tag with a thread tag of the same name or UUID.
+/// rename retains the caller-supplied local ID. Definitions belong to the shared catalog; compatibility IDs are adapters only.
 /// </summary>
 internal sealed class MediaTagProjection
 {
@@ -120,57 +124,72 @@ internal sealed class MediaTagProjection
     internal const int MaximumAssignments = 50_000;
     internal const int MaximumScopeCount = 50_000;
 
-    private readonly PrivateMediaTagDefinition[] definitions;
+    internal PrivateTagCatalog Catalog { get; }
+    private PrivateMediaTagDefinition[] definitions => Catalog.Definitions
+        .Select(item => new PrivateMediaTagDefinition(new(item.Id.Value), item.Name)).ToArray();
     private readonly PrivateMediaTagAssignment[] assignments;
 
     /// <summary>An explicit in-memory revision seed, not a persisted version or freshness proof.</summary>
     internal MediaTagProjection(long initialRevision = 0)
-        : this(initialRevision, Array.Empty<PrivateMediaTagDefinition>(), Array.Empty<PrivateMediaTagAssignment>())
+        : this(initialRevision, new PrivateTagCatalog(), Array.Empty<PrivateMediaTagAssignment>())
     {
         if (initialRevision < 0) throw new ArgumentOutOfRangeException(nameof(initialRevision));
     }
 
     // Arrays are fresh implementation-owned arrays or shared immutable arrays from a prior state.
-    private MediaTagProjection(long revision, PrivateMediaTagDefinition[] definitions,
+    private MediaTagProjection(long revision, PrivateTagCatalog catalog,
         PrivateMediaTagAssignment[] assignments)
     {
         Revision = revision;
-        this.definitions = definitions;
+        Catalog = catalog;
         this.assignments = assignments;
     }
 
     internal long Revision { get; }
 
-    internal bool TryDefine(PrivateMediaTagId id, PrivateTagName? name, long expectedRevision,
-        out MediaTagProjection result, out MediaTagError error)
+    /// <summary>Bind both typed projections to the same catalog instance at their composition boundary.</summary>
+    internal MediaTagProjection(PrivateTagCatalog catalog) : this(0,
+        catalog ?? throw new ArgumentNullException(nameof(catalog)), Array.Empty<PrivateMediaTagAssignment>()) { }
+
+    /// <summary>Explicitly consume a shared rename/create revision; never adopt a divergent vocabulary.</summary>
+    internal bool TryUseCatalog(PrivateTagCatalog catalog, long expectedRevision,
+        long expectedCatalogRevision, out MediaTagProjection result, out MediaTagError error)
     {
         result = this;
-        if (!CheckRevision(expectedRevision, out error) || !CheckId(id, out error)) return false;
-        if (name is null) return Fail(MediaTagError.InvalidName, out error);
-        PrivateMediaTagDefinition? existing = definitions.FirstOrDefault(item => item.Id == id);
-        if (existing is not null)
-            return string.Equals(existing.Name.Display, name.Display, StringComparison.Ordinal)
-                || Fail(MediaTagError.DefinitionConflict, out error);
-        if (definitions.Any(item => item.Name == name)) return Fail(MediaTagError.NameCollision, out error);
-        if (definitions.Length >= MaximumDefinitions) return Fail(MediaTagError.CapacityExceeded, out error);
+        if (!CheckRevision(expectedRevision, out error)) return false;
+        if (Catalog.Revision != expectedCatalogRevision)
+            return Fail(MediaTagError.StaleRevision, out error);
+        if (catalog is null || !catalog.DescendsFrom(Catalog))
+            return Fail(MediaTagError.DefinitionConflict, out error);
+        if (ReferenceEquals(catalog, Catalog)) return true;
         if (!CanChange(out error)) return false;
-        result = new(Revision + 1, definitions.Append(new(id, name)).ToArray(), assignments);
+        result = new(Revision + 1, catalog, assignments);
         return true;
     }
 
+    // Legacy entry points delegate every vocabulary decision to the common core.
+    internal bool TryDefine(PrivateMediaTagId id, PrivateTagName? name, long expectedRevision,
+        out MediaTagProjection result, out MediaTagError error)
+        => TryDefinition(id, name, expectedRevision, false, out result, out error);
+
     internal bool TryRename(PrivateMediaTagId id, PrivateTagName? name, long expectedRevision,
+        out MediaTagProjection result, out MediaTagError error)
+        => TryDefinition(id, name, expectedRevision, true, out result, out error);
+
+    private bool TryDefinition(TagId id, PrivateTagName? name, long expectedRevision, bool rename,
         out MediaTagProjection result, out MediaTagError error)
     {
         result = this;
-        if (!CheckRevision(expectedRevision, out error) || !CheckKnownId(id, out error)) return false;
-        if (name is null) return Fail(MediaTagError.InvalidName, out error);
-        int index = Array.FindIndex(definitions, item => item.Id == id);
-        if (string.Equals(definitions[index].Name.Display, name.Display, StringComparison.Ordinal)) return true;
-        if (definitions.Any(item => item.Id != id && item.Name == name)) return Fail(MediaTagError.NameCollision, out error);
+        if (!CheckRevision(expectedRevision, out error)) return false;
+        PrivateTagCatalog next;
+        PrivateTagCatalogError catalogError;
+        bool success = rename
+            ? Catalog.TryRename(id, name, Catalog.Revision, out next, out catalogError)
+            : Catalog.TryDefine(id, name, Catalog.Revision, out next, out catalogError);
+        if (!success) return Fail(Enum.Parse<MediaTagError>(catalogError.ToString()), out error);
+        if (ReferenceEquals(next, Catalog)) return true;
         if (!CanChange(out error)) return false;
-        var copy = (PrivateMediaTagDefinition[])definitions.Clone();
-        copy[index] = new(id, name);
-        result = new(Revision + 1, copy, assignments);
+        result = new(Revision + 1, next, assignments);
         return true;
     }
 
@@ -195,7 +214,7 @@ internal sealed class MediaTagProjection
         if (exists == add) return true;
         if (add && assignments.Length >= MaximumAssignments) return Fail(MediaTagError.CapacityExceeded, out error);
         if (!CanChange(out error)) return false;
-        result = new(Revision + 1, definitions, add
+        result = new(Revision + 1, Catalog, add
             ? assignments.Append(assignment).ToArray()
             : assignments.Where(item => item != assignment).ToArray());
         return true;
@@ -250,7 +269,7 @@ internal sealed class MediaTagProjection
     private bool CheckKnownId(PrivateMediaTagId id, out MediaTagError error)
     {
         if (!CheckId(id, out error)) return false;
-        return definitions.Any(item => item.Id == id) || Fail(MediaTagError.UnknownTag, out error);
+        return Catalog.Contains(id) || Fail(MediaTagError.UnknownTag, out error);
     }
 
     private bool CanChange(out MediaTagError error)

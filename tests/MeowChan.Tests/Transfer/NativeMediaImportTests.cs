@@ -154,7 +154,7 @@ public sealed class NativeMediaImportTests
         var second = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
         var interrupted = await catalog.CommitNativeMediaImportAsync(first, new MediaStore(), checkpoint: phase =>
         { if (phase == NativeMediaImportPhase.PreparingSaved) throw new IOException("synthetic interruption before mkdir"); });
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, interrupted.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, interrupted.Status);
         Assert.False(Directory.Exists(first.OperationsParent));
         Dictionary<string, string> before = Files(files.Profile);
         var rejected = await catalog.CommitNativeMediaImportAsync(second, new MediaStore());
@@ -163,6 +163,9 @@ public sealed class NativeMediaImportTests
         Assert.Equal(before, Files(files.Profile));
         NativeMediaImportOperation operation = Assert.Single((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
         Assert.Equal(first.OperationId, operation.OperationId);
+        Assert.Equal(first.RequestSha256, operation.RequestSha256);
+        Assert.Equal(NativeMediaImportOperationState.Preparing, operation.State);
+        Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(first.OperationId, first.RequestSha256));
     }
 
     [Theory]
@@ -305,8 +308,13 @@ public sealed class NativeMediaImportTests
         NativeMediaImportPlan plan = (await catalog.PrepareNativeMediaImportAsync(stage)).Plan!;
         var interrupted = await catalog.CommitNativeMediaImportAsync(plan, new MediaStore(), checkpoint: phase =>
         { if (phase.ToString() == interruption) throw new IOException("synthetic unresolved operation"); });
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, interrupted.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, interrupted.Status);
         NativeMediaImportOperation before = Assert.Single((await catalog.ReadNativeMediaImportOperationsPageAsync()).Items);
+        Assert.Equal(plan.OperationId, before.OperationId);
+        Assert.Equal(plan.RequestSha256, before.RequestSha256);
+        Assert.Equal(interruption == "PreparingSaved" ? NativeMediaImportOperationState.Preparing
+            : NativeMediaImportOperationState.Prepared, before.State);
+        Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
         await catalog.RegisterThreadAsync(new(Id, Url, "intervening owner", Path.Combine(files.Profile, "inert"), false));
         if (cleanup)
         {

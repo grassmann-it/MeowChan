@@ -148,10 +148,34 @@ public sealed partial class ArchiveCatalog
             // commit. Never use the cancelled token or the disposed owner for reconciliation.
             try
             {
-                NativeMediaImportCommitResult? receipt = await ReadNativeMediaImportReceiptAsync(plan.OperationId,
-                    plan.RequestSha256, CancellationToken.None).ConfigureAwait(false);
-                return receipt != null ? receipt with { Diagnostic = error.GetType().Name }
-                    : new(NativeMediaImportCommitStatus.Inactive, Diagnostic: error.GetType().Name);
+                return await ReadMediaImportIndependentAsync(connection =>
+                {
+                    // Receipt, operation and resource-wide claims must share one snapshot.
+                    // A missing receipt alone says nothing about a durable candidate/claim.
+                    using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                    NativeMediaImportCommitResult? receipt = ArchiveSql.ReadMediaImportReceipt(connection, transaction,
+                        plan.OperationId, plan.RequestSha256);
+                    if (receipt != null)
+                    {
+                        transaction.Commit();
+                        return receipt with { Diagnostic = error.GetType().Name };
+                    }
+                    var fence = ArchiveSql.ReadImportFence(connection, transaction);
+                    NativeMediaImportOperation? operation = ArchiveSql.ReadMediaImportOperation(connection, transaction,
+                        plan.OperationId, plan.RequestSha256);
+                    NativeMediaImportCommitStatus status;
+                    if (fence.Item1 != plan.Instance || operation?.State == NativeMediaImportOperationState.Committed)
+                        status = NativeMediaImportCommitStatus.Unknown;
+                    else if (operation != null || ArchiveSql.HasUnresolvedMediaOperation(connection, transaction, plan.Resource))
+                        status = NativeMediaImportCommitStatus.ReconciliationRequired;
+                    else
+                        // Absence is safe only on the original unchanged new-resource target.
+                        // Replacement/drift is not proof that this attempt never persisted.
+                        status = MediaImportFresh(connection, transaction, plan)
+                            ? NativeMediaImportCommitStatus.Inactive : NativeMediaImportCommitStatus.Unknown;
+                    transaction.Commit();
+                    return new NativeMediaImportCommitResult(status, Diagnostic: error.GetType().Name);
+                }, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception reconciliationError)
             {

@@ -9,7 +9,7 @@ using MeowChan.Storage;
 
 namespace MeowChan.Favorites;
 
-internal enum CuratedExportScope { Thread, Threads, ExplicitFavorites }
+internal enum CuratedExportScope { Thread, Threads, ExplicitFavorites, ExplicitManual }
 internal enum CuratedExportMode { Files, Html }
 internal enum CuratedExportStatus
 {
@@ -21,7 +21,7 @@ internal enum CuratedExportSourceFreshness { SameManifestFences, Stale }
 internal enum CuratedExportValidationError
 {
     InvalidSnapshot, InvalidScope, InvalidKey, DuplicateIdentity, SelectionNotInSnapshot,
-    InvalidManifest, InvalidContext, LimitExceeded, InvalidLedgerUpdate
+    InvalidManifest, InvalidContext, LimitExceeded, InvalidLedgerUpdate, InvalidManualTarget
 }
 
 internal sealed class CuratedExportValidationException : Exception
@@ -61,7 +61,7 @@ internal sealed record CuratedExportLedgerItem(FavoriteAssetKey Key, CuratedExpo
 
 /// <summary>
 /// Operation-owned inclusion snapshot, not a file/HTML writer, byte-verification receipt, or admission token.
-/// Every selected key must be explicit and present in the supplied store snapshot. Neither thread scope,
+/// Favorite-route keys must be present in the supplied store snapshot; manual handles require no store. Neither thread scope,
 /// manifests nor subsequent favorite toggles can add keys. No reads, repair, decoder or network work occurs.
 /// </summary>
 internal sealed class CuratedExportSelection
@@ -73,15 +73,15 @@ internal sealed class CuratedExportSelection
     internal const int MaximumStringCharacters = 65_536;
     internal const int MaximumTextCharacters = 8_000_000;
 
-    private CuratedExportSelection(FavoriteStoreSnapshot snapshot, CuratedExportScope scope,
+    private CuratedExportSelection(FavoriteStoreSnapshot? snapshot, CuratedExportScope scope,
         CuratedExportMode mode, bool previewsRequested, ImmutableArray<FavoriteEntry> favorites,
         ImmutableArray<ResourceId> threads, ImmutableArray<CuratedExportManifestFence> fences,
         ImmutableArray<CuratedExportThreadContext> contexts, ImmutableArray<CuratedExportOriginal> originals,
         ImmutableArray<CuratedExportLedgerItem> omissions)
     {
-        InstanceId = snapshot.InstanceId;
-        Revision = snapshot.Revision;
-        Fingerprint = snapshot.Fingerprint;
+        InstanceId = snapshot?.InstanceId;
+        Revision = snapshot?.Revision ?? 0;
+        Fingerprint = snapshot?.Fingerprint ?? "";
         Scope = scope;
         Mode = mode;
         PreviewsRequested = previewsRequested;
@@ -93,6 +93,8 @@ internal sealed class CuratedExportSelection
         Omissions = omissions;
     }
 
+    // Manual selections have no favorite-store fence; empty fingerprint is not a store snapshot.
+    internal bool IsManual => Scope == CuratedExportScope.ExplicitManual;
     internal Guid? InstanceId { get; }
     internal long Revision { get; }
     internal string Fingerprint { get; }
@@ -112,23 +114,65 @@ internal sealed class CuratedExportSelection
         IEnumerable<ArchivedThreadView> contexts, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Budget budget = new(cancellationToken);
         if (snapshot == null) throw Invalid(CuratedExportValidationError.InvalidSnapshot);
-        budget.Text(snapshot.Fingerprint);
-        if (snapshot.Revision < 0 || snapshot.InstanceId == Guid.Empty
-            || (snapshot.InstanceId == null ? snapshot.Revision != 0 : snapshot.Revision < 1)
-            || (snapshot.Fingerprint != "missing" && !Digest(snapshot.Fingerprint))
-            || (snapshot.Fingerprint == "missing" && (snapshot.InstanceId != null || snapshot.Revision != 0 || snapshot.Entries.Count != 0)))
-            throw Invalid(CuratedExportValidationError.InvalidSnapshot);
+        if (scope == CuratedExportScope.ExplicitManual) throw Invalid(CuratedExportValidationError.InvalidScope);
+        return FreezeCore(snapshot, scope, mode, previewsRequested, threads, selectedKeys, manifests,
+            contexts, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Explicit original handles, independent of favorites. Uses the existing verified-read export
+    /// model, but validates metadata only: successful freezing is not proof of bytes or consent to
+    /// export private metadata. The caller supplies proven resource/manifest associations as usual.
+    /// </summary>
+    internal static CuratedExportSelection FreezeManual(CuratedExportMode mode, bool previewsRequested,
+        IEnumerable<FavoriteExportAsset> selectedAssets, IEnumerable<CuratedExportManifest> manifests,
+        IEnumerable<ArchivedThreadView> contexts, CancellationToken cancellationToken = default)
+        => FreezeCore(null, CuratedExportScope.ExplicitManual, mode, previewsRequested, [], [], manifests,
+            contexts, selectedAssets, cancellationToken);
+
+    private static CuratedExportSelection FreezeCore(FavoriteStoreSnapshot? snapshot, CuratedExportScope scope,
+        CuratedExportMode mode, bool previewsRequested, IEnumerable<ResourceId> threads,
+        IEnumerable<FavoriteAssetKey> selectedKeys, IEnumerable<CuratedExportManifest> manifests,
+        IEnumerable<ArchivedThreadView> contexts, IEnumerable<FavoriteExportAsset>? manualAssets,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Budget budget = new(cancellationToken);
+        if (snapshot != null)
+        {
+            budget.Text(snapshot.Fingerprint);
+            if (snapshot.Revision < 0 || snapshot.InstanceId == Guid.Empty
+                || (snapshot.InstanceId == null ? snapshot.Revision != 0 : snapshot.Revision < 1)
+                || (snapshot.Fingerprint != "missing" && !Digest(snapshot.Fingerprint))
+                || (snapshot.Fingerprint == "missing" && (snapshot.InstanceId != null || snapshot.Revision != 0 || snapshot.Entries.Count != 0)))
+                throw Invalid(CuratedExportValidationError.InvalidSnapshot);
+        }
         if (!Enum.IsDefined(scope) || !Enum.IsDefined(mode)) throw Invalid(CuratedExportValidationError.InvalidScope);
 
         Dictionary<FavoriteAssetKey, FavoriteEntry> favoriteIndex = new();
-        foreach (FavoriteEntry entry in budget.Read(snapshot.Entries, MaximumSelectionEntries))
+        foreach (FavoriteEntry entry in budget.Read(snapshot?.Entries ?? Array.Empty<FavoriteEntry>(), MaximumSelectionEntries))
         {
             if (entry == null || entry.Length < 0) throw Invalid(CuratedExportValidationError.InvalidSnapshot);
             budget.Key(entry.Key);
             budget.Text(entry.OriginalFileName, optional: true);
             if (!favoriteIndex.TryAdd(entry.Key, entry)) throw Invalid(CuratedExportValidationError.DuplicateIdentity);
+        }
+        Dictionary<FavoriteAssetKey, FavoriteExportAsset> manualIndex = new();
+        if (scope == CuratedExportScope.ExplicitManual)
+        {
+            foreach (FavoriteExportAsset target in budget.Read(manualAssets!, MaximumSelectionEntries))
+            {
+                if (target == null || target.Manifest == null || target.Length < 0)
+                    throw Invalid(CuratedExportValidationError.InvalidManualTarget);
+                budget.Key(target.Key);
+                budget.Text(target.AssetId);
+                budget.Text(target.OriginalFileName, optional: true);
+                if (target.Key.Variant != "original") throw Invalid(CuratedExportValidationError.InvalidKey);
+                if (!manualIndex.TryAdd(target.Key, target)) throw Invalid(CuratedExportValidationError.DuplicateIdentity);
+                // Compatibility entry for the existing original/ledger contract, not favorite membership.
+                favoriteIndex.Add(target.Key, new(target.Key, target.Length, target.OriginalFileName));
+            }
         }
         HashSet<ResourceId> scopeThreads = new();
         foreach (ResourceId thread in budget.Read(threads, MaximumSelectionEntries))
@@ -151,7 +195,8 @@ internal sealed class CuratedExportSelection
             if (scope != CuratedExportScope.ExplicitFavorites && !scopeThreads.Contains(key.Thread))
                 throw Invalid(CuratedExportValidationError.InvalidScope);
         }
-        if (scope == CuratedExportScope.ExplicitFavorites)
+        if (scope == CuratedExportScope.ExplicitManual) keys.UnionWith(manualIndex.Keys);
+        if (scope is CuratedExportScope.ExplicitFavorites or CuratedExportScope.ExplicitManual)
             scopeThreads.UnionWith(keys.Select(key => key.Thread));
 
         List<CuratedExportManifest> frozenManifests = new();
@@ -234,6 +279,16 @@ internal sealed class CuratedExportSelection
                 : matches.Count != 1 ? CuratedExportStatus.OriginalAmbiguous
                 : matches[0].Length != entry.Length ? CuratedExportStatus.OriginalVerificationFailed
                 : CuratedExportStatus.OriginalIncluded;
+            if (scope == CuratedExportScope.ExplicitManual)
+            {
+                FavoriteExportAsset target = manualIndex[key];
+                // Do not pick a convenient replica, substitute latest, or trust a forged handle.
+                if (status != CuratedExportStatus.OriginalIncluded
+                    || !ReferenceEquals(matches![0].Manifest, target.Manifest)
+                    || matches[0].AssetId != target.AssetId
+                    || matches[0].OriginalFileName != target.OriginalFileName)
+                    throw Invalid(CuratedExportValidationError.InvalidManualTarget);
+            }
             FavoriteExportAsset? chosen = status == CuratedExportStatus.OriginalIncluded ? matches![0] : null;
             ImmutableArray<FavoriteExportAsset> frozenCandidates = (matches ?? new List<FavoriteExportAsset>())
                 .OrderBy(value => value.Manifest.Directory, StringComparer.Ordinal).ThenBy(value => value.AssetId, StringComparer.Ordinal).ToImmutableArray();
@@ -254,7 +309,8 @@ internal sealed class CuratedExportSelection
                 CuratedOriginalVerification.NotApplicable));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        return new(snapshot, scope, mode, previewsRequested, OrderKeys(favoriteIndex.Keys).Select(key => favoriteIndex[key]).ToImmutableArray(),
+        return new(snapshot, scope, mode, previewsRequested, snapshot == null ? ImmutableArray<FavoriteEntry>.Empty
+                : OrderKeys(favoriteIndex.Keys).Select(key => favoriteIndex[key]).ToImmutableArray(),
             OrderThreads(scopeThreads).ToImmutableArray(), frozenManifests.OrderBy(value => value.Thread, ThreadComparer)
                 .ThenBy(value => value.Snapshot.Directory, StringComparer.Ordinal)
                 .Select(value => new CuratedExportManifestFence(value.Thread, value.Snapshot.Directory, value.Snapshot.Status, value.Snapshot.Generation)).ToImmutableArray(),

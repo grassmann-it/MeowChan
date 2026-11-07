@@ -168,6 +168,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.content", epoch: _epoch))
                 await _content.InitializeAsync(_startupCancellation.Token).ConfigureAwait(false);
+            // Startup ownership is still held. An interrupted transfer must not be
+            // bypassed by restarting the ordinary producer/queue epoch.
+            await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
             Plugins?.AttachContent(_content);
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.registry", epoch: _epoch))
                 await _registry.RestoreAdmittedAsync(_profileStartupAdmission).ConfigureAwait(false);

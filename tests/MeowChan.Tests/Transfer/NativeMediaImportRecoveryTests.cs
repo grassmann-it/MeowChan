@@ -39,7 +39,7 @@ public sealed class NativeMediaImportRecoveryTests
             Assert.Equal("Preparing", durableState);
             Assert.False(parentAlreadyExists);
             Assert.False(Directory.Exists(parent));
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             Assert.Equal(nameof(IOException), result.Diagnostic);
             await AssertNoPublication(catalog);
         }
@@ -77,7 +77,7 @@ public sealed class NativeMediaImportRecoveryTests
                 if (phase == NativeMediaImportPhase.OperationsParentCreated) cancellation.Cancel();
             });
             Assert.Equal(new[] { NativeMediaImportPhase.PreparingSaved, NativeMediaImportPhase.OperationsParentCreated }, seen);
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             Assert.True(Directory.Exists(parent));
             Assert.Empty(Directory.EnumerateFileSystemEntries(parent));
             await AssertRefusesRetry(catalog, plan);
@@ -126,7 +126,7 @@ public sealed class NativeMediaImportRecoveryTests
             Assert.NotNull(observedChild);
             child = observedChild;
             Assert.Equal(child, Candidate(parent));
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             Assert.Equal(nameof(IOException), result.Diagnostic);
             Assert.Empty(Directory.EnumerateFileSystemEntries(child)); // No lease, journal or payload.
             var journal = await OnlyOperation(catalog, operation, request, NativeMediaImportOperationState.Preparing);
@@ -188,7 +188,7 @@ public sealed class NativeMediaImportRecoveryTests
             });
             var result = await catalog.CommitNativeMediaImportAsync(plan, failingStore);
             Assert.Equal(1, failedRenames);
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             string child = Candidate(parent);
             Assert.Equal(Bytes, File.ReadAllBytes(Assert.Single(Directory.GetFiles(child, "*.original.bin"))));
             retained = Tree.Capture(parent);
@@ -234,7 +234,7 @@ public sealed class NativeMediaImportRecoveryTests
                 else throw new IOException("synthetic loss after Ready, before Prepared SQL");
             });
             Assert.Equal(NativeMediaImportPhase.CandidateReady, seen.Last());
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             Assert.NotNull(result.Diagnostic);
             NativeMediaImportOperation journal = await OnlyOperation(catalog, operation, request, NativeMediaImportOperationState.Preparing);
             Assert.Null(journal.CandidateDirectory); Assert.Null(journal.ManifestGeneration);
@@ -276,7 +276,7 @@ public sealed class NativeMediaImportRecoveryTests
                 if (phase == NativeMediaImportPhase.PreparedSaved) cancellation.Cancel();
             });
             Assert.Equal(NativeMediaImportPhase.PreparedSaved, seen.Last());
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             var journal = await OnlyOperation(catalog, operation, request, NativeMediaImportOperationState.Prepared);
             Assert.Equal(Candidate(parent), journal.CandidateDirectory);
             Assert.NotNull(journal.ManifestGeneration);
@@ -318,7 +318,7 @@ public sealed class NativeMediaImportRecoveryTests
             else throw new IOException("synthetic final SQL transaction failure");
         });
         Assert.Equal(NativeMediaImportPhase.BeforeSqlCommit, seen.Last());
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
         Assert.NotNull(result.Diagnostic);
         await OnlyOperation(catalog, plan.OperationId, plan.RequestSha256, NativeMediaImportOperationState.Prepared);
         Assert.Null(await catalog.ReadNativeMediaImportReceiptAsync(plan.OperationId, plan.RequestSha256));
@@ -498,7 +498,7 @@ public sealed class NativeMediaImportRecoveryTests
             changed = Tree.Capture(plan.OperationsParent);
         });
         Assert.Equal(NativeMediaImportPhase.PreparedSaved, seen.Last());
-        Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+        Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
         Assert.NotNull(result.Diagnostic); Assert.NotNull(changed);
         await OnlyOperation(catalog, plan.OperationId, plan.RequestSha256, NativeMediaImportOperationState.Prepared);
         var inspection = await catalog.InspectNativeMediaImportOperationAsync(plan.OperationId, plan.RequestSha256, new MediaStore());
@@ -533,7 +533,7 @@ public sealed class NativeMediaImportRecoveryTests
             });
             Assert.NotNull(externalLease);
             Assert.Equal(NativeMediaImportPhase.PreparedSaved, seen.Last());
-            Assert.Equal(NativeMediaImportCommitStatus.Inactive, result.Status);
+            Assert.Equal(NativeMediaImportCommitStatus.ReconciliationRequired, result.Status);
             Assert.NotNull(result.Diagnostic);
             var busy = await catalog.InspectNativeMediaImportOperationAsync(plan.OperationId, plan.RequestSha256, shortWaitStore);
             Assert.Equal(PassiveMediaCandidateStatus.Busy, Assert.Single(busy.Children).Status);

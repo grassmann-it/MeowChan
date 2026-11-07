@@ -6,7 +6,12 @@ using MeowChan.Archive;
 namespace MeowChan.Tags;
 
 /// <summary>Caller-supplied local identity. Not a portable tag reference or a profile authority.</summary>
-internal readonly record struct PrivateThreadTagId(Guid Value);
+// Compatibility adapter only: no category-local vocabulary is stored.
+internal readonly record struct PrivateThreadTagId(Guid Value)
+{
+    public static implicit operator TagId(PrivateThreadTagId id) => new(id.Value);
+    public static implicit operator PrivateThreadTagId(TagId id) => new(id.Value);
+}
 
 internal sealed record PrivateThreadTagDefinition(PrivateThreadTagId Id, PrivateTagName Name);
 internal sealed record PrivateThreadTagAssignment(PrivateThreadTagId TagId, ResourceId Thread);
@@ -62,57 +67,72 @@ internal sealed class ThreadTagProjection
     internal const int MaximumAssignments = 50_000;
     internal const int MaximumScopeCount = 50_000;
 
-    private readonly PrivateThreadTagDefinition[] definitions;
+    internal PrivateTagCatalog Catalog { get; }
+    private PrivateThreadTagDefinition[] definitions => Catalog.Definitions
+        .Select(item => new PrivateThreadTagDefinition(new(item.Id.Value), item.Name)).ToArray();
     private readonly PrivateThreadTagAssignment[] assignments;
 
     /// <summary>An explicit in-memory revision seed, not a persisted version or freshness proof.</summary>
     internal ThreadTagProjection(long initialRevision = 0)
-        : this(initialRevision, Array.Empty<PrivateThreadTagDefinition>(), Array.Empty<PrivateThreadTagAssignment>())
+        : this(initialRevision, new PrivateTagCatalog(), Array.Empty<PrivateThreadTagAssignment>())
     {
         if (initialRevision < 0) throw new ArgumentOutOfRangeException(nameof(initialRevision));
     }
 
     // Arrays are fresh implementation-owned arrays or shared immutable arrays from a prior state.
-    private ThreadTagProjection(long revision, PrivateThreadTagDefinition[] definitions,
+    private ThreadTagProjection(long revision, PrivateTagCatalog catalog,
         PrivateThreadTagAssignment[] assignments)
     {
         Revision = revision;
-        this.definitions = definitions;
+        Catalog = catalog;
         this.assignments = assignments;
     }
 
     internal long Revision { get; }
 
-    internal bool TryDefine(PrivateThreadTagId id, PrivateTagName? name, long expectedRevision,
-        out ThreadTagProjection result, out ThreadTagError error)
+    /// <summary>Bind both typed projections to the same catalog instance at their composition boundary.</summary>
+    internal ThreadTagProjection(PrivateTagCatalog catalog) : this(0,
+        catalog ?? throw new ArgumentNullException(nameof(catalog)), Array.Empty<PrivateThreadTagAssignment>()) { }
+
+    /// <summary>Explicitly consume a shared rename/create revision; never adopt a divergent vocabulary.</summary>
+    internal bool TryUseCatalog(PrivateTagCatalog catalog, long expectedRevision,
+        long expectedCatalogRevision, out ThreadTagProjection result, out ThreadTagError error)
     {
         result = this;
-        if (!CheckRevision(expectedRevision, out error) || !CheckId(id, out error)) return false;
-        if (name is null) return Fail(ThreadTagError.InvalidName, out error);
-        PrivateThreadTagDefinition? existing = definitions.FirstOrDefault(item => item.Id == id);
-        if (existing is not null)
-            return string.Equals(existing.Name.Display, name.Display, StringComparison.Ordinal)
-                || Fail(ThreadTagError.DefinitionConflict, out error);
-        if (definitions.Any(item => item.Name == name)) return Fail(ThreadTagError.NameCollision, out error);
-        if (definitions.Length >= MaximumDefinitions) return Fail(ThreadTagError.CapacityExceeded, out error);
+        if (!CheckRevision(expectedRevision, out error)) return false;
+        if (Catalog.Revision != expectedCatalogRevision)
+            return Fail(ThreadTagError.StaleRevision, out error);
+        if (catalog is null || !catalog.DescendsFrom(Catalog))
+            return Fail(ThreadTagError.DefinitionConflict, out error);
+        if (ReferenceEquals(catalog, Catalog)) return true;
         if (!CanChange(out error)) return false;
-        result = new(Revision + 1, definitions.Append(new(id, name)).ToArray(), assignments);
+        result = new(Revision + 1, catalog, assignments);
         return true;
     }
 
+    // Legacy entry points delegate every vocabulary decision to the common core.
+    internal bool TryDefine(PrivateThreadTagId id, PrivateTagName? name, long expectedRevision,
+        out ThreadTagProjection result, out ThreadTagError error)
+        => TryDefinition(id, name, expectedRevision, false, out result, out error);
+
     internal bool TryRename(PrivateThreadTagId id, PrivateTagName? name, long expectedRevision,
+        out ThreadTagProjection result, out ThreadTagError error)
+        => TryDefinition(id, name, expectedRevision, true, out result, out error);
+
+    private bool TryDefinition(TagId id, PrivateTagName? name, long expectedRevision, bool rename,
         out ThreadTagProjection result, out ThreadTagError error)
     {
         result = this;
-        if (!CheckRevision(expectedRevision, out error) || !CheckKnownId(id, out error)) return false;
-        if (name is null) return Fail(ThreadTagError.InvalidName, out error);
-        int index = Array.FindIndex(definitions, item => item.Id == id);
-        if (string.Equals(definitions[index].Name.Display, name.Display, StringComparison.Ordinal)) return true;
-        if (definitions.Any(item => item.Id != id && item.Name == name)) return Fail(ThreadTagError.NameCollision, out error);
+        if (!CheckRevision(expectedRevision, out error)) return false;
+        PrivateTagCatalog next;
+        PrivateTagCatalogError catalogError;
+        bool success = rename
+            ? Catalog.TryRename(id, name, Catalog.Revision, out next, out catalogError)
+            : Catalog.TryDefine(id, name, Catalog.Revision, out next, out catalogError);
+        if (!success) return Fail(Enum.Parse<ThreadTagError>(catalogError.ToString()), out error);
+        if (ReferenceEquals(next, Catalog)) return true;
         if (!CanChange(out error)) return false;
-        var copy = (PrivateThreadTagDefinition[])definitions.Clone();
-        copy[index] = new(id, name);
-        result = new(Revision + 1, copy, assignments);
+        result = new(Revision + 1, next, assignments);
         return true;
     }
 
@@ -137,7 +157,7 @@ internal sealed class ThreadTagProjection
         if (exists == add) return true;
         if (add && assignments.Length >= MaximumAssignments) return Fail(ThreadTagError.CapacityExceeded, out error);
         if (!CanChange(out error)) return false;
-        result = new(Revision + 1, definitions, add
+        result = new(Revision + 1, Catalog, add
             ? assignments.Append(assignment).ToArray()
             : assignments.Where(item => item != assignment).ToArray());
         return true;
@@ -191,7 +211,7 @@ internal sealed class ThreadTagProjection
     private bool CheckKnownId(PrivateThreadTagId id, out ThreadTagError error)
     {
         if (!CheckId(id, out error)) return false;
-        return definitions.Any(item => item.Id == id) || Fail(ThreadTagError.UnknownTag, out error);
+        return Catalog.Contains(id) || Fail(ThreadTagError.UnknownTag, out error);
     }
 
     private bool CanChange(out ThreadTagError error)

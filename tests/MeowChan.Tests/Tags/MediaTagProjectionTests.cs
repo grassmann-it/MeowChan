@@ -216,4 +216,24 @@ public sealed class MediaTagProjectionTests
         public IEnumerator<PrivateMediaTagTarget> GetEnumerator() => throw new InvalidOperationException();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
+
+    [Fact]
+    public void SharedCatalogRevisionIsExplicitFencedAndDoesNotChangeOldProjection()
+    {
+        var catalog = new PrivateTagCatalog();
+        TagId id = new(Guid.NewGuid());
+        Assert.True(catalog.TryDefine(id, Name("shared"), 0, out catalog, out _));
+        var state = new MediaTagProjection(catalog);
+        Assert.True(catalog.TryRename(id, Name("renamed"), catalog.Revision, out var renamed, out _));
+        Assert.False(state.TryUseCatalog(renamed, 1, catalog.Revision, out var failed, out var error));
+        Assert.Equal(MediaTagError.StaleRevision, error);
+        Assert.Same(state, failed);
+        Assert.False(state.TryUseCatalog(new PrivateTagCatalog(), 0, catalog.Revision, out failed, out error));
+        Assert.Equal(MediaTagError.DefinitionConflict, error);
+        Assert.True(state.TryUseCatalog(renamed, 0, catalog.Revision, out var updated, out error));
+        Assert.Same(renamed, updated.Catalog);
+        Assert.Same(catalog, state.Catalog);
+        Assert.Equal("shared", state.Catalog.Definitions[0].Name.Display);
+        Assert.Equal("renamed", updated.Catalog.Definitions[0].Name.Display);
+    }
 }
