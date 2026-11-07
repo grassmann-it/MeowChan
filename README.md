@@ -227,7 +227,7 @@ The SQLite catalog (`archive.db`) stays in the local profile; media folders may 
 
 Rules select allowed filename extensions and a maximum file size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes use decimal MB (1 MB = 1,000,000 bytes). Provider sizes guide preselection; media with unknown size are initially eligible. Downloaded bytes must also stay within the effective limit for that medium. Saving rules affects newly evaluated media; it does not automatically reconsider recorded selections/exclusions or alter existing files, including after restart.
 
-Diagnostics shows current session warnings, request cooldowns and watch/media/storage failures. You can copy details and navigate to the affected watch. It reflects current snapshots, not a complete event history or a source-wide online test.
+Diagnostics shows current session warnings, request cooldowns and watch/media/storage failures. You can copy details and navigate to the affected watch. It reflects current snapshots, not a complete event history or a source-wide online test. The next-release passive evidence view explains observed failure facts and separates waiting from errors without adding network probes. See the [preview guide](docs/user-guide/passive-diagnostics.en.md) ([Deutsch](docs/user-guide/passive-diagnostics.md)), including the privacy limits of copied details.
 
 ## Settings and saved sessions
 

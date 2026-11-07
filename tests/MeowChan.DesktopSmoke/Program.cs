@@ -55,6 +55,7 @@ internal static class Program
         // never run one helper and report another helper's acceptance wording.
         string[] focusedModes =
         [
+            "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY",
             "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "MEOWCHAN_HTML_EXPORT_LANGUAGE_ONLY",
             "MEOWCHAN_SECONDARY_SETTINGS_LANGUAGE_ONLY", "MEOWCHAN_GALLERY_HIDDEN_FAVORITE_ONLY",
             "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "MEOWCHAN_READER_GROUPS_BINDING_ONLY",
@@ -251,7 +252,9 @@ internal static class Program
                     MediaRatingChecks.VerifyAfterClose(profile, reacquired);
             }
 
-            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
+            string scenario = Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1"
+                ? "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1"
                 ? "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"
                 : Environment.GetEnvironmentVariable("MEOWCHAN_FILENAME_SEARCH_ONLY") == "1"
                 ? "filename search standalone dialog: captured metadata paging, literal Unicode input and explicit selection; no product host navigation or current-byte/platform acceptance"
@@ -426,6 +429,11 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY") == "1")
+            {
+                await DiagnosticEvidenceChecks.RunAsync(mainWindow);
+                _checksPassed = true; mainWindow.Close(); return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_FIND_ONLY") == "1")
             {
                 await ReaderThreadFindChecks.RunAsync(mainWindow);
