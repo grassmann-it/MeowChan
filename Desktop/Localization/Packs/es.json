@@ -228,6 +228,8 @@
     "diagnostics.hint": "Solicitudes actuales, errores y últimas advertencias de la sesión. Es una instantánea en vivo, no un historial de eventos.",
     "diagnostics.empty": "No hay solicitudes actuales ni problemas notificados. Las descargas continúan en segundo plano.",
     "diagnostics.current": "Solicitudes y problemas actuales",
+    "priority.menuHigh": "Prioridad alta ({0})",
+    "priority.menuNormal": "Prioridad normal ({0})",
     "priority.stale": "Este hilo ya no está disponible para cambiar su prioridad.",
     "priority.highAccepted": "Prioridad alta establecida para {0} hilos. Afecta a las siguientes plazas disponibles; no se reinician los archivos en curso y siguen vigentes los límites de las fuentes.",
     "priority.normalAccepted": "Prioridad normal restablecida para {0} hilos.",

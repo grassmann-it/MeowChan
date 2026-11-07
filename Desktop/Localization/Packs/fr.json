@@ -228,6 +228,8 @@
     "diagnostics.hint": "Requêtes en cours, erreurs et derniers avertissements de la session. Il s’agit d’un état instantané, pas d’un historique des événements.",
     "diagnostics.empty": "Aucune requête en cours ni problème signalé. Les téléchargements se poursuivent en arrière-plan.",
     "diagnostics.current": "Requêtes et problèmes actuels",
+    "priority.menuHigh": "Priorité haute ({0})",
+    "priority.menuNormal": "Priorité normale ({0})",
     "priority.stale": "Ce fil n’est plus disponible pour un changement de priorité.",
     "priority.highAccepted": "Priorité haute définie pour {0} fils. Elle s’applique aux prochains créneaux admissibles ; les fichiers en cours ne sont pas redémarrés et les limites des sources restent applicables.",
     "priority.normalAccepted": "Priorité normale rétablie pour {0} fils.",

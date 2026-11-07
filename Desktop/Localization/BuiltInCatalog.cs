@@ -58,6 +58,8 @@ internal static class BuiltInCatalog
         ("diagnostics.hint", "Current requests, errors and the latest session warnings. This is a live snapshot, not an event history.", "Aktuelle Anfragen, Fehler und die letzten Sitzungswarnungen. Die Ansicht zeigt den jetzigen Zustand, keinen Ereignisverlauf."),
         ("diagnostics.empty", "No current requests or reported problems. Downloads continue in the background.", "Keine laufenden Anfragen oder gemeldeten Probleme. Downloads laufen im Hintergrund weiter."),
         ("diagnostics.current", "Current requests and problems", "Aktuelle Anfragen und Probleme"),
+        ("priority.menuHigh", "High priority ({0})", "Hohe Priorität ({0})"),
+        ("priority.menuNormal", "Normal priority ({0})", "Normale Priorität ({0})"),
         ("priority.stale", "This thread is no longer available for changing priority.", "Dieser Thread ist für eine Prioritätsänderung nicht mehr verfügbar."),
         ("priority.highAccepted", "High priority set for {0} threads. It affects the next eligible slots; existing files are not restarted and source limits still apply.", "Hohe Priorität für {0} Threads gesetzt. Sie gilt für nächste freie Plätze; laufende Dateien werden nicht neu gestartet und Quellenlimits gelten weiter."),
         ("priority.normalAccepted", "Normal priority restored for {0} threads.", "Normale Priorität für {0} Threads wiederhergestellt."),

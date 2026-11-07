@@ -20,36 +20,66 @@ public partial class MainWindow
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
         .Any(node => node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem);
 
-    // R0 implements admission in a new partial: exact watch identity + current
-    // generation must be checked by host, not inferred from ResourceId/URL.
-    partial void ApplyFrozenUserPriority(long[] watchIds, bool high);
+    // Keep row identities through the asynchronous batch; host admission still
+    // checks the exact watch/generation rather than inferring it from a URL.
+    partial void ApplyFrozenUserPriority(ThreadRow[] rows, bool high);
     partial void QueryUserPriorityAvailable(ref bool available);
+
+    private bool UserPriorityAvailable()
+    {
+        bool available = false;
+        QueryUserPriorityAvailable(ref available);
+        return available;
+    }
+
+    private bool IsCurrentUserPriorityRow(ThreadRow row) =>
+        _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
+        && (_appliedThreadSearchReconciliation?.Includes(row) ?? false);
 
     private void AddUserPriorityMenus(ContextMenu menu, bool ready)
     {
-        ThreadRow[] frozen = SelectedThreads().DistinctBy(row => row.WatchId).ToArray();
-        bool available = false;
-        QueryUserPriorityAvailable(ref available);
-        foreach (bool high in new[] { true, false })
+        foreach (MenuItem item in CreateUserPriorityMenuItems(SelectedThreads(), ready,
+            () => !RowCommandBusy && !_selectionCommandRunning && !_sessionRowsApplying
+                && _restoreCompleted && UserPriorityAvailable(),
+            IsCurrentUserPriorityRow, (rows, high) => ApplyFrozenUserPriority(rows, high)))
         {
-            string label = Texts.Language == "de" ? (high ? "Hohe Priorität" : "Normale Priorität")
-                : (high ? "High priority" : "Normal priority");
-            // Reuse the shared up/down glyphs, without registering navigation actions.
-            var item = new MenuItem { Header = label + " (" + frozen.Length + ")",
-                Icon = CommandBindings.Icon(high ? "reader.previous-post" : "reader.next-post"),
-                IsEnabled = ready && available && frozen.Length > 0 };
-            Avalonia.Automation.AutomationProperties.SetName(item, label + " (" + frozen.Length + ")");
-            item.Click += (_, _) =>
-            {
-                if (RowCommandBusy || _selectionCommandRunning || _sessionRowsApplying || !_restoreCompleted) return;
-                // Use captured rows, never expand to a later selection. Remove/
-                // re-add with an identical resource is deliberately not inherited.
-                long[] ids = frozen.Where(row => _threadRows.TryGetValue(row.WatchId, out ThreadRow? current)
-                    && ReferenceEquals(row, current)).Select(row => row.WatchId).ToArray();
-                if (ids.Length > 0) ApplyFrozenUserPriority(ids, high);
-            };
+            // Reuse the shared glyphs without registering navigation actions.
+            item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh")
+                ? "reader.previous-post" : "reader.next-post");
             menu.Items.Add(item);
         }
+    }
+
+    internal static bool IsUserPriorityTarget(ThreadRow row, bool high, Func<ThreadRow, bool> isCurrent)
+        => isCurrent(row) && row.IsHighPriority != high;
+
+    // The real menu factory is also usable without a native window/bitmap backend.
+    // Only item-owned click handlers are installed: no row/language event subscriptions.
+    internal static MenuItem[] CreateUserPriorityMenuItems(IEnumerable<ThreadRow> selection, bool ready,
+        Func<bool> canExecute, Func<ThreadRow, bool> isCurrent, Action<ThreadRow[], bool> apply)
+    {
+        ThreadRow[] frozen = selection.Where(isCurrent).DistinctBy(row => row.WatchId).ToArray();
+        var items = new List<MenuItem>();
+        bool available = ready && canExecute();
+        foreach (bool high in new[] { true, false })
+        {
+            ThreadRow[] affected = frozen.Where(row => row.IsHighPriority != high).ToArray();
+            if (affected.Length == 0) continue;
+            string key = high ? "priority.menuHigh" : "priority.menuNormal";
+            string label = Texts.T(key, affected.Length);
+            var item = new MenuItem { Header = label, Tag = key, IsEnabled = available };
+            Avalonia.Automation.AutomationProperties.SetName(item, label);
+            item.Click += (_, _) =>
+            {
+                if (!item.IsEnabled || !canExecute()) return;
+                // Never expand to a later selection, a newly eligible row, or a
+                // replacement watch. State may have changed while the menu was open.
+                ThreadRow[] targets = affected.Where(row => IsUserPriorityTarget(row, high, isCurrent)).ToArray();
+                if (targets.Length > 0) apply(targets, high);
+            };
+            items.Add(item);
+        }
+        return items.ToArray();
     }
 
     private long? _threadLeadId;
