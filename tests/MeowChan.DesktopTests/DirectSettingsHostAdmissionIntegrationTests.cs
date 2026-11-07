@@ -188,6 +188,7 @@ public sealed class DirectSettingsHostAdmissionIntegrationTests
                 Assert.Equal(ProfileAdmissionKind.Exclusive, admission.Kind);
                 configAtExclusive = host.Config.Clone(); projectionAtExclusive = host.Projection;
                 exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             });
             Assert.Throws<InvalidOperationException>(() => { using var refused = oldEpoch.Enter(); });
             Assert.Throws<InvalidOperationException>(() => { using var refused = Lease(host).Admission.EnterOrdinaryWriter(); });
@@ -290,7 +291,10 @@ public sealed class DirectSettingsHostAdmissionIntegrationTests
             });
             await registered.Task.WaitAsync(Deadline);
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            });
             Assert.Throws<InvalidOperationException>(() => { using var refused = oldEpoch.Enter(); });
             Task successor = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1450);
             LocalReadingPosition next = Anchor with { Top = -30 };

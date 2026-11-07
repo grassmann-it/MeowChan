@@ -105,6 +105,7 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             {
                 Assert.True(Lease(host).Admission.RunWithToken(token, () => true, ProfileAdmissionKind.Exclusive));
                 exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             });
             Assert.Throws<InvalidOperationException>(() => { using var refused = oldEpoch.Enter(); }); // Counted, but already closed.
             Task parkedView = host.SaveViewPreferencesAsync(c => c.VideoVolume = 39);
@@ -164,7 +165,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             });
             await registered.Task.WaitAsync(Deadline); // Kernel accepted; marker exists, optionally still unbound.
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            });
             Task successor = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1450);
             LocalReadingPosition nextAnchor = Anchor with { Top = -30 };
             Task successorReading = host.RememberReadingPositionAsync(nextAnchor, host.ReadingPositionGeneration);
@@ -204,7 +208,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             await host.StartAsync().WaitAsync(Deadline);
             double initial = host.Config.WindowWidth;
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await release.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await release.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true); // No profile effect; Stop still wins over resume.
+            });
             await exclusive.Task.WaitAsync(Deadline);
             Task view = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1600);
             Task reading = host.RememberReadingPositionAsync(Anchor, host.ReadingPositionGeneration);
@@ -252,7 +259,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             Task write = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1650);
             await entered.Task.WaitAsync(Deadline);
             owner = host.RunWithProfileProducerExclusiveAsync(_ =>
-            { Interlocked.Increment(ref callbacks); return Task.CompletedTask; });
+            {
+                Interlocked.Increment(ref callbacks);
+                return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
+            });
             Assert.Throws<InvalidOperationException>(() => { using var refused = old.Enter(); });
             Assert.True(Lease(host).Admission.RunWithToken(old.Admission!, () => true, ProfileAdmissionKind.Ordinary));
             Task parked = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1660);
@@ -297,7 +307,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
         {
             await host.StartAsync().WaitAsync(Deadline);
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await releaseOwner.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await releaseOwner.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true); // The held owner ends, without reopening Stop.
+            });
             await exclusive.Task.WaitAsync(Deadline);
             Task parked = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1700);
             host.BeforeTerminalFinalWriteSettlementForTests = () =>
@@ -356,7 +369,12 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
         try
         {
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline); work.FailNextRead = true; });
+            {
+                exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                // Only arm the later activation fault: this synthetic operation itself has no profile effects.
+                work.FailNextRead = true;
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            });
             await exclusive.Task.WaitAsync(Deadline);
             Task parked = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1800);
             Task uiFlush = host.FlushPreferencesAsync();
@@ -377,7 +395,8 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             Assert.Contains("Synthetic activation read", failure.ToString());
             Assert.False(host.FinalWriteAdmissionCounts.HasEpoch);
             registry.BeforeProfileProducerFailureDrain = null;
-            await host.RunWithProfileProducerExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline);
+            await host.RunWithProfileProducerExclusiveAsync(
+                _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true))).WaitAsync(Deadline);
             await host.FlushPreferencesAsync().WaitAsync(Deadline);
             Assert.Equal(1800, Config.LoadConfig(directory.Path).WindowWidth);
             Assert.True(parked.IsFaulted); // A successful later retry never changes the old observer.
@@ -420,7 +439,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             Assert.Equal(DesktopSessionState.Ready, host.State);
             Assert.Equal(2, scenario.Starts);
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            });
             await exclusive.Task.WaitAsync(Deadline);
             Task view = host.SaveViewPreferencesAsync(c => c.WindowWidth = 1810);
             Task reading = host.RememberReadingPositionAsync(Anchor, host.ReadingPositionGeneration);
@@ -451,7 +473,8 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             Assert.False(host.FinalWriteAdmissionCounts.HasEpoch);
             Assert.Throws<InvalidOperationException>(() => Lease(host).Admission.RunWithToken(fresh.Admission!, () => true, ProfileAdmissionKind.Ordinary));
             // Only an explicit call through the same lane may replay retained data.
-            await host.RunWithProfileProducerExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline);
+            await host.RunWithProfileProducerExclusiveAsync(
+                _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true))).WaitAsync(Deadline);
             await host.FlushPreferencesAsync().WaitAsync(Deadline);
             Assert.Equal(1810, Config.LoadConfig(directory.Path).WindowWidth);
             Assert.Equal(Anchor, await host.ReadReadingPositionAsync().WaitAsync(Deadline));
@@ -721,7 +744,10 @@ public sealed class HostFinalWriteAdmissionIntegrationTests
             Task failed = host.SaveViewPreferencesAsync(c => c.WindowWidth = 2010);
             await entered.Task.WaitAsync(Deadline);
             owner = host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline); });
+            {
+                exclusive.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            });
             release.Set(); await exclusive.Task.WaitAsync(Deadline);
             await Assert.ThrowsAsync<IOException>(() => failed.WaitAsync(Deadline));
             Assert.Equal((0, 0, 1), host.PreferenceWriteCounts);

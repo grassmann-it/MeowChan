@@ -226,6 +226,7 @@ public sealed class DesktopProfileAdmissionTests
             await release.Task.WaitAsync(Deadline);
             // Cancellation after grant cannot revoke this exact accepted token.
             Assert.True(fixture.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+            return ProfileExclusiveOutcome<bool>.SafeToResume(true);
         }, cancellation.Token);
         try
         {
@@ -268,6 +269,7 @@ public sealed class DesktopProfileAdmissionTests
             Assert.True(fixture.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
             entered.TrySetResult();
             await release.Task.WaitAsync(Deadline);
+            return ProfileExclusiveOutcome<bool>.SafeToResume(true);
         });
         try
         {

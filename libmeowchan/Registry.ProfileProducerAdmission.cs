@@ -91,6 +91,11 @@ public sealed partial class Registry
     // Deterministic lifecycle seams, invoked outside the lifecycle/state monitors.
     internal Func<Task>? BeforeProfileProducerResume { get; set; }
     internal Func<Task>? BeforeProfileProducerFailureDrain { get; set; }
+    // Instance-only observation after kernel/Host sealing, before exclusive release.
+    // Invoked outside all monitors; does not supply an outcome or new authority.
+    internal Action<ProfileAdmissionToken>? AfterProfileExclusiveRecoverySealedForTests { get; set; }
+    // Observe a granted owner before cancellation/Stop checks and delegate entry.
+    internal Action<ProfileAdmissionToken>? BeforeProfileExclusiveOperationForTests { get; set; }
 
     internal async Task ActivatePreparedProfileProducersAsync(Action? sealBeforeFailureDrain = null,
         Action<Exception>? notifyBeforeFailureDrain = null)
@@ -329,8 +334,10 @@ public sealed partial class Registry
 
     // One existing lane, ONE reservation for both families. No host Ordinary or
     // _commands wrapper. Every granted token is observed and disposed exactly once.
-    internal async Task RunWithProfileExclusiveAsync(Func<ProfileAdmissionToken, Task> operation,
-        CancellationToken token = default)
+    // No untyped success lane: default outcome and every unclassified exception
+    // after delegate entry are uncertain, even when the kernel is still Ready.
+    internal async Task<ProfileExclusiveOutcome<T>> RunWithProfileExclusiveAsync<T>(
+        Func<ProfileAdmissionToken, Task<ProfileExclusiveOutcome<T>>> operation, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
         await _producerTransitions.WaitAsync(token).ConfigureAwait(false);
@@ -338,7 +345,8 @@ public sealed partial class Registry
         Task<ProfileAdmissionToken>? reservation = null;
         ProfileAdmissionToken? exclusive = null;
         ProfileProducerEpoch? epoch = null;
-        bool cut = false, quiescent = false;
+        bool cut = false, quiescent = false, delegateEntered = false, safeToResume = false;
+        Exception? recoveryError = null;
         try
         {
             _finalWriteParticipant?.CloseTransitionCommandIngress();
@@ -363,12 +371,22 @@ public sealed partial class Registry
             Task<ProfileAdmissionToken> acceptedReservation = reservation;
             reservation = null;
             exclusive = await acceptedReservation.ConfigureAwait(false);
+            BeforeProfileExclusiveOperationForTests?.Invoke(exclusive);
             token.ThrowIfCancellationRequested();
             if (_producerStopRequested) throw new InvalidOperationException("Registry is stopping.");
-            await operation(exclusive).ConfigureAwait(false);
+            delegateEntered = true;
+            safeToResume = false;
+            ProfileExclusiveOutcome<T> outcome = await operation(exclusive).ConfigureAwait(false);
+            safeToResume = outcome.Disposition == ProfileExclusiveDisposition.SafeToResume;
+            return outcome;
         }
         catch (Exception error)
         {
+            if (delegateEntered) recoveryError = error;
+            // Cancel before any delegate effect is independently known safe only
+            // after the actual complete drain. Other transition faults are not a
+            // negative-effect proof; Stop is still checked again before resume.
+            else if (quiescent && error is OperationCanceledException) safeToResume = true;
             if (cut && !quiescent) _finalWriteParticipant?.FailTransition(error);
             throw;
         }
@@ -389,9 +407,25 @@ public sealed partial class Registry
                         }
                     }
                 }
-                finally { exclusive?.Dispose(); }
+                finally
+                {
+                    try
+                    {
+                        if (delegateEntered && !safeToResume)
+                        {
+                            // Both fences and observer settlement precede release.
+                            // Even a failing notification cannot skip token disposal;
+                            // no recovery fence revokes still-counted consumer pins.
+                            _producerLease!.Admission.FailRecovery();
+                            _finalWriteParticipant?.RequireRecovery(recoveryError ??
+                                new InvalidOperationException("Exclusive profile outcome requires recovery; writers remain suspended."));
+                            AfterProfileExclusiveRecoverySealedForTests?.Invoke(exclusive!);
+                        }
+                    }
+                    finally { exclusive?.Dispose(); }
+                }
                 if (!cut) _finalWriteParticipant?.AbortBeforeCut();
-                if (quiescent && !_producerStopRequested && _producerLease?.Admission.Phase == ProfileAdmissionPhase.Ready)
+                if (safeToResume && quiescent && !_producerStopRequested && _producerLease?.Admission.Phase == ProfileAdmissionPhase.Ready)
                     await ResumeProfileFamiliesAsync().ConfigureAwait(false);
             }
             finally { _producerTransitions.Release(); }

@@ -140,6 +140,7 @@ public sealed class ReaderGroupHostAdmissionIntegrationTests
             {
                 Assert.Equal(ProfileAdmissionKind.Exclusive, token.Kind);
                 granted.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             }, cancelExclusive.Token);
             Assert.Throws<InvalidOperationException>(() => { using var denied = f.Lease.Admission.EnterOrdinaryWriter(); });
             // A different command, not the duplicate Save/Restore Busy lane.
@@ -386,7 +387,10 @@ public sealed class ReaderGroupHostAdmissionIntegrationTests
         {
             Assert.Equal(1, f.Host.AcceptedCommandCount);
             owner = f.Host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { granted.TrySetResult(); await resume.Task.WaitAsync(Deadline); }, cancel.Token);
+            {
+                granted.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            }, cancel.Token);
             Assert.Throws<InvalidOperationException>(() => { using var denied = f.Lease.Admission.EnterOrdinaryWriter(); });
             await Assert.ThrowsAsync<InvalidOperationException>(() => f.Store.SaveAsync(saved, saved.Revision));
             await Assert.ThrowsAsync<InvalidOperationException>(() => new ReaderGroupStore(f.Directory.Path, f.Lease).SaveAsync(saved, saved.Revision));

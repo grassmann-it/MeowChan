@@ -54,6 +54,7 @@ public sealed class RuleTemplateHostAdmissionIntegrationTests
             {
                 Assert.Equal(ProfileAdmissionKind.Exclusive, token.Kind);
                 granted.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             }, cancel.Token);
             Assert.Throws<InvalidOperationException>(() => { using var denied = f.Lease.Admission.EnterOrdinaryWriter(); });
             await Assert.ThrowsAsync<InvalidOperationException>(() => f.Host.LoadRuleTemplatesAsync());

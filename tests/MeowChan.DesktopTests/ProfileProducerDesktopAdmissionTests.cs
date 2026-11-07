@@ -69,7 +69,7 @@ public sealed class ProfileProducerDesktopAdmissionTests
             owner = host.RunWithProfileProducerExclusiveAsync(admission =>
             {
                 Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
-                return Task.CompletedTask;
+                return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
             });
             await atWindow.Task.WaitAsync(Deadline);
             competitor = await lease.Admission.EnterExclusiveAsync().AsTask().WaitAsync(Deadline);
@@ -89,7 +89,13 @@ public sealed class ProfileProducerDesktopAdmissionTests
                 competitor.Dispose();
                 competitor = null;
                 await stop.WaitAsync(Deadline);
-                await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunWithProfileProducerExclusiveAsync(_ => Task.CompletedTask));
+                int rejectedCalls = 0;
+                await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunWithProfileProducerExclusiveAsync(_ =>
+                {
+                    Interlocked.Increment(ref rejectedCalls);
+                    return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
+                }));
+                Assert.Equal(0, Volatile.Read(ref rejectedCalls));
                 Assert.Equal(ProfileAdmissionPhase.Stopped, lease.Admission.Phase);
             }
             else
@@ -101,7 +107,7 @@ public sealed class ProfileProducerDesktopAdmissionTests
                 {
                     Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
                     calls++;
-                    return Task.CompletedTask;
+                    return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
                 }).WaitAsync(Deadline);
                 Assert.Equal(1, calls);
                 Assert.Equal(DesktopSessionState.Ready, host.State);

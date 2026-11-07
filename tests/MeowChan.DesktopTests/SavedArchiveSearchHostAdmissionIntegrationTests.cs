@@ -57,7 +57,10 @@ public sealed class SavedArchiveSearchHostAdmissionIntegrationTests
             // The spec already snapshots constructor input; host/store must preserve, not normalize it.
             sources.Clear(); sources.Add("late input");
             exclusive = f.Host.RunWithProfileProducerExclusiveAsync(async _ =>
-            { granted.TrySetResult(); await resume.Task.WaitAsync(Deadline); }, cancel.Token);
+            {
+                granted.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
+            }, cancel.Token);
             Assert.Throws<InvalidOperationException>(() => { using var denied = f.Lease.Admission.EnterOrdinaryWriter(); });
             Assert.Throws<InvalidOperationException>(() => f.Store.Rename(Seed, "nested", f.Current.Revision));
             // Different target even for Delete: prove kernel refusal, not duplicate-command Busy.
@@ -243,7 +246,7 @@ public sealed class SavedArchiveSearchHostAdmissionIntegrationTests
         {
             Assert.Equal(ProfileAdmissionKind.Exclusive, exclusive.Kind);
             exclusiveGranted = true;
-            return Task.CompletedTask;
+            return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
         }).WaitAsync(Deadline);
         Assert.True(exclusiveGranted);
         Assert.Equal(DesktopSessionState.Ready, f.Host.State);

@@ -38,11 +38,31 @@ internal sealed partial class DesktopSessionHost
 
     // Direct owner lane: deliberately not dispatched through an Ordinary command
     // and never takes _commands while waiting for previously accepted commands.
-    internal Task RunWithProfileProducerExclusiveAsync(Func<ProfileAdmissionToken, Task> operation,
-        CancellationToken token = default)
+    // No Func<..., Task> compatibility overload: every caller, including a
+    // non-transfer owner, must explicitly attest its reconciled safe result.
+    internal Task<ProfileExclusiveOutcome<T>> RunWithProfileProducerExclusiveAsync<T>(
+        Func<ProfileAdmissionToken, Task<ProfileExclusiveOutcome<T>>> operation, CancellationToken token = default)
     {
         EnsureReady();
         return _registry.RunWithProfileExclusiveAsync(operation, token);
+    }
+
+    private void RequireProfileRecovery(Exception error)
+    {
+        lock (_lifecycle)
+        {
+            if (_state is DesktopSessionState.Starting or DesktopSessionState.Ready)
+            {
+                _startupError = error.Message;
+                _state = DesktopSessionState.RecoveryFailed;
+            }
+        }
+        // No outer lifecycle/kernel monitor around settlement. Stop may already
+        // own the terminal plan; FailFinalWriteTransition must not steal it.
+        FailFinalWriteTransition(error);
+        // Publish the state immediately, but never wait for UI observers here:
+        // an observer may call Stop, whose final release needs the Registry lane.
+        PublishLifecycleState(notifyOnWorker: true);
     }
 
     private void BeginProfileShutdown()
@@ -70,6 +90,7 @@ internal sealed partial class DesktopSessionHost
         public void InstallReadyEpoch() => host.InstallReadyFinalWriteEpoch();
         public void OpenAfterProducerActivation() => host.OpenFinalWriteEpoch();
         public void FailTransition(Exception error) => host.FailFinalWriteTransition(error);
+        public void RequireRecovery(Exception error) => host.RequireProfileRecovery(error);
         public void AbortBeforeCut()
         {
             lock (host._finalWrites) { if (!host.FinalWriteAuthorityOpen) return; }

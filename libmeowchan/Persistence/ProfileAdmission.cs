@@ -155,6 +155,24 @@ internal sealed class ProfileAdmission : IDisposable
         }
     }
 
+    // Irreversible live-recovery fence. This seals ingress, not accepted ownership:
+    // active tokens and synchronous pins keep their normal counted lifetime.
+    // Stop/Close always win, including a late failure notification after Stop.
+    internal void FailRecovery()
+    {
+        ExclusiveWaiter? waiter;
+        lock (_sync)
+        {
+            if (_phase is ProfileAdmissionPhase.Stopping or ProfileAdmissionPhase.Stopped)
+                return;
+            _phase = ProfileAdmissionPhase.RecoveryFailed;
+            waiter = _pending;
+            _pending = null;
+        }
+        // Never run a waiter continuation or an observer under the monitor.
+        waiter?.Completion.TrySetException(new InvalidOperationException("Profile recovery is required."));
+    }
+
     internal void BeginShutdown()
     {
         ExclusiveWaiter? waiter;

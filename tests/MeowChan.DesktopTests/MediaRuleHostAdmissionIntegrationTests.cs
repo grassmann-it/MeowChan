@@ -91,6 +91,7 @@ public sealed class MediaRuleHostAdmissionIntegrationTests
             {
                 Assert.Equal(ProfileAdmissionKind.Exclusive, token.Kind);
                 granted.TrySetResult(); await resume.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             }, cancel.Token);
             Assert.Throws<InvalidOperationException>(() => { using var denied = f.Lease.Admission.EnterOrdinaryWriter(); });
             // Different Host command: prove kernel refusal, not SaveRules action dedup.

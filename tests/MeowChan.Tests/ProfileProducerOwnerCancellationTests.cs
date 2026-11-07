@@ -25,14 +25,21 @@ public sealed class ProfileProducerOwnerCancellationTests
         ProfileAdmissionToken? blocker = null;
         using CancellationTokenSource cancellation = new();
         Task request = Task.CompletedTask;
+        int operationCalls = 0;
         try
         {
             await InitializeRegistryAsync(registry, lease, started);
             blocker = lease.Admission.EnterOrdinaryWriter();
-            request = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask, cancellation.Token);
+            request = registry.RunWithProfileExclusiveAsync(_ =>
+            {
+                Interlocked.Increment(ref operationCalls);
+                return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
+            }, cancellation.Token);
             await WaitForExclusiveReservation(lease.Admission);
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Deadline));
+            Assert.Equal(0, Volatile.Read(ref operationCalls)); // Cancellation before entry, not an uncertain operation.
+            Assert.Equal(ProfileAdmissionPhase.Ready, lease.Admission.Phase);
             blocker.Dispose();
             using (ProfileAdmissionToken ordinary = lease.Admission.EnterOrdinaryWriter())
                 Assert.True(lease.Admission.RunWithToken(ordinary, () => true, ProfileAdmissionKind.Ordinary));
@@ -72,6 +79,9 @@ public sealed class ProfileProducerOwnerCancellationTests
                 Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
                 entered.TrySetResult();
                 await release.Task.WaitAsync(Deadline);
+                // Caller cancellation cannot revoke this accepted, non-transfer hold.
+                Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             }, cancellation.Token);
             await entered.Task.WaitAsync(Deadline);
             cancellation.Cancel();
@@ -115,10 +125,13 @@ public sealed class ProfileProducerOwnerCancellationTests
                     throw new InvalidOperationException("synthetic resume failure");
                 return Task.CompletedTask;
             };
-            first = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask);
+            // The delegate succeeds; the injected transition failure must still fault the whole lane.
+            first = registry.RunWithProfileExclusiveAsync(
+                _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true)));
             await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Deadline));
             registry.BeforeProfileProducerResume = null;
-            retry = registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask);
+            retry = registry.RunWithProfileExclusiveAsync(
+                _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true)));
             await retry.WaitAsync(Deadline);
             Assert.Equal(1, failures);
             await registry.StopAsync().WaitAsync(Deadline);

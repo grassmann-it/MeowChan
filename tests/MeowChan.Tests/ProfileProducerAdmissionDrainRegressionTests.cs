@@ -139,7 +139,7 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
             owner = registry.RunWithProfileExclusiveAsync(_ =>
             {
                 Interlocked.Increment(ref ownerCalls);
-                return Task.CompletedTask;
+                return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
             });
             // This seam is the owner's final completion pass, after epoch-use and
             // background drain, but before detaching/releasing the old token. It

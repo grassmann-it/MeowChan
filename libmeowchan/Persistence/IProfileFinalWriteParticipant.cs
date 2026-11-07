@@ -13,6 +13,9 @@ internal interface IProfileFinalWriteParticipant
     void InstallReadyEpoch();
     void OpenAfterProducerActivation();
     void FailTransition(Exception error);
+    // Kernel ingress is already sealed. Publish live RecoveryFailed (unless Stop
+    // won), then fault parked observers without releasing counted ownership.
+    void RequireRecovery(Exception error);
     void AbortBeforeCut();
     void ReleaseStoppedEpoch();
 }

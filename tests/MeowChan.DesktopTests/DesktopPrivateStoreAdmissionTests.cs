@@ -64,6 +64,8 @@ public sealed class DesktopPrivateStoreAdmissionTests
             if (exclusive is not null) await exclusive.ReleaseAsync();
             await ObserveAsync(command);
         }
+        Assert.Equal(DesktopSessionState.Ready, f.Host.State);
+        Assert.Equal(ProfileAdmissionPhase.Ready, f.Lease.Admission.Phase);
         // Repeat the exact previously refused target, detecting both leaked slots
         // and stale action-dedup entries after the reservation was released.
         await StartCommand(f, family, other: true).WaitAsync(Deadline);
@@ -225,7 +227,7 @@ public sealed class DesktopPrivateStoreAdmissionTests
     {
         private readonly TaskCompletionSource<ProfileAdmissionToken> _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly Task _operation;
+        private readonly Task<ProfileExclusiveOutcome<bool>> _operation;
         internal Task<ProfileAdmissionToken> Entered => _entered.Task;
 
         internal OwnerExclusive(DesktopSessionHost host, CancellationToken token)
@@ -233,15 +235,27 @@ public sealed class DesktopPrivateStoreAdmissionTests
             _operation = host.RunWithProfileProducerExclusiveAsync(async admission =>
             {
                 _entered.TrySetResult(admission);
-                await _release.Task.WaitAsync(token);
+                // Cancellation governs pending admission only. This synthetic non-transfer
+                // hold finishes successfully only when ReleaseAsync opens its own gate.
+                await _release.Task;
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             }, token);
         }
 
         internal async Task ReleaseAsync()
         {
             _release.TrySetResult();
-            try { await _operation.WaitAsync(Deadline); }
-            catch (OperationCanceledException) { }
+            try
+            {
+                ProfileExclusiveOutcome<bool> outcome = await _operation.WaitAsync(Deadline);
+                Assert.Equal(ProfileExclusiveDisposition.SafeToResume, outcome.Disposition);
+                Assert.True(outcome.Result);
+            }
+            catch (OperationCanceledException)
+            {
+                // Never swallow an entered operation's cancellation as a successful release.
+                Assert.False(_entered.Task.IsCompleted);
+            }
         }
     }
 

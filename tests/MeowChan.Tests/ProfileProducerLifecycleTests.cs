@@ -50,7 +50,7 @@ public sealed class ProfileProducerLifecycleTests
         {
             Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
             Assert.Throws<InvalidOperationException>(() => work.CommitState(resource));
-            return Task.CompletedTask;
+            return Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true));
         }).WaitAsync(Deadline);
         Assert.True(queue.IsPaused);
         Assert.Equal(checksBefore, thread.Checks);
@@ -117,6 +117,7 @@ public sealed class ProfileProducerLifecycleTests
                 Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
                 exclusiveEntered.TrySetResult();
                 await releaseExclusive.Task.WaitAsync(Deadline);
+                return ProfileExclusiveOutcome<bool>.SafeToResume(true);
             });
             await exclusiveEntered.Task.WaitAsync(Deadline);
             Assert.False(waiting.IsCompleted);
@@ -198,6 +199,7 @@ public sealed class ProfileProducerLifecycleTests
             exclusiveEntered.TrySetResult();
             await releaseExclusive.Task.WaitAsync(Deadline);
             Assert.True(lease.Admission.RunWithToken(admission, () => true, ProfileAdmissionKind.Exclusive));
+            return ProfileExclusiveOutcome<bool>.SafeToResume(true);
         });
         try
         {
@@ -290,15 +292,18 @@ public sealed class ProfileProducerLifecycleTests
                 // so the competing consumer deterministically wins fresh admission.
                 competitor = await lease.Admission.EnterExclusiveAsync();
             };
+            // The synthetic no-op is safe; the failure belongs to fresh-epoch installation, not the delegate.
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline));
+                registry.RunWithProfileExclusiveAsync(
+                    _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true))).WaitAsync(Deadline));
             Assert.NotNull(competitor);
             Assert.Equal(waiting, Assert.Single(work.LoadMedia(Url, 1)));
             Assert.Equal(0, thread.Checks);
             registry.BeforeProfileProducerResume = null;
             competitor.Dispose();
             competitor = null;
-            await registry.RunWithProfileExclusiveAsync(_ => Task.CompletedTask).WaitAsync(Deadline);
+            await registry.RunWithProfileExclusiveAsync(
+                _ => Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true))).WaitAsync(Deadline);
             Assert.True(queue.IsPaused);
             Assert.Equal(0, thread.Checks);
             Assert.Same(thread, Assert.Single(registry.Threads));
