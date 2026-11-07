@@ -6,6 +6,9 @@ namespace MeowChan.Transfer;
 
 internal sealed record NativeTransferPackage(NativeTransferEnvelope Envelope, NativeTransferCatalog Catalog)
 {
+    // Inspect the admitted wire schema, not serializer downlevel selection. Even empty v4
+    // input must be rejected by original-only materializers until their explicit handoff.
+    internal bool IsChanV4 => Envelope.ContentSchema == "chan-v4";
     internal NativePrivateMetadataProjection? PrivateMetadata { get; init; }
 }
 internal sealed record TransferPackageInspection(NativeTransferPackage? Package,
@@ -21,11 +24,22 @@ internal static class NativeTransferPackageValidator
     internal static async Task<TransferPackageInspection> InspectAsync(Stream source, CancellationToken cancellationToken = default,
         TransferEnvelopeLimits? limits = null)
     {
-        TransferEnvelopeInspection framing = await NativeTransferEnvelopeValidator.InspectAsync(source, cancellationToken, limits).ConfigureAwait(false);
-        if (!framing.IsEnvelopeValid) return new(null, framing.Error, TransferCatalogError.None);
+        NativeTransferDerivedPayloadValidator derivedPayloads = new();
+        TransferEnvelopeInspection framing = await NativeTransferEnvelopeValidator.InspectAsync(source, cancellationToken, limits,
+            derivedPayloads).ConfigureAwait(false);
+        if (!framing.IsEnvelopeValid)
+        {
+            // A failed position restore/read still wins; only the explicit preflight stop
+            // is translated to its catalog error. Cancellation remains an exception.
+            if (framing.Error == TransferEnvelopeError.InvalidReference && derivedPayloads.CatalogPreflightError != TransferCatalogError.None)
+                return new(null, TransferEnvelopeError.None, derivedPayloads.CatalogPreflightError);
+            return new(null, framing.Error, TransferCatalogError.None);
+        }
         NativeTransferEnvelope envelope = framing.Envelope!;
         TransferCatalogInspection content = NativeTransferCatalogValidator.Inspect(envelope.CatalogBytes.AsMemory(), envelope, cancellationToken);
         if (!content.IsCatalogValid) return new(null, TransferEnvelopeError.None, content.Error);
+        if (envelope.ContentSchema == "chan-v4" && !derivedPayloads.Validate(content.Catalog!, cancellationToken))
+            return new(null, TransferEnvelopeError.None, TransferCatalogError.InvalidDerivedPayload);
         NativePrivateMetadataProjection? projection = null;
         if (envelope.PrivateMetadata != null)
         {

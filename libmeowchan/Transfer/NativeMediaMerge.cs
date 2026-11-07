@@ -28,6 +28,10 @@ public sealed partial class ArchiveCatalog
         ArgumentNullException.ThrowIfNull(stage);
         cancellationToken.ThrowIfCancellationRequested();
         NativeTransferPackage package = stage.Package;
+        // These original-only materializers cannot preserve nested representations or
+        // original byte-version evidence. Reject the admitted wire schema before any
+        // target lookup, even when hashes alias or the DTO could downlevel.
+        if (package.IsChanV4) return new(null, NativeMediaMergeError.UnsupportedPackage);
         if (package.Catalog.Threads.Length != 1) return new(null, NativeMediaMergeError.UnsupportedPackage);
         TransferThread thread = package.Catalog.Threads[0];
         if (thread.PageUrl == null || thread.Posts.Any(post => post.AttachmentsWereNull))

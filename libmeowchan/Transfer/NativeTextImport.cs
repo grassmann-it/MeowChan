@@ -25,6 +25,9 @@ public sealed partial class ArchiveCatalog
         TransferPackageInspection inspected = await NativeTransferPackageValidator.InspectAsync(source, cancellationToken).ConfigureAwait(false);
         if (!inspected.IsPackageValid) return new(null, NativeTextImportError.InvalidPackage);
         NativeTransferPackage package = inspected.Package!;
+        // The actual wire version is authoritative: a valid empty v4 graph may
+        // serialize as v1, but this older consumer has no v4 preservation contract.
+        if (package.IsChanV4) return new(null, NativeTextImportError.InvalidPackage);
         // The public-only importer has no receiving consent/private apply contract.
         // Never silently discard a required private component or admit its fingerprint
         // to durable operation/candidate state while claiming the whole package imported.

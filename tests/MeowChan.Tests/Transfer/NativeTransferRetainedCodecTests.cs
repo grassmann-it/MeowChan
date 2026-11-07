@@ -278,7 +278,7 @@ public sealed class NativeTransferRetainedCodecTests
     [InlineData("manifestV1WithV2Catalog", "chan-v1", new[] { "chan-v1" }, false, (int)TransferEnvelopeError.None, (int)TransferCatalogError.UnsupportedSchema)]
     [InlineData("featureMismatch", "chan-v2", new[] { "chan-v1" }, false, (int)TransferEnvelopeError.UnsupportedFeature, (int)TransferCatalogError.None)]
     [InlineData("featureNotSingleton", "chan-v2", new[] { "chan-v2", "chan-v2" }, false, (int)TransferEnvelopeError.UnsupportedFeature, (int)TransferCatalogError.None)]
-    [InlineData("unknownSchema", "chan-v4", new[] { "chan-v4" }, false, (int)TransferEnvelopeError.UnsupportedVersion, (int)TransferCatalogError.None)]
+    [InlineData("unknownSchema", "chan-v5", new[] { "chan-v5" }, false, (int)TransferEnvelopeError.UnsupportedVersion, (int)TransferCatalogError.None)]
     [InlineData("catalogV1WithV2Envelope", "chan-v2", new[] { "chan-v2" }, true, (int)TransferEnvelopeError.None, (int)TransferCatalogError.UnsupportedSchema)]
     public async Task CatalogSchemaAndSingletonRequiredFeatureMustMatch(string mode, string manifestSchema,
         string[] features, bool rewriteCatalogV1, int envelopeError, int catalogError)

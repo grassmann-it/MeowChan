@@ -18,12 +18,14 @@ internal static class NativeTransferEnvelopeValidator
     private static readonly TransferEnvelopeLimits SafetyCaps = new();
 
     internal static async Task<TransferEnvelopeInspection> InspectAsync(Stream source,
-        CancellationToken cancellationToken = default, TransferEnvelopeLimits? limits = null)
+        CancellationToken cancellationToken = default, TransferEnvelopeLimits? limits = null,
+        NativeTransferDerivedPayloadValidator? derivedPayloads = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         limits ??= SafetyCaps;
         if (!limits.IsWithinSafetyCaps()) throw new ArgumentOutOfRangeException(nameof(limits));
         cancellationToken.ThrowIfCancellationRequested();
+        derivedPayloads?.Reset();
         long? originalPosition = null;
         bool cancelled = false, restoreFailed = false;
         TransferEnvelopeInspection result;
@@ -31,7 +33,7 @@ internal static class NativeTransferEnvelopeValidator
         {
             if (!source.CanRead || !source.CanSeek) return Fail(TransferEnvelopeError.UnreadableStream);
             originalPosition = source.Position;
-            result = await InspectCoreAsync(source, limits, cancellationToken).ConfigureAwait(false);
+            result = await InspectCoreAsync(source, limits, cancellationToken, derivedPayloads).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { cancelled = true; result = Fail(TransferEnvelopeError.ReadFailure); }
         catch (TransferEnvelopeException e) { result = Fail(e.Error); }
@@ -52,7 +54,8 @@ internal static class NativeTransferEnvelopeValidator
         return restoreFailed ? Fail(TransferEnvelopeError.ReadFailure) : result;
     }
 
-    private static async Task<TransferEnvelopeInspection> InspectCoreAsync(Stream source, TransferEnvelopeLimits limits, CancellationToken ct)
+    private static async Task<TransferEnvelopeInspection> InspectCoreAsync(Stream source, TransferEnvelopeLimits limits, CancellationToken ct,
+        NativeTransferDerivedPayloadValidator? derivedPayloads)
     {
         if (source.Length > limits.ContainerBytes) return Fail(TransferEnvelopeError.ContainerLimit);
         IReadOnlyList<TransferZipEntry> directory = await NativeTransferZip.ReadDirectoryAsync(source, limits, ct).ConfigureAwait(false);
@@ -89,6 +92,8 @@ internal static class NativeTransferEnvelopeValidator
         if (!expectedEntries.SetEquals(entries.Keys)) return Fail(TransferEnvelopeError.InvalidReference);
         byte[] catalogBytes = new byte[checked((int)catalogEntry.Length)];
         await CheckBlobAsync(source, catalogEntry, parsed.Catalog, budget, ct, catalogBytes).ConfigureAwait(false);
+        if (parsed.ContentSchema == "chan-v4" && derivedPayloads != null && !derivedPayloads.PreflightCatalog(catalogBytes, ct))
+            return Fail(TransferEnvelopeError.InvalidReference);
         ImmutableArray<byte> privateBytes = ImmutableArray<byte>.Empty;
         if (parsed.PrivateMetadata is { } privateDescriptor)
         {
@@ -105,7 +110,12 @@ internal static class NativeTransferEnvelopeValidator
             ct.ThrowIfCancellationRequested();
             if (!entries.TryGetValue("payload/" + blob.Sha256, out TransferZipEntry? entry))
                 return Fail(TransferEnvelopeError.InvalidReference);
-            measured.Add(blob.Sha256, await CheckBlobAsync(source, entry, blob, budget, ct).ConfigureAwait(false));
+            // Package inspection collects PNG structural evidence in the same measured read,
+            // never rereads a mutable caller stream or increases the payload read budget.
+            NativeTransferDerivedPayloadValidator.PngStructure? png = parsed.ContentSchema == "chan-v4" && derivedPayloads != null
+                ? new(blob.Length) : null;
+            measured.Add(blob.Sha256, await CheckBlobAsync(source, entry, blob, budget, ct, png: png).ConfigureAwait(false));
+            if (png != null) derivedPayloads!.Record(blob.Sha256, png);
         }
         ct.ThrowIfCancellationRequested();
         return new(new(parsed.PackageId, parsed.ContentSchema,
@@ -148,7 +158,7 @@ internal static class NativeTransferEnvelopeValidator
         string contentSchema = Text(root, "contentSchema");
         if (Text(root, "format") != Format || root.GetProperty("envelopeVersion").ValueKind != JsonValueKind.Number
             || !root.GetProperty("envelopeVersion").TryGetInt32(out int version) || version != (privateManifest ? 2 : 1)
-            || contentSchema is not ("chan-v1" or "chan-v2" or "chan-v3")) throw Error(TransferEnvelopeError.UnsupportedVersion);
+            || contentSchema is not ("chan-v1" or "chan-v2" or "chan-v3" or "chan-v4")) throw Error(TransferEnvelopeError.UnsupportedVersion);
         string packageId = Text(root, "packageId");
         if (!Guid.TryParseExact(packageId, "D", out Guid id) || id == Guid.Empty) throw Error(TransferEnvelopeError.InvalidManifest);
         JsonElement features = root.GetProperty("requiredFeatures");
@@ -205,10 +215,11 @@ internal static class NativeTransferEnvelopeValidator
         if (value.ValueKind != JsonValueKind.String) throw Error(TransferEnvelopeError.InvalidManifest);
         return value.GetString()!;
     }
-    private static async Task<TransferMeasuredBlob> CheckBlobAsync(Stream source, TransferZipEntry entry, TransferBlobDescriptor descriptor, ReadBudget budget, CancellationToken ct, byte[]? capture = null)
+    private static async Task<TransferMeasuredBlob> CheckBlobAsync(Stream source, TransferZipEntry entry, TransferBlobDescriptor descriptor, ReadBudget budget, CancellationToken ct, byte[]? capture = null,
+        NativeTransferDerivedPayloadValidator.PngStructure? png = null)
     {
         if (entry.Length != descriptor.Length) throw Error(TransferEnvelopeError.LengthMismatch);
-        TransferMeasuredBlob actual = await ReadMeasuredEntryAsync(source, entry, budget, ct, capture).ConfigureAwait(false);
+        TransferMeasuredBlob actual = await ReadMeasuredEntryAsync(source, entry, budget, ct, capture, png).ConfigureAwait(false);
         if (actual.Sha256 != descriptor.Sha256) throw Error(TransferEnvelopeError.HashMismatch);
         return actual;
     }
@@ -216,7 +227,7 @@ internal static class NativeTransferEnvelopeValidator
         CancellationToken ct, byte[]? capture = null)
         => (await ReadMeasuredEntryAsync(source, entry, budget, ct, capture).ConfigureAwait(false)).Sha256;
     private static async Task<TransferMeasuredBlob> ReadMeasuredEntryAsync(Stream source, TransferZipEntry entry, ReadBudget budget,
-        CancellationToken ct, byte[]? capture = null)
+        CancellationToken ct, byte[]? capture = null, NativeTransferDerivedPayloadValidator.PngStructure? png = null)
     {
         source.Position = entry.DataOffset;
         using IncrementalHash md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
@@ -232,6 +243,7 @@ internal static class NativeTransferEnvelopeValidator
             int read = await source.ReadAsync(buffer.AsMemory(0, wanted), ct).ConfigureAwait(false);
             if (read == 0) throw Error(TransferEnvelopeError.LengthMismatch);
             budget.Add(read); hash.AppendData(buffer, 0, read); md5.AppendData(buffer, 0, read); sha1.AppendData(buffer, 0, read); crc.Add(buffer.AsSpan(0, read));
+            png?.Append(buffer.AsSpan(0, read), ct);
             if (capture != null) buffer.AsSpan(0, read).CopyTo(capture.AsSpan(checked((int)count)));
             count += read;
         }

@@ -28,7 +28,7 @@ internal static class NativeTransferCatalogSerializer
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (catalog is null || catalog.Threads.IsDefault || catalog.Threads.Length > 1000) throw Bad();
-        bool retained = false, unattestedKeyedContent = false;
+        bool retained = false, unattestedKeyedContent = false, representations = false;
         int posts = 0, attachments = 0;
         foreach (TransferThread thread in catalog.Threads)
         {
@@ -46,6 +46,7 @@ internal static class NativeTransferCatalogSerializer
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     unattestedKeyedContent |= NeedsV3(attachment);
+                    representations |= CheckRepresentations(attachment, ref attachments, cancellationToken);
                 }
             }
             if (thread.RetainedBindings.Length > 100000 - attachments) throw Bad();
@@ -55,9 +56,10 @@ internal static class NativeTransferCatalogSerializer
                 cancellationToken.ThrowIfCancellationRequested();
                 if (binding is null) throw Bad();
                 unattestedKeyedContent |= NeedsV3(binding.Attachment);
+                representations |= CheckRepresentations(binding.Attachment, ref attachments, cancellationToken);
             }
         }
-        return unattestedKeyedContent ? "chan-v3" : retained ? "chan-v2" : "chan-v1";
+        return representations ? "chan-v4" : unattestedKeyedContent ? "chan-v3" : retained ? "chan-v2" : "chan-v1";
     }
 
     internal static byte[] Serialize(NativeTransferCatalog catalog, CancellationToken cancellationToken = default)
@@ -66,8 +68,9 @@ internal static class NativeTransferCatalogSerializer
         try
         {
             string schema = ContentSchema(catalog, cancellationToken);
-            bool withRetainedBindings = schema is "chan-v2" or "chan-v3";
-            bool allowUnattestedHistory = schema == "chan-v3";
+            bool withRetainedBindings = schema is "chan-v2" or "chan-v3" or "chan-v4";
+            bool withRepresentations = schema == "chan-v4";
+            bool allowUnattestedHistory = schema is "chan-v3" or "chan-v4";
             using CappedBuffer output = new(cancellationToken);
             using (Utf8JsonWriter w = new(output))
             {
@@ -127,14 +130,14 @@ internal static class NativeTransferCatalogSerializer
                             {
                                 cancellationToken.ThrowIfCancellationRequested();
                                 CheckRevision(a, revisions);
-                                Attachment(w, a, allowUnattestedHistory);
+                                Attachment(w, a, allowUnattestedHistory, withRepresentations, cancellationToken);
                             }
                             w.WriteEndArray();
                         }
                         w.WriteEndObject();
                     }
                     w.WriteEndArray();
-                    // All threads carry the field in v2/v3, including when their retained set is empty.
+                    // All threads carry the field in v2/v3/v4, including when their retained set is empty.
                     if (withRetainedBindings)
                     {
                         if (t.RetainedBindings.Length > 100000 - attachments) throw Bad();
@@ -146,7 +149,7 @@ internal static class NativeTransferCatalogSerializer
                             if (binding is null) throw Bad();
                             CheckRevision(binding.Attachment, revisions);
                             w.WriteStartObject(); Required(w, "postId", binding.PostId);
-                            w.WritePropertyName("attachment"); Attachment(w, binding.Attachment, allowUnattestedHistory, retained: true);
+                            w.WritePropertyName("attachment"); Attachment(w, binding.Attachment, allowUnattestedHistory, withRepresentations, cancellationToken, retained: true);
                             w.WriteEndObject();
                         }
                         w.WriteEndArray();
@@ -162,6 +165,15 @@ internal static class NativeTransferCatalogSerializer
         { throw Bad(); }
     }
 
+    private static bool CheckRepresentations(TransferAttachment attachment, ref int count, CancellationToken ct)
+    {
+        if (attachment is null || attachment.DerivedRepresentations.IsDefault
+            || attachment.DerivedRepresentations.Length > 2 || attachment.DerivedRepresentations.Length > 100000 - count) throw Bad();
+        count += attachment.DerivedRepresentations.Length;
+        if (NativeTransferCatalogValidator.ValidateRepresentations(attachment, ct) != TransferCatalogError.None) throw Bad();
+        return attachment.OriginalByteVersion != null || !attachment.DerivedRepresentations.IsEmpty;
+    }
+
     private static bool NeedsV3(TransferAttachment attachment)
     {
         if (attachment is null || attachment.Metadata is null) throw Bad();
@@ -175,7 +187,7 @@ internal static class NativeTransferCatalogSerializer
         if (revisions != null && a.Metadata.AttachmentRevisionKey is { } key && !revisions.Add(key)) throw Bad();
     }
 
-    private static void Attachment(Utf8JsonWriter w, TransferAttachment a, bool allowUnattestedHistory, bool retained = false)
+    private static void Attachment(Utf8JsonWriter w, TransferAttachment a, bool allowUnattestedHistory, bool withRepresentations, CancellationToken ct, bool retained = false)
     {
         if (a is null || a.Metadata is null) throw Bad();
         CapturedAttachment m = a.Metadata;
@@ -214,7 +226,38 @@ internal static class NativeTransferCatalogSerializer
             w.WriteStartObject("history"); Text(w, "kind", history.Kind); Date(w, "acceptedAtUtc", history.AcceptedAtUtc);
             w.WriteBoolean("sizeMismatch", history.SizeMismatch); w.WriteBoolean("md5Mismatch", history.Md5Mismatch); w.WriteEndObject();
         }
+        if (withRepresentations)
+        {
+            w.WritePropertyName("originalByteVersion");
+            if (a.OriginalByteVersion is { } original) ByteVersion(w, original);
+            else w.WriteNullValue();
+            w.WriteStartArray("derivedRepresentations");
+            foreach (TransferDerivedRepresentation item in a.DerivedRepresentations)
+            {
+                ct.ThrowIfCancellationRequested();
+                w.WriteStartObject();
+                Text(w, "kind", item.Kind switch
+                {
+                    TransferDerivedRepresentationKind.Preview => "preview",
+                    TransferDerivedRepresentationKind.VideoPosterPng => "video-poster-png", _ => throw Bad()
+                });
+                Required(w, "sourceRevisionKey", item.SourceRevisionKey);
+                w.WritePropertyName("sourceByteVersion"); ByteVersion(w, item.SourceByteVersion);
+                Text(w, "status", item.Status switch
+                {
+                    TransferContentStatus.Contained => "contained", TransferContentStatus.Omitted => "omitted",
+                    TransferContentStatus.Unavailable => "unavailable", _ => throw Bad()
+                });
+                Text(w, "payloadSha256", item.PayloadSha256); w.WriteEndObject();
+            }
+            w.WriteEndArray();
+        }
         w.WriteEndObject();
+    }
+    private static void ByteVersion(Utf8JsonWriter w, TransferOriginalByteVersion value)
+    {
+        w.WriteStartObject(); Number(w, "length", value.Length); Required(w, "sha256", value.Sha256);
+        Required(w, "md5", value.Md5); Text(w, "sha1", value.Sha1); w.WriteEndObject();
     }
     private static void Required(Utf8JsonWriter w, string name, string? value)
     { if (value is null) throw Bad(); Text(w, name, value); }

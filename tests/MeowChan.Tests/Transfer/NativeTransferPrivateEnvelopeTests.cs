@@ -187,7 +187,7 @@ public sealed class NativeTransferPrivateEnvelopeTests
     }
 
     [Theory]
-    [InlineData("chan-v4")]
+    [InlineData("chan-v5")]
     [InlineData("CHAN-V1")]
     [InlineData("SYNTHETIC-PRIVATE-SECRET")]
     public async Task V2DoesNotIntroduceAnotherPublicContentSchema(string schema)

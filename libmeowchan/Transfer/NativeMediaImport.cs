@@ -26,6 +26,10 @@ public sealed partial class ArchiveCatalog
         // The opaque stage was fully validated at creation. Snapshot its immutable package once;
         // do not reopen/re-inspect its source or read fresh metadata after issuing the plan.
         NativeTransferPackage package = stage.Package;
+        // These original-only materializers cannot preserve nested representations or
+        // original byte-version evidence. Reject the admitted wire schema before any
+        // target lookup, even when hashes alias or the DTO could downlevel.
+        if (package.IsChanV4) return new(null, NativeMediaImportError.UnsupportedPackage);
         if (package.Catalog.Threads.Length != 1) return new(null, NativeMediaImportError.UnsupportedPackage);
         TransferThread thread = package.Catalog.Threads[0];
         if (!thread.RetainedBindings.IsEmpty || thread.Posts.Any(post => post.AttachmentsWereNull))
