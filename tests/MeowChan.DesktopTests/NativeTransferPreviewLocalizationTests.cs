@@ -189,7 +189,10 @@ public sealed class NativeTransferPreviewLocalizationTests : IDisposable
             ["transfer.preview.thread"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}", "{6}"],
             ["transfer.preview.originals"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"],
             ["transfer.preview.previews"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"],
-            ["transfer.preview.retained"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"]
+            ["transfer.preview.retained"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"],
+            ["transfer.preview.derivedPreviews"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"],
+            ["transfer.preview.videoPosters"] = ["{0}", "{1}", "{2}", "{3}", "{4}", "{5}"],
+            ["transfer.preview.derivedNotice"] = []
         };
 
     private static readonly IReadOnlyDictionary<NativeTransferPreviewState, string> StateLabelKeys =

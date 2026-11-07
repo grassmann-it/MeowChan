@@ -284,14 +284,23 @@ internal sealed class NativeTransferPreviewDialog : Window
                 inventory.UniquePayloads, inventory.UniquePayloadBytes),
             Counts("transfer.preview.originals", inventory.CurrentOriginals),
             Counts("transfer.preview.previews", inventory.CurrentPreviews),
-            Counts("transfer.preview.retained", inventory.RetainedBindings));
+            Counts("transfer.preview.retained", inventory.RetainedBindings))
+            + DerivedCounts(inventory.DerivedPreviews, inventory.VideoPosters);
+        if (inventory.DerivedPreviews.Total + inventory.VideoPosters.Total > 0)
+            _notice.Text += Environment.NewLine + Label("transfer.preview.derivedNotice");
         // Plain TextBlocks only: no post HTML, media, title, hyperlinks or source activation.
         _details.Text = string.Join(Environment.NewLine, inventory.Threads.Select(thread =>
             Label("transfer.preview.thread", thread.Id.Source, thread.Id.Board, thread.Id.Thread, thread.Posts,
                 Counts("transfer.preview.originals", thread.CurrentOriginals),
                 Counts("transfer.preview.previews", thread.CurrentPreviews),
-                Counts("transfer.preview.retained", thread.RetainedBindings))));
+                Counts("transfer.preview.retained", thread.RetainedBindings))
+            + DerivedCounts(thread.DerivedPreviews, thread.VideoPosters)));
     }
+
+    private string DerivedCounts(TransferImportStatusCounts previews, TransferImportStatusCounts posters) =>
+        previews.Total + posters.Total == 0 ? string.Empty : Environment.NewLine
+            + Counts("transfer.preview.derivedPreviews", previews) + Environment.NewLine
+            + Counts("transfer.preview.videoPosters", posters);
 
     private string Counts(string key, TransferImportStatusCounts counts) =>
         Label(key, counts.Contained, counts.Omitted, counts.Unknown, counts.Unavailable, counts.Failed, counts.Cancelled);

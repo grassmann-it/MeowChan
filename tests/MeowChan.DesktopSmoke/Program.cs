@@ -498,6 +498,7 @@ internal static class Program
             if (Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY") == "1")
             {
                 await NativeTransferPreviewLifecycleChecks.RunAsync(mainWindow);
+                await NativeTransferV4PreviewChecks.RunAsync(mainWindow);
                 _checksPassed = true; mainWindow.Close(); return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_HTML_EXPORT_LABELS_ONLY") == "1")

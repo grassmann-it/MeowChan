@@ -14,10 +14,19 @@ internal sealed record TransferImportStatusCounts(int Contained, int Omitted, in
 }
 internal sealed record TransferImportThreadPreview(ResourceId Id, int Posts,
     TransferImportStatusCounts CurrentOriginals, TransferImportStatusCounts CurrentPreviews,
-    TransferImportStatusCounts RetainedBindings);
+    TransferImportStatusCounts RetainedBindings)
+{
+    internal TransferImportStatusCounts DerivedPreviews { get; init; } = new(0, 0, 0, 0, 0, 0);
+    internal TransferImportStatusCounts VideoPosters { get; init; } = new(0, 0, 0, 0, 0, 0);
+}
 internal sealed record TransferImportPreview(ImmutableArray<TransferImportThreadPreview> Threads, int Posts,
     TransferImportStatusCounts CurrentOriginals, TransferImportStatusCounts CurrentPreviews,
-    TransferImportStatusCounts RetainedBindings, int UniquePayloads, long UniquePayloadBytes);
+    TransferImportStatusCounts RetainedBindings, int UniquePayloads, long UniquePayloadBytes)
+{
+    // Derived occurrences on current AND retained originals, never legacy Preview-role observations.
+    internal TransferImportStatusCounts DerivedPreviews { get; init; } = new(0, 0, 0, 0, 0, 0);
+    internal TransferImportStatusCounts VideoPosters { get; init; } = new(0, 0, 0, 0, 0, 0);
+}
 internal enum TransferImportPreviewError { None, InvalidPackage }
 internal sealed record TransferImportPreviewInspection(TransferImportPreview? Preview, TransferImportPreviewError Error)
 {
@@ -52,12 +61,13 @@ internal static class NativeTransferImportPreview
 
         NativeTransferCatalog catalog = checkedCatalog.Catalog!;
         ImmutableArray<TransferImportThreadPreview>.Builder threads = ImmutableArray.CreateBuilder<TransferImportThreadPreview>(catalog.Threads.Length);
-        StatusCounter originals = new(), previews = new(), retained = new();
+        StatusCounter originals = new(), previews = new(), retained = new(), derived = new(), posters = new();
         int posts = 0;
         foreach (TransferThread thread in catalog.Threads)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            StatusCounter threadOriginals = new(), threadPreviews = new(), threadRetained = new();
+            StatusCounter threadOriginals = new(), threadPreviews = new(), threadRetained = new(),
+                threadDerived = new(), threadPosters = new();
             foreach (TransferPost post in thread.Posts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -68,17 +78,20 @@ internal static class NativeTransferImportPreview
                     { originals.Add(attachment.Status); threadOriginals.Add(attachment.Status); }
                     else
                     { previews.Add(attachment.Status); threadPreviews.Add(attachment.Status); }
+                    CountDerived(attachment, derived, posters, threadDerived, threadPosters, cancellationToken);
                 }
             }
             foreach (TransferRetainedBinding binding in thread.RetainedBindings)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                // chan-v2/v3 permit only original retained bindings. Do not inflate current originals
+                // chan-v2/v3/v4 permit only original retained bindings. Do not inflate current originals
                 // or manufacture historical posts, even if binding.PostId is absent from Posts.
                 retained.Add(binding.Attachment.Status); threadRetained.Add(binding.Attachment.Status);
+                CountDerived(binding.Attachment, derived, posters, threadDerived, threadPosters, cancellationToken);
             }
             posts += thread.Posts.Length;
-            threads.Add(new(thread.Id, thread.Posts.Length, threadOriginals.Freeze(), threadPreviews.Freeze(), threadRetained.Freeze()));
+            threads.Add(new(thread.Id, thread.Posts.Length, threadOriginals.Freeze(), threadPreviews.Freeze(), threadRetained.Freeze())
+            { DerivedPreviews = threadDerived.Freeze(), VideoPosters = threadPosters.Freeze() });
         }
 
         long payloadBytes = 0;
@@ -91,16 +104,32 @@ internal static class NativeTransferImportPreview
         }
         cancellationToken.ThrowIfCancellationRequested();
         return new(new(threads.ToImmutable(), posts, originals.Freeze(), previews.Freeze(), retained.Freeze(),
-            package.Envelope.Payloads.Length, payloadBytes), TransferImportPreviewError.None);
+            package.Envelope.Payloads.Length, payloadBytes)
+            { DerivedPreviews = derived.Freeze(), VideoPosters = posters.Freeze() }, TransferImportPreviewError.None);
+    }
+
+    private static void CountDerived(TransferAttachment attachment, StatusCounter previews, StatusCounter posters,
+        StatusCounter threadPreviews, StatusCounter threadPosters, CancellationToken ct)
+    {
+        foreach (TransferDerivedRepresentation item in attachment.DerivedRepresentations)
+        {
+            ct.ThrowIfCancellationRequested();
+            // Kinds/statuses and exact source linkage were admitted by the full catalog validator.
+            // Even equal hashes confer no original availability or playable-video evidence.
+            if (item.Kind == TransferDerivedRepresentationKind.Preview)
+            { previews.Add(item.Status); threadPreviews.Add(item.Status); }
+            else
+            { posters.Add(item.Status); threadPosters.Add(item.Status); }
+        }
     }
 
     private static bool CheckEnvelope(NativeTransferEnvelope? envelope, CancellationToken ct)
     {
-        // This public-only inventory must not signal readiness for a component
-        // whose receiving consent/apply/recovery path is not implemented yet.
+        // Public inventory only. Private receiving consent is not implemented; admitting public
+        // v4 here does not admit it to original-only apply/recovery/materialization consumers.
         if (envelope is null || envelope.EnvelopeVersion != 1 || envelope.PrivateMetadata != null
             || envelope.PrivateMetadataBytes.IsDefault || !envelope.PrivateMetadataBytes.IsEmpty
-            || envelope.ContentSchema is not ("chan-v1" or "chan-v2" or "chan-v3")
+            || envelope.ContentSchema is not ("chan-v1" or "chan-v2" or "chan-v3" or "chan-v4")
             || !Guid.TryParseExact(envelope.PackageId, "D", out Guid id) || id == Guid.Empty
             || !LowerHash(envelope.Fingerprint) || envelope.Catalog is null
             || envelope.Catalog.Length < 0 || envelope.Catalog.Length > Caps.CatalogBytes
@@ -166,14 +195,34 @@ internal static class NativeTransferImportPreview
                 for (int k = 0; k < q.Attachments.Length; k++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (p.Attachments[k] != q.Attachments[k]) return false;
+                    if (!SameAttachment(p.Attachments[k], q.Attachments[k], ct)) return false;
                 }
             }
             for (int j = 0; j < b.RetainedBindings.Length; j++)
             {
                 ct.ThrowIfCancellationRequested();
-                if (a.RetainedBindings[j] != b.RetainedBindings[j]) return false;
+                TransferRetainedBinding x = a.RetainedBindings[j], y = b.RetainedBindings[j];
+                if (x is null || x.PostId != y.PostId || !SameAttachment(x.Attachment, y.Attachment, ct)) return false;
             }
+        }
+        return true;
+    }
+
+    private static bool SameAttachment(TransferAttachment? actual, TransferAttachment expected, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (actual is null || actual.DerivedRepresentations.IsDefault
+            || actual.DerivedRepresentations.Length != expected.DerivedRepresentations.Length
+            || (actual with { DerivedRepresentations = default }) != (expected with { DerivedRepresentations = default }))
+            return false;
+        // Record equality covers metadata (including non-wire paths), original byte evidence and
+        // history, but ImmutableArray equality only tests backing identity. Compare each nested
+        // representation's kind, revision, complete source byte evidence, status and payload by value
+        // in captured order. Length equality bounds direct DTO work to the validated array (<=2).
+        for (int i = 0; i < expected.DerivedRepresentations.Length; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (actual.DerivedRepresentations[i] != expected.DerivedRepresentations[i]) return false;
         }
         return true;
     }
