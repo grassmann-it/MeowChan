@@ -20,10 +20,8 @@ public sealed class VariantArchiveTests
         using SourceAdapterTests.TemporaryProfile profile = new();
         string assembly = typeof(VariantSource).Assembly.Location;
         PluginArtifact artifact = new("variant", "variant", assembly, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly))), "sdk", "compiler", Array.Empty<PluginArtifactResource>());
-        DirectoryInfo root = new(AppContext.BaseDirectory);
-        while (!File.Exists(Path.Combine(root.FullName, "MeowChan.sln"))) root = root.Parent!;
         PluginWorkerLaunch launch = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet",
-            new[] { Path.Combine(root.FullName, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll") }, Path.Combine(profile.Path, "workers"));
+            new[] { WorkerTestBinaries.WorkerAssembly() }, Path.Combine(profile.Path, "workers"));
         PluginDescription description = new VariantSource().Describe();
         PluginConfiguration configuration = new("one", new("1", Array.Empty<SettingValue>()),
             new Dictionary<string, SettingsSnapshot> { ["variants"] = new("1", Array.Empty<SettingValue>()) });

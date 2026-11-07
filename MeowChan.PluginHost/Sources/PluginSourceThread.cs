@@ -96,7 +96,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                 _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > _clock.GetUtcNow().AddSeconds(10)
                     ? retry : _clock.GetUtcNow().AddSeconds(10);
                 _deferredHistory = null;
-                throw _retryFailure = new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
+                throw _retryFailure = PluginWorkerException.FromFailure(failure.Failure);
             default: throw new PluginWorkerException("invalid_source_result", "Unsupported thread result.");
         }
     }

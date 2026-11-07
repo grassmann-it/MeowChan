@@ -17,9 +17,13 @@ internal sealed record DiagnosticRetryResult(int Targets, int Checks, int Alread
 
 internal static class DiagnosticRetryScope
 {
-    internal static bool Matches(DiagnosticEntry entry, string? source, string? query, bool problemsOnly)
+    internal static bool Matches(DiagnosticEntry entry, string? source, string? query, bool problemsOnly,
+        bool includeWaiting = false)
     {
-        if (source != null && entry.ResourceId?.Source != source || problemsOnly && !entry.IsProblem) return false;
+        if (source != null && entry.ResourceId?.Source != source) return false;
+        // Visibility only: waiting is neutral and never grants retry authority.
+        bool waiting = entry.Kind is DiagnosticKind.Request or DiagnosticKind.PendingWork;
+        if (problemsOnly && !entry.IsProblem && !(includeWaiting && waiting)) return false;
         string text = query?.Trim() ?? string.Empty;
         return text.Length == 0 || new[] { entry.Resource, entry.Summary, entry.ResourceId?.Source,
             entry.ResourceId?.Board, entry.ResourceId?.Thread,

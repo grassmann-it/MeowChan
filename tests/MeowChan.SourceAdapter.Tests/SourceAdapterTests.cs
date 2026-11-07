@@ -129,7 +129,11 @@ public sealed class SourceAdapterTests
         await using Registry registry = new(new[] { source }, queue, profile.Path, TimeSpan.FromSeconds(60), 3600, workStore: work);
         await registry.RestoreAsync();
         Assert.Empty(calls);
-        queue.SetPaused(false);
+        Assert.Equal(count, registry.Threads.Count());
+        Assert.True(registry.IsPaused);
+        // Registry owns monitor lifetimes as well as queue dispatch. Resume the
+        // whole session, not only the lower-level media/metadata queue.
+        await registry.SetPausedAsync(false);
         using (CancellationTokenSource deadline = new(TimeSpan.FromSeconds(45)))
             while (!(calls.Count == count && registry.Threads.All(thread => thread.Title == "captured"))) await Task.Delay(20, deadline.Token);
         Assert.All(registry.Threads, thread => Assert.Null(thread.LastCheckFailure));

@@ -27,7 +27,7 @@ public sealed class WorkerArchiveTests
             Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourceAssembly))), "sdk-fixture", "compiler-fixture", Array.Empty<PluginArtifactResource>());
         PluginConfiguration configuration = new("config1", new("1", Array.Empty<SettingValue>()),
             new Dictionary<string, SettingsSnapshot> { ["4chan"] = new("1", Array.Empty<SettingValue>()) });
-        string workerPath = Path.Combine(RepositoryRoot(), "MeowChan.PluginWorker", "bin", "Release", "net10.0", "MeowChan.PluginWorker.dll");
+        string workerPath = WorkerTestBinaries.WorkerAssembly();
         PluginWorkerLaunch launch = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet", new[] { workerPath }, Path.Combine(profile.Path, "workers"));
         FixtureServices services = new(image);
         await using (PluginWorkerManager manager = new())
@@ -83,13 +83,6 @@ public sealed class WorkerArchiveTests
             Assert.Equal(2, view.PostCount);
             Assert.Equal(expected, view.GetPosts()[0].Attachments![0].PlannedPath);
         }
-    }
-
-    private static string RepositoryRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "MeowChan.sln"))) directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("Fixture repository missing.");
     }
 
     private sealed class FixtureServices(byte[] media) : IPluginHostServices

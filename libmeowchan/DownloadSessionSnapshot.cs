@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Linq;
-using Newtonsoft.Json;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
@@ -17,22 +14,26 @@ public sealed record ResourceId(string Source, string Board, string? Thread = nu
 
 public enum FailureKind { Http, Network, Timeout, InvalidData, Storage, Unknown }
 
-/// <summary>A machine-readable failure category with a human-readable diagnostic.</summary>
+/// <summary>
+/// A machine-readable failure category with a human-readable diagnostic.
+/// Optional evidence describes the current observation; it is not added to durable work state.
+/// </summary>
 public sealed record FailureInfo(FailureKind Kind, string Message, HttpStatusCode? HttpStatusCode = null)
 {
+    /// <summary>Optional producer-supplied code, for display only; not retry or action authority.</summary>
+    public string? DiagnosticCode { get; init; }
+
+    /// <summary>Optional reported retry time, not a scheduling instruction.</summary>
+    public DateTimeOffset? RetryAt { get; init; }
+
+    /// <summary>Optional typed transport evidence, not a measured phase or a remote root cause.</summary>
+    public FailureNetworkStage? NetworkStage { get; init; }
+
     internal static FailureInfo FromException(Exception exception, bool media)
     {
-        return exception switch
-        {
-            HttpRequestException request when request.StatusCode != null => new FailureInfo(FailureKind.Http, request.Message, request.StatusCode),
-            HttpRequestException => new FailureInfo(FailureKind.Network, exception.Message),
-            HttpIOException or System.Net.Sockets.SocketException => new FailureInfo(FailureKind.Network, exception.Message),
-            TimeoutException or OperationCanceledException => new FailureInfo(FailureKind.Timeout, exception.Message),
-            JsonException or System.Text.Json.JsonException or InvalidDataException or FormatException or OverflowException or InvalidCastException => new FailureInfo(FailureKind.InvalidData, exception.Message),
-            UnauthorizedAccessException => new FailureInfo(FailureKind.Storage, exception.Message),
-            IOException => new FailureInfo(media ? FailureKind.Storage : FailureKind.Network, exception.Message),
-            _ => new FailureInfo(FailureKind.Unknown, exception.Message)
-        };
+        // Retain the existing call shape, but a media operation can fail while reading
+        // the network OR writing storage. The flag alone cannot establish an I/O cause.
+        return FailureDiagnostics.FromException(exception);
     }
 }
 

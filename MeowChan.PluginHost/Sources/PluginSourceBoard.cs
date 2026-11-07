@@ -76,7 +76,7 @@ internal sealed class PluginSourceBoard : BaseBoard
                     _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > Clock.GetUtcNow().AddSeconds(10)
                         ? retry : Clock.GetUtcNow().AddSeconds(10);
                         _deferredHistory = null;
-                    throw _retryFailure = new PluginWorkerException(failure.Failure.Code, failure.Failure.Message);
+                    throw _retryFailure = PluginWorkerException.FromFailure(failure.Failure);
                 default: throw new PluginWorkerException("invalid_source_result", "Unsupported catalog result.");
             }
         }

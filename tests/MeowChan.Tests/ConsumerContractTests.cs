@@ -264,7 +264,7 @@ public sealed class ConsumerContractTests
         ProbeThread thread = new ProbeThread(provider.Board, new Uri("https://stub.test/g/thread/1"));
         Exception failure = invalidData
             ? new InvalidDataException("Synthetic malformed response")
-            : new HttpRequestException("Synthetic network failure");
+            : new HttpRequestException(HttpRequestError.ConnectionError, "Synthetic network failure");
         thread.OnCheck = () => Task.FromException(failure);
         provider.ThreadFactory = _ => thread;
         await using Registry registry = CreateRegistry(provider, new DownloadQueue(1, UnthrottledBandwidth), directory.Path);
@@ -274,6 +274,8 @@ public sealed class ConsumerContractTests
         ThreadSnapshot failed = Assert.Single(registry.GetSnapshot().Threads);
         Assert.Equal(ThreadActivity.Error, failed.Activity);
         Assert.Equal(expected, failed.LastCheckFailure?.Kind);
+        Assert.Equal(invalidData ? (FailureNetworkStage?)null : FailureNetworkStage.Connection,
+            failed.LastCheckFailure?.NetworkStage);
         Assert.Equal(failure.Message, failed.LastCheckFailure?.Message);
         Assert.Null(failed.LastCheckFailure?.HttpStatusCode);
         Assert.Empty(failed.MediaFailures);
@@ -285,6 +287,8 @@ public sealed class ConsumerContractTests
         Assert.Equal(ThreadActivity.NoMedia, recovered.Activity);
         Assert.Null(recovered.LastCheckFailure);
         Assert.Equal(expected, failed.LastCheckFailure?.Kind);
+        Assert.Equal(invalidData ? (FailureNetworkStage?)null : FailureNetworkStage.Connection,
+            failed.LastCheckFailure?.NetworkStage);
         await registry.StopAsync().WaitAsync(TestWait.Timeout);
     }
 
@@ -297,7 +301,7 @@ public sealed class ConsumerContractTests
         using StubImageBoard provider = new StubImageBoard();
         Exception failure = invalidData
             ? new InvalidDataException("Synthetic malformed catalog")
-            : new HttpRequestException("Synthetic catalog network failure");
+            : new HttpRequestException(HttpRequestError.ConnectionError, "Synthetic catalog network failure");
         provider.Board.OnCheck = () => Task.FromException<IEnumerable<IThread>>(failure);
         await using Registry registry = CreateRegistry(provider, new DownloadQueue(1, UnthrottledBandwidth), directory.Path);
         await registry.AddAsync(provider.Board.BoardUri.AbsoluteUri).WaitAsync(TestWait.Timeout);
@@ -305,6 +309,8 @@ public sealed class ConsumerContractTests
 
         BoardSnapshot failed = Assert.Single(registry.GetSnapshot().Boards);
         Assert.Equal(expected, failed.LastCheckFailure?.Kind);
+        Assert.Equal(invalidData ? (FailureNetworkStage?)null : FailureNetworkStage.Connection,
+            failed.LastCheckFailure?.NetworkStage);
         Assert.Equal(failure.Message, failed.LastCheckFailure?.Message);
         Assert.Null(failed.LastCheckFailure?.HttpStatusCode);
         provider.Board.OnCheck = () => Task.FromResult<IEnumerable<IThread>>([]);
@@ -312,6 +318,8 @@ public sealed class ConsumerContractTests
         await TestWait.UntilAsync(() => provider.Board.Clock.Waits == 2);
         Assert.Null(Assert.Single(registry.GetSnapshot().Boards).LastCheckFailure);
         Assert.Equal(expected, failed.LastCheckFailure?.Kind);
+        Assert.Equal(invalidData ? (FailureNetworkStage?)null : FailureNetworkStage.Connection,
+            failed.LastCheckFailure?.NetworkStage);
         await registry.StopAsync().WaitAsync(TestWait.Timeout);
     }
 

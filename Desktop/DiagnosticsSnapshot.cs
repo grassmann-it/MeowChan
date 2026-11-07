@@ -29,7 +29,7 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
         {
             string reason = Texts.T(waiting.Reason switch { "free-space-reserve" => "targets.freeSpace", "disk-full" => "targets.diskFull", _ => "targets.unavailable" });
             entries.Add(new DiagnosticEntry("target:" + waiting.Path, Texts.T("targets.category"), waiting.Path, reason,
-                waiting.Path + Environment.NewLine + reason + Environment.NewLine + Texts.T("targets.nextCheck", waiting.NextCheckAt.ToLocalTime()), null, waiting.Path) { Kind = DiagnosticKind.Storage });
+                DiagnosticFailurePresentation.FormatStorage(waiting.Path, reason, waiting.NextCheckAt), null, waiting.Path) { Kind = DiagnosticKind.Storage });
         }
         if (view.StartupError is string startupError)
             entries.Add(new DiagnosticEntry("startup", Texts.T("diagnostics.session"), "MeowChan", startupError, startupError, null));
@@ -48,17 +48,19 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
                 DiagnosticKind kind = mediaProblem ? DiagnosticKind.Media
                     : work.CapturePending ? DiagnosticKind.Capture : DiagnosticKind.PendingWork;
                 entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:work", Texts.T("diagnostics.media"), snapshot.Title,
-                    status.Status + " · " + status.Progress, snapshot.Url + Environment.NewLine + status.Details, target) { ResourceId = snapshot.Id, Kind = kind, CheckAlso = work.CapturePending });
+                    status.Status + " · " + status.Progress, DiagnosticFailurePresentation.WatchUrl(snapshot.Url) + Environment.NewLine + DiagnosticFailurePresentation.FormatWork(work, status.Details), target) { ResourceId = snapshot.Id, Kind = kind, CheckAlso = work.CapturePending });
             }
             if (snapshot.Content?.CaptureFailure is FailureInfo capture)
                 entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:capture", Texts.T("nav.archive"), snapshot.Title,
-                    capture.Message, snapshot.Url + Environment.NewLine + FormatFailure(capture), target) { ResourceId = snapshot.Id, Kind = DiagnosticKind.Capture });
+                    capture.Message, DiagnosticFailurePresentation.WatchUrl(snapshot.Url) + Environment.NewLine + DiagnosticFailurePresentation.Format(capture, DiagnosticOperation.Capture), target) { ResourceId = snapshot.Id, Kind = DiagnosticKind.Capture });
             if (snapshot.Content?.SelectionFailure is FailureInfo selection)
                 entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:selection", Texts.T("nav.rules"), snapshot.Title,
-                    selection.Message, snapshot.Url + Environment.NewLine + FormatFailure(selection), target) { ResourceId = snapshot.Id, Kind = DiagnosticKind.Selection });
+                    selection.Message, DiagnosticFailurePresentation.WatchUrl(snapshot.Url) + Environment.NewLine + DiagnosticFailurePresentation.Format(selection, DiagnosticOperation.Selection), target) { ResourceId = snapshot.Id, Kind = DiagnosticKind.Selection });
             foreach (KeyValuePair<string, FailureInfo> failure in snapshot.MediaFailures.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
-                string details = snapshot.Url + Environment.NewLine + failure.Key + Environment.NewLine + FormatFailure(failure.Value);
+                string details = DiagnosticFailurePresentation.WatchUrl(snapshot.Url) + Environment.NewLine
+                    + Texts.T("diagnostics.observed.mediaItem") + ": " + failure.Key + Environment.NewLine
+                    + DiagnosticFailurePresentation.Format(failure.Value, DiagnosticOperation.Media);
                 entries.Add(new DiagnosticEntry($"thread:{thread.WatchId}:media:{failure.Key}", Texts.T("diagnostics.media"),
                     snapshot.Title, failure.Value.Message, details, target) { ResourceId = snapshot.Id, Kind = DiagnosticKind.Media });
             }
@@ -82,15 +84,13 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
         string title, Http.RequestPolicyProgress? progress, FailureInfo? failure, ResourceId id)
     {
         string key = target.Kind + ":" + target.WatchId;
+        DiagnosticOperation operation = target.Kind == DiagnosticTargetKind.Thread
+            ? DiagnosticOperation.Thread : DiagnosticOperation.Board;
         if (failure != null)
             entries.Add(new DiagnosticEntry(key + ":check", Texts.T("diagnostics.check"), title, failure.Message,
-                url + Environment.NewLine + FormatFailure(failure), target) { ResourceId = id, Kind = DiagnosticKind.Check });
+                DiagnosticFailurePresentation.WatchUrl(url) + Environment.NewLine + DiagnosticFailurePresentation.Format(failure, operation, progress), target) { ResourceId = id, Kind = DiagnosticKind.Check });
         if (RequestStatus.Format(progress) is string status)
             entries.Add(new DiagnosticEntry(key + ":request", Texts.T("diagnostics.request"), title, status,
-                url + Environment.NewLine + status + Environment.NewLine + Texts.T("diagnostics.attempt", progress!.Attempt), target) { ResourceId = id, Kind = DiagnosticKind.Request });
+                DiagnosticFailurePresentation.WatchUrl(url) + Environment.NewLine + DiagnosticFailurePresentation.FormatRequest(operation, progress!, status), target) { ResourceId = id, Kind = DiagnosticKind.Request });
     }
-
-    private static string FormatFailure(FailureInfo failure) => failure.Kind
-        + (failure.HttpStatusCode is System.Net.HttpStatusCode code ? " · HTTP " + (int)code : string.Empty)
-        + Environment.NewLine + failure.Message;
 }

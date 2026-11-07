@@ -1015,10 +1015,9 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             await h.Content.Catalog.RegisterThreadAsync(new(h.Resource, h._thread.Url, "test", dir, true));
             await h.Content.Catalog.CaptureAsync(new(h.Resource, h._thread.Url, "test", ThreadSourceState.Active, DateTimeOffset.UtcNow, dir,
                 new[] { new CapturedPost("123", 0, PostFieldPresence.All, Html: "preserve capture") }));
-            string root = FindRoot();
-            string workerPath = Path.Combine(root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            string workerPath = WorkerTestBinaries.WorkerExecutable();
             string assembly = filterAssembly ?? (resourceFilter ? typeof(ResourceFilter).Assembly.Location : typeof(ImageDimensionsFilter).Assembly.Location);
-            string helperRoot = Path.Combine(root, "tests/MeowChan.PluginFilters.Helper/bin/Release/net10.0");
+            string helperRoot = resourceFilter ? WorkerTestBinaries.ResourceHelperDirectory() : string.Empty;
             List<PluginArtifactResource> resources = new();
             if (resourceFilter) foreach (string file in Directory.EnumerateFiles(helperRoot))
             {
@@ -1085,11 +1084,5 @@ public sealed class OriginalFilterTests(ITestOutputHelper output)
             OnRead?.Invoke(); return chunk;
         }
         public async ValueTask DisposeAsync() { await Manager.DisposeAsync(); await Stage.DisposeAsync(); await Content.DisposeAsync(); _board.Dispose(); Profile.Dispose(); Root.Dispose(); }
-        private static string FindRoot()
-        {
-            string? path = AppContext.BaseDirectory;
-            while (path != null && !Directory.Exists(Path.Combine(path, "MeowChan.PluginWorker"))) path = Path.GetDirectoryName(path);
-            return path ?? throw new InvalidOperationException("Repository root missing.");
-        }
     }
 }

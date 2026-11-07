@@ -6,12 +6,22 @@ namespace MeowChan.Tests;
 public sealed class ConsumerNotificationTests
 {
     [Fact]
-    public void FailureCategoriesDistinguishNetworkReadsFromStorageAndRequestTimeouts()
+    public void FailureCategoriesSeparateTypedEvidenceFromAmbiguousIoAndCancellation()
     {
         Assert.Equal(FailureKind.Network, FailureInfo.FromException(
             new System.Net.Http.HttpIOException(System.Net.Http.HttpRequestError.ResponseEnded, "Transfer ended"), media: true).Kind);
-        Assert.Equal(FailureKind.Storage, FailureInfo.FromException(new IOException("Disk full"), media: true).Kind);
-        Assert.Equal(FailureKind.Timeout, FailureInfo.FromException(new TaskCanceledException("HTTP timeout"), media: false).Kind);
+        // The operation context and message cannot distinguish a body read from a local write.
+        Assert.Equal(FailureKind.Unknown, FailureInfo.FromException(new IOException("Disk full"), media: true).Kind);
+        Assert.Equal(FailureKind.Storage, FailureInfo.FromException(new UnauthorizedAccessException("Storage access denied"), media: true).Kind);
+        Assert.Equal(FailureKind.Unknown, FailureInfo.FromException(new HttpRequestException("Synthetic network failure"), media: false).Kind);
+
+        FailureInfo cancelled = FailureInfo.FromException(new TaskCanceledException("HTTP timeout"), media: false);
+        Assert.Equal(FailureKind.Unknown, cancelled.Kind);
+        Assert.Equal("operation-cancelled", cancelled.DiagnosticCode);
+        Assert.Null(cancelled.NetworkStage);
+        FailureInfo timedOut = FailureInfo.FromException(new TimeoutException("Synthetic deadline expired"), media: false);
+        Assert.Equal(FailureKind.Timeout, timedOut.Kind);
+        Assert.Null(timedOut.NetworkStage);
         Assert.Equal(FailureKind.InvalidData, FailureInfo.FromException(new FormatException("Invalid media size"), media: false).Kind);
     }
 

@@ -83,6 +83,7 @@ public partial class DiagnosticsPage : UserControl
             if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
         CommandBindings.ApplyLabeled(this.FindControl<Button>("CopyDiagnosticButton")!, "diagnostics.copy", Texts.T("diagnostics.copy"));
+        AutomationProperties.SetHelpText(this.FindControl<Button>("CopyDiagnosticButton")!, Texts.T("diagnostics.copyPrivacy"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("OpenDiagnosticWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");

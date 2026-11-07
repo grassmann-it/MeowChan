@@ -23,6 +23,10 @@
                     <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
                     <TextBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
                     <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
+                    <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False" MaxWidth="280"
+                              IsCheckedChanged="OnDiagnosticFilterChanged">
+                        <TextBlock Tag="diagnostics.includeWaiting" Classes="localized" TextWrapping="Wrap" />
+                    </CheckBox>
                     <Button x:Name="DiagnosticClearFilters" Click="OnClearDiagnosticFilters" />
                 </WrapPanel>
                 <TextBlock x:Name="DiagnosticFilterSummary" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
@@ -77,6 +81,8 @@
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
                 <TextBlock x:Name="DiagnosticsActionError" Classes="error workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
+            <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="muted localized"
+                       TextWrapping="Wrap" />
             <WrapPanel Classes="workspace-toolbar">
                 <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" />
                 <Button x:Name="RetryDiagnosticSelectionButton" Click="OnRetryDiagnosticSelection" />

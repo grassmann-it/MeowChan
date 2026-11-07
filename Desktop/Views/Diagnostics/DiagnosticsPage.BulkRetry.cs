@@ -71,6 +71,7 @@ public partial class DiagnosticsPage
             _diagnosticSourceId = null;
             this.FindControl<TextBox>("DiagnosticTextFilter")!.Text = string.Empty;
             this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.IsChecked = false;
+            this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!.IsChecked = false;
             this.FindControl<ComboBox>("DiagnosticSourceFilter")!.SelectedIndex = 0;
         }
         finally { _refreshingDiagnosticFilters = false; }
@@ -82,7 +83,8 @@ public partial class DiagnosticsPage
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         string? query = this.FindControl<TextBox>("DiagnosticTextFilter")!.Text;
         bool problems = this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.IsChecked == true;
-        DiagnosticEntry[] visible = _entries.Where(entry => DiagnosticRetryScope.Matches(entry, _diagnosticSourceId, query, problems)).ToArray();
+        bool includeWaiting = this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!.IsChecked == true;
+        DiagnosticEntry[] visible = _entries.Where(entry => DiagnosticRetryScope.Matches(entry, _diagnosticSourceId, query, problems, includeWaiting)).ToArray();
         if (!_visibleDiagnostics.SequenceEqual(visible))
         {
             string? lead = (grid.SelectedItem as DiagnosticEntry)?.Key;
@@ -111,6 +113,8 @@ public partial class DiagnosticsPage
         AutomationProperties.SetName(text, Texts.T("diagnostics.filterText"));
         text.PlaceholderText = Texts.T("diagnostics.filterText");
         this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.Content = Texts.T("diagnostics.onlyProblems");
+        // Preserve the wrapping TextBlock content; Refresh localizes it using the latest language.
+        AutomationProperties.SetName(this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!, Texts.T("diagnostics.includeWaiting"));
         this.FindControl<Button>("DiagnosticClearFilters")!.Content = Texts.T("diagnostics.clearFilters");
     }
 

@@ -32,3 +32,15 @@ MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.get -> string!
 MeowChan.Storage.MediaPassiveImportRecord.PackageFingerprint.init -> void
 MeowChan.Archive.ArchiveHtmlExportOptions.Language.get -> string!
 MeowChan.Archive.ArchiveHtmlExportOptions.Language.init -> void
+MeowChan.FailureInfo.DiagnosticCode.get -> string?
+MeowChan.FailureInfo.DiagnosticCode.init -> void
+MeowChan.FailureInfo.NetworkStage.get -> MeowChan.FailureNetworkStage?
+MeowChan.FailureInfo.NetworkStage.init -> void
+MeowChan.FailureInfo.RetryAt.get -> System.DateTimeOffset?
+MeowChan.FailureInfo.RetryAt.init -> void
+MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.Connection = 1 -> MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.NameResolution = 0 -> MeowChan.FailureNetworkStage
+MeowChan.FailureNetworkStage.SecureConnection = 2 -> MeowChan.FailureNetworkStage
+MeowChan.IFailureInfoProvider
+MeowChan.IFailureInfoProvider.FailureInfo.get -> MeowChan.FailureInfo!

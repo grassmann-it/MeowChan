@@ -58,9 +58,60 @@ public interface IPluginWorkerClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
 }
 
-public sealed class PluginWorkerException : Exception
+public sealed class PluginWorkerException : Exception, MeowChan.IFailureInfoProvider
 {
     public string Code { get; }
+
+    /// <summary>Transient reported evidence; never grants retry or scheduling authority.</summary>
+    public MeowChan.FailureInfo FailureInfo { get; }
+
     public PluginWorkerException(string code, string message, Exception? innerException = null)
-        : base(message, innerException) => Code = code;
+        : base(message, innerException)
+    {
+        Code = code;
+        FailureInfo = ProjectFailure(code, Message, null, null);
+    }
+
+    private PluginWorkerException(FailureDetail failure, Exception? innerException)
+        : base(failure.Message, innerException)
+    {
+        Code = failure.Code;
+        FailureInfo = ProjectFailure(Code, Message, failure.HttpStatusCode, failure.RetryAt);
+    }
+
+    /// <summary>
+    /// Retains source failure evidence after the existing SDK result validation.
+    /// The reported retry time is preserved, not replaced by the scheduler's minimum delay.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The failure detail is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The HTTP status is outside the SDK's 100–599 range.</exception>
+    public static PluginWorkerException FromFailure(FailureDetail failure, Exception? innerException = null)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        if (failure.HttpStatusCode is < 100 or > 599)
+            throw new ArgumentOutOfRangeException(nameof(failure), "HTTP status must be between 100 and 599.");
+        return new PluginWorkerException(failure, innerException);
+    }
+
+    private static MeowChan.FailureInfo ProjectFailure(string code, string message,
+        int? httpStatusCode, DateTimeOffset? retryAt)
+    {
+        // Only explicit status and exact known producer codes are evidence. Never parse
+        // messages, HTTP-looking code suffixes, or inner exceptions into a network cause.
+        MeowChan.FailureKind kind = httpStatusCode != null ? MeowChan.FailureKind.Http : code switch
+        {
+            "http-timeout" => MeowChan.FailureKind.Timeout,
+            "http-network" => MeowChan.FailureKind.Network,
+            "invalid_metadata" or "invalid_source_result" or "http-encoding" => MeowChan.FailureKind.InvalidData,
+            _ => MeowChan.FailureKind.Unknown
+        };
+        // In particular, worker "timeout"/"unresponsive" may be CPU or IPC failures;
+        // the SDK does not carry typed DNS/connect/TLS evidence for either constructor.
+        return new MeowChan.FailureInfo(kind, message,
+            httpStatusCode is int status ? (System.Net.HttpStatusCode)status : null)
+        {
+            DiagnosticCode = code,
+            RetryAt = retryAt
+        };
+    }
 }
