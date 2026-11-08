@@ -43,6 +43,7 @@ internal sealed class NativeTransferArchiveSnapshot
     internal ImmutableArray<MediaAssetSnapshot> Manifests { get; }
     internal ImmutableArray<TransferPayloadSource> Payloads { get; }
     internal Guid PackageId { get; }
+    internal ImmutableArray<NativeTransferInventoryOrigin> InventoryOrigins { get; init; } = [];
 }
 
 // Admission limits, not a new wire schema. Smaller values provide a deterministic budget
@@ -68,7 +69,7 @@ internal sealed class NativeTransferArchiveMetadataLimits
 /// mutate a profile or open a provider. Any failed/cancelled stage must be discarded by caller.
 /// Current observations plus exact historical manifest bindings; unbound retained assets still reject.
 /// </summary>
-internal static class NativeTransferArchiveExporter
+internal static partial class NativeTransferArchiveExporter
 {
     private const int MaxDirectories = 32, MaxAssets = 100_000, MaxPayloads = 9998;
     private const long MaxPayload = 1024L * 1024 * 1024, MaxTotal = 2L * 1024 * 1024 * 1024;
@@ -344,6 +345,7 @@ internal static class NativeTransferArchiveExporter
             MediaAssetSnapshot latest = await ReadManifestAsync(manifest.Directory, token).ConfigureAwait(false);
             if (latest.Status != manifest.Status || latest.Generation != manifest.Generation) return false;
         }
+        if (!await VerifyInventoryOriginsAsync(snapshot.InventoryOrigins, token).ConfigureAwait(false)) return false;
         return true;
     }
     // No schema change or new reader authority. This read-only selection-wide size pass
