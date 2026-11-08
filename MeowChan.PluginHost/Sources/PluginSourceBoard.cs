@@ -34,7 +34,10 @@ internal sealed class PluginSourceBoard : BaseBoard
             cancellationToken = lifetime.Token;
             if (_retryAt is DateTimeOffset due && due > Clock.GetUtcNow())
                 throw _deferredHistory ?? new SourceCheckDeferredException(due, "source_failure_retry", false, _retryFailure);
-            using var history = new Http.PluginHostHttp.MetadataHistory();
+            using var history = new Http.PluginHostHttp.MetadataHistory(progress =>
+            {
+                if (!cancellationToken.IsCancellationRequested) SetRequestProgress(progress);
+            });
             var operation = new PluginOperationContext(BoardUri.AbsoluteUri, WatchGeneration);
             history.Bind(operation);
             CatalogReadRequest request = new(new SourceBoardId(_source.Name, BoardCode), Validators: _validators, HasSnapshot: _lastCatalog != null);
@@ -71,16 +74,26 @@ internal sealed class PluginSourceBoard : BaseBoard
                 case CatalogDeferred deferred:
                     _retryAt = history.InitialNoSend || deferred.RetryAt > Clock.GetUtcNow().AddSeconds(10)
                         ? deferred.RetryAt : Clock.GetUtcNow().AddSeconds(10);
-                    throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend, history.Failure);
+                    // Keep host history authoritative; only fill an evidence gap with
+                    // validated SDK facts. Proven initial no-send waits stay neutral.
+                    throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend,
+                        PluginSourceDiagnostics.DeferredFailure(history, deferred.ReasonCode, deferred.HttpStatusCode, deferred.RetryAt));
                 case CatalogFailure failure:
                     _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > Clock.GetUtcNow().AddSeconds(10)
                         ? retry : Clock.GetUtcNow().AddSeconds(10);
-                        _deferredHistory = null;
-                    throw _retryFailure = PluginWorkerException.FromFailure(failure.Failure);
+                    _deferredHistory = null;
+                    // Only an exact echo of the last unambiguous host failure may supply
+                    // typed facts. An older operation-wide failure is not the SDK result's cause.
+                    throw _retryFailure = PluginSourceDiagnostics.FinalFailure(history, failure.Failure);
                 default: throw new PluginWorkerException("invalid_source_result", "Unsupported catalog result.");
             }
         }
-        finally { _readGate.Release(); }
+        finally
+        {
+            // History is retired before this clear; the gate still excludes a successor.
+            SetRequestProgress(null);
+            _readGate.Release();
+        }
     }
 
     private async Task<CatalogReadResult> ReadPagesAsync(CatalogReadRequest request, PluginOperationContext operation, CancellationToken token)
@@ -94,6 +107,7 @@ internal sealed class PluginSourceBoard : BaseBoard
         for (int page = 0; page < 128; page++)
         {
             if (!pages.Add((request.Cursor, request.Page))) throw new PluginWorkerException("catalog_pagination_loop", "The source repeated a catalog continuation.");
+            Http.PluginHostHttp.MetadataHistory.Current?.BeginSourceResult();
             CatalogReadResult result;
             using (IDisposable? admission = queue == null ? null : await queue.AcquireMetadataAsync(_source.Name,
                 DownloadPriority.BoardDiscovery, token).ConfigureAwait(false))

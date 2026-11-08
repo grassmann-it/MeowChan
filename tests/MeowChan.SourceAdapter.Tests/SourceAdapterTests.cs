@@ -78,18 +78,49 @@ public sealed class SourceAdapterTests
     public async Task FailureAndDeferredNeverBecomeSourceEnd(bool deferred)
     {
         using TemporaryProfile profile = new();
+        DateTimeOffset retry = DateTimeOffset.UtcNow.AddMinutes(1);
         int calls = 0;
         TestWorker worker = new((request, _, _) => { Interlocked.Increment(ref calls); return Task.FromResult<ThreadReadResult>(deferred
-            ? new ThreadDeferred(request.Thread, DateTimeOffset.UtcNow.AddMinutes(1), "cooldown", 429)
+            ? new ThreadDeferred(request.Thread, retry, "cooldown", 429)
             : new ThreadFailure(request.Thread, new FailureDetail("bad_json", "Invalid source JSON"))); });
         using PluginSourceImageBoard source = new(worker.Description, "4chan", _ => Task.FromResult<IPluginWorkerClient>(worker));
         DownloadQueue queue = new(1, 1048576);
         await using Registry registry = new(new[] { source }, queue, profile.Path, TimeSpan.FromHours(1), 3600);
         AdmissionResult admitted = await registry.AddAsync("https://boards.4chan.org/g/thread/123");
-        await WaitUntilAsync(() => deferred ? Volatile.Read(ref calls) > 0 : admitted.Thread!.LastCheckFailure != null);
-        if (deferred) Assert.Null(admitted.Thread!.LastCheckFailure);
-        Assert.Equal(ThreadSourceState.Active, admitted.Thread!.SourceState);
-        Assert.Single(registry.Threads);
+        IThread thread = Assert.IsAssignableFrom<IThread>(admitted.Thread);
+        TaskCompletionSource<FailureInfo> reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Observe()
+        {
+            if (thread.LastCheckFailure is FailureInfo failure) reported.TrySetResult(failure);
+        }
+        void Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs args) => Observe();
+        thread.PropertyChanged += Changed;
+        try
+        {
+            Observe(); // The check may have completed before subscription; never wait on calls > 0.
+            FailureInfo failure = await reported.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await thread.StopMonitoringAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            if (deferred)
+            {
+                Assert.Equal(FailureKind.Http, failure.Kind);
+                Assert.Equal(HttpStatusCode.TooManyRequests, failure.HttpStatusCode);
+                Assert.Equal("cooldown", failure.DiagnosticCode);
+                Assert.Equal(retry, failure.RetryAt);
+            }
+            else Assert.Equal("bad_json", failure.DiagnosticCode);
+            var snapshot = thread.GetSnapshot(new DownloadCounts(0, 0));
+            Assert.Same(failure, snapshot.LastCheckFailure);
+            Assert.Equal(ThreadSourceState.Active, snapshot.SourceState);
+            Assert.Empty(snapshot.MediaFailures);
+            Assert.Null(snapshot.RequestProgress);
+            Assert.Single(registry.Threads);
+            Assert.Equal(1, Volatile.Read(ref calls));
+        }
+        finally
+        {
+            thread.PropertyChanged -= Changed;
+            await thread.StopMonitoringAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        }
     }
 
     [Theory]

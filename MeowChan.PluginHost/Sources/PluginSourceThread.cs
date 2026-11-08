@@ -37,7 +37,12 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     {
         await _readGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await CheckCoreAsync(queue, cancellationToken).ConfigureAwait(false); }
-        finally { _readGate.Release(); }
+        finally
+        {
+            // History is retired before this clear; the gate still excludes a successor.
+            SetRequestProgress(null);
+            _readGate.Release();
+        }
     }
 
     private async Task CheckCoreAsync(DownloadQueue queue, CancellationToken token)
@@ -63,7 +68,10 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             await EnqueueKnownMediaAsync(queue, _knownMedia, token, contentScope).ConfigureAwait(false);
         if (_retryAt is DateTimeOffset due && due > _clock.GetUtcNow())
             throw _deferredHistory ?? new SourceCheckDeferredException(due, "source_failure_retry", false, _retryFailure);
-        using var history = new Http.PluginHostHttp.MetadataHistory();
+        using var history = new Http.PluginHostHttp.MetadataHistory(progress =>
+        {
+            if (!token.IsCancellationRequested) SetRequestProgress(progress);
+        });
         var operation = new PluginOperationContext(Url, WatchGeneration);
         history.Bind(operation);
         ThreadReadRequest request = new(new SourceThreadId(Source.Name, Board.BoardCode, ThreadId), _validators, _hasSnapshot);
@@ -94,12 +102,17 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             case ThreadDeferred deferred:
                 _retryAt = history.InitialNoSend || deferred.RetryAt > _clock.GetUtcNow().AddSeconds(10)
                     ? deferred.RetryAt : _clock.GetUtcNow().AddSeconds(10);
-                throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend, history.Failure);
+                // Keep host history authoritative; only fill an evidence gap with
+                // validated SDK facts. Proven initial no-send waits stay neutral.
+                throw _deferredHistory = new SourceCheckDeferredException(_retryAt.Value, deferred.ReasonCode, history.InitialNoSend,
+                    PluginSourceDiagnostics.DeferredFailure(history, deferred.ReasonCode, deferred.HttpStatusCode, deferred.RetryAt));
             case ThreadFailure failure:
                 _retryAt = failure.Failure.RetryAt is DateTimeOffset retry && retry > _clock.GetUtcNow().AddSeconds(10)
                     ? retry : _clock.GetUtcNow().AddSeconds(10);
                 _deferredHistory = null;
-                throw _retryFailure = PluginWorkerException.FromFailure(failure.Failure);
+                // Only an exact echo of the last unambiguous host failure may supply
+                // typed facts. An older operation-wide failure is not the SDK result's cause.
+                throw _retryFailure = PluginSourceDiagnostics.FinalFailure(history, failure.Failure);
             default: throw new PluginWorkerException("invalid_source_result", "Unsupported thread result.");
         }
     }
