@@ -132,14 +132,27 @@ public sealed class ArchiveIntegrityPersistenceTests
         CreateLegacy(temp.Path);
         if (version > 1)
         {
-            using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
-            { await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease); }
-            Execute(temp.Path, "ALTER TABLE archive_attachments DROP COLUMN expected_sha1; ALTER TABLE archive_attachments DROP COLUMN provider_size_hint_json; "
-                + "ALTER TABLE media_decisions DROP COLUMN expected_sha1; ALTER TABLE media_decisions DROP COLUMN provider_size_hint_json; "
-                + (version == 4 ? "" : "ALTER TABLE archive_attachments DROP COLUMN expected_sha256; ALTER TABLE archive_attachments DROP COLUMN attachment_revision_key; "
-                + "ALTER TABLE media_decisions DROP COLUMN expected_sha256; ALTER TABLE media_decisions DROP COLUMN acquisition_revision_key; "
-                + "ALTER TABLE media_decisions DROP COLUMN attachment_references_json; ")
-                + (version == 2 ? "DROP TABLE archive_source_contracts; " : "") + "PRAGMA user_version=" + version);
+            // Extend the frozen v1 fixture only as far as the requested historical
+            // version. Opening today's catalog here would also create schema10 journals.
+            using SqliteConnection db = ArchiveSql.OpenConnection(Path.Combine(temp.Path, "archive.db"), SqliteOpenMode.ReadWrite);
+            using SqliteTransaction transaction = db.BeginTransaction(deferred: false);
+            ArchiveSql.MigrateSearchSchema(db, transaction, CancellationToken.None);
+            if (version >= 3) ArchiveSql.CreateSourceContractSchema(db, transaction);
+            if (version == 4)
+            {
+                using SqliteCommand integrity = ArchiveSql.Command(db, transaction, """
+                    ALTER TABLE archive_attachments ADD COLUMN expected_sha256 TEXT;
+                    ALTER TABLE archive_attachments ADD COLUMN attachment_revision_key TEXT;
+                    ALTER TABLE media_decisions ADD COLUMN expected_sha256 TEXT;
+                    ALTER TABLE media_decisions ADD COLUMN acquisition_revision_key TEXT;
+                    ALTER TABLE media_decisions ADD COLUMN attachment_references_json TEXT;
+                    """);
+                integrity.ExecuteNonQuery();
+            }
+            using SqliteCommand stamp = ArchiveSql.Command(db, transaction, "PRAGMA user_version=" + version);
+            stamp.ExecuteNonQuery();
+            ArchiveSql.ValidateSchema(db, transaction);
+            transaction.Commit();
         }
         byte[] before = await File.ReadAllBytesAsync(Path.Combine(temp.Path, "archive.db"));
         await using (ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path))
@@ -155,7 +168,7 @@ public sealed class ArchiveIntegrityPersistenceTests
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
             Assert.Null(Attachment(await reader.ReadThreadAsync(Id)).AttachmentRevisionKey);
         }
-        Assert.Equal(9L, Scalar(temp.Path, "PRAGMA user_version"));
+        Assert.Equal(10L, Scalar(temp.Path, "PRAGMA user_version"));
         Assert.False(Directory.Exists(Path.Combine(temp.Path, "disconnected")));
     }
 

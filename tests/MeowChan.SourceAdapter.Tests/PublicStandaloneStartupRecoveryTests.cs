@@ -145,7 +145,7 @@ public sealed class PublicStandaloneStartupRecoveryTests
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]
     [InlineData(true, true, true)]
-    public async Task MissingSchemaOrReceiptReadErrorIsNotAnEmptyJournal(bool runtime, bool merge, bool readError)
+    public async Task MissingOrViewBackedReceiptSchemaIsNotAnEmptyJournal(bool runtime, bool merge, bool readError)
     {
         using ProfileDirectory profile = new();
         await SeedProfileAsync(profile.Path, watch: true);
@@ -154,8 +154,9 @@ public sealed class PublicStandaloneStartupRecoveryTests
         using (SqliteConnection connection = Open(DatabasePath(profile.Path), SqliteOpenMode.ReadWrite))
         {
             // Keep all receipt rows as evidence. The missing-table variant tests schema
-            // failure. The view variant passes LIMIT 0 shape validation but fails on
-            // actual receipt evaluation, deterministically and without permissions tricks.
+            // failure. The view passes the former LIMIT 0 shape validation and its
+            // SELECT still fails deterministically. Schema10 rejects this invalid
+            // schema earlier; this is no longer an actual receipt-evaluation oracle.
             Execute(connection, $"ALTER TABLE {receipt} RENAME TO retained_receipts");
             if (readError)
             {
@@ -166,11 +167,16 @@ public sealed class PublicStandaloneStartupRecoveryTests
                 Assert.Throws<SqliteException>(() => Execute(connection, $"SELECT * FROM {receipt}"));
             }
         }
-        await AssertTwoBlockedStartsAsync(profile.Path, runtime, sqliteError: 1, retainedReceipt: receipt);
+        // Schema10 validates the complete receipt table before recovery. A missing
+        // table and the deliberately view-backed read-error fixture are therefore
+        // rejected as structural corruption, never treated as an empty journal.
+        await AssertTwoBlockedStartsAsync(profile.Path, runtime, sqliteError: null,
+            expectedMessage: "Invalid media transfer schema definition.", retainedReceipt: receipt);
     }
 
     private static async Task AssertTwoBlockedStartsAsync(string profile, bool runtime, int? sqliteError,
-        bool initializeRuntime = false, byte[]? corrupt = null, string? retainedReceipt = null)
+        string? expectedMessage = null, bool initializeRuntime = false, byte[]? corrupt = null,
+        string? retainedReceipt = null)
     {
         string? archive = corrupt == null ? ReadArchiveEvidence(profile, retainedReceipt) : null;
         string[] candidates = CandidateInventory(profile);
@@ -191,9 +197,9 @@ public sealed class PublicStandaloneStartupRecoveryTests
                 {
                     Assert.Equal(0, store.Loads);
                     Task start = registry.StartAsync(lease);
-                    await AssertStartupFailureAsync(start, sqliteError);
+                    await AssertStartupFailureAsync(start, sqliteError, expectedMessage);
                     Assert.Same(start, registry.StartAsync(lease));
-                    await AssertStartupFailureAsync(registry.StartAsync(lease), sqliteError);
+                    await AssertStartupFailureAsync(registry.StartAsync(lease), sqliteError, expectedMessage);
                     // Public negative oracles, not private phase observations. A failed
                     // coordinator must not authorize either explicit restore or new work.
                     await Assert.ThrowsAnyAsync<InvalidOperationException>(() => registry.AddAsync(WatchUrl).WaitAsync(Deadline));
@@ -223,7 +229,7 @@ public sealed class PublicStandaloneStartupRecoveryTests
         }
     }
 
-    private static async Task AssertStartupFailureAsync(Task start, int? sqliteError)
+    private static async Task AssertStartupFailureAsync(Task start, int? sqliteError, string? expectedMessage)
     {
         if (sqliteError.HasValue)
         {
@@ -233,7 +239,7 @@ public sealed class PublicStandaloneStartupRecoveryTests
         else
         {
             InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => start.WaitAsync(Deadline));
-            Assert.Equal("Native media transfer reconciliation is required.", error.Message);
+            Assert.Equal(expectedMessage ?? "Native media transfer reconciliation is required.", error.Message);
         }
     }
 
@@ -317,7 +323,9 @@ public sealed class PublicStandaloneStartupRecoveryTests
         {
             using var add = connection.CreateCommand();
             add.Transaction = transaction;
-            add.CommandText = $"INSERT INTO {table}_receipts VALUES($op,$hash," + (merge ? "1,0,1,0,0)" : "1,1)");
+            string receiptColumns = LegacyJournalColumns(table + "_receipts");
+            string receiptValues = merge ? "$op,$hash,1,0,1,0,0" : "$op,$hash,1,1";
+            add.CommandText = $"INSERT INTO {table}_receipts({receiptColumns}) VALUES({receiptValues})";
             add.Parameters.AddWithValue("$op", Operation);
             add.Parameters.AddWithValue("$hash", Hash);
             Assert.Equal(1, add.ExecuteNonQuery());
@@ -362,10 +370,27 @@ public sealed class PublicStandaloneStartupRecoveryTests
             command.Transaction = transaction;
             command.CommandText = $"SELECT * FROM {(table == retainedReceipt ? "retained_receipts" : table)} ORDER BY 1";
             using var reader = command.ExecuteReader();
+            // Compare every legacy value across the additive migration, while also
+            // asserting every new column is exactly its v1 default. SELECT * is retained:
+            // a new/unknown column or a changed extension value cannot disappear here.
+            int legacyCount = table == "archive_import_fence" ? reader.FieldCount
+                : LegacyJournalColumns(table).Split(',').Length;
+            (string Name, object Value)[] extensions = table == "archive_import_fence" ? []
+                : LegacyExtensionDefaults(table);
+            bool schema10 = reader.FieldCount != legacyCount;
+            if (schema10)
+            {
+                Assert.Equal(legacyCount + extensions.Length, reader.FieldCount);
+                for (int index = 0; index < extensions.Length; index++)
+                    Assert.Equal(extensions[index].Name, reader.GetName(legacyCount + index));
+            }
             List<string?[]> rows = [];
             while (reader.Read())
             {
-                string?[] row = new string?[reader.FieldCount];
+                if (schema10)
+                    for (int index = 0; index < extensions.Length; index++)
+                        Assert.Equal(extensions[index].Value, reader.GetValue(legacyCount + index));
+                string?[] row = new string?[legacyCount];
                 for (int index = 0; index < row.Length; index++)
                     row[index] = reader.IsDBNull(index) ? null : reader.GetValue(index) is byte[] bytes
                         ? Convert.ToHexString(bytes) : Convert.ToString(reader.GetValue(index), CultureInfo.InvariantCulture);
@@ -396,14 +421,97 @@ public sealed class PublicStandaloneStartupRecoveryTests
     private static void MakeSyntheticVersionEight(string profile)
     {
         // Synthetic supported schema shape, NOT an authentic historical release profile.
-        // Remove the complete additive v9 family (including its table-owned triggers).
+        // Remove the additive v9 family and rebuild the four media journals with
+        // frozen v8/v9 DDL. Restamping current v10 tables is intentionally unsupported.
         using SqliteConnection connection = Open(DatabasePath(profile), SqliteOpenMode.ReadWrite);
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         foreach (string table in new[] { "local_import_receipts", "local_import_operations", "local_media_revisions", "local_items", "local_collections" })
-            Execute(connection, $"DROP TABLE {table}");
-        Execute(connection, "PRAGMA user_version=8");
-        using var check = connection.CreateCommand();
-        check.CommandText = "SELECT count(*) FROM sqlite_master WHERE name LIKE 'local_%'";
-        Assert.Equal(0L, (long)check.ExecuteScalar()!);
+        {
+            command.CommandText = $"DROP TABLE {table}";
+            command.ExecuteNonQuery();
+        }
+        foreach (string table in JournalTables)
+        {
+            command.CommandText = $"ALTER TABLE {table} RENAME TO {table}_current_fixture";
+            command.ExecuteNonQuery();
+        }
+        // Independent fixture schema: no reflection or internal production creator.
+        command.CommandText = """
+            CREATE TABLE archive_media_import_operations (
+                operation_id TEXT NOT NULL PRIMARY KEY CHECK(length(operation_id)=36),
+                request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+                package_fingerprint TEXT NOT NULL CHECK(length(package_fingerprint)=64),
+                catalog_instance TEXT NOT NULL, catalog_generation INTEGER NOT NULL CHECK(catalog_generation>=0),
+                source TEXT NOT NULL, board TEXT NOT NULL, thread TEXT NOT NULL,
+                operations_parent TEXT NOT NULL UNIQUE, imported_at TEXT NOT NULL,
+                state TEXT NOT NULL CHECK(state IN ('Preparing','Prepared','Committed')),
+                revision_keys_json TEXT NOT NULL CHECK(length(CAST(revision_keys_json AS BLOB))<=8388608),
+                candidate_directory TEXT, manifest_generation TEXT, bindings_sha256 TEXT,
+                post_count INTEGER NOT NULL CHECK(post_count>=0), attachment_count INTEGER NOT NULL CHECK(attachment_count>0),
+                CHECK((state='Preparing' AND candidate_directory IS NULL AND manifest_generation IS NULL AND bindings_sha256 IS NULL)
+                    OR (state IN ('Prepared','Committed') AND candidate_directory IS NOT NULL
+                        AND length(manifest_generation)=64 AND length(bindings_sha256)=64)));
+            CREATE TABLE archive_media_import_receipts (
+                operation_id TEXT NOT NULL PRIMARY KEY CHECK(length(operation_id)=36),
+                request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+                post_count INTEGER NOT NULL CHECK(post_count>=0),
+                attachment_count INTEGER NOT NULL CHECK(attachment_count>0));
+            CREATE TABLE archive_media_merge_operations (
+                operation_id TEXT NOT NULL PRIMARY KEY CHECK(length(operation_id)=36),
+                request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+                package_fingerprint TEXT NOT NULL CHECK(length(package_fingerprint)=64),
+                catalog_instance TEXT NOT NULL CHECK(length(catalog_instance)=36),
+                catalog_generation INTEGER NOT NULL CHECK(catalog_generation>=0),
+                source TEXT NOT NULL, board TEXT NOT NULL, thread TEXT NOT NULL,
+                operations_parent TEXT NOT NULL UNIQUE, imported_at TEXT NOT NULL,
+                state TEXT NOT NULL CHECK(state IN ('Preparing','Prepared','Committed')),
+                roots_json TEXT NOT NULL CHECK(length(CAST(roots_json AS BLOB))<=8388608),
+                full_keys_json TEXT NOT NULL CHECK(length(CAST(full_keys_json AS BLOB))<=8388608),
+                safe_keys_json TEXT NOT NULL CHECK(length(CAST(safe_keys_json AS BLOB))<=8388608),
+                catalog_bytes BLOB NOT NULL CHECK(length(catalog_bytes)<=16777216),
+                full_directory TEXT, safe_directory TEXT,
+                full_manifest_generation TEXT, safe_manifest_generation TEXT,
+                full_bindings_sha256 TEXT, safe_bindings_sha256 TEXT,
+                new_posts INTEGER NOT NULL CHECK(new_posts>=0),
+                updated_posts INTEGER NOT NULL CHECK(updated_posts>=0),
+                new_attachments INTEGER NOT NULL CHECK(new_attachments>=0),
+                new_bindings INTEGER NOT NULL CHECK(new_bindings>=0),
+                conflicts INTEGER NOT NULL CHECK(conflicts>=0),
+                CHECK((state='Preparing' AND full_directory IS NULL AND safe_directory IS NULL
+                    AND full_manifest_generation IS NULL AND safe_manifest_generation IS NULL
+                    AND full_bindings_sha256 IS NULL AND safe_bindings_sha256 IS NULL)
+                    OR (state IN ('Prepared','Committed') AND full_directory IS NOT NULL
+                    AND full_manifest_generation IS NOT NULL AND length(full_manifest_generation)=64
+                    AND full_bindings_sha256 IS NOT NULL AND length(full_bindings_sha256)=64
+                    AND ((new_bindings=0 AND safe_directory IS NULL AND safe_manifest_generation IS NULL
+                        AND safe_bindings_sha256 IS NULL)
+                        OR (new_bindings>0 AND safe_directory IS NOT NULL
+                        AND safe_manifest_generation IS NOT NULL AND length(safe_manifest_generation)=64
+                        AND safe_bindings_sha256 IS NOT NULL AND length(safe_bindings_sha256)=64))))
+            );
+            CREATE TABLE archive_media_merge_receipts (
+                operation_id TEXT NOT NULL PRIMARY KEY CHECK(length(operation_id)=36),
+                request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+                new_posts INTEGER NOT NULL CHECK(new_posts>=0),
+                updated_posts INTEGER NOT NULL CHECK(updated_posts>=0),
+                new_attachments INTEGER NOT NULL CHECK(new_attachments>=0),
+                new_bindings INTEGER NOT NULL CHECK(new_bindings>=0),
+                conflicts INTEGER NOT NULL CHECK(conflicts>=0));
+            """;
+        command.ExecuteNonQuery();
+        foreach (string table in JournalTables)
+        {
+            string columns = LegacyJournalColumns(table);
+            command.CommandText = $"INSERT INTO {table}(rowid,{columns}) SELECT rowid,{columns} FROM {table}_current_fixture; DROP TABLE {table}_current_fixture";
+            command.ExecuteNonQuery();
+        }
+        command.CommandText = "PRAGMA user_version=8";
+        command.ExecuteNonQuery();
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name LIKE 'local_%'";
+        Assert.Equal(0L, (long)command.ExecuteScalar()!);
+        transaction.Commit();
     }
 
     private static void AssertCurrentSchema(string profile)
@@ -411,7 +519,7 @@ public sealed class PublicStandaloneStartupRecoveryTests
         using SqliteConnection connection = Open(DatabasePath(profile), SqliteOpenMode.ReadOnly);
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
-        Assert.Equal(9L, (long)version.ExecuteScalar()!);
+        Assert.Equal(10L, (long)version.ExecuteScalar()!);
         version.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'";
         Assert.Equal(5L, (long)version.ExecuteScalar()!);
     }
@@ -430,6 +538,41 @@ public sealed class PublicStandaloneStartupRecoveryTests
         command.CommandText = sql;
         using var rows = command.ExecuteReader();
         do { while (rows.Read()) { } } while (rows.NextResult());
+    }
+
+    private static string LegacyJournalColumns(string table) => table switch
+    {
+        "archive_media_import_operations" => "operation_id,request_sha256,package_fingerprint,catalog_instance,catalog_generation,source,board,thread,operations_parent,imported_at,state,revision_keys_json,candidate_directory,manifest_generation,bindings_sha256,post_count,attachment_count",
+        "archive_media_import_receipts" => "operation_id,request_sha256,post_count,attachment_count",
+        "archive_media_merge_operations" => "operation_id,request_sha256,package_fingerprint,catalog_instance,catalog_generation,source,board,thread,operations_parent,imported_at,state,roots_json,full_keys_json,safe_keys_json,catalog_bytes,full_directory,safe_directory,full_manifest_generation,safe_manifest_generation,full_bindings_sha256,safe_bindings_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts",
+        "archive_media_merge_receipts" => "operation_id,request_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts",
+        _ => throw new InvalidOperationException("Not a fixture journal table.")
+    };
+
+    private static (string Name, object Value)[] LegacyExtensionDefaults(string table)
+    {
+        bool import = table.StartsWith("archive_media_import_", StringComparison.Ordinal);
+        List<(string Name, object Value)> columns =
+        [
+            ("plan_version", 1L), ("evidence_additions", 0L),
+            ("derived_descriptor_additions", 0L), ("contained_derived_additions", 0L)
+        ];
+        if (import) columns.Add(("original_binding_count", 0L));
+        if (table.EndsWith("_operations", StringComparison.Ordinal))
+        {
+            columns.AddRange(new (string, object)[]
+            {
+                ("full_selection_json", DBNull.Value), ("full_selection_sha256", DBNull.Value),
+                ("full_inventory_sha256", DBNull.Value), ("full_member_count", 0L)
+            });
+            if (import) columns.Add(("catalog_bytes", DBNull.Value));
+            else columns.AddRange(new (string, object)[]
+            {
+                ("safe_selection_json", DBNull.Value), ("safe_selection_sha256", DBNull.Value),
+                ("safe_inventory_sha256", DBNull.Value), ("safe_member_count", 0L)
+            });
+        }
+        return columns.ToArray();
     }
 
     private static string Family(bool merge) => merge ? "archive_media_merge" : "archive_media_import";

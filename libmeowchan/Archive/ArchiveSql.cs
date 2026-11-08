@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 9;
+    internal const int SchemaVersion = 10;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -51,7 +51,7 @@ internal static partial class ArchiveSql
             return;
         }
         int version = GetPragma(connection, "user_version", transaction);
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9)
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10)
             || GetPragma(connection, "application_id", transaction) != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         ValidateTargetSchema(connection, transaction, version);
@@ -60,7 +60,7 @@ internal static partial class ArchiveSql
     // Target version is explicit: migration validates its un-stamped target in its own transaction.
     internal static void ValidateTargetSchema(SqliteConnection connection, SqliteTransaction? transaction, int version)
     {
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9))
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10))
             throw new InvalidDataException("Unsupported archive target schema.");
         using SqliteCommand journal = Command(connection, transaction, "");
         journal.CommandText = "PRAGMA journal_mode";
@@ -79,8 +79,13 @@ internal static partial class ArchiveSql
         reader.Close();
         if (version >= 9) ValidateLocalCollectionSchema(connection, transaction);
         if (version >= 6) ValidateNativeImportSchema(connection, transaction);
-        if (version >= 7) ValidateMediaImportSchema(connection, transaction);
-        if (version >= 8) ValidateMediaMergeSchema(connection, transaction);
+        if (version == 10) ValidateMediaTransferSchema10(connection, transaction);
+        else
+        {
+            // Old catalogs must validate as their own shape before any table is migrated.
+            if (version >= 7) ValidateMediaImportSchema(connection, transaction);
+            if (version >= 8) ValidateMediaMergeSchema(connection, transaction);
+        }
         if (version >= 2)
         {
             using SqliteCommand indexed = Command(connection, transaction, "");

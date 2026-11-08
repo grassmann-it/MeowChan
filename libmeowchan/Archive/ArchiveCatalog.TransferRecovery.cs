@@ -15,6 +15,7 @@ public sealed partial class ArchiveCatalog
         {
             using var transaction = connection.BeginTransaction(deferred: true);
             ArchiveSql.ValidateSchema(connection, transaction);
+            if (ArchiveSql.HasUnsupportedMediaTransferRecords(connection, transaction)) return true;
             // One scalar, one SQL snapshot, no operation JSON or payload materialization.
             // Content-free historical receipts may outlive operation cleanup; only a
             // surviving operation needs its own exact, count-consistent receipt.

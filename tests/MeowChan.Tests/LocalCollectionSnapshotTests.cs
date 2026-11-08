@@ -3,6 +3,7 @@ using System.Text;
 using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Tests.Transfer;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
@@ -28,7 +29,7 @@ public sealed class LocalCollectionSnapshotTests
     [Theory]
     [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
     [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)]
-    public async Task EveryValidLegacyVersionReturnsUnboundEmptyWithoutWriting(int version)
+    public async Task EveryPreCollectionVersionReturnsUnboundEmptyWithoutWriting(int version)
     {
         using Workspace files = new();
         files.SeedLegacy(version);
@@ -51,10 +52,13 @@ public sealed class LocalCollectionSnapshotTests
         Assert.Empty(Directory.GetDirectories(files.Profile));
     }
 
-    [Fact]
-    public async Task ListingIsBinaryOrderedBoundedAndCountIsCollectionsNotItems()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task ListingIsBinaryOrderedBoundedAndCountIsCollectionsNotItems(int version)
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new();
+        if (version == 9) files.SeedLegacy(9);
+        else await files.CreateCurrentAsync();
         files.SeedCollection(Other, 3, "same");
         files.SeedCollection(Collection, 2, "same");
         byte[] before = File.ReadAllBytes(files.Database);
@@ -72,10 +76,13 @@ public sealed class LocalCollectionSnapshotTests
         Assert.Equal(before, File.ReadAllBytes(files.Database));
     }
 
-    [Fact]
-    public async Task EmptyNineAndAbsentCollectionAreEmptyButRegisteredEmptyIsAnError()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task CompatibleEmptyAndAbsentCollectionAreEmptyButRegisteredEmptyIsAnError(int version)
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new();
+        if (version == 9) files.SeedLegacy(9);
+        else await files.CreateCurrentAsync();
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         Assert.Empty((await reader.ListLocalCollectionsAsync(0, 500, CancellationToken.None)).Items);
         Assert.Null(await reader.ReadLocalCollectionAsync(Collection, CancellationToken.None));
@@ -88,7 +95,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData(-1, 1)] [InlineData(0, 0)] [InlineData(0, 501)]
     public async Task InvalidArgumentsAreRejectedBeforeDatabaseIo(int offset, int limit)
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new(); await files.CreateCurrentAsync();
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         File.Delete(files.Database);
         Assert.Throws<LocalImportCodecException>(() => { _ = reader.ListLocalCollectionsAsync(offset, limit, CancellationToken.None); });
@@ -97,7 +104,7 @@ public sealed class LocalCollectionSnapshotTests
 
     [Theory]
     [InlineData("PRAGMA user_version=0")]
-    [InlineData("PRAGMA user_version=10")]
+    [InlineData("PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=1")]
     [InlineData("DROP TABLE local_import_receipts")]
     [InlineData("DROP TRIGGER import_fence_local_items_INSERT")]
@@ -111,7 +118,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("UPDATE archive_import_fence SET generation=1.5")]
     public async Task InvalidTargetIsNeverAnEmptyLibrary(string mutation)
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new(); await files.CreateCurrentAsync();
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         files.Corrupt(mutation);
         await RejectAsync(() => reader.ListLocalCollectionsAsync(0, 1, CancellationToken.None), LocalImportError.IntegrityFailure);
@@ -121,7 +128,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task CurrentDifferentInstanceIsAllowedAndMissingDatabaseIsNotAbsence()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         const string different = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
         files.Execute("UPDATE archive_import_fence SET instance=$value", ("$value", different));
@@ -134,7 +141,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task SameBytesBlobCollectionKeyIsNotSilentlyMissing()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 0);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 0);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         files.Corrupt("UPDATE local_collections SET collection_id=CAST(collection_id AS BLOB)");
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.IntegrityFailure);
@@ -144,17 +151,21 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task UnreadableDatabaseIsIoFailureNotEmpty()
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new(); await files.CreateCurrentAsync();
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         File.WriteAllBytes(files.Database, Encoding.UTF8.GetBytes("synthetic-not-a-sqlite-database"));
         await RejectAsync(() => reader.ListLocalCollectionsAsync(0, 1, CancellationToken.None), LocalImportError.IoFailure);
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.IoFailure);
     }
 
-    [Fact]
-    public async Task FrozenCompleteSnapshotRetainsFullMembershipAfterRowsAndReaderAreGone()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task FrozenCompleteSnapshotRetainsFullMembershipAfterRowsAndReaderAreGone(int version)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 3, "猫");
+        using Workspace files = new();
+        if (version == 9) files.SeedLegacy(9);
+        else await files.CreateCurrentAsync();
+        files.SeedCollection(Collection, 3, "猫");
         files.SetClaims(0, Encoding.UTF8.GetString(Codec.EncodeClaims(Claims())));
         files.SetClaims(1, Encoding.UTF8.GetString(Codec.EncodeClaims(Claims(LocalFieldPresence.Absent))));
         files.SetDisplay(0, null); files.SetDisplay(1, ""); files.SetDisplay(2, "café猫.jpg");
@@ -196,7 +207,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData(1)] [InlineData(1000)]
     public async Task FullItemBoundIsMaterializedNotJustOnePage(int count)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, count);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, count);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         var snapshot = (await reader.ReadLocalCollectionAsync(Collection, CancellationToken.None))!;
         Assert.Equal(count, snapshot.Count);
@@ -207,7 +218,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task ThousandAndOneItemsFailsBeforeClaimDecode()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1001, ignoreChecks: true);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1001, ignoreChecks: true);
         files.SetClaims(0, "invalid-json");
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         await RejectAsync(() => reader.ListLocalCollectionsAsync(0, 500, CancellationToken.None), LocalImportError.BudgetExceeded);
@@ -220,7 +231,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("UPDATE local_media_revisions SET role=1.5")]
     public async Task SummaryDoesNotHideMissingOrInvalidOriginals(string mutation)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         files.Corrupt(mutation);
         await RejectAsync(() => reader.ListLocalCollectionsAsync(0, 1, CancellationToken.None), LocalImportError.IntegrityFailure);
@@ -242,7 +253,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("UPDATE local_collections SET title=CAST(X'80' AS TEXT)")]
     public async Task StoredTypeAndIdentityCorruptionIsNotNormalized(string mutation)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         files.Corrupt(mutation);
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.IntegrityFailure);
@@ -253,7 +264,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("dir\\file.jpg")] [InlineData("\\\\server\\photo.jpg")]
     public async Task DisplayNameUsesTheExistingPlatformIndependentL0Rejection(string display)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         files.SetDisplay(0, display);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.InvalidSelection);
@@ -262,7 +273,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task MultibyteTitleAndDisplayLimitsAreRawUtf8BytesAndAllowEmpty()
     {
-        using Workspace files = new(); await files.CreateNineAsync();
+        using Workspace files = new(); await files.CreateCurrentAsync();
         string boundary = new('é', 2048);
         files.SeedCollection(Collection, 1, boundary); files.SetDisplay(0, boundary);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -283,7 +294,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("", (int)LocalImportError.IntegrityFailure)]
     public async Task SummariesDoNotLoadClaimsButSnapshotsFailClosed(string raw, int error)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         files.SetClaims(0, raw, ignoreChecks: true);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         Assert.Single((await reader.ListLocalCollectionsAsync(0, 1, CancellationToken.None)).Items);
@@ -293,7 +304,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task DefaultUrlPolicyFailsClosedButTrustedSqlPolicyMayReadInertClaims()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         const string url = "https://example.invalid/public";
         var trusted = new LocalImportCodec((p, v, u) => p == "synthetic" && v == 1 && u == url);
         files.SetClaims(0, Encoding.UTF8.GetString(trusted.EncodeClaims(Claims(url: url))));
@@ -310,7 +321,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task NullAbsentAndPresentEmptyClaimsRemainDifferent()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 3);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 3);
         files.SetClaims(1, Encoding.UTF8.GetString(Codec.EncodeClaims(Claims(LocalFieldPresence.Absent))));
         files.SetClaims(2, Encoding.UTF8.GetString(Codec.EncodeClaims(Claims() with { SourceTags = ImmutableArray<string>.Empty })));
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -324,7 +335,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task SlotByteBudgetIsEnforcedBeforeSemanticSlotValidation()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         files.Corrupt("UPDATE local_media_revisions SET payload_relative_path=$value",
             ("$value", new string('x', LocalImportBounds.MaximumRelativeSlotBytes + 1)));
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
@@ -334,7 +345,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task RawClaimsIndividualAndAggregateCapsPrecedeJsonDecode()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 17);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 17);
         string canonical = Encoding.UTF8.GetString(Codec.EncodeClaims(Claims()));
         string padded = canonical + new string(' ', LocalImportBounds.MaximumClaimsBytes - Encoding.UTF8.GetByteCount(canonical));
         for (int i = 0; i < 16; i++) files.SetClaims(i, padded);
@@ -352,7 +363,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("UPDATE local_items SET claims_json=CAST(claims_json AS BLOB)", (int)LocalImportError.IntegrityFailure)]
     public async Task ClaimsInvalidUtf8AndBlobStorageAreNotCoerced(string mutation, int error)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         files.SetClaims(0, Encoding.UTF8.GetString(Codec.EncodeClaims(Claims())));
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         files.Corrupt(mutation);
@@ -366,7 +377,7 @@ public sealed class LocalCollectionSnapshotTests
     [InlineData("local-import-operations/CCCCCCCCCCCC4CCC8CCCCCCCCCCCCCCC/payloads/33333333333343338333000000000001.original.bin")]
     public async Task StoredSlotsMustMatchRatherThanBeRecomputed(string slot)
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1);
         files.Execute("UPDATE local_media_revisions SET payload_relative_path=$value", ("$value", slot));
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.InvalidPayloadBinding);
@@ -375,7 +386,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task MixedOperationRootsAndCrossItemRevisionIdentityAreRejectedByL0()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 2);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 2);
         files.Execute("UPDATE local_media_revisions SET payload_relative_path=$slot WHERE item_id=$item",
             ("$slot", LocalImportCodec.PayloadRelativeSlot(Guid.Parse("dddddddd-dddd-4ddd-8ddd-dddddddddddd"), Revision(1))),
             ("$item", Item(1).ToString()));
@@ -390,7 +401,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task CheckedTotalLengthCannotOverflow()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 2);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 2);
         files.Execute("UPDATE local_media_revisions SET length=9223372036854775807");
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         await RejectAsync(() => reader.ReadLocalCollectionAsync(Collection, CancellationToken.None), LocalImportError.BudgetExceeded);
@@ -399,7 +410,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task BothSqlHelpersUseCallerSnapshotWhileWriterRemainsUncommitted()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 1, "old");
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 1, "old");
         using var c = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly);
         using var tx = c.BeginTransaction(deferred: true);
         var original = ArchiveSql.ReadLocalCollection(c, tx, Collection, files.Profile, Codec, CancellationToken.None)!;
@@ -425,7 +436,7 @@ public sealed class LocalCollectionSnapshotTests
     [Fact]
     public async Task CancellationAtEntryAndDuringTrustedClaimsDecodeNeverReturnsAPartialSnapshot()
     {
-        using Workspace files = new(); await files.CreateNineAsync(); files.SeedCollection(Collection, 2);
+        using Workspace files = new(); await files.CreateCurrentAsync(); files.SeedCollection(Collection, 2);
         await using var reader = await ArchiveReader.OpenAsync(files.Profile);
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ListLocalCollectionsAsync(0, 1, cancelled.Token));
@@ -452,7 +463,7 @@ public sealed class LocalCollectionSnapshotTests
         internal string Profile { get; } = Path.Combine(Path.GetTempPath(), "ochan-local-snapshot-" + Guid.NewGuid().ToString("N"));
         internal string Database => Path.Combine(Profile, "archive.db");
         internal Workspace() => Directory.CreateDirectory(Profile);
-        internal async Task CreateNineAsync()
+        internal async Task CreateCurrentAsync()
         {
             using ProfileLease lease = ProfileLease.Acquire(Profile);
             await using (var catalog = await ArchiveCatalog.OpenAsync(Profile, lease)) { }
@@ -513,8 +524,20 @@ public sealed class LocalCollectionSnapshotTests
             // Compatible synthetic v4/v5 superset, NOT an authentic historical release profile.
             if (version >= 4) ArchiveSql.CreateIntegritySchema(c, tx);
             if (version >= 6) ArchiveSql.CreateNativeImportSchema(c, tx);
-            if (version >= 7) ArchiveSql.CreateMediaImportSchema(c, tx);
-            if (version >= 8) ArchiveSql.CreateMediaMergeSchema(c, tx);
+            if (version == 9)
+                Schema9MediaOperationsFixture.CreateSchema9(c, tx);
+            else
+            {
+                if (version >= 7) ArchiveSql.CreateMediaImportSchema(c, tx);
+                if (version >= 8) ArchiveSql.CreateMediaMergeSchema(c, tx);
+            }
+            if (version >= 9)
+            {
+                ArchiveSql.CreateLocalCollectionSchema(c, tx);
+                using var instance = ArchiveSql.Command(c, tx, "UPDATE archive_import_fence SET instance=$value");
+                instance.Parameters.AddWithValue("$value", Instance);
+                instance.ExecuteNonQuery();
+            }
             using var stamp = ArchiveSql.Command(c, tx, $"PRAGMA user_version={version}"); stamp.ExecuteNonQuery(); tx.Commit();
         }
         public void Dispose() => Directory.Delete(Profile, true);

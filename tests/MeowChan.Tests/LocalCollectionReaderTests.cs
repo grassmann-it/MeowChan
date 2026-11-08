@@ -3,6 +3,7 @@ using System.Text;
 using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Tests.Transfer;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
@@ -25,11 +26,13 @@ public sealed class LocalCollectionReaderTests
             new(Guid.Parse("22222222-2222-2222-2222-222222222222")),
             new(Guid.Parse("33333333-3333-3333-3333-333333333333"))), 0, LocalMediaRole.Original, 0, Hash)));
 
-    [Fact]
-    public async Task AbsenceRequiresCompatibleSameInstanceNineAndDoesNotWrite()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task AbsenceRequiresCompatibleSameInstanceSchemaAndDoesNotWrite(int version)
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        if (version == 9) files.SeedLegacy(9);
+        else await files.CreateCurrentAsync();
         byte[] before = File.ReadAllBytes(files.Database);
         Assert.Null(await ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None));
         using (var connection = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly))
@@ -45,7 +48,7 @@ public sealed class LocalCollectionReaderTests
     public async Task StaticLookupSurvivesOwnerAndReaderDisposalButInstanceHonorsReaderLifetime()
     {
         using Workspace files = new();
-        await files.CreateNineAsync(); // The creating Catalog AND ProfileLease are already disposed.
+        await files.CreateCurrentAsync(); // The creating Catalog AND ProfileLease are already disposed.
         var expected = Receipt();
         files.InsertReceipt(expected);
         var reader = await ArchiveReader.OpenAsync(files.Directory);
@@ -57,11 +60,13 @@ public sealed class LocalCollectionReaderTests
         Assert.Equal(before, File.ReadAllBytes(files.Database));
     }
 
-    [Fact]
-    public async Task HistoricalReceiptSurvivesContentDeletionAndNewGenerationWithoutInventoryOrPayload()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task HistoricalReceiptSurvivesContentDeletionAndNewGenerationWithoutInventoryOrPayload(int version)
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        if (version == 9) files.SeedLegacy(9);
+        else await files.CreateCurrentAsync();
         var expected = Receipt();
         files.InsertReceipt(expected);
         files.Execute("""
@@ -91,7 +96,7 @@ public sealed class LocalCollectionReaderTests
     public async Task ExpectedDigestConflictIsNotAbsenceAndRecoveryUsesValidatedStoredDigest()
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         var stored = Receipt() with { RequestSha256 = new string('b', 64) };
         files.InsertReceipt(stored);
         await RejectReadAsync(() => ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None),
@@ -125,11 +130,11 @@ public sealed class LocalCollectionReaderTests
     }
 
     [Fact]
-    public async Task SamePathReplacementV8AfterSuccessfulNineReadIsNotNegativeCommitProof()
+    public async Task SamePathReplacementV8AfterSuccessfulCurrentReadIsNotNegativeCommitProof()
     {
         using Workspace files = new();
         using Workspace replacement = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.InsertReceipt(Receipt());
         Assert.NotNull(await ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None));
         replacement.SeedLegacy(8); // Same instance is deliberately insufficient; the version changed.
@@ -140,7 +145,7 @@ public sealed class LocalCollectionReaderTests
     }
 
     [Theory]
-    [InlineData("PRAGMA user_version=10")]
+    [InlineData("PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=123")]
     [InlineData("DROP TABLE local_import_receipts")]
     [InlineData("DROP TRIGGER import_fence_local_items_INSERT")]
@@ -150,7 +155,7 @@ public sealed class LocalCollectionReaderTests
     public async Task IncompatibleOrNoncanonicalTargetCannotHideBehindAbsentReceipt(string mutation)
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.Execute(mutation);
         await RejectReadAsync(() => ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None),
             LocalImportError.TargetReplaced);
@@ -160,7 +165,7 @@ public sealed class LocalCollectionReaderTests
     public async Task RedundantCollectionHeaderMustAgreeWithJsonForBothLookups()
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.InsertReceipt(Receipt());
         files.Execute("UPDATE local_import_receipts SET collection_id='55555555-5555-5555-5555-555555555555'");
         await RejectReadAsync(() => ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None),
@@ -179,7 +184,7 @@ public sealed class LocalCollectionReaderTests
     public async Task BlobStorageIsRejectedRatherThanCoercedToValidText(string column)
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.InsertReceipt(Receipt());
         // These column names are test-owned literals, not product SQL input.
         files.Execute($"PRAGMA ignore_check_constraints=ON; UPDATE local_import_receipts SET {column}=CAST({column} AS BLOB)");
@@ -191,7 +196,7 @@ public sealed class LocalCollectionReaderTests
     public async Task RawByteBudgetIsCheckedBeforeJsonParsing()
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.InsertReceipt(Receipt());
         files.ReplaceJson(new string(' ', LocalImportBounds.MaximumReceiptBytes + 1), ignoreChecks: true);
         await RejectReadAsync(() => ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None),
@@ -202,7 +207,7 @@ public sealed class LocalCollectionReaderTests
     public async Task LoadedCodecFailureRetainsCodeWithoutPrivateDiagnosticText()
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         files.InsertReceipt(Receipt());
         files.ReplaceJson("{\"untrusted-private-source\":\"not-a-receipt\"}");
         await RejectReadAsync(() => ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Database, Key, CancellationToken.None),
@@ -216,7 +221,7 @@ public sealed class LocalCollectionReaderTests
     public async Task HeaderFenceAndReceiptShareCallerSnapshotWhileWriterIsUncommitted()
     {
         using Workspace files = new();
-        await files.CreateNineAsync();
+        await files.CreateCurrentAsync();
         var oldReceipt = Receipt();
         var newReceipt = oldReceipt with { RequestSha256 = new string('b', 64) };
         files.InsertReceipt(oldReceipt);
@@ -303,7 +308,7 @@ public sealed class LocalCollectionReaderTests
         internal string Database => Path.Combine(Directory, "archive.db");
         internal Workspace() => System.IO.Directory.CreateDirectory(Directory);
 
-        internal async Task CreateNineAsync()
+        internal async Task CreateCurrentAsync()
         {
             using ProfileLease lease = ProfileLease.Acquire(Directory);
             await using (var catalog = await ArchiveCatalog.OpenAsync(Directory, lease)) { }
@@ -327,8 +332,14 @@ public sealed class LocalCollectionReaderTests
                 instance.Parameters.AddWithValue("$instance", Instance);
                 instance.ExecuteNonQuery();
             }
-            if (version >= 7) ArchiveSql.CreateMediaImportSchema(connection, tx);
-            if (version >= 8) ArchiveSql.CreateMediaMergeSchema(connection, tx);
+            if (version == 9)
+                Schema9MediaOperationsFixture.CreateSchema9(connection, tx);
+            else
+            {
+                if (version >= 7) ArchiveSql.CreateMediaImportSchema(connection, tx);
+                if (version >= 8) ArchiveSql.CreateMediaMergeSchema(connection, tx);
+            }
+            if (version >= 9) ArchiveSql.CreateLocalCollectionSchema(connection, tx);
             using var stamp = ArchiveSql.Command(connection, tx, $"PRAGMA user_version={version}");
             stamp.ExecuteNonQuery();
             tx.Commit();

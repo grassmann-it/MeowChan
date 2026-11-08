@@ -1,6 +1,7 @@
 using System.Text;
 using MeowChan.Archive;
 using MeowChan.Storage;
+using MeowChan.Tests.Transfer;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
@@ -47,7 +48,7 @@ public sealed class LocalCollectionReceiptAdversarialTests
 
     [Theory]
     [InlineData("PRAGMA application_id=123")]
-    [InlineData("PRAGMA user_version=10")]
+    [InlineData("PRAGMA user_version=11")]
     [InlineData("UPDATE archive_import_fence SET instance='60708090-a0b0-c0d0-e0f0-010203040506'")]
     public async Task IncompatibleOrForeignTargetIsNeverReportedAsReceiptAbsence(string mutation)
     {
@@ -264,8 +265,8 @@ public sealed class LocalCollectionReceiptAdversarialTests
             ArchiveSql.CreateSourceContractSchema(c, tx);
             ArchiveSql.CreateIntegritySchema(c, tx);
             ArchiveSql.CreateNativeImportSchema(c, tx);
-            ArchiveSql.CreateMediaImportSchema(c, tx);
-            ArchiveSql.CreateMediaMergeSchema(c, tx);
+            // Frozen legacy media tables, never a current schema with an old stamp.
+            Schema9MediaOperationsFixture.CreateSchema9(c, tx);
             if (version == 9) ArchiveSql.CreateLocalCollectionSchema(c, tx);
             LocalCollectionReceiptAdversarialTests.Execute(c, $"UPDATE archive_import_fence SET instance='{Instance}'; PRAGMA user_version={version}", tx);
             ArchiveSql.ValidateSchema(c, tx);

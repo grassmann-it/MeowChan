@@ -151,8 +151,11 @@ public sealed class NativeTransferStartupRecoveryHostTests
             if (receipt != "none")
             {
                 using var add = connection.CreateCommand(); add.Transaction = transaction;
-                add.CommandText = $"INSERT INTO {table}_receipts VALUES($op,$hash," +
-                    (merge.Value ? "$posts,0,1,0,0)" : "$posts,1)");
+                string receiptColumns = merge.Value
+                    ? "operation_id,request_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts"
+                    : "operation_id,request_sha256,post_count,attachment_count";
+                string receiptValues = merge.Value ? "$op,$hash,$posts,0,1,0,0" : "$op,$hash,$posts,1";
+                add.CommandText = $"INSERT INTO {table}_receipts({receiptColumns}) VALUES({receiptValues})";
                 add.Parameters.AddWithValue("$op", Operation);
                 add.Parameters.AddWithValue("$hash", receipt == "request" ? new string('b', 64) : Hash);
                 add.Parameters.AddWithValue("$posts", receipt == "counts" ? 99 : 1);

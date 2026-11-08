@@ -60,8 +60,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                     ArchiveSql.CreateSourceContractSchema(connection, transaction);
                     ArchiveSql.CreateIntegritySchema(connection, transaction);
                     ArchiveSql.CreateNativeImportSchema(connection, transaction);
-                    ArchiveSql.CreateMediaImportSchema(connection, transaction);
-                    ArchiveSql.CreateMediaMergeSchema(connection, transaction);
+                    ArchiveSql.CreateMediaTransferSchema10(connection, transaction);
                 }
                 else
                 {
@@ -77,9 +76,12 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                     }
                 }
                 if (fresh || version < 9)
-                {
                     ArchiveSql.CreateLocalCollectionSchema(connection, transaction);
-                    ArchiveSql.ValidateTargetSchema(connection, transaction, 9);
+                if (!fresh && version < 10)
+                    ArchiveSql.MigrateMediaTransferSchema10(connection, transaction, cancellationToken);
+                if (fresh || version < 10)
+                {
+                    ArchiveSql.ValidateTargetSchema(connection, transaction, 10);
                     if (fresh)
                     {
                         using SqliteCommand app = ArchiveSql.Command(connection, transaction,
@@ -87,7 +89,7 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                         app.ExecuteNonQuery();
                     }
                     // Last schema mutation. Cancellation or any fault still rolls back the DDL and stamp.
-                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=9");
+                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=10");
                     stamp.ExecuteNonQuery();
                 }
                 cancellationToken.ThrowIfCancellationRequested();

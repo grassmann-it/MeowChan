@@ -75,7 +75,7 @@ public sealed class NativeTransferStartupRecoveryTests
         using (var c = ArchiveSql.OpenConnection(catalog.DatabasePath, SqliteOpenMode.ReadWrite))
         using (var command = ArchiveSql.Command(c, null, "DROP TABLE archive_media_merge_receipts"))
             command.ExecuteNonQuery();
-        await Assert.ThrowsAsync<SqliteException>(() => catalog.EnsureNativeMediaRecoveryClearAsync());
+        await Assert.ThrowsAsync<InvalidDataException>(() => catalog.EnsureNativeMediaRecoveryClearAsync());
     }
 
     [Theory]
@@ -192,7 +192,9 @@ public sealed class NativeTransferStartupRecoveryTests
             using var command = ArchiveSql.Command(c, null, """
                 SELECT (SELECT count(*) FROM archive_media_merge_operations),
                        (SELECT count(*) FROM archive_media_merge_receipts WHERE operation_id=$op AND request_sha256=$hash
-                           AND new_posts=1 AND updated_posts=0 AND new_attachments=1 AND new_bindings=0 AND conflicts=0)
+                           AND new_posts=1 AND updated_posts=0 AND new_attachments=1 AND new_bindings=0 AND conflicts=0
+                           AND plan_version=1 AND evidence_additions=0 AND derived_descriptor_additions=0
+                           AND contained_derived_additions=0)
                 """);
             command.Parameters.AddWithValue("$op", Operation);
             command.Parameters.AddWithValue("$hash", Hash);
@@ -259,7 +261,12 @@ public sealed class NativeTransferStartupRecoveryTests
             int result = insert.ExecuteNonQuery();
             if (receipt)
             {
-                using var addReceipt = ArchiveSql.Command(c, tx, $"INSERT INTO {table}_receipts VALUES ($op,$hash," + (merge ? "1,0,1,0,0)" : "1,1)"));
+                // Seed only the legacy v1 fields; Schema10 supplies plan_version=1 and zero counters.
+                string receiptColumns = merge
+                    ? "operation_id,request_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts"
+                    : "operation_id,request_sha256,post_count,attachment_count";
+                using var addReceipt = ArchiveSql.Command(c, tx,
+                    $"INSERT INTO {table}_receipts({receiptColumns}) VALUES ($op,$hash," + (merge ? "1,0,1,0,0)" : "1,1)"));
                 addReceipt.Parameters.AddWithValue("$op", Operation); addReceipt.Parameters.AddWithValue("$hash", Hash);
                 addReceipt.ExecuteNonQuery();
             }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using MeowChan.Archive;
 using MeowChan.Storage;
+using MeowChan.Tests.Transfer;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
@@ -16,16 +17,17 @@ public sealed class LocalCollectionReceiptReadIsolationTests
     private static readonly string Digest = new('a', 64);
     private static LocalImportReceiptKey Key => new(Instance, Guid.Parse(Operation), Digest);
 
-    [Fact]
-    public async Task AtPathSeesLaterCommitWhileOtherReaderRemainsAliveAndAbsent()
+    [Theory]
+    [InlineData(9, 9)] [InlineData(9, 10)] [InlineData(10, 9)] [InlineData(10, 10)]
+    public async Task AtPathSeesLaterCommitWhileOtherReaderRemainsAliveAndAbsent(int mainVersion, int targetVersion)
     {
         using var files = new Workspace();
-        files.Seed(files.Main, 9);
-        files.Seed(files.Target, 9);
+        files.Seed(files.Main, mainVersion);
+        files.Seed(files.Target, targetVersion);
         await using var main = await ArchiveReader.OpenAsync(files.MainDirectory);
         await using var targetReader = await ArchiveReader.OpenAsync(Path.GetDirectoryName(files.Target)!);
         Assert.Null(await targetReader.ReadLocalImportReceiptAsync(Key, CancellationToken.None));
-        // Main DB and target begin with identical compatible headers but independent contents.
+        // Main DB and target have compatible v9/v10 schemas and matching instances, but independent contents.
         Assert.Null(await main.ReadLocalImportReceiptAsync(Key, CancellationToken.None));
         string[] beforeAbsent = files.Fingerprint();
         Assert.Null(await ArchiveReader.ReadLocalImportReceiptAtPathAsync(files.Target, Key, CancellationToken.None));
@@ -43,12 +45,13 @@ public sealed class LocalCollectionReceiptReadIsolationTests
         Assert.Equal(afterCommit, files.Fingerprint());
     }
 
-    [Fact]
-    public async Task LiveLegacyReaderDoesNotImposeItsSchemaOnIndependentNineReceipt()
+    [Theory]
+    [InlineData(9)] [InlineData(10)]
+    public async Task LiveLegacyReaderDoesNotImposeItsSchemaOnIndependentCompatibleReceipt(int targetVersion)
     {
         using var files = new Workspace();
         files.Seed(files.Main, 8);
-        files.Seed(files.Target, 9);
+        files.Seed(files.Target, targetVersion);
         files.InsertReceipt(files.Target);
         await using var legacy = await ArchiveReader.OpenAsync(files.MainDirectory);
         Assert.Empty((await legacy.ListThreadsAsync()).Items);
@@ -61,16 +64,16 @@ public sealed class LocalCollectionReceiptReadIsolationTests
     }
 
     [Theory]
-    [InlineData("legacy8")]
-    [InlineData("unknown10")]
-    [InlineData("foreignInstance")]
-    public async Task LiveMatchingNineReaderCannotAuthorizeAnotherIncompatibleAtPathTarget(string kind)
+    [InlineData(9, "legacy8")] [InlineData(10, "legacy8")]
+    [InlineData(9, "unknown11")] [InlineData(10, "unknown11")]
+    [InlineData(9, "foreignInstance")] [InlineData(10, "foreignInstance")]
+    public async Task LiveMatchingReaderCannotAuthorizeAnotherIncompatibleAtPathTarget(int mainVersion, string kind)
     {
         using var files = new Workspace();
-        files.Seed(files.Main, 9);
+        files.Seed(files.Main, mainVersion);
         files.InsertReceipt(files.Main);
-        files.Seed(files.Target, kind == "legacy8" ? 8 : 9);
-        if (kind == "unknown10") files.Execute(files.Target, "PRAGMA user_version=10");
+        files.Seed(files.Target, kind == "legacy8" ? 8 : mainVersion);
+        if (kind == "unknown11") files.Execute(files.Target, "PRAGMA user_version=11");
         if (kind == "foreignInstance") files.Execute(files.Target, $"UPDATE archive_import_fence SET instance='{Foreign}'");
         await using var main = await ArchiveReader.OpenAsync(files.MainDirectory);
         AssertHistorical(await main.ReadLocalImportReceiptAsync(Key, CancellationToken.None));
@@ -124,9 +127,16 @@ public sealed class LocalCollectionReceiptReadIsolationTests
             ArchiveSql.CreateSourceContractSchema(c, tx);
             ArchiveSql.CreateIntegritySchema(c, tx);
             ArchiveSql.CreateNativeImportSchema(c, tx);
-            ArchiveSql.CreateMediaImportSchema(c, tx);
-            ArchiveSql.CreateMediaMergeSchema(c, tx);
-            if (version == 9) ArchiveSql.CreateLocalCollectionSchema(c, tx);
+            // Frozen legacy v9 tables, or the current schema10 tables, never a current
+            // schema restamped as an older version.
+            if (version == 10) ArchiveSql.CreateMediaTransferSchema10(c, tx);
+            else if (version == 9) Schema9MediaOperationsFixture.CreateSchema9(c, tx);
+            else
+            {
+                ArchiveSql.CreateMediaImportSchema(c, tx);
+                if (version >= 8) ArchiveSql.CreateMediaMergeSchema(c, tx);
+            }
+            if (version >= 9) ArchiveSql.CreateLocalCollectionSchema(c, tx);
             using var stamp = ArchiveSql.Command(c, tx,
                 $"UPDATE archive_import_fence SET instance='{Instance}'; PRAGMA user_version={version}");
             stamp.ExecuteNonQuery();

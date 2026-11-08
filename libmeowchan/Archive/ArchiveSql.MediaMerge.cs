@@ -85,6 +85,7 @@ internal static partial class ArchiveSql
         NativeMediaMergePlan plan)
     {
         ValidateMediaMergePlanIdentity(plan);
+        RequireLegacyMediaTransferRecords(connection, transaction);
         using SqliteCommand command = Command(connection, transaction, """
             INSERT INTO archive_media_merge_operations(
                 operation_id,request_sha256,package_fingerprint,catalog_instance,catalog_generation,
@@ -118,6 +119,7 @@ internal static partial class ArchiveSql
         ResourceId resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
+        if (HasUnsupportedMediaTransferRecords(connection, transaction)) return true;
         using SqliteCommand command = Command(connection, transaction, """
             SELECT EXISTS (
                 SELECT 1 FROM archive_media_merge_operations
@@ -135,13 +137,19 @@ internal static partial class ArchiveSql
         SqliteTransaction? transaction, Guid operation, string request)
     {
         ValidateMediaMergeIdentity(operation, request);
-        using SqliteCommand command = Command(connection, transaction, """
-            SELECT request_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts
+        if (transaction is null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            return ReadMediaMergeReceipt(connection, snapshot, operation, request);
+        }
+        using SqliteCommand command = Command(connection, transaction, $"""
+            SELECT request_sha256,new_posts,updated_posts,new_attachments,new_bindings,conflicts,{MediaPlanVersionColumn(connection, transaction)}
             FROM archive_media_merge_receipts WHERE operation_id=$op
             """);
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
+        RequireLegacyMediaPlanRow(reader);
         if (reader.GetString(0) != request)
             throw new InvalidDataException("The media merge receipt has different input.");
         ValidateStoredHash(reader.GetString(0), "receipt request");
@@ -158,8 +166,13 @@ internal static partial class ArchiveSql
         SqliteTransaction? transaction, Guid operation, string request)
     {
         ValidateMediaMergeIdentity(operation, request);
+        if (transaction is null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            return ReadMediaMergeOperation(connection, snapshot, operation, request);
+        }
         using SqliteCommand command = Command(connection, transaction,
-            $"SELECT {MediaMergeOperationColumns} FROM archive_media_merge_operations WHERE operation_id=$op");
+            $"SELECT {MediaMergeOperationColumns},{MediaPlanVersionColumn(connection, transaction)} FROM archive_media_merge_operations WHERE operation_id=$op");
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
@@ -173,8 +186,9 @@ internal static partial class ArchiveSql
         Guid? after)
     {
         if (after == Guid.Empty) throw new ArgumentException("Invalid media merge cursor.", nameof(after));
-        using SqliteCommand command = Command(connection, null,
-            $"SELECT {MediaMergeOperationColumns} FROM archive_media_merge_operations "
+        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        using SqliteCommand command = Command(connection, transaction,
+            $"SELECT {MediaMergeOperationColumns},{MediaPlanVersionColumn(connection, transaction)} FROM archive_media_merge_operations "
             + "WHERE operation_id>$after ORDER BY operation_id LIMIT 33");
         command.Parameters.AddWithValue("$after", after?.ToString("D") ?? string.Empty);
         using SqliteDataReader reader = command.ExecuteReader();
@@ -188,6 +202,7 @@ internal static partial class ArchiveSql
                 next = found[31].OperationId;
                 break;
             }
+            RequireLegacyMediaPlanRow(reader); // Reject v2 before materializing any catalog/selection.
             long length = reader.GetBytes(14, 0, null, 0, 0);
             if (length > 16L * 1024 * 1024)
                 throw new InvalidDataException("A media merge catalog exceeds its storage limit.");
@@ -230,6 +245,7 @@ internal static partial class ArchiveSql
     {
         ValidateMediaMergePlanIdentity(plan);
         ValidateMediaMergeCandidates(plan, full, safe);
+        RequireLegacyMediaOperation(connection, transaction, merge: true, plan.OperationId);
         using SqliteCommand command = Command(connection, transaction, """
             SELECT 1 FROM archive_media_merge_operations
             WHERE operation_id=$op AND request_sha256=$request
@@ -344,6 +360,7 @@ internal static partial class ArchiveSql
     internal static void DeleteCommittedMediaMergeOperations(SqliteConnection connection,
         SqliteTransaction transaction, ResourceId id)
     {
+        RequireLegacyMediaTransferRecords(connection, transaction);
         using SqliteCommand command = Command(connection, transaction, """
             DELETE FROM archive_media_merge_operations
             WHERE source=$source AND board=$board AND thread=$thread AND state='Committed'
@@ -396,6 +413,7 @@ internal static partial class ArchiveSql
     private static bool MediaMergePreparingOperationMatches(SqliteConnection connection,
         SqliteTransaction transaction, NativeMediaMergePlan plan)
     {
+        RequireLegacyMediaOperation(connection, transaction, merge: true, plan.OperationId);
         using SqliteCommand command = Command(connection, transaction, """
             SELECT 1 FROM archive_media_merge_operations
             WHERE operation_id=$op AND request_sha256=$request
@@ -417,6 +435,7 @@ internal static partial class ArchiveSql
 
     private static NativeMediaMergeOperation ReadMediaMergeOperationRow(SqliteDataReader reader)
     {
+        RequireLegacyMediaPlanRow(reader);
         Guid operation;
         try { operation = Guid.ParseExact(reader.GetString(0), "D"); }
         catch (Exception error) when (error is FormatException or OverflowException)

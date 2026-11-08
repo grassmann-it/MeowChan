@@ -87,6 +87,7 @@ internal static partial class ArchiveSql
 
     internal static bool ClaimMediaImport(SqliteConnection connection, SqliteTransaction transaction, NativeMediaImportPlan plan)
     {
+        RequireLegacyMediaTransferRecords(connection, transaction);
         using SqliteCommand command = Command(connection, transaction, """
             INSERT INTO archive_media_import_operations(operation_id,request_sha256,package_fingerprint,
                 catalog_instance,catalog_generation,source,board,thread,operations_parent,imported_at,state,
@@ -131,8 +132,13 @@ internal static partial class ArchiveSql
         SqliteTransaction? transaction, Guid operation, string request)
     {
         ValidateMediaImportIdentity(operation, request);
+        if (transaction is null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            return ReadMediaImportOperation(connection, snapshot, operation, request);
+        }
         using SqliteCommand command = Command(connection, transaction,
-            $"SELECT {MediaOperationColumns} FROM archive_media_import_operations WHERE operation_id=$op");
+            $"SELECT {MediaOperationColumns},{MediaPlanVersionColumn(connection, transaction)} FROM archive_media_import_operations WHERE operation_id=$op");
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
@@ -142,15 +148,21 @@ internal static partial class ArchiveSql
     }
 
     private static NativeMediaImportOperation ReadMediaImportOperationRow(SqliteDataReader reader)
-        => new(Guid.ParseExact(reader.GetString(0), "D"), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4),
+    {
+        RequireLegacyMediaPlanRow(reader);
+        return new(Guid.ParseExact(reader.GetString(0), "D"), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4),
             new(reader.GetString(5), reader.GetString(6), reader.GetString(7)), reader.GetString(8),
             Enum.Parse<NativeMediaImportOperationState>(reader.GetString(9), ignoreCase: false), ParseDate(reader.GetString(10)),
             NullableString(reader, 11), NullableString(reader, 12), reader.GetInt32(13), reader.GetInt32(14));
+    }
 
     internal static NativeMediaImportOperationPage ReadMediaImportOperationsPage(SqliteConnection connection, Guid? after)
     {
-        using SqliteCommand command = Command(connection, null,
-            $"SELECT {MediaOperationColumns} FROM archive_media_import_operations WHERE operation_id>$after ORDER BY operation_id LIMIT 33");
+        // Pin the schema header and rows together; a concurrent 9→10 migration must
+        // not make the literal legacy-version projection describe a new v2 row.
+        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        using SqliteCommand command = Command(connection, transaction,
+            $"SELECT {MediaOperationColumns},{MediaPlanVersionColumn(connection, transaction)} FROM archive_media_import_operations WHERE operation_id>$after ORDER BY operation_id LIMIT 33");
         command.Parameters.AddWithValue("$after", after?.ToString("D") ?? "");
         using SqliteDataReader reader = command.ExecuteReader();
         var items = ImmutableArray.CreateBuilder<NativeMediaImportOperation>();
@@ -174,13 +186,19 @@ internal static partial class ArchiveSql
         SqliteTransaction? transaction, Guid operation, string request)
     {
         ValidateMediaImportIdentity(operation, request);
-        using SqliteCommand command = Command(connection, transaction, """
-            SELECT request_sha256,post_count,attachment_count FROM archive_media_import_receipts
+        if (transaction is null)
+        {
+            using SqliteTransaction snapshot = connection.BeginTransaction(deferred: true);
+            return ReadMediaImportReceipt(connection, snapshot, operation, request);
+        }
+        using SqliteCommand command = Command(connection, transaction, $"""
+            SELECT request_sha256,post_count,attachment_count,{MediaPlanVersionColumn(connection, transaction)} FROM archive_media_import_receipts
             WHERE operation_id=$op
             """);
         command.Parameters.AddWithValue("$op", operation.ToString("D"));
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read()) return null;
+        RequireLegacyMediaPlanRow(reader);
         if (reader.GetString(0) != request) throw new InvalidDataException("The media import receipt has different input.");
         return new(NativeMediaImportCommitStatus.Committed, 1, reader.GetInt32(1), reader.GetInt32(2), IsReplay: true);
     }
@@ -188,6 +206,7 @@ internal static partial class ArchiveSql
     internal static bool MediaImportOperationMatches(SqliteConnection connection, SqliteTransaction transaction,
         NativeMediaImportPlan plan, NativeMediaImportOperationState state, PassiveMediaImportCandidate? candidate = null, string? bindingsHash = null)
     {
+        RequireLegacyMediaOperation(connection, transaction, merge: false, plan.OperationId);
         using SqliteCommand command = Command(connection, transaction, """
             SELECT 1 FROM archive_media_import_operations WHERE operation_id=$op AND request_sha256=$request
                 AND package_fingerprint=$fingerprint AND catalog_instance=$instance AND catalog_generation=$generation
@@ -222,6 +241,7 @@ internal static partial class ArchiveSql
 
     internal static void FinishMediaImport(SqliteConnection connection, SqliteTransaction transaction, NativeMediaImportPlan plan)
     {
+        RequireLegacyMediaOperation(connection, transaction, merge: false, plan.OperationId);
         using (SqliteCommand receipt = Command(connection, transaction, """
             INSERT INTO archive_media_import_receipts(operation_id,request_sha256,post_count,attachment_count)
             SELECT operation_id,request_sha256,post_count,attachment_count
@@ -243,6 +263,7 @@ internal static partial class ArchiveSql
     internal static void DeleteCommittedMediaImportOperations(SqliteConnection connection,
         SqliteTransaction transaction, ResourceId id)
     {
+        RequireLegacyMediaTransferRecords(connection, transaction);
         using SqliteCommand command = Command(connection, transaction, """
             DELETE FROM archive_media_import_operations
             WHERE source=$source AND board=$board AND thread=$thread AND state='Committed'
@@ -254,6 +275,10 @@ internal static partial class ArchiveSql
     internal static void InsertMediaImportContent(SqliteConnection connection, SqliteTransaction transaction,
         NativeMediaImportPlan plan, PassiveMediaImportCandidate candidate)
     {
+        // Content mutation is an Apply boundary, not merely a helper after preparation.
+        // Keep the v2 gate adjacent to the first INSERT so a future caller cannot
+        // materialize a v2 plan before FinishMediaImport rejects its receipt.
+        RequireLegacyMediaOperationForApply(connection, transaction, merge: false, plan.OperationId);
         TransferThread thread = plan.Thread;
         using (SqliteCommand command = Command(connection, transaction, """
             INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,

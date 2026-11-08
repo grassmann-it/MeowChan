@@ -115,11 +115,14 @@ public sealed class NativeMediaMergeSafetyTests
         }
         string db = Path.Combine(files.Profile, "archive.db");
         using (SqliteConnection connection = ArchiveSql.OpenConnection(db, SqliteOpenMode.ReadWrite))
-        using (SqliteCommand command = connection.CreateCommand())
+        using (SqliteTransaction tx = connection.BeginTransaction())
         {
-            // Schema-shape fixture, not a released-client provenance claim.
-            command.CommandText = "DROP TABLE archive_media_merge_operations; DROP TABLE archive_media_merge_receipts; PRAGMA user_version=7";
+            // Preserve the committed v1 import/receipt in genuine old media-table DDL.
+            RestoreSchema9MediaOperations(connection, tx);
+            using var command = ArchiveSql.Command(connection, tx,
+                "DROP TABLE archive_media_merge_operations; DROP TABLE archive_media_merge_receipts; PRAGMA user_version=7");
             command.ExecuteNonQuery();
+            tx.Commit();
         }
         byte[] before = await File.ReadAllBytesAsync(db);
         await using (ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile)) Assert.NotNull(await reader.ReadThreadAsync(Id));
@@ -129,7 +132,7 @@ public sealed class NativeMediaMergeSafetyTests
         Assert.Equal(committed with { IsReplay = true }, await migrated.ReadNativeMediaImportReceiptAsync(operation, request));
         Assert.Empty((await migrated.ReadNativeMediaMergeOperationsPageAsync()).Items);
         using SqliteConnection read = ArchiveSql.OpenConnection(db, SqliteOpenMode.ReadOnly);
-        Assert.Equal(9, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(10, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     // Direct synthetic storage owner via existing Core IVT, not public Registry startup.

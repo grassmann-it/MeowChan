@@ -218,10 +218,14 @@ public sealed class NativeMediaImportTests
                 "migration sentinel", Path.Combine(files.Profile, "inert"), false));
         string database = Path.Combine(files.Profile, "archive.db");
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadWrite))
-        using (SqliteCommand command = connection.CreateCommand())
+        using (SqliteTransaction tx = connection.BeginTransaction())
         {
-            // A schema-shape fixture, not a claim that a released predecessor generated it.
-            command.CommandText = "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6"; command.ExecuteNonQuery();
+            // Rebuild the frozen old media tables before restamping; v10 tables are not v6.
+            RestoreSchema9MediaOperations(connection, tx);
+            using var command = ArchiveSql.Command(connection, tx,
+                "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6");
+            command.ExecuteNonQuery();
+            tx.Commit();
         }
         string[] before;
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
@@ -233,7 +237,7 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog migrated = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
         {
-            Assert.Equal(9, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(10, ArchiveSql.GetPragma(connection, "user_version"));
             var fence = ArchiveSql.ReadImportFence(connection, null);
             Assert.Equal(before, new[] { fence.Instance, fence.Generation.ToString() });
         }
@@ -298,10 +302,27 @@ public sealed class NativeMediaImportTests
         using SqliteConnection connection = ArchiveSql.OpenConnection(Path.Combine(files.Profile, "archive.db"), SqliteOpenMode.ReadOnly);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "PRAGMA table_info(archive_media_import_receipts)";
-        using SqliteDataReader columns = command.ExecuteReader();
         List<string> names = [];
-        while (columns.Read()) names.Add(columns.GetString(1));
-        Assert.Equal(new[] { "operation_id", "request_sha256", "post_count", "attachment_count" }, names);
+        using (SqliteDataReader columns = command.ExecuteReader())
+            while (columns.Read()) names.Add(columns.GetString(1));
+        // Schema10 adds only version/counters; historical receipts still contain no content or paths.
+        Assert.Equal(new[] { "operation_id", "request_sha256", "post_count", "attachment_count",
+            "plan_version", "evidence_additions", "derived_descriptor_additions",
+            "contained_derived_additions", "original_binding_count" }, names);
+        command.CommandText = """
+            SELECT operation_id,request_sha256,post_count,attachment_count,plan_version,
+                evidence_additions,derived_descriptor_additions,contained_derived_additions,original_binding_count
+            FROM archive_media_import_receipts
+            """;
+        using SqliteDataReader row = command.ExecuteReader();
+        Assert.True(row.Read());
+        Assert.Equal(plan.OperationId.ToString("D"), row.GetString(0));
+        Assert.Equal(plan.RequestSha256, row.GetString(1));
+        Assert.Equal(2L, row.GetInt64(2));
+        Assert.Equal(1L, row.GetInt64(3));
+        Assert.Equal(1L, row.GetInt64(4)); // The existing producer still writes v1 receipts.
+        for (int i = 5; i < 9; i++) Assert.Equal(0L, row.GetInt64(i));
+        Assert.False(row.Read());
     }
 
     [Theory]
@@ -515,6 +536,11 @@ public sealed class NativeMediaImportTests
         string[] columns = table == "operations" ? MediaOperationColumnNames : MediaReceiptColumnNames;
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadWrite))
         {
+            using (SqliteTransaction tx = connection.BeginTransaction())
+            {
+                RestoreSchema9MediaOperations(connection, tx);
+                tx.Commit();
+            }
             using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "DROP TABLE archive_media_import_operations; DROP TABLE archive_media_import_receipts; PRAGMA user_version=6; "
                 + "CREATE TABLE " + tableName + "(" + string.Join(",", columns.Where(c => c != missingColumn).Select(c => c + " TEXT")) + "); "
@@ -538,8 +564,8 @@ public sealed class NativeMediaImportTests
             Assert.Equal(1L, (long)command.ExecuteScalar()!); // Existing malformed table was not repaired/replaced.
             command.CommandText = "SELECT title FROM archive_threads";
             Assert.Equal("rollback sentinel", command.ExecuteScalar());
-            // This fixture starts at current schema, then removes only the media-import pair.
-            // A failed v6 migration must retain the exact old 21 AND the already seeded local 9.
+            // The media tables were rebuilt with frozen legacy DDL before removing the import pair.
+            // A failed v6 migration retains the exact old 21 AND the already seeded local 9 triggers.
             command.CommandText = "SELECT name FROM sqlite_master WHERE type='trigger' AND name GLOB 'import_fence_*' ORDER BY name";
             List<string> triggerNames = new();
             using (SqliteDataReader triggers = command.ExecuteReader())
@@ -554,6 +580,39 @@ public sealed class NativeMediaImportTests
             Assert.Equal(localTables.SelectMany(t => operations.Select(op => $"import_fence_{t}_{op}"))
                 .OrderBy(n => n, StringComparer.Ordinal),
                 triggerNames.Where(n => n.StartsWith("import_fence_local_", StringComparison.Ordinal)));
+        }
+    }
+
+    // Synthetic downgrade only: preserve the exact legacy columns/values in all four
+    // tables, but rebuild their DDL from the frozen fixture, not the current writer.
+    // Other content/local tables and their fence triggers are intentionally untouched.
+    internal static void RestoreSchema9MediaOperations(SqliteConnection connection, SqliteTransaction tx)
+    {
+        var snapshots = Schema9MediaOperationsFixture.ReadSnapshot(connection, tx);
+        foreach (var table in snapshots)
+        {
+            using var version = ArchiveSql.Command(connection, tx,
+                $"SELECT count(*) FROM {table.Table} WHERE plan_version<>1");
+            Assert.Equal(0L, (long)version.ExecuteScalar()!); // This helper must never erase v2 semantics.
+            string columns = string.Join(",", table.Columns); // Frozen test-owned identifiers only.
+            using var save = ArchiveSql.Command(connection, tx,
+                $"CREATE TEMP TABLE fixture_{table.Table} AS SELECT {columns} FROM {table.Table}; DROP TABLE {table.Table}");
+            save.ExecuteNonQuery();
+        }
+        Schema9MediaOperationsFixture.CreateSchema9(connection, tx);
+        foreach (var table in snapshots)
+        {
+            string columns = string.Join(",", table.Columns);
+            using var restore = ArchiveSql.Command(connection, tx,
+                $"INSERT INTO {table.Table}({columns}) SELECT {columns} FROM fixture_{table.Table}; DROP TABLE fixture_{table.Table}");
+            restore.ExecuteNonQuery();
+        }
+        var restored = Schema9MediaOperationsFixture.ReadSnapshot(connection, tx);
+        for (int i = 0; i < snapshots.Length; i++)
+        {
+            Assert.Equal(snapshots[i].Rows.Length, restored[i].Rows.Length);
+            for (int row = 0; row < snapshots[i].Rows.Length; row++)
+                Assert.Equal(snapshots[i].Rows[row], restored[i].Rows[row]);
         }
     }
 

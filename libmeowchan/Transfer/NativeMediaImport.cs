@@ -276,6 +276,9 @@ public sealed partial class ArchiveCatalog
     // reconciliation snapshot (never call the owner-bound startup reader from here).
     private static bool HasNativeMediaImportRecoveryBlocker(SqliteConnection connection, SqliteTransaction transaction)
     {
+        // Historical v2 receipts also require a version-aware reader. Matching only
+        // legacy counters must never reopen the independent reconciliation lane.
+        if (ArchiveSql.HasUnsupportedMediaTransferRecords(connection, transaction)) return true;
         using SqliteCommand command = ArchiveSql.Command(connection, transaction, """
             SELECT EXISTS (
                 SELECT 1 FROM archive_media_import_operations AS o

@@ -66,8 +66,21 @@ public sealed class ArchiveSourceContractTests
         {
             connection.Open();
             using SqliteCommand command = connection.CreateCommand();
-            command.CommandText = "DROP TABLE archive_source_contracts; PRAGMA user_version=2;";
+            command.CommandText = "DROP TABLE archive_source_contracts;";
             command.ExecuteNonQuery();
+            // No media-operation journals existed at version2. Remove only these
+            // asserted-empty fixture tables instead of restamping v10 as legacy.
+            foreach (string table in new[] { "archive_media_import_operations", "archive_media_import_receipts",
+                "archive_media_merge_operations", "archive_media_merge_receipts" })
+            {
+                command.CommandText = $"SELECT count(*) FROM {table}";
+                Assert.Equal(0L, (long)command.ExecuteScalar()!);
+                command.CommandText = $"DROP TABLE {table}";
+                command.ExecuteNonQuery();
+            }
+            using SqliteCommand version = connection.CreateCommand();
+            version.CommandText = "PRAGMA user_version=2";
+            version.ExecuteNonQuery();
         }
         for (int attempt = 0; attempt < 3; attempt++)
         {
@@ -80,4 +93,5 @@ public sealed class ArchiveSourceContractTests
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
         }
     }
+
 }

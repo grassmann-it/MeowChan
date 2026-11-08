@@ -104,7 +104,7 @@ public sealed class ArchiveSearchAndQuoteTests
         using (SqliteCommand command = connection.CreateCommand())
         {
             command.CommandText = "PRAGMA user_version";
-            Assert.Equal(9L, command.ExecuteScalar());
+            Assert.Equal(10L, command.ExecuteScalar());
         }
         await using ArchiveReader indexed = await ArchiveReader.OpenAsync(directory.Path);
         Assert.Equal(2, (await indexed.ReadThreadAsync(Id))!.PostCount);

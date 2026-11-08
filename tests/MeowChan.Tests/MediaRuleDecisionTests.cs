@@ -51,7 +51,10 @@ public sealed class MediaRuleDecisionTests
         CandidateDecision first = await fixture.Catalog.GetOrCreateDecisionAsync(initial, fixture.Rules);
         Assert.Equal(MediaSelectionOutcome.Excluded, first.Selection.Outcome);
         // Recreate a pre-extension persisted row independently of current writers.
-        // Catalog metadata retained raw MD5, including excluded media.
+        // Catalog metadata retained raw MD5, including excluded media. Remove the
+        // fixture's empty post-v4 media journals, not just their advertised version:
+        // schema10 columns must never masquerade as legacy migration input.
+        await RemoveEmptyMediaTransferTablesAsync(fixture.Catalog.DatabasePath);
         await ExecuteSqlAsync(fixture.Catalog.DatabasePath, """
             UPDATE media_decisions SET expected_md5='historical-opaque-checksum';
             ALTER TABLE archive_attachments DROP COLUMN expected_sha1;
@@ -300,6 +303,27 @@ public sealed class MediaRuleDecisionTests
         types: new MediaTypeSelection(MediaTypeSelectionMode.Selected, new[] { ".jpg" }));
     private static MediaRule ExcludeAll() => new MediaRule(MediaRuleScope.Global,
         types: new MediaTypeSelection(MediaTypeSelectionMode.Selected));
+
+    private static async Task RemoveEmptyMediaTransferTablesAsync(string path)
+    {
+        using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadWrite);
+        using SqliteTransaction transaction = connection.BeginTransaction(deferred: false);
+        string[] tables = ["archive_media_import_operations", "archive_media_import_receipts",
+            "archive_media_merge_operations", "archive_media_merge_receipts"];
+        // This fixture creates decisions only. Never discard a transfer record if
+        // its setup later changes; validate all four tables before dropping any.
+        foreach (string table in tables)
+        {
+            using SqliteCommand count = ArchiveSql.Command(connection, transaction, $"SELECT count(*) FROM {table}");
+            Assert.Equal(0L, (long)(await count.ExecuteScalarAsync())!);
+        }
+        foreach (string table in tables)
+        {
+            using SqliteCommand drop = ArchiveSql.Command(connection, transaction, $"DROP TABLE {table}");
+            await drop.ExecuteNonQueryAsync();
+        }
+        transaction.Commit();
+    }
 
     private static async Task ExecuteSqlAsync(string path, string sql)
     {

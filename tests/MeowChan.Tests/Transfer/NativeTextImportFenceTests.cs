@@ -177,7 +177,7 @@ public sealed class NativeTextImportFenceTests
         string db = Path.Combine(profile.Path, "archive.db");
         string before = Snapshot(db);
         await using ArchiveCatalog upgraded = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        Assert.Equal(9L, Scalar(db, "PRAGMA user_version"));
+        Assert.Equal(10L, Scalar(db, "PRAGMA user_version"));
         Assert.Equal(before, Snapshot(db, excludeImport: true));
         Assert.Equal(1L, Scalar(db, "SELECT count(*) FROM archive_import_fence"));
         NativeTextImportPlan plan = await Prepare(upgraded);
@@ -337,8 +337,26 @@ public sealed class NativeTextImportFenceTests
             while (rows.Read()) objects.Add(rows.GetString(0));
         }
         foreach (string name in objects) Execute(db, "DROP TRIGGER " + Quote(name));
-        // Schema-shape fixture: retain content/search/decisions, remove native text and merge additions.
-        Execute(db, "DROP TABLE IF EXISTS archive_import_receipts; DROP TABLE archive_import_candidates; DROP TABLE archive_import_fence; DROP TABLE IF EXISTS archive_media_merge_receipts; DROP TABLE IF EXISTS archive_media_merge_operations; PRAGMA user_version=5;");
+        // Schema-shape fixture: retain only the v5 content/search/decision tables and
+        // columns. The seed is current schema10, so every table introduced after v5
+        // must be removed before stamping the historical version; otherwise the fixture
+        // is merely a future schema with a misleading user_version and the v5 migration
+        // path is never exercised.
+        Execute(db, """
+            DROP TABLE IF EXISTS local_import_receipts;
+            DROP TABLE IF EXISTS local_import_operations;
+            DROP TABLE IF EXISTS local_media_revisions;
+            DROP TABLE IF EXISTS local_items;
+            DROP TABLE IF EXISTS local_collections;
+            DROP TABLE IF EXISTS archive_media_import_receipts;
+            DROP TABLE IF EXISTS archive_media_import_operations;
+            DROP TABLE IF EXISTS archive_media_merge_receipts;
+            DROP TABLE IF EXISTS archive_media_merge_operations;
+            DROP TABLE IF EXISTS archive_import_receipts;
+            DROP TABLE IF EXISTS archive_import_candidates;
+            DROP TABLE IF EXISTS archive_import_fence;
+            PRAGMA user_version=5;
+            """);
     }
 
     private static SqliteConnection Open(string db) => ArchiveSql.OpenConnection(db, SqliteOpenMode.ReadWrite);
@@ -365,7 +383,16 @@ public sealed class NativeTextImportFenceTests
             tables.CommandText = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name";
             using SqliteDataReader rows = tables.ExecuteReader();
             while (rows.Read())
-                if (!excludeImport || (!rows.GetString(0).StartsWith("archive_import_", StringComparison.Ordinal) && !rows.GetString(0).StartsWith("archive_media_merge_", StringComparison.Ordinal))) names.Add(rows.GetString(0));
+            {
+                string name = rows.GetString(0);
+                // The additive-upgrade comparison covers every pre-v6 table, including
+                // quotes and FTS shadow rows. Exclude only later import/collection
+                // additions; ordinary snapshots still include every catalog table.
+                if (!excludeImport || (!name.StartsWith("archive_import_", StringComparison.Ordinal)
+                    && !name.StartsWith("archive_media_import_", StringComparison.Ordinal)
+                    && !name.StartsWith("archive_media_merge_", StringComparison.Ordinal)
+                    && !name.StartsWith("local_", StringComparison.Ordinal))) names.Add(name);
+            }
         }
         List<string> snapshot = new();
         foreach (string name in names)

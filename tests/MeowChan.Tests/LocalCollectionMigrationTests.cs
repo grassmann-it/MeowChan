@@ -1,5 +1,6 @@
 using MeowChan.Archive;
 using MeowChan.Persistence;
+using MeowChan.Tests.Transfer;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
@@ -16,7 +17,7 @@ public sealed class LocalCollectionMigrationTests
 
     [Theory]
     [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
-    [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)]
+    [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)]
     public async Task EveryLegacyVersionIsPassiveThenMigratesCompletely(int version)
     {
         using Workspace files = new();
@@ -32,14 +33,17 @@ public sealed class LocalCollectionMigrationTests
             Assert.Equal(version, ArchiveSql.GetPragma(connection, "user_version"));
             if (version >= 6) fence = ArchiveSql.ReadImportFence(connection, null);
             oldTriggers = TriggerDefinitions(connection);
-            Assert.Equal(0L, Scalar(connection, "SELECT count(*) FROM sqlite_master WHERE name LIKE 'local_%'"));
+            if (version < 9)
+                Assert.Equal(0L, Scalar(connection, "SELECT count(*) FROM sqlite_master WHERE name LIKE 'local_%'"));
+            else
+                Assert.Equal(5L, Scalar(connection, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'"));
         }
         using ProfileLease lease = ProfileLease.Acquire(files.Directory);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(files.Directory, lease);
         using var migrated = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly);
         using var tx = migrated.BeginTransaction(deferred: true);
         ArchiveSql.ValidateSchema(migrated, tx);
-        Assert.Equal(9, ArchiveSql.GetPragma(migrated, "user_version", tx));
+        Assert.Equal(10, ArchiveSql.GetPragma(migrated, "user_version", tx));
         Assert.Equal(5L, Scalar(migrated, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'", tx));
         AssertFenceNames(migrated, tx);
         if (fence.HasValue) Assert.Equal(fence.Value, ArchiveSql.ReadImportFence(migrated, tx));
@@ -49,7 +53,7 @@ public sealed class LocalCollectionMigrationTests
 
     [Theory]
     [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
-    [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)]
+    [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)]
     public void LegacyReadsUseTheExactCallerTransaction(int version)
     {
         using Workspace files = new();
@@ -66,7 +70,7 @@ public sealed class LocalCollectionMigrationTests
     }
 
     [Fact]
-    public async Task NewDatabaseAndValidNineReopenWithoutReseeding()
+    public async Task NewDatabaseAndCurrentSchemaReopenWithoutReseeding()
     {
         using Workspace files = new();
         using ProfileLease lease = ProfileLease.Acquire(files.Directory);
@@ -82,7 +86,7 @@ public sealed class LocalCollectionMigrationTests
         Assert.Equal(before, File.ReadAllBytes(files.Database));
         using var read = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly);
         Assert.Equal(fence, ArchiveSql.ReadImportFence(read, null));
-        Assert.Equal(9, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(10, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     [Theory]
@@ -94,8 +98,8 @@ public sealed class LocalCollectionMigrationTests
     [InlineData("CREATE TRIGGER surprise AFTER INSERT ON local_import_operations BEGIN UPDATE archive_import_fence SET generation=generation+1; END")]
     public async Task DamagedNineIsRejectedWithoutRepair(string corruption)
     {
-        using Workspace files = new(); using ProfileLease lease = ProfileLease.Acquire(files.Directory);
-        await using (var catalog = await ArchiveCatalog.OpenAsync(files.Directory, lease)) { }
+        using Workspace files = new(); SeedLegacy(files.Database, 9);
+        using ProfileLease lease = ProfileLease.Acquire(files.Directory);
         using (var connection = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadWrite)) Execute(connection, corruption);
         byte[] before = File.ReadAllBytes(files.Database);
         await Assert.ThrowsAsync<InvalidDataException>(() => ArchiveCatalog.OpenAsync(files.Directory, lease));
@@ -163,7 +167,7 @@ public sealed class LocalCollectionMigrationTests
     }
 
     [Fact]
-    public async Task NineContentTriggersAndInventoryIsolationAndOverflow()
+    public async Task CurrentContentTriggersAndInventoryIsolationAndOverflow()
     {
         using Workspace files = new(); using ProfileLease lease = ProfileLease.Acquire(files.Directory);
         await using var catalog = await ArchiveCatalog.OpenAsync(files.Directory, lease);
@@ -224,7 +228,7 @@ public sealed class LocalCollectionMigrationTests
     }
 
     [Theory]
-    [InlineData("PRAGMA user_version=10")]
+    [InlineData("PRAGMA user_version=11")]
     [InlineData("PRAGMA user_version=0")]
     [InlineData("PRAGMA application_id=123")]
     public async Task UnknownAndForeignHeadersFailClosed(string mutation)
@@ -264,8 +268,14 @@ public sealed class LocalCollectionMigrationTests
         // a compatible synthetic superset, not a released-client provenance assertion.
         if (version >= 4) ArchiveSql.CreateIntegritySchema(connection, tx);
         if (version >= 6) ArchiveSql.CreateNativeImportSchema(connection, tx);
-        if (version >= 7) ArchiveSql.CreateMediaImportSchema(connection, tx);
-        if (version >= 8) ArchiveSql.CreateMediaMergeSchema(connection, tx);
+        if (version == 9)
+            Schema9MediaOperationsFixture.CreateSchema9(connection, tx);
+        else
+        {
+            if (version >= 7) ArchiveSql.CreateMediaImportSchema(connection, tx);
+            if (version >= 8) ArchiveSql.CreateMediaMergeSchema(connection, tx);
+        }
+        if (version >= 9) ArchiveSql.CreateLocalCollectionSchema(connection, tx);
         Execute(connection, $"PRAGMA user_version={version}", tx);
         tx.Commit();
     }
